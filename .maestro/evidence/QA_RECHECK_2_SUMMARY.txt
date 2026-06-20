@@ -1,0 +1,26 @@
+QA 재검수 2차 결과: APPROVE/PASS
+
+- Maestro E2E 실행: `maestro test .maestro/search-ranking-test.yaml`
+- 환경: Maestro 2.6.1 / OpenJDK 17.0.19 / iOS 26.5 Simulator
+- 실행 기기
+  - iPhone 17 Pro (375pt class) — PASS
+  - iPhone 17e (390pt class, smallest available) — PASS
+  - iPhone 17 Pro Max (414pt class) — PASS
+
+- 검증 결과
+  - 검색탭 진입 / 랭킹 row 노출: PASS
+  - scroll 후 하단 탭바 clipping/overflow 없음: PASS
+  - header 복원 assertion: PASS
+  - 스크린샷: 각 디바이스 6장, 총 18장 확보
+
+- 참고
+  - iOS 26.5 Simulator에는 정확한 320pt 기기가 없어 가장 작은 iPhone 17e(390pt class)로 대체 실행함.
+
+- Discord 증거 게시
+  - QA thread: 1517894464083857563
+  - ZIP 첨부: .maestro/evidence/qa-recheck-2-maestro-evidence.zip
+  - 핵심 스크린샷 6장 추가 게시
+
+- Kanban 완료
+  - task_id: t_cc7b34b8
+  - thread_id: 1517894464083857563

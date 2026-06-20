@@ -1,0 +1,24 @@
+appId: com.gonggu.calendar
+---
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+# Use partial label text to survive 320pt truncation where labels may be clipped
+- assertVisible: "Home"
+- assertVisible: "Search"
+- assertVisible: "Submit"
+- assertVisible: "Community"
+- assertVisible: "MyPage"
+- takeScreenshot: 01-home-screen
+- tapOn: "Search"
+- waitForAnimationToEnd
+- assertVisible: "스토어 랭킹"
+- assertVisible: "쇼핑몰 랭킹"
+- assertVisible: "셀러 랭킹 목록"
+- takeScreenshot: 02-search-tab-ranking-loaded
+- assertVisible: "Home"
+- assertVisible: "Search"
+- assertVisible: "Submit"
+- assertVisible: "Community"
+- assertVisible: "MyPage"
+- takeScreenshot: 03-search-ranking-tabbar-intact

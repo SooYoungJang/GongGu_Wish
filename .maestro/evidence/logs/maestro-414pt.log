@@ -1,0 +1,48 @@
+WARNING: Final field parent in class maestro.cli.command.TestCommand has been mutated reflectively by class picocli.CommandLine$Model$FieldBinding in unnamed module @58326051 (file:/opt/homebrew/Cellar/maestro/2.6.1/libexec/lib/picocli-4.6.3.jar)
+WARNING: Use --enable-final-field-mutation=ALL-UNNAMED to avoid a warning
+WARNING: Mutating final fields will be blocked in a future release unless final field mutation is enabled
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by org.fusesource.jansi.internal.JansiLoader in an unnamed module (file:/opt/homebrew/Cellar/maestro/2.6.1/libexec/lib/jansi-2.4.1.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+Running on iPhone 17 Pro Max - iOS 26.5 - 53AD2A70-E76A-4E86-A063-4C1CE84745BA
+ > Flow search-ranking-test
+Launch app "com.gonggu.calendar"... COMPLETED
+Wait for animation to end... COMPLETED
+Assert that "Home 탭" is visible... COMPLETED
+Assert that "Search 탭" is visible... COMPLETED
+Assert that "Submit 탭" is visible... COMPLETED
+Assert that "Community 탭" is visible... COMPLETED
+Assert that "MyPage 탭" is visible... COMPLETED
+Take screenshot 01-home-screen... COMPLETED
+Tap on "Search 탭"... COMPLETED
+Wait for animation to end... COMPLETED
+Wait for animation to end... COMPLETED
+Assert that "스토어 랭킹" is visible... COMPLETED
+Assert that "쇼핑몰 랭킹" is visible... COMPLETED
+Assert that "셀러 랭킹 목록" is visible... COMPLETED
+Take screenshot 02-search-tab-ranking-loaded... COMPLETED
+Assert that "Home 탭" is visible... COMPLETED
+Assert that "Search 탭" is visible... COMPLETED
+Assert that "Submit 탭" is visible... COMPLETED
+Assert that "Community 탭" is visible... COMPLETED
+Assert that "MyPage 탭" is visible... COMPLETED
+Take screenshot 03-search-ranking-tabbar-intact... COMPLETED
+Swiping in UP direction in 600 ms... COMPLETED
+Wait for animation to end... COMPLETED
+Wait for animation to end... COMPLETED
+Assert that "Search 탭" is visible... COMPLETED
+Assert that "Submit 탭" is visible... COMPLETED
+Assert that "MyPage 탭" is visible... COMPLETED
+Wait for animation to end... COMPLETED
+Take screenshot 04-search-ranking-after-scroll... COMPLETED
+Swiping in DOWN direction in 600 ms... COMPLETED
+Wait for animation to end... COMPLETED
+Wait for animation to end... COMPLETED
+Assert that "스토어 랭킹" is visible... COMPLETED
+Assert that "쇼핑몰 랭킹" is visible... COMPLETED
+Wait for animation to end... COMPLETED
+Take screenshot 05-search-ranking-after-scroll-tabbar... COMPLETED
+Wait for animation to end... COMPLETED
+Take screenshot 06-search-ranking-back-to-top... COMPLETED

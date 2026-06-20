@@ -1,0 +1,64 @@
+appId: com.gonggu.calendar
+---
+# search-ranking-test.yaml — E2E v4 (QA recheck 3)
+# Updated: use accessibility labels ("Home 탭") for tab assertions
+#     React Native tab buttons expose Korean-suffixed accessibility labels,
+#     not the raw visible label text.
+# ============================================================================
+
+# --- Section 1: Pre-scroll verification ---
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+# Tab bar items use accessibilityLabel = `${label} 탭`, e.g. "Home 탭", "Search 탭"
+- assertVisible: "Home 탭"
+- assertVisible: "Search 탭"
+- assertVisible: "Submit 탭"
+- assertVisible: "Community 탭"
+- assertVisible: "MyPage 탭"
+- takeScreenshot: 01-home-screen
+
+# --- Section 2: Tap Search tab + verify ranking rows ---
+- tapOn: "Search 탭"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- assertVisible: "스토어 랭킹"
+- assertVisible: "쇼핑몰 랭킹"
+- assertVisible: "셀러 랭킹 목록"
+- takeScreenshot: 02-search-tab-ranking-loaded
+
+# Verify tab bar still intact after navigation
+- assertVisible: "Home 탭"
+- assertVisible: "Search 탭"
+- assertVisible: "Submit 탭"
+- assertVisible: "Community 탭"
+- assertVisible: "MyPage 탭"
+- takeScreenshot: 03-search-ranking-tabbar-intact
+
+# --- Section 3: Scroll up (UP) → verify tab bar clipping/overflow ---
+- swipe:
+    direction: UP
+    duration: 600
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+# Tab labels survive truncation at 320pt
+- assertVisible: "Search 탭"
+- assertVisible: "Submit 탭"
+- assertVisible: "MyPage 탭"
+- waitForAnimationToEnd
+- takeScreenshot: 04-search-ranking-after-scroll
+
+# --- Section 4: Scroll back down (DOWN) → verify ranking restore ---
+- swipe:
+    direction: DOWN
+    duration: 600
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- assertVisible:
+    text: "스토어 랭킹"
+- assertVisible:
+    text: "쇼핑몰 랭킹"
+- waitForAnimationToEnd
+- takeScreenshot: 05-search-ranking-after-scroll-tabbar
+- waitForAnimationToEnd
+- takeScreenshot: 06-search-ranking-back-to-top

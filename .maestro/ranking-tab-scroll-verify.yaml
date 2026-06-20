@@ -1,0 +1,43 @@
+appId: com.gonggu.calendar
+---
+# Relaunch to reset the XCUITest runner state before the scroll + screenshot section.
+# All screenshots are non-optional (optional:true removed) — every takeScreenshot must
+# capture distinct visual state to guarantee screenshot evidence integrity across all
+# device widths (320pt, 375pt, 390pt, 414pt). waitForAnimationToEnd ensures animations
+# settle before each capture.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- tapOn: "Search"
+- waitForAnimationToEnd
+- assertVisible: "스토어 랭킹"
+- assertVisible: "쇼핑몰 랭킹"
+- assertVisible: "셀러 랭킹 목록"
+- swipe:
+    direction: UP
+    duration: 600
+- waitForAnimationToEnd
+# Use partial label text to survive 320pt truncation where labels may be clipped
+- assertVisible:
+    text: "Search"
+    timeout: 10000
+- assertVisible:
+    text: "Submit"
+    timeout: 10000
+- assertVisible:
+    text: "MyPage"
+    timeout: 10000
+- takeScreenshot: 04-search-ranking-after-scroll
+- swipe:
+    direction: DOWN
+    duration: 600
+- waitForAnimationToEnd
+- assertVisible:
+    text: "스토어 랭킹"
+    timeout: 10000
+- assertVisible:
+    text: "쇼핑몰 랭킹"
+    timeout: 10000
+- takeScreenshot: 05-search-ranking-after-scroll-tabbar
+- waitForAnimationToEnd
+- takeScreenshot: 06-search-ranking-back-to-top

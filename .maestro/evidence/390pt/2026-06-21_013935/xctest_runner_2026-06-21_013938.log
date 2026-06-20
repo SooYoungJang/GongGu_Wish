@@ -1,0 +1,1671 @@
+2026-06-21 01:39:42.018 xcodebuild[79541:790842] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-06-21 01:39:42.027 xcodebuild[79541:790842] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-06-21 01:39:46.397 xcodebuild[79541:790842] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+** BUILD INTERRUPTED **
+1:39:54.045039+0900 maestro-driver-iosUITests-Runner[79585:791630] [Default] Running tests...
+2026-06-21 01:39:54.252064+0900 maestro-driver-iosUITests-Runner[79585:791630] snapshotKeyHonorModalViews configured to value: (null)
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-06-21 01:39:56.338.
+Test Suite 'maestro-driver-iosUITests.xctest' started at 2026-06-21 01:39:56.346.
+Test Suite 'maestro_driver_iosUITests' started at 2026-06-21 01:39:56.346.
+    t =      nans Suite Set Up
+Test Case '-[maestro_driver_iosUITests.maestro_driver_iosUITests testHttpServer]' started.
+    t =     0.01s Start Test at 2026-06-21 01:39:56.355
+    t =     0.12s Set Up
+2026-06-21 01:39:56.467657+0900 maestro-driver-iosUITests-Runner[79585:791869] [maestro_driver_iosUITests] Will start HTTP server
+2026-06-21 01:39:56.612613+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] starting server 127.0.0.1:56075
+objc[79585]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x107768310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x106d2c398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+2026-06-21 01:39:57.266339+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> open connection
+2026-06-21 01:39:57.275292+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: GET /status
+2026-06-21 01:39:57.398350+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> open connection
+2026-06-21 01:39:57.401827+0900 maestro-driver-iosUITests-Runner[79585:791747] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =     1.06s Getting device orientation
+2026-06-21 01:39:57.619592+0900 maestro-driver-iosUITests-Runner[79585:791630] Using singleton test manager
+2026-06-21 01:39:57.622757+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.apple.springboard"]
+    t =     1.28s Getting device orientation
+    t =     1.28s Find the Application 'com.apple.springboard'
+2026-06-21 01:39:57.887152+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:01.429047+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /setPermissions
+2026-06-21 01:40:01.513793+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /terminateApp
+2026-06-21 01:40:01.556631+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] Terminating app com.gonggu.calendar
+    t =     5.23s Terminate com.gonggu.calendar:0
+2026-06-21 01:40:01.579083+0900 maestro-driver-iosUITests-Runner[79585:791630] [End] Terminating app com.gonggu.calendar
+2026-06-21 01:40:02.407740+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-06-21 01:40:04.046727+0900 maestro-driver-iosUITests-Runner[79585:791747] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-06-21 01:40:13.400340+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-06-21 01:40:13.710674+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-06-21 01:40:14.369036+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    18.02s Getting device orientation
+2026-06-21 01:40:14.607082+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    18.27s Getting device orientation
+    t =    18.30s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:15.157718+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:15.467909+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:15.482946+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:15.483799+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:15.483923+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    19.14s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:15.626709+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:15.627362+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:15.627537+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    19.29s Checking existence of `StatusBar (First Match)`
+    t =    19.34s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    19.43s Find the StatusBar (Element at index 0)
+    t =    19.44s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:15.813383+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.1859130859375
+2026-06-21 01:40:15.813444+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:15.820429+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.006951093673706055
+    t =    19.47s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:15.838709+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:15.992028+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    19.65s Getting device orientation
+2026-06-21 01:40:15.997342+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    19.65s Getting device orientation
+2026-06-21 01:40:15.999152+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:15.999291+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:16.002085+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:16.004816+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:16.005369+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:16.005454+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    19.66s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:16.160126+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:16.160320+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:16.160363+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    19.81s Checking existence of `StatusBar (First Match)`
+    t =    19.82s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    19.83s Find the StatusBar (Element at index 0)
+    t =    19.85s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:16.214786+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.054347991943359375
+2026-06-21 01:40:16.214859+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:16.215261+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00039196014404296875
+    t =    19.87s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:16.227340+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:16.267627+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    19.92s Getting device orientation
+2026-06-21 01:40:16.276221+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    19.93s Getting device orientation
+2026-06-21 01:40:16.277584+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:16.277671+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:16.279906+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:16.281998+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:16.282388+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:16.282440+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    19.94s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:16.427028+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:16.428159+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:16.428220+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    20.08s Checking existence of `StatusBar (First Match)`
+    t =    20.09s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    20.10s Find the StatusBar (Element at index 0)
+    t =    20.12s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:16.485297+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05682504177093506
+2026-06-21 01:40:16.485378+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:16.485857+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00046706199645996094
+    t =    20.14s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:16.500622+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:16.556485+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    20.21s Getting device orientation
+2026-06-21 01:40:16.564877+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    20.22s Getting device orientation
+2026-06-21 01:40:16.566865+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:16.567010+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:16.570395+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:16.574245+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:16.574891+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:16.574996+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    20.23s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:16.720526+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:16.720798+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:16.720854+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    20.38s Checking existence of `StatusBar (First Match)`
+    t =    20.38s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    20.40s Find the StatusBar (Element at index 0)
+    t =    20.41s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:16.776750+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.055837035179138184
+2026-06-21 01:40:16.776812+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:16.777215+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003870725631713867
+    t =    20.43s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:16.788670+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:16.800805+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    20.45s Getting device orientation
+2026-06-21 01:40:16.803950+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    20.46s Getting device orientation
+2026-06-21 01:40:16.805262+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:16.805384+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:16.807091+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:16.809235+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:16.809690+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:16.809747+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    20.46s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:16.952009+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:16.952203+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:16.952243+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    20.61s Checking existence of `StatusBar (First Match)`
+    t =    20.61s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    20.62s Find the StatusBar (Element at index 0)
+    t =    20.64s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:16.999539+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.0472409725189209
+2026-06-21 01:40:16.999598+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:17.000051+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004360675811767578
+    t =    20.65s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:17.010673+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:17.034276+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    20.69s Getting device orientation
+2026-06-21 01:40:17.037675+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    20.69s Getting device orientation
+2026-06-21 01:40:17.039080+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:17.039173+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:17.040886+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:17.043051+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:17.043525+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:17.043583+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    20.70s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:17.177251+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:17.177428+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:17.177466+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    20.83s Checking existence of `StatusBar (First Match)`
+    t =    20.84s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    20.85s Find the StatusBar (Element at index 0)
+    t =    20.86s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:17.224900+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04737699031829834
+2026-06-21 01:40:17.224957+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:17.225355+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003800392150878906
+    t =    20.88s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:17.236223+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:17.256368+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    20.91s Getting device orientation
+2026-06-21 01:40:17.259427+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    20.91s Getting device orientation
+2026-06-21 01:40:17.260685+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:17.260758+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:17.263542+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:17.265276+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:17.265796+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:17.265853+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    20.92s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:17.401386+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:17.401601+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:17.401646+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    21.06s Checking existence of `StatusBar (First Match)`
+    t =    21.06s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    21.07s Find the StatusBar (Element at index 0)
+    t =    21.09s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:17.452985+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.051277995109558105
+2026-06-21 01:40:17.453048+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:17.453510+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004448890686035156
+    t =    21.11s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:17.464580+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:17.475895+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    21.13s Getting device orientation
+2026-06-21 01:40:17.478732+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    21.13s Getting device orientation
+2026-06-21 01:40:17.479978+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:17.480062+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:17.481637+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:17.483490+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:17.483969+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:17.484016+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    21.14s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:17.614572+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:17.614792+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:17.614833+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    21.27s Checking existence of `StatusBar (First Match)`
+    t =    21.27s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    21.29s Find the StatusBar (Element at index 0)
+    t =    21.30s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:17.665182+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05029094219207764
+2026-06-21 01:40:17.665239+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:17.665682+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004259347915649414
+    t =    21.32s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:17.676728+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:17.693564+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    21.35s Getting device orientation
+2026-06-21 01:40:17.696348+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    21.35s Getting device orientation
+2026-06-21 01:40:17.697574+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:17.697651+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:17.699209+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:17.701052+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:17.701510+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:17.701564+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    21.36s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:17.853718+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:17.854004+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:17.854058+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    21.51s Checking existence of `StatusBar (First Match)`
+    t =    21.51s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    21.53s Find the StatusBar (Element at index 0)
+    t =    21.54s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:17.904589+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05046403408050537
+2026-06-21 01:40:17.904649+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:17.905094+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00043201446533203125
+    t =    21.56s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:17.915785+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:17.951614+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    21.61s Getting device orientation
+2026-06-21 01:40:17.955343+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    21.61s Getting device orientation
+2026-06-21 01:40:17.956864+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:17.956969+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:17.958881+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:17.961106+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:17.961728+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:17.961790+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    21.62s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:18.096509+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:18.096739+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:18.096782+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    21.75s Checking existence of `StatusBar (First Match)`
+    t =    21.76s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    21.77s Find the StatusBar (Element at index 0)
+    t =    21.78s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:18.144802+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04796397686004639
+2026-06-21 01:40:18.144867+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:18.145265+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003829002380371094
+    t =    21.80s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:18.155816+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:18.194342+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    21.85s Getting device orientation
+2026-06-21 01:40:18.197616+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    21.85s Getting device orientation
+2026-06-21 01:40:18.199009+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:18.199085+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:18.201435+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:18.203200+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:18.203668+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:18.203714+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    21.86s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:18.337583+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:18.337764+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:18.337803+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    21.99s Checking existence of `StatusBar (First Match)`
+    t =    22.00s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    22.01s Find the StatusBar (Element at index 0)
+    t =    22.02s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:18.384358+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04649698734283447
+2026-06-21 01:40:18.384422+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:18.384798+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00036394596099853516
+    t =    22.04s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:18.395427+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:18.416817+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    22.07s Getting device orientation
+2026-06-21 01:40:18.419557+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    22.07s Getting device orientation
+2026-06-21 01:40:18.420868+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:18.420941+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:18.423241+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:18.425044+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:18.425567+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:18.425614+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    22.08s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:18.558706+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:18.558892+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:18.558936+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    22.21s Checking existence of `StatusBar (First Match)`
+    t =    22.22s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    22.23s Find the StatusBar (Element at index 0)
+    t =    22.24s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:18.606448+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.047402024269104004
+2026-06-21 01:40:18.606504+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:18.606923+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004019737243652344
+    t =    22.26s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:18.617423+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:18.640881+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    22.29s Getting device orientation
+2026-06-21 01:40:18.643879+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    22.30s Getting device orientation
+2026-06-21 01:40:18.645241+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:18.645324+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:18.647742+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:18.649398+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:18.649892+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:18.649943+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    22.30s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:18.782369+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:18.782540+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:18.782586+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    22.44s Checking existence of `StatusBar (First Match)`
+    t =    22.44s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    22.45s Find the StatusBar (Element at index 0)
+    t =    22.47s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:18.830165+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04752194881439209
+2026-06-21 01:40:18.830223+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:18.830587+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003489255905151367
+    t =    22.48s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:18.841107+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:18.863547+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    22.52s Getting device orientation
+2026-06-21 01:40:18.866470+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    22.52s Getting device orientation
+2026-06-21 01:40:18.867757+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:18.867852+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:18.869465+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:18.871932+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:18.872450+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:18.872500+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    22.53s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:19.010615+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:19.010831+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:19.010875+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    22.66s Checking existence of `StatusBar (First Match)`
+    t =    22.67s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    22.69s Find the StatusBar (Element at index 0)
+    t =    22.70s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:19.061026+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05008804798126221
+2026-06-21 01:40:19.061088+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:19.061455+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00035691261291503906
+    t =    22.72s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:19.072507+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:19.093609+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    22.75s Getting device orientation
+2026-06-21 01:40:19.096953+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    22.75s Getting device orientation
+2026-06-21 01:40:19.098218+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:19.098293+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:19.100828+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:19.102319+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:19.102756+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:19.102799+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    22.76s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:19.239840+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:19.240066+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:19.240109+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    22.89s Checking existence of `StatusBar (First Match)`
+    t =    22.90s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    22.91s Find the StatusBar (Element at index 0)
+    t =    22.93s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:19.289829+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04966104030609131
+2026-06-21 01:40:19.289889+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:19.290334+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00043404102325439453
+    t =    22.94s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:19.301836+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:19.326764+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    22.98s Getting device orientation
+2026-06-21 01:40:19.331237+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    22.99s Getting device orientation
+2026-06-21 01:40:19.332300+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:19.332366+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:19.335899+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:19.337392+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:19.337803+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:19.337860+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    22.99s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:19.471718+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:19.471899+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:19.471953+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    23.13s Checking existence of `StatusBar (First Match)`
+    t =    23.15s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    23.22s Find the StatusBar (Element at index 0)
+    t =    23.24s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:19.606424+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.13441205024719238
+2026-06-21 01:40:19.606482+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:19.606869+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00037598609924316406
+    t =    23.26s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:19.617644+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:19.636355+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    23.29s Getting device orientation
+2026-06-21 01:40:19.638984+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    23.29s Getting device orientation
+2026-06-21 01:40:19.640208+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:19.640282+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:19.642616+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:19.644142+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:19.644579+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:19.644633+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    23.30s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:19.775706+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:19.775866+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:19.775906+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    23.43s Checking existence of `StatusBar (First Match)`
+    t =    23.43s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    23.45s Find the StatusBar (Element at index 0)
+    t =    23.46s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:19.822862+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.046890974044799805
+2026-06-21 01:40:19.822917+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:19.823314+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003789663314819336
+    t =    23.48s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:19.834236+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:19.851722+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    23.51s Getting device orientation
+2026-06-21 01:40:19.854490+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    23.51s Getting device orientation
+2026-06-21 01:40:19.855717+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:19.855797+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:19.858346+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:19.859892+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:19.860317+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:19.860360+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    23.51s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:19.991893+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:19.992059+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:19.992105+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    23.65s Checking existence of `StatusBar (First Match)`
+    t =    23.65s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    23.66s Find the StatusBar (Element at index 0)
+    t =    23.68s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:20.038658+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04649209976196289
+2026-06-21 01:40:20.038719+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:20.039082+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00035309791564941406
+    t =    23.69s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:20.049641+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:20.075737+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    23.73s Getting device orientation
+2026-06-21 01:40:20.078477+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    23.73s Getting device orientation
+2026-06-21 01:40:20.079872+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:20.079948+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:20.082499+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:20.084347+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:20.084816+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:20.084870+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    23.74s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:20.233917+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:20.234189+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:20.234256+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    23.89s Checking existence of `StatusBar (First Match)`
+    t =    23.90s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    23.92s Find the StatusBar (Element at index 0)
+    t =    23.93s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:20.310074+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.07480394840240479
+2026-06-21 01:40:20.310189+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:20.310641+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004360675811767578
+    t =    23.96s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:20.322856+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:20.336946+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    23.99s Getting device orientation
+2026-06-21 01:40:20.341089+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    24.00s Getting device orientation
+2026-06-21 01:40:20.342373+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:20.342456+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:20.345463+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:20.347169+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:20.347633+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:20.347682+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    24.00s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:20.484846+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:20.485047+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:20.485087+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    24.14s Checking existence of `StatusBar (First Match)`
+    t =    24.14s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    24.16s Find the StatusBar (Element at index 0)
+    t =    24.17s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:20.533009+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04781496524810791
+2026-06-21 01:40:20.533077+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:20.533469+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003840923309326172
+    t =    24.19s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:20.544343+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:20.564623+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    24.22s Getting device orientation
+2026-06-21 01:40:20.567528+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    24.22s Getting device orientation
+2026-06-21 01:40:20.568807+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:20.568883+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:20.571058+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:20.572589+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:20.573063+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:20.573109+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    24.23s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:20.704811+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:20.704969+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:20.705009+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    24.36s Checking existence of `StatusBar (First Match)`
+    t =    24.36s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    24.38s Find the StatusBar (Element at index 0)
+    t =    24.39s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:20.750736+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.045660972595214844
+2026-06-21 01:40:20.750797+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:20.751167+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003559589385986328
+    t =    24.40s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:20.761840+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:20.779728+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    24.43s Getting device orientation
+2026-06-21 01:40:20.782397+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    24.44s Getting device orientation
+2026-06-21 01:40:20.783614+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:20.783695+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:20.786016+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:20.787527+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:20.787998+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:20.788049+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    24.44s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:20.919173+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:20.919330+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:20.919365+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    24.57s Checking existence of `StatusBar (First Match)`
+    t =    24.58s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    24.59s Find the StatusBar (Element at index 0)
+    t =    24.60s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:20.965618+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04619705677032471
+2026-06-21 01:40:20.965674+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:20.966095+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004030466079711914
+    t =    24.62s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:20.976677+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:20.992575+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    24.65s Getting device orientation
+2026-06-21 01:40:20.995108+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    24.65s Getting device orientation
+2026-06-21 01:40:20.996418+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:20.996490+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:20.998657+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:21.000154+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:21.000595+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:21.000646+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    24.65s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:21.131238+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:21.131390+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:21.131433+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    24.79s Checking existence of `StatusBar (First Match)`
+    t =    24.79s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    24.80s Find the StatusBar (Element at index 0)
+    t =    24.82s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:21.177077+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.045588016510009766
+2026-06-21 01:40:21.177136+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:21.177544+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00039708614349365234
+    t =    24.83s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:21.187937+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:21.205872+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    24.86s Getting device orientation
+2026-06-21 01:40:21.208486+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    24.86s Getting device orientation
+2026-06-21 01:40:21.209773+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:21.209844+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:21.212097+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:21.213644+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:21.214132+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:21.214179+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    24.87s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:21.346210+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:21.346700+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:21.346742+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    25.00s Checking existence of `StatusBar (First Match)`
+    t =    25.01s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    25.02s Find the StatusBar (Element at index 0)
+    t =    25.03s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:21.395496+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.048686981201171875
+2026-06-21 01:40:21.395556+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:21.395945+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003739595413208008
+    t =    25.05s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:21.407112+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:21.424169+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    25.08s Getting device orientation
+2026-06-21 01:40:21.426858+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    25.08s Getting device orientation
+2026-06-21 01:40:21.428110+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:21.428192+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:21.430338+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:21.431876+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:21.432309+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:21.432353+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    25.09s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:21.586334+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:21.586558+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:21.586626+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    25.24s Checking existence of `StatusBar (First Match)`
+    t =    25.25s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    25.26s Find the StatusBar (Element at index 0)
+    t =    25.28s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:21.643479+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05674004554748535
+2026-06-21 01:40:21.643552+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:21.646114+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.002532958984375
+    t =    25.30s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:21.661074+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:21.672986+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    25.33s Getting device orientation
+2026-06-21 01:40:21.676980+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    25.33s Getting device orientation
+2026-06-21 01:40:21.678855+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:21.678983+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:21.683479+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:21.686157+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:21.686678+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:21.686806+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    25.34s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:21.836494+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:21.836704+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:21.836814+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    25.49s Checking existence of `StatusBar (First Match)`
+    t =    25.50s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    25.51s Find the StatusBar (Element at index 0)
+    t =    25.52s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:21.888742+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05187809467315674
+2026-06-21 01:40:21.888906+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:21.889412+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004950761795043945
+    t =    25.54s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:21.901283+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:21.913156+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    25.57s Getting device orientation
+2026-06-21 01:40:21.916002+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    25.57s Getting device orientation
+2026-06-21 01:40:21.917377+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:21.917445+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:21.919601+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:21.921273+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:21.921707+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:21.921823+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    25.58s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:22.056539+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:22.056701+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:22.056736+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    25.71s Checking existence of `StatusBar (First Match)`
+    t =    25.72s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    25.73s Find the StatusBar (Element at index 0)
+    t =    25.74s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:22.103409+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.046617984771728516
+2026-06-21 01:40:22.103466+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:22.103856+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003739595413208008
+    t =    25.76s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:22.114752+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:22.127938+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    25.78s Getting device orientation
+2026-06-21 01:40:22.130286+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    25.78s Getting device orientation
+2026-06-21 01:40:22.131508+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:22.131574+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:22.133791+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:22.135254+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:22.135720+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:22.135765+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    25.79s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:22.264630+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:22.264801+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:22.264842+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    25.92s Checking existence of `StatusBar (First Match)`
+    t =    25.92s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    25.94s Find the StatusBar (Element at index 0)
+    t =    25.95s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:22.310512+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.0456080436706543
+2026-06-21 01:40:22.310574+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:22.310945+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003560781478881836
+    t =    25.96s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:22.321523+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:22.343891+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    26.00s Getting device orientation
+2026-06-21 01:40:22.346737+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    26.00s Getting device orientation
+2026-06-21 01:40:22.347995+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:22.348067+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:22.350341+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:22.351884+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:22.352345+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:22.352391+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    26.01s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:22.486172+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:22.486379+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:22.486432+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    26.14s Checking existence of `StatusBar (First Match)`
+    t =    26.15s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    26.16s Find the StatusBar (Element at index 0)
+    t =    26.17s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:22.533281+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04678797721862793
+2026-06-21 01:40:22.533338+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:22.533768+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00041604042053222656
+    t =    26.19s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:22.544688+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:22.550836+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    26.20s Getting device orientation
+2026-06-21 01:40:22.553545+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    26.21s Getting device orientation
+2026-06-21 01:40:22.554666+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:22.554741+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:22.556164+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:22.557937+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:22.558380+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:22.558426+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    26.21s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:22.688066+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:22.688238+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:22.688283+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    26.34s Checking existence of `StatusBar (First Match)`
+    t =    26.35s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    26.36s Find the StatusBar (Element at index 0)
+    t =    26.38s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:22.739403+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.051054954528808594
+2026-06-21 01:40:22.739484+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:22.739877+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003800392150878906
+    t =    26.39s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:22.750622+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:22.771095+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    26.43s Getting device orientation
+2026-06-21 01:40:22.774386+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    26.43s Getting device orientation
+2026-06-21 01:40:22.775637+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:22.775719+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:22.777910+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:22.779786+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:22.780282+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:22.780336+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    26.43s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:22.913273+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:22.913443+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:22.913482+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    26.57s Checking existence of `StatusBar (First Match)`
+    t =    26.57s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    26.58s Find the StatusBar (Element at index 0)
+    t =    26.60s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:22.960432+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04687905311584473
+2026-06-21 01:40:22.960505+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:22.960914+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003930330276489258
+    t =    26.61s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:22.971759+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:22.988027+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    26.64s Getting device orientation
+2026-06-21 01:40:22.990531+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    26.64s Getting device orientation
+2026-06-21 01:40:22.991763+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:22.991847+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:22.993948+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:22.995541+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:22.996005+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:22.996053+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    26.65s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:23.125641+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:23.125814+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:23.125855+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    26.78s Checking existence of `StatusBar (First Match)`
+    t =    26.78s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    26.80s Find the StatusBar (Element at index 0)
+    t =    26.81s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:23.173463+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.047544002532958984
+2026-06-21 01:40:23.173521+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:23.173888+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00035691261291503906
+    t =    26.83s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:23.184492+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:23.200169+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    26.85s Getting device orientation
+2026-06-21 01:40:23.202586+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    26.86s Getting device orientation
+2026-06-21 01:40:23.203677+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:23.203741+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:23.205986+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:23.207379+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:23.207772+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:23.207831+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    26.86s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:23.337590+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:23.337769+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:23.337809+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    26.99s Checking existence of `StatusBar (First Match)`
+    t =    27.00s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    27.01s Find the StatusBar (Element at index 0)
+    t =    27.02s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:23.385621+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04775500297546387
+2026-06-21 01:40:23.385679+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:23.386057+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003629922866821289
+    t =    27.04s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:23.397128+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:23.412947+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    27.07s Getting device orientation
+2026-06-21 01:40:23.415291+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    27.07s Getting device orientation
+2026-06-21 01:40:23.417476+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:23.417609+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:23.420773+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:23.422762+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:23.423192+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:23.423249+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    27.08s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:23.567391+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:23.567719+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:23.567773+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    27.22s Checking existence of `StatusBar (First Match)`
+    t =    27.23s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    27.24s Find the StatusBar (Element at index 0)
+    t =    27.26s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:23.621419+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05358290672302246
+2026-06-21 01:40:23.621493+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:23.621918+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00041496753692626953
+    t =    27.28s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:23.633679+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:23.656261+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    27.31s Getting device orientation
+2026-06-21 01:40:23.659564+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    27.31s Getting device orientation
+2026-06-21 01:40:23.660712+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:23.660783+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:23.663046+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:23.664911+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:23.665320+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:23.665391+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    27.32s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:23.801477+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:23.801655+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:23.801694+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    27.46s Checking existence of `StatusBar (First Match)`
+    t =    27.46s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    27.47s Find the StatusBar (Element at index 0)
+    t =    27.49s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:23.852495+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05074203014373779
+2026-06-21 01:40:23.852566+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:23.852974+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00039708614349365234
+    t =    27.51s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:23.863802+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:23.881022+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    27.53s Getting device orientation
+2026-06-21 01:40:23.883628+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    27.54s Getting device orientation
+2026-06-21 01:40:23.884838+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:23.884914+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:23.888528+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:23.890067+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:23.890596+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:23.890645+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    27.54s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:24.021677+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:24.021836+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:24.021881+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    27.68s Checking existence of `StatusBar (First Match)`
+    t =    27.68s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    27.69s Find the StatusBar (Element at index 0)
+    t =    27.71s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:24.067653+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04571390151977539
+2026-06-21 01:40:24.067711+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:24.068107+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003800392150878906
+    t =    27.72s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:24.078551+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:24.097999+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    27.75s Getting device orientation
+2026-06-21 01:40:24.100699+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    27.75s Getting device orientation
+2026-06-21 01:40:24.101940+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:24.102015+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:24.104795+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:24.106290+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:24.106715+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:24.106757+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    27.76s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:24.238487+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:24.238648+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:24.238694+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    27.89s Checking existence of `StatusBar (First Match)`
+    t =    27.90s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    27.91s Find the StatusBar (Element at index 0)
+    t =    27.92s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:24.284825+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.046066999435424805
+2026-06-21 01:40:24.284884+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:24.285281+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00038504600524902344
+    t =    27.94s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:24.295830+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:24.312512+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    27.97s Getting device orientation
+2026-06-21 01:40:24.315012+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    27.97s Getting device orientation
+2026-06-21 01:40:24.316226+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:24.316300+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:24.318427+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:24.319943+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:24.320396+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:24.320463+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    27.97s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:24.451500+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:24.451654+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:24.451688+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    28.11s Checking existence of `StatusBar (First Match)`
+    t =    28.11s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    28.12s Find the StatusBar (Element at index 0)
+    t =    28.14s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:24.498891+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04710698127746582
+2026-06-21 01:40:24.498951+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:24.499351+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003839731216430664
+    t =    28.15s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:24.510034+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:24.529175+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    28.18s Getting device orientation
+2026-06-21 01:40:24.532019+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    28.19s Getting device orientation
+2026-06-21 01:40:24.533325+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:24.533404+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:24.535830+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:24.537519+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:24.537976+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:24.538022+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    28.19s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:24.680262+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:24.680514+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:24.680568+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    28.33s Checking existence of `StatusBar (First Match)`
+    t =    28.34s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    28.35s Find the StatusBar (Element at index 0)
+    t =    28.37s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:24.735028+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05439102649688721
+2026-06-21 01:40:24.735102+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:24.735587+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004678964614868164
+    t =    28.39s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:24.747473+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:24.780105+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    28.43s Getting device orientation
+2026-06-21 01:40:24.783095+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    28.44s Getting device orientation
+2026-06-21 01:40:24.784281+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:24.784357+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:24.786536+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:24.788179+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:24.788624+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:24.788679+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    28.44s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:24.934032+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:24.934243+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:24.934282+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    28.59s Checking existence of `StatusBar (First Match)`
+    t =    28.59s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    28.61s Find the StatusBar (Element at index 0)
+    t =    28.62s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:24.987436+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05306804180145264
+2026-06-21 01:40:24.987523+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:24.988515+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0009649991989135742
+    t =    28.64s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:25.000651+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:25.022100+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    28.68s Getting device orientation
+2026-06-21 01:40:25.026080+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    28.68s Getting device orientation
+2026-06-21 01:40:25.028600+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:25.028760+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:25.036712+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:25.040309+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:25.040827+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:25.040883+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    28.69s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:25.178629+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:25.179025+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:25.179070+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    28.83s Checking existence of `StatusBar (First Match)`
+    t =    28.84s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    28.86s Find the StatusBar (Element at index 0)
+    t =    28.88s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:25.256409+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.07720303535461426
+2026-06-21 01:40:25.256506+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:25.256975+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.000453948974609375
+    t =    28.91s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:25.279074+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:25.292757+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    28.95s Getting device orientation
+2026-06-21 01:40:25.297206+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    28.95s Getting device orientation
+2026-06-21 01:40:25.298499+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:25.298568+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:25.300586+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:25.302084+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:25.302544+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:25.302596+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    28.96s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:25.439001+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:25.439185+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:25.439236+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    29.09s Checking existence of `StatusBar (First Match)`
+    t =    29.10s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    29.12s Find the StatusBar (Element at index 0)
+    t =    29.13s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:25.491471+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05218100547790527
+2026-06-21 01:40:25.491527+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:25.492082+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0005339384078979492
+    t =    29.15s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:25.514072+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:25.531629+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    29.19s Getting device orientation
+2026-06-21 01:40:25.534295+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    29.19s Getting device orientation
+2026-06-21 01:40:25.535593+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:25.535665+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:25.537622+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:25.539123+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:25.539564+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:25.539613+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    29.19s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:25.670418+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:25.670578+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:25.670617+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    29.32s Checking existence of `StatusBar (First Match)`
+    t =    29.33s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    29.34s Find the StatusBar (Element at index 0)
+    t =    29.35s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:25.716877+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04619801044464111
+2026-06-21 01:40:25.716935+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:25.717334+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003839731216430664
+    t =    29.37s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:25.727767+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:25.744939+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    29.40s Getting device orientation
+2026-06-21 01:40:25.747451+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    29.40s Getting device orientation
+2026-06-21 01:40:25.748690+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:25.748752+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:25.751074+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:25.752591+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:25.753034+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:25.753077+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    29.41s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:25.883301+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:25.883454+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:25.883497+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    29.54s Checking existence of `StatusBar (First Match)`
+    t =    29.54s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    29.55s Find the StatusBar (Element at index 0)
+    t =    29.57s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:25.929503+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.045948028564453125
+2026-06-21 01:40:25.929558+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:25.929962+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003859996795654297
+    t =    29.58s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:25.940526+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:25.955139+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    29.61s Getting device orientation
+2026-06-21 01:40:25.957710+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    29.61s Getting device orientation
+2026-06-21 01:40:25.958943+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:25.959015+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:25.961181+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:25.962668+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:25.963128+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:25.963176+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    29.62s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:26.099054+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:26.099244+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:26.099278+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    29.75s Checking existence of `StatusBar (First Match)`
+    t =    29.76s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    29.77s Find the StatusBar (Element at index 0)
+    t =    29.78s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:26.147241+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.047904014587402344
+2026-06-21 01:40:26.147304+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:26.147702+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00038504600524902344
+    t =    29.80s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:26.158345+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:26.179676+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    29.83s Getting device orientation
+2026-06-21 01:40:26.182040+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    29.84s Getting device orientation
+2026-06-21 01:40:26.183155+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:26.183223+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:26.185185+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:26.186776+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:26.187260+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:26.187306+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    29.84s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:26.325236+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:26.325439+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:26.325475+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    29.98s Checking existence of `StatusBar (First Match)`
+    t =    29.98s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    30.00s Find the StatusBar (Element at index 0)
+    t =    30.01s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:26.376507+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05096995830535889
+2026-06-21 01:40:26.376568+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:26.376987+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004019737243652344
+    t =    30.03s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:26.387894+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:26.403236+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    30.06s Getting device orientation
+2026-06-21 01:40:26.405673+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    30.06s Getting device orientation
+2026-06-21 01:40:26.406696+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:26.406756+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:26.408673+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:26.410031+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:26.410436+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:26.410474+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    30.06s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:26.549947+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:26.550132+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:26.550178+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    30.20s Checking existence of `StatusBar (First Match)`
+    t =    30.21s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    30.22s Find the StatusBar (Element at index 0)
+    t =    30.24s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:26.600950+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05070805549621582
+2026-06-21 01:40:26.601053+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:26.601570+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0005040168762207031
+    t =    30.26s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:26.613059+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:26.625477+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    30.28s Getting device orientation
+2026-06-21 01:40:26.628232+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    30.28s Getting device orientation
+2026-06-21 01:40:26.629322+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:26.629391+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:26.631303+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:26.632648+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:26.633046+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:26.633088+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    30.29s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:26.767280+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:26.768124+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:26.768174+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    30.42s Checking existence of `StatusBar (First Match)`
+    t =    30.43s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    30.44s Find the StatusBar (Element at index 0)
+    t =    30.45s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:26.815427+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04720008373260498
+2026-06-21 01:40:26.815484+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:26.815867+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00037300586700439453
+    t =    30.47s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:26.826402+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:26.842594+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    30.50s Getting device orientation
+2026-06-21 01:40:26.845811+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    30.50s Getting device orientation
+2026-06-21 01:40:26.847029+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:26.847101+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:26.849072+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:26.850585+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:26.851038+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:26.851080+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    30.50s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:26.982740+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:26.982910+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:26.982956+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    30.64s Checking existence of `StatusBar (First Match)`
+    t =    30.64s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    30.65s Find the StatusBar (Element at index 0)
+    t =    30.67s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:27.029415+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04640698432922363
+2026-06-21 01:40:27.029480+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:27.029850+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003559589385986328
+    t =    30.68s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:27.040192+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:27.058229+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    30.71s Getting device orientation
+2026-06-21 01:40:27.060896+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    30.72s Getting device orientation
+2026-06-21 01:40:27.062233+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:27.062306+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:27.064356+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:27.065886+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:27.066311+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:27.066357+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    30.72s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:27.199818+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:27.199993+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:27.200038+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    30.85s Checking existence of `StatusBar (First Match)`
+    t =    30.86s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    30.87s Find the StatusBar (Element at index 0)
+    t =    30.88s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:27.246199+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04608500003814697
+2026-06-21 01:40:27.246258+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:27.246647+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00037801265716552734
+    t =    30.90s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:27.257108+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:27.275739+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    30.93s Getting device orientation
+2026-06-21 01:40:27.278368+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    30.93s Getting device orientation
+2026-06-21 01:40:27.279617+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:27.279699+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:27.281771+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:27.283317+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:27.283747+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:27.283796+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    30.94s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:27.414623+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:27.414778+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:27.414829+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    31.07s Checking existence of `StatusBar (First Match)`
+    t =    31.07s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    31.09s Find the StatusBar (Element at index 0)
+    t =    31.10s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:27.461305+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04641997814178467
+2026-06-21 01:40:27.461363+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:27.461742+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00036704540252685547
+    t =    31.12s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:27.472122+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:27.491840+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    31.15s Getting device orientation
+2026-06-21 01:40:27.495024+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    31.15s Getting device orientation
+2026-06-21 01:40:27.496522+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:27.496641+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:27.498781+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:27.500428+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:27.500902+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:27.500951+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    31.15s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:27.641593+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:27.641792+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:27.641831+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    31.30s Checking existence of `StatusBar (First Match)`
+    t =    31.30s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    31.31s Find the StatusBar (Element at index 0)
+    t =    31.33s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:27.690850+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04895007610321045
+2026-06-21 01:40:27.690914+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:27.691356+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00043201446533203125
+    t =    31.35s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:27.703614+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:27.715058+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    31.37s Getting device orientation
+2026-06-21 01:40:27.718511+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    31.37s Getting device orientation
+2026-06-21 01:40:27.719842+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:27.719924+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:27.721952+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:27.723563+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:27.723985+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:27.724023+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    31.38s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:27.855699+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:27.855897+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:27.855935+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    31.51s Checking existence of `StatusBar (First Match)`
+    t =    31.51s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    31.53s Find the StatusBar (Element at index 0)
+    t =    31.54s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:27.902538+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.0465470552444458
+2026-06-21 01:40:27.902596+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:27.903001+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003870725631713867
+    t =    31.56s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:27.913620+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:27.927132+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    31.58s Getting device orientation
+2026-06-21 01:40:27.929976+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    31.58s Getting device orientation
+2026-06-21 01:40:27.931206+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:27.931274+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:27.933191+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:27.934653+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:27.935117+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:27.935158+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    31.59s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:28.064502+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:28.064661+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:28.064705+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    31.72s Checking existence of `StatusBar (First Match)`
+    t =    31.72s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    31.74s Find the StatusBar (Element at index 0)
+    t =    31.75s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:28.110369+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.045607924461364746
+2026-06-21 01:40:28.110426+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:28.110789+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00035202503204345703
+    t =    31.76s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:28.121136+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:28.136964+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    31.79s Getting device orientation
+2026-06-21 01:40:28.139511+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    31.79s Getting device orientation
+2026-06-21 01:40:28.140757+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:28.140827+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:28.142711+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:28.144200+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:28.144678+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:28.144757+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    31.80s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:28.276497+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:28.276726+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:28.276765+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    31.93s Checking existence of `StatusBar (First Match)`
+    t =    31.94s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    31.95s Find the StatusBar (Element at index 0)
+    t =    31.96s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:28.322235+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.045410990715026855
+2026-06-21 01:40:28.322293+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:28.322672+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003650188446044922
+    t =    31.98s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:28.333176+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:28.348201+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    32.00s Getting device orientation
+2026-06-21 01:40:28.350972+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    32.01s Getting device orientation
+2026-06-21 01:40:28.352238+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:28.352318+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:28.354306+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:28.355961+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:28.356420+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:28.356468+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    32.01s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:28.488317+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:28.488504+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:28.488541+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    32.14s Checking existence of `StatusBar (First Match)`
+    t =    32.15s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    32.16s Find the StatusBar (Element at index 0)
+    t =    32.17s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:28.538961+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05035102367401123
+2026-06-21 01:40:28.539038+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:28.539454+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004019737243652344
+    t =    32.19s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:28.551618+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:28.566996+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    32.22s Getting device orientation
+2026-06-21 01:40:28.570198+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    32.22s Getting device orientation
+2026-06-21 01:40:28.571334+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:28.571400+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:28.573836+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:28.575380+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:28.575777+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:28.575810+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    32.23s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:28.714027+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:28.714660+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:28.714856+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    32.37s Checking existence of `StatusBar (First Match)`
+    t =    32.39s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    32.40s Find the StatusBar (Element at index 0)
+    t =    32.41s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:28.779316+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.06452798843383789
+2026-06-21 01:40:28.779379+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:28.779841+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004470348358154297
+    t =    32.43s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:28.791271+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:28.807984+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    32.46s Getting device orientation
+2026-06-21 01:40:28.811136+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    32.47s Getting device orientation
+2026-06-21 01:40:28.812359+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:28.812427+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:28.814559+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:28.816182+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:28.816645+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:28.816706+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    32.47s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:28.954604+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:28.954782+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:28.954815+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    32.61s Checking existence of `StatusBar (First Match)`
+    t =    32.63s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    32.65s Find the StatusBar (Element at index 0)
+    t =    32.66s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:29.026388+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.07147395610809326
+2026-06-21 01:40:29.026449+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:29.026893+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00043201446533203125
+    t =    32.68s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:29.037973+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:29.053947+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    32.71s Getting device orientation
+2026-06-21 01:40:29.056976+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    32.71s Getting device orientation
+2026-06-21 01:40:29.058224+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:29.058297+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:29.060650+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:29.062221+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:29.062646+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:29.062695+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    32.72s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:29.194678+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:29.194838+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:29.194881+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    32.85s Checking existence of `StatusBar (First Match)`
+    t =    32.85s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    32.87s Find the StatusBar (Element at index 0)
+    t =    32.88s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:29.241466+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.046530961990356445
+2026-06-21 01:40:29.241524+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:29.241908+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003699064254760742
+    t =    32.90s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:29.252334+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:29.267764+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    32.92s Getting device orientation
+2026-06-21 01:40:29.270250+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    32.92s Getting device orientation
+2026-06-21 01:40:29.271547+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:29.271623+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:29.273709+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:29.275314+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:29.275810+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:29.275851+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    32.93s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:29.408357+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:29.408528+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:29.408570+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    33.06s Checking existence of `StatusBar (First Match)`
+    t =    33.07s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    33.08s Find the StatusBar (Element at index 0)
+    t =    33.09s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:29.456123+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04749703407287598
+2026-06-21 01:40:29.456183+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:29.456619+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004190206527709961
+    t =    33.11s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:29.467689+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:29.479202+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    33.13s Getting device orientation
+2026-06-21 01:40:29.481639+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    33.14s Getting device orientation
+2026-06-21 01:40:29.482765+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:29.482855+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:29.484713+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:29.486212+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:29.486585+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:29.486631+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    33.14s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:29.618046+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:29.618220+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:29.618261+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    33.27s Checking existence of `StatusBar (First Match)`
+    t =    33.28s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    33.29s Find the StatusBar (Element at index 0)
+    t =    33.30s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:29.664275+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.045960068702697754
+2026-06-21 01:40:29.664329+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:29.664726+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00038504600524902344
+    t =    33.32s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:29.675159+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:29.690181+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    33.34s Getting device orientation
+2026-06-21 01:40:29.692758+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    33.35s Getting device orientation
+2026-06-21 01:40:29.693994+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:29.694072+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:29.696043+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:29.697541+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:29.697991+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:29.698043+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    33.35s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:29.828688+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:29.828834+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:29.828869+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    33.48s Checking existence of `StatusBar (First Match)`
+    t =    33.49s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    33.50s Find the StatusBar (Element at index 0)
+    t =    33.51s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:29.875805+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04687702655792236
+2026-06-21 01:40:29.875912+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:29.876647+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0007179975509643555
+    t =    33.53s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:29.887711+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:29.904338+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    33.56s Getting device orientation
+2026-06-21 01:40:29.906849+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    33.56s Getting device orientation
+2026-06-21 01:40:29.908090+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:29.908162+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:29.910075+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:29.911594+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:29.912030+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:29.912083+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    33.57s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:30.042851+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:30.043006+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:30.043051+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    33.70s Checking existence of `StatusBar (First Match)`
+    t =    33.70s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    33.71s Find the StatusBar (Element at index 0)
+    t =    33.73s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:30.089557+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.0464550256729126
+2026-06-21 01:40:30.089617+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:30.090012+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0003809928894042969
+    t =    33.74s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:30.100570+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:30.112349+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    33.77s Getting device orientation
+2026-06-21 01:40:30.114888+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    33.77s Getting device orientation
+2026-06-21 01:40:30.116156+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:30.116236+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:30.118506+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:30.119931+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:30.120365+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:30.120408+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    33.77s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:30.250961+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:30.251130+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:30.251173+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    33.90s Checking existence of `StatusBar (First Match)`
+    t =    33.91s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    33.92s Find the StatusBar (Element at index 0)
+    t =    33.94s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:30.311701+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.06042790412902832
+2026-06-21 01:40:30.311896+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:30.312784+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0008330345153808594
+    t =    33.97s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:30.331633+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:30.348835+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    34.00s Getting device orientation
+2026-06-21 01:40:30.355632+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    34.01s Getting device orientation
+2026-06-21 01:40:30.358360+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:30.358534+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:30.362347+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:30.364423+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:30.364879+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:30.364927+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    34.02s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:30.496969+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:30.497169+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:30.497215+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    34.15s Checking existence of `StatusBar (First Match)`
+    t =    34.16s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    34.17s Find the StatusBar (Element at index 0)
+    t =    34.18s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:30.543288+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04601597785949707
+2026-06-21 01:40:30.543345+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:30.543782+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004209280014038086
+    t =    34.20s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:30.554407+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:30.570586+0900 maestro-driver-iosUITests-Runner[79585:791751] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    34.22s Getting device orientation
+2026-06-21 01:40:30.573112+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    34.23s Getting device orientation
+2026-06-21 01:40:30.574341+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:30.574417+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:30.576541+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:30.578089+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:30.578559+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:30.578608+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    34.23s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:30.708915+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:30.709070+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:30.709113+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    34.36s Checking existence of `StatusBar (First Match)`
+    t =    34.37s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    34.38s Find the StatusBar (Element at index 0)
+    t =    34.39s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:30.754789+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04562199115753174
+2026-06-21 01:40:30.754844+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:30.755283+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004229545593261719
+    t =    34.41s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:30.765921+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:30.780514+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    34.43s Getting device orientation
+2026-06-21 01:40:30.783094+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    34.44s Getting device orientation
+2026-06-21 01:40:30.784416+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:30.784494+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:30.786479+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:30.787989+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:30.788430+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:30.788482+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    34.44s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:30.918870+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:30.919025+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:30.919066+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    34.57s Checking existence of `StatusBar (First Match)`
+    t =    34.58s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    34.59s Find the StatusBar (Element at index 0)
+    t =    34.60s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:30.965578+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04645705223083496
+2026-06-21 01:40:30.965632+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:30.966052+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00040793418884277344
+    t =    34.62s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:30.976558+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:30.992648+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    34.65s Getting device orientation
+2026-06-21 01:40:30.995205+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    34.65s Getting device orientation
+2026-06-21 01:40:30.996415+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:30.996492+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:30.998363+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:30.999849+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:31.000324+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:31.000370+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    34.65s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:31.130651+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:31.130803+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:31.130839+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    34.78s Checking existence of `StatusBar (First Match)`
+    t =    34.79s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    34.80s Find the StatusBar (Element at index 0)
+    t =    34.81s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:31.176743+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04584503173828125
+2026-06-21 01:40:31.176802+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:31.177188+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00037491321563720703
+    t =    34.83s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:31.187613+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:31.206876+0900 maestro-driver-iosUITests-Runner[79585:791868] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    34.86s Getting device orientation
+2026-06-21 01:40:31.209686+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    34.86s Getting device orientation
+2026-06-21 01:40:31.210949+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:31.211021+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:31.212921+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:31.214397+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:31.214833+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:31.214887+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    34.87s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:31.345614+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:31.345775+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:31.345817+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    35.00s Checking existence of `StatusBar (First Match)`
+    t =    35.00s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    35.02s Find the StatusBar (Element at index 0)
+    t =    35.03s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:31.391586+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.04571700096130371
+2026-06-21 01:40:31.391645+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:31.392076+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.00041806697845458984
+    t =    35.05s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:31.402445+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:31.424240+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    35.08s Getting device orientation
+2026-06-21 01:40:31.426940+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    35.08s Getting device orientation
+2026-06-21 01:40:31.428156+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:31.428233+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:31.430494+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:31.431977+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:31.432440+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:31.432489+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    35.09s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:31.564567+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:31.564779+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:31.564818+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    35.22s Checking existence of `StatusBar (First Match)`
+    t =    35.22s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    35.24s Find the StatusBar (Element at index 0)
+    t =    35.25s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:31.612483+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.0476069450378418
+2026-06-21 01:40:31.612544+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:31.612963+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004030466079711914
+    t =    35.27s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:31.624067+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:31.631422+0900 maestro-driver-iosUITests-Runner[79585:791748] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    35.29s Getting device orientation
+2026-06-21 01:40:31.633840+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+    t =    35.29s Getting device orientation
+2026-06-21 01:40:31.635053+0900 maestro-driver-iosUITests-Runner[79585:791630] Returning cached screen size
+2026-06-21 01:40:31.635126+0900 maestro-driver-iosUITests-Runner[79585:791630] Device orientation is 1
+2026-06-21 01:40:31.636856+0900 maestro-driver-iosUITests-Runner[79585:792861] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 01:40:31.638355+0900 maestro-driver-iosUITests-Runner[79585:791630] Detected running apps: ["com.gonggu.calendar"]
+2026-06-21 01:40:31.638729+0900 maestro-driver-iosUITests-Runner[79585:791630] [Start] View hierarchy snapshot for Application 'com.gonggu.calendar'
+2026-06-21 01:40:31.638788+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    35.29s Find the Application 'com.gonggu.calendar'
+2026-06-21 01:40:31.779010+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 01:40:31.779218+0900 maestro-driver-iosUITests-Runner[79585:791630] Foreground app is not springboard skipping auto tapping on permissions
+2026-06-21 01:40:31.779263+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    35.43s Checking existence of `StatusBar (First Match)`
+    t =    35.44s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    35.45s Find the StatusBar (Element at index 0)
+    t =    35.47s Find the StatusBar (Element at index 1)
+2026-06-21 01:40:31.830739+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch status bar hierarchy - duration 0.05141294002532959
+2026-06-21 01:40:31.830800+0900 maestro-driver-iosUITests-Runner[79585:791630] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 01:40:31.831261+0900 maestro-driver-iosUITests-Runner[79585:791630] Fetch Safari WebView hierarchy - duration 0.0004439353942871094
+    t =    35.49s Find the Application 'com.apple.springboard'
+2026-06-21 01:40:31.842899+0900 maestro-driver-iosUITests-Runner[79585:791630] [Done] View hierarchy snapshot for Application 'com.gonggu.calendar' 
+2026-06-21 01:40:31.862319+0900 maestro-driver-iosUITests-Runner[79585:791753] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-06-21 01:40:33.600451+0900 maestro-driver-iosUITests-Runner[79585:791749] [FlyingFox] <127.0.0.1> request: GET /status
