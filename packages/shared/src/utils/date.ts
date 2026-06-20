@@ -70,11 +70,12 @@ export function truncate(text: string, maxLength: number): string {
 
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    PENDING: "bg-yellow-100 text-yellow-800",
-    REVIEW_REQUIRED: "bg-orange-100 text-orange-800",
-    APPROVED: "bg-green-100 text-green-800",
-    REJECTED: "bg-red-100 text-red-800",
-    EXPIRED: "bg-gray-100 text-gray-800",
+    PENDING: "bg-status-pending-bg text-status-pending-text border-status-pending-border",
+    REVIEW_REQUIRED: "bg-status-review-bg text-status-review-text border-status-review-border",
+    APPROVED: "bg-status-approved-bg text-status-approved-text border-status-approved-border",
+    REJECTED: "bg-status-rejected-bg text-status-rejected-text border-status-rejected-border",
+    DUPLICATE: "bg-status-duplicate-bg text-status-duplicate-text border-status-duplicate-border",
+    EXPIRED: "bg-status-duplicate-bg text-status-duplicate-text border-status-duplicate-border",
   };
-  return colors[status] || "bg-gray-100 text-gray-800";
+  return colors[status] || "bg-status-duplicate-bg text-status-duplicate-text border-status-duplicate-border";
 }

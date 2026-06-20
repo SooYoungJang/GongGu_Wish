@@ -8,7 +8,7 @@ import {
 } from '../src/submissions/submissions.controller';
 import { SubmissionsService } from '../src/submissions/submissions.service';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { SubmissionStatus } from '@prisma/client';
+import { Prisma, SubmissionStatus } from '@prisma/client';
 
 type PrismaMock = {
   gongguSubmission: {
@@ -200,6 +200,156 @@ describe('SubmissionsController (e2e)', () => {
         .post('/submissions')
         .send(validSubmission)
         .expect(409);
+    });
+
+    it('should reopen an existing REJECTED submission without creating a second contentHash row', async () => {
+      const rejectedRow = {
+        id: 'existing-rejected',
+        createdAt: new Date().toISOString(),
+        status: SubmissionStatus.REJECTED,
+        productName: validSubmission.productName,
+        brandName: validSubmission.brandName,
+        startDate: new Date(validSubmission.startDate),
+        endDate: new Date(validSubmission.endDate),
+        purchaseUrl: validSubmission.purchaseUrl,
+        discountInfo: validSubmission.discountInfo,
+        summary: validSubmission.summary,
+        instagramUrl: validSubmission.instagramUrl,
+        imageUrls: [],
+        reporterName: 'old reporter',
+        reporterContact: 'old@example.com',
+        isAnonymous: true,
+        contentHash: 'same-content-hash',
+        groupBuyId: null,
+        groupBuy: null,
+      };
+      prisma.gongguSubmission.findUnique.mockResolvedValue(rejectedRow);
+      prisma.gongguSubmission.update.mockImplementation(async (args) => ({
+        ...rejectedRow,
+        ...args.data,
+      }));
+
+      const res = await request(app.getHttpServer())
+        .post('/submissions')
+        .send(validSubmission)
+        .expect(201);
+
+      expect(res.body.status).toBe('PENDING');
+      expect(res.body.id).toBe('existing-rejected');
+      expect(prisma.gongguSubmission.create).not.toHaveBeenCalled();
+      expect(prisma.gongguSubmission.update).toHaveBeenCalledWith({
+        where: { id: 'existing-rejected' },
+        data: expect.objectContaining({
+          status: SubmissionStatus.PENDING,
+          reviewedAt: null,
+          reviewedBy: null,
+          adminMemo: null,
+          groupBuyId: null,
+        }),
+      });
+    });
+
+    it('should reopen an existing CANCELLED submission without creating a second contentHash row', async () => {
+      const cancelledRow = {
+        id: 'existing-cancelled',
+        createdAt: new Date().toISOString(),
+        status: SubmissionStatus.CANCELLED,
+        productName: validSubmission.productName,
+        brandName: validSubmission.brandName,
+        startDate: new Date(validSubmission.startDate),
+        endDate: new Date(validSubmission.endDate),
+        purchaseUrl: validSubmission.purchaseUrl,
+        discountInfo: validSubmission.discountInfo,
+        summary: validSubmission.summary,
+        instagramUrl: validSubmission.instagramUrl,
+        imageUrls: [],
+        reporterName: 'old reporter',
+        reporterContact: 'old@example.com',
+        isAnonymous: true,
+        contentHash: 'same-content-hash',
+        groupBuyId: null,
+        groupBuy: null,
+      };
+      prisma.gongguSubmission.findUnique.mockResolvedValue(cancelledRow);
+      prisma.gongguSubmission.update.mockImplementation(async (args) => ({
+        ...cancelledRow,
+        ...args.data,
+      }));
+
+      const res = await request(app.getHttpServer())
+        .post('/submissions')
+        .send(validSubmission)
+        .expect(201);
+
+      expect(res.body.status).toBe('PENDING');
+      expect(res.body.id).toBe('existing-cancelled');
+      expect(prisma.gongguSubmission.create).not.toHaveBeenCalled();
+      expect(prisma.gongguSubmission.update).toHaveBeenCalledWith({
+        where: { id: 'existing-cancelled' },
+        data: expect.objectContaining({
+          status: SubmissionStatus.PENDING,
+          reviewedAt: null,
+          reviewedBy: null,
+          adminMemo: null,
+          groupBuyId: null,
+        }),
+      });
+    });
+
+    it('should not return 500 for simultaneous identical POSTs when DB raises P2002', async () => {
+      const p2002 = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the constraint: `gongguSubmission_content_hash_key`',
+        { code: 'P2002', clientVersion: '6.19.0' },
+      );
+      const winningRow = {
+        id: 'race-winner',
+        createdAt: new Date().toISOString(),
+        status: SubmissionStatus.PENDING,
+        productName: validSubmission.productName,
+        brandName: validSubmission.brandName,
+        startDate: new Date(validSubmission.startDate),
+        endDate: new Date(validSubmission.endDate),
+        purchaseUrl: validSubmission.purchaseUrl,
+        discountInfo: validSubmission.discountInfo,
+        summary: validSubmission.summary,
+        instagramUrl: validSubmission.instagramUrl,
+        imageUrls: validSubmission.imageUrls,
+        reporterName: validSubmission.reporterName,
+        reporterContact: validSubmission.reporterContact,
+        isAnonymous: validSubmission.isAnonymous,
+        contentHash: 'same-content-hash',
+        groupBuyId: null,
+        groupBuy: null,
+      };
+
+      // request A: findUnique → null, create → winningRow (wins race)
+      // request B: findUnique → null, create → P2002, findUnique(reload) → winningRow, update
+      prisma.gongguSubmission.findUnique
+        .mockResolvedValueOnce(null) // request A initial check
+        .mockResolvedValueOnce(null) // request B initial check
+        .mockResolvedValueOnce(winningRow); // request B reload after P2002
+      prisma.gongguSubmission.create
+        .mockResolvedValueOnce(winningRow) // request A wins
+        .mockRejectedValueOnce(p2002); // request B gets P2002
+      prisma.gongguSubmission.update.mockResolvedValue({
+        ...winningRow,
+        imageUrls: validSubmission.imageUrls,
+      });
+
+      const responses = await Promise.all([
+        request(app.getHttpServer()).post('/submissions').send(validSubmission),
+        request(app.getHttpServer()).post('/submissions').send(validSubmission),
+      ]);
+
+      // Neither response should be 500
+      expect(responses.every((res) => res.status !== 500)).toBe(true);
+      // Both should succeed (201 for normal create, 201 for update existing)
+      expect(responses.map((res) => res.status).sort()).toEqual([201, 201]);
+      // DB row count = 1 (one create, one update, no duplicate)
+      expect(prisma.gongguSubmission.create).toHaveBeenCalledTimes(2);
+      expect(prisma.gongguSubmission.update).toHaveBeenCalledTimes(1);
+      // Both return the same winning row
+      expect(responses.map((res) => res.body.id)).toEqual(['race-winner', 'race-winner']);
     });
 
     it('should accept submission with different startDate (different hash)', async () => {

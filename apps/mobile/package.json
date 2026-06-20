@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@gonggu/shared": "*",
+    "@react-navigation/bottom-tabs": "^7.18.2",
     "@react-navigation/native": "^7.1.21",
     "@react-navigation/native-stack": "^7.8.1",
     "@tanstack/react-query": "^5.90.12",

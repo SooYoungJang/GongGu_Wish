@@ -34,7 +34,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-      <body className="bg-white text-gray-900 min-h-screen">
+      <body className="bg-white text-neutral-900 min-h-screen">
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -14,7 +14,10 @@
 import {
   accent,
   animation as sharedAnimation,
+  cardOverlayGradient,
+  categoryPastel,
   colors as sharedColors,
+  cta,
   mobileFontSize,
   mobileRadius,
   mobileSpacing,
@@ -38,6 +41,37 @@ export const colors = {
   accent: oklchToHex(accent[500]),
   accentLight: oklchToHex(accent[400]),
   accentBg: oklchToHex(accent[50]),
+
+  // CTA purple — high-emphasis Home actions (additive; does not replace primary)
+  ctaPurple: oklchToHex(cta.purple),
+  ctaPurpleHover: oklchToHex(cta.purpleHover),
+  ctaPurpleText: oklchToHex(cta.purpleText),
+  ctaPurpleBg: oklchToHex(cta.purpleBg),
+
+  // Category pastel tokens — domain chips and section backgrounds
+  categoryBeautyBg: oklchToHex(categoryPastel.beauty.bg),
+  categoryBeautyText: oklchToHex(categoryPastel.beauty.text),
+  categoryBeautyBorder: oklchToHex(categoryPastel.beauty.border),
+  categoryFashionBg: oklchToHex(categoryPastel.fashion.bg),
+  categoryFashionText: oklchToHex(categoryPastel.fashion.text),
+  categoryFashionBorder: oklchToHex(categoryPastel.fashion.border),
+  categoryFoodBg: oklchToHex(categoryPastel.food.bg),
+  categoryFoodText: oklchToHex(categoryPastel.food.text),
+  categoryFoodBorder: oklchToHex(categoryPastel.food.border),
+  categoryLifestyleBg: oklchToHex(categoryPastel.lifestyle.bg),
+  categoryLifestyleText: oklchToHex(categoryPastel.lifestyle.text),
+  categoryLifestyleBorder: oklchToHex(categoryPastel.lifestyle.border),
+  categoryBabyBg: oklchToHex(categoryPastel.baby.bg),
+  categoryBabyText: oklchToHex(categoryPastel.baby.text),
+  categoryBabyBorder: oklchToHex(categoryPastel.baby.border),
+  categoryDigitalBg: oklchToHex(categoryPastel.digital.bg),
+  categoryDigitalText: oklchToHex(categoryPastel.digital.text),
+  categoryDigitalBorder: oklchToHex(categoryPastel.digital.border),
+
+  // Card overlay gradient stops — for LinearGradient over media cards
+  cardOverlayTop: oklchToCssRgba(cardOverlayGradient.top),
+  cardOverlayMiddle: oklchToCssRgba(cardOverlayGradient.middle),
+  cardOverlayBottom: oklchToCssRgba(cardOverlayGradient.bottom),
 
   // Backgrounds
   bg: oklchToHex(sharedColors.surface.secondary),
@@ -89,6 +123,47 @@ export const colors = {
   badgeText: oklchToHex(primary[600]),
   noticeText: oklchToHex('oklch(0.47 0.12 48)'),  // deep amber for notice boxes
 } as const;
+
+export const categoryColors = {
+  beauty: {
+    bg: colors.categoryBeautyBg,
+    text: colors.categoryBeautyText,
+    border: colors.categoryBeautyBorder,
+  },
+  fashion: {
+    bg: colors.categoryFashionBg,
+    text: colors.categoryFashionText,
+    border: colors.categoryFashionBorder,
+  },
+  food: {
+    bg: colors.categoryFoodBg,
+    text: colors.categoryFoodText,
+    border: colors.categoryFoodBorder,
+  },
+  lifestyle: {
+    bg: colors.categoryLifestyleBg,
+    text: colors.categoryLifestyleText,
+    border: colors.categoryLifestyleBorder,
+  },
+  baby: {
+    bg: colors.categoryBabyBg,
+    text: colors.categoryBabyText,
+    border: colors.categoryBabyBorder,
+  },
+  digital: {
+    bg: colors.categoryDigitalBg,
+    text: colors.categoryDigitalText,
+    border: colors.categoryDigitalBorder,
+  },
+} as const;
+
+export type CategoryColorName = keyof typeof categoryColors;
+
+export const cardOverlayGradientStops = [
+  colors.cardOverlayTop,
+  colors.cardOverlayMiddle,
+  colors.cardOverlayBottom,
+] as const;
 
 // ─── Spacing Scale (8px grid, with 4px micro step) ──────────────────────────
 export const spacing = {
@@ -212,16 +287,16 @@ export const animation = {
 // These strings remain for compatibility with existing NativeWind usage.
 // Color values are resolved from shared tokens at module load time.
 export const tw = {
-  card: 'bg-white rounded-2xl p-4 mb-3 border border-gray-100 shadow-sm',
+  card: 'bg-neutral-0 rounded-2xl p-4 mb-3 border border-neutral-100 shadow-sm',
   primaryButton: `mt-6 py-3.5 bg-[${colors.primary}] rounded-xl items-center`,
-  secondaryButton: 'py-2.5 px-4 bg-gray-100 rounded-xl self-start',
+  secondaryButton: 'py-2.5 px-4 bg-neutral-100 rounded-xl self-start',
   primaryButtonText: 'text-base font-semibold text-white',
-  secondaryButtonText: 'text-sm font-semibold text-gray-700',
-  input: 'border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-gray-900 bg-white',
-  notice: 'p-3 bg-amber-100 rounded-lg mb-4',
-  noticeText: 'text-xs text-amber-800 text-center',
-  badge: `text-xs font-semibold text-[${colors.badgeText}] bg-blue-50 px-2 py-1 rounded-full`,
+  secondaryButtonText: 'text-sm font-semibold text-neutral-700',
+  input: 'border border-neutral-300 rounded-xl px-3 py-2.5 text-sm text-neutral-900 bg-neutral-0',
+  notice: 'p-3 bg-warning-100 rounded-lg mb-4',
+  noticeText: 'text-xs text-warning-800 text-center',
+  badge: `text-xs font-semibold text-[${colors.badgeText}] bg-primary-50 px-2 py-1 rounded-full`,
   headerTitle: `text-3xl font-bold text-[${colors.textPrimary}] mb-1`,
-  headerSubtitle: 'text-sm text-gray-500 leading-5 mb-4',
+  headerSubtitle: 'text-sm text-neutral-500 leading-5 mb-4',
   eyebrow: `text-xs font-semibold text-[${colors.primary}] tracking-wide mb-1`,
 } as const;

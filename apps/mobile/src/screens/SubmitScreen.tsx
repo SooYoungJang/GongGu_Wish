@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSubmissionGuard } from '@gonggu/shared/hooks';
 
 import { postPublicJson } from '../api';
 import { AppButton } from '../components/AppButton';
@@ -25,7 +26,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
   };
   const [form, setForm] = useState<PublicSubmissionForm>(emptyForm);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isDispatched, guard, reset } = useSubmissionGuard();
 
   function validateForm() {
     if (form.productName.trim().length < 2) {
@@ -60,7 +61,8 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
       return;
     }
 
-    setIsSubmitting(true);
+    if (!guard()) return;
+
     setFeedback('제보를 접수하는 중입니다...');
     try {
       await postPublicJson('/submissions', {
@@ -81,7 +83,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : '제보 접수에 실패했습니다.');
     } finally {
-      setIsSubmitting(false);
+      reset();
     }
   }
 
@@ -112,8 +114,8 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
           <FormInput label="요약" multiline value={form.summary} onChangeText={(value) => setForm({ ...form, summary: value })} />
 
           <View style={styles.actionRow}>
-            <AppButton disabled={isSubmitting} onPress={() => void submitPublicSubmission()} style={styles.flexButton}>
-              {isSubmitting ? '제출 중...' : '제보 제출'}
+            <AppButton disabled={isDispatched} onPress={() => void submitPublicSubmission()} style={styles.flexButton}>
+              {isDispatched ? '제출 중...' : '제보 제출'}
             </AppButton>
             <AppButton onPress={() => navigation.navigate('Home')} variant="secondary" style={styles.cancelButton}>
               취소

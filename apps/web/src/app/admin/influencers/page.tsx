@@ -58,8 +58,8 @@ export default function AdminInfluencersPage() {
     <div className="space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">인플루언서 관리</h1>
-          <p className="text-gray-600 mt-1">공구 수집 대상인 인플루언서 계정을 관리합니다.</p>
+          <h1 className="text-3xl font-bold text-neutral-900">인플루언서 관리</h1>
+          <p className="text-neutral-600 mt-1">공구 수집 대상인 인플루언서 계정을 관리합니다.</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
@@ -70,11 +70,11 @@ export default function AdminInfluencersPage() {
       </header>
 
       {showForm && (
-        <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">새 인플루언서 등록</h2>
+        <div className="bg-neutral-0 rounded-xl border border-neutral-100 p-6">
+          <h2 className="text-lg font-semibold text-neutral-900 mb-4">새 인플루언서 등록</h2>
           <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
             <div>
-              <label htmlFor="instagramUsername" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="instagramUsername" className="block text-sm font-medium text-neutral-700 mb-1">
                 인스타그램 계정 @
               </label>
               <input
@@ -86,13 +86,13 @@ export default function AdminInfluencersPage() {
                 aria-required="true"
                 aria-label="인스타그램 계정"
                 className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                  errors.instagramUsername ? "border-red-500" : "border-gray-300"
+                  errors.instagramUsername ? "border-error-500" : "border-neutral-300"
                 }`}
               />
-              {errors.instagramUsername && <p className="mt-1 text-sm text-red-600">{errors.instagramUsername}</p>}
+              {errors.instagramUsername && <p className="mt-1 text-sm text-error-600">{errors.instagramUsername}</p>}
             </div>
             <div>
-              <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1">표시명</label>
+              <label htmlFor="displayName" className="block text-sm font-medium text-neutral-700 mb-1">표시명</label>
               <input
                 id="displayName"
                 type="text"
@@ -102,17 +102,17 @@ export default function AdminInfluencersPage() {
                 aria-required="true"
                 aria-label="표시명"
                 className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                  errors.displayName ? "border-red-500" : "border-gray-300"
+                  errors.displayName ? "border-error-500" : "border-neutral-300"
                 }`}
               />
-              {errors.displayName && <p className="mt-1 text-sm text-red-600">{errors.displayName}</p>}
+              {errors.displayName && <p className="mt-1 text-sm text-error-600">{errors.displayName}</p>}
             </div>
-            {errors.form && <p className="text-sm text-red-600">{errors.form}</p>}
+            {errors.form && <p className="text-sm text-error-600">{errors.form}</p>}
             <div className="flex gap-3 pt-2">
               <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
                 {createMutation.isPending ? "등록 중..." : "등록"}
               </button>
-              <button type="button" onClick={() => { setShowForm(false); setForm({ instagramUsername: "", displayName: "" }); setErrors({}); }} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+              <button type="button" onClick={() => { setShowForm(false); setForm({ instagramUsername: "", displayName: "" }); setErrors({}); }} className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50">
                 취소
               </button>
             </div>
@@ -120,9 +120,9 @@ export default function AdminInfluencersPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="bg-neutral-0 rounded-xl border border-neutral-100 overflow-hidden">
         {influencers && influencers.length > 0 ? (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-neutral-100">
             {influencers.map((inf) => (
               <div key={inf.id} className="p-6 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -130,13 +130,13 @@ export default function AdminInfluencersPage() {
                     {inf.instagramUsername.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">@{inf.instagramUsername}</p>
-                    <p className="text-sm text-gray-500">{inf.displayName ?? "표시명 없음"}</p>
+                    <p className="font-semibold text-neutral-900">@{inf.instagramUsername}</p>
+                    <p className="text-sm text-neutral-500">{inf.displayName ?? "표시명 없음"}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                    inf.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                    inf.isActive ? "bg-success-100 text-success-700" : "bg-neutral-100 text-neutral-600"
                   }`}>
                     {inf.isActive ? "활성" : "비활성"}
                   </span>
@@ -144,18 +144,18 @@ export default function AdminInfluencersPage() {
                     <button
                       onClick={() => handleDeactivate(inf.id)}
                       disabled={deactivateMutation.isPending}
-                      className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
+                      className="px-3 py-1.5 text-sm text-error-600 hover:text-error-700 font-medium disabled:opacity-50"
                     >
                       비활성화
                     </button>
                   )}
-                  <span className="text-xs text-gray-400">등록: {formatDateTime(inf.createdAt)}</span>
+                  <span className="text-xs text-neutral-400">등록: {formatDateTime(inf.createdAt)}</span>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-center py-16 text-gray-500">
+          <div className="text-center py-16 text-neutral-500">
             <p>등록된 인플루언서가 없습니다.</p>
           </div>
         )}

@@ -44,24 +44,24 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 px-4">
       <div className="w-full max-w-md">
         {/* 헤더 */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-neutral-900 mb-2">
             관리자 로그인
           </h1>
-          <p className="text-gray-500 text-sm">
+          <p className="text-neutral-500 text-sm">
             GongGu Calendar 관리자 페이지에 오신 것을 환영합니다.
           </p>
         </div>
 
         {/* 로그인 카드 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <div className="bg-neutral-0 rounded-2xl shadow-sm border border-neutral-200 p-8">
           {error && (
             <div
               role="alert"
-              className="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"
+              className="mb-6 px-4 py-3 bg-error-50 border border-error-200 rounded-lg text-error-700 text-sm"
             >
               {error}
             </div>
@@ -72,7 +72,7 @@ export default function AdminLoginPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-gray-700 mb-1.5"
+                className="block text-sm font-medium text-neutral-700 mb-1.5"
               >
                 이메일
               </label>
@@ -85,9 +85,9 @@ export default function AdminLoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isSubmitting}
                 aria-required="true"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm
-                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                  disabled:bg-gray-100 disabled:text-gray-400 transition-colors"
+                className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg text-sm
+                  focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+                  disabled:bg-neutral-100 disabled:text-neutral-400 transition-colors"
               />
             </div>
 
@@ -95,7 +95,7 @@ export default function AdminLoginPage() {
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-1.5"
+                className="block text-sm font-medium text-neutral-700 mb-1.5"
               >
                 비밀번호
               </label>
@@ -108,9 +108,9 @@ export default function AdminLoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isSubmitting}
                 aria-required="true"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm
-                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                  disabled:bg-gray-100 disabled:text-gray-400 transition-colors"
+                className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg text-sm
+                  focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+                  disabled:bg-neutral-100 disabled:text-neutral-400 transition-colors"
               />
             </div>
 
@@ -118,9 +118,9 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300
+              className="w-full py-2.5 px-4 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300
                 text-white font-medium rounded-lg text-sm transition-colors
-                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
                 flex items-center justify-center gap-2"
               aria-busy={isSubmitting}
             >
@@ -156,7 +156,7 @@ export default function AdminLoginPage() {
         </div>
 
         {/* 푸터 */}
-        <p className="text-center text-xs text-gray-400 mt-6">
+        <p className="text-center text-xs text-neutral-400 mt-6">
           © 2026 GongGu Calendar. All rights reserved.
         </p>
       </div>

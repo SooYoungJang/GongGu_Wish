@@ -1,0 +1,103 @@
+[
+  [
+    "shared primary[500]",
+    "oklch(0.58 0.22 260)"
+  ],
+  [
+    "css primary-500",
+    "oklch(0.58 0.22 260)"
+  ],
+  [
+    "shared accent[500]",
+    "oklch(0.6 0.21 7)"
+  ],
+  [
+    "css accent-500",
+    "oklch(0.6 0.21 7)"
+  ],
+  [
+    "success-50 shared/css",
+    [
+      "oklch(0.97 0.03 142)",
+      "oklch(0.97 0.03 142)"
+    ]
+  ],
+  [
+    "success-100 shared/css",
+    [
+      "oklch(0.93 0.08 142)",
+      "oklch(0.93 0.08 142)"
+    ]
+  ],
+  [
+    "success-500 shared/css",
+    [
+      "oklch(0.65 0.2 142)",
+      "oklch(0.65 0.2 142)"
+    ]
+  ],
+  [
+    "success-600 shared/css",
+    [
+      "oklch(0.58 0.19 142)",
+      "oklch(0.58 0.19 142)"
+    ]
+  ],
+  [
+    "warning-50 shared/css",
+    [
+      "oklch(0.98 0.02 90)",
+      "oklch(0.98 0.02 90)"
+    ]
+  ],
+  [
+    "warning-100 shared/css",
+    [
+      "oklch(0.95 0.06 90)",
+      "oklch(0.95 0.06 90)"
+    ]
+  ],
+  [
+    "warning-500 shared/css",
+    [
+      "oklch(0.77 0.18 90)",
+      "oklch(0.77 0.18 90)"
+    ]
+  ],
+  [
+    "warning-600 shared/css",
+    [
+      "oklch(0.7 0.17 90)",
+      "oklch(0.7 0.17 90)"
+    ]
+  ],
+  [
+    "error-50 shared/css",
+    [
+      "oklch(0.98 0.01 25)",
+      "oklch(0.98 0.01 25)"
+    ]
+  ],
+  [
+    "error-100 shared/css",
+    [
+      "oklch(0.94 0.04 25)",
+      "oklch(0.94 0.04 25)"
+    ]
+  ],
+  [
+    "error-500 shared/css",
+    [
+      "oklch(0.62 0.22 25)",
+      "oklch(0.62 0.22 25)"
+    ]
+  ],
+  [
+    "error-600 shared/css",
+    [
+      "oklch(0.55 0.21 25)",
+      "oklch(0.55 0.21 25)"
+    ]
+  ]
+]
+TOKEN_PARITY=***

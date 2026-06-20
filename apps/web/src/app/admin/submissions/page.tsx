@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from "react";
 import { useSubmissions, useModerateSubmission, useUpdateSubmission } from "@gonggu/shared/hooks";
-import { SUBMISSION_STATUS_LABELS } from "@gonggu/shared/schemas";
 import type { Submission, SubmissionReviewForm } from "@gonggu/shared/schemas";
 import {
   Card,
@@ -107,9 +106,11 @@ export default function AdminSubmissionsPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-24 space-y-4">
-        <span className="text-5xl" aria-hidden="true">⚠️</span>
-        <h2 className="text-xl font-semibold text-gray-900">데이터를 불러올 수 없습니다</h2>
-        <p className="text-gray-500 text-sm">일시적인 오류가 발생했습니다. 다시 시도해주세요.</p>
+        <svg className="h-12 w-12 text-error-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+        <h2 className="text-xl font-semibold text-neutral-900">데이터를 불러올 수 없습니다</h2>
+        <p className="text-neutral-500 text-sm">일시적인 오류가 발생했습니다. 다시 시도해주세요.</p>
         <Button variant="primary" onClick={() => refetch()}>다시 시도</Button>
       </div>
     );
@@ -120,17 +121,17 @@ export default function AdminSubmissionsPage() {
     return (
       <div className="space-y-6">
         <header>
-          <h1 className="text-3xl font-bold text-gray-900">제보 검수</h1>
-          <p className="text-gray-500 mt-1">사용자 제보를 검토하고 승인/반려 처리합니다.</p>
+          <h1 className="text-3xl font-bold text-neutral-900">제보 검수</h1>
+          <p className="text-neutral-500 mt-1">사용자 제보를 검토하고 승인/반려 처리합니다.</p>
         </header>
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <Card key={i} variant="outlined" padding="lg">
               <CardContent>
                 <div className="animate-pulse space-y-3">
-                  <div className="h-5 bg-gray-200 rounded w-1/3" />
-                  <div className="h-4 bg-gray-200 rounded w-2/3" />
-                  <div className="h-4 bg-gray-200 rounded w-1/2" />
+                  <div className="h-5 bg-neutral-200 rounded w-1/3" />
+                  <div className="h-4 bg-neutral-200 rounded w-2/3" />
+                  <div className="h-4 bg-neutral-200 rounded w-1/2" />
                 </div>
               </CardContent>
             </Card>
@@ -145,8 +146,8 @@ export default function AdminSubmissionsPage() {
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">제보 검수</h1>
-          <p className="text-gray-500 mt-1">사용자 제보를 검토하고 승인/반려 처리합니다.</p>
+          <h1 className="text-3xl font-bold text-neutral-900">제보 검수</h1>
+          <p className="text-neutral-500 mt-1">사용자 제보를 검토하고 승인/반려 처리합니다.</p>
         </div>
         <Badge variant="info">
           {submissions?.length ?? 0}건
@@ -191,15 +192,21 @@ export default function AdminSubmissionsPage() {
         <Card variant="outlined" padding="lg">
           <CardContent>
             <div className="flex flex-col items-center justify-center py-16 space-y-4">
-              <span className="text-5xl" aria-hidden="true">
-                {statusFilter !== "ALL" ? "🔍" : "📭"}
-              </span>
-              <h3 className="text-lg font-semibold text-gray-900">
+              {statusFilter !== "ALL" ? (
+                <svg className="h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z" />
+                </svg>
+              ) : (
+                <svg className="h-12 w-12 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+              )}
+              <h3 className="text-lg font-semibold text-neutral-900">
                 {statusFilter !== "ALL"
                   ? "조건에 맞는 제보가 없습니다"
                   : "아직 접수된 제보가 없습니다"}
               </h3>
-              <p className="text-gray-500 text-sm text-center">
+              <p className="text-neutral-500 text-sm text-center">
                 {statusFilter !== "ALL"
                   ? "다른 필터로 검색해보세요"
                   : "첫 제보가 도착하면 이곳에 표시됩니다"}
@@ -244,13 +251,13 @@ export default function AdminSubmissionsPage() {
           </div>
         }
       >
-        <p className="text-sm text-gray-500 mb-3">
+        <p className="text-sm text-neutral-500 mb-3">
           반려 사유를 입력해주세요 (제보자에게 전달됩니다)
         </p>
         <textarea
           value={rejectReason}
           onChange={(e) => setRejectReason(e.target.value)}
-          className="w-full p-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full p-3 border border-neutral-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           rows={3}
           placeholder="구체적인 사유를 입력하세요"
           aria-label="반려 사유"

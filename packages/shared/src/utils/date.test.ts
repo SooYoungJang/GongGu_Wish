@@ -162,27 +162,27 @@ describe("date utilities", () => {
 
   describe("getStatusColor", () => {
     it("returns correct color for PENDING", () => {
-      expect(getStatusColor("PENDING")).toBe("bg-yellow-100 text-yellow-800");
+      expect(getStatusColor("PENDING")).toBe("bg-status-pending-bg text-status-pending-text border-status-pending-border");
     });
 
     it("returns correct color for REVIEW_REQUIRED", () => {
-      expect(getStatusColor("REVIEW_REQUIRED")).toBe("bg-orange-100 text-orange-800");
+      expect(getStatusColor("REVIEW_REQUIRED")).toBe("bg-status-review-bg text-status-review-text border-status-review-border");
     });
 
     it("returns correct color for APPROVED", () => {
-      expect(getStatusColor("APPROVED")).toBe("bg-green-100 text-green-800");
+      expect(getStatusColor("APPROVED")).toBe("bg-status-approved-bg text-status-approved-text border-status-approved-border");
     });
 
     it("returns correct color for REJECTED", () => {
-      expect(getStatusColor("REJECTED")).toBe("bg-red-100 text-red-800");
+      expect(getStatusColor("REJECTED")).toBe("bg-status-rejected-bg text-status-rejected-text border-status-rejected-border");
     });
 
     it("returns correct color for EXPIRED", () => {
-      expect(getStatusColor("EXPIRED")).toBe("bg-gray-100 text-gray-800");
+      expect(getStatusColor("EXPIRED")).toBe("bg-status-duplicate-bg text-status-duplicate-text border-status-duplicate-border");
     });
 
     it("returns default for unknown status", () => {
-      expect(getStatusColor("UNKNOWN")).toBe("bg-gray-100 text-gray-800");
+      expect(getStatusColor("UNKNOWN")).toBe("bg-status-duplicate-bg text-status-duplicate-text border-status-duplicate-border");
     });
   });
 });

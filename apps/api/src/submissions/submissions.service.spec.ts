@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { SubmissionStatus, GroupBuyStatus } from '@prisma/client';
+import { Prisma, SubmissionStatus, GroupBuyStatus } from '@prisma/client';
 
 import { SubmissionsService } from './submissions.service';
 
@@ -192,7 +192,7 @@ describe('SubmissionsService', () => {
       })).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it('creates new resubmission when existing is REJECTED', async () => {
+    it('reopens existing row when existing is REJECTED to preserve contentHash uniqueness', async () => {
       const prisma = createPrismaMock();
       prisma.gongguSubmission.findUnique.mockResolvedValue({
         id: 'rejected-submission',
@@ -201,10 +201,8 @@ describe('SubmissionsService', () => {
         imageUrls: [],
         groupBuy: null,
       });
-      prisma.gongguSubmission.update.mockResolvedValue({});
-      prisma.gongguSubmission.create.mockImplementation(async (args) => ({
-        id: 'new-resubmission',
-        status: SubmissionStatus.PENDING,
+      prisma.gongguSubmission.update.mockImplementation(async (args) => ({
+        id: 'rejected-submission',
         ...args.data,
       }));
       const service = new SubmissionsService(prisma as never);
@@ -217,21 +215,22 @@ describe('SubmissionsService', () => {
 
       expect(prisma.gongguSubmission.update).toHaveBeenCalledWith({
         where: { id: 'rejected-submission' },
-        data: { status: SubmissionStatus.DUPLICATE },
+        data: expect.objectContaining({
+          status: SubmissionStatus.PENDING,
+          productName: '재제보 제품',
+          contentHash: expect.any(String),
+          reviewedAt: null,
+          reviewedBy: null,
+          adminMemo: null,
+          groupBuyId: null,
+        }),
       });
-      expect(prisma.gongguSubmission.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            productName: '재제보 제품',
-            contentHash: expect.any(String),
-          }),
-        })
-      );
-      expect(result.id).toBe('new-resubmission');
+      expect(prisma.gongguSubmission.create).not.toHaveBeenCalled();
+      expect(result.id).toBe('rejected-submission');
       expect(result.status).toBe(SubmissionStatus.PENDING);
     });
 
-    it('creates new resubmission when existing is CANCELLED', async () => {
+    it('reopens existing row when existing is CANCELLED to preserve contentHash uniqueness', async () => {
       const prisma = createPrismaMock();
       prisma.gongguSubmission.findUnique.mockResolvedValue({
         id: 'cancelled-submission',
@@ -240,10 +239,8 @@ describe('SubmissionsService', () => {
         imageUrls: [],
         groupBuy: null,
       });
-      prisma.gongguSubmission.update.mockResolvedValue({});
-      prisma.gongguSubmission.create.mockImplementation(async (args) => ({
-        id: 'new-resubmission',
-        status: SubmissionStatus.PENDING,
+      prisma.gongguSubmission.update.mockImplementation(async (args) => ({
+        id: 'cancelled-submission',
         ...args.data,
       }));
       const service = new SubmissionsService(prisma as never);
@@ -256,8 +253,18 @@ describe('SubmissionsService', () => {
 
       expect(prisma.gongguSubmission.update).toHaveBeenCalledWith({
         where: { id: 'cancelled-submission' },
-        data: { status: SubmissionStatus.DUPLICATE },
+        data: expect.objectContaining({
+          status: SubmissionStatus.PENDING,
+          productName: '취소 후 재제보',
+          contentHash: expect.any(String),
+          reviewedAt: null,
+          reviewedBy: null,
+          adminMemo: null,
+          groupBuyId: null,
+        }),
       });
+      expect(prisma.gongguSubmission.create).not.toHaveBeenCalled();
+      expect(result.id).toBe('cancelled-submission');
       expect(result.status).toBe(SubmissionStatus.PENDING);
     });
 
@@ -311,6 +318,103 @@ describe('SubmissionsService', () => {
 
       expect(result.startDate).toBeUndefined();
       expect(result.endDate).toBeUndefined();
+    });
+
+    describe('P2002 race condition handling', () => {
+      function makeP2002Error() {
+        return new Prisma.PrismaClientKnownRequestError(
+          'Unique constraint failed on the constraint: `gongguSubmission_content_hash_key`',
+          { code: 'P2002', clientVersion: '6.19.0' },
+        );
+      }
+
+      it('returns existing PENDING submission on P2002 (concurrent create)', async () => {
+        const prisma = createPrismaMock();
+        const winningRow = {
+          id: 'race-winner',
+          status: SubmissionStatus.PENDING,
+          groupBuyId: null,
+          imageUrls: ['https://existing.com/img1.jpg'],
+          groupBuy: null,
+        };
+        prisma.gongguSubmission.findUnique
+          .mockResolvedValueOnce(null) // initial check
+          .mockResolvedValueOnce(winningRow); // after P2002
+        prisma.gongguSubmission.create.mockRejectedValueOnce(makeP2002Error());
+        prisma.gongguSubmission.update.mockResolvedValue({ ...winningRow, imageUrls: ['https://existing.com/img1.jpg', 'https://new.com/img.jpg'] });
+
+        const service = new SubmissionsService(prisma as never);
+        const result = await service.create({
+          productName: '동시 제보',
+          startDate: '2026-06-20',
+          purchaseUrl: 'https://example.com/product',
+          imageUrls: ['https://new.com/img.jpg'],
+        });
+
+        expect(result.id).toBe('race-winner');
+        expect(prisma.gongguSubmission.update).toHaveBeenCalled();
+      });
+
+      it('throws 409 Conflict on P2002 when existing is APPROVED', async () => {
+        const prisma = createPrismaMock();
+        prisma.gongguSubmission.findUnique
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({
+            id: 'approved-row',
+            status: SubmissionStatus.APPROVED,
+            groupBuyId: 'gb-1',
+            imageUrls: [],
+            groupBuy: { id: 'gb-1' },
+          });
+        prisma.gongguSubmission.create.mockRejectedValueOnce(makeP2002Error());
+
+        const service = new SubmissionsService(prisma as never);
+        await expect(
+          service.create({
+            productName: '동시 승인된 제보',
+            startDate: '2026-06-20',
+            purchaseUrl: 'https://example.com/product',
+          }),
+        ).rejects.toBeInstanceOf(ConflictException);
+      });
+
+      it('throws 409 Conflict on P2002 when existing is DUPLICATE', async () => {
+        const prisma = createPrismaMock();
+        prisma.gongguSubmission.findUnique
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({
+            id: 'dup-row',
+            status: SubmissionStatus.DUPLICATE,
+            groupBuyId: null,
+            imageUrls: [],
+            groupBuy: null,
+          });
+        prisma.gongguSubmission.create.mockRejectedValueOnce(makeP2002Error());
+
+        const service = new SubmissionsService(prisma as never);
+        await expect(
+          service.create({
+            productName: '동시 중복 제보',
+            startDate: '2026-06-20',
+            purchaseUrl: 'https://example.com/product',
+          }),
+        ).rejects.toBeInstanceOf(ConflictException);
+      });
+
+      it('re-throws non-P2002 errors from create()', async () => {
+        const prisma = createPrismaMock();
+        prisma.gongguSubmission.findUnique.mockResolvedValue(null);
+        prisma.gongguSubmission.create.mockRejectedValue(new Error('some other db error'));
+
+        const service = new SubmissionsService(prisma as never);
+        await expect(
+          service.create({
+            productName: 'DB 에러 테스트',
+            startDate: '2026-06-20',
+            purchaseUrl: 'https://example.com/product',
+          }),
+        ).rejects.toThrow('some other db error');
+      });
     });
   });
 

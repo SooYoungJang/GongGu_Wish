@@ -63,6 +63,66 @@ export const accent = {
 } as const;
 
 /**
+ * CTA purple — high-emphasis action color for Home redesign CTAs.
+ * Kept separate from primary/accent so existing brand and Instagram accent
+ * semantics remain stable.
+ */
+export const cta = {
+  purple: 'oklch(0.58 0.24 300)',
+  purpleHover: 'oklch(0.52 0.25 300)',
+  purpleText: 'oklch(1 0 0)',
+  purpleBg: 'oklch(0.97 0.035 300)',
+} as const;
+
+/**
+ * Category pastel palette — soft, feed-friendly chips/cards for Home sections.
+ * Usage intent: beauty, fashion, food, lifestyle, baby, digital. Names are
+ * domain aliases rather than hard requirements; consumers may map by category.
+ */
+export const categoryPastel = {
+  beauty: {
+    bg: 'oklch(0.95 0.045 350)',
+    text: 'oklch(0.48 0.14 350)',
+    border: 'oklch(0.88 0.06 350)',
+  },
+  fashion: {
+    bg: 'oklch(0.95 0.04 285)',
+    text: 'oklch(0.46 0.13 285)',
+    border: 'oklch(0.87 0.055 285)',
+  },
+  food: {
+    bg: 'oklch(0.96 0.055 85)',
+    text: 'oklch(0.48 0.12 85)',
+    border: 'oklch(0.88 0.07 85)',
+  },
+  lifestyle: {
+    bg: 'oklch(0.95 0.04 185)',
+    text: 'oklch(0.43 0.11 185)',
+    border: 'oklch(0.86 0.055 185)',
+  },
+  baby: {
+    bg: 'oklch(0.96 0.04 145)',
+    text: 'oklch(0.42 0.12 145)',
+    border: 'oklch(0.87 0.06 145)',
+  },
+  digital: {
+    bg: 'oklch(0.95 0.04 250)',
+    text: 'oklch(0.45 0.13 250)',
+    border: 'oklch(0.87 0.055 250)',
+  },
+} as const;
+
+/**
+ * Card overlay gradients — used over product/media cards to preserve text
+ * readability without changing the underlying surface/card tokens.
+ */
+export const cardOverlayGradient = {
+  top: 'oklch(0 0 0 / 0)',
+  middle: 'oklch(0 0 0 / 0.18)',
+  bottom: 'oklch(0 0 0 / 0.62)',
+} as const;
+
+/**
  * Semantic status colors
  */
 export const success = {
@@ -184,6 +244,9 @@ export const overlay = {
 export const colors = {
   primary,
   accent,
+  cta,
+  categoryPastel,
+  cardOverlayGradient,
   success,
   warning,
   error,
@@ -360,6 +423,10 @@ export function oklchAsCss(oklchStr: string): string {
 
 export type PrimaryScale = typeof primary;
 export type AccentScale = typeof accent;
+export type CtaTokens = typeof cta;
+export type CategoryPastelName = keyof typeof categoryPastel;
+export type CategoryPastelTokens = typeof categoryPastel;
+export type CardOverlayGradientTokens = typeof cardOverlayGradient;
 export type NeutralScale = typeof neutral;
 export type StatusName = keyof typeof status;
 export type ColorCategory = keyof typeof colors;

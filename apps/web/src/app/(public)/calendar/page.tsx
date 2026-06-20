@@ -84,7 +84,7 @@ export default function CalendarPage() {
 
   if (isError) {
     return (
-      <div className="text-center py-12 text-red-600">
+      <div className="text-center py-12 text-error-500">
         데이터 로드에 실패했습니다. 나중에 다시 시도해주세요.
       </div>
     );
@@ -93,17 +93,17 @@ export default function CalendarPage() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
       <header className="mb-10">
-        <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 mb-2">
+        <h1 className="text-4xl font-extrabold tracking-tight text-neutral-900 mb-2">
           공동구매 캘린더
         </h1>
-        <p className="text-gray-700 leading-relaxed">진행 중인 공구 일정을 확인하세요. 관심 있는 공구를 빠르게 찾아 제보 페이지로 이동할 수 있습니다.</p>
+        <p className="text-neutral-700 leading-relaxed">진행 중인 공구 일정을 확인하세요. 관심 있는 공구를 빠르게 찾아 제보 페이지로 이동할 수 있습니다.</p>
       </header>
 
       {/* Month Navigation */}
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={goToPrevMonth}
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600"
+          className="p-2 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-600"
           aria-label="이전 달"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,14 +111,14 @@ export default function CalendarPage() {
           </svg>
         </button>
 
-        <h2 className="text-2xl font-bold text-gray-900">
+        <h2 className="text-2xl font-bold text-neutral-900">
           {formatMonthLabel(year, month)}
         </h2>
 
         <button
           onClick={goToNextMonth}
           disabled={isCurrentMonth}
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-2 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-600 disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label="다음 달"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,7 +136,7 @@ export default function CalendarPage() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               filter === f
                 ? "bg-primary-700 text-white shadow-sm"
-                : "bg-white text-gray-800 border border-gray-200 hover:bg-gray-50"
+                : "bg-white text-neutral-800 border border-neutral-200 hover:bg-neutral-50"
             }`}
           >
             {f === "all" && "전체"}
@@ -147,13 +147,13 @@ export default function CalendarPage() {
       </div>
 
       {data && data.meta && (
-        <div className="text-sm text-gray-500 mb-4">
+        <div className="text-sm text-neutral-500 mb-4">
           총 {data.meta.total}개의 공구 (필터 적용 후 {filteredItems.reduce((sum, item) => sum + item.groupBuys.length, 0)}개)
         </div>
       )}
 
       {filteredItems.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">
+        <div className="text-center py-16 text-neutral-500">
           <p className="text-lg">{filter !== "all" ? "조건에 맞는 공구가 없습니다." : "표시할 공구가 없습니다."}</p>
           <Link
             href="/submit"
@@ -166,7 +166,7 @@ export default function CalendarPage() {
         <div className="space-y-10">
           {filteredItems.map((item) => (
             <section key={item.date}>
-              <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-neutral-700 mb-4 flex items-center gap-2">
                 <svg className="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -187,11 +187,11 @@ export default function CalendarPage() {
 
 function GroupBuyCard({ groupBuy }: { groupBuy: GroupBuy }) {
   return (
-    <article className="bg-white rounded-xl border border-gray-100 p-6 hover:shadow-md transition-shadow">
+    <article className="bg-white rounded-xl border border-neutral-100 p-6 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-xl font-semibold text-gray-900 truncate">
+            <h2 className="text-xl font-semibold text-neutral-900 truncate">
               {groupBuy.productName ?? "제품명 미확인"}
             </h2>
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(groupBuy.status)}`}>
@@ -199,12 +199,12 @@ function GroupBuyCard({ groupBuy }: { groupBuy: GroupBuy }) {
             </span>
           </div>
           {groupBuy.brandName && (
-            <p className="text-gray-700 font-medium mb-2">{groupBuy.brandName}</p>
+            <p className="text-neutral-700 font-medium mb-2">{groupBuy.brandName}</p>
           )}
           {groupBuy.summary && (
-            <p className="text-gray-700 mb-3 line-clamp-2 leading-relaxed">{groupBuy.summary}</p>
+            <p className="text-neutral-700 mb-3 line-clamp-2 leading-relaxed">{groupBuy.summary}</p>
           )}
-          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-500">
             {groupBuy.discountInfo && (
               <span className="font-semibold text-primary-700">{groupBuy.discountInfo}</span>
             )}
@@ -213,7 +213,7 @@ function GroupBuyCard({ groupBuy }: { groupBuy: GroupBuy }) {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span className={groupBuy.status === "EXPIRED" ? "text-red-600" : ""}>
+                <span className={groupBuy.status === "EXPIRED" ? "text-error-500" : ""}>
                   {formatRelativeTime(groupBuy.endDate)}
                 </span>
               </span>

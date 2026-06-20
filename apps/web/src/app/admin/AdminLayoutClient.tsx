@@ -28,10 +28,10 @@ export default function AdminLayoutClient({
   // 로딩 중 (로그인 페이지 제외)
   if (isLoading && typeof window !== "undefined" && window.location.pathname !== "/admin/login") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
         <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" role="status" aria-label="로딩 중" />
-          <p className="text-gray-500 text-sm">인증 확인 중...</p>
+          <div className="animate-spin h-8 w-8 border-4 border-primary-600 border-t-transparent rounded-full mx-auto mb-4" role="status" aria-label="로딩 중" />
+          <p className="text-neutral-500 text-sm">인증 확인 중...</p>
         </div>
       </div>
     );
@@ -49,14 +49,14 @@ export default function AdminLayoutClient({
 
   return (
     <ToastProvider placement="bottom-right" maxToasts={3}>
-      <div className="min-h-screen bg-gray-50 flex">
+      <div className="min-h-screen bg-neutral-50 flex">
         <AdminSidebar sidebarOpen={sidebarOpen} onSidebarToggle={setSidebarOpen} />
         {/* Main content */}
         <div className="flex-1 flex flex-col min-w-0 lg:ml-64">
-          <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+          <header className="bg-neutral-0 border-b border-neutral-200 sticky top-0 z-30">
             <div className="flex items-center justify-between px-6 py-4">
               <button
-                className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+                className="lg:hidden p-2 rounded-lg hover:bg-neutral-100"
                 onClick={() => setSidebarOpen(true)}
                 aria-label="사이드바 열기"
               >
@@ -67,13 +67,13 @@ export default function AdminLayoutClient({
               <div className="flex-1 lg:flex-none" />
               <div className="flex items-center gap-4">
                 {user && (
-                  <span className="text-sm text-gray-500 hidden sm:block">
+                  <span className="text-sm text-neutral-500 hidden sm:block">
                     {user.email}
                   </span>
                 )}
                 <button
                   onClick={logout}
-                  className="text-sm text-red-600 hover:text-red-700 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                  className="text-sm text-error-600 hover:text-error-700 font-medium px-3 py-1.5 rounded-lg hover:bg-error-50 transition-colors"
                 >
                   로그아웃
                 </button>

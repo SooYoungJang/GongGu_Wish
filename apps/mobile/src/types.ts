@@ -1,12 +1,21 @@
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 export type RootStackParamList = {
-  Home: undefined;
+  MainTabs: undefined;
   Detail: { groupBuy: GroupBuy };
   InfluencerGroupBuys: { influencerUsername: string; influencerDisplayName: string | null };
   Admin: undefined;
-  Submit: undefined;
   Login: undefined;
+};
+
+export type MainTabParamList = {
+  Home: undefined;
+  Search: undefined;
+  Submit: undefined;
+  Community: undefined;
+  MyPage: undefined;
 };
 
 export type GroupBuy = {
@@ -89,8 +98,14 @@ export type PublicSubmissionForm = {
   summary: string;
 };
 
-export type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
+export type HomeScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Home'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
+export type SubmitScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Submit'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 export type DetailScreenProps = NativeStackScreenProps<RootStackParamList, 'Detail'>;
 export type InfluencerGroupBuysScreenProps = NativeStackScreenProps<RootStackParamList, 'InfluencerGroupBuys'>;
 export type AdminScreenProps = NativeStackScreenProps<RootStackParamList, 'Admin'>;
-export type SubmitScreenProps = NativeStackScreenProps<RootStackParamList, 'Submit'>;

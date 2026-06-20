@@ -34,50 +34,77 @@ export class SubmissionsService {
     });
 
     if (existing) {
-      switch (existing.status) {
-        case SubmissionStatus.PENDING:
-          // 기존 제보 업데이트 (이미지 추가, 정보 보완 등)
-          return this.updateExistingSubmission(existing, dto);
-        case SubmissionStatus.APPROVED:
-          throw new ConflictException({
-            message: '이미 승인된 공구입니다.',
-            groupBuyId: existing.groupBuyId,
-            submissionId: existing.id,
-          });
-        case SubmissionStatus.REJECTED:
-        case SubmissionStatus.CANCELLED:
-          // 재제보 허용: 새 제보로 생성하되 reference 남김
-          return this.createAsResubmission(dto, contentHash, existing.id);
-        case SubmissionStatus.DUPLICATE:
-          // 원본 제보로 리다이렉트
-          const original = await this.prisma.gongguSubmission.findUnique({
-            where: { id: existing.id },
-          });
-          throw new ConflictException({
-            message: '중복 제보입니다. 원본 제보를 확인해 주세요.',
-            originalSubmissionId: original?.id,
-          });
-      }
+      return this.handleExistingSubmission(existing, dto, contentHash);
     }
 
-    // 신규 생성
-    return this.prisma.gongguSubmission.create({
-      data: {
-        productName: dto.productName,
-        brandName: dto.brandName,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-        purchaseUrl: dto.purchaseUrl,
-        discountInfo: dto.discountInfo,
-        summary: dto.summary,
-        instagramUrl: dto.instagramUrl,
-        imageUrls: dto.imageUrls ?? [],
-        reporterName: dto.reporterName,
-        reporterContact: dto.reporterContact,
-        isAnonymous: dto.isAnonymous ?? true,
-        contentHash,
-      },
-    });
+    // 신규 생성. Concurrent identical POSTs can race between findUnique() and
+    // create(); if the database unique constraint wins first, reload the row
+    // and apply the same duplicate policy instead of leaking P2002 as a 500.
+    try {
+      return await this.prisma.gongguSubmission.create({
+        data: {
+          productName: dto.productName,
+          brandName: dto.brandName,
+          startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+          endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+          purchaseUrl: dto.purchaseUrl,
+          discountInfo: dto.discountInfo,
+          summary: dto.summary,
+          instagramUrl: dto.instagramUrl,
+          imageUrls: dto.imageUrls ?? [],
+          reporterName: dto.reporterName,
+          reporterContact: dto.reporterContact,
+          isAnonymous: dto.isAnonymous ?? true,
+          contentHash,
+        },
+      });
+    } catch (error) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      const racedExisting = await this.prisma.gongguSubmission.findUnique({
+        where: { contentHash },
+        include: { groupBuy: true },
+      });
+
+      if (!racedExisting) {
+        throw error;
+      }
+
+      return this.handleExistingSubmission(racedExisting, dto, contentHash);
+    }
+  }
+
+  private isUniqueConstraintError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  }
+
+  private async handleExistingSubmission(
+    existing: { id: string; status: SubmissionStatus; groupBuyId: string | null; imageUrls: string[] },
+    dto: CreateSubmissionDto,
+    contentHash: string,
+  ) {
+    switch (existing.status) {
+      case SubmissionStatus.PENDING:
+        // 기존 제보 업데이트 (이미지 추가, 정보 보완 등)
+        return this.updateExistingSubmission(existing, dto);
+      case SubmissionStatus.APPROVED:
+        throw new ConflictException({
+          message: '이미 승인된 공구입니다.',
+          groupBuyId: existing.groupBuyId,
+          submissionId: existing.id,
+        });
+      case SubmissionStatus.REJECTED:
+      case SubmissionStatus.CANCELLED:
+        // 재제보 허용: contentHash @unique를 유지하기 위해 신규 row 생성 대신 기존 row를 PENDING으로 재오픈
+        return this.reopenExistingSubmission(existing, dto, contentHash);
+      case SubmissionStatus.DUPLICATE:
+        throw new ConflictException({
+          message: '중복 제보입니다. 원본 제보를 확인해 주세요.',
+          originalSubmissionId: existing.id,
+        });
+    }
   }
 
   private validateDateRange(dto: CreateSubmissionDto) {
@@ -121,32 +148,32 @@ export class SubmissionsService {
     });
   }
 
-  private async createAsResubmission(
+  private async reopenExistingSubmission(
+    existing: { id: string; imageUrls: string[] },
     dto: CreateSubmissionDto,
     contentHash: string,
-    originalId: string,
   ) {
-    // 재제보 시 DUPLICATE 상태로 원본 생성 후 새 제보 생성
-    await this.prisma.gongguSubmission.update({
-      where: { id: originalId },
-      data: { status: SubmissionStatus.DUPLICATE },
-    });
-
-    return this.prisma.gongguSubmission.create({
+    return this.prisma.gongguSubmission.update({
+      where: { id: existing.id },
       data: {
         productName: dto.productName,
-        brandName: dto.brandName,
+        brandName: dto.brandName ?? undefined,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-        purchaseUrl: dto.purchaseUrl,
-        discountInfo: dto.discountInfo,
-        summary: dto.summary,
-        instagramUrl: dto.instagramUrl,
+        purchaseUrl: dto.purchaseUrl ?? undefined,
+        discountInfo: dto.discountInfo ?? undefined,
+        summary: dto.summary ?? undefined,
+        instagramUrl: dto.instagramUrl ?? undefined,
         imageUrls: dto.imageUrls ?? [],
-        reporterName: dto.reporterName,
-        reporterContact: dto.reporterContact,
+        reporterName: dto.reporterName ?? undefined,
+        reporterContact: dto.reporterContact ?? undefined,
         isAnonymous: dto.isAnonymous ?? true,
         contentHash,
+        status: SubmissionStatus.PENDING,
+        adminMemo: null,
+        reviewedAt: null,
+        reviewedBy: null,
+        groupBuyId: null,
       },
     });
   }
