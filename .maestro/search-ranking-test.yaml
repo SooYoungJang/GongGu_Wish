@@ -1,16 +1,21 @@
 appId: com.gonggu.calendar
 ---
-# search-ranking-test.yaml — E2E v4 (QA recheck 3)
-# Updated: use accessibility labels ("Home 탭") for tab assertions
-#     React Native tab buttons expose Korean-suffixed accessibility labels,
-#     not the raw visible label text.
+# search-ranking-test.yaml — E2E v4.2 (QA recheck 3, fixed swipe targeting)
+# Fix v4.2: use `swipe` with `from:` element selector targeting the FlatList
+#   itself ("셀러 랭킹 목록") — guarantees the swipe gesture starts on the
+#   scrollable element and produces distinct screenshots at each step.
+#   Previous attempts (bare `swipe direction:UP`, `scrollUntilVisible`) failed
+#   on Pro Max (440x956pt) because:
+#     1. Bare swipe's default start at 50% height doesn't scroll enough content
+#        when the visible viewport is taller than on smaller devices.
+#     2. scrollUntilVisible cannot find FlatList items that virtualization
+#        hasn't rendered yet (chicken-and-egg).
 # ============================================================================
 
 # --- Section 1: Pre-scroll verification ---
 - launchApp:
     clearState: false
 - waitForAnimationToEnd
-# Tab bar items use accessibilityLabel = `${label} 탭`, e.g. "Home 탭", "Search 탭"
 - assertVisible: "Home 탭"
 - assertVisible: "Search 탭"
 - assertVisible: "Submit 탭"
@@ -33,12 +38,17 @@ appId: com.gonggu.calendar
 - assertVisible: "Submit 탭"
 - assertVisible: "Community 탭"
 - assertVisible: "MyPage 탭"
-- takeScreenshot: 03-search-ranking-tabbar-intact
+- takeScreenshot: 03-ranking-tabbar-intact
 
 # --- Section 3: Scroll up (UP) → verify tab bar clipping/overflow ---
+# FIX: use `from:` targeting the FlatList element itself.
+# This guarantees the swipe starts on the scrollable component regardless
+# of device width or viewport size.
 - swipe:
+    from:
+      text: "셀러 랭킹 목록"
     direction: UP
-    duration: 600
+    duration: 800
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 # Tab labels survive truncation at 320pt
@@ -49,6 +59,8 @@ appId: com.gonggu.calendar
 - takeScreenshot: 04-search-ranking-after-scroll
 
 # --- Section 4: Scroll back down (DOWN) → verify ranking restore ---
+# Note: bare direction:DOWN swipe is intentional — it scrolls from ~20%
+# screen height to ~90%, which naturally returns the FlatList to the top.
 - swipe:
     direction: DOWN
     duration: 600
