@@ -1,4 +1,4 @@
-# 🎯 GongGu Calendar - Kanban Board
+# 🎯 GongGu Wish - Kanban Board
 
 ## ✅ Sprint 2 Summary (2026-06-14~15)
 
@@ -140,40 +140,40 @@ Card, DataTable, Modal, Button, Input, Select, Badge, Avatar, Dropdown, Toast, S
 
 ### 🚫 금지 사항
 - `sqlite3 kanban.db "INSERT ..."` 등 Raw SQL 실행
-- 프로젝트 루트 `/Users/pc/Documents/RN_GongGu_Calendar/kanban.db` 직접 수정
+- 프로젝트 루트 `/Users/pc/Documents/RN_GongGu_Wish/kanban.db` 직접 수정
 - `KANBAN.md` 파일로 태스크 상태 관리
 
 ### ✅ 필수 사항
 - 모든 태스크 생성/수정/조회/상태변경: **`hermes kanban` CLI만 사용**
-- 보드 지정 필수: `--board gonggu-calendar`
+- 보드 지정 필수: `--board gonggu-wish`
 - 의존성 관리: `hermes kanban link <parent> <child>`
 
 ### 🔧 표준 명령어
 ```bash
 # 태스크 생성
-hermes kanban --board gonggu-calendar create "태스크명" --body "상세" --assignee 프로필명 --priority 0
+hermes kanban --board gonggu-wish create "태스크명" --body "상세" --assignee 프로필명 --priority 0
 
 # 태스크 목록 조회
-hermes kanban --board gonggu-calendar list [--status blocked|done|todo]
+hermes kanban --board gonggu-wish list [--status blocked|done|todo]
 
 # 태스크 상세 확인
-hermes kanban --board gonggu-calendar show <task-id>
+hermes kanban --board gonggu-wish show <task-id>
 
 # 상태 변경
-hermes kanban --board gonggu-calendar block <task-id>
-hermes kanban --board gonggu-calendar unblock <task-id>
-hermes kanban --board gonggu-calendar complete <task-id>
+hermes kanban --board gonggu-wish block <task-id>
+hermes kanban --board gonggu-wish unblock <task-id>
+hermes kanban --board gonggu-wish complete <task-id>
 
 # 의존성 설정
-hermes kanban --board gonggu-calendar link <parent-id> <child-id>
+hermes kanban --board gonggu-wish link <parent-id> <child-id>
 
 # 통계
-hermes kanban --board gonggu-calendar stats
+hermes kanban --board gonggu-wish stats
 ```
 
 ### 📍 공식 DB 위치
 ```
-~/.hermes/kanban/boards/gonggu-calendar/kanban.db
+~/.hermes/kanban/boards/gonggu-wish/kanban.db
 ```
 (Hermes Kanban CLI가 잠금/마이그레이션/이벤트로그/워크스페이스 격리 자동 관리)
 

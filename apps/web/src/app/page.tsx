@@ -8,7 +8,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
           <Link href="/" className="inline-flex items-center gap-2 text-xl font-bold text-primary-700">
             <CalendarRange className="h-6 w-6" aria-hidden="true" />
-            GongGu Calendar
+            GongGu Wish
           </Link>
           <nav className="flex items-center gap-6">
             <Link href="/calendar" className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-800 hover:text-primary-700 transition-colors">
@@ -36,7 +36,7 @@ export default function HomePage() {
                 인플루언서 공동구매 일정
               </p>
               <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-                GongGu Calendar
+                GongGu Wish
               </h1>
               <p className="mt-5 text-lg text-white/90 leading-relaxed">
                 인플루언서 공동구매 정보를 한눈에 보는 캘린더 서비스. 놓치기 쉬운 공구 일정을 캘린더로 빠르게 확인하고 바로 제보까지 이어갈 수 있습니다.
@@ -74,7 +74,7 @@ export default function HomePage() {
 
       <footer className="bg-neutral-0 border-t border-neutral-100 py-8 mt-auto">
         <div className="mx-auto max-w-7xl px-6 text-center text-neutral-500 text-sm">
-          © 2026 GongGu Calendar. 인플루언서 공동구매 정보 서비스.
+          © 2026 GongGu Wish. 인플루언서 공동구매 정보 서비스.
         </div>
       </footer>
     </div>

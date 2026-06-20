@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "GongGu Calendar",
-    "slug": "gonggu-calendar",
+    "name": "GongGu Wish",
+    "slug": "gonggu-wish",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "scheme": "gonggucalendar",
+    "scheme": "gongguwish",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gonggu.calendar"
+      "bundleIdentifier": "com.gonggu.wish"
     },
     "android": {
-      "package": "com.gonggu.calendar",
+      "package": "com.gonggu.wish",
       "edgeToEdgeEnabled": true
     },
     "web": {

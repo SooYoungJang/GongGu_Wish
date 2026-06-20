@@ -27,7 +27,7 @@ describe("public navigation", () => {
       </PublicLayout>
     );
 
-    expect(screen.getByRole("link", { name: "GongGu Calendar" }).getAttribute("class")).toContain("text-primary-700");
+    expect(screen.getByRole("link", { name: "GongGu Wish" }).getAttribute("class")).toContain("text-primary-700");
     expect(screen.getByRole("link", { name: "캘린더" }).getAttribute("class")).toContain("text-neutral-800");
     expect(screen.getByRole("link", { name: "제보하기" }).getAttribute("class")).toContain("text-neutral-800");
     expect(screen.getByRole("link", { name: "관리자" }).getAttribute("class")).toContain("bg-primary-700");

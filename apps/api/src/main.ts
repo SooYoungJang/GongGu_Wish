@@ -28,7 +28,7 @@ async function bootstrap() {
   );
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('GongGu Calendar API')
+    .setTitle('GongGu Wish API')
     .setDescription('Instagram 공동구매 수집, 검수, 알림 API')
     .setVersion('0.1.0')
     .build();

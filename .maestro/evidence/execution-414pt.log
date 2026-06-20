@@ -1,0 +1,113 @@
+03:09:48.384 [ INFO] maestro.cli.report.TestDebugReporter.logSystemInfo: Debug output path: /Users/pc/.maestro/tests/2026-06-21_030948
+03:09:48.386 [ INFO] MAESTRO.logSystemInfo: ---- System Info ----
+03:09:48.387 [ INFO] MAESTRO.logSystemInfo: Maestro Version: 2.6.1
+03:09:48.388 [ INFO] MAESTRO.logSystemInfo: CI: Undefined
+03:09:48.388 [ INFO] MAESTRO.logSystemInfo: OS Name: Mac OS X
+03:09:48.388 [ INFO] MAESTRO.logSystemInfo: OS Version: 26.5.1
+03:09:48.388 [ INFO] MAESTRO.logSystemInfo: Architecture: aarch64
+03:09:48.389 [ INFO] MAESTRO.logSystemInfo: Java Version: 17
+03:09:48.461 [ INFO] MAESTRO.logSystemInfo: Xcode Version: 26.5
+03:09:48.465 [ INFO] MAESTRO.logSystemInfo: Flutter Version: Undefined
+03:09:48.469 [ INFO] MAESTRO.logSystemInfo: Flutter Channel: Undefined
+03:09:48.469 [ INFO] MAESTRO.logSystemInfo: ---------------------
+03:09:48.818 [DEBUG] io.micrometer.common.util.internal.logging.InternalLoggerFactory.newDefaultFactory: Using SLF4J as the default logging framework
+03:09:50.233 [ INFO] maestro.cli.command.TestCommand.runShardSuite: [shard 1] Selected device 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4 using port 58546 with execution plan ExecutionPlan(flowsToRun=[/Users/pc/Documents/RN_GongGu_Calendar/.maestro/search-ranking-test.yaml], sequence=FlowSequence(flows=[], continueOnFailure=true), workspaceConfig=WorkspaceConfig(flows=null, includeTags=null, excludeTags=null, executionOrder=null, baselineBranch=null, notifications=null, disableRetries=false, platform=PlatformConfiguration(android=AndroidConfiguration(disableAnimations=false), ios=IOSConfiguration(disableAnimations=false, snapshotKeyHonorModalViews=null)), testOutputDir=null))
+03:09:50.468 [TRACE] ios.xctest.XCTestIOSDevice.open: Opening a connection
+03:09:50.469 [TRACE] xcuitest.XCTestDriverClient.restartXCTestRunner: Restarting XCTest Runner (uninstalling, installing and starting)
+03:09:50.469 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:50.471 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:50.471 [TRACE] xcuitest.XCTestDriverClient.restartXCTestRunner: XCTest Runner uninstalled, will install and start it
+03:09:50.472 [ INFO] xcuitest.installer.LocalXCTestInstaller.start$lambda$3: start()
+03:09:50.472 [ INFO] xcuitest.installer.LocalXCTestInstaller.start$lambda$3: [Start] Install XCUITest runner on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:50.472 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:50.472 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:50.472 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Start] Writing build products
+03:09:50.519 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Done] Writing build products
+03:09:50.519 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Start] Writing maestro-driver-iosUITests-Runner app
+03:09:50.681 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Done] Writing maestro-driver-iosUITests-Runner app
+03:09:50.681 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Start] Writing maestro-driver-ios app
+03:09:50.687 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Done] Writing maestro-driver-ios app
+03:09:50.687 [ INFO] xcuitest.installer.LocalXCTestInstaller.startXCTestRunner: Installing driver with xcodebuild
+03:09:50.689 [ INFO] xcuitest.installer.LocalXCTestInstaller.startXCTestRunner: [Start] Running XcUITest with `xcodebuild test-without-building` with 58546 and config: IOSDriverConfig(prebuiltRunner=false, sourceDirectory=driver-iPhoneSimulator, context=CLI, snapshotKeyHonorModalViews=null)
+03:09:50.691 [ INFO] util.CommandLineUtils.runCommand: Running command line operation: [xcodebuild, test-without-building, -xctestrun, /var/folders/_7/h01n60s1189_cgkl4chh3jgh0000gn/T/1220ADA0-82A2-4CAD-AF80-BACA32C78AD4418214075606742447/maestro-driver-ios-config.xctestrun, -destination, id=1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, -derivedDataPath, /var/folders/_7/h01n60s1189_cgkl4chh3jgh0000gn/T/maestro_xctestrunner_xcodebuild_output11830852000431960603] with {TEST_RUNNER_PORT=58546}
+03:09:50.697 [ INFO] xcuitest.installer.LocalXCTestInstaller.startXCTestRunner: [Done] Running XcUITest with `xcodebuild test-without-building`
+03:09:50.697 [ INFO] xcuitest.installer.LocalXCTestInstaller.start$lambda$3: [Done] Install XCUITest runner on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:50.698 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:50.698 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:51.349 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:51.351 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:51.854 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:51.857 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:52.360 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:52.361 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:52.871 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:52.872 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:53.504 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:53.506 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:54.139 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:54.151 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:54.677 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:54.679 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:55.315 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:55.333 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:55.949 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:55.950 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:56.471 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:56.478 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:56.999 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:57.000 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:57.512 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:57.517 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:58.022 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:58.023 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:58.605 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:58.607 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:59.212 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:59.213 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:09:59.754 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:09:59.779 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:00.429 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:00.466 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:01.113 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:01.122 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:01.710 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:01.712 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:02.291 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:02.292 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:02.833 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:02.834 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:03.481 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:03.484 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:04.126 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:04.128 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:04.771 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:04.773 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:05.381 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:05.382 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:06.032 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:06.064 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:06.715 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:06.718 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:58546
+03:10:07.360 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:07.418 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Done] Perform XCUITest driver status check on 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4
+03:10:07.558 [ INFO] maestro.cli.runner.TestRunner.runSingle$lambda$0: Running flow search-ranking-test.yaml...
+03:10:07.579 [ INFO] maestro.Maestro.cachedDeviceInfo_delegate$lambda$0: Getting device info
+03:10:08.242 [ INFO] maestro.Maestro.cachedDeviceInfo_delegate$lambda$0: Got device info: DeviceInfo(platform=IOS, widthPixels=1206, heightPixels=2622, widthGrid=402, heightGrid=874)
+03:10:08.467 [ INFO] maestro.cli.runner.MaestroCommandRunner.runCommands$lambda$0: Define variables RUNNING
+03:10:08.475 [ INFO] maestro.cli.runner.MaestroCommandRunner.runCommands$lambda$11: Define variables metadata CommandMetadata(numberOfRuns=null, evaluatedCommand=MaestroCommand(defineVariablesCommand=DefineVariablesCommand(env={MAESTRO_FILENAME=search-ranking-test, MAESTRO_DEVICE_UDID=1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, MAESTRO_SHARD_ID=1, MAESTRO_SHARD_INDEX=0}, label=null, optional=false)), logMessages=[], insight=Insight(message=, level=NONE), aiReasoning=null, labeledCommand=null)
+03:10:08.503 [ INFO] maestro.cli.runner.MaestroCommandRunner.runCommands$lambda$2: Define variables COMPLETED
+03:10:08.504 [ INFO] maestro.cli.runner.MaestroCommandRunner.runCommands$lambda$0: Apply configuration RUNNING
+03:10:08.506 [ INFO] maestro.cli.runner.MaestroCommandRunner.runCommands$lambda$11: Apply configuration metadata CommandMetadata(numberOfRuns=null, evaluatedCommand=MaestroCommand(applyConfigurationCommand=ApplyConfigurationCommand(config=MaestroConfig(appId=com.gonggu.calendar, name=null, tags=[], ext={}, onFlowStart=null, onFlowComplete=null, properties={}), label=null, optional=false)), logMessages=[], insight=Insight(message=, level=NONE), aiReasoning=null, labeledCommand=null)
+03:10:08.507 [ INFO] maestro.cli.runner.MaestroCommandRunner.runCommands$lambda$2: Apply configuration COMPLETED
+03:10:08.507 [ INFO] maestro.cli.runner.MaestroCommandRunner.runCommands$lambda$0: Launch app "com.gonggu.calendar" RUNNING
+03:10:08.509 [ INFO] maestro.cli.runner.MaestroCommandRunner.runCommands$lambda$11: Launch app "com.gonggu.calendar" metadata CommandMetadata(numberOfRuns=null, evaluatedCommand=MaestroCommand(launchAppCommand=LaunchAppCommand(appId=com.gonggu.calendar, clearState=false, clearKeychain=null, stopApp=null, permissions=null, launchArguments=null, label=null, optional=false)), logMessages=[], insight=Insight(message=, level=NONE), aiReasoning=null, labeledCommand=null)
+03:10:08.511 [ INFO] device.SimctlIOSDevice.setPermissions: [Start] Setting permissions all=allow through applesimutils
+03:10:08.511 [ INFO] util.LocalSimulatorUtils.setAppleSimutilsPermissions: [Start] Setting permissions via pinned applesimutils
+03:10:08.511 [ INFO] util.CommandLineUtils.runCommand: Running command line operation: [/Users/pc/.maestro/deps/applesimutils, --byId, 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, --bundle, com.gonggu.calendar, --setPermissions, calendar=YES,camera=YES,contacts=YES,faceid=YES,homekit=YES,medialibrary=YES,microphone=YES,motion=YES,photos=YES,reminders=YES,siri=YES,speech=YES,userTracking=YES] with {}
+03:10:10.823 [ INFO] util.LocalSimulatorUtils.setAppleSimutilsPermissions: [Done] Setting permissions pinned applesimutils
+03:10:10.823 [ INFO] device.SimctlIOSDevice.setPermissions: [Done] Setting permissions through applesimutils
+03:10:10.825 [ INFO] device.SimctlIOSDevice.setPermissions: [Start] Setting Permissions all=allow through simctl
+03:10:10.825 [ INFO] util.CommandLineUtils.runCommand: Running command line operation: [xcrun, simctl, privacy, 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4, grant, location-always, com.gonggu.calendar] with {}
+03:10:11.004 [ INFO] device.SimctlIOSDevice.setPermissions: [Done] Setting Permissions all=allow through simctl
+03:10:11.092 [ INFO] maestro.Maestro.launchApp$lambda$2: Launching app com.gonggu.calendar
+03:10:11.092 [ INFO] maestro.Maestro.launchApp$lambda$2: Stopping com.gonggu.calendar app during launch

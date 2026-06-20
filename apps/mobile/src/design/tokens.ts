@@ -25,6 +25,7 @@ import {
   oklchToCssRgba,
   oklchToHex,
   primary,
+  ranking,
   rnShadows,
   status,
 } from '@gonggu/shared/tokens';
@@ -115,6 +116,34 @@ export const colors = {
   statusDuplicateText: oklchToHex(status.duplicate.text),
   statusDuplicateBorder: oklchToHex(status.duplicate.border),
 
+  // Ranking — additive namespace for Search tab rankings
+  rankingTop1Bg: oklchToHex(ranking.rank.top1Bg),
+  rankingTop1Text: oklchToHex(ranking.rank.top1Text),
+  rankingTop2Bg: oklchToHex(ranking.rank.top2Bg),
+  rankingTop2Text: oklchToHex(ranking.rank.top2Text),
+  rankingTop3Bg: oklchToHex(ranking.rank.top3Bg),
+  rankingTop3Text: oklchToHex(ranking.rank.top3Text),
+  rankingDefaultBg: oklchToHex(ranking.rank.defaultBg),
+  rankingDefaultText: oklchToHex(ranking.rank.defaultText),
+
+  rankingAdBg: oklchToHex(ranking.ad.bg),
+  rankingAdText: oklchToHex(ranking.ad.text),
+  rankingAdBorder: oklchToHex(ranking.ad.border),
+
+  rankingMovementUpText: oklchToHex(ranking.movement.upText),
+  rankingMovementUpBg: oklchToHex(ranking.movement.upBg),
+  rankingMovementDownText: oklchToHex(ranking.movement.downText),
+  rankingMovementDownBg: oklchToHex(ranking.movement.downBg),
+  rankingMovementSameText: oklchToHex(ranking.movement.sameText),
+  rankingMovementSameBg: oklchToHex(ranking.movement.sameBg),
+  rankingMovementNewText: oklchToHex(ranking.movement.newText),
+  rankingMovementNewBg: oklchToHex(ranking.movement.newBg),
+
+  rankingFollowingActiveBg: oklchToHex(ranking.following.activeBg),
+  rankingFollowingActiveText: oklchToHex(ranking.following.activeText),
+  rankingFollowingInactiveBg: oklchToHex(ranking.following.inactiveBg),
+  rankingFollowingInactiveText: oklchToHex(ranking.following.inactiveText),
+
   // Misc
   skeleton: oklchToHex(neutral[200]),
   shadow: '#000000',
@@ -158,6 +187,32 @@ export const categoryColors = {
 } as const;
 
 export type CategoryColorName = keyof typeof categoryColors;
+
+export const rankingColors = {
+  rank: {
+    top1: { bg: colors.rankingTop1Bg, text: colors.rankingTop1Text },
+    top2: { bg: colors.rankingTop2Bg, text: colors.rankingTop2Text },
+    top3: { bg: colors.rankingTop3Bg, text: colors.rankingTop3Text },
+    default: { bg: colors.rankingDefaultBg, text: colors.rankingDefaultText },
+  },
+  ad: {
+    bg: colors.rankingAdBg,
+    text: colors.rankingAdText,
+    border: colors.rankingAdBorder,
+  },
+  movement: {
+    up: { bg: colors.rankingMovementUpBg, text: colors.rankingMovementUpText },
+    down: { bg: colors.rankingMovementDownBg, text: colors.rankingMovementDownText },
+    same: { bg: colors.rankingMovementSameBg, text: colors.rankingMovementSameText },
+    new: { bg: colors.rankingMovementNewBg, text: colors.rankingMovementNewText },
+  },
+  following: {
+    active: { bg: colors.rankingFollowingActiveBg, text: colors.rankingFollowingActiveText },
+    inactive: { bg: colors.rankingFollowingInactiveBg, text: colors.rankingFollowingInactiveText },
+  },
+} as const;
+
+export type RankingMovementColorName = keyof typeof rankingColors.movement;
 
 export const cardOverlayGradientStops = [
   colors.cardOverlayTop,

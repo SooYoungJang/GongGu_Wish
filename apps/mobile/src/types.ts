@@ -102,6 +102,10 @@ export type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
   NativeStackScreenProps<RootStackParamList>
 >;
+export type StoreScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Search'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 export type SubmitScreenProps = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Submit'>,
   NativeStackScreenProps<RootStackParamList>

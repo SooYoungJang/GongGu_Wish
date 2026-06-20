@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     container_name: gonggu-postgres
     environment:
-      POSTGRES_DB: gonggu_calendar
+      POSTGRES_DB: gonggu_wish
       POSTGRES_USER: gonggu
       POSTGRES_PASSWORD: gonggu
     ports:
@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gonggu -d gonggu_calendar"]
+      test: ["CMD-SHELL", "pg_isready -U gonggu -d gonggu_wish"]
       interval: 5s
       timeout: 5s
       retries: 10

@@ -1,0 +1,16 @@
+appId: com.gonggu.calendar
+---
+- launchApp
+- tapOn: "Search 탭"
+- assertVisible: "쇼핑몰 랭킹"
+- assertVisible: "스토어 랭킹"
+- assertVisible: "브랜드명, 제품명, 셀러명으로 검색"
+- takeScreenshot: evidence/1-ranking-tab-header
+- tapOn:
+    id: "1위 오븐프레시 마켓, 진행 중인 공구 12개"
+- takeScreenshot: evidence/2-ranking-rows
+- tapOn: "Back"
+- scroll: DOWN
+- scroll: DOWN
+- scroll: DOWN
+- takeScreenshot: evidence/3-safearea-bottom

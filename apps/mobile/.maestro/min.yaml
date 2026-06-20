@@ -1,0 +1,7 @@
+appId: com.gonggu.calendar
+---
+- launchApp
+- tapOn: "Search 탭"
+- assertVisible: "쇼핑몰 랭킹"
+- takeScreenshot: evidence/min
+- assertVisible: "오븐프레시 마켓"

@@ -1,0 +1,25 @@
+appId: com.gonggu.wish
+---
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- tapOn: "Search 탭"
+- waitForAnimationToEnd
+- assertVisible: "스토어 랭킹"
+- takeScreenshot: f02-before-scroll
+# Fix: 800ms duration + 3000ms settle timeout
+- swipe:
+    direction: UP
+    duration: 800
+    waitToSettleTimeoutMs: 3000
+- waitForAnimationToEnd
+- takeScreenshot: f03-after-up-800
+- swipe:
+    direction: DOWN
+    duration: 800
+    waitToSettleTimeoutMs: 3000
+- waitForAnimationToEnd
+- assertVisible: "스토어 랭킹"
+- takeScreenshot: f04-after-down-800
+- waitForAnimationToEnd
+- takeScreenshot: f05-returned

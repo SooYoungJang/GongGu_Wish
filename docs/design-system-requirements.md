@@ -8,7 +8,7 @@
 
 ## 1. 개요
 
-GongGu Calendar 웹 디자인 시스템은 **Medium / Pinterest / Toss 증권** 스타일을 레퍼런스로 하는 모던 웹 디자인 시스템입니다.
+GongGu Wish 웹 디자인 시스템은 **Medium / Pinterest / Toss 증권** 스타일을 레퍼런스로 하는 모던 웹 디자인 시스템입니다.
 
 ### 목표
 - 웹 전용 일관된 디자인 언어 확립

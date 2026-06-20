@@ -52,7 +52,7 @@ export default function AdminLoginPage() {
             관리자 로그인
           </h1>
           <p className="text-neutral-500 text-sm">
-            GongGu Calendar 관리자 페이지에 오신 것을 환영합니다.
+            GongGu Wish 관리자 페이지에 오신 것을 환영합니다.
           </p>
         </div>
 
@@ -157,7 +157,7 @@ export default function AdminLoginPage() {
 
         {/* 푸터 */}
         <p className="text-center text-xs text-neutral-400 mt-6">
-          © 2026 GongGu Calendar. All rights reserved.
+          © 2026 GongGu Wish. All rights reserved.
         </p>
       </div>
     </div>

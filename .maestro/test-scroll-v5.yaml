@@ -1,0 +1,35 @@
+appId: com.gonggu.wish
+---
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- tapOn: "Search 탭"
+- waitForAnimationToEnd
+- assertVisible: "스토어 랭킹"
+- assertVisible: "셀러 랭킹 목록"
+- takeScreenshot: t02-before
+
+# Option A: swipe with from=셀러 랭킹 목록 (target FlatList explicitly)
+- swipe:
+    from:
+      text: "셀러 랭킹 목록"
+    direction: UP
+    duration: 800
+- waitForAnimationToEnd
+- takeScreenshot: t03-from-up
+
+# Option B: swipe UP from explicit start/end coordinates in % 
+- swipe:
+    start: 50%, 80%
+    end: 50%, 10%
+    duration: 800
+- waitForAnimationToEnd
+- takeScreenshot: t04-explicit-80-10
+
+# Scroll back to top
+- swipe:
+    direction: DOWN
+    duration: 800
+- waitForAnimationToEnd
+- assertVisible: "스토어 랭킹"
+- takeScreenshot: t05-down

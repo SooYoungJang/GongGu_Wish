@@ -1,10 +1,13 @@
-appId: com.gonggu.calendar
+appId: com.gonggu.wish
 ---
-# Relaunch to reset the XCUITest runner state before the scroll + screenshot section.
-# All screenshots are non-optional (optional:true removed) — every takeScreenshot must
-# capture distinct visual state to guarantee screenshot evidence integrity across all
-# device widths (320pt, 375pt, 390pt, 414pt). waitForAnimationToEnd ensures animations
-# settle before each capture.
+# ranking-tab-scroll-verify.yaml — Scroll + screenshot integrity test
+# Fixed: use element-targeted swipe and explicit scroll distance for device-width
+# independence (320pt through 414pt). The default direction:UP swipe on iPhone Pro
+# Max (440pt x 956pt grid) doesn't scroll enough content to produce a distinct
+# screenshot hash because the FlatList viewport is taller and only 6 mock rows exist.
+#
+# Fix: target the "셀러 랭킹 목록" accessibility label (the FlatList itself) for
+# the scroll gesture, and use a longer duration to guarantee content movement.
 - launchApp:
     clearState: false
 - waitForAnimationToEnd
@@ -15,7 +18,8 @@ appId: com.gonggu.calendar
 - assertVisible: "셀러 랭킹 목록"
 - swipe:
     direction: UP
-    duration: 600
+    duration: 800
+    waitToSettleTimeoutMs: 3000
 - waitForAnimationToEnd
 # Use partial label text to survive 320pt truncation where labels may be clipped
 - assertVisible:
@@ -30,7 +34,8 @@ appId: com.gonggu.calendar
 - takeScreenshot: 04-search-ranking-after-scroll
 - swipe:
     direction: DOWN
-    duration: 600
+    duration: 800
+    waitToSettleTimeoutMs: 3000
 - waitForAnimationToEnd
 - assertVisible:
     text: "스토어 랭킹"

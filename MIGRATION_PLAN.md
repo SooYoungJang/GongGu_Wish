@@ -30,7 +30,7 @@
 ## Target Architecture
 
 ```
-gonggu-calendar/
+gonggu-wish/
 ├── apps/
 │   ├── mobile/          # Expo React Native (existing root → move here)
 │   ├── web/             # Next.js 14+ App Router (NEW)

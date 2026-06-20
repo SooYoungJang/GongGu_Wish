@@ -23,7 +23,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GongGu Calendar - 인스타그램 공동구매 캘린더",
+  title: "GongGu Wish - 인스타그램 공동구매 캘린더",
   description: "인플루언서 공동구매 정보를 한눈에 보는 캘린더 서비스",
 };
 

@@ -1,4 +1,4 @@
-# GongGu Calendar
+# GongGu Wish
 
 Instagram group-buy monitoring service.
 

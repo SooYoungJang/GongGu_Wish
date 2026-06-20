@@ -13,7 +13,7 @@ export default function PublicLayout({
             <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            GongGu Calendar
+            GongGu Wish
           </Link>
           <nav className="flex items-center gap-6">
             <Link
@@ -49,7 +49,7 @@ export default function PublicLayout({
       <main className="flex-1">{children}</main>
       <footer className="bg-white border-t border-neutral-100 py-8 mt-auto">
         <div className="max-w-7xl mx-auto px-6 text-center text-neutral-500 text-sm">
-          © 2026 GongGu Calendar. 인플루언서 공동구매 정보 서비스.
+          © 2026 GongGu Wish. 인플루언서 공동구매 정보 서비스.
         </div>
       </footer>
     </div>

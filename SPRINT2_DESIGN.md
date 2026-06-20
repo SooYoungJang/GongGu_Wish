@@ -3,7 +3,7 @@
 **작성일**: 2026-06-14  
 **작성자**: AI Assistant (dami-pm profile)  
 **대상**: 김다미 PM  
-**프로젝트**: RN_GongGu_Calendar (Expo RN 0.83 + NestJS + Prisma + PostgreSQL + Redis)
+**프로젝트**: RN_GongGu_Wish (Expo RN 0.83 + NestJS + Prisma + PostgreSQL + Redis)
 
 ---
 

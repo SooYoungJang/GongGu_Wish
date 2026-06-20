@@ -1,0 +1,15 @@
+appId: com.gonggu.calendar
+---
+- launchApp
+- tapOn: "Search 탭"
+- assertVisible: "쇼핑몰 랭킹"
+- assertVisible: "스토어 랭킹"
+- assertVisible: "브랜드명, 제품명, 셀러명으로 검색"
+- takeScreenshot: evidence/1-ranking-tab-header
+- scroll: DOWN
+- scroll: DOWN
+- scroll: DOWN
+- takeScreenshot: evidence/2-safearea-bottom
+- scroll: UP
+- scroll: UP
+- scroll: UP

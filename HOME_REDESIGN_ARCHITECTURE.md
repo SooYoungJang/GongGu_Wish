@@ -5,12 +5,12 @@
 
 ## 1. References used
 
-- `/Users/pc/wiki/projects/gonggu-calendar/gonggu-calendar.md`
-- `/Users/pc/wiki/projects/gonggu-calendar/concepts/design-system-v2.md`
-- `/Users/pc/wiki/projects/gonggu-calendar/concepts/product-direction.md`
-- `/Users/pc/Documents/RN_GongGu_Calendar/DESIGN_GUIDE.md`
+- `/Users/pc/wiki/projects/gonggu-wish/gonggu-wish.md`
+- `/Users/pc/wiki/projects/gonggu-wish/concepts/design-system-v2.md`
+- `/Users/pc/wiki/projects/gonggu-wish/concepts/product-direction.md`
+- `/Users/pc/Documents/RN_GongGu_Wish/DESIGN_GUIDE.md`
 
-Key product constraint: GongGu Calendar is not a social feed clone. The Home screen may borrow Instagram/Threads visual language, but its information architecture must prioritize approved 공동구매 schedules, deadlines, purchase links, trusted submission/approval status, and alerts.
+Key product constraint: GongGu Wish is not a social feed clone. The Home screen may borrow Instagram/Threads visual language, but its information architecture must prioritize approved 공동구매 schedules, deadlines, purchase links, trusted submission/approval status, and alerts.
 
 ## 2. Token extension contract
 
@@ -381,7 +381,7 @@ Rules:
 Run from project root:
 
 ```bash
-cd /Users/pc/Documents/RN_GongGu_Calendar
+cd /Users/pc/Documents/RN_GongGu_Wish
 npm run build:shared
 npm run typecheck -- --filter=@gonggu/mobile
 npm test -- --filter=@gonggu/shared

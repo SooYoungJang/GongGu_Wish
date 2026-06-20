@@ -1,15 +1,16 @@
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MainTabParamList, RootStackParamList } from './types';
 import { AdminScreen } from './screens/AdminScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { InfluencerGroupBuysScreen } from './screens/InfluencerGroupBuysScreen';
 import { DetailScreen } from './screens/DetailScreen';
+import { StoreScreen } from './screens/StoreScreen';
 import { SubmitScreen } from './screens/SubmitScreen';
 import { colors, shadows, spacing } from './design/tokens';
 
@@ -20,6 +21,7 @@ type RootStackWithTabs = RootStackParamList & {
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const TAB_BAR_HEIGHT = 70;
 
 function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -28,10 +30,6 @@ function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: strin
       <Text style={styles.placeholderSubtitle}>{subtitle}</Text>
     </View>
   );
-}
-
-function SearchScreen() {
-  return <PlaceholderScreen title="검색" subtitle="브랜드명, 제품명, 인플루언서로 공구를 찾아보세요." />;
 }
 
 function CommunityScreen() {
@@ -73,12 +71,23 @@ function tabLabel(routeName: keyof MainTabParamList) {
 }
 
 function MainTabs() {
+  const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const isNarrow = screenWidth <= 375;
+  const tabBarMarginHorizontal = isNarrow ? Math.max(spacing.sm, spacing.lg - 6) : spacing.lg;
+  const tabBarBottomOffset = Math.max(insets.bottom, spacing.sm);
+  const submitTabMarginHorizontal = isNarrow ? spacing.xxs : spacing.xs;
+
   return (
     <Tab.Navigator
       initialRouteName="Home"
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarItemStyle: [styles.tabButton, route.name === 'Submit' && styles.submitTabButton],
+        tabBarItemStyle: [
+          styles.tabButton,
+          route.name === 'Submit' && styles.submitTabButton,
+          route.name === 'Submit' && { marginHorizontal: submitTabMarginHorizontal },
+        ],
         tabBarAccessibilityLabel: `${tabLabel(route.name)} 탭`,
         tabBarIcon: ({ focused }) => (
           <Text style={[styles.tabIcon, focused && styles.tabIconFocused, route.name === 'Submit' && styles.submitTabIcon]}>
@@ -90,11 +99,11 @@ function MainTabs() {
             {tabLabel(route.name)}
           </Text>
         ),
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, { bottom: tabBarBottomOffset, marginHorizontal: tabBarMarginHorizontal }],
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Search" component={SearchScreen} />
+      <Tab.Screen name="Search" component={StoreScreen} />
       <Tab.Screen name="Submit" component={SubmitScreen} />
       <Tab.Screen name="Community" component={CommunityScreen} />
       <Tab.Screen name="MyPage" component={MyPageScreen} />
@@ -151,9 +160,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 30,
     borderTopWidth: 0,
-    height: 70,
-    marginBottom: spacing.lg,
-    marginHorizontal: spacing.lg,
+    height: TAB_BAR_HEIGHT,
     paddingBottom: spacing.sm,
     paddingTop: spacing.sm,
     position: 'absolute',

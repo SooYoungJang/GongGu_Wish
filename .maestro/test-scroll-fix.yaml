@@ -1,0 +1,24 @@
+appId: com.gonggu.wish
+---
+# Diagnostic flow to test swipe behavior on the current device
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- assertVisible: "Search 탭"
+- tapOn: "Search 탭"
+- waitForAnimationToEnd
+- assertVisible: "스토어 랭킹"
+- takeScreenshot: dia-before-scroll
+
+# Option 1: Default swipe UP (current behavior)
+- swipe:
+    direction: UP
+    duration: 600
+- waitForAnimationToEnd
+- takeScreenshot: dia-after-default-up
+
+# Scroll back
+- swipe:
+    direction: DOWN
+    duration: 600
+- waitForAnimationToEnd

@@ -1,4 +1,4 @@
-appId: com.gonggu.calendar
+appId: com.gonggu.wish
 ---
 - launchApp:
     clearState: false

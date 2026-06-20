@@ -1,11 +1,11 @@
-# DESIGN_GUIDE.md — GongGu Calendar Design System v2
+# DESIGN_GUIDE.md — GongGu Wish Design System v2
 
 > **Version:** 2.0.0  
 > **Status:** Active  
 > **Author:** Designer (Design System v2)  
 > **Last updated:** 2026-06-20  
 
-This guide formalises the GongGu Calendar design language as a **single source of truth** for both platforms (web + mobile). It codifies the asymmetric platform archetypes, token vocabulary, component contract, accessibility baseline, dark-mode architecture, and tone guardrails that every contributor — designer, developer, PM — must read before building UI.
+This guide formalises the GongGu Wish design language as a **single source of truth** for both platforms (web + mobile). It codifies the asymmetric platform archetypes, token vocabulary, component contract, accessibility baseline, dark-mode architecture, and tone guardrails that every contributor — designer, developer, PM — must read before building UI.
 
 ---
 
@@ -13,7 +13,7 @@ This guide formalises the GongGu Calendar design language as a **single source o
 
 ### Identity: Editorial + Social
 
-GongGu Calendar is not a pure content platform and not a pure admin tool. It lives at the intersection of **social feed consumption** (Instagram / Threads) and **editorial clarity** (Medium / Notion), with a **financial tool's density** (Toss 증권) for operator screens.
+GongGu Wish is not a pure content platform and not a pure admin tool. It lives at the intersection of **social feed consumption** (Instagram / Threads) and **editorial clarity** (Medium / Notion), with a **financial tool's density** (Toss 증권) for operator screens.
 
 | Influence | What we take | Where it applies |
 |-----------|-------------|------------------|

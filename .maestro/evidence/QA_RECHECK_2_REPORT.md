@@ -2,7 +2,7 @@
 
 Verdict: APPROVE / PASS
 Date: 2026-06-21
-Project: /Users/pc/Documents/RN_GongGu_Calendar
+Project: /Users/pc/Documents/RN_GongGu_Wish
 Flow: .maestro/search-ranking-test.yaml
 Maestro: 2.6.1
 Java: OpenJDK 17.0.19

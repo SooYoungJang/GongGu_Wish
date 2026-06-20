@@ -1,0 +1,9 @@
+appId: com.gonggu.calendar
+---
+- launchApp
+- tapOn: "Search 탭"
+- assertVisible: "쇼핑몰 랭킹"
+- takeScreenshot: evidence/11-before-first-follow-tap
+- tapOn:
+    point: "89%, 56%"
+- takeScreenshot: evidence/12-after-first-follow-tap
