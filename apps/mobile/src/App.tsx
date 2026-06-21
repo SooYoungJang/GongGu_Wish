@@ -1,4 +1,4 @@
-import { Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, Text, useWindowDimensions, View, LogBox } from 'react-native';
 import { NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -7,6 +7,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 
 import type { MainTabParamList, RootStackParamList } from './types';
 import { AdminScreen } from './screens/AdminScreen';
+import { CalendarScreen } from './screens/CalendarScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { InfluencerGroupBuysScreen } from './screens/InfluencerGroupBuysScreen';
 import { DetailScreen } from './screens/DetailScreen';
@@ -94,11 +95,13 @@ function MainTabs() {
             {tabIcon(route.name)}
           </Text>
         ),
-        tabBarLabel: ({ focused }) => (
-          <Text style={[styles.tabText, focused && styles.tabTextFocused, route.name === 'Submit' && styles.submitTabText]}>
-            {tabLabel(route.name)}
-          </Text>
-        ),
+        tabBarLabel: tabLabel(route.name),
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarLabelStyle: [
+          { fontSize: 10, fontWeight: '700' },
+          route.name === 'Submit' && { color: colors.ctaPurpleText },
+        ],
         tabBarStyle: [styles.tabBar, { bottom: tabBarBottomOffset, marginHorizontal: tabBarMarginHorizontal }],
       })}
     >
@@ -110,6 +113,9 @@ function MainTabs() {
     </Tab.Navigator>
   );
 }
+
+// Suppress the known RN 0.83 Fabric text-warning (false positive)
+LogBox.ignoreLogs(['Text strings must be rendered within a <Text> component']);
 
 export default function App() {
   return (
@@ -125,6 +131,7 @@ export default function App() {
             screenOptions={{ headerShown: false }}
           >
             <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen name="CalendarScreen" component={CalendarScreen} />
             <Stack.Screen name="Detail" component={DetailScreen} />
             <Stack.Screen name="InfluencerGroupBuys" component={InfluencerGroupBuysScreen} />
             <Stack.Screen name="Admin" component={AdminScreen} />
@@ -186,19 +193,8 @@ const styles = StyleSheet.create({
   tabIconFocused: {
     color: colors.primary,
   },
-  tabText: {
-    color: colors.textTertiary,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  tabTextFocused: {
-    color: colors.primary,
-  },
   submitTabIcon: {
     color: colors.ctaPurpleText,
     fontSize: 22,
-  },
-  submitTabText: {
-    color: colors.ctaPurpleText,
   },
 });
