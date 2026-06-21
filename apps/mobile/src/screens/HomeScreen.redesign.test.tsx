@@ -48,12 +48,23 @@ vi.mock('react-native-safe-area-context', () => {
   };
 });
 
+function dateStr(daysFromNow: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  d.setHours(23, 59, 59, 0);
+  // Offset to KST (+09:00)
+  const kstOffset = 9 * 60;
+  const localOffset = d.getTimezoneOffset();
+  const kstTime = d.getTime() + (localOffset + kstOffset) * 60_000;
+  return new Date(kstTime).toISOString().replace('.000', '');
+}
+
 const sampleGroupBuys: GroupBuy[] = [
   {
     id: 'gb-1',
     productName: '비건 선크림 공구',
     brandName: 'Sample Beauty',
-    endDate: '2099-06-15T23:59:59+09:00',
+    endDate: dateStr(2),
     purchaseUrl: 'https://example.com',
     discountInfo: '20% 할인',
     summary: '민감 피부를 위한 촉촉한 선크림 공구입니다.',
@@ -64,7 +75,7 @@ const sampleGroupBuys: GroupBuy[] = [
     id: 'gb-2',
     productName: '프리미엄 그래놀라 세트',
     brandName: 'Morning Table',
-    endDate: '2099-06-20T23:59:59+09:00',
+    endDate: dateStr(5),
     purchaseUrl: 'https://example.com/granola',
     discountInfo: '1+1 구성',
     summary: '아침 식사용 그래놀라 공동구매입니다.',
@@ -151,14 +162,44 @@ describe('HomeScreenContent redesign', () => {
     }
   });
 
-  it('renders the calendar header with 주간 공구 title and 전체 pill link', () => {
+  it('renders the calendar header with 이번주 공구 title and 전체 textLink', () => {
     const renderer = renderHomeContent();
     const viewAllCta = renderer!.root.findByProps({ accessibilityLabel: '전체 캘린더 보기' });
     expect(viewAllCta).toBeDefined();
 
     const text = flattenText(renderer!.toJSON());
-    expect(text).toContain('주간 공구');
+    expect(text).toContain('이번주 공구');
     expect(text).toContain('전체');
+  });
+});
+
+describe('HomeScreenContent redesign v2', () => {
+  it('shows 이번주 공구 instead of 주간 공구', () => {
+    const renderer = renderHomeContent();
+    const text = flattenText(renderer!.toJSON());
+    expect(text).not.toContain('주간 공구');
+    expect(text).toContain('이번주 공구');
+  });
+
+  it('renders calendar 전체 as textLink without border', () => {
+    const renderer = renderHomeContent();
+    const viewAllCta = renderer!.root.findByProps({ accessibilityLabel: '전체 캘린더 보기' });
+    const style = flattenStyle(viewAllCta.props.style);
+    expect(String(style.borderWidth)).toBe('0');
+  });
+
+  it('removes DISCOVERY FEED eyebrow and 오늘 열려있는 공구 section', () => {
+    const renderer = renderHomeContent();
+    const text = flattenText(renderer!.toJSON());
+    expect(text).not.toContain('DISCOVERY FEED');
+    expect(text).not.toContain('오늘 열려있는 공구');
+  });
+
+  it('renders 마감임박 공구 section with 전체보기 action', () => {
+    const renderer = renderHomeContent();
+    const text = flattenText(renderer!.toJSON());
+    expect(text).toContain('마감임박 공구');
+    expect(text).toContain('전체보기');
   });
 });
 
