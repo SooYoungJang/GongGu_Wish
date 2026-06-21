@@ -1,0 +1,28 @@
+appId: com.gonggu.wish
+---
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구캘린더"
+    timeout: 30000
+- tapOn:
+    point: "95%,95%"
+- waitForAnimationToEnd
+- tapOn: "전체 캘린더 보기"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "오늘로 이동"
+    timeout: 15000
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: off-before
+# Tap at the right side where filter chip should be (more precise)
+- tapOn:
+    point: "82%,10%"
+- waitForAnimationToEnd
+- takeScreenshot: on-after-82
+- tapOn:
+    point: "82%,10%"
+- waitForAnimationToEnd
+- takeScreenshot: off-after-82b

@@ -1,0 +1,40 @@
+appId: com.gonggu.wish
+---
+# QA evidence: 홈화면 캘린더 + CalendarScreen 디자인 리뉴얼
+# Re-run with fresh app state to get distinct screenshots
+
+# Step 0: Fresh launch with cleared state
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구캘린더"
+    timeout: 30000
+
+# Step 1: Dismiss any error banner by tapping bottom-right corner
+- tapOn:
+    point: "95%,95%"
+- waitForAnimationToEnd
+
+# Step 2: Take screenshot showing HomeScreen with "→ 전체" pill
+- takeScreenshot: 01-home-overview
+
+# Step 3: Tap "전체 캘린더 보기" to navigate to CalendarScreen
+- tapOn: "전체 캘린더 보기"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "오늘로 이동"
+    timeout: 15000
+
+# Step 4: CalendarScreen filter OFF screenshot
+- takeScreenshot: 02-calendar-filter-off
+
+# Step 5: Toggle filter ON (팔로잉만 보기)
+- tapOn: "팔로잉만 보기"
+- waitForAnimationToEnd
+- takeScreenshot: 03-calendar-filter-on
+
+# Step 6: Toggle back to OFF
+- tapOn: "팔로잉"
+- waitForAnimationToEnd
+- takeScreenshot: 04-calendar-filter-off-again

@@ -1,0 +1,69 @@
+appId: com.gonggu.wish
+---
+# calendar-screen-test.yaml — E2E for CalendarScreen
+# Covers AC-1 through AC-9
+
+# Section 1: Home screen launch + WeeklyCalendarStrip header
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- assertVisible: "홈 탭"
+- assertVisible: "주간 캘린더"
+- assertVisible: "전체 캘린더 보기"
+- assertVisible: "랭킹 탭"
+- takeScreenshot: 01-home-with-calendar-cta
+
+# Section 2: Tap "전체 캘린더 보기" → CalendarScreen
+- tapOn: "전체 캘린더 보기"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- assertVisible: "오늘로 이동"
+- assertVisible: "이전 달"
+- assertVisible: "다음 달"
+- takeScreenshot: 02-calendar-screen-loaded
+
+# Section 3: Month grid with weekday headers
+- assertVisible: "월"
+- assertVisible: "화"
+- assertVisible: "수"
+- assertVisible: "목"
+- assertVisible: "금"
+- assertVisible: "토"
+- assertVisible: "일"
+- takeScreenshot: 03-calendar-grid-weekdays
+
+# Section 4: Today button navigates to current month
+- tapOn: "이전 달"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- assertVisible: "오늘로 이동"
+- tapOn: "오늘로 이동"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 04-today-navigation
+
+# Section 5: Month navigation
+- tapOn: "다음 달"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 05-next-month
+
+- tapOn: "이전 달"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- tapOn: "이전 달"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 06-prev-month-twice
+
+# Section 6: Select date with group buys
+- tapOn: "오늘로 이동"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- tapOn:
+    label: "15일"
+    index: 0
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 07-date-selected-deals

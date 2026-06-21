@@ -1,0 +1,47 @@
+appId: com.gonggu.wish
+---
+# G2 evidence: Backward navigation — CalendarScreen → back → re-enter
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구캘린더"
+    timeout: 30000
+- tapOn:
+    point: "95%,95%"
+- waitForAnimationToEnd
+# Navigate to CalendarScreen
+- tapOn: "전체 캘린더 보기"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "오늘로 이동"
+    timeout: 15000
+- waitForAnimationToEnd
+# Toggle filter ON
+- tapOn:
+    point: "82%,10%"
+- waitForAnimationToEnd
+# Take screenshot with filter ON to show state before navigation
+- takeScreenshot: g2-filter-on-state
+# Go back using iOS back swipe gesture (left edge to right)
+- swipe:
+    from:
+      point: "3%,50%"
+    to:
+      point: "40%,50%"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구캘린더"
+    timeout: 15000
+# Take screenshot after going back to home
+- takeScreenshot: g2-back-at-home
+# Re-enter CalendarScreen
+- tapOn: "전체 캘린더 보기"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "오늘로 이동"
+    timeout: 15000
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+# Take screenshot showing filter state after re-entry
+- takeScreenshot: g2-reentered

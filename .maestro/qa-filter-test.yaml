@@ -1,0 +1,25 @@
+appId: com.gonggu.wish
+---
+# QA evidence: CalendarScreen filter toggle — sweep tap positions
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구캘린더"
+    timeout: 30000
+- tapOn:
+    point: "95%,95%"
+- waitForAnimationToEnd
+- tapOn: "전체 캘린더 보기"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "오늘로 이동"
+    timeout: 15000
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 01-calendar-filter-off
+# Try tapping by text directly
+- tapOn: "팔로잉만 보기"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 02-after-text-tap

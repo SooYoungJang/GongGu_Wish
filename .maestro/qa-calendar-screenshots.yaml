@@ -1,0 +1,44 @@
+appId: com.gonggu.wish
+---
+# QA evidence: CalendarScreen filter toggle — tap by coordinate
+
+# Step 0: Fresh launch
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구캘린더"
+    timeout: 30000
+
+# Step 1: Dismiss error banner
+- tapOn:
+    point: "95%,95%"
+- waitForAnimationToEnd
+
+# Step 2: Navigate to CalendarScreen
+- tapOn: "전체 캘린더 보기"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "오늘로 이동"
+    timeout: 15000
+
+# Wait extra for full render
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Step 3: CalendarScreen filter OFF screenshot
+- takeScreenshot: 01-calendar-filter-off
+
+# Step 4: Tap filter chip at top-right area
+- tapOn:
+    point: "88%,8%"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 02-calendar-filter-on
+
+# Step 5: Tap filter chip again to toggle back
+- tapOn:
+    point: "88%,8%"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 03-calendar-filter-off-again
