@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
+import { fetchSellerRankings } from '../../api';
 import { MOCK_RANKINGS } from './rankingFixtures';
 import type { RankingLoadState, SellerRanking, SellerRankingQuery } from './types';
 
@@ -49,7 +50,13 @@ function applyRankingQuery(items: SellerRanking[], query: SellerRankingQuery): S
 export function useSellerRankings(query: SellerRankingQuery): RankingLoadState {
   const rankingsQuery = useQuery({
     queryKey: ['seller-rankings', query],
-    queryFn: async () => applyRankingQuery(MOCK_RANKINGS, query),
+    queryFn: async () => {
+      try {
+        return await fetchSellerRankings(query);
+      } catch {
+        return applyRankingQuery(MOCK_RANKINGS, query);
+      }
+    },
     staleTime: 1000 * 60 * 5,
   });
 

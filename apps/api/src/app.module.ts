@@ -9,6 +9,7 @@ import { GroupBuysModule } from './group-buys/group-buys.module';
 import { InfluencersModule } from './influencers/influencers.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RankingModule } from './ranking/ranking.module';
 import { RawPostsModule } from './raw-posts/raw-posts.module';
 import { SearchModule } from './search/search.module';
 import { SubmissionsModule } from './submissions/submissions.module';
@@ -36,6 +37,7 @@ import { UsersModule } from './users/users.module';
     AdminModule,
     UsersModule,
     NotificationsModule,
+    RankingModule,
     SubmissionsModule,
   ],
 })

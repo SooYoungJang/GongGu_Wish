@@ -4,6 +4,48 @@ import * as SecureStore from 'expo-secure-store';
 import type { GroupBuy, Influencer, Submission } from './types';
 export { searchInfluencers } from './utils/search';
 
+/* ── Local types for fetchSellerRankings (avoids feature -> shared dependency) ── */
+export type RankingCategory =
+  | 'all' | 'beauty' | 'fashion' | 'food' | 'lifestyle' | 'baby' | 'digital';
+export type RankingPeriod = 'today' | 'weekly' | 'monthly';
+export type RankingSort = 'popular' | 'rising' | 'deadlineSoon' | 'newDeal' | 'brand';
+export type RankingTrend =
+  | { kind: 'up'; delta: number }
+  | { kind: 'down'; delta: number }
+  | { kind: 'same' }
+  | { kind: 'new' };
+export type RankingThumbnail = {
+  id: string;
+  imageUrl: string | null;
+  label?: string | null;
+  groupBuyId?: string | null;
+};
+export type SellerRanking = {
+  id: string;
+  sellerId: string;
+  rank: number;
+  previousRank: number | null;
+  trend: RankingTrend;
+  displayName: string;
+  username: string;
+  avatarUrl: string | null;
+  category: Exclude<RankingCategory, 'all'>;
+  followerCount?: number | null;
+  activeDealCount: number;
+  endingSoonCount?: number | null;
+  trustScore?: number | null;
+  isFollowing: boolean;
+  isSponsored: boolean;
+  thumbnails: RankingThumbnail[];
+  representativeGroupBuyId?: string | null;
+};
+export type SellerRankingQuery = {
+  tab: 'ranking' | 'following';
+  category: RankingCategory;
+  period: RankingPeriod;
+  sort: RankingSort;
+};
+
 export const API_BASE_URL = Platform.select({
   android: 'http://10.0.2.2:3000/api/v1',
   default: 'http://localhost:3000/api/v1',
@@ -26,6 +68,70 @@ export const fallbackGroupBuys: GroupBuy[] = [
       },
     },
   },
+  {
+    id: 'sample-2',
+    productName: '프리미엄 유아용품 세트',
+    brandName: '맘편한세상',
+    endDate: '2026-07-01T23:59:59+09:00',
+    purchaseUrl: 'https://example.com/baby',
+    discountInfo: '35% 할인',
+    summary: '신생아부터 돌까지 필요한 유아용품을 한 번에.',
+    confidence: 0.91,
+    rawPost: {
+      postUrl: 'https://www.instagram.com/',
+      influencer: {
+        instagramUsername: 'mom_blogger',
+      },
+    },
+  },
+  {
+    id: 'sample-3',
+    productName: '올인원 홈트레이닝 키트',
+    brandName: '핏스타그램',
+    endDate: '2026-06-28T23:59:59+09:00',
+    purchaseUrl: 'https://example.com/fitness',
+    discountInfo: '25% 할인',
+    summary: '홈트레이닝에 필요한 모든 도구를 세트로.',
+    confidence: 0.78,
+    rawPost: {
+      postUrl: 'https://www.instagram.com/',
+      influencer: {
+        instagramUsername: 'fitness_influencer',
+      },
+    },
+  },
+  {
+    id: 'sample-4',
+    productName: '스마트 홈 카메라',
+    brandName: '테크스토어',
+    endDate: '2026-06-20T23:59:59+09:00',
+    purchaseUrl: 'https://example.com/camera',
+    discountInfo: '15% 할인',
+    summary: '반려동물, 아이 모니터링에 최적화된 스마트 카메라.',
+    confidence: 0.85,
+    rawPost: {
+      postUrl: 'https://www.instagram.com/',
+      influencer: {
+        instagramUsername: 'tech_reviewer',
+      },
+    },
+  },
+  {
+    id: 'sample-5',
+    productName: '자연유래 클렌징 3종 세트',
+    brandName: '글로우스킨',
+    endDate: '2026-07-10T23:59:59+09:00',
+    purchaseUrl: 'https://example.com/skincare',
+    discountInfo: '30% 할인',
+    summary: '민감성 피부를 위한 저자극 클렌징 라인.',
+    confidence: 0.88,
+    rawPost: {
+      postUrl: 'https://www.instagram.com/',
+      influencer: {
+        instagramUsername: 'skincare_expert',
+      },
+    },
+  },
 ];
 
 export async function fetchGroupBuys() {
@@ -36,6 +142,23 @@ export async function fetchGroupBuys() {
   }
 
   return (await response.json()) as GroupBuy[];
+}
+
+export async function fetchSellerRankings(query: SellerRankingQuery): Promise<SellerRanking[]> {
+  const params = new URLSearchParams({
+    tab: query.tab,
+    category: query.category,
+    period: query.period,
+    sort: query.sort,
+  });
+  const response = await fetch(`${API_BASE_URL}/ranking/sellers?${params}`);
+
+  if (!response.ok) {
+    throw new Error('Seller rankings API unavailable');
+  }
+
+  const body = (await response.json()) as { data: SellerRanking[] };
+  return body.data;
 }
 
 export async function fetchInfluencers() {
