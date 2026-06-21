@@ -91,7 +91,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     includeFontPadding: false,
-    lineHeight: 13,
   },
   chipRow: {
     gap: spacing.sm,
