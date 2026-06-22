@@ -1,0 +1,4 @@
+appId: com.gonggu.wish
+---
+- launchApp
+- takeScreenshot: evidence/hierarchy

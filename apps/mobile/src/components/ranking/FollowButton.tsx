@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, type GestureResponderEvent } from 'react-native';
+import { Pressable, StyleSheet, type GestureResponderEvent } from 'react-native';
 
+import { SText } from '../ui/SText';
 import { borderRadius, colors, rankingColors, spacing } from '../../design/tokens';
 
 export interface FollowButtonProps {
@@ -31,7 +32,7 @@ export function FollowButton({ isFollowing, sellerName, onFollow, onPress }: Fol
         },
       ]}
     >
-      <Text style={[styles.text, { color: palette.text }]}>{isFollowing ? '팔로잉' : '팔로우'}</Text>
+      <SText variant="badge" style={[styles.text, { color: palette.text }]}>{isFollowing ? '팔로잉' : '팔로우'}</SText>
     </Pressable>
   );
 }

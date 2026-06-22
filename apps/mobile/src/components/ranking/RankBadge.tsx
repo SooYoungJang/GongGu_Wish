@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { SText } from '../ui/SText';
 import { borderRadius, rankingColors, spacing } from '../../design/tokens';
 
 export interface RankBadgeProps {
@@ -18,7 +19,7 @@ export function RankBadge({ rank }: RankBadgeProps) {
 
   return (
     <View style={[styles.badge, { backgroundColor: palette.bg }]} accessibilityLabel={`${rank}위`}>
-      <Text style={[styles.text, { color: palette.text }]}>{rank.toString().padStart(2, '0')}</Text>
+      <SText variant="caption" style={[styles.text, { color: palette.text }]}>{rank.toString().padStart(2, '0')}</SText>
     </View>
   );
 }

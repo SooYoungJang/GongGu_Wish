@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { SText } from '../ui/SText';
 import { borderRadius, rankingColors, spacing } from '../../design/tokens';
 
 export function AdBadge() {
@@ -14,7 +15,7 @@ export function AdBadge() {
       ]}
       accessibilityLabel="광고 셀러"
     >
-      <Text style={[styles.text, { color: rankingColors.ad.text }]}>AD</Text>
+      <SText variant="badge" style={[styles.text, { color: rankingColors.ad.text }]}>AD</SText>
     </View>
   );
 }

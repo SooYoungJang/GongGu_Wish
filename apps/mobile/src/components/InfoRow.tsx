@@ -1,13 +1,14 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { SText } from './ui/SText';
 import { colors, spacing } from '../design/tokens';
 
 export function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
   return (
     <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      <SText variant="label" style={styles.infoLabel}>{label}</SText>
+      <SText variant="body" style={styles.infoValue}>{value}</SText>
     </View>
   );
 }

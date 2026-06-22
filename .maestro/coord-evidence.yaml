@@ -1,0 +1,49 @@
+appId: com.gonggu.wish
+---
+# Coordinate-based evidence collection
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+
+# Tap at the Search/Ranking tab bar button (2nd tab) using coordinates
+# Screen coordinates (x: 132, y: 813)
+- tapOn:
+    point: "132,813"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Assert ranking screen
+- assertVisible: "스토어 랭킹"
+
+# Take a screenshot to verify
+- takeScreenshot: ev-01-ranking-loaded
+
+# Tap "전체" category chip using coordinate
+- tapOn:
+    point: "30,240"
+- waitForAnimationToEnd
+- takeScreenshot: ev-02-all-category
+
+# Tap "오늘" period chip
+- tapOn:
+    point: "35,212"
+- waitForAnimationToEnd
+- takeScreenshot: ev-03-today-period
+
+# Tap "이번 달" period chip  
+- tapOn:
+    point: "220,212"
+- waitForAnimationToEnd
+- takeScreenshot: ev-04-monthly-period
+
+# Tap "패션" category chip
+- tapOn:
+    point: "120,240"
+- waitForAnimationToEnd
+- takeScreenshot: ev-05-fashion-category
+
+# Tap "인기 셀러" sort chip
+- tapOn:
+    point: "35,280"
+- waitForAnimationToEnd
+- takeScreenshot: ev-06-popular-seller-sort

@@ -1,0 +1,41 @@
+appId: com.gonggu.wish
+---
+# Chip interaction flow using exact accessibility labels
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Navigate to Ranking screen via bottom tab
+- tapOn: "랭킹 탭"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Verify ranking screen is shown
+- assertVisible: "쇼핑몰 랭킹"
+- waitForAnimationToEnd
+
+# Use accessibility labels directly - tap on category chip
+- tapOn: "전체 카테고리"
+- waitForAnimationToEnd
+- takeScreenshot: ev-01-category-all
+
+# Tap on period chip
+- tapOn: "오늘 랭킹 기간"
+- waitForAnimationToEnd
+- takeScreenshot: ev-02-period-today
+
+# Tap on period chip
+- tapOn: "이번 달 랭킹 기간"
+- waitForAnimationToEnd
+- takeScreenshot: ev-03-period-monthly
+
+# Tap on category
+- tapOn: "패션 카테고리"
+- waitForAnimationToEnd
+- takeScreenshot: ev-04-category-fashion
+
+# Tap on sort chip  
+- tapOn: "인기 셀러 정렬"
+- waitForAnimationToEnd
+- takeScreenshot: ev-05-sort-popular

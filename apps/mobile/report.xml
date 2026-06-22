@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="iPhone 17 Pro - iOS 26.5 - 1220ADA0-82A2-4CAD-AF80-BACA32C78AD4" tests="1" failures="0" time="1.0">
+    <testcase id="just-screenshot" name="just-screenshot" classname="just-screenshot" file=".maestro/just-screenshot.yaml" time="1.0" status="SUCCESS"/>
+  </testsuite>
+</testsuites>

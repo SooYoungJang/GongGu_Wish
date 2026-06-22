@@ -1,0 +1,49 @@
+appId: com.gonggu.wish
+---
+# Screenshot flow for chip alignment evidence
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Navigate to Ranking tab
+- tapOn: "랭킹 탭"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Verify we're on ranking screen
+- assertVisible: "스토어 랭킹"
+- assertVisible: "쇼핑몰 랭킹"
+
+# Screenshot 01: Category chips (tap "전체" first to show all categories)
+- tapOn: "전체"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 01-category-chips
+
+# Screenshot 02: Sort chips (tap "인기 셀러" to show sort chips)
+- tapOn: "인기 셀러"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 02-sort-chips
+
+# Screenshot 03: Period - "오늘" selected
+- tapOn: "오늘"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 03-period-today
+
+# Screenshot 04: Period - "이번 달" selected with different category "패션"
+- tapOn: "이번 달"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- tapOn: "패션"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 04-period-monthly
+
+# Screenshot 05: "뷰티" category selected
+- tapOn: "뷰티"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: 05-beauty-selected

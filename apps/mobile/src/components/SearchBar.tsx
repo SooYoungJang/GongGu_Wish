@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { SText } from './ui/SText';
 import { borderRadius, colors, shadows, spacing, typography } from '../design/tokens';
 
 type SearchBarProps = {
@@ -13,7 +14,7 @@ export function SearchBar({ value, onChangeText, placeholder = '@username으로 
   return (
     <View style={styles.container}>
       <View style={styles.iconBubble}>
-        <Text style={styles.iconText}>⌕</Text>
+        <SText variant="body" style={styles.iconText}>⌕</SText>
       </View>
       <TextInput
         autoCapitalize="none"
@@ -33,7 +34,7 @@ export function SearchBar({ value, onChangeText, placeholder = '@username으로 
           onPress={onClear ?? (() => onChangeText(''))}
           style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}
         >
-          <Text style={styles.clearText}>×</Text>
+          <SText variant="body" style={styles.clearText}>×</SText>
         </Pressable>
       ) : null}
     </View>

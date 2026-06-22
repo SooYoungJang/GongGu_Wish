@@ -1,0 +1,47 @@
+[ {
+  "command" : {
+    "takeScreenshotCommand" : {
+      "path" : "evidence/app-running",
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1782003220201,
+    "duration" : 172,
+    "sequenceNumber" : 2
+  }
+}, {
+  "command" : {
+    "defineVariablesCommand" : {
+      "env" : {
+        "MAESTRO_FILENAME" : "just-screenshot",
+        "MAESTRO_DEVICE_UDID" : "1220ADA0-82A2-4CAD-AF80-BACA32C78AD4",
+        "MAESTRO_SHARD_ID" : "1",
+        "MAESTRO_SHARD_INDEX" : "0"
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1782003220198,
+    "duration" : 2,
+    "sequenceNumber" : 0
+  }
+}, {
+  "command" : {
+    "applyConfigurationCommand" : {
+      "config" : {
+        "appId" : "com.gonggu.wish"
+      },
+      "optional" : false
+    }
+  },
+  "metadata" : {
+    "status" : "COMPLETED",
+    "timestamp" : 1782003220201,
+    "duration" : 0,
+    "sequenceNumber" : 1
+  }
+} ]

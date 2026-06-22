@@ -1,0 +1,15 @@
+appId: com.gonggu.wish
+---
+# Debug flow - step by step screenshots
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: debug-01-after-launch
+- tapOn: "랭킹 탭"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: debug-02-after-tab
+- tapOn: "전체"
+- waitForAnimationToEnd
+- takeScreenshot: debug-03-after-tap-all

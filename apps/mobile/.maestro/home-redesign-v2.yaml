@@ -1,0 +1,10 @@
+appId: com.gonggu.wish
+---
+- launchApp
+- assertVisible: "이번주 공구"
+- takeScreenshot: evidence/home-v2-week-title
+- scroll
+- assertVisible: "마감임박 공구"
+- takeScreenshot: evidence/home-v2-expiring-title
+- scroll
+- takeScreenshot: evidence/home-v2-full-scroll

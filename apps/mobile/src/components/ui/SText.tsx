@@ -15,6 +15,7 @@ import { typography } from '../../design/tokens';
  * caption    → typography.caption    (12px/textTertiary)
  * label      → typography.label      (14px/600/textSecondary)
  * badge      → typography.badge      (12px/600/badgeText)
+ * button     → typography.button     (16px/600/textInverse)
  */
 export type STextVariant =
   | 'eyebrow'
@@ -26,7 +27,8 @@ export type STextVariant =
   | 'body'
   | 'caption'
   | 'label'
-  | 'badge';
+  | 'badge'
+  | 'button';
 
 /**
  * Maps a variant name to its typography token from the design system.
@@ -42,6 +44,7 @@ const VARIANT_STYLES: Record<STextVariant, object> = {
   caption: typography.caption,
   label: typography.label,
   badge: typography.badge,
+  button: typography.button,
 };
 
 export interface STextProps extends TextProps {

@@ -1,0 +1,5 @@
+appId: com.gonggu.wish
+---
+- tapOn: "랭킹"
+- assertVisible: "쇼핑몰 랭킹"
+- takeScreenshot: evidence/ranking-tab

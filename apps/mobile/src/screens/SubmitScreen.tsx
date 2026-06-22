@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSubmissionGuard } from '@gonggu/shared/hooks';
 
@@ -8,6 +8,7 @@ import { AppButton } from '../components/AppButton';
 import { FormInput } from '../components/FormInput';
 import { InstagramCard } from '../components/InstagramCard';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { SText } from '../components/ui/SText';
 import { colors, borderRadius, spacing } from '../design/tokens';
 import type { PublicSubmissionForm, SubmitScreenProps } from '../types';
 import { isValidOptionalUrl, normalizeOptional } from '../utils';
@@ -98,7 +99,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
 
         {feedback ? (
           <View style={styles.notice}>
-            <Text style={styles.noticeText}>{feedback}</Text>
+            <SText variant="caption" style={styles.noticeText}>{feedback}</SText>
           </View>
         ) : null}
 

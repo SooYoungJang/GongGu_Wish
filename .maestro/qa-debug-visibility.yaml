@@ -1,0 +1,11 @@
+appId: com.gonggu.wish
+---
+# Debug: check what's visible on screen with long wait
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- takeScreenshot: debug-startup

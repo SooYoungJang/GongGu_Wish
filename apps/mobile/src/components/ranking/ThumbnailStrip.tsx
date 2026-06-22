@@ -1,5 +1,6 @@
-import { Image, Pressable, StyleSheet, Text, View, type GestureResponderEvent, useWindowDimensions } from 'react-native';
+import { Image, Pressable, StyleSheet, View, type GestureResponderEvent, useWindowDimensions } from 'react-native';
 
+import { SText } from '../ui/SText';
 import { borderRadius, colors, spacing } from '../../design/tokens';
 import type { RankingThumbnail } from '../../features/ranking/types';
 
@@ -33,13 +34,13 @@ export function ThumbnailStrip({ thumbnails, maxVisible, size = 42, onPressThumb
             {thumbnail.imageUrl ? (
               <Image source={{ uri: thumbnail.imageUrl }} style={styles.image} resizeMode="cover" />
             ) : (
-              <Text style={styles.placeholderText} numberOfLines={1}>
+              <SText variant="caption" style={styles.placeholderText} numberOfLines={1}>
                 {thumbnail.label?.slice(0, 2) ?? '공구'}
-              </Text>
+              </SText>
             )}
             {index === visible.length - 1 && hiddenCount > 0 ? (
               <View style={styles.moreOverlay}>
-                <Text style={styles.moreText}>+{hiddenCount}</Text>
+                <SText variant="caption" style={styles.moreText}>+{hiddenCount}</SText>
               </View>
             ) : null}
           </View>

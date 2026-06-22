@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { SText } from '../ui/SText';
 import { borderRadius, rankingColors, spacing } from '../../design/tokens';
 import type { RankingTrend } from '../../features/ranking/types';
 
@@ -44,7 +45,7 @@ export function RankingTrendBadge({ trend }: RankingTrendBadgeProps) {
       style={[styles.badge, { backgroundColor: viewModel.palette.bg }]}
       accessibilityLabel={viewModel.accessibilityLabel}
     >
-      <Text style={[styles.text, { color: viewModel.palette.text }]}>{viewModel.label}</Text>
+      <SText variant="badge" style={[styles.text, { color: viewModel.palette.text }]}>{viewModel.label}</SText>
     </View>
   );
 }

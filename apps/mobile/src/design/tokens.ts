@@ -330,6 +330,11 @@ export const typography = {
     fontWeight: '600' as const,
     color: colors.badgeText,
   },
+  button: {
+    fontSize: mobileFontSize('base'),
+    fontWeight: '600' as const,
+    color: colors.textInverse,
+  },
 };
 
 // ─── Animation / Motion ─────────────────────────────────────────

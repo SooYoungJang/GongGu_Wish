@@ -1,0 +1,67 @@
+2026-06-21 09:57:06.093 xcodebuild[61775:1659799] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-06-21 09:57:06.097 xcodebuild[61775:1659799] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-06-21 09:57:07.881 xcodebuild[61775:1659799] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+** BUILD INTERRUPTED **
+57:11.538298+0900 maestro-driver-iosUITests-Runner[61789:1660215] [Default] Running tests...
+2026-06-21 09:57:11.730839+0900 maestro-driver-iosUITests-Runner[61789:1660215] snapshotKeyHonorModalViews configured to value: (null)
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-06-21 09:57:13.467.
+Test Suite 'maestro-driver-iosUITests.xctest' started at 2026-06-21 09:57:13.470.
+Test Suite 'maestro_driver_iosUITests' started at 2026-06-21 09:57:13.470.
+    t =      nans Suite Set Up
+Test Case '-[maestro_driver_iosUITests.maestro_driver_iosUITests testHttpServer]' started.
+    t =     0.01s Start Test at 2026-06-21 09:57:13.479
+    t =     0.10s Set Up
+2026-06-21 09:57:13.570878+0900 maestro-driver-iosUITests-Runner[61789:1660376] [maestro_driver_iosUITests] Will start HTTP server
+objc[61789]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x10a664310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x109894398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+2026-06-21 09:57:13.845843+0900 maestro-driver-iosUITests-Runner[61789:1660376] [FlyingFox] starting server 127.0.0.1:57619
+2026-06-21 09:57:13.979452+0900 maestro-driver-iosUITests-Runner[61789:1660452] [FlyingFox] <127.0.0.1> open connection
+2026-06-21 09:57:13.985642+0900 maestro-driver-iosUITests-Runner[61789:1660452] [FlyingFox] <127.0.0.1> request: GET /status
+2026-06-21 09:57:14.102935+0900 maestro-driver-iosUITests-Runner[61789:1660377] [FlyingFox] <127.0.0.1> open connection
+2026-06-21 09:57:14.105911+0900 maestro-driver-iosUITests-Runner[61789:1660458] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =     0.64s Getting device orientation
+2026-06-21 09:57:14.140325+0900 maestro-driver-iosUITests-Runner[61789:1660215] Using singleton test manager
+2026-06-21 09:57:14.142418+0900 maestro-driver-iosUITests-Runner[61789:1660215] Detected running apps: ["com.apple.springboard"]
+    t =     0.67s Getting device orientation
+    t =     0.67s Find the Application 'com.apple.springboard'
+2026-06-21 09:57:14.275335+0900 maestro-driver-iosUITests-Runner[61789:1660215] Device orientation is 1
+2026-06-21 09:57:14.403401+0900 maestro-driver-iosUITests-Runner[61789:1660377] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =     0.93s Getting device orientation
+2026-06-21 09:57:14.407520+0900 maestro-driver-iosUITests-Runner[61789:1660215] Detected running apps: ["com.apple.springboard"]
+    t =     0.94s Getting device orientation
+2026-06-21 09:57:14.409054+0900 maestro-driver-iosUITests-Runner[61789:1660215] Returning cached screen size
+2026-06-21 09:57:14.409186+0900 maestro-driver-iosUITests-Runner[61789:1660215] Device orientation is 1
+2026-06-21 09:57:14.415770+0900 maestro-driver-iosUITests-Runner[61789:1660459] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =     0.95s Getting device orientation
+2026-06-21 09:57:14.418472+0900 maestro-driver-iosUITests-Runner[61789:1660215] Detected running apps: ["com.apple.springboard"]
+    t =     0.95s Getting device orientation
+2026-06-21 09:57:14.419698+0900 maestro-driver-iosUITests-Runner[61789:1660215] Returning cached screen size
+2026-06-21 09:57:14.419913+0900 maestro-driver-iosUITests-Runner[61789:1660215] Device orientation is 1
+2026-06-21 09:57:14.505304+0900 maestro-driver-iosUITests-Runner[61789:1660458] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-06-21 09:57:14.509161+0900 maestro-driver-iosUITests-Runner[61789:1660215] Detected running apps: ["com.apple.springboard"]
+2026-06-21 09:57:14.509703+0900 maestro-driver-iosUITests-Runner[61789:1660215] [Start] View hierarchy snapshot for Application 'com.apple.springboard'
+2026-06-21 09:57:14.509797+0900 maestro-driver-iosUITests-Runner[61789:1660215] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =     1.04s Find the Application 'com.apple.springboard'
+2026-06-21 09:57:14.548323+0900 maestro-driver-iosUITests-Runner[61789:1660215] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-06-21 09:57:14.548628+0900 maestro-driver-iosUITests-Runner[61789:1660215] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =     1.08s Checking existence of `StatusBar (First Match)`
+    t =     1.09s Get all elements bound by index for: Descendants matching type StatusBar
+    t =     1.11s Find the StatusBar (Element at index 0)
+    t =     1.14s Find the StatusBar (Element at index 1)
+2026-06-21 09:57:14.633840+0900 maestro-driver-iosUITests-Runner[61789:1660215] Fetch status bar hierarchy - duration 0.08517396450042725
+2026-06-21 09:57:14.633903+0900 maestro-driver-iosUITests-Runner[61789:1660215] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-06-21 09:57:14.635852+0900 maestro-driver-iosUITests-Runner[61789:1660215] Fetch Safari WebView hierarchy - duration 0.0019320249557495117
+    t =     1.17s Find the Application 'com.apple.springboard'
+2026-06-21 09:57:14.659810+0900 maestro-driver-iosUITests-Runner[61789:1660215] [Done] View hierarchy snapshot for Application 'com.apple.springboard' 
+2026-06-21 09:57:14.701403+0900 maestro-driver-iosUITests-Runner[61789:1660452] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-06-21 09:57:15.396754+0900 maestro-driver-iosUITests-Runner[61789:1660452] [FlyingFox] <127.0.0.1> request: POST /touch
+2026-06-21 09:57:15.405857+0900 maestro-driver-iosUITests-Runner[61789:1660215] Detected running apps: ["com.apple.springboard"]
+    t =     1.94s Getting device orientation
+2026-06-21 09:57:15.407639+0900 maestro-driver-iosUITests-Runner[61789:1660215] Returning cached screen size
+    t =     1.94s Getting device orientation
+2026-06-21 09:57:15.408558+0900 maestro-driver-iosUITests-Runner[61789:1660215] Tapping 201.0, 541.0
+    t =     1.94s Getting device orientation
+2026-06-21 09:57:15.749543+0900 maestro-driver-iosUITests-Runner[61789:1660215] Tapping took 0.3369640111923218
+2026-06-21 09:57:15.765923+0900 maestro-driver-iosUITests-Runner[61789:1660376] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-06-21 09:57:16.038201+0900 maestro-driver-iosUITests-Runner[61789:1660377] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-06-21 09:57:16.225312+0900 maestro-driver-iosUITests-Runner[61789:1660452] [FlyingFox] <127.0.0.1> request: GET /screenshot

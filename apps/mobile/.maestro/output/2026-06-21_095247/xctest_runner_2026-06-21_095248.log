@@ -1,0 +1,33 @@
+2026-06-21 09:52:50.601 xcodebuild[60964:1649828] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-06-21 09:52:50.606 xcodebuild[60964:1649828] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-06-21 09:52:52.563 xcodebuild[60964:1649828] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+** BUILD INTERRUPTED **
+:55.291451+0900 maestro-driver-iosUITests-Runner[60976:1650103] [Default] Running tests...
+2026-06-21 09:52:55.421281+0900 maestro-driver-iosUITests-Runner[60976:1650103] snapshotKeyHonorModalViews configured to value: (null)
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-06-21 09:52:56.965.
+Test Suite 'maestro-driver-iosUITests.xctest' started at 2026-06-21 09:52:56.966.
+Test Suite 'maestro_driver_iosUITests' started at 2026-06-21 09:52:56.966.
+    t =      nans Suite Set Up
+Test Case '-[maestro_driver_iosUITests.maestro_driver_iosUITests testHttpServer]' started.
+    t =     0.01s Start Test at 2026-06-21 09:52:56.973
+    t =     0.08s Set Up
+2026-06-21 09:52:57.047267+0900 maestro-driver-iosUITests-Runner[60976:1650203] [maestro_driver_iosUITests] Will start HTTP server
+2026-06-21 09:52:57.136895+0900 maestro-driver-iosUITests-Runner[60976:1650294] [FlyingFox] starting server 127.0.0.1:56287
+objc[60976]: Class UIAccessibilityLoaderWebShared is implemented in both /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x109b48310) and /Library/Developer/CoreSimulator/Volumes/iOS_23F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x1087ac398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+2026-06-21 09:52:57.310173+0900 maestro-driver-iosUITests-Runner[60976:1650294] [FlyingFox] <127.0.0.1> open connection
+2026-06-21 09:52:57.330395+0900 maestro-driver-iosUITests-Runner[60976:1650203] [FlyingFox] <127.0.0.1> request: GET /status
+2026-06-21 09:52:57.529948+0900 maestro-driver-iosUITests-Runner[60976:1650204] [FlyingFox] <127.0.0.1> open connection
+2026-06-21 09:52:57.531718+0900 maestro-driver-iosUITests-Runner[60976:1650204] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =     0.57s Getting device orientation
+2026-06-21 09:52:57.551157+0900 maestro-driver-iosUITests-Runner[60976:1650103] Using singleton test manager
+2026-06-21 09:52:57.554047+0900 maestro-driver-iosUITests-Runner[60976:1650103] Detected running apps: ["com.apple.springboard"]
+    t =     0.59s Getting device orientation
+    t =     0.59s Find the Application 'com.apple.springboard'
+2026-06-21 09:52:57.633356+0900 maestro-driver-iosUITests-Runner[60976:1650103] Device orientation is 1
+2026-06-21 09:52:58.615921+0900 maestro-driver-iosUITests-Runner[60976:1650206] [FlyingFox] <127.0.0.1> request: POST /setPermissions
+2026-06-21 09:52:58.629397+0900 maestro-driver-iosUITests-Runner[60976:1650204] [FlyingFox] <127.0.0.1> request: POST /terminateApp
+2026-06-21 09:52:58.630996+0900 maestro-driver-iosUITests-Runner[60976:1650103] [Start] Terminating app com.gonggu.wish
+    t =     1.67s Terminate com.gonggu.wish:60839
+2026-06-21 09:52:59.721198+0900 maestro-driver-iosUITests-Runner[60976:1650103] [End] Terminating app com.gonggu.wish
+2026-06-21 09:53:00.399743+0900 maestro-driver-iosUITests-Runner[60976:1650294] [FlyingFox] <127.0.0.1> request: GET /screenshot

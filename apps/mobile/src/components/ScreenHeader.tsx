@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { SText } from './ui/SText';
 import { colors, spacing, typography } from '../design/tokens';
 
 type ScreenHeaderProps = {
@@ -16,12 +17,12 @@ export function ScreenHeader({ eyebrow, title, subtitle, right, children }: Scre
     <View style={styles.header}>
       <View style={styles.topRow}>
         <View style={styles.titleBlock}>
-          <Text style={styles.eyebrow}>{eyebrow}</Text>
-          <Text style={styles.title}>{title}</Text>
+          <SText variant="eyebrow">{eyebrow}</SText>
+          <SText variant="title">{title}</SText>
         </View>
         {right ? <View style={styles.right}>{right}</View> : null}
       </View>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      {subtitle ? <SText variant="subtitle" style={styles.subtitle}>{subtitle}</SText> : null}
       {children}
     </View>
   );

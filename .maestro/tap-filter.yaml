@@ -1,0 +1,9 @@
+appId: com.gonggu.wish
+---
+# Dismiss error banner first
+- tapOn:
+    point: "100%,100%"
+- waitForAnimationToEnd
+- tapOn: "팔로잉만 보기"
+- waitForAnimationToEnd
+- takeScreenshot: calendar-filter-on

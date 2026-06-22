@@ -1,0 +1,6 @@
+appId: com.gonggu.wish
+---
+- launchApp
+- assertVisible: "GongGu Alert"
+- assertVisible: "공구캘린더"
+- assertVisible: "이달의 공구"

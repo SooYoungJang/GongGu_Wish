@@ -1,0 +1,7 @@
+appId: com.gonggu.wish
+---
+- tapOn:
+    point: "50%, 62%"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: evidence/after-cancel

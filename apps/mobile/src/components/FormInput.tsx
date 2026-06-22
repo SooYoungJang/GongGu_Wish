@@ -1,5 +1,6 @@
-import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
+import { SText } from './ui/SText';
 import { borderRadius, colors, spacing } from '../design/tokens';
 
 type FormInputProps = TextInputProps & {
@@ -9,7 +10,7 @@ type FormInputProps = TextInputProps & {
 export function FormInput({ label, multiline = false, style, ...props }: FormInputProps) {
   return (
     <View style={styles.inputGroup}>
-      <Text style={styles.label}>{label}</Text>
+      <SText variant="label" style={styles.label}>{label}</SText>
       <TextInput
         multiline={multiline}
         placeholderTextColor={colors.textTertiary}

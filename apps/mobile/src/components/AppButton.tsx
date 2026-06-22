@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
+import { SText } from './ui/SText';
 import { borderRadius, colors, spacing } from '../design/tokens';
 
 type ButtonVariant = 'primary' | 'secondary' | 'accent';
@@ -32,9 +33,9 @@ export function AppButton({
         style,
       ]}
     >
-      <Text style={[styles.text, variant === 'secondary' && styles.secondaryText]}>
+      <SText variant="button" style={[styles.text, variant === 'secondary' && styles.secondaryText]}>
         {children}
-      </Text>
+      </SText>
     </Pressable>
   );
 }
