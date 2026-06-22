@@ -1,0 +1,11 @@
+appId: com.gonggu.wish
+---
+- launchApp
+- assertVisible: "이번주 공구"
+- takeScreenshot: evidence/feed-01-home-overview
+- scroll
+- scroll
+- takeScreenshot: evidence/feed-02-feed-section-scrolled
+- scroll
+- scroll
+- takeScreenshot: evidence/feed-03-feed-cards-visible
