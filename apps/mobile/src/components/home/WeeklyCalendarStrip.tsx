@@ -33,7 +33,7 @@ export function WeeklyCalendarStrip({ onPressCalendar }: WeeklyCalendarStripProp
           onPress={onPressCalendar}
           style={styles.calendarViewAll}
         >
-          <Text style={styles.calendarViewAllText}>→ 전체보기</Text>
+          <Text style={styles.calendarViewAllText}>전체보기</Text>
         </Pressable>
       </View>
       <View style={styles.calendarStrip}>
