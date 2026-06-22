@@ -1,6 +1,6 @@
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { borderRadius, colors, spacing, typography } from '../../design/tokens';
+import { borderRadius, colors, shadows, spacing, typography } from '../../design/tokens';
 import type { FeedPost } from '../../types';
 
 type FeedSectionProps = {

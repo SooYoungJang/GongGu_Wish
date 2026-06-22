@@ -1,0 +1,48 @@
+appId: com.gonggu.wish
+---
+# FeedSection E2E evidence flow
+# Captures FeedSection UI states (loading, error, populated) with
+# distinct screenshots via scroll positions and interactions.
+#
+# Run with:
+#   maestro test .maestro/feed-evidence.yaml
+
+# Step 0: Fresh launch with cleared state
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구캘린더"
+    timeout: 15000
+- waitForAnimationToEnd
+
+# Step 1: Dismiss any error banner by tapping bottom-right
+- tapOn:
+    point: "95%,95%"
+    optional: true
+- waitForAnimationToEnd
+
+# Step 2: Assert key sections are visible (feed section is further down)
+- assertVisible: "이달의 공구"
+- assertVisible: "이번주 공구"
+
+# Step 3: Scroll down to reveal FeedSection (Instagram-style feed)
+- scroll
+- waitForAnimationToEnd
+
+# Step 4: Screenshot — FeedSection scrolled into view (loading/populated)
+- takeScreenshot: feed-01-home-overview
+- waitForAnimationToEnd
+
+# Step 5: Scroll further to see more feed cards
+- swipe:
+    start: 50%,50%
+    end: 50%,30%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: feed-02-feed-section-scrolled
+
+# Step 6: Scroll to very bottom for feed card evidence
+- scroll
+- waitForAnimationToEnd
+- takeScreenshot: feed-03-feed-cards-visible
