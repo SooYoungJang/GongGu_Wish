@@ -17,6 +17,7 @@ import { AppButton } from '../components/AppButton';
 import { FormInput } from '../components/FormInput';
 import { InstagramPreview } from '../components/InstagramPreview';
 import { SText } from '../components/ui/SText';
+import { UrlInputStatus } from '../components/UrlInputStatus';
 import { useHikerApi } from '../hooks/useHikerApi';
 import { borderRadius, colors, spacing } from '../design/tokens';
 import type { SubmitScreenProps } from '../types';
@@ -191,11 +192,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
                 keyboardType="url"
                 returnKeyType="next"
               />
-              {hikerStatus === 'loading' ? (
-                <View style={styles.urlSpinner}>
-                  <SText variant="caption" style={styles.urlSpinnerText}>⏳</SText>
-                </View>
-              ) : null}
+              <UrlInputStatus status={hikerStatus} />
             </View>
           </View>
 
@@ -393,12 +390,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textPrimary,
     paddingVertical: 12,
-  },
-  urlSpinner: {
-    marginLeft: spacing.sm,
-  },
-  urlSpinnerText: {
-    fontSize: 16,
   },
 
   // Fields section
