@@ -1,0 +1,73 @@
+appId: com.gonggu.wish
+---
+# SText Style Variation Evidence
+# Captures screenshots showing SText components with different style overrides
+# across multiple app screens.
+#
+# This flow demonstrates Critic C3 AC3.3: visual evidence that SText's style
+# prop is actively used for styling variation in the app.
+#
+# Run with:
+#   maestro test .maestro/stext-style-evidence.yaml
+
+# Step 1: Fresh launch with cleared state
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구캘린더"
+    timeout: 15000
+- waitForAnimationToEnd
+
+# Step 2: Dismiss any error banner
+- tapOn:
+    point: "95%,95%"
+- waitForAnimationToEnd
+
+# Step 3: Main HomeScreen — multiple SText variants visible
+# Shows: title (28px/700), subtitle (15px), cardTitle (18px/700),
+# caption (12px), badge (12px/600), body (14px), label (14px/600)
+- takeScreenshot: ev-stext-01-home-variants
+
+# Step 4: Scroll down to see category rows and more SText variants
+- swipe:
+    start: 50%,50%
+    end: 50%,30%
+    duration: 300
+- waitForAnimationToEnd
+- takeScreenshot: ev-stext-02-category-variants
+
+# Step 5: Scroll further to weekly deals section
+- swipe:
+    start: 50%,50%
+    end: 50%,20%
+    duration: 300
+- waitForAnimationToEnd
+- takeScreenshot: ev-stext-03-deals-variants
+
+# Step 6: Scroll to bottom — ExpiringSoon section with textLink style
+- scroll
+- waitForAnimationToEnd
+- takeScreenshot: ev-stext-04-expiring-variants
+
+# Step 7: Go to Ranking tab to see more SText variants
+- tapOn: "랭킹 탭"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "스토어 랭킹"
+    timeout: 10000
+- waitForAnimationToEnd
+
+# Step 8: Ranking screen — different SText usage with style overrides
+- takeScreenshot: ev-stext-05-ranking-variants
+
+# Step 9: Go to Following tab
+- tapOn: "팔로잉 셀러 탭"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "홈 탭"
+    timeout: 10000
+- waitForAnimationToEnd
+
+# Step 10: Following screen — influencer cards with inline style overrides
+- takeScreenshot: ev-stext-06-following-variants

@@ -1,139 +1,433 @@
-import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSubmissionGuard } from '@gonggu/shared/hooks';
 
-import { postPublicJson } from '../api';
+import { postPublicJson, ApiError } from '../api';
 import { AppButton } from '../components/AppButton';
 import { FormInput } from '../components/FormInput';
-import { InstagramCard } from '../components/InstagramCard';
-import { ScreenHeader } from '../components/ScreenHeader';
+import { InstagramPreview } from '../components/InstagramPreview';
 import { SText } from '../components/ui/SText';
-import { colors, borderRadius, spacing } from '../design/tokens';
-import type { PublicSubmissionForm, SubmitScreenProps } from '../types';
+import { useHikerApi } from '../hooks/useHikerApi';
+import { borderRadius, colors, spacing } from '../design/tokens';
+import type { SubmitScreenProps } from '../types';
 import { isValidOptionalUrl, normalizeOptional } from '../utils';
 
-export function SubmitScreen({ navigation }: SubmitScreenProps) {
-  const emptyForm: PublicSubmissionForm = {
-    productName: '',
-    brandName: '',
-    startDate: '',
-    endDate: '',
-    purchaseUrl: '',
-    discountInfo: '',
-    instagramUrl: '',
-    imageUrl: '',
-    summary: '',
-  };
-  const [form, setForm] = useState<PublicSubmissionForm>(emptyForm);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const { isDispatched, guard, reset } = useSubmissionGuard();
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-  function validateForm() {
-    if (form.productName.trim().length < 2) {
+type FeedbackKind = 'info' | 'success' | 'error';
+
+interface Feedback {
+  message: string;
+  kind: FeedbackKind;
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export function SubmitScreen({ navigation }: SubmitScreenProps) {
+  // Form state
+  const [instagramUrl, setInstagramUrl] = useState('');
+  const [productName, setProductName] = useState('');
+  const [brandName, setBrandName] = useState('');
+  const [purchaseUrl, setPurchaseUrl] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  // HikerAPI — auto-fetches Instagram post info
+  const { status: hikerStatus, data: hikerData, error: hikerError, retry } = useHikerApi(instagramUrl);
+
+  // UX state
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { guard, reset } = useSubmissionGuard();
+  const scrollRef = useRef<ScrollView>(null);
+
+  // ─── Validation ─────────────────────────────────────────────────────────
+
+  function validate(): string | null {
+    if (instagramUrl.trim().length < 5) {
+      return '인스타그램 게시물 URL을 입력해주세요.';
+    }
+    if (!isValidOptionalUrl(instagramUrl)) {
+      return '인스타그램 URL 형식이 올바르지 않습니다.';
+    }
+    if (productName.trim().length < 2) {
       return '제품명은 2자 이상 필수입니다.';
     }
-    if (!isValidOptionalUrl(form.purchaseUrl)) {
+    if (purchaseUrl.trim() && !isValidOptionalUrl(purchaseUrl)) {
       return '구매 링크는 http(s) URL 형식이어야 합니다.';
     }
-    if (!isValidOptionalUrl(form.instagramUrl)) {
-      return '인스타그램 URL은 http(s) URL 형식이어야 합니다.';
-    }
-    if (!isValidOptionalUrl(form.imageUrl)) {
-      return '이미지 URL은 http(s) URL 형식이어야 합니다.';
-    }
-    if (form.startDate.trim() && form.endDate.trim()) {
-      const start = new Date(form.startDate.trim());
-      const end = new Date(form.endDate.trim());
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-        return '날짜는 YYYY-MM-DD 또는 ISO 형식으로 입력해주세요.';
-      }
-      if (start > end) {
-        return '시작일은 종료일보다 늦을 수 없습니다.';
+    if (endDate.trim()) {
+      const date = new Date(endDate.trim());
+      if (Number.isNaN(date.getTime())) {
+        return '마감일은 YYYY-MM-DD 형식으로 입력해주세요.';
       }
     }
     return null;
   }
 
-  async function submitPublicSubmission() {
-    const validationError = validateForm();
-    if (validationError) {
-      setFeedback(validationError);
+  // ─── Submit ─────────────────────────────────────────────────────────────
+
+  async function handleSubmit() {
+    const error = validate();
+    if (error) {
+      setFeedback({ message: error, kind: 'error' });
       return;
     }
-
     if (!guard()) return;
 
-    setFeedback('제보를 접수하는 중입니다...');
+    setIsSubmitting(true);
+    setFieldErrors({});
+    setFeedback({ message: '제보를 접수하는 중입니다...', kind: 'info' });
+
     try {
       await postPublicJson('/submissions', {
-        productName: form.productName.trim(),
-        brandName: normalizeOptional(form.brandName),
-        startDate: normalizeOptional(form.startDate),
-        endDate: normalizeOptional(form.endDate),
-        purchaseUrl: normalizeOptional(form.purchaseUrl),
-        discountInfo: normalizeOptional(form.discountInfo),
-        instagramUrl: normalizeOptional(form.instagramUrl),
-        imageUrls: normalizeOptional(form.imageUrl) ? [form.imageUrl.trim()] : [],
-        summary: normalizeOptional(form.summary),
+        productName: productName.trim(),
+        brandName: normalizeOptional(brandName),
+        endDate: normalizeOptional(endDate),
+        purchaseUrl: normalizeOptional(purchaseUrl),
+        instagramUrl: instagramUrl.trim(),
+        imageUrls: hikerData?.imageUrl ? [hikerData.imageUrl] : [],
+        summary: hikerData?.caption ?? undefined,
         isAnonymous: true,
       });
-      setFeedback('제보가 접수되었습니다. 운영자 승인 후 캘린더에 반영됩니다.');
-      setForm(emptyForm);
-      setTimeout(() => navigation.navigate('Home'), 700);
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : '제보 접수에 실패했습니다.');
+      setFeedback({ message: '제보가 접수되었습니다. 운영자 승인 후 캘린더에 반영됩니다.', kind: 'success' });
+      // Brief pause so the user can read the feedback, then navigate
+      setTimeout(() => navigation.navigate('Home'), 900);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.isRateLimit) {
+          setFeedback({ message: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.', kind: 'error' });
+        } else if (err.isValidationError && err.errors) {
+          // Show first validation error as feedback
+          setFeedback({ message: err.errors[0].message, kind: 'error' });
+          // Map field errors for inline display
+          const fieldMap: Record<string, string> = {};
+          for (const ve of err.errors) {
+            fieldMap[ve.field] = ve.message;
+          }
+          setFieldErrors(fieldMap);
+        } else if (err.isNetworkError) {
+          setFeedback({ message: '네트워크 연결을 확인해주세요.', kind: 'error' });
+        } else {
+          setFeedback({ message: err.message, kind: 'error' });
+        }
+      } else {
+        setFeedback({
+          message: err instanceof Error ? err.message : '제보 접수에 실패했습니다. 다시 시도해주세요.',
+          kind: 'error',
+        });
+      }
     } finally {
+      setIsSubmitting(false);
       reset();
     }
   }
 
+  // ─── Render ─────────────────────────────────────────────────────────────
+
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ScreenHeader
-          eyebrow="User Submission"
-          title="공구 제보하기"
-          subtitle="발견한 공동구매 정보를 알려주세요. 필수 제품명만 있어도 접수되며, 운영자 승인 후 캘린더에 노출됩니다."
-        />
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.flex}
+      >
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── Header ─────────────────────────────────────── */}
+          <SText variant="eyebrow" style={styles.eyebrow}>
+            공구 제보하기
+          </SText>
+          <SText variant="title" style={styles.title}>
+            발견한 공구를 알려주세요
+          </SText>
+          <SText variant="subtitle" style={styles.subtitle}>
+            인스타그램 게시물 URL만 입력하면 이미지와 정보를 자동으로 불러옵니다
+          </SText>
 
-        {feedback ? (
-          <View style={styles.notice}>
-            <SText variant="caption" style={styles.noticeText}>{feedback}</SText>
+          {/* ── Feedback banner ────────────────────────────── */}
+          {feedback ? (
+            <View style={[styles.feedbackBanner, styles[`feedback_${feedback.kind}`]]}>
+              <SText variant="caption" style={[styles.feedbackText, styles[`feedbackText_${feedback.kind}`]]}>
+                {feedback.message}
+              </SText>
+            </View>
+          ) : null}
+
+          {/* ── Instagram URL — Hero input ─────────────────── */}
+          <View style={styles.urlSection}>
+            <View style={styles.urlLabelRow}>
+              <SText variant="label" style={styles.urlLabel}>인스타그램 게시물 URL</SText>
+              <SText variant="caption" style={styles.requiredBadge}>필수</SText>
+            </View>
+            <View style={[styles.urlInputWrapper, hikerStatus === 'loading' && styles.urlInputLoading]}>
+              <View style={styles.urlIcon}>
+                <SText variant="caption" style={styles.urlIconText}>📸</SText>
+              </View>
+              <TextInput
+                value={instagramUrl}
+                onChangeText={(v) => {
+                  setInstagramUrl(v);
+                  setFieldErrors({});
+                }}
+                placeholder="https://www.instagram.com/p/..."
+                placeholderTextColor={colors.textTertiary}
+                style={styles.urlInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                returnKeyType="next"
+              />
+              {hikerStatus === 'loading' ? (
+                <View style={styles.urlSpinner}>
+                  <SText variant="caption" style={styles.urlSpinnerText}>⏳</SText>
+                </View>
+              ) : null}
+            </View>
           </View>
-        ) : null}
 
-        <InstagramCard>
-          <FormInput label="제품명 *" value={form.productName} onChangeText={(value) => setForm({ ...form, productName: value })} />
-          <FormInput label="브랜드" value={form.brandName} onChangeText={(value) => setForm({ ...form, brandName: value })} />
-          <FormInput label="시작일 (YYYY-MM-DD)" value={form.startDate} onChangeText={(value) => setForm({ ...form, startDate: value })} />
-          <FormInput label="종료일 (YYYY-MM-DD)" value={form.endDate} onChangeText={(value) => setForm({ ...form, endDate: value })} />
-          <FormInput label="구매 링크" value={form.purchaseUrl} onChangeText={(value) => setForm({ ...form, purchaseUrl: value })} />
-          <FormInput label="할인 정보" value={form.discountInfo} onChangeText={(value) => setForm({ ...form, discountInfo: value })} />
-          <FormInput label="인스타그램 URL" value={form.instagramUrl} onChangeText={(value) => setForm({ ...form, instagramUrl: value })} />
-          <FormInput label="이미지 URL" value={form.imageUrl} onChangeText={(value) => setForm({ ...form, imageUrl: value })} />
-          <FormInput label="요약" multiline value={form.summary} onChangeText={(value) => setForm({ ...form, summary: value })} />
+          {/* ── Instagram Preview ──────────────────────────── */}
+          <InstagramPreview
+            status={hikerStatus}
+            data={hikerData}
+            error={hikerError}
+            onRetry={retry}
+          />
 
-          <View style={styles.actionRow}>
-            <AppButton disabled={isDispatched} onPress={() => void submitPublicSubmission()} style={styles.flexButton}>
-              {isDispatched ? '제출 중...' : '제보 제출'}
-            </AppButton>
-            <AppButton onPress={() => navigation.navigate('Home')} variant="secondary" style={styles.cancelButton}>
-              취소
-            </AppButton>
+          {/* ── Remaining fields (compact) ─────────────────── */}
+          <View style={styles.fieldsSection}>
+            <SText variant="eyebrow" style={styles.sectionLabel}>
+              추가 정보
+            </SText>
+
+            <FormInput
+              label="제품명 *"
+              value={productName}
+              onChangeText={setProductName}
+              placeholder="예: 비건 선크림"
+              error={fieldErrors.productName}
+            />
+            <FormInput
+              label="브랜드"
+              value={brandName}
+              onChangeText={setBrandName}
+              placeholder="예: 샘플뷰티"
+            />
+            <FormInput
+              label="구매 링크"
+              value={purchaseUrl}
+              onChangeText={setPurchaseUrl}
+              placeholder="https://..."
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              error={fieldErrors.purchaseUrl}
+            />
+            <FormInput
+              label="마감일"
+              value={endDate}
+              onChangeText={setEndDate}
+              placeholder="YYYY-MM-DD"
+              error={fieldErrors.endDate}
+            />
           </View>
-        </InstagramCard>
-      </ScrollView>
+
+          {/* ── Action area ────────────────────────────────── */}
+          <View style={styles.actionArea}>
+            <AppButton
+              disabled={isSubmitting}
+              onPress={() => void handleSubmit()}
+              style={styles.submitButton}
+              variant="primary"
+            >
+              {isSubmitting ? '제출 중...' : '공구 제보하기'}
+            </AppButton>
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color={colors.primary} style={styles.spinner} />
+            ) : null}
+
+            <Pressable
+              onPress={() => navigation.navigate('Home')}
+              style={styles.cancelButton}
+              accessibilityRole="button"
+            >
+              <SText variant="body" style={styles.cancelText}>
+                취소하고 돌아가기
+              </SText>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.lg, paddingBottom: spacing['3xl'] },
-  notice: { backgroundColor: colors.warningBg, borderRadius: borderRadius.sm, marginBottom: spacing.lg, padding: spacing.md },
-  noticeText: { color: colors.noticeText, fontSize: 13, textAlign: 'center' },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
-  flexButton: { flex: 1, marginTop: 0 },
-  cancelButton: { marginTop: 0 },
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  flex: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: spacing.lg,
+    paddingBottom: spacing['4xl'],
+  },
+
+  // Header
+  eyebrow: {
+    marginBottom: spacing.xs,
+    color: colors.accent,
+    letterSpacing: 0.5,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing['2xl'],
+  },
+
+  // Feedback banner
+  feedbackBanner: {
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  feedback_info: {
+    backgroundColor: colors.primaryBg,
+  },
+  feedback_success: {
+    backgroundColor: colors.successBg,
+  },
+  feedback_error: {
+    backgroundColor: colors.errorBg,
+  },
+  feedbackText: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  feedbackText_info: {
+    color: colors.primary,
+  },
+  feedbackText_success: {
+    color: colors.success,
+  },
+  feedbackText_error: {
+    color: colors.error,
+  },
+
+  // Instagram URL — hero input
+  urlSection: {
+    marginBottom: spacing.sm,
+  },
+  urlLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  urlLabel: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    marginRight: spacing.sm,
+  },
+  requiredBadge: {
+    color: colors.accent,
+    backgroundColor: colors.accentBg,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    overflow: 'hidden',
+    fontWeight: '600',
+    fontSize: 11,
+  },
+  urlInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.accentBg,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+  },
+  urlInputLoading: {
+    borderColor: colors.primary,
+  },
+  urlIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.accentBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+  },
+  urlIconText: {
+    fontSize: 14,
+  },
+  urlInput: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textPrimary,
+    paddingVertical: 12,
+  },
+  urlSpinner: {
+    marginLeft: spacing.sm,
+  },
+  urlSpinnerText: {
+    fontSize: 16,
+  },
+
+  // Fields section
+  fieldsSection: {
+    marginBottom: spacing.xl,
+  },
+  sectionLabel: {
+    color: colors.textTertiary,
+    letterSpacing: 0.8,
+    marginBottom: spacing.md,
+    fontSize: 11,
+  },
+
+  // Action area
+  actionArea: {
+    gap: spacing.md,
+  },
+  submitButton: {
+    paddingVertical: 14,
+  },
+  cancelButton: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  cancelText: {
+    color: colors.textTertiary,
+    fontSize: 13,
+  },
+  spinner: {
+    marginTop: spacing.xs,
+  },
 });

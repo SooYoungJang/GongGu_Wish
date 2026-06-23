@@ -63,6 +63,23 @@ export type InfluencerForm = {
   displayName: string;
 };
 
+/**
+ * Instagram post metadata fetched from HikerAPI.
+ * Returned by lookupInstagramUrl() — POST /api/v1/hiker-api/lookup.
+ */
+export interface InstagramMediaInfo {
+  /** URL of the post's primary image */
+  imageUrl: string | null;
+  /** Post caption / summary text */
+  caption: string | null;
+  /** Number of likes */
+  likeCount: number | null;
+  /** Instagram username (handle without @) */
+  username: string | null;
+  /** ISO date string of when the post was published */
+  takenAt: string | null;
+}
+
 export type SubmissionReviewForm = {
   productName: string;
   brandName: string;
@@ -91,10 +108,8 @@ export type ManualSubmissionForm = {
 export type PublicSubmissionForm = {
   productName: string;
   brandName: string;
-  startDate: string;
   endDate: string;
   purchaseUrl: string;
-  discountInfo: string;
   instagramUrl: string;
   imageUrl: string;
   summary: string;

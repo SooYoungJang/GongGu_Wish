@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@gonggu/shared": path.resolve(__dirname, "../../packages/shared/src"),
+      "react-native": path.resolve(__dirname, "./__mocks__/react-native.js"),
     },
   },
   test: {

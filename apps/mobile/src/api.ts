@@ -1,8 +1,39 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-import type { FeedPost, FeedPostListResponse, GroupBuy, Influencer, Submission } from './types';
+import type { FeedPost, FeedPostListResponse, GroupBuy, Influencer, InstagramMediaInfo, Submission } from './types';
 export { searchInfluencers } from './utils/search';
+
+// ─── API Error Types ─────────────────────────────────────────────────────────
+
+export interface ApiValidationError {
+  field: string;
+  message: string;
+  code: string;
+}
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly errors?: ApiValidationError[],
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+
+  get isRateLimit(): boolean {
+    return this.status === 429;
+  }
+
+  get isValidationError(): boolean {
+    return this.status === 400 && Array.isArray(this.errors);
+  }
+
+  get isNetworkError(): boolean {
+    return this.status === 0;
+  }
+}
 
 /* ── Local types for fetchSellerRankings (avoids feature -> shared dependency) ── */
 export type RankingCategory =
@@ -319,16 +350,65 @@ export async function postAdminJson<T>(path: string, body?: unknown) {
 }
 
 export async function postPublicJson<T>(path: string, body: unknown) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    // Network error (fetch itself threw)
+    throw new ApiError(0, '네트워크 연결을 확인해주세요.');
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+
+    // Try to parse structured error with validation details (400 from Zod pipe)
+    if (response.status === 400) {
+      try {
+        const parsed = JSON.parse(errorText) as {
+          message: string;
+          errors?: Array<{ field: string; message: string; code: string }>;
+        };
+        if (parsed.errors) {
+          throw new ApiError(400, parsed.message || '입력값을 확인해주세요.', parsed.errors);
+        }
+      } catch {
+        // fall through to generic error below
+      }
+    }
+
+    const displayMessage =
+      response.status === 429
+        ? '잠시 후 다시 시도해주세요.'
+        : errorText || `Public API failed: ${response.status}`;
+
+    throw new ApiError(response.status, displayMessage);
+  }
+
+  return (await response.json()) as T;
+}
+
+/**
+ * Look up Instagram post metadata via HikerAPI.
+ * POST /api/v1/hiker-api/lookup
+ *
+ * Returns post image, caption, like count, username, and taken-at date.
+ */
+export async function lookupInstagramUrl(url: string): Promise<InstagramMediaInfo> {
+  const response = await fetch(`${API_BASE_URL}/hiker-api/lookup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ url }),
   });
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    throw new Error(errorText || `Public API failed: ${response.status}`);
+    throw new Error(errorText || `HikerAPI lookup failed: ${response.status}`);
   }
 
-  return (await response.json()) as T;
+  return (await response.json()) as InstagramMediaInfo;
 }
