@@ -1,0 +1,158 @@
+name: CI/CD — Supabase + API
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'apps/api/**'
+      - 'supabase/**'
+      - 'packages/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+  SUPABASE_PROJECT_REF: 'iosdoheblabfimkjnvfj'
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  # ── Lint & Typecheck ──────────────────────────────────────────────────────
+  lint:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+
+  # ── Tests ─────────────────────────────────────────────────────────────────
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: gonggu_wish_test
+          POSTGRES_USER: gonggu
+          POSTGRES_PASSWORD: gonggu
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready -U gonggu -d gonggu_wish_test
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+
+      # Generate Prisma client
+      - run: npm run db:generate
+
+      # Run tests
+      - run: npm test
+        env:
+          DATABASE_URL: postgresql://gonggu:gonggu@localhost:5432/gonggu_wish_test?schema=public
+          JWT_SECRET: test-secret
+          ADMIN_TOKEN: test-admin-token
+          ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH || 'test-hash' }}
+
+  # ── Supabase DB Migrate ───────────────────────────────────────────────────
+  supabase-db:
+    name: Supabase DB Migration
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Link the project
+      - run: supabase link --project-ref ${{ env.SUPABASE_PROJECT_REF }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      # Run migrations against the remote database
+      - run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+  # ── Supabase Functions Deploy ──────────────────────────────────────────────
+  supabase-functions:
+    name: Supabase Edge Functions
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Deploy all Edge Functions
+      - run: supabase functions deploy health
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - run: supabase functions deploy webhook-handler
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+  # ── API Deploy ────────────────────────────────────────────────────────────
+  deploy-api:
+    name: Deploy API
+    runs-on: ubuntu-latest
+    needs: [supabase-db]
+    if: github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: ./
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build:api
+
+      # --- Deploy to target (replace with your deployment target) ---
+      # Example: Deploy to a VPS via SSH/rsync:
+      # - uses: easingthemes/ssh-deploy@v5
+      #   with:
+      #     SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     ARGS: "-rlgoDzvc -i"
+      #     SOURCE: "apps/api/dist/"
+      #     REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+      #     REMOTE_USER: ${{ secrets.REMOTE_USER }}
+      #     TARGET: ${{ secrets.REMOTE_TARGET }}
+      #
+      # Example: deploy to fly.io:
+      # - uses: superfly/flyctl-actions/setup-flyctl@master
+      # - run: flyctl deploy --config apps/api/fly.toml
+      #   env:
+      #     FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Build artifact (placeholder — configure your deploy target)
+        run: echo "API build complete. Configure deploy step in .github/workflows/ci.yml"
