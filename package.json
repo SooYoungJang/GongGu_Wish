@@ -22,6 +22,11 @@
     "api:dev": "turbo run dev --filter=@gonggu/api",
     "mobile:start": "turbo run start --filter=@gonggu/mobile",
     "web:dev": "turbo run dev --filter=@gonggu/web",
+    "admin:dev": "turbo run dev --filter=@gonggu/admin",
+    "admin:build": "turbo run build --filter=@gonggu/admin",
+    "admin:typecheck": "turbo run typecheck --filter=@gonggu/admin",
+    "admin:lint": "turbo run lint --filter=@gonggu/admin",
+    "admin:test": "turbo run test --filter=@gonggu/admin",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "prepare": "husky install"
   },
