@@ -44,6 +44,14 @@ vi.mock('../lib/supabase', () => ({
   })),
 }));
 
+// Mock useNavigation hook
+vi.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({
+    navigate: vi.fn(),
+    goBack: vi.fn(),
+  }),
+}));
+
 function renderMyPageScreen() {
   let renderer: ReturnType<typeof TestRenderer.create>;
   act(() => {

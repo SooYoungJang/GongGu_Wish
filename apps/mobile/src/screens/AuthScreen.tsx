@@ -33,8 +33,9 @@ import { spacing } from '../design/tokens';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import type { ColorPalette } from '../context/ThemeContext';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
+import { useNavigation } from '@react-navigation/native';
 import {
   loginSchema,
   signupStep1Schema,
@@ -167,7 +168,7 @@ function AuthContentArea() {
       {activeTab === 'login' ? (
         <LoginPanel />
       ) : (
-        <SignupPanel onSwitchToLogin={() => setActiveTab('login')} />
+        <SignupPanel />
       )}
     </View>
   );
@@ -179,6 +180,7 @@ function LoginPanel() {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const { signIn } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -208,13 +210,15 @@ function LoginPanel() {
       const authError = await signIn(result.data.email, result.data.password);
       if (authError) {
         setSubmitError(mapAuthErrorMessage(authError));
+      } else {
+        navigation.goBack();
       }
     } catch {
       setSubmitError('오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setSubmitting(false);
     }
-  }, [email, password, signIn]);
+  }, [email, password, signIn, navigation]);
 
   const handleForgotPassword = useCallback(() => {
     // TODO: Navigate to password reset screen or show modal
@@ -342,10 +346,11 @@ function LoginPanel() {
 
 // ─── Signup Panel (3-Step Progressive Disclosure) ──────────────────────────
 
-function SignupPanel({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
+function SignupPanel() {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const { signUp } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [step, setStep] = useState<SignupStep>(1);
 
@@ -465,15 +470,14 @@ function SignupPanel({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
       if (authError) {
         setSubmitError(mapAuthErrorMessage(authError));
       } else {
-        // On success, switch to login tab
-        onSwitchToLogin();
+        navigation.goBack();
       }
     } catch {
       setSubmitError('오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setSubmitting(false);
     }
-  }, [email, password, agreements, signUp, onSwitchToLogin]);
+  }, [email, password, agreements, signUp, navigation]);
 
   // ── Render ───────────────────────────────────────────────────────────────
 

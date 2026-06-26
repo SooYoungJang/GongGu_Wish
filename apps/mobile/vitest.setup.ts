@@ -22,17 +22,13 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
   removeItem: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@react-navigation/native", async () => {
-  const actualNav = await vi.importActual("@react-navigation/native");
-  return {
-    ...actualNav,
-    useNavigation: () => ({
-      navigate: vi.fn(),
-      goBack: vi.fn(),
-    }),
-    useRoute: () => ({ params: {} }),
-  };
-});
+vi.mock("@react-navigation/native", () => ({
+  useNavigation: () => ({
+    navigate: vi.fn(),
+    goBack: vi.fn(),
+  }),
+  useRoute: () => ({ params: {} }),
+}));
 
 vi.mock("@tanstack/react-query", async () => {
   const actualQuery = await vi.importActual("@tanstack/react-query");
