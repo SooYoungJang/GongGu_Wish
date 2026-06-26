@@ -151,9 +151,20 @@ describe('AuthScreen', () => {
     expect(findAllText(renderer, '비밀번호를 잊으셨나요?').length).toBeGreaterThan(0);
   });
 
-  it('renders signup tab', () => {
+  it('switches to the signup panel when the signup tab is pressed', () => {
     const renderer = createTestRenderer();
-    expect(findAllText(renderer, '회원가입').length).toBeGreaterThan(0);
+    const signupTab = renderer.root.findAllByType(Pressable).find(
+      (p) => p.props.accessibilityLabel === '회원가입 탭',
+    );
+    expect(signupTab).toBeDefined();
+
+    act(() => {
+      signupTab!.props.onPress();
+    });
+
+    expect(findAllText(renderer, '기본 정보').length).toBeGreaterThan(0);
+    expect(findAllText(renderer, '공구위시 가입을 위한 기본 정보를 입력해주세요').length).toBeGreaterThan(0);
+    expect(findAllText(renderer, '비밀번호 확인').length).toBeGreaterThan(0);
   });
 
   it('renders app name', () => {
@@ -164,6 +175,22 @@ describe('AuthScreen', () => {
   it('renders welcome message', () => {
     const renderer = createTestRenderer();
     expect(findAllText(renderer, '함께 사면 더 즐거운 공동구매').length).toBeGreaterThan(0);
+  });
+
+  it('renders a shared back button that calls navigation.goBack()', () => {
+    const renderer = createTestRenderer();
+    const backButton = renderer.root.findAllByType(Pressable).find(
+      (p) => p.props.accessibilityLabel === '뒤로가기',
+    );
+
+    expect(backButton).toBeDefined();
+    expect(backButton!.props.accessibilityRole).toBe('button');
+
+    act(() => {
+      backButton!.props.onPress();
+    });
+
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
   });
 
   // ── Navigation Flow Tests ─────────────────────────────────────────────────

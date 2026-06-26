@@ -1,0 +1,60 @@
+import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { spacing } from '../design/tokens';
+
+interface GoBackHeaderProps {
+  accessibilityLabel?: string;
+  onPress?: () => void;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+}
+
+export function GoBackHeader({
+  accessibilityLabel = '뒤로가기',
+  onPress,
+  color = '#6b6560',
+  style,
+}: GoBackHeaderProps) {
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+
+  const handlePress = onPress ?? (() => navigation.goBack());
+
+  return (
+    <Pressable
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={8}
+      onPress={handlePress}
+      style={({ pressed }) => [
+        styles.button,
+        { top: insets.top + spacing.xs, left: spacing.xs },
+        pressed && styles.pressed,
+        style,
+      ]}
+    >
+      <Text style={[styles.icon, { color }]}>←</Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  button: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  icon: {
+    fontSize: 22,
+    lineHeight: 28,
+  },
+});
