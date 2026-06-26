@@ -835,8 +835,8 @@ function FloatingLabelInput({
           accessibilityLabel={label}
           {...inputProps}
         />
-        <Pressable
-          onPress={() => inputRef.current?.focus()}
+        <View
+          pointerEvents="none"
           style={styles.flLabelTouchable}
         >
           <Text
@@ -851,7 +851,7 @@ function FloatingLabelInput({
           >
             {label}
           </Text>
-        </Pressable>
+        </View>
         {rightElement}
       </View>
       {error ? (
