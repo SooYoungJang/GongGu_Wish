@@ -28,6 +28,7 @@ import {
   type TextInputProps,
   type TextStyle,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { spacing } from '../design/tokens';
@@ -36,7 +37,6 @@ import { useAuth } from '../context/AuthContext';
 import type { ColorPalette } from '../context/ThemeContext';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
-import { useNavigation } from '@react-navigation/native';
 import {
   loginSchema,
   signupStep1Schema,
@@ -69,6 +69,7 @@ const WARM_BG = '#f5f0eb';
 
 export function AuthScreen(_props: AuthScreenProps) {
   const insets = useSafeAreaInsets();
+  const [activeTab, setActiveTab] = useState<AuthTab>('login');
 
   return (
     <View
@@ -86,8 +87,8 @@ export function AuthScreen(_props: AuthScreenProps) {
           showsVerticalScrollIndicator={false}
         >
           <AuthHeader />
-          <AuthTabs />
-          <AuthContentArea />
+          <AuthTabs activeTab={activeTab} onTabChange={setActiveTab} />
+          <AuthContentArea activeTab={activeTab} />
         </ScrollView>
 
         <WaveAnimation />
@@ -114,13 +115,10 @@ function AuthHeader() {
 
 // ─── Tab Bar: Login / Signup ────────────────────────────────────────────────
 
-function AuthTabs() {
-  const [activeTab, setActiveTab] = useState<AuthTab>('login');
-
-  // Expose active tab via context-like window ref so panels can read without prop drilling
+function AuthTabs({ activeTab, onTabChange }: { activeTab: AuthTab; onTabChange: (tab: AuthTab) => void }) {
   const switchTab = useCallback((tab: AuthTab) => {
-    setActiveTab(tab);
-  }, []);
+    onTabChange(tab);
+  }, [onTabChange]);
 
   return (
     <View style={styles.tabBar} accessible accessibilityLabel="인증 방식 선택">
@@ -156,15 +154,7 @@ function AuthTabs() {
 
 // ─── Auth Content Area ──────────────────────────────────────────────────────
 
-function AuthContentArea() {
-  const [activeTab, setActiveTab] = useState<AuthTab>('login');
-  // Track activeTab as a window property so children can read it (e.g., for analytics)
-  useEffect(() => {
-    try {
-      (window as any).__authActiveTab = activeTab;
-    } catch { /* ignore non-DOM env (test) */ }
-  }, [activeTab]);
-
+function AuthContentArea({ activeTab }: { activeTab: AuthTab }) {
   return (
     <View>
       {activeTab === 'login' ? (
