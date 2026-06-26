@@ -830,10 +830,16 @@ function FloatingLabelInput({
     onBlur?.(event);
   }, [onBlur]);
 
+  const handleInputTap = useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
+
   return (
     <View style={styles.flField}>
-      <Pressable
-        onPress={() => inputRef.current?.focus()}
+      <View
+        onTouchEnd={handleInputTap}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={handleInputTap}
         style={[
           styles.flInputWrapper,
           { borderColor: colors.border, backgroundColor: '#ffffff' },
@@ -871,7 +877,7 @@ function FloatingLabelInput({
           </Text>
         </View>
         {rightElement}
-      </Pressable>
+      </View>
       {error ? (
         <Text style={styles.flMsg}>{error}</Text>
       ) : (

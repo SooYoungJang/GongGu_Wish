@@ -12,7 +12,7 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { TextInput, Pressable, Text } from 'react-native';
+import { TextInput, Pressable, View, Text } from 'react-native';
 
 import { AuthScreen } from '../AuthScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
@@ -146,15 +146,15 @@ describe('AuthScreen', () => {
     expect(findAllText(renderer, '비밀번호').length).toBeGreaterThan(0);
   });
 
-  it('wraps auth TextInputs in focusable Pressable containers', () => {
+  it('wraps auth TextInputs in touchable containers', () => {
     const renderer = createTestRenderer();
-    const pressablesWithInput = renderer.root.findAllByType(Pressable).filter(
-      (pressable) => pressable.findAllByType(TextInput).length > 0,
+    const viewsWithInput = renderer.root.findAllByType(View).filter(
+      (view) => view.props.onTouchEnd && view.findAllByType(TextInput).length > 0,
     );
 
-    expect(pressablesWithInput.length).toBeGreaterThan(0);
-    pressablesWithInput.forEach((pressable) => {
-      expect(typeof pressable.props.onPress).toBe('function');
+    expect(viewsWithInput.length).toBeGreaterThan(0);
+    viewsWithInput.forEach((view) => {
+      expect(typeof view.props.onTouchEnd).toBe('function');
     });
   });
 
