@@ -841,17 +841,6 @@ function FloatingLabelInput({
           hasValue && !error && styles.flInputSuccess,
         ]}
       >
-        <TextInput
-          ref={inputRef}
-          value={value}
-          placeholder=" "
-          style={[styles.flInput, { color: colors.textPrimary }, rightElement ? { paddingRight: 44 } : undefined, style]}
-          placeholderTextColor="transparent"
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          accessibilityLabel={label}
-          {...inputProps}
-        />
         <View
           pointerEvents="none"
           style={styles.flLabelTouchable}
@@ -870,6 +859,17 @@ function FloatingLabelInput({
           </Text>
         </View>
         {rightElement}
+        <TextInput
+          ref={inputRef}
+          value={value}
+          placeholder=" "
+          style={[styles.flInput, { color: colors.textPrimary }, rightElement ? { paddingRight: 44 } : undefined, style]}
+          placeholderTextColor="transparent"
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          accessibilityLabel={label}
+          {...inputProps}
+        />
       </View>
       {error ? (
         <Text style={styles.flMsg}>{error}</Text>
