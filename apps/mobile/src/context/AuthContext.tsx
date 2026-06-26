@@ -30,6 +30,8 @@ export interface AuthContextValue {
     password: string,
     metadata?: Record<string, unknown>,
   ) => Promise<AuthError | null>;
+  /** Sign in with OAuth provider (kakao, apple, google) */
+  signInWithOAuth: (provider: 'kakao' | 'apple' | 'google') => Promise<AuthError | null>;
   /** Log out the current user */
   signOut: () => Promise<void>;
 }
@@ -124,6 +126,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearAuthToken();
   }, []);
 
+  const signInWithOAuth = useCallback(
+    async (provider: 'kakao' | 'apple' | 'google'): Promise<AuthError | null> => {
+      const supabase = getSupabase();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: undefined, // Let the app handle redirect
+        },
+      });
+      return error;
+    },
+    [],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -132,9 +148,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signIn,
       signUp,
       signUpWithMetadata,
+      signInWithOAuth,
       signOut,
     }),
-    [user, session, isLoading, signIn, signUp, signUpWithMetadata, signOut],
+    [user, session, isLoading, signIn, signUp, signUpWithMetadata, signInWithOAuth, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

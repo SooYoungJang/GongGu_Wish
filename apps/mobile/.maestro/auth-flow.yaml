@@ -1,0 +1,19 @@
+appId: com.gonggu.wish
+---
+# Auth UX Flow QA — 마이페이지 → 로그인 화면 push → 로그인 → MyPage 복귀
+- launchApp
+- tapOn: "MY"
+- assertVisible: "마이페이지"
+- assertVisible: "로그인이 필요합니다."
+- assertVisible: "로그인"
+- takeScreenshot: evidence/auth-1-mypage-unauthenticated
+- tapOn: "로그인"
+- assertVisible: "공구위시"
+- assertVisible: "이메일"
+- assertVisible: "비밀번호"
+- assertVisible: "로그인 (버튼)"
+- takeScreenshot: evidence/auth-2-login-screen
+- tapOn: "회원가입"
+- assertVisible: "Step 1"
+- assertVisible: "이메일"
+- takeScreenshot: evidence/auth-3-signup-step1

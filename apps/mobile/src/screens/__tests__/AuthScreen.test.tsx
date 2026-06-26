@@ -7,16 +7,35 @@
  *  - Social login buttons
  *  - Login form fields
  *  - Signup tab present
+ *  - Navigation flow (goBack on success, OAuth calls)
  */
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { TextInput, Pressable, Text } from 'react-native';
 
 import { AuthScreen } from '../AuthScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { AuthProvider } from '../../context/AuthContext';
 
-// ─── Mocks (must be at top level, hoisted by vitest) ────────────────────────
+// ─── Hoisted mocks (vi.hoisted ensures they're available when vi.mock factories run) ──
+
+const { mockNavigate, mockGoBack, mockSignInWithPassword, mockSignUp, mockSignInWithOAuth } = vi.hoisted(
+  () => ({
+    mockNavigate: vi.fn(),
+    mockGoBack: vi.fn(),
+    mockSignInWithPassword: vi.fn(),
+    mockSignUp: vi.fn(),
+    mockSignInWithOAuth: vi.fn(),
+  }),
+);
+
+vi.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({
+    navigate: mockNavigate,
+    goBack: mockGoBack,
+  }),
+}));
 
 vi.mock('expo-secure-store', () => ({
   getItemAsync: vi.fn().mockResolvedValue(null),
@@ -31,8 +50,9 @@ vi.mock('@supabase/supabase-js', () => ({
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
-      signInWithPassword: vi.fn(),
-      signUp: vi.fn(),
+      signInWithPassword: mockSignInWithPassword,
+      signUp: mockSignUp,
+      signInWithOAuth: mockSignInWithOAuth,
       signOut: vi.fn(),
     },
   })),
@@ -46,8 +66,9 @@ vi.mock('../../lib/supabase', () => ({
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
-      signInWithPassword: vi.fn(),
-      signUp: vi.fn(),
+      signInWithPassword: mockSignInWithPassword,
+      signUp: mockSignUp,
+      signInWithOAuth: mockSignInWithOAuth,
       signOut: vi.fn(),
     },
   })),
@@ -90,52 +111,158 @@ function findAllText(
   });
 }
 
+function findPressableByText(
+  root: TestRenderer.ReactTestRenderer,
+  text: string,
+): TestRenderer.ReactTestInstance | undefined {
+  return root.root.findAllByType(Pressable).find((p) => {
+    const texts = p.findAllByType(Text);
+    return texts.some((t) => t.props.children === text || t.props.children?.includes?.(text));
+  });
+}
+
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 describe('AuthScreen', () => {
-  let renderer: TestRenderer.ReactTestRenderer;
-
   afterEach(() => {
-    if (renderer) {
-      act(() => { renderer.unmount(); });
-    }
+    vi.clearAllMocks();
   });
 
   it('renders without crashing', () => {
-    renderer = createTestRenderer();
+    const renderer = createTestRenderer();
     expect(renderer).toBeDefined();
   });
 
   it('renders social login buttons', () => {
-    renderer = createTestRenderer();
+    const renderer = createTestRenderer();
     expect(findAllText(renderer, '카카오로 로그인').length).toBeGreaterThan(0);
     expect(findAllText(renderer, 'Apple로 로그인').length).toBeGreaterThan(0);
     expect(findAllText(renderer, 'Google로 로그인').length).toBeGreaterThan(0);
   });
 
   it('renders email and password floating labels', () => {
-    renderer = createTestRenderer();
+    const renderer = createTestRenderer();
     expect(findAllText(renderer, '이메일').length).toBeGreaterThan(0);
     expect(findAllText(renderer, '비밀번호').length).toBeGreaterThan(0);
   });
 
   it('renders forgot password link', () => {
-    renderer = createTestRenderer();
+    const renderer = createTestRenderer();
     expect(findAllText(renderer, '비밀번호를 잊으셨나요?').length).toBeGreaterThan(0);
   });
 
   it('renders signup tab', () => {
-    renderer = createTestRenderer();
+    const renderer = createTestRenderer();
     expect(findAllText(renderer, '회원가입').length).toBeGreaterThan(0);
   });
 
   it('renders app name', () => {
-    renderer = createTestRenderer();
+    const renderer = createTestRenderer();
     expect(findAllText(renderer, '공구').length).toBeGreaterThan(0);
   });
 
   it('renders welcome message', () => {
-    renderer = createTestRenderer();
+    const renderer = createTestRenderer();
     expect(findAllText(renderer, '함께 사면 더 즐거운 공동구매').length).toBeGreaterThan(0);
+  });
+
+  // ── Navigation Flow Tests ─────────────────────────────────────────────────
+
+  it('calls navigation.goBack() on successful email login', async () => {
+    mockSignInWithPassword.mockResolvedValue({ error: null });
+    const renderer = createTestRenderer();
+
+    // Find email and password TextInputs and fill them
+    const allInputs = renderer.root.findAllByType(TextInput);
+    const emailInput = allInputs.find((i) => i.props.accessibilityLabel === '이메일');
+    const pwInput = allInputs.find((i) => i.props.accessibilityLabel === '비밀번호');
+    expect(emailInput).toBeDefined();
+    expect(pwInput).toBeDefined();
+
+    act(() => {
+      emailInput!.props.onChangeText('test@example.com');
+      pwInput!.props.onChangeText('password123!');
+    });
+
+    // Find the login CTA button (unique by accessibilityLabel)
+    const loginBtn = renderer.root.findAllByType(Pressable).find(
+      (p) => p.props.accessibilityLabel === '로그인',
+    );
+    expect(loginBtn).toBeDefined();
+
+    await act(async () => {
+      loginBtn!.props.onPress();
+    });
+
+    expect(mockSignInWithPassword).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: 'password123!',
+    });
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls signInWithOAuth with provider config when Kakao button pressed', async () => {
+    mockSignInWithOAuth.mockResolvedValue({ error: null });
+    const renderer = createTestRenderer();
+
+    const kakaoBtn = findPressableByText(renderer, '카카오로 로그인');
+    expect(kakaoBtn).toBeDefined();
+
+    await act(async () => {
+      kakaoBtn!.props.onPress();
+    });
+
+    // signInWithOAuth receives { provider, options }
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'kakao',
+      options: { redirectTo: undefined },
+    });
+  });
+
+  it('calls signInWithOAuth when Apple login button pressed', async () => {
+    mockSignInWithOAuth.mockResolvedValue({ error: null });
+    const renderer = createTestRenderer();
+
+    const appleBtn = findPressableByText(renderer, 'Apple로 로그인');
+    expect(appleBtn).toBeDefined();
+
+    await act(async () => {
+      appleBtn!.props.onPress();
+    });
+
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'apple',
+      options: { redirectTo: undefined },
+    });
+  });
+
+  it('shows error text when social login fails', async () => {
+    mockSignInWithOAuth.mockResolvedValue({
+      error: { message: 'Invalid login credentials' },
+    });
+    const renderer = createTestRenderer();
+
+    const googleBtn = findPressableByText(renderer, 'Google로 로그인');
+    expect(googleBtn).toBeDefined();
+
+    await act(async () => {
+      googleBtn!.props.onPress();
+    });
+
+    expect(findAllText(renderer, '이메일 또는 비밀번호가 올바르지 않습니다.').length).toBeGreaterThan(0);
+  });
+
+  it('shows generic error on social login exception', async () => {
+    mockSignInWithOAuth.mockRejectedValue(new Error('Network error'));
+    const renderer = createTestRenderer();
+
+    const kakaoBtn = findPressableByText(renderer, '카카오로 로그인');
+    expect(kakaoBtn).toBeDefined();
+
+    await act(async () => {
+      kakaoBtn!.props.onPress();
+    });
+
+    expect(findAllText(renderer, '소셜 로그인에 실패했습니다.').length).toBeGreaterThan(0);
   });
 });

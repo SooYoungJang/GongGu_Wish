@@ -11,8 +11,9 @@
  *  - Animated SVG Wave decoration
  *  - Responsive (mobile-first) + WCAG AA accessibility
  */
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -47,6 +48,7 @@ import {
   type SignupStep2Form,
   type SignupStep3Form,
 } from '../schemas/auth';
+import { mapAuthErrorMessage, SOCIAL_PROVIDERS } from '../utils/authHelpers';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -156,8 +158,8 @@ function AuthTabs() {
 
 function AuthContentArea() {
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
-  // Expose activeTab as a window property so children can read it
-  useMemo(() => {
+  // Track activeTab as a window property so children can read it (e.g., for analytics)
+  useEffect(() => {
     try {
       (window as any).__authActiveTab = activeTab;
     } catch { /* ignore non-DOM env (test) */ }
@@ -179,7 +181,7 @@ function AuthContentArea() {
 function LoginPanel() {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
-  const { signIn } = useAuth();
+  const { signIn, signInWithOAuth } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [email, setEmail] = useState('');
@@ -188,6 +190,7 @@ function LoginPanel() {
   const [errors, setErrors] = useState<Partial<Record<keyof LoginForm, string>>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [socialSubmitting, setSocialSubmitting] = useState<string | null>(null);
 
   const handleLogin = useCallback(async () => {
     setSubmitError(null);
@@ -221,41 +224,47 @@ function LoginPanel() {
   }, [email, password, signIn, navigation]);
 
   const handleForgotPassword = useCallback(() => {
-    // TODO: Navigate to password reset screen or show modal
+    Alert.alert('준비중', '비밀번호 찾기 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.');
   }, []);
+
+  const handleSocialLogin = useCallback(
+    async (provider: 'kakao' | 'apple' | 'google') => {
+      setSocialSubmitting(provider);
+      setSubmitError(null);
+      try {
+        const error = await signInWithOAuth(provider);
+        if (error) {
+          setSubmitError(mapAuthErrorMessage(error));
+        }
+        // OAuth redirect will handle navigation; no goBack() needed
+      } catch {
+        setSubmitError('소셜 로그인에 실패했습니다. 다시 시도해주세요.');
+      } finally {
+        setSocialSubmitting(null);
+      }
+    },
+    [signInWithOAuth],
+  );
 
   return (
     <View accessible accessibilityLabel="로그인">
       {/* Social Login */}
       <View style={styles.socialSection}>
         <Text style={styles.socialTitle}>간편 로그인</Text>
-        <SocialButton
-          label="카카오로 로그인"
-          icon="💬"
-          backgroundColor="#FEE500"
-          textColor="#1a1a1a"
-          accessibilityLabel="카카오로 로그인"
-          onPress={() => {}}
-        />
-        <SocialButton
-          label="Apple로 로그인"
-          icon=""
-          backgroundColor="#000000"
-          textColor="#ffffff"
-          iconStyle={styles.appleIcon}
-          accessibilityLabel="Apple로 로그인"
-          onPress={() => {}}
-        />
-        <SocialButton
-          label="Google로 로그인"
-          icon="G"
-          backgroundColor="#ffffff"
-          textColor="#1a1a1a"
-          borderColor={colors.border}
-          iconStyle={styles.googleIcon}
-          accessibilityLabel="Google로 로그인"
-          onPress={() => {}}
-        />
+        {SOCIAL_PROVIDERS.map((sp) => (
+          <SocialButton
+            key={sp.provider}
+            label={sp.label}
+            icon={sp.icon}
+            backgroundColor={sp.backgroundColor}
+            textColor={sp.textColor}
+            borderColor={sp.borderColor}
+            iconStyle={sp.iconStyle as TextStyle}
+            accessibilityLabel={sp.accessibilityLabel}
+            onPress={() => handleSocialLogin(sp.provider)}
+            disabled={socialSubmitting !== null}
+          />
+        ))}
       </View>
 
       {/* Divider */}
@@ -747,6 +756,7 @@ function SocialButton({
   iconStyle,
   accessibilityLabel,
   onPress,
+  disabled,
 }: {
   label: string;
   icon: string;
@@ -756,13 +766,16 @@ function SocialButton({
   iconStyle?: TextStyle;
   accessibilityLabel: string;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessible
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: disabled ?? false }}
       onPress={onPress}
+      disabled={disabled}
       style={({ pressed }) => [
         styles.socialBtn,
         {
@@ -770,7 +783,8 @@ function SocialButton({
           borderWidth: borderColor ? 1 : 0,
           borderColor: borderColor ?? 'transparent',
         },
-        pressed && styles.socialBtnPressed,
+        pressed && !disabled && styles.socialBtnPressed,
+        disabled && styles.socialBtnDisabled,
       ]}
     >
       <View style={styles.socialIcon}>
@@ -864,8 +878,8 @@ function WaveAnimation() {
   const animatedValue = useRef(new Animated.Value(0)).current;
   const { width: winWidth } = Dimensions.get('window');
 
-  useMemo(() => {
-    Animated.loop(
+  useEffect(() => {
+    const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(animatedValue, {
           toValue: 1,
@@ -880,7 +894,9 @@ function WaveAnimation() {
           useNativeDriver: true,
         }),
       ]),
-    ).start();
+    );
+    animation.start();
+    return () => animation.stop();
   }, [animatedValue]);
 
   const translateX1 = animatedValue.interpolate({
@@ -916,32 +932,6 @@ function WaveAnimation() {
       </Animated.View>
     </View>
   );
-}
-
-// ─── Error Message Mapping ───────────────────────────────────────────────────
-
-function mapAuthErrorMessage(error: unknown): string {
-  if (typeof error === 'object' && error !== null) {
-    const err = error as { message?: string; code?: string; status?: number };
-    const msg = err.message ?? err.code ?? '';
-
-    if (msg.includes('Invalid login credentials')) {
-      return '이메일 또는 비밀번호가 올바르지 않습니다.';
-    }
-    if (msg.includes('Email not confirmed')) {
-      return '이메일 인증이 완료되지 않았습니다. 이메일을 확인해주세요.';
-    }
-    if (msg.includes('User already registered')) {
-      return '이미 가입된 이메일입니다. 로그인해주세요.';
-    }
-    if (msg.includes('Password should be at least 6 characters')) {
-      return '비밀번호는 6자 이상이어야 합니다.';
-    }
-    if (msg.includes('rate limit')) {
-      return '너무 많은 요청을 보냈습니다. 잠시 후 다시 시도해주세요.';
-    }
-  }
-  return '오류가 발생했습니다. 다시 시도해주세요.';
 }
 
 // ─── Style helpers that depend on theme ──────────────────────────────────────
@@ -1379,6 +1369,9 @@ const styles = StyleSheet.create({
   },
   socialBtnPressed: {
     opacity: 0.85,
+  },
+  socialBtnDisabled: {
+    opacity: 0.5,
   },
   socialIcon: {
     width: 28,
