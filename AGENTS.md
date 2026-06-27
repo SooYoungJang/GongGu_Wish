@@ -299,8 +299,8 @@ When Dev/Designer work is done and QA + Critic have both passed:
    gh pr create --base main --head {branch-name} --title "{type}: {설명} (GON-{이슈번호})" --body "Closes GON-{이슈번호}"
    ```
 3. **Do NOT merge directly** — the PR is the formal handoff point
-4. The CEO monitors the PR status and handles merge when all checks pass
-5. After merge, delete the feature branch
+4. The PR is submitted for **user review** — the user merges it manually
+5. After merge, the feature branch can be deleted
 
 ### Rules
 
