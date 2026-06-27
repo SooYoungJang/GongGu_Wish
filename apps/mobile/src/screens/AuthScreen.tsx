@@ -848,31 +848,26 @@ function FloatingLabelInput({
           hasValue && !error && styles.flInputSuccess,
         ]}
       >
-        <Pressable onPress={handlePress} style={{ flex: 1, justifyContent: 'center' }}>
-          <View
-            pointerEvents="none"
-            style={styles.flLabelTouchable}
+        <Pressable onPress={handlePress} style={{ flex: 1 }}>
+          <Text
+            style={[
+              styles.flLabel,
+              { color: colors.textTertiary },
+              isFocused && styles.flLabelFocused,
+              error && styles.flLabelError,
+              hasValue && !error && !isFocused && styles.flLabelSuccess,
+              !isFloating && { opacity: 0 },
+            ]}
           >
-            <Text
-              style={[
-                styles.flLabel,
-                { color: colors.textTertiary },
-                isFloating && styles.flLabelFloating,
-                isFocused && styles.flLabelFocused,
-                error && styles.flLabelError,
-                hasValue && !error && !isFocused && styles.flLabelSuccess,
-              ]}
-            >
-              {label}
-            </Text>
-          </View>
+            {label}
+          </Text>
           <TextInput
             ref={inputRef}
             value={value}
             showSoftInputOnFocus={true}
-            placeholder=" "
+            placeholder={!isFloating ? label : ' '}
+            placeholderTextColor={!isFloating ? colors.textTertiary : 'transparent'}
             style={[styles.flInput, { color: colors.textPrimary }, rightElement ? { paddingRight: 44 } : undefined, style]}
-            placeholderTextColor="transparent"
             onFocus={handleFocus}
             onBlur={handleBlur}
             accessibilityLabel={label}
@@ -1062,7 +1057,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: 14,
     height: 56,
-    justifyContent: 'center',
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   flInputFocused: {
     borderColor: CORAL,
@@ -1088,30 +1085,14 @@ const styles = StyleSheet.create({
   },
   flInput: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 6,
     fontSize: 15,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  flLabelTouchable: {
-    position: 'absolute',
-    left: 16,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
+    padding: 0,
   },
   flLabel: {
-    position: 'absolute',
-    left: 16,
-    top: 18,
-    fontSize: 15,
-  },
-  flLabelFloating: {
-    top: 6,
     fontSize: 11,
     fontWeight: '600',
+    marginBottom: 1,
   },
   flLabelFocused: {
     color: CORAL,
