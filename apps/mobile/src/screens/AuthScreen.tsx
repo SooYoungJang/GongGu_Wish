@@ -88,7 +88,7 @@ export function AuthScreen(_props: AuthScreenProps) {
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             showsVerticalScrollIndicator={false}
           >
             <AuthHeader />
@@ -833,6 +833,10 @@ function FloatingLabelInput({
     onBlur?.(event);
   }, [onBlur]);
 
+  const handlePress = useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
+
   return (
     <View style={styles.flField}>
       <View
@@ -844,35 +848,38 @@ function FloatingLabelInput({
           hasValue && !error && styles.flInputSuccess,
         ]}
       >
-        <View
-          pointerEvents="none"
-          style={styles.flLabelTouchable}
-        >
-          <Text
-            style={[
-              styles.flLabel,
-              { color: colors.textTertiary },
-              isFloating && styles.flLabelFloating,
-              isFocused && styles.flLabelFocused,
-              error && styles.flLabelError,
-              hasValue && !error && !isFocused && styles.flLabelSuccess,
-            ]}
+        <Pressable onPress={handlePress} style={{ flex: 1, justifyContent: 'center' }}>
+          <View
+            pointerEvents="none"
+            style={styles.flLabelTouchable}
           >
-            {label}
-          </Text>
-        </View>
+            <Text
+              style={[
+                styles.flLabel,
+                { color: colors.textTertiary },
+                isFloating && styles.flLabelFloating,
+                isFocused && styles.flLabelFocused,
+                error && styles.flLabelError,
+                hasValue && !error && !isFocused && styles.flLabelSuccess,
+              ]}
+            >
+              {label}
+            </Text>
+          </View>
+          <TextInput
+            ref={inputRef}
+            value={value}
+            showSoftInputOnFocus={true}
+            placeholder=" "
+            style={[styles.flInput, { color: colors.textPrimary }, rightElement ? { paddingRight: 44 } : undefined, style]}
+            placeholderTextColor="transparent"
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            accessibilityLabel={label}
+            {...inputProps}
+          />
+        </Pressable>
         {rightElement}
-        <TextInput
-          ref={inputRef}
-          value={value}
-          placeholder=" "
-          style={[styles.flInput, { color: colors.textPrimary }, rightElement ? { paddingRight: 44 } : undefined, style]}
-          placeholderTextColor="transparent"
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          accessibilityLabel={label}
-          {...inputProps}
-        />
       </View>
       {error ? (
         <Text style={styles.flMsg}>{error}</Text>

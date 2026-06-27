@@ -146,7 +146,7 @@ describe('AuthScreen', () => {
     expect(findAllText(renderer, '비밀번호').length).toBeGreaterThan(0);
   });
 
-  it('does not wrap auth TextInputs in touch-intercepting containers', () => {
+  it('wraps auth TextInputs in Pressable for iOS touch chain fix', () => {
     const renderer = createTestRenderer();
     const pressablesWithInput = renderer.root.findAllByType(Pressable).filter(
       (pressable) => pressable.findAllByType(TextInput).length > 0,
@@ -159,7 +159,9 @@ describe('AuthScreen', () => {
       ) && view.findAllByType(TextInput).length > 0,
     );
 
-    expect(pressablesWithInput).toHaveLength(0);
+    // Pressable wrappers intentionally present to fix iOS touch chain (SearchBar pattern)
+    expect(pressablesWithInput.length).toBeGreaterThan(0);
+    // No raw touch handlers on View wrappers
     expect(touchInterceptingViewsWithInput).toHaveLength(0);
   });
 
