@@ -105,6 +105,7 @@ export function HomeScreenContent({
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <View style={s.container}>
         <ScrollView
+          keyboardShouldPersistTaps="always"
           refreshControl={<RefreshControl refreshing={isFetching} onRefresh={onRefresh} tintColor={colors.primary} />}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={s.listContent}

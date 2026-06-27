@@ -7,11 +7,33 @@ const monorepoRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-config.watchFolders = [monorepoRoot];
+// No custom watchFolders -- keep default project root for correct entry resolution
+// config.watchFolders = [monorepoRoot];  // REMOVED: causes /index.bundle to resolve from wrong root
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(monorepoRoot, 'node_modules'),
 ];
+
+// Rewrite /index.bundle -> /apps/mobile/index.bundle for monorepo setup
+const origRequestProcessor = config.server?.customRequestProcessor;
+if (!origRequestProcessor) {
+  // Use enhanceMiddleware to rewrite the URL before Metro processes it
+  if (!config.server) config.server = {};
+  const origEnhance = config.server.enhanceMiddleware;
+  config.server.enhanceMiddleware = (metroMiddleware, metroServer) => {
+    let wrapped = metroMiddleware;
+    if (origEnhance) {
+      wrapped = origEnhance(wrapped, metroServer);
+    }
+    return (req, res, next) => {
+      if (req.url && req.url.startsWith('/index.bundle')) {
+        const suffix = req.url.substring('/index.bundle'.length);
+        req.url = '/apps/mobile/index.bundle' + suffix;
+      }
+      return wrapped(req, res, next);
+    };
+  };
+}
 
 // Debug: log all module resolutions that start with @
 const originalResolveRequest = config.resolver.resolveRequest;

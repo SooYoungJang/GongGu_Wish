@@ -17,7 +17,7 @@
  *  - Agreement checkboxes (all-agree + required/optional)
  *  - Responsive (mobile-first) + WCAG AA accessibility
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -82,6 +82,9 @@ export function AuthScreen(_props: AuthScreenProps) {
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          // Compensate for the safe-area padding applied to the parent so the
+          // avoider shifts content by exactly the keyboard height on iOS.
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
@@ -156,12 +159,6 @@ function AuthTabs({ activeTab, onTabChange }: { activeTab: AuthTab; onTabChange:
 // ─── Auth Content Area ──────────────────────────────────────────────────────
 
 function AuthContentArea({ activeTab }: { activeTab: AuthTab }) {
-  // Track activeTab as a window property so children can read it (e.g., for analytics)
-  useEffect(() => {
-    try {
-      (window as any).__authActiveTab = activeTab;
-    } catch { /* ignore non-DOM env (test) */ }
-  }, [activeTab]);
   return (
     <View>
       {activeTab === 'login' ? (
@@ -873,9 +870,7 @@ function FloatingLabelInput({
           placeholderTextColor="transparent"
           onFocus={handleFocus}
           onBlur={handleBlur}
-          accessible={true}
           accessibilityLabel={label}
-          accessibilityRole="text"
           {...inputProps}
         />
       </View>
@@ -923,7 +918,11 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 40,
-    paddingBottom: 0,
+    // Allow the content to scroll above the keyboard so focused inputs stay visible.
+    // flexGrow makes the scrollview fill the available height; the large bottom
+    // padding gives the ScrollView room to push inputs up above the keyboard.
+    flexGrow: 1,
+    paddingBottom: 120,
   },
 
   // Header — refined coral wave
