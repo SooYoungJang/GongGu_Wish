@@ -844,7 +844,12 @@ function FloatingLabelInput({
           hasValue && !error && styles.flInputSuccess,
         ]}
       >
-        <Pressable style={{ flex: 1 }}>
+        {/* ponytail: active onPress (even empty) keeps Pressable registered as a
+            touch target on Android Fabric New Architecture. Without onPress, the
+            passive Pressable doesn't forward touches to inner TextInput on the
+            login tab (first-mounted panel). Empty handler avoids the focus loop
+            from ref.focus() in the original dda62ca approach. */}
+        <Pressable style={{ flex: 1 }} onPress={() => {}}>
           <View style={{ flex: 1, position: 'relative' }}>
             {/* ponytail: always render label, opacity hides when not floating.
                 Conditional render (+mount/-unmount of sibling) on Android Fabric
