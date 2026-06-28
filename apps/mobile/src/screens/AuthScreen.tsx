@@ -17,7 +17,7 @@
  *  - Agreement checkboxes (all-agree + required/optional)
  *  - Responsive (mobile-first) + WCAG AA accessibility
  */
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -269,7 +269,7 @@ function LoginPanel() {
 
       {/* Email Form */}
       <View>
-        <FloatingLabelInput
+        <AuthInput
           label="이메일"
           testID="fl-input-email"
           value={email}
@@ -281,7 +281,7 @@ function LoginPanel() {
           error={errors.email}
           editable={!submitting}
         />
-        <FloatingLabelInput
+        <AuthInput
           label="비밀번호"
           testID="fl-input-password"
           value={password}
@@ -513,7 +513,7 @@ function SignupPanel() {
           <Text style={styles.stepTitle}>기본 정보</Text>
           <Text style={styles.stepDesc}>공구위시 가입을 위한 기본 정보를 입력해주세요</Text>
 
-          <FloatingLabelInput
+          <AuthInput
             label="이메일"
             testID="signup-input-email"
             value={email}
@@ -525,7 +525,7 @@ function SignupPanel() {
             error={step1Errors.email}
             editable={!submitting}
           />
-          <FloatingLabelInput
+          <AuthInput
             label="비밀번호 (8자 이상, 영문+숫자 포함)"
             testID="signup-input-password"
             value={password}
@@ -550,7 +550,7 @@ function SignupPanel() {
               </Pressable>
             }
           />
-          <FloatingLabelInput
+          <AuthInput
             label="비밀번호 확인"
             testID="signup-input-confirm-password"
             value={confirmPassword}
@@ -597,7 +597,7 @@ function SignupPanel() {
           <Text style={styles.stepTitle}>추가 정보</Text>
           <Text style={styles.stepDesc}>공구위시에서 사용할 프로필 정보를 입력해주세요</Text>
 
-          <FloatingLabelInput
+          <AuthInput
             label="닉네임"
             testID="signup-input-nickname"
             value={nickname}
@@ -607,7 +607,7 @@ function SignupPanel() {
             error={step2Errors.nickname}
             editable={!submitting}
           />
-          <FloatingLabelInput
+          <AuthInput
             label="휴대폰 번호 (선택)"
             testID="signup-input-phone"
             value={phone}
@@ -799,86 +799,77 @@ function SocialButton({
   );
 }
 
-// ─── Labeled Input ──────────────────────────────────────────────────────────
+// ─── Auth Input ─────────────────────────────────────────────────────────────
 //
-// Plain "label above, input below" structure — NO absolute overlay, NO
-// floating animation, NO Pressable wrapper. This is the only layout that
-// works reliably on RN 0.83 / Android Fabric: any <Text> positioned
-// absolutely over the TextInput leaks touch events to sibling inputs
-// (focus jumps then disappears on login; infinite focus loop across the
-// three signup inputs). See git history — 15+ attempts kept the overlay and
-// all reproduced the bug. Keeping it simple is the fix.
+// Identical structure to FormInput (used in SubmitScreen, StoreScreen, etc.)
+// which works flawlessly on RN 0.83 / Android Fabric:
+//  - label <Text> in normal flow ABOVE the input
+//  - <TextInput> directly inside a <View> wrapper, no overlays, no Pressable
+//  - no absolute positioning, no floating animation, no placeholder=" "
+// See git history — 15+ attempts with absolute/floating/Pressable all failed.
 
-type FloatingLabelInputProps = TextInputProps & {
+type AuthInputProps = TextInputProps & {
   label: string;
   error?: string;
   rightElement?: React.ReactNode;
 };
 
-function FloatingLabelInput({
+function AuthInput({
   label,
-  value,
   error,
   rightElement,
   style,
-  onFocus,
-  onBlur,
   ...inputProps
-}: FloatingLabelInputProps) {
+}: AuthInputProps) {
   const { colors } = useTheme();
-  const [isFocused, setIsFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
-  const hasValue = typeof value === 'string' && value.length > 0;
-
-  const handleFocus = useCallback((event: Parameters<NonNullable<TextInputProps['onFocus']>>[0]) => {
-    setIsFocused(true);
-    onFocus?.(event);
-  }, [onFocus]);
-
-  const handleBlur = useCallback((event: Parameters<NonNullable<TextInputProps['onBlur']>>[0]) => {
-    setIsFocused(false);
-    onBlur?.(event);
-  }, [onBlur]);
 
   return (
-    <View style={styles.flField}>
-      {/* Label in normal flow — always visible, never overlays the input. */}
+    <View style={{ marginBottom: 4 }}>
       <Text
-        style={[
-          styles.flLabel,
-          { color: colors.textSecondary },
-          isFocused && styles.flLabelFocused,
-          error && styles.flLabelError,
-          hasValue && !error && !isFocused && styles.flLabelSuccess,
-        ]}
+        style={{
+          color: colors.textSecondary,
+          fontSize: 13,
+          fontWeight: '600',
+          marginBottom: 6,
+        }}
       >
         {label}
       </Text>
       <View
-        style={[
-          styles.flInputWrapper,
-          { borderColor: colors.border, backgroundColor: '#ffffff' },
-          isFocused && styles.flInputFocused,
-          error && styles.flInputError,
-          hasValue && !error && styles.flInputSuccess,
-        ]}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: '#ffffff',
+          borderWidth: 1.5,
+          borderColor: error ? '#d93f4c' : colors.border,
+          borderRadius: 14,
+          height: 52,
+          paddingHorizontal: 16,
+        }}
       >
         <TextInput
-          ref={inputRef}
-          value={value}
           placeholderTextColor={colors.textTertiary}
-          style={[styles.flInput, { color: colors.textPrimary }, rightElement ? { paddingRight: 44 } : undefined, style]}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
+          style={[
+            {
+              flex: 1,
+              fontSize: 15,
+              color: colors.textPrimary,
+              paddingVertical: 0,
+            },
+            rightElement ? { paddingRight: 44 } : undefined,
+            style,
+          ]}
           accessibilityLabel={label}
           {...inputProps}
         />
         {rightElement}
       </View>
       {error ? (
-        <Text style={styles.flMsg}>{error}</Text>
+        <Text style={{ fontSize: 12, color: '#d93f4c', marginTop: 4, paddingLeft: 4 }}>
+          {error}
+        </Text>
       ) : (
-        <View style={styles.flMsgPlaceholder} />
+        <View style={{ height: 18 }} />
       )}
     </View>
   );
@@ -1047,74 +1038,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
 
-  // Floating label input
-  flField: {
-    marginBottom: 4,
-  },
-  flInputWrapper: {
-    position: 'relative',
-    borderWidth: 1.5,
-    borderRadius: 14,
-    height: 56,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  flInputFocused: {
-    borderColor: CORAL,
-    shadowColor: CORAL_FOCUS,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  flInputError: {
-    borderColor: '#d93f4c',
-    shadowColor: 'rgba(217, 63, 76, 0.15)',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 3,
-  },
-  flInputSuccess: {
-    borderColor: '#2d9c5e',
-    shadowColor: 'rgba(45, 156, 94, 0.15)',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 3,
-  },
-  flInput: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    paddingVertical: 0,
-  },
-  flLabel: {
-    // Normal flow (above the input box) — NOT absolute. An absolutely
-    // positioned label overlapping the TextInput is the root cause of the
-    // Android Fabric focus bug; it must sit in the document flow instead.
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 6,
-    marginLeft: 4,
-  },
-  flLabelFocused: {
-    color: CORAL,
-  },
-  flLabelError: {
-    color: '#d93f4c',
-  },
-  flLabelSuccess: {
-    color: '#2d9c5e',
-  },
-  flMsg: {
-    fontSize: 12,
-    color: '#d93f4c',
-    marginTop: 4,
-    paddingLeft: 4,
-  },
-  flMsgPlaceholder: {
-    height: 18,
-  },
+
 
   // Password options
   pwOptions: {

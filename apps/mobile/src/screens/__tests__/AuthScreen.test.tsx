@@ -159,14 +159,9 @@ describe('AuthScreen', () => {
     );
     expect(pressablesWithInput).toHaveLength(0);
 
-    // Every visible auth TextInput must be focusable (no disabled state that
-    // would prevent typing) and carry its own onFocus/onBlur handlers.
+    // At least one TextInput must be rendered for auth fields.
     const inputs = renderer.root.findAllByType(TextInput);
     expect(inputs.length).toBeGreaterThan(0);
-    for (const input of inputs) {
-      expect(typeof input.props.onFocus).toBe('function');
-      expect(typeof input.props.onBlur).toBe('function');
-    }
   });
 
   it('renders forgot password link', () => {
@@ -188,15 +183,18 @@ describe('AuthScreen', () => {
     expect(findAllText(renderer, '기본 정보').length).toBeGreaterThan(0);
     expect(findAllText(renderer, '공구위시 가입을 위한 기본 정보를 입력해주세요').length).toBeGreaterThan(0);
 
-    // Label floating labels appear only when the input has focus or value
+    // Labels are always visible (normal flow, not floating), so just verify
+    // the confirm-password input exists and can accept text changes.
     const allInputs = renderer.root.findAllByType(TextInput);
     const pwConfirmInput = allInputs.find((i) => i.props.accessibilityLabel === '비밀번호 확인');
     expect(pwConfirmInput).toBeDefined();
+    expect(typeof pwConfirmInput!.props.onChangeText).toBe('function');
 
     act(() => {
-      pwConfirmInput!.props.onFocus();
+      pwConfirmInput!.props.onChangeText('test123!');
     });
 
+    // The input should still be present and the label visible above it.
     expect(findAllText(renderer, '비밀번호 확인').length).toBeGreaterThan(0);
   });
 
