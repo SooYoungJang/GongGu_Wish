@@ -81,8 +81,12 @@ export function parseContentRange(
  * Delegates to auth utility to avoid circular imports.
  */
 async function getAuthToken(): Promise<string | null> {
-  const { getAuthToken } = await import('../utils/auth');
-  return getAuthToken();
+  try {
+    const { getAuthToken } = await import('../utils/auth');
+    return getAuthToken();
+  } catch {
+    return null; // ponytail: dynamic import fails on some Expo Go devices; apikey alone suffices for public reads
+  }
 }
 
 // ─── Header Builder ──────────────────────────────────────────────────────────
