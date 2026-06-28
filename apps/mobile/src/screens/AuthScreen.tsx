@@ -833,10 +833,6 @@ function FloatingLabelInput({
     onBlur?.(event);
   }, [onBlur]);
 
-  const handlePress = useCallback(() => {
-    inputRef.current?.focus();
-  }, []);
-
   return (
     <View style={styles.flField}>
       <View
@@ -848,7 +844,7 @@ function FloatingLabelInput({
           hasValue && !error && styles.flInputSuccess,
         ]}
       >
-        <Pressable onPress={handlePress} style={{ flex: 1 }}>
+        <View style={{ flex: 1, position: 'relative' }}>
           <Text
             style={[
               styles.flLabel,
@@ -865,15 +861,15 @@ function FloatingLabelInput({
             ref={inputRef}
             value={value}
             showSoftInputOnFocus={true}
-            placeholder={!isFloating ? label : ' '}
-            placeholderTextColor={!isFloating ? colors.textTertiary : 'transparent'}
+            placeholder=" "
+            placeholderTextColor="transparent"
             style={[styles.flInput, { color: colors.textPrimary }, rightElement ? { paddingRight: 44 } : undefined, style]}
             onFocus={handleFocus}
             onBlur={handleBlur}
             accessibilityLabel={label}
             {...inputProps}
           />
-        </Pressable>
+        </View>
         {rightElement}
       </View>
       {error ? (
@@ -1059,7 +1055,7 @@ const styles = StyleSheet.create({
     height: 56,
     paddingHorizontal: 16,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
   },
   flInputFocused: {
     borderColor: CORAL,
@@ -1087,12 +1083,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    padding: 0,
+    paddingTop: 4,
   },
   flLabel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    pointerEvents: 'none',
     fontSize: 11,
     fontWeight: '600',
-    marginBottom: 1,
   },
   flLabelFocused: {
     color: CORAL,
