@@ -146,7 +146,7 @@ describe('AuthScreen', () => {
     expect(findAllText(renderer, '비밀번호').length).toBeGreaterThan(0);
   });
 
-  it('does not wrap auth TextInputs in touch-intercepting containers', () => {
+  it('wraps auth TextInputs in passive Pressable for Fabric touch forwarding', () => {
     const renderer = createTestRenderer();
     const pressablesWithInput = renderer.root.findAllByType(Pressable).filter(
       (pressable) => pressable.findAllByType(TextInput).length > 0,
@@ -159,7 +159,10 @@ describe('AuthScreen', () => {
       ) && view.findAllByType(TextInput).length > 0,
     );
 
-    expect(pressablesWithInput).toHaveLength(0);
+    // Pressable wrapper is intentional — Android Fabric needs Pressable
+    // to forward touch events to TextInput. No onPress handler avoids
+    // the focus-loop bug (ref.focus() -> double focus -> keyboard dismiss).
+    expect(pressablesWithInput.length).toBeGreaterThan(0);
     expect(touchInterceptingViewsWithInput).toHaveLength(0);
   });
 

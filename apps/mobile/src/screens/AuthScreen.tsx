@@ -844,11 +844,12 @@ function FloatingLabelInput({
           hasValue && !error && styles.flInputSuccess,
         ]}
       >
-        <View style={{ flex: 1, position: 'relative' }}>
-          {/* ponytail: always render label, opacity hides when not floating.
-              Conditional render (+mount/-unmount of sibling) on Android Fabric
-              resets the TextInput's InputConnection, showing keyboard then
-              immediately dismissing it. Opacity avoids layout mutation. */}
+        <Pressable style={{ flex: 1 }}>
+          <View style={{ flex: 1, position: 'relative' }}>
+            {/* ponytail: always render label, opacity hides when not floating.
+                Conditional render (+mount/-unmount of sibling) on Android Fabric
+                resets the TextInput's InputConnection, showing keyboard then
+                immediately dismissing it. Opacity avoids layout mutation. */}
           <Text
             style={[
               styles.flLabel,
@@ -874,6 +875,7 @@ function FloatingLabelInput({
             {...inputProps}
           />
         </View>
+        </Pressable>
         {rightElement}
       </View>
       {error ? (
