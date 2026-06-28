@@ -164,6 +164,58 @@ hermes kanban --board <BOARD_SLUG> show <CARD_ID>
 
 ---
 
+## CEO 자동 모니터링 생명주기 (필수 - 절대 생략 금지)
+
+### 원칙: CEO는 기억력에 의존하지 않는다. 자동화된 cron이 항상 백업한다.
+
+### 1. 모니터링 cron 생성 (필수)
+
+새로운 Dev→QA→Critic 파이프라인을 생성한 직후, **반드시** 다음 cron을 등록한다:
+
+```bash
+hermes cron create name="ceo-monitor-<이슈ID>" schedule="every 5m" no_agent=True script="ceo_monitor_report.py"
+```
+
+조건:
+- `no_agent=True` 고정 (토큰 절약)
+- `schedule=every 5m` 고정
+- 반드시 Kanban 태스크 생성과 같은 응답 내에 등록
+
+### 2. 모니터링 cron 제거 조건
+
+다음 조건 중 하나라도 만족되면 cron을 즉시 제거한다:
+1. Linear 메인 이슈가 `Done`이 됨
+2. 모든 Kanban 서브태스크가 `done` 상태
+3. 사용자가 중단 요청
+
+제거 명령어: `hermes cron list` → `hermes cron remove --job <job_id>`
+
+### 3. 이중 모니터링 체계
+
+| 계층 | 방식 | 간격 | 목적 |
+|------|------|------|------|
+| 1차 (CEO 직접) | in-turn polling (kanban_list) | 60초 | 실시간 가시적 모니터링 |
+| 2차 (cron 백업) | no_agent watchdog script | 5분 | CEO가 까먹어도 자동 보고 |
+
+**두 계층 모두 반드시 활성화. 하나만 하면 안 됨.**
+
+### 4. 보고 의무화 (4종 필수 보고)
+
+CEO는 다음 4가지 보고를 절대 생략할 수 없다:
+
+**[필수] 최초 보고** — 작업 접수 직후: 상태 확인 결과 + cron 등록 확인
+**[필수] 단계 전환 보고** — Dev→QA, QA→Critic, Critic 승인/거절 시
+**[필수] 예외 보고** — BLOCKED/STALE/FAIL 발견 및 조치
+**[필수] 최종 보고** — 모든 서브태스크 완료 시 종합 요약
+
+### 5. 시작/진행/완료 행동 강제
+
+**작업 시작 시:** Kanban 목록 조회 → cron 등록 (없으면 생성) → 사용자 보고
+**작업 진행 중 (60초):** Kanban 조회 → 변화 감지 시 보고 → 예외 발견 시 즉시 조치
+**작업 완료 시:** Kanban 최종 확인 → Linear 업데이트 → 사용자 최종 보고 → cron 제거
+
+---
+
 ## Autonomous CEO Resolution Rule
 
 If the CEO finds an abnormal workflow state during monitoring, the CEO must judge and resolve it without asking the user when the action is safe and operational.

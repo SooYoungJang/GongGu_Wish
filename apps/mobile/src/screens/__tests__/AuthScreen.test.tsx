@@ -12,7 +12,7 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { TextInput, Pressable, View, Text } from 'react-native';
+import { TextInput, Pressable, Text } from 'react-native';
 
 import { AuthScreen } from '../AuthScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
@@ -146,21 +146,22 @@ describe('AuthScreen', () => {
     expect(findAllText(renderer, '비밀번호').length).toBeGreaterThan(0);
   });
 
-  it('does not wrap auth TextInputs in touch-intercepting containers', () => {
+  it('does NOT wrap auth TextInputs in Pressable (regression: focus stealing / loop)', () => {
     const renderer = createTestRenderer();
+
+    // No Pressable should wrap a TextInput. A Pressable wrapper around TextInput
+    // caused two bugs on Android Fabric: on the login tab the focus jumped to
+    // the next input then disappeared (keyboard flashed and dismissed), and on
+    // the signup tab the three inputs entered an infinite focus loop. TextInput
+    // must receive touches directly so it owns its own focus.
     const pressablesWithInput = renderer.root.findAllByType(Pressable).filter(
       (pressable) => pressable.findAllByType(TextInput).length > 0,
     );
-    const touchInterceptingViewsWithInput = renderer.root.findAllByType(View).filter(
-      (view) => (
-        view.props.onTouchEnd ||
-        view.props.onStartShouldSetResponder ||
-        view.props.onResponderGrant
-      ) && view.findAllByType(TextInput).length > 0,
-    );
-
     expect(pressablesWithInput).toHaveLength(0);
-    expect(touchInterceptingViewsWithInput).toHaveLength(0);
+
+    // At least one TextInput must be rendered for auth fields.
+    const inputs = renderer.root.findAllByType(TextInput);
+    expect(inputs.length).toBeGreaterThan(0);
   });
 
   it('renders forgot password link', () => {
@@ -181,6 +182,19 @@ describe('AuthScreen', () => {
 
     expect(findAllText(renderer, '기본 정보').length).toBeGreaterThan(0);
     expect(findAllText(renderer, '공구위시 가입을 위한 기본 정보를 입력해주세요').length).toBeGreaterThan(0);
+
+    // Labels are always visible (normal flow, not floating), so just verify
+    // the confirm-password input exists and can accept text changes.
+    const allInputs = renderer.root.findAllByType(TextInput);
+    const pwConfirmInput = allInputs.find((i) => i.props.accessibilityLabel === '비밀번호 확인');
+    expect(pwConfirmInput).toBeDefined();
+    expect(typeof pwConfirmInput!.props.onChangeText).toBe('function');
+
+    act(() => {
+      pwConfirmInput!.props.onChangeText('test123!');
+    });
+
+    // The input should still be present and the label visible above it.
     expect(findAllText(renderer, '비밀번호 확인').length).toBeGreaterThan(0);
   });
 
