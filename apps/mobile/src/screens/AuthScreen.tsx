@@ -845,19 +845,22 @@ function FloatingLabelInput({
         ]}
       >
         <View style={{ flex: 1, position: 'relative' }}>
-          {isFloating && (
-            <Text
-              style={[
-                styles.flLabel,
-                { color: colors.textTertiary },
-                isFocused && styles.flLabelFocused,
-                error && styles.flLabelError,
-                hasValue && !error && !isFocused && styles.flLabelSuccess,
-              ]}
-            >
-              {label}
-            </Text>
-          )}
+          {/* ponytail: always render label, opacity hides when not floating.
+              Conditional render (+mount/-unmount of sibling) on Android Fabric
+              resets the TextInput's InputConnection, showing keyboard then
+              immediately dismissing it. Opacity avoids layout mutation. */}
+          <Text
+            style={[
+              styles.flLabel,
+              { color: colors.textTertiary },
+              isFocused && styles.flLabelFocused,
+              error && styles.flLabelError,
+              hasValue && !error && !isFocused && styles.flLabelSuccess,
+              !isFloating && { opacity: 0 },
+            ]}
+          >
+            {label}
+          </Text>
           <TextInput
             ref={inputRef}
             value={value}
