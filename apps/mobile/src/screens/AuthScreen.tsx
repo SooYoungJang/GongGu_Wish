@@ -799,7 +799,15 @@ function SocialButton({
   );
 }
 
-// ─── Floating Label Input ───────────────────────────────────────────────────
+// ─── Labeled Input ──────────────────────────────────────────────────────────
+//
+// Plain "label above, input below" structure — NO absolute overlay, NO
+// floating animation, NO Pressable wrapper. This is the only layout that
+// works reliably on RN 0.83 / Android Fabric: any <Text> positioned
+// absolutely over the TextInput leaks touch events to sibling inputs
+// (focus jumps then disappears on login; infinite focus loop across the
+// three signup inputs). See git history — 15+ attempts kept the overlay and
+// all reproduced the bug. Keeping it simple is the fix.
 
 type FloatingLabelInputProps = TextInputProps & {
   label: string;
@@ -821,7 +829,6 @@ function FloatingLabelInput({
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const hasValue = typeof value === 'string' && value.length > 0;
-  const isFloating = isFocused || hasValue;
 
   const handleFocus = useCallback((event: Parameters<NonNullable<TextInputProps['onFocus']>>[0]) => {
     setIsFocused(true);
@@ -835,6 +842,18 @@ function FloatingLabelInput({
 
   return (
     <View style={styles.flField}>
+      {/* Label in normal flow — always visible, never overlays the input. */}
+      <Text
+        style={[
+          styles.flLabel,
+          { color: colors.textSecondary },
+          isFocused && styles.flLabelFocused,
+          error && styles.flLabelError,
+          hasValue && !error && !isFocused && styles.flLabelSuccess,
+        ]}
+      >
+        {label}
+      </Text>
       <View
         style={[
           styles.flInputWrapper,
@@ -844,43 +863,16 @@ function FloatingLabelInput({
           hasValue && !error && styles.flInputSuccess,
         ]}
       >
-        {/* ponytail: active onPress (even empty) keeps Pressable registered as a
-            touch target on Android Fabric New Architecture. Without onPress, the
-            passive Pressable doesn't forward touches to inner TextInput on the
-            login tab (first-mounted panel). Empty handler avoids the focus loop
-            from ref.focus() in the original dda62ca approach. */}
-        <Pressable style={{ flex: 1 }} onPress={() => {}}>
-          <View style={{ flex: 1, position: 'relative' }}>
-            {/* ponytail: always render label, opacity hides when not floating.
-                Conditional render (+mount/-unmount of sibling) on Android Fabric
-                resets the TextInput's InputConnection, showing keyboard then
-                immediately dismissing it. Opacity avoids layout mutation. */}
-          <Text
-            style={[
-              styles.flLabel,
-              { color: colors.textTertiary },
-              isFocused && styles.flLabelFocused,
-              error && styles.flLabelError,
-              hasValue && !error && !isFocused && styles.flLabelSuccess,
-              !isFloating && { opacity: 0 },
-            ]}
-          >
-            {label}
-          </Text>
-          <TextInput
-            ref={inputRef}
-            value={value}
-            showSoftInputOnFocus={true}
-            placeholder=" "
-            placeholderTextColor="transparent"
-            style={[styles.flInput, { color: colors.textPrimary }, rightElement ? { paddingRight: 44 } : undefined, style]}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-            accessibilityLabel={label}
-            {...inputProps}
-          />
-        </View>
-        </Pressable>
+        <TextInput
+          ref={inputRef}
+          value={value}
+          placeholderTextColor={colors.textTertiary}
+          style={[styles.flInput, { color: colors.textPrimary }, rightElement ? { paddingRight: 44 } : undefined, style]}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          accessibilityLabel={label}
+          {...inputProps}
+        />
         {rightElement}
       </View>
       {error ? (
@@ -1094,15 +1086,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    paddingTop: 4,
+    paddingVertical: 0,
   },
   flLabel: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    pointerEvents: 'none',
-    fontSize: 11,
+    // Normal flow (above the input box) — NOT absolute. An absolutely
+    // positioned label overlapping the TextInput is the root cause of the
+    // Android Fabric focus bug; it must sit in the document flow instead.
+    fontSize: 13,
     fontWeight: '600',
+    marginBottom: 6,
+    marginLeft: 4,
   },
   flLabelFocused: {
     color: CORAL,
