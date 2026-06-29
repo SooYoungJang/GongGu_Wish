@@ -58,6 +58,14 @@ import { mapAuthErrorMessage, SOCIAL_PROVIDERS } from '../utils/authHelpers';
 type AuthTab = 'login' | 'signup';
 type SignupStep = 1 | 2 | 3;
 
+type FocusEvent = { type: 'focus'; inputId: string } | { type: 'blur'; inputId: string } | { type: 'reset' };
+
+export function nextFocusedInputId(current: string | null, event: FocusEvent): string | null {
+  if (event.type === 'focus') return event.inputId;
+  if (event.type === 'reset') return null;
+  return current === event.inputId ? null : current;
+}
+
 export type AuthScreenProps = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
 // ─── Action Bar Config ─────────────────────────────────────────────────────
@@ -86,21 +94,35 @@ export function AuthScreen(_props: AuthScreenProps) {
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
 
   const [actionBar, setActionBar] = useState<ActionBarConfig | null>(null);
-  const [focusedInputCount, setFocusedInputCount] = useState(0);
+  const [focusedInputId, setFocusedInputId] = useState<string | null>(null);
+  const [authRuntimeMarker] = useState(() => `gon-211-${Date.now()}`);
 
-  // Reset action bar on tab switch; child panels re-report via onActionBarChange
+  // Reset action bar/focus state on tab switch; child panels re-report via onActionBarChange.
   useEffect(() => {
+    setFocusedInputId((current) => nextFocusedInputId(current, { type: 'reset' }));
     setActionBar(null);
   }, [activeTab]);
 
-  const isKeyboardVisible = focusedInputCount > 0;
-  const onInputFocus = useCallback(() => setFocusedInputCount(c => c + 1), []);
-  const onInputBlur = useCallback(() => setFocusedInputCount(c => Math.max(0, c - 1)), []);
+  useEffect(() => {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.info(`[AuthScreen] GON-211 runtime marker: ${authRuntimeMarker}`);
+    }
+  }, [authRuntimeMarker]);
+
+  const isKeyboardVisible = focusedInputId !== null;
+  const onInputFocus = useCallback((inputId: string) => {
+    // ponytail: one focused id beats a counter; duplicate focus/blur cannot drift.
+    setFocusedInputId((current) => nextFocusedInputId(current, { type: 'focus', inputId }));
+  }, []);
+  const onInputBlur = useCallback((inputId: string) => {
+    setFocusedInputId((current) => nextFocusedInputId(current, { type: 'blur', inputId }));
+  }, []);
 
   return (
     <View
       style={[styles.container, { backgroundColor: WARM_BG }]}
       accessibilityLabel="공구위시 로그인 화면"
+      testID={`auth-screen-${authRuntimeMarker}`}
     >
       <GoBackHeader />
       <View style={{ flex: 1, paddingTop: insets.top }}>
@@ -204,8 +226,8 @@ function AuthContentArea({ activeTab, onActionBarChange, hideActions, onInputFoc
   activeTab: AuthTab;
   onActionBarChange?: (config: ActionBarConfig) => void;
   hideActions?: boolean;
-  onInputFocus?: () => void;
-  onInputBlur?: () => void;
+  onInputFocus?: (inputId: string) => void;
+  onInputBlur?: (inputId: string) => void;
 }) {
   return (
     <View>
@@ -223,8 +245,8 @@ function AuthContentArea({ activeTab, onActionBarChange, hideActions, onInputFoc
 function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
   onActionBarChange?: (config: ActionBarConfig) => void;
   hideActions?: boolean;
-  onInputFocus?: () => void;
-  onInputBlur?: () => void;
+  onInputFocus?: (inputId: string) => void;
+  onInputBlur?: (inputId: string) => void;
 }) {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -344,8 +366,9 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
           inputMode="email"
           error={errors.email}
           editable={!submitting}
-          onFocus={onInputFocus}
-          onBlur={onInputBlur}
+          focusId="login-email"
+          onAuthInputFocus={onInputFocus}
+          onAuthInputBlur={onInputBlur}
         />
         <AuthInput
           label="비밀번호"
@@ -357,8 +380,9 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
           autoComplete="current-password"
           error={errors.password}
           editable={!submitting}
-          onFocus={onInputFocus}
-          onBlur={onInputBlur}
+          focusId="login-password"
+          onAuthInputFocus={onInputFocus}
+          onAuthInputBlur={onInputBlur}
           rightElement={
             <Pressable
               accessible
@@ -423,8 +447,8 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
 function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
   onActionBarChange?: (config: ActionBarConfig) => void;
   hideActions?: boolean;
-  onInputFocus?: () => void;
-  onInputBlur?: () => void;
+  onInputFocus?: (inputId: string) => void;
+  onInputBlur?: (inputId: string) => void;
 }) {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -622,8 +646,9 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             inputMode="email"
             error={step1Errors.email}
             editable={!submitting}
-            onFocus={onInputFocus}
-            onBlur={onInputBlur}
+            focusId="signup-email"
+            onAuthInputFocus={onInputFocus}
+            onAuthInputBlur={onInputBlur}
           />
           <AuthInput
             label="비밀번호 (8자 이상, 영문+숫자 포함)"
@@ -635,8 +660,9 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             autoComplete="new-password"
             error={step1Errors.password}
             editable={!submitting}
-            onFocus={onInputFocus}
-            onBlur={onInputBlur}
+            focusId="signup-password"
+            onAuthInputFocus={onInputFocus}
+            onAuthInputBlur={onInputBlur}
             rightElement={
               <Pressable
                 accessible
@@ -662,8 +688,9 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             autoComplete="new-password"
             error={step1Errors.confirmPassword}
             editable={!submitting}
-            onFocus={onInputFocus}
-            onBlur={onInputBlur}
+            focusId="signup-confirm-password"
+            onAuthInputFocus={onInputFocus}
+            onAuthInputBlur={onInputBlur}
             rightElement={
               <Pressable
                 accessible
@@ -712,8 +739,9 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             autoComplete="name"
             error={step2Errors.nickname}
             editable={!submitting}
-            onFocus={onInputFocus}
-            onBlur={onInputBlur}
+            focusId="signup-nickname"
+            onAuthInputFocus={onInputFocus}
+            onAuthInputBlur={onInputBlur}
           />
           <AuthInput
             label="휴대폰 번호 (선택)"
@@ -726,8 +754,9 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             inputMode="numeric"
             error={step2Errors.phone}
             editable={!submitting}
-            onFocus={onInputFocus}
-            onBlur={onInputBlur}
+            focusId="signup-phone"
+            onAuthInputFocus={onInputFocus}
+            onAuthInputBlur={onInputBlur}
           />
 
           {!hideActions && (
@@ -863,7 +892,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
 
 function ActionBarArea({ config }: { config: ActionBarConfig }) {
   return (
-    <View style={styles.actionBarArea}>
+    <View style={styles.actionBarArea} testID="auth-action-bar">
       <View style={styles.actionBarInner}>
         {config.secondary && (
           <Pressable
@@ -960,10 +989,13 @@ function SocialButton({
 //  - no absolute positioning, no floating animation, no placeholder=" "
 // See git history — 15+ attempts with absolute/floating/Pressable all failed.
 
-type AuthInputProps = TextInputProps & {
+type AuthInputProps = Omit<TextInputProps, 'onFocus' | 'onBlur'> & {
   label: string;
   error?: string;
   rightElement?: React.ReactNode;
+  focusId?: string;
+  onAuthInputFocus?: (inputId: string) => void;
+  onAuthInputBlur?: (inputId: string) => void;
 };
 
 function AuthInput({
@@ -971,6 +1003,9 @@ function AuthInput({
   error,
   rightElement,
   style,
+  focusId,
+  onAuthInputFocus,
+  onAuthInputBlur,
   ...inputProps
 }: AuthInputProps) {
   const { colors } = useTheme();
@@ -1012,6 +1047,8 @@ function AuthInput({
             style,
           ]}
           accessibilityLabel={label}
+          onFocus={() => focusId && onAuthInputFocus?.(focusId)}
+          onBlur={() => focusId && onAuthInputBlur?.(focusId)}
           {...inputProps}
         />
         {rightElement}

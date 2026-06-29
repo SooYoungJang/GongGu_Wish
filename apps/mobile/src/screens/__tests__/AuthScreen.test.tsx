@@ -14,7 +14,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { Keyboard, Platform, TextInput, Pressable, Text } from 'react-native';
 
-import { AuthScreen } from '../AuthScreen';
+import { AuthScreen, nextFocusedInputId } from '../AuthScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { AuthProvider } from '../../context/AuthContext';
 
@@ -185,6 +185,23 @@ describe('AuthScreen', () => {
     } finally {
       Platform.OS = prevOS;
     }
+  });
+
+  it('Android focus id는 중복 focus/blur와 전환에서 드리프트하지 않는다', () => {
+    let focused: string | null = null;
+
+    focused = nextFocusedInputId(focused, { type: 'focus', inputId: 'login-email' });
+    focused = nextFocusedInputId(focused, { type: 'focus', inputId: 'login-email' });
+    focused = nextFocusedInputId(focused, { type: 'blur', inputId: 'login-email' });
+    expect(focused).toBeNull();
+
+    focused = nextFocusedInputId(focused, { type: 'focus', inputId: 'login-email' });
+    focused = nextFocusedInputId(focused, { type: 'focus', inputId: 'login-password' });
+    focused = nextFocusedInputId(focused, { type: 'blur', inputId: 'login-email' });
+    expect(focused).toBe('login-password');
+
+    focused = nextFocusedInputId(focused, { type: 'reset' });
+    expect(focused).toBeNull();
   });
 
   it('switches to the signup panel when the signup tab is pressed', () => {
