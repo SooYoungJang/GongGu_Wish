@@ -14,7 +14,6 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 
 import { Keyboard, Platform, TextInput, Pressable, Text } from 'react-native';
-
 import { AuthScreen, nextFocusedInputId } from '../AuthScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { AuthProvider } from '../../context/AuthContext';

@@ -21,9 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Keyboard,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -31,10 +29,7 @@ import {
   type TextInputProps,
   type TextStyle,
 } from 'react-native';
-import {
-  KeyboardAwareScrollView,
-  KeyboardStickyView,
-} from 'react-native-keyboard-controller';
+import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -112,7 +107,6 @@ export function AuthScreen(_props: AuthScreenProps) {
   // On keyboardDidHide (back button dismiss on Android) focusedInputId is cleared
   // because onBlur doesn't fire in that path. Upgrade: per-input tracking if needed.
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [actionBarHeight, setActionBarHeight] = useState(0);
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => {
       setKeyboardVisible(true);
@@ -181,6 +175,13 @@ export function AuthScreen(_props: AuthScreenProps) {
     }
   }, [shouldShowStickyAction, actionBar]);
 
+  const stickyFooter = resolvedActionBar && shouldShowStickyAction ? (
+    <ActionBarArea
+      config={resolvedActionBar}
+      bottomInset={insets.bottom}
+    />
+  ) : null;
+
   return (
     <View
       style={[styles.container, { backgroundColor: WARM_BG }]}
@@ -189,15 +190,7 @@ export function AuthScreen(_props: AuthScreenProps) {
     >
       <GoBackHeader />
       <View style={[styles.flex, { paddingTop: insets.top }]}>
-        <KeyboardAwareScrollView
-          bottomOffset={actionBarHeight + 16}
-          contentContainerStyle={[
-            styles.scrollContent,
-            shouldShowStickyAction && styles.scrollContentKeyboardVisible,
-          ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+        <KeyboardFormScreen footer={stickyFooter}>
           <AuthHeader />
           <AuthTabs activeTab={activeTab} onTabChange={setActiveTab} />
           <AuthContentArea
@@ -207,22 +200,7 @@ export function AuthScreen(_props: AuthScreenProps) {
             onInputFocus={onInputFocus}
             onInputBlur={onInputBlur}
           />
-        </KeyboardAwareScrollView>
-
-        {resolvedActionBar && (
-          <KeyboardStickyView
-            enabled={shouldShowStickyAction}
-            offset={{ closed: 0, opened: 0 }}
-          >
-            {shouldShowStickyAction ? (
-              <ActionBarArea
-                config={resolvedActionBar}
-                bottomInset={insets.bottom}
-                onLayoutHeight={setActionBarHeight}
-              />
-            ) : null}
-          </KeyboardStickyView>
-        )}
+        </KeyboardFormScreen>
       </View>
     </View>
   );
@@ -1175,15 +1153,6 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    flexGrow: 1,
-    paddingBottom: 120,
-  },
-  scrollContentKeyboardVisible: {
-    paddingBottom: 24,
   },
   actionBarArea: {
     backgroundColor: WARM_BG,
