@@ -27,6 +27,7 @@
     "babel-preset-expo": "~55.0.8",
     "expo": "~55.0.27",
     "expo-secure-store": "~55.0.15",
+    "expo-system-ui": "~55.0.19",
     "nativewind": "^4.1.23",
     "react": "19.2.0",
     "react-dom": "19.2.0",

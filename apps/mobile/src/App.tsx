@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform, StyleSheet, Text, useWindowDimensions, View, LogBox } from 'react-native';
+import * as SystemUI from 'expo-system-ui';
 import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -153,6 +154,12 @@ LogBox.ignoreLogs(['Text strings must be rendered within a <Text> component']);
  */
 function ThemedNavigationContainer({ children }: { children: React.ReactNode }) {
   const { colors, isDark } = useTheme();
+  const bg = colors.bg;
+
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(bg);
+  }, [bg]);
+
   const navTheme = React.useMemo(() => {
     const base = isDark ? DarkTheme : DefaultTheme;
     return {
@@ -161,16 +168,20 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
       colors: {
         ...base.colors,
         primary: colors.primary,
-        background: colors.bg,
+        background: bg,
         card: colors.surface,
         text: colors.textPrimary,
         border: colors.border,
         notification: colors.accent,
       },
     };
-  }, [isDark, colors]);
+  }, [isDark, colors, bg]);
 
-  return <NavigationContainer theme={navTheme}>{children}</NavigationContainer>;
+  return (
+    <View style={{ flex: 1, backgroundColor: bg }}>
+      <NavigationContainer theme={navTheme}>{children}</NavigationContainer>
+    </View>
+  );
 }
 
 function ThemedStackNavigator() {
@@ -182,7 +193,12 @@ function ThemedStackNavigator() {
           ? 'Admin'
           : 'MainTabs'
       }
-      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.bg },
+        headerStyle: { backgroundColor: colors.bg },
+        headerShadowVisible: false,
+      }}
     >
       <Stack.Screen name="MainTabs" component={MainTabs} />
       <Stack.Screen name="CalendarScreen" component={CalendarScreen} />

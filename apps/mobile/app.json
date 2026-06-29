@@ -6,10 +6,13 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#ffffff",
     "scheme": "gongguwish",
     "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
+      "backgroundColor": "#0f172a",
+      "userInterfaceStyle": "automatic",
       "bundleIdentifier": "com.gonggu.wish",
       "infoPlist": {
         "NSAppTransportSecurity": {
