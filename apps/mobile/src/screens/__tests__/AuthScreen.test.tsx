@@ -169,12 +169,19 @@ describe('AuthScreen', () => {
     expect(findAllText(renderer, '비밀번호를 잊으셨나요?').length).toBeGreaterThan(0);
   });
 
-  it('Android에서는 키보드 이벤트로 고정 액션바가 렌더링된다', () => {
+  it('Android에서는 TextInput focus/blur로 키보드 상태를 추적한다', () => {
     const prevOS = Platform.OS;
     Platform.OS = 'android';
     try {
       const renderer = createTestRenderer();
-      expect(renderer).toBeDefined();
+      const inputs = renderer.root.findAllByType(TextInput);
+      const emailInput = inputs.find((i) => i.props.accessibilityLabel === '이메일');
+      const pwInput = inputs.find((i) => i.props.accessibilityLabel === '비밀번호');
+
+      expect(emailInput?.props.onFocus).toBeTypeOf('function');
+      expect(emailInput?.props.onBlur).toBeTypeOf('function');
+      expect(pwInput?.props.onFocus).toBeTypeOf('function');
+      expect(pwInput?.props.onBlur).toBeTypeOf('function');
     } finally {
       Platform.OS = prevOS;
     }

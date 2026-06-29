@@ -20,7 +20,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -86,33 +85,17 @@ export function AuthScreen(_props: AuthScreenProps) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
 
-  // ── Keyboard tracking (Android only) ─────────────────────────────────
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [isKeyboardShown, setIsKeyboardShown] = useState(false);
   const [actionBar, setActionBar] = useState<ActionBarConfig | null>(null);
-
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
-      setIsKeyboardShown(true);
-      setKeyboardHeight(e.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setIsKeyboardShown(false);
-      setKeyboardHeight(0);
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  const [focusedInputCount, setFocusedInputCount] = useState(0);
 
   // Reset action bar on tab switch; child panels re-report via onActionBarChange
   useEffect(() => {
     setActionBar(null);
   }, [activeTab]);
 
-  const isKeyboardVisible = isKeyboardShown || keyboardHeight > 0;
+  const isKeyboardVisible = focusedInputCount > 0;
+  const onInputFocus = useCallback(() => setFocusedInputCount(c => c + 1), []);
+  const onInputBlur = useCallback(() => setFocusedInputCount(c => Math.max(0, c - 1)), []);
 
   return (
     <View
@@ -148,7 +131,7 @@ export function AuthScreen(_props: AuthScreenProps) {
             >
               <AuthHeader />
               <AuthTabs activeTab={activeTab} onTabChange={setActiveTab} />
-              <AuthContentArea activeTab={activeTab} onActionBarChange={setActionBar} hideActions={isKeyboardVisible} />
+              <AuthContentArea activeTab={activeTab} onActionBarChange={setActionBar} hideActions={isKeyboardVisible} onInputFocus={onInputFocus} onInputBlur={onInputBlur} />
             </ScrollView>
             {actionBar && isKeyboardVisible && (
               <ActionBarArea config={actionBar} />
@@ -217,17 +200,19 @@ function AuthTabs({ activeTab, onTabChange }: { activeTab: AuthTab; onTabChange:
 
 // ─── Auth Content Area ──────────────────────────────────────────────────────
 
-function AuthContentArea({ activeTab, onActionBarChange, hideActions }: {
+function AuthContentArea({ activeTab, onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
   activeTab: AuthTab;
   onActionBarChange?: (config: ActionBarConfig) => void;
   hideActions?: boolean;
+  onInputFocus?: () => void;
+  onInputBlur?: () => void;
 }) {
   return (
     <View>
       {activeTab === 'login' ? (
-        <LoginPanel onActionBarChange={onActionBarChange} hideActions={hideActions} />
+        <LoginPanel onActionBarChange={onActionBarChange} hideActions={hideActions} onInputFocus={onInputFocus} onInputBlur={onInputBlur} />
       ) : (
-        <SignupPanel onActionBarChange={onActionBarChange} hideActions={hideActions} />
+        <SignupPanel onActionBarChange={onActionBarChange} hideActions={hideActions} onInputFocus={onInputFocus} onInputBlur={onInputBlur} />
       )}
     </View>
   );
@@ -235,9 +220,11 @@ function AuthContentArea({ activeTab, onActionBarChange, hideActions }: {
 
 // ─── Login Panel ────────────────────────────────────────────────────────────
 
-function LoginPanel({ onActionBarChange, hideActions }: {
+function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
   onActionBarChange?: (config: ActionBarConfig) => void;
   hideActions?: boolean;
+  onInputFocus?: () => void;
+  onInputBlur?: () => void;
 }) {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -357,6 +344,8 @@ function LoginPanel({ onActionBarChange, hideActions }: {
           inputMode="email"
           error={errors.email}
           editable={!submitting}
+          onFocus={onInputFocus}
+          onBlur={onInputBlur}
         />
         <AuthInput
           label="비밀번호"
@@ -368,6 +357,8 @@ function LoginPanel({ onActionBarChange, hideActions }: {
           autoComplete="current-password"
           error={errors.password}
           editable={!submitting}
+          onFocus={onInputFocus}
+          onBlur={onInputBlur}
           rightElement={
             <Pressable
               accessible
@@ -429,9 +420,11 @@ function LoginPanel({ onActionBarChange, hideActions }: {
 
 // ─── Signup Panel (3-Step Progressive Disclosure) ──────────────────────────
 
-function SignupPanel({ onActionBarChange, hideActions }: {
+function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
   onActionBarChange?: (config: ActionBarConfig) => void;
   hideActions?: boolean;
+  onInputFocus?: () => void;
+  onInputBlur?: () => void;
 }) {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -629,6 +622,8 @@ function SignupPanel({ onActionBarChange, hideActions }: {
             inputMode="email"
             error={step1Errors.email}
             editable={!submitting}
+            onFocus={onInputFocus}
+            onBlur={onInputBlur}
           />
           <AuthInput
             label="비밀번호 (8자 이상, 영문+숫자 포함)"
@@ -640,6 +635,8 @@ function SignupPanel({ onActionBarChange, hideActions }: {
             autoComplete="new-password"
             error={step1Errors.password}
             editable={!submitting}
+            onFocus={onInputFocus}
+            onBlur={onInputBlur}
             rightElement={
               <Pressable
                 accessible
@@ -665,6 +662,8 @@ function SignupPanel({ onActionBarChange, hideActions }: {
             autoComplete="new-password"
             error={step1Errors.confirmPassword}
             editable={!submitting}
+            onFocus={onInputFocus}
+            onBlur={onInputBlur}
             rightElement={
               <Pressable
                 accessible
@@ -713,6 +712,8 @@ function SignupPanel({ onActionBarChange, hideActions }: {
             autoComplete="name"
             error={step2Errors.nickname}
             editable={!submitting}
+            onFocus={onInputFocus}
+            onBlur={onInputBlur}
           />
           <AuthInput
             label="휴대폰 번호 (선택)"
@@ -725,6 +726,8 @@ function SignupPanel({ onActionBarChange, hideActions }: {
             inputMode="numeric"
             error={step2Errors.phone}
             editable={!submitting}
+            onFocus={onInputFocus}
+            onBlur={onInputBlur}
           />
 
           {!hideActions && (
