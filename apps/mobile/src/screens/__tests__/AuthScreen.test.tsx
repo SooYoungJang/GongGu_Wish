@@ -12,6 +12,7 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi, afterEach } from 'vitest';
+
 import { Keyboard, Platform, TextInput, Pressable, Text } from 'react-native';
 
 import { AuthScreen, nextFocusedInputId } from '../AuthScreen';
@@ -203,6 +204,7 @@ describe('AuthScreen', () => {
     focused = nextFocusedInputId(focused, { type: 'reset' });
     expect(focused).toBeNull();
   });
+
 
   it('switches to the signup panel when the signup tab is pressed', () => {
     const renderer = createTestRenderer();

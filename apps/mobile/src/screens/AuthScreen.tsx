@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -103,13 +104,48 @@ export function AuthScreen(_props: AuthScreenProps) {
     setActionBar(null);
   }, [activeTab]);
 
+  // ponytail: Keyboard events are the primary visibility signal on Android.
+  // focusedInputId from onFocus/onBlur is the fallback — covers the gap before
+  // keyboardDidShow fires, and the rare case where onFocus fires without keyboard.
+  // On keyboardDidHide (back button dismiss on Android) focusedInputId is cleared
+  // because onBlur doesn't fire in that path. Upgrade: per-input tracking if needed.
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+      setFocusedInputId(null);
+    });
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
+
   useEffect(() => {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       console.info(`[AuthScreen] GON-211 runtime marker: ${authRuntimeMarker}`);
     }
   }, [authRuntimeMarker]);
 
-  const isKeyboardVisible = focusedInputId !== null;
+  // ponytail: debug log for actionBar chain audit (LoginPanel → AuthScreen)
+  useEffect(() => {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.info(`[AuthScreen] actionBar: ${actionBar ? JSON.stringify({primary: actionBar.primary.text, secondary: actionBar.secondary?.text}) : 'null'}`);
+    }
+  }, [actionBar]);
+
+  useEffect(() => {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.info(`[AuthScreen] focusedInputId: ${focusedInputId}`);
+    }
+  }, [focusedInputId]);
+
+  useEffect(() => {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.info(`[AuthScreen] keyboardVisible: ${keyboardVisible}`);
+    }
+  }, [keyboardVisible]);
+
+  const isKeyboardVisible = focusedInputId !== null || keyboardVisible;
   const onInputFocus = useCallback((inputId: string) => {
     // ponytail: one focused id beats a counter; duplicate focus/blur cannot drift.
     setFocusedInputId((current) => nextFocusedInputId(current, { type: 'focus', inputId }));
