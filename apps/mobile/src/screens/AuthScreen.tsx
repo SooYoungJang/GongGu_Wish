@@ -190,7 +190,10 @@ export function AuthScreen(_props: AuthScreenProps) {
     >
       <GoBackHeader />
       <View style={[styles.flex, { paddingTop: insets.top }]}>
-        <KeyboardFormScreen footer={stickyFooter}>
+        <KeyboardFormScreen
+          footer={stickyFooter}
+          contentContainerStyle={styles.authScrollContent}
+        >
           <AuthHeader />
           <AuthTabs activeTab={activeTab} onTabChange={setActiveTab} />
           <AuthContentArea
@@ -1153,6 +1156,11 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  authScrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 120,
   },
   actionBarArea: {
     backgroundColor: WARM_BG,
