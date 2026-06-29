@@ -173,6 +173,28 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
   return <NavigationContainer theme={navTheme}>{children}</NavigationContainer>;
 }
 
+function ThemedStackNavigator() {
+  const { colors } = useTheme();
+  return (
+    <Stack.Navigator
+      initialRouteName={
+        Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
+          ? 'Admin'
+          : 'MainTabs'
+      }
+      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
+    >
+      <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen name="CalendarScreen" component={CalendarScreen} />
+      <Stack.Screen name="Detail" component={DetailScreen} />
+      <Stack.Screen name="FeedDetail" component={FeedDetailScreen} />
+      <Stack.Screen name="Login" component={AuthScreen} />
+      <Stack.Screen name="InfluencerGroupBuys" component={InfluencerGroupBuysScreen} />
+      <Stack.Screen name="Admin" component={AdminScreen} />
+    </Stack.Navigator>
+  );
+}
+
 export default function App() {
   return (
     <KeyboardProvider>
@@ -181,23 +203,8 @@ export default function App() {
           <ThemeProvider>
             <AuthProvider>
               <ThemedNavigationContainer>
-              <Stack.Navigator
-                initialRouteName={
-                  Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
-                    ? 'Admin'
-                    : 'MainTabs'
-                }
-                screenOptions={{ headerShown: false }}
-              >
-                <Stack.Screen name="MainTabs" component={MainTabs} />
-                <Stack.Screen name="CalendarScreen" component={CalendarScreen} />
-                <Stack.Screen name="Detail" component={DetailScreen} />
-                <Stack.Screen name="FeedDetail" component={FeedDetailScreen} />
-                <Stack.Screen name="Login" component={AuthScreen} />
-                <Stack.Screen name="InfluencerGroupBuys" component={InfluencerGroupBuysScreen} />
-                <Stack.Screen name="Admin" component={AdminScreen} />
-              </Stack.Navigator>
-            </ThemedNavigationContainer>
+                <ThemedStackNavigator />
+              </ThemedNavigationContainer>
             </AuthProvider>
           </ThemeProvider>
         </QueryClientProvider>
