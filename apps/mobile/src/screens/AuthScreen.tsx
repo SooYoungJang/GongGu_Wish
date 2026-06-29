@@ -88,14 +88,17 @@ export function AuthScreen(_props: AuthScreenProps) {
 
   // ── Keyboard tracking (Android only) ─────────────────────────────────
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardShown, setIsKeyboardShown] = useState(false);
   const [actionBar, setActionBar] = useState<ActionBarConfig | null>(null);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setIsKeyboardShown(true);
       setKeyboardHeight(e.endCoordinates.height);
     });
     const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setIsKeyboardShown(false);
       setKeyboardHeight(0);
     });
     return () => {
@@ -109,7 +112,7 @@ export function AuthScreen(_props: AuthScreenProps) {
     setActionBar(null);
   }, [activeTab]);
 
-  const isKeyboardVisible = keyboardHeight > 0;
+  const isKeyboardVisible = isKeyboardShown || keyboardHeight > 0;
 
   return (
     <View

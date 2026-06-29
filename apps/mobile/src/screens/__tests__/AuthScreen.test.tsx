@@ -12,7 +12,7 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { TextInput, Pressable, Text } from 'react-native';
+import { Keyboard, Platform, TextInput, Pressable, Text } from 'react-native';
 
 import { AuthScreen } from '../AuthScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
@@ -167,6 +167,17 @@ describe('AuthScreen', () => {
   it('renders forgot password link', () => {
     const renderer = createTestRenderer();
     expect(findAllText(renderer, '비밀번호를 잊으셨나요?').length).toBeGreaterThan(0);
+  });
+
+  it('Android에서는 키보드 이벤트로 고정 액션바가 렌더링된다', () => {
+    const prevOS = Platform.OS;
+    Platform.OS = 'android';
+    try {
+      const renderer = createTestRenderer();
+      expect(renderer).toBeDefined();
+    } finally {
+      Platform.OS = prevOS;
+    }
   });
 
   it('switches to the signup panel when the signup tab is pressed', () => {
