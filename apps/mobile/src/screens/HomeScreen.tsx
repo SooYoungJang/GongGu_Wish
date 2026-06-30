@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
-  ScrollView,
   StatusBar,
   StyleSheet,
   View,
@@ -22,6 +21,7 @@ import { SearchResultsPanel } from '../components/home/SearchResultsPanel';
 import { SubmitPrompt } from '../components/home/SubmitPrompt';
 import { ThisWeekDeals } from '../components/home/ThisWeekDeals';
 import { WeeklyCalendarStrip } from '../components/home/WeeklyCalendarStrip';
+import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { borderRadius, spacing } from '../design/tokens';
 import { useTheme } from '../context/ThemeContext';
 import type { FeedPost, GroupBuy, HomeScreenProps, Influencer } from '../types';
@@ -104,10 +104,9 @@ export function HomeScreenContent({
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <View style={s.container}>
-        <ScrollView
+        <KeyboardFormScreen
           keyboardShouldPersistTaps="always"
           refreshControl={<RefreshControl refreshing={isFetching} onRefresh={onRefresh} tintColor={colors.primary} />}
-          showsVerticalScrollIndicator={false}
           contentContainerStyle={s.listContent}
         >
           <View style={s.content}>
@@ -128,7 +127,7 @@ export function HomeScreenContent({
             <ExpiringSoonSection groupBuys={groupBuys} onPressDeal={onPressDeal} />
             <SubmitPrompt onPressSubmit={onPressSubmit} />
           </View>
-        </ScrollView>
+        </KeyboardFormScreen>
       </View>
     </SafeAreaView>
   );

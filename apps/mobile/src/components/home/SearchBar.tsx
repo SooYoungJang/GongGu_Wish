@@ -1,5 +1,5 @@
-import { useMemo, useRef } from 'react';
-import { Pressable, StyleSheet, TextInput } from 'react-native';
+import { useMemo } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { SText } from '../../components/ui/SText';
 import { borderRadius, spacing } from '../../design/tokens';
@@ -15,17 +15,11 @@ type SearchBarProps = {
 export function SearchBar({ value, onChangeText, onClear }: SearchBarProps) {
   const { colors, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
-  const inputRef = useRef<TextInput>(null);
-
-  const handlePress = () => {
-    inputRef.current?.focus();
-  };
 
   return (
-    <Pressable onPress={handlePress} style={s.searchBar}>
+    <View style={s.searchBar}>
       <SText variant="body" style={s.searchIcon}>⌕</SText>
       <TextInput
-        ref={inputRef}
         accessibilityLabel="공구 검색"
         placeholder="브랜드명, 제품명으로 검색해보세요"
         placeholderTextColor={colors.textTertiary}
@@ -39,7 +33,7 @@ export function SearchBar({ value, onChangeText, onClear }: SearchBarProps) {
           <SText variant="body" style={s.clearButtonText}>×</SText>
         </Pressable>
       ) : null}
-    </Pressable>
+    </View>
   );
 }
 
@@ -52,13 +46,13 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
       borderRadius: borderRadius.full,
       borderWidth: 0,
       flexDirection: 'row',
+      height: 54,
       marginBottom: spacing['2xl'],
       paddingHorizontal: spacing.lg,
-      minHeight: 54,
       ...shadows.md,
     },
     searchIcon: { color: colors.textTertiary, fontSize: 22, marginRight: spacing.sm },
-    searchInput: { color: colors.textPrimary, flex: 1, fontSize: 15, minHeight: 44, padding: 0 },
+    searchInput: { color: colors.textPrimary, flex: 1, fontSize: 15, height: 54, padding: 0 },
     clearButton: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
     clearButtonText: { color: colors.textSecondary, fontSize: 22 },
   });

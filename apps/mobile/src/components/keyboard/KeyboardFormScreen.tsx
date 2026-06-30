@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import {
   Keyboard,
+  type ScrollViewProps,
   StyleProp,
   StyleSheet,
   View,
@@ -18,6 +19,7 @@ type KeyboardFormScreenProps = {
   contentContainerStyle?: StyleProp<ViewStyle>;
   style?: StyleProp<ViewStyle>;
   keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
+  refreshControl?: ScrollViewProps['refreshControl'];
   bottomOffset?: number;
   testID?: string;
 };
@@ -29,6 +31,7 @@ export function KeyboardFormScreen({
   contentContainerStyle,
   style,
   keyboardShouldPersistTaps = 'handled',
+  refreshControl,
   bottomOffset = 16,
   testID,
 }: KeyboardFormScreenProps) {
@@ -58,6 +61,7 @@ export function KeyboardFormScreen({
       <KeyboardAwareScrollView
         bottomOffset={footerHeight + bottomOffset}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        refreshControl={refreshControl}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.content,
