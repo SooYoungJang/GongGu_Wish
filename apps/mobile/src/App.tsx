@@ -28,7 +28,7 @@ import { DetailScreen } from './screens/DetailScreen';
 import { MyPageScreen } from './screens/MyPageScreen';
 import { StoreScreen } from './screens/StoreScreen';
 import { SubmitScreen } from './screens/SubmitScreen';
-import { spacing } from './design/tokens';
+import { borderRadius, spacing } from './design/tokens';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 
@@ -99,9 +99,17 @@ function MainTabs() {
       initialRouteName="Home"
       screenOptions={({ route }) => ({
         headerShown: false,
+        tabBarIconStyle: route.name === 'Submit' ? {
+          backgroundColor: colors.primary,
+          borderRadius: borderRadius['2xl'],
+          minHeight: 48,
+          minWidth: 48,
+          marginTop: -12,
+          alignItems: 'center',
+          justifyContent: 'center',
+        } : undefined,
         tabBarItemStyle: [
           styles.tabButton,
-          route.name === 'Submit' && styles.submitTabButton,
           route.name === 'Submit' && { marginHorizontal: submitTabMarginHorizontal },
         ],
         tabBarAccessibilityLabel: `${tabLabel(route.name)} 탭`,
@@ -110,7 +118,7 @@ function MainTabs() {
             style={[
               styles.tabIcon,
               { color: focused ? colors.primary : colors.textSecondary },
-              route.name === 'Submit' && { color: colors.ctaPurpleText },
+              route.name === 'Submit' && { color: colors.textInverse },
             ]}
           >
             {tabIcon(route.name)}
@@ -121,7 +129,7 @@ function MainTabs() {
         tabBarInactiveTintColor: colors.textTertiary,
         tabBarLabelStyle: [
           { fontSize: 11, fontWeight: '700' },
-          route.name === 'Submit' && { color: colors.ctaPurpleText },
+          route.name === 'Submit' && { color: colors.primary },
         ],
         tabBarStyle: [
           styles.tabBar,
@@ -133,7 +141,6 @@ function MainTabs() {
             ...shadows.md,
           },
         ],
-        tabBarIconStyle: route.name === 'Submit' ? { backgroundColor: colors.ctaPurple, borderRadius: 28, minHeight: 56 } : undefined,
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
@@ -259,11 +266,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     minHeight: 52,
-  },
-  submitTabButton: {
-    borderRadius: 28,
-    marginHorizontal: spacing.xs,
-    minHeight: 56,
   },
   tabIcon: {
     fontSize: 18,

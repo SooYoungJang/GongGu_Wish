@@ -178,51 +178,54 @@ export const status = {
 } as const;
 
 /**
- * Neutral / Gray scale — warm-tinted (hue 250 = cool gray with minimal chromatic)
+ * Neutral / Gray scale — warm-tinted (hue 80 = warm beige, V4 Premium Beige)
  */
 export const neutral = {
-  0: 'oklch(1 0 0)',
-  50: 'oklch(0.98 0.005 250)',
-  100: 'oklch(0.96 0.01 250)',
-  200: 'oklch(0.9 0.01 250)',
-  300: 'oklch(0.82 0.01 250)',
-  400: 'oklch(0.7 0.01 250)',
-  500: 'oklch(0.55 0.01 250)',
-  600: 'oklch(0.45 0.01 250)',
-  700: 'oklch(0.37 0.01 250)',
-  800: 'oklch(0.27 0.01 250)',
-  900: 'oklch(0.21 0.01 250)',
-  950: 'oklch(0.15 0.01 250)',
+  0: 'oklch(0.985 0.01 80)',        // warm white (#faf5ef)
+  50: 'oklch(0.98 0.005 80)',
+  100: 'oklch(0.96 0.01 80)',
+  200: 'oklch(0.9 0.01 80)',
+  300: 'oklch(0.82 0.01 80)',
+  400: 'oklch(0.7 0.01 80)',
+  500: 'oklch(0.55 0.01 80)',
+  600: 'oklch(0.45 0.01 80)',
+  700: 'oklch(0.37 0.01 80)',
+  800: 'oklch(0.27 0.01 80)',
+  900: 'oklch(0.21 0.01 80)',
+  950: 'oklch(0.15 0.01 80)',
 } as const;
 
 /**
  * Surface / Background tokens
+ * V4: warm beige palette (hue 80)
  */
 export const surface = {
-  primary: 'oklch(1 0 0)',
-  secondary: 'oklch(0.98 0.005 250)',
-  tertiary: 'oklch(0.96 0.01 250)',
-  inverse: 'oklch(0.21 0.01 250)',
+  primary: 'oklch(0.985 0.01 80)',   // #faf5ef — warm beige screen bg
+  secondary: 'oklch(0.975 0.012 80)', // #f5efe7 — card/surface bg
+  tertiary: 'oklch(0.965 0.015 80)',  // #efe9e0 — deeper beige
+  inverse: 'oklch(0.21 0.01 80)',    // dark beige for inverted surfaces
 } as const;
 
 /**
  * Text color tokens
+ * V4: warm beige tint (hue 80)
  */
 export const text = {
-  primary: 'oklch(0.21 0.01 250)',
-  secondary: 'oklch(0.45 0.01 250)',
-  tertiary: 'oklch(0.55 0.01 250)',
+  primary: 'oklch(0.21 0.01 80)',
+  secondary: 'oklch(0.45 0.01 80)',
+  tertiary: 'oklch(0.55 0.01 80)',
   inverse: 'oklch(1 0 0)',
-  disabled: 'oklch(0.7 0.01 250)',
+  disabled: 'oklch(0.7 0.01 80)',
   link: 'oklch(0.66 0.231 17)',
 } as const;
 
 /**
  * Border & divider tokens
+ * V4: warm beige tint (hue 80)
  */
 export const border = {
-  primary: 'oklch(0.9 0.01 250)',
-  secondary: 'oklch(0.82 0.01 250)',
+  primary: 'oklch(0.9 0.015 80)',
+  secondary: 'oklch(0.82 0.01 80)',
   focus: 'oklch(0.66 0.231 17)',
   error: 'oklch(0.62 0.22 25)',
 } as const;

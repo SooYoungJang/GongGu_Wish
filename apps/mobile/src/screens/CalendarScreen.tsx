@@ -263,8 +263,8 @@ function DayCell({
         style={[
           { color: colors.textPrimary, fontWeight: '700', marginBottom: 0 },
           !isCurrentMonth && { color: colors.textPrimary },
-          isTodayDate && !isSelected && { color: colors.ctaPurple },
-          isSelected && { color: colors.ctaPurpleText },
+          isTodayDate && !isSelected && { color: colors.primary },
+          isSelected && { color: colors.textInverse },
         ]}
       >
         {day}
@@ -522,7 +522,7 @@ function makeStyles(colors: ColorPalette) {
     calendarWrapper: {
       backgroundColor: colors.surface,
       borderColor: colors.border,
-      borderRadius: 24,
+      borderRadius: borderRadius['2xl'],
       borderWidth: 1,
       marginBottom: spacing.md,
       padding: spacing.sm,
@@ -556,12 +556,12 @@ function makeStyles(colors: ColorPalette) {
       opacity: 0.4,
     },
     dayCellToday: {
-      borderColor: colors.ctaPurple,
+      borderColor: colors.primary,
       borderRadius: borderRadius.full,
       borderWidth: 1.5,
     },
     dayCellSelected: {
-      backgroundColor: colors.ctaPurple,
+      backgroundColor: colors.primary,
       borderRadius: borderRadius.full,
       borderWidth: 0,
     },
@@ -575,7 +575,7 @@ function makeStyles(colors: ColorPalette) {
       width: DOT_SIZE,
     },
     dotSelected: {
-      backgroundColor: colors.ctaPurpleText,
+      backgroundColor: colors.textInverse,
     },
     dotSpacer: {
       height: DOT_SIZE + 2,

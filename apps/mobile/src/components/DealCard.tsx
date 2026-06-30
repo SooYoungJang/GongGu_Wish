@@ -53,7 +53,7 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     card: {
       backgroundColor: colors.surface,
       borderColor: colors.border,
-      borderRadius: 22,
+      borderRadius: borderRadius.xl,
       borderWidth: 1,
       flexBasis: '47%',
       flexGrow: 1,
@@ -63,7 +63,7 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     },
     image: {
       alignItems: 'center',
-      borderRadius: 18,
+      borderRadius: borderRadius.lg,
       borderWidth: 1,
       justifyContent: 'center',
       marginBottom: spacing.md,

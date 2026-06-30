@@ -25,9 +25,14 @@ vi.mock("react-native", () => {
     Animated: {
       Value: AnimatedValue,
       timing: () => ({ start: (cb?: () => void) => cb?.() }),
+      delay: () => ({ start: vi.fn(), stop: vi.fn() }),
       loop: () => ({ start: vi.fn(), stop: vi.fn() }),
+      parallel: () => ({ start: vi.fn(), stop: vi.fn() }),
       sequence: () => ({ start: vi.fn(), stop: vi.fn() }),
       View: passthrough("Animated.View"),
+    },
+    AccessibilityInfo: {
+      isReduceMotionEnabled: vi.fn(() => Promise.resolve(false)),
     },
     Dimensions: { get: () => ({ width: 390, height: 844 }) },
     Easing: {

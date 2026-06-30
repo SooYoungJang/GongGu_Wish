@@ -51,6 +51,7 @@ import {
   type SignupStep3Form,
 } from '../schemas/auth';
 import { mapAuthErrorMessage, SOCIAL_PROVIDERS } from '../utils/authHelpers';
+import { borderRadius } from '../design/tokens';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -80,19 +81,13 @@ type ActionBarConfig = {
   secondary?: ActionBarItem;
 };
 
-// ─── Coral Wave Primary Color (light mode defaults) ──────────────────────────
-const CORAL = '#ff385c';
-const CORAL_FOCUS = 'rgba(255, 56, 92, 0.28)';
-const WARM_BG = '#f5f0eb';
 
-// ─── Dynamic styles ──────────────────────────────────────────────────────────
-
-const makeStyles = (isDark: boolean, colors: ColorPalette) =>
+const makeStyles = (colors: ColorPalette) =>
   StyleSheet.create({
     // Container
     container: {
       flex: 1,
-      backgroundColor: isDark ? colors.bg : WARM_BG,
+      backgroundColor: colors.bg,
     },
     flex: {
       flex: 1,
@@ -103,11 +98,11 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
       paddingBottom: 120,
     },
     actionBarArea: {
-      backgroundColor: isDark ? colors.bg : WARM_BG,
+      backgroundColor: colors.bg,
       paddingHorizontal: 24,
       paddingTop: 10,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: isDark ? colors.divider : '#e8e3de',
+      borderTopColor: colors.borderLight,
     },
     actionBarInner: {
       flexDirection: 'row',
@@ -122,12 +117,12 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
     headerIcon: {
       width: 56,
       height: 56,
-      backgroundColor: isDark ? colors.primary : CORAL,
+      backgroundColor: colors.primary,
       borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 14,
-      shadowColor: isDark ? colors.primary : CORAL,
+      shadowColor: colors.primary,
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.35,
       shadowRadius: 16,
@@ -135,7 +130,7 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
     },
     headerIconText: {
       fontSize: 28,
-      color: '#ffffff',
+      color: colors.textInverse,
     },
     appName: {
       fontWeight: '800',
@@ -144,7 +139,7 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
       letterSpacing: -0.5,
     },
     appNameAccent: {
-      color: isDark ? colors.primary : CORAL,
+      color: colors.primary,
       fontWeight: '800',
       fontSize: 22,
     },
@@ -160,7 +155,7 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
     tabBar: {
       flexDirection: 'row',
       borderBottomWidth: 2,
-      borderBottomColor: isDark ? colors.divider : '#e8e3de',
+      borderBottomColor: colors.borderLight,
       marginBottom: 28,
     },
     tabBtn: {
@@ -172,7 +167,7 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
       marginBottom: -2,
     },
     tabBtnActive: {
-      borderBottomColor: isDark ? colors.primary : CORAL,
+      borderBottomColor: colors.primary,
     },
     tabBtnText: {
       fontSize: 15,
@@ -180,7 +175,7 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
       color: colors.textSecondary,
     },
     tabBtnTextActive: {
-      color: isDark ? colors.primary : CORAL,
+      color: colors.primary,
     },
 
     // Social section — refined (no title, cleaner)
@@ -199,7 +194,7 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
     dividerLine: {
       flex: 1,
       height: 1,
-      backgroundColor: isDark ? colors.divider : '#e8e3de',
+      backgroundColor: colors.borderLight,
     },
     dividerText: {
       fontSize: 12,
@@ -211,19 +206,19 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
     ctaBtn: {
       width: '100%',
       height: 54,
-      backgroundColor: isDark ? colors.primary : CORAL,
-      borderRadius: 14,
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: 4,
-      shadowColor: isDark ? colors.primary : CORAL,
+      shadowColor: colors.primary,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,
       shadowRadius: 12,
       elevation: 6,
     },
     ctaBtnText: {
-      color: '#ffffff',
+      color: colors.textInverse,
       fontSize: 16,
       fontWeight: '700',
       letterSpacing: -0.3,
@@ -261,15 +256,15 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
       width: 8,
       height: 8,
       borderRadius: 4,
-      backgroundColor: isDark ? colors.divider : '#d6d0ca',
+      backgroundColor: colors.borderLight,
     },
     stepDotActive: {
-      backgroundColor: isDark ? colors.primary : CORAL,
+      backgroundColor: colors.primary,
       width: 28,
       borderRadius: 4,
     },
     stepDotDone: {
-      backgroundColor: isDark ? colors.success : '#2d9c5e',
+      backgroundColor: colors.success,
     },
     stepTitle: {
       fontSize: 18,
@@ -292,23 +287,23 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
     stepNavBtn: {
       flex: 1,
       height: 48,
-      borderRadius: 14,
+      borderRadius: borderRadius.md,
       alignItems: 'center',
       justifyContent: 'center',
     },
     stepNavBtnPrimary: {
-      backgroundColor: isDark ? colors.primary : CORAL,
+      backgroundColor: colors.primary,
       borderWidth: 0,
     },
     stepNavBtnPrimaryText: {
-      color: '#ffffff',
+      color: colors.textInverse,
       fontSize: 14,
       fontWeight: '600',
     },
     stepNavBtnSecondary: {
-      backgroundColor: isDark ? colors.surface : '#ffffff',
+      backgroundColor: colors.surface,
       borderWidth: 1.5,
-      borderColor: isDark ? colors.divider : '#d6d0ca',
+      borderColor: colors.borderLight,
     },
     stepNavBtnSecondaryText: {
       color: colors.textSecondary,
@@ -328,7 +323,7 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
     agreeAll: {
       paddingBottom: 12,
       borderBottomWidth: 1,
-      borderBottomColor: isDark ? colors.divider : '#e8e3de',
+      borderBottomColor: colors.borderLight,
     },
     agreeItem: {
       flexDirection: 'row',
@@ -339,17 +334,17 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
       width: 20,
       height: 20,
       borderWidth: 1.5,
-      borderColor: isDark ? colors.divider : '#d6d0ca',
+      borderColor: colors.borderLight,
       borderRadius: 4,
       alignItems: 'center',
       justifyContent: 'center',
     },
     checkboxChecked: {
-      backgroundColor: isDark ? colors.primary : CORAL,
-      borderColor: isDark ? colors.primary : CORAL,
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
     },
     checkmark: {
-      color: '#ffffff',
+      color: colors.textInverse,
       fontSize: 13,
       fontWeight: '700',
     },
@@ -386,7 +381,7 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
     // Social buttons
     socialBtn: {
       height: 52,
-      borderRadius: 14,
+      borderRadius: borderRadius.md,
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 20,
@@ -435,7 +430,7 @@ const makeStyles = (isDark: boolean, colors: ColorPalette) =>
 // ─── Main Screen ────────────────────────────────────────────────────────────
 
 export function AuthScreen(_props: AuthScreenProps) {
-  const { isDark, colors } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
 
@@ -443,7 +438,7 @@ export function AuthScreen(_props: AuthScreenProps) {
   const [focusedInputId, setFocusedInputId] = useState<string | null>(null);
   const [authRuntimeMarker] = useState(() => `gon-211-${Date.now()}`);
 
-  const styles = useMemo(() => makeStyles(isDark, colors), [isDark, colors]);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   // Reset focus state on tab switch; child panels own actionBar reporting.
   useEffect(() => {
@@ -561,8 +556,8 @@ export function AuthScreen(_props: AuthScreenProps) {
 // ─── Header: App Icon + Name + Welcome ──────────────────────────────────────
 
 function AuthHeader() {
-  const { isDark, colors } = useTheme();
-  const styles = useMemo(() => makeStyles(isDark, colors), [isDark, colors]);
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <View style={styles.header} accessible accessibilityLabel="공구위시">
@@ -580,8 +575,8 @@ function AuthHeader() {
 // ─── Tab Bar: Login / Signup ────────────────────────────────────────────────
 
 function AuthTabs({ activeTab, onTabChange }: { activeTab: AuthTab; onTabChange: (tab: AuthTab) => void }) {
-  const { isDark, colors } = useTheme();
-  const styles = useMemo(() => makeStyles(isDark, colors), [isDark, colors]);
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const switchTab = useCallback((tab: AuthTab) => {
     onTabChange(tab);
@@ -647,8 +642,8 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
   onInputFocus?: (inputId: string) => void;
   onInputBlur?: (inputId: string) => void;
 }) {
-  const { isDark, colors } = useTheme();
-  const styles = useMemo(() => makeStyles(isDark, colors), [isDark, colors]);
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { signIn, signInWithOAuth } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -849,8 +844,8 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
   onInputFocus?: (inputId: string) => void;
   onInputBlur?: (inputId: string) => void;
 }) {
-  const { isDark, colors } = useTheme();
-  const styles = useMemo(() => makeStyles(isDark, colors), [isDark, colors]);
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { signUp } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -1298,8 +1293,8 @@ function ActionBarArea({
   bottomInset: number;
   onLayoutHeight?: (height: number) => void;
 }) {
-  const { isDark, colors } = useTheme();
-  const styles = useMemo(() => makeStyles(isDark, colors), [isDark, colors]);
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <View
@@ -1368,8 +1363,8 @@ function SocialButton({
   onPress: () => void;
   disabled?: boolean;
 }) {
-  const { isDark, colors } = useTheme();
-  const styles = useMemo(() => makeStyles(isDark, colors), [isDark, colors]);
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <Pressable
@@ -1430,7 +1425,7 @@ function AuthInput({
   onAuthInputBlur,
   ...inputProps
 }: AuthInputProps) {
-  const { isDark, colors } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <View style={{ marginBottom: 4 }}>
@@ -1448,10 +1443,10 @@ function AuthInput({
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          backgroundColor: isDark ? colors.surface : '#ffffff',
+          backgroundColor: colors.surface,
           borderWidth: 1.5,
           borderColor: error ? colors.error : colors.border,
-          borderRadius: 14,
+          borderRadius: borderRadius.md,
           height: 52,
           paddingHorizontal: 16,
         }}

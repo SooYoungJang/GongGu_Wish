@@ -246,12 +246,16 @@ export const spacing = {
 export const borderRadius = {
   /** 8px — inputs, small elements */
   sm: mobileRadius('sm'),
-  /** 10px — buttons */
-  md: mobileRadius('md'),
+  /** 16px — default card radius (V4: 10px→16px) */
+  md: 16,
   /** 12px — primary buttons */
   lg: mobileRadius('lg'),
   /** 16px — cards */
   xl: mobileRadius('xl'),
+  /** 24px — feature/feed cards */
+  '2xl': mobileRadius('2xl'),
+  /** 28px — premium banner cards */
+  '3xl': mobileRadius('3xl'),
   /** 999px — pills, badges */
   full: mobileRadius('full'),
 } as const;

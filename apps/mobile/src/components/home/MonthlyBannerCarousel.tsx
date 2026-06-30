@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { ImageBackground, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SText } from '../../components/ui/SText';
 
-import { cardOverlayGradientStops, spacing } from '../../design/tokens';
+import { borderRadius, cardOverlayGradientStops, spacing } from '../../design/tokens';
 import type { GroupBuy } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import type { ColorPalette } from '../../context/ThemeContext';
@@ -59,13 +59,13 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     section: { marginBottom: spacing.xl },
     sectionTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '800', marginBottom: spacing.md },
     bannerCarousel: { gap: spacing.md, paddingRight: spacing.lg },
-    bannerCard: { borderRadius: 28, minHeight: 176, minWidth: 292, overflow: 'hidden', ...shadows.md },
-    bannerImage: { backgroundColor: colors.ctaPurpleBg, flex: 1, justifyContent: 'space-between', minHeight: 176 },
-    bannerImageRadius: { borderRadius: 28 },
+    bannerCard: { borderRadius: borderRadius['3xl'], minHeight: 176, minWidth: 292, overflow: 'hidden', ...shadows.md },
+    bannerImage: { backgroundColor: colors.primaryBg, flex: 1, justifyContent: 'space-between', minHeight: 176 },
+    bannerImageRadius: { borderRadius: borderRadius['3xl'] },
     bannerOverlayTop: { backgroundColor: cardOverlayGradientStops[0], flex: 1 },
     bannerOverlayBottom: { backgroundColor: cardOverlayGradientStops[2], padding: spacing.lg },
-    bannerEyebrow: { color: colors.ctaPurpleText, fontSize: 12, fontWeight: '700', marginBottom: spacing.xs },
-    bannerTitle: { color: colors.ctaPurpleText, fontSize: 22, fontWeight: '800', marginBottom: spacing.xs },
-    bannerMeta: { color: colors.ctaPurpleText, fontSize: 13, fontWeight: '600' },
+    bannerEyebrow: { color: colors.textInverse, fontSize: 12, fontWeight: '700', marginBottom: spacing.xs },
+    bannerTitle: { color: colors.textInverse, fontSize: 22, fontWeight: '800', marginBottom: spacing.xs },
+    bannerMeta: { color: colors.textInverse, fontSize: 13, fontWeight: '600' },
   });
 }
