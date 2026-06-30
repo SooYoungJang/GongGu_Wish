@@ -6,7 +6,6 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   KeyboardAwareScrollView,
   KeyboardStickyView,
@@ -33,7 +32,6 @@ export function KeyboardFormScreen({
   bottomOffset = 16,
   testID,
 }: KeyboardFormScreenProps) {
-  const insets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
 
@@ -76,7 +74,6 @@ export function KeyboardFormScreen({
             <View
               style={[
                 styles.footer,
-                { paddingBottom: Math.max(insets.bottom, 10) },
               ]}
               onLayout={(event) => {
                 setFooterHeight(event.nativeEvent.layout.height);
@@ -102,7 +99,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   footer: {
-    paddingHorizontal: 24,
-    paddingTop: 10,
+    // Padding/background are owned by the footer content itself so the
+    // wrapper only measures layout height without double-applying insets.
   },
 });

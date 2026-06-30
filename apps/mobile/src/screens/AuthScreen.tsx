@@ -77,6 +77,7 @@ type ActionBarItem = {
 };
 
 type ActionBarConfig = {
+  variant: 'login' | 'signup';
   primary: ActionBarItem;
   secondary?: ActionBarItem;
 };
@@ -507,7 +508,7 @@ export function AuthScreen(_props: AuthScreenProps) {
   const resolvedActionBar: ActionBarConfig | null = useMemo(() => {
     if (actionBar) return actionBar;
     if (activeTab !== 'login' || !shouldShowStickyAction) return null;
-    return { primary: { text: '로그인', onPress: () => {}, disabled: true } };
+    return { variant: 'login', primary: { text: '로그인', onPress: () => {}, disabled: true } };
   }, [actionBar, activeTab, shouldShowStickyAction]);
 
   // ponytail: GON-211 — tracking when actionBar is null but keyboard is visible
@@ -712,6 +713,7 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
   // ── Report action bar config ─────────────────────────────────────────
   useEffect(() => {
     onActionBarChange?.({
+      variant: 'login',
       primary: {
         text: submitting ? '로그인 중...' : '로그인',
         onPress: handleLogin,
@@ -980,15 +982,18 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
   useEffect(() => {
     if (step === 1) {
       onActionBarChange?.({
+        variant: 'signup',
         primary: { text: '다음', onPress: goToNextStep, disabled: submitting },
       });
     } else if (step === 2) {
       onActionBarChange?.({
+        variant: 'signup',
         primary: { text: '다음', onPress: goToNextStep, disabled: submitting },
         secondary: { text: '이전', onPress: () => goToPrevStep(1), disabled: submitting },
       });
     } else if (step === 3) {
       onActionBarChange?.({
+        variant: 'signup',
         primary: {
           text: submitting ? '가입 처리 중...' : '가입 완료',
           onPress: handleCompleteSignup,
@@ -1327,13 +1332,16 @@ function ActionBarArea({
           onPress={config.primary.onPress}
           disabled={config.primary.disabled}
           style={({ pressed }) => [
-            styles.ctaBtn,
-            config.secondary ? { flex: 2 } : { flex: 1 },
+            config.variant === 'signup'
+              ? [styles.stepNavBtn, styles.stepNavBtnPrimary, config.secondary ? { flex: 2 } : { flex: 1 }]
+              : [styles.ctaBtn, config.secondary ? { flex: 2 } : undefined],
             config.primary.disabled && styles.ctaBtnDisabled,
             pressed && !config.primary.disabled && styles.ctaBtnPressed,
           ]}
         >
-          <Text style={styles.ctaBtnText}>{config.primary.text}</Text>
+          <Text style={config.variant === 'signup' ? styles.stepNavBtnPrimaryText : styles.ctaBtnText}>
+            {config.primary.text}
+          </Text>
         </Pressable>
       </View>
     </View>
