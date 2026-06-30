@@ -33,17 +33,17 @@ export function SubmitPrompt({ onPressSubmit }: SubmitPromptProps) {
 
 function makeStyles(colors: ColorPalette) {
   return StyleSheet.create({
-    submitPrompt: { backgroundColor: colors.ctaPurpleBg, borderRadius: 24, marginBottom: spacing.xl, padding: spacing.lg },
+    submitPrompt: { backgroundColor: colors.primaryBg, borderRadius: borderRadius['2xl'], marginBottom: spacing.xl, padding: spacing.lg },
     submitPromptTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800', marginBottom: spacing.xs },
     submitPromptText: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginBottom: spacing.md },
     submitPromptButton: {
       alignItems: 'center',
-      backgroundColor: colors.ctaPurple,
+      backgroundColor: colors.primary,
       borderRadius: borderRadius.full,
       justifyContent: 'center',
       minHeight: 44,
       paddingHorizontal: spacing.lg,
     },
-    submitPromptButtonText: { color: colors.ctaPurpleText, fontSize: 14, fontWeight: '800' },
+    submitPromptButtonText: { color: colors.textInverse, fontSize: 14, fontWeight: '800' },
   });
 }

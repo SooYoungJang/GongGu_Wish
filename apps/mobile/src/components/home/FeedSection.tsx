@@ -232,7 +232,7 @@ function makeStyles(colors: ColorPalette) {
       paddingVertical: spacing.sm,
     },
     retryText: {
-      color: '#fff',
+      color: colors.textInverse,
       fontSize: 14,
       fontWeight: '700',
     },

@@ -82,7 +82,7 @@ function makeStyles(colors: ColorPalette) {
     calendarStrip: {
       backgroundColor: colors.surface,
       borderColor: colors.border,
-      borderRadius: 24,
+      borderRadius: borderRadius['2xl'],
       borderWidth: 1,
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -97,6 +97,6 @@ function makeStyles(colors: ColorPalette) {
       minHeight: 36,
       minWidth: 36,
     },
-    calendarDateCircleSelected: { backgroundColor: colors.ctaPurple },
+    calendarDateCircleSelected: { backgroundColor: colors.primary },
   });
 }

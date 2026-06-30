@@ -101,12 +101,12 @@ export function FeedDetailScreen({ route, navigation }: FeedDetailScreenProps) {
             ) : null}
             {isVideo ? (
               <View style={s.videoPlaceholder}>
-                <SText variant="body" style={{ fontSize: 48, color: '#fff', marginBottom: spacing.sm }}>▶</SText>
+                <SText variant="body" style={{ fontSize: 48, color: colors.textInverse, marginBottom: spacing.sm }}>▶</SText>
                 <SText variant="caption" style={{ fontSize: 14 }}>영상</SText>
               </View>
             ) : null}
             <View style={s.mediaTypeBadge}>
-              <SText variant="caption" style={{ fontSize: 11, fontWeight: '700', color: '#fff', letterSpacing: 1 }}>
+              <SText variant="caption" style={{ fontSize: 11, fontWeight: '700', color: colors.textInverse, letterSpacing: 1 }}>
                 {isVideo ? 'VIDEO' : 'IMAGE'}
               </SText>
             </View>

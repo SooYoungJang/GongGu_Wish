@@ -6,6 +6,22 @@ import { colors } from '../../design/tokens';
 import { Animated } from 'react-native';
 import { UrlInputStatus } from '../UrlInputStatus';
 
+vi.mock('../../context/ThemeContext', async () => {
+  const tokens = await vi.importActual<typeof import('../../design/tokens')>('../../design/tokens');
+
+  return {
+    useTheme: () => ({
+      colors: tokens.colors,
+      shadows: tokens.shadows,
+      isDark: false,
+      themeMode: 'light',
+      setThemeMode: vi.fn(),
+      toggleTheme: vi.fn(),
+      isRestoring: false,
+    }),
+  };
+});
+
 function flattenText(node: any): string {
   if (!node) return '';
   if (Array.isArray(node)) return node.map(flattenText).join(' ');
@@ -41,10 +57,8 @@ describe('UrlInputStatus', function() {
     const renderer = renderStatus('loading');
     const json = renderer.toJSON();
     expect(json).not.toBeNull();
-    // Loading renders 3 Animated.View dots (= View with mock) inside a container
-    const views = getAllByType(renderer.root, 'View');
-    // 1 container + 3 dot Animated.View = 4 View elements
-    expect(views.length).toBeGreaterThanOrEqual(3);
+    const dots = getAllByType(renderer.root, 'Animated.View');
+    expect(dots).toHaveLength(3);
   });
 
   it('displays success checkmark icon', function() {
@@ -89,13 +103,13 @@ describe('UrlInputStatus', function() {
   });
 
   it('uses correct tokens.ts colors for success and error icons', function() {
-    // Verify success icon has backgroundColor === colors.ctaPurple
+    // Verify success icon has backgroundColor === colors.primary
     const successRenderer = renderStatus('success');
     const successViews = getAllByType(successRenderer.root, 'View');
     const successIcon = successViews.find(function(v: any) {
       const style = v.props.style;
       return Array.isArray(style) && style.some(function(s: any) {
-        return s && s.backgroundColor === colors.ctaPurple;
+        return s && s.backgroundColor === colors.primary;
       });
     });
     expect(successIcon).toBeTruthy();

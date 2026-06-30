@@ -190,7 +190,7 @@ function makeStyles(colors: ColorPalette) {
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: colors.ctaPurpleBg,
+      backgroundColor: colors.primaryBg,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: spacing.sm,
@@ -288,7 +288,7 @@ function makeStyles(colors: ColorPalette) {
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: colors.ctaPurpleBg,
+      backgroundColor: colors.primaryBg,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: spacing.sm,
@@ -296,7 +296,7 @@ function makeStyles(colors: ColorPalette) {
     avatarText: {
       fontSize: 14,
       fontWeight: '700',
-      color: colors.ctaPurple,
+      color: colors.primary,
     },
     authorInfo: {
       flex: 1,
@@ -309,13 +309,13 @@ function makeStyles(colors: ColorPalette) {
       color: colors.textTertiary,
     },
     likeBadge: {
-      backgroundColor: colors.ctaPurpleBg,
+      backgroundColor: colors.primaryBg,
       borderRadius: borderRadius.full,
       paddingHorizontal: spacing.sm,
       paddingVertical: 4,
     },
     likeCount: {
-      color: colors.ctaPurple,
+      color: colors.primary,
       fontWeight: '600',
     },
     previewImage: {

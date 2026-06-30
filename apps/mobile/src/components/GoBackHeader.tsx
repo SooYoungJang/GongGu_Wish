@@ -3,6 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { spacing } from '../design/tokens';
+import { useTheme } from '../context/ThemeContext';
 
 interface GoBackHeaderProps {
   accessibilityLabel?: string;
@@ -14,11 +15,13 @@ interface GoBackHeaderProps {
 export function GoBackHeader({
   accessibilityLabel = '뒤로가기',
   onPress,
-  color = '#6b6560',
+  color,
   style,
 }: GoBackHeaderProps) {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const iconColor = color ?? colors.textSecondary;
 
   const handlePress = onPress ?? (() => navigation.goBack());
 
@@ -36,7 +39,7 @@ export function GoBackHeader({
         style,
       ]}
     >
-      <Text style={[styles.icon, { color }]}>←</Text>
+      <Text style={[styles.icon, { color: iconColor }]}>←</Text>
     </Pressable>
   );
 }

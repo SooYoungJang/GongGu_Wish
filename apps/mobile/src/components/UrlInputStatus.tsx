@@ -145,7 +145,7 @@ function makeStyles(colors: ColorPalette) {
       width: DOT_SIZE,
       height: DOT_SIZE,
       borderRadius: DOT_SIZE / 2,
-      backgroundColor: colors.ctaPurple,
+      backgroundColor: colors.primary,
     },
     iconContainer: {
       width: 24,
@@ -156,7 +156,7 @@ function makeStyles(colors: ColorPalette) {
       marginLeft: spacing.sm,
     },
     successContainer: {
-      backgroundColor: colors.ctaPurple,
+      backgroundColor: colors.primary,
     },
     errorContainer: {
       backgroundColor: colors.error,

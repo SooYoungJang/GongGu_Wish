@@ -258,7 +258,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
               {isSubmitting ? '제출 중...' : '공구 제보하기'}
             </AppButton>
             {isSubmitting ? (
-              <ActivityIndicator size="small" color={colors.ctaPurple} style={s.spinner} />
+              <ActivityIndicator size="small" color={colors.primary} style={s.spinner} />
             ) : null}
 
             <Pressable
@@ -296,7 +296,7 @@ function makeStyles(colors: ColorPalette) {
     // Header
     eyebrow: {
       marginBottom: spacing.xs,
-      color: colors.ctaPurple,
+      color: colors.primary,
       letterSpacing: 0.5,
     },
     title: {
@@ -320,7 +320,7 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: spacing.md,
     },
     feedback_info: {
-      backgroundColor: colors.ctaPurpleBg,
+      backgroundColor: colors.primaryBg,
     },
     feedback_success: {
       backgroundColor: colors.successBg,
@@ -334,7 +334,7 @@ function makeStyles(colors: ColorPalette) {
       lineHeight: 18,
     },
     feedbackText_info: {
-      color: colors.ctaPurple,
+      color: colors.primary,
     },
     feedbackText_success: {
       color: colors.success,
@@ -358,8 +358,8 @@ function makeStyles(colors: ColorPalette) {
       marginRight: spacing.sm,
     },
     requiredBadge: {
-      color: colors.ctaPurple,
-      backgroundColor: colors.ctaPurpleBg,
+      color: colors.primary,
+      backgroundColor: colors.primaryBg,
       paddingHorizontal: spacing.xs,
       paddingVertical: 2,
       borderRadius: borderRadius.sm,
@@ -372,18 +372,18 @@ function makeStyles(colors: ColorPalette) {
       alignItems: 'center',
       backgroundColor: colors.surface,
       borderWidth: 1.5,
-      borderColor: colors.ctaPurpleBg,
+      borderColor: colors.primaryBg,
       borderRadius: borderRadius.lg,
       paddingHorizontal: spacing.md,
     },
     urlInputLoading: {
-      borderColor: colors.ctaPurple,
+      borderColor: colors.primary,
     },
     urlIcon: {
       width: 28,
       height: 28,
-      borderRadius: 14,
-      backgroundColor: colors.ctaPurpleBg,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.primaryBg,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: spacing.sm,

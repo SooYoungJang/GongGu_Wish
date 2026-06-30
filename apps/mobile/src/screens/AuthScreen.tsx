@@ -51,6 +51,7 @@ import {
   type SignupStep3Form,
 } from '../schemas/auth';
 import { mapAuthErrorMessage, SOCIAL_PROVIDERS } from '../utils/authHelpers';
+import { borderRadius } from '../design/tokens';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -80,21 +81,364 @@ type ActionBarConfig = {
   secondary?: ActionBarItem;
 };
 
-// ─── Coral Wave Primary Color ───────────────────────────────────────────────
 
-const CORAL = '#ff385c';
-const CORAL_FOCUS = 'rgba(255, 56, 92, 0.28)';
-const WARM_BG = '#f5f0eb';
+const makeStyles = (colors: ColorPalette) =>
+  StyleSheet.create({
+    // Container
+    container: {
+      flex: 1,
+      backgroundColor: colors.bg,
+    },
+    flex: {
+      flex: 1,
+    },
+    authScrollContent: {
+      paddingHorizontal: 24,
+      paddingTop: 40,
+      paddingBottom: 120,
+    },
+    actionBarArea: {
+      backgroundColor: colors.bg,
+      paddingHorizontal: 24,
+      paddingTop: 10,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.borderLight,
+    },
+    actionBarInner: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+
+    // Header — refined coral wave
+    header: {
+      alignItems: 'center',
+      marginBottom: 32,
+    },
+    headerIcon: {
+      width: 56,
+      height: 56,
+      backgroundColor: colors.primary,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 14,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+    headerIconText: {
+      fontSize: 28,
+      color: colors.textInverse,
+    },
+    appName: {
+      fontWeight: '800',
+      fontSize: 22,
+      color: colors.textPrimary,
+      letterSpacing: -0.5,
+    },
+    appNameAccent: {
+      color: colors.primary,
+      fontWeight: '800',
+      fontSize: 22,
+    },
+    welcomeText: {
+      fontWeight: '400',
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: 6,
+      letterSpacing: -0.2,
+    },
+
+    // Tab bar — refined underline style (coral wave v2)
+    tabBar: {
+      flexDirection: 'row',
+      borderBottomWidth: 2,
+      borderBottomColor: colors.borderLight,
+      marginBottom: 28,
+    },
+    tabBtn: {
+      flex: 1,
+      paddingVertical: 14,
+      alignItems: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+      marginBottom: -2,
+    },
+    tabBtnActive: {
+      borderBottomColor: colors.primary,
+    },
+    tabBtnText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    tabBtnTextActive: {
+      color: colors.primary,
+    },
+
+    // Social section — refined (no title, cleaner)
+    socialSection: {
+      gap: 10,
+      marginBottom: 20,
+    },
+
+    // Divider
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+      marginBottom: 20,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.borderLight,
+    },
+    dividerText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+
+    // CTA Button — refined coral wave
+    ctaBtn: {
+      width: '100%',
+      height: 54,
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 4,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    ctaBtnText: {
+      color: colors.textInverse,
+      fontSize: 16,
+      fontWeight: '700',
+      letterSpacing: -0.3,
+    },
+    ctaBtnPressed: {
+      opacity: 0.85,
+    },
+    ctaBtnDisabled: {
+      opacity: 0.6,
+    },
+
+    // Password options
+    pwOptions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      marginTop: 8,
+      marginBottom: 16,
+    },
+    forgotLink: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+
+    // ── Signup Steps ──
+
+    stepProgress: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 8,
+      marginBottom: 24,
+    },
+    stepDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.borderLight,
+    },
+    stepDotActive: {
+      backgroundColor: colors.primary,
+      width: 28,
+      borderRadius: 4,
+    },
+    stepDotDone: {
+      backgroundColor: colors.success,
+    },
+    stepTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      marginBottom: 4,
+      letterSpacing: -0.3,
+    },
+    stepDesc: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginBottom: 20,
+      letterSpacing: -0.2,
+    },
+    stepNav: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 8,
+    },
+    stepNavBtn: {
+      flex: 1,
+      height: 48,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepNavBtnPrimary: {
+      backgroundColor: colors.primary,
+      borderWidth: 0,
+    },
+    stepNavBtnPrimaryText: {
+      color: colors.textInverse,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    stepNavBtnSecondary: {
+      backgroundColor: colors.surface,
+      borderWidth: 1.5,
+      borderColor: colors.borderLight,
+    },
+    stepNavBtnSecondaryText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    btnPressed: {
+      opacity: 0.8,
+    },
+
+    // ── Agreement ──
+
+    agreeGroup: {
+      gap: 12,
+      marginBottom: 20,
+    },
+    agreeAll: {
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+    },
+    agreeItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    checkbox: {
+      width: 20,
+      height: 20,
+      borderWidth: 1.5,
+      borderColor: colors.borderLight,
+      borderRadius: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxChecked: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    checkmark: {
+      color: colors.textInverse,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    agreeLabelAll: {
+      fontSize: 14,
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    agreeLabelBold: {
+      fontWeight: '700',
+    },
+    agreeLabel: {
+      fontSize: 14,
+      color: colors.textPrimary,
+      flex: 1,
+      letterSpacing: -0.2,
+    },
+    agreeDetail: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+
+    // ── Social Button Styles ──
+
+    appleIcon: {
+      fontSize: 22,
+    },
+    googleIcon: {
+      fontWeight: '700',
+      fontSize: 16,
+      color: '#4285F4',
+    },
+
+    // Social buttons
+    socialBtn: {
+      height: 52,
+      borderRadius: borderRadius.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+    },
+    socialBtnPressed: {
+      opacity: 0.85,
+    },
+    socialBtnDisabled: {
+      opacity: 0.5,
+    },
+    socialIcon: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    socialLabel: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: 15,
+      fontWeight: '600',
+      letterSpacing: -0.3,
+      paddingRight: 28,
+    },
+
+    // ── Theme-dependent helpers (formerly local makeStyles) ──
+
+    pwToggle: {
+      position: 'absolute',
+      right: 14,
+      top: 0,
+      bottom: 0,
+      justifyContent: 'center',
+      padding: 4,
+    },
+    pwToggleIcon: {
+      fontSize: 18,
+      color: colors.textTertiary,
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: 13,
+    },
+  });
 
 // ─── Main Screen ────────────────────────────────────────────────────────────
 
 export function AuthScreen(_props: AuthScreenProps) {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
 
   const [actionBar, setActionBar] = useState<ActionBarConfig | null>(null);
   const [focusedInputId, setFocusedInputId] = useState<string | null>(null);
   const [authRuntimeMarker] = useState(() => `gon-211-${Date.now()}`);
+
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   // Reset focus state on tab switch; child panels own actionBar reporting.
   useEffect(() => {
@@ -184,7 +528,7 @@ export function AuthScreen(_props: AuthScreenProps) {
 
   return (
     <View
-      style={[styles.container, { backgroundColor: WARM_BG }]}
+      style={styles.container}
       accessibilityLabel="공구위시 로그인 화면"
       testID={`auth-screen-${authRuntimeMarker}`}
     >
@@ -212,6 +556,9 @@ export function AuthScreen(_props: AuthScreenProps) {
 // ─── Header: App Icon + Name + Welcome ──────────────────────────────────────
 
 function AuthHeader() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <View style={styles.header} accessible accessibilityLabel="공구위시">
       <View style={styles.headerIcon} accessibilityElementsHidden>
@@ -228,6 +575,9 @@ function AuthHeader() {
 // ─── Tab Bar: Login / Signup ────────────────────────────────────────────────
 
 function AuthTabs({ activeTab, onTabChange }: { activeTab: AuthTab; onTabChange: (tab: AuthTab) => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const switchTab = useCallback((tab: AuthTab) => {
     onTabChange(tab);
   }, [onTabChange]);
@@ -293,7 +643,7 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
   onInputBlur?: (inputId: string) => void;
 }) {
   const { colors } = useTheme();
-  const s = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { signIn, signInWithOAuth } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -434,10 +784,10 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
               accessibilityLabel={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
               accessibilityState={{ selected: showPassword }}
               onPress={() => setShowPassword((p) => !p)}
-              style={s.pwToggle}
+              style={styles.pwToggle}
               hitSlop={8}
             >
-              <Text style={s.pwToggleIcon}>
+              <Text style={styles.pwToggleIcon}>
                 {showPassword ? '🙈' : '👁'}
               </Text>
             </Pressable>
@@ -457,7 +807,7 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
         </View>
 
         {submitError ? (
-          <Text style={[s.errorText, { marginBottom: 12, marginTop: 4 }]}>
+          <Text style={[styles.errorText, { marginBottom: 12, marginTop: 4 }]}>
             {submitError}
           </Text>
         ) : null}
@@ -495,7 +845,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
   onInputBlur?: (inputId: string) => void;
 }) {
   const { colors } = useTheme();
-  const s = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { signUp } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -713,10 +1063,10 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
                 accessibilityRole="button"
                 accessibilityLabel={showPw ? '비밀번호 숨기기' : '비밀번호 보기'}
                 onPress={() => setShowPw((p) => !p)}
-                style={s.pwToggle}
+                style={styles.pwToggle}
                 hitSlop={8}
               >
-                <Text style={s.pwToggleIcon}>
+                <Text style={styles.pwToggleIcon}>
                   {showPw ? '🙈' : '👁'}
                 </Text>
               </Pressable>
@@ -741,10 +1091,10 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
                 accessibilityRole="button"
                 accessibilityLabel={showConfirmPw ? '비밀번호 숨기기' : '비밀번호 보기'}
                 onPress={() => setShowConfirmPw((p) => !p)}
-                style={s.pwToggle}
+                style={styles.pwToggle}
                 hitSlop={8}
               >
-                <Text style={s.pwToggleIcon}>
+                <Text style={styles.pwToggleIcon}>
                   {showConfirmPw ? '🙈' : '👁'}
                 </Text>
               </Pressable>
@@ -883,13 +1233,13 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
           </View>
 
           {Object.keys(step3Errors).length > 0 && (
-            <Text style={[s.errorText, { marginBottom: 12 }]}>
+            <Text style={[styles.errorText, { marginBottom: 12 }]}>
               {Object.values(step3Errors)[0]}
             </Text>
           )}
 
           {submitError ? (
-            <Text style={[s.errorText, { marginBottom: 12 }]}>
+            <Text style={[styles.errorText, { marginBottom: 12 }]}>
               {submitError}
             </Text>
           ) : null}
@@ -943,6 +1293,9 @@ function ActionBarArea({
   bottomInset: number;
   onLayoutHeight?: (height: number) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <View
       style={[
@@ -1010,6 +1363,9 @@ function SocialButton({
   onPress: () => void;
   disabled?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <Pressable
       accessible
@@ -1087,10 +1443,10 @@ function AuthInput({
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          backgroundColor: '#ffffff',
+          backgroundColor: colors.surface,
           borderWidth: 1.5,
-          borderColor: error ? '#d93f4c' : colors.border,
-          borderRadius: 14,
+          borderColor: error ? colors.error : colors.border,
+          borderRadius: borderRadius.md,
           height: 52,
           paddingHorizontal: 16,
         }}
@@ -1115,7 +1471,7 @@ function AuthInput({
         {rightElement}
       </View>
       {error ? (
-        <Text style={{ fontSize: 12, color: '#d93f4c', marginTop: 4, paddingLeft: 4 }}>
+        <Text style={{ fontSize: 12, color: colors.error, marginTop: 4, paddingLeft: 4 }}>
           {error}
         </Text>
       ) : (
@@ -1125,352 +1481,5 @@ function AuthInput({
   );
 }
 
-// ─── Style helpers that depend on theme ──────────────────────────────────────
-
-const makeStyles = (colors: ColorPalette) =>
-  StyleSheet.create({
-    pwToggle: {
-      position: 'absolute',
-      right: 14,
-      top: 0,
-      bottom: 0,
-      justifyContent: 'center',
-      padding: 4,
-    },
-    pwToggleIcon: {
-      fontSize: 18,
-      color: colors.textTertiary,
-    },
-    errorText: {
-      color: colors.error,
-      fontSize: 13,
-    },
-  });
-
-// ─── Static Styles (no theme dependency) ─────────────────────────────────────
-
-const styles = StyleSheet.create({
-  // Container
-  container: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
-  authScrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 120,
-  },
-  actionBarArea: {
-    backgroundColor: WARM_BG,
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e8e3de',
-  },
-  actionBarInner: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-
-  // Header — refined coral wave
-  header: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  headerIcon: {
-    width: 56,
-    height: 56,
-    backgroundColor: CORAL,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    shadowColor: CORAL,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  headerIconText: {
-    fontSize: 28,
-    color: '#ffffff',
-  },
-  appName: {
-    fontWeight: '800',
-    fontSize: 22,
-    color: '#1c1b1a',
-    letterSpacing: -0.5,
-  },
-  appNameAccent: {
-    color: CORAL,
-    fontWeight: '800',
-    fontSize: 22,
-  },
-  welcomeText: {
-    fontWeight: '400',
-    fontSize: 14,
-    color: '#6b6560',
-    marginTop: 6,
-    letterSpacing: -0.2,
-  },
-
-  // Tab bar — refined underline style (coral wave v2)
-  tabBar: {
-    flexDirection: 'row',
-    borderBottomWidth: 2,
-    borderBottomColor: '#e8e3de',
-    marginBottom: 28,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-    marginBottom: -2,
-  },
-  tabBtnActive: {
-    borderBottomColor: CORAL,
-  },
-  tabBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#8c8681',
-  },
-  tabBtnTextActive: {
-    color: CORAL,
-  },
-
-  // Social section — refined (no title, cleaner)
-  socialSection: {
-    gap: 10,
-    marginBottom: 20,
-  },
-
-  // Divider
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#e8e3de',
-  },
-  dividerText: {
-    fontSize: 12,
-    color: '#8c8681',
-    fontWeight: '500',
-  },
-
-  // CTA Button — refined coral wave
-  ctaBtn: {
-    width: '100%',
-    height: 54,
-    backgroundColor: CORAL,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-    shadowColor: CORAL,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  ctaBtnText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  ctaBtnPressed: {
-    opacity: 0.85,
-  },
-  ctaBtnDisabled: {
-    opacity: 0.6,
-  },
-
-
-
-  // Password options
-  pwOptions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  forgotLink: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#6b6560',
-  },
-
-  // ── Signup Steps ──
-
-  stepProgress: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 24,
-  },
-  stepDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#d6d0ca',
-  },
-  stepDotActive: {
-    backgroundColor: CORAL,
-    width: 28,
-    borderRadius: 4,
-  },
-  stepDotDone: {
-    backgroundColor: '#2d9c5e',
-  },
-  stepTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1c1b1a',
-    marginBottom: 4,
-    letterSpacing: -0.3,
-  },
-  stepDesc: {
-    fontSize: 13,
-    color: '#6b6560',
-    marginBottom: 20,
-    letterSpacing: -0.2,
-  },
-  stepNav: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
-  },
-  stepNavBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepNavBtnPrimary: {
-    backgroundColor: CORAL,
-    borderWidth: 0,
-  },
-  stepNavBtnPrimaryText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  stepNavBtnSecondary: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#d6d0ca',
-  },
-  stepNavBtnSecondaryText: {
-    color: '#6b6560',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  btnPressed: {
-    opacity: 0.8,
-  },
-
-  // ── Agreement ──
-
-  agreeGroup: {
-    gap: 12,
-    marginBottom: 20,
-  },
-  agreeAll: {
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e8e3de',
-  },
-  agreeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 1.5,
-    borderColor: '#d6d0ca',
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: CORAL,
-    borderColor: CORAL,
-  },
-  checkmark: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  agreeLabelAll: {
-    fontSize: 14,
-    color: '#1c1b1a',
-    flex: 1,
-  },
-  agreeLabelBold: {
-    fontWeight: '700',
-  },
-  agreeLabel: {
-    fontSize: 14,
-    color: '#1c1b1a',
-    flex: 1,
-    letterSpacing: -0.2,
-  },
-  agreeDetail: {
-    fontSize: 12,
-    color: '#8c8681',
-  },
-
-  // ── Social Button Styles ──
-
-  appleIcon: {
-    fontSize: 22,
-  },
-  googleIcon: {
-    fontWeight: '700',
-    fontSize: 16,
-    color: '#4285F4',
-  },
-
-  // Social buttons
-  socialBtn: {
-    height: 52,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  socialBtnPressed: {
-    opacity: 0.85,
-  },
-  socialBtnDisabled: {
-    opacity: 0.5,
-  },
-  socialIcon: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  socialLabel: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: -0.3,
-    paddingRight: 28,
-  },
-});
+// Keep static styles for SocialButton and SocialButton references only
+// (socialBtn, socialIcon, socialLabel, etc. have no themable colors)
