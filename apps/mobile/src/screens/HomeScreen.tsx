@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   StatusBar,
   StyleSheet,
@@ -154,8 +155,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       isError={isError}
       isFetching={isFetching}
       onRefresh={refetch}
-      onOpenBookmarks={() => undefined}
-      onOpenNotifications={() => undefined}
+      onOpenBookmarks={() => Alert.alert('준비 중', '북마크 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
+      onOpenNotifications={() => Alert.alert('준비 중', '알림 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
       onOpenSearch={() => navigation.navigate('SearchScreen')}
       onPressCalendar={() => navigation.navigate('CalendarScreen', {})}
       onPressCategory={() => undefined}
