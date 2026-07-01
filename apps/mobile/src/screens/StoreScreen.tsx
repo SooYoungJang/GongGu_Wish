@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RankingCategoryChips, RankingTabs, SellerRankingList } from '../components/ranking';
@@ -35,12 +35,6 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const [selectedCategory, setSelectedCategory] = useState<RankingCategory>('all');
   const [period, setPeriod] = useState<RankingPeriod>('weekly');
   const [sort, setSort] = useState<RankingSort>('popular');
-  const [searchQuery, setSearchQuery] = useState('');
-  const inputRef = useRef<TextInput>(null);
-
-  const handleSearchPress = useCallback(() => {
-    inputRef.current?.focus();
-  }, []);
 
   const rankingState = useSellerRankings({
     tab: activeTab,
@@ -108,42 +102,14 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
             </SText>
           </View>
           <View style={s.headerActions}>
-            <Pressable accessibilityLabel="랭킹 검색" accessibilityRole="button" style={s.iconButton} onPress={handleSearchPress}>
+            <Pressable accessibilityLabel="랭킹 검색" accessibilityRole="button" style={s.iconButton} onPress={() => navigation.navigate('SearchScreen')}>
               <SText variant="body" style={{ fontSize: 16, fontWeight: '900', color: colors.textPrimary }}>⌕</SText>
             </Pressable>
-            <Pressable accessibilityLabel="랭킹 알림" accessibilityRole="button" style={s.iconButton}>
+            <Pressable accessibilityLabel="랭킹 알림" accessibilityRole="button" style={s.iconButton} onPress={() => Alert.alert('준비 중', '알림 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}>
               <SText variant="body" style={{ fontSize: 16, fontWeight: '900', color: colors.textPrimary }}>♡</SText>
             </Pressable>
           </View>
         </View>
-
-        <Pressable onPress={handleSearchPress} style={s.searchBar}>
-          <SText variant="body" style={{ fontSize: 14, fontWeight: '900', color: colors.textTertiary }}>⌕</SText>
-          <TextInput
-            ref={inputRef}
-            accessibilityLabel="브랜드명, 제품명, 셀러명으로 검색"
-            placeholder="브랜드명, 제품명, 셀러명으로 검색"
-            placeholderTextColor={colors.textTertiary}
-            returnKeyType="search"
-            showSoftInputOnFocus={true}
-            style={s.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <Pressable
-              accessibilityLabel="검색어 지우기"
-              hitSlop={8}
-              onPress={() => {
-                setSearchQuery('');
-                inputRef.current?.focus();
-              }}
-              style={({ pressed }) => [s.clearButton, pressed && { opacity: 0.7 }]}
-            >
-              <SText variant="body" style={{ fontSize: 18, fontWeight: '600', color: colors.textSecondary }}>×</SText>
-            </Pressable>
-          )}
-        </Pressable>
 
         <RankingTabs
           value={activeTab}
@@ -245,32 +211,6 @@ function makeStyles(colors: ColorPalette) {
     safeArea: {
       backgroundColor: colors.bg,
       flex: 1,
-    },
-    searchBar: {
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-      borderRadius: borderRadius.xl,
-      borderWidth: 1,
-      flexDirection: 'row',
-      gap: spacing.sm,
-      minHeight: 46,
-      paddingHorizontal: spacing.md,
-    },
-    searchInput: {
-      color: colors.textPrimary,
-      flex: 1,
-      fontSize: 14,
-      minHeight: 44,
-      padding: 0,
-    },
-    clearButton: {
-      alignItems: 'center',
-      backgroundColor: colors.surfaceHover,
-      borderRadius: borderRadius.full,
-      height: 28,
-      justifyContent: 'center',
-      width: 28,
     },
     selectedPeriodChip: {
       backgroundColor: colors.primaryBg,
