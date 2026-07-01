@@ -1,0 +1,239 @@
+/**
+ * 실제 PostgREST API 응답 구조를 그대로 반영한 테스트 픽스처.
+ *
+ * 이 데이터는 실제 Supabase 엔드포인트에서 받은 응답을 기반으로 작성되었으며,
+ * API 변환 로직(fetchGroupBuys 매핑 등)이 프로덕션 데이터 구조와 정확히
+ * 일치하는지 검증하기 위해 사용된다.
+ *
+ * 원본: GET /rest/v1/group_buys?select=*,raw_post_id(*,influencer_id(*))
+ *       GET /rest/v1/influencers
+ */
+
+// ─── PostgREST 원본 응답 (snake_case, 중첩 객체) ──────────────────────────
+
+export const rawGroupBuysResponse = [
+  {
+    id: '0b0a928e-2f65-478f-a23d-b14f313aafb0',
+    raw_post_id: {
+      id: '1958e50a-1fd8-4006-8a91-5870a3df989f',
+      caption: '오늘 공구 오픈합니다. 선착순 특가로 구매링크 확인해주세요!',
+      post_url: 'https://instagram.com/p/TESTPOST001',
+      taken_at: '2026-06-12T01:00:00',
+      image_url: 'https://example.com/image.jpg',
+      parsed_at: '2026-06-12T14:04:21.681',
+      created_at: '2026-06-12T14:03:56.335',
+      updated_at: '2026-06-12T14:04:21.682',
+      exported_at: '2026-06-12T14:04:03.358',
+      parse_error: null,
+      collected_at: '2026-06-12T14:05:00',
+      content_hash: '5faed665529443cc1b40939a7fd841f11a49d11cb4988f4de801e142ca6e4a39',
+      is_candidate: true,
+      influencer_id: {
+        id: 'e4df6d4d-f9c5-4b70-8b75-b114924ca7b5',
+        is_active: true,
+        created_at: '2026-06-12T14:03:56.322',
+        updated_at: '2026-06-12T14:03:56.322',
+        display_name: null,
+        profile_image_url: null,
+        instagram_username: 'some_influencer',
+      },
+      parsing_status: 'PARSED',
+      instagram_post_id: 'TEST-POST-20260612-001',
+    },
+    product_name: '테스트 제품',
+    brand_name: '테스트 브랜드',
+    start_date: '2026-06-11T15:00:00',
+    end_date: '2026-06-15T14:59:59',
+    purchase_url: 'https://example.com/buy',
+    discount_info: '20% 할인',
+    summary: '테스트 제품 공동구매가 진행 중입니다.',
+    confidence: 0.82,
+    status: 'APPROVED',
+    created_at: '2026-06-12T14:04:21.682',
+    updated_at: '2026-06-12T14:04:21.682',
+    rejection_reason: null,
+    reviewed_at: null,
+    source_type: 'CRAWLED',
+    submission_id: null,
+    is_all_day: false,
+  },
+  {
+    id: 'a1b2c3d4-5678-90ab-cdef-1234567890ab',
+    raw_post_id: {
+      id: 'post-uuid-2',
+      caption: '여름 린넨 원피스 공동구매 🔥 품절 전 빠른 확인!',
+      post_url: 'https://instagram.com/p/LINENDRESS001',
+      taken_at: '2026-06-20T10:00:00',
+      image_url: 'https://example.com/linen.jpg',
+      parsed_at: '2026-06-20T15:00:00',
+      created_at: '2026-06-20T14:55:00',
+      updated_at: '2026-06-20T15:00:00',
+      exported_at: '2026-06-20T14:58:00',
+      parse_error: null,
+      collected_at: '2026-06-20T15:02:00',
+      content_hash: 'abc123',
+      is_candidate: true,
+      influencer_id: {
+        id: 'inf-uuid-2',
+        is_active: true,
+        created_at: '2026-06-15T10:00:00',
+        updated_at: '2026-06-15T10:00:00',
+        display_name: '린넨클로젯',
+        profile_image_url: null,
+        instagram_username: 'linen_closet',
+      },
+      parsing_status: 'PARSED',
+      instagram_post_id: 'LINEN-20260620-001',
+    },
+    product_name: '여름 린넨 원피스',
+    brand_name: '린넨클로젯',
+    start_date: '2026-06-22T15:00:00',
+    end_date: '2026-07-05T14:59:59',
+    purchase_url: 'https://example.com/linen-dress',
+    discount_info: '28% 할인',
+    summary: '여름 시즌 한정 린넨 원피스 공동구매.',
+    confidence: 0.91,
+    status: 'APPROVED',
+    created_at: '2026-06-20T15:00:00',
+    updated_at: '2026-06-20T15:00:00',
+    rejection_reason: null,
+    reviewed_at: null,
+    source_type: 'CRAWLED',
+    submission_id: null,
+    is_all_day: false,
+  },
+  {
+    id: 'b2c3d4e5-6789-0abc-def1-234567890abc',
+    raw_post_id: {
+      id: 'post-uuid-3',
+      caption: '클렌징 오일 공구 마감 임박!',
+      post_url: 'https://instagram.com/p/CLEANSING001',
+      taken_at: '2026-06-25T12:00:00',
+      image_url: 'https://example.com/cleansing.jpg',
+      parsed_at: '2026-06-25T16:00:00',
+      created_at: '2026-06-25T15:50:00',
+      updated_at: '2026-06-25T16:00:00',
+      exported_at: '2026-06-25T15:55:00',
+      parse_error: null,
+      collected_at: '2026-06-25T16:05:00',
+      content_hash: 'def456',
+      is_candidate: true,
+      influencer_id: {
+        id: 'e4df6d4d-f9c5-4b70-8b75-b114924ca7b5',
+        is_active: true,
+        created_at: '2026-06-12T14:03:56.322',
+        updated_at: '2026-06-12T14:03:56.322',
+        display_name: null,
+        profile_image_url: null,
+        instagram_username: 'some_influencer',
+      },
+      parsing_status: 'PARSED',
+      instagram_post_id: 'CLEANSING-20260625-001',
+    },
+    product_name: '자연유래 클렌징 오일',
+    brand_name: '글로우스킨',
+    start_date: '2026-06-26T15:00:00',
+    end_date: '2026-07-10T14:59:59',
+    purchase_url: 'https://example.com/cleansing-oil',
+    discount_info: '30% 할인',
+    summary: '민감성 피부를 위한 저자극 클렌징 오일.',
+    confidence: 0.88,
+    status: 'APPROVED',
+    created_at: '2026-06-25T16:00:00',
+    updated_at: '2026-06-25T16:00:00',
+    rejection_reason: null,
+    reviewed_at: null,
+    source_type: 'CRAWLED',
+    submission_id: null,
+    is_all_day: false,
+  },
+];
+
+export const rawInfluencersResponse = [
+  {
+    id: 'e4df6d4d-f9c5-4b70-8b75-b114924ca7b5',
+    instagram_username: 'some_influencer',
+    display_name: null,
+    profile_image_url: null,
+    is_active: true,
+    created_at: '2026-06-12T14:03:56.322',
+    updated_at: '2026-06-12T14:03:56.322',
+  },
+  {
+    id: 'inf-uuid-2',
+    instagram_username: 'linen_closet',
+    display_name: '린넨클로젯',
+    profile_image_url: null,
+    is_active: true,
+    created_at: '2026-06-15T10:00:00',
+    updated_at: '2026-06-15T10:00:00',
+  },
+];
+
+// ─── 변환 후 기대되는 GroupBuy[] 형태 ──────────────────────────────────────
+
+export const expectedGroupBuys = [
+  {
+    id: '0b0a928e-2f65-478f-a23d-b14f313aafb0',
+    productName: '테스트 제품',
+    brandName: '테스트 브랜드',
+    endDate: '2026-06-15T14:59:59',
+    purchaseUrl: 'https://example.com/buy',
+    discountInfo: '20% 할인',
+    summary: '테스트 제품 공동구매가 진행 중입니다.',
+    confidence: 0.82,
+    rawPost: {
+      postUrl: 'https://instagram.com/p/TESTPOST001',
+      influencer: {
+        instagramUsername: 'some_influencer',
+      },
+    },
+  },
+  {
+    id: 'a1b2c3d4-5678-90ab-cdef-1234567890ab',
+    productName: '여름 린넨 원피스',
+    brandName: '린넨클로젯',
+    endDate: '2026-07-05T14:59:59',
+    purchaseUrl: 'https://example.com/linen-dress',
+    discountInfo: '28% 할인',
+    summary: '여름 시즌 한정 린넨 원피스 공동구매.',
+    confidence: 0.91,
+    rawPost: {
+      postUrl: 'https://instagram.com/p/LINENDRESS001',
+      influencer: {
+        instagramUsername: 'linen_closet',
+      },
+    },
+  },
+  {
+    id: 'b2c3d4e5-6789-0abc-def1-234567890abc',
+    productName: '자연유래 클렌징 오일',
+    brandName: '글로우스킨',
+    endDate: '2026-07-10T14:59:59',
+    purchaseUrl: 'https://example.com/cleansing-oil',
+    discountInfo: '30% 할인',
+    summary: '민감성 피부를 위한 저자극 클렌징 오일.',
+    confidence: 0.88,
+    rawPost: {
+      postUrl: 'https://instagram.com/p/CLEANSING001',
+      influencer: {
+        instagramUsername: 'some_influencer',
+      },
+    },
+  },
+];
+
+export const expectedInfluencers = [
+  {
+    id: 'e4df6d4d-f9c5-4b70-8b75-b114924ca7b5',
+    instagramUsername: 'some_influencer',
+    displayName: null,
+    isActive: true,
+  },
+  {
+    id: 'inf-uuid-2',
+    instagramUsername: 'linen_closet',
+    displayName: '린넨클로젯',
+    isActive: true,
+  },
+];
