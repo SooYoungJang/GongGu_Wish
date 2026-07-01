@@ -8,12 +8,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { SearchResultsPanel } from '../components/home/SearchResultsPanel';
 import { SText } from '../components/ui/SText';
-import { fetchGroupBuys, fetchInfluencers, searchInfluencers } from '../api';
+import { fallbackGroupBuys, fetchGroupBuys, fetchInfluencers, searchInfluencers } from '../api';
 import { borderRadius, spacing, typography } from '../design/tokens';
 import { useTheme } from '../context/ThemeContext';
 import type { ColorPalette } from '../context/ThemeContext';
 import type { GroupBuy, Influencer, RootStackParamList } from '../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+function getFallbackInfluencers(groupBuys: GroupBuy[]): Influencer[] {
+  const influencers = new Map<string, Influencer>();
+  for (const gb of groupBuys) {
+    const username = gb.rawPost.influencer.instagramUsername.replace(/^@/, '');
+    const key = username.toLowerCase();
+    if (!influencers.has(key)) {
+      influencers.set(key, {
+        id: `fallback-${key}`,
+        instagramUsername: username,
+        displayName: null,
+        isActive: true,
+      });
+    }
+  }
+  return Array.from(influencers.values()).sort((a, b) =>
+    a.instagramUsername.localeCompare(b.instagramUsername),
+  );
+}
 
 const RECENT_KEY = 'search:recent';
 const RECENT_MAX = 8;
@@ -35,7 +54,7 @@ export function SearchScreen() {
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
 
-  const { data: groupBuys } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys, retry: false });
+  const { data: groupBuysData } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys, retry: false });
   const { data: influencersData } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers, retry: false });
 
   useEffect(() => {
@@ -74,7 +93,11 @@ export function SearchScreen() {
     AsyncStorage.removeItem(RECENT_KEY).catch(() => {});
   }, []);
 
-  const influencers = useMemo(() => influencersData ?? [], [influencersData]);
+  const groupBuys = useMemo(() => groupBuysData?.length ? groupBuysData : fallbackGroupBuys, [groupBuysData]);
+  const influencers = useMemo(() => {
+    if (influencersData?.length) return influencersData;
+    return getFallbackInfluencers(groupBuys);
+  }, [influencersData, groupBuys]);
   const searchResults = useMemo(
     () => searchInfluencers(influencers, query).slice(0, 8),
     [influencers, query],
@@ -82,14 +105,13 @@ export function SearchScreen() {
   const dealResults = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    const all = groupBuys ?? [];
-    return all.filter((gb) => {
+    return groupBuys.filter((gb) => {
       const name = (gb.productName ?? '').toLowerCase();
       const brand = (gb.brandName ?? '').toLowerCase();
       const user = gb.rawPost.influencer.instagramUsername.toLowerCase();
       return name.includes(q) || brand.includes(q) || user.includes(q);
     }).slice(0, 10);
-  }, [groupBuys, query]);
+ }, [groupBuys, query]);
 
   const hasQuery = query.trim().length > 0;
   const s = useMemo(() => makeStyles(colors), [colors]);
