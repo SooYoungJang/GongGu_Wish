@@ -54,6 +54,13 @@ export function SearchScreen() {
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
 
+  // Debounce: 검색은 유저가 입력을 멈춘 뒤 150ms 후에 실행
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 150);
+    return () => clearTimeout(t);
+  }, [query]);
+
   const { data: groupBuysData } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys, retry: false });
   const { data: influencersData } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers, retry: false });
 
@@ -99,11 +106,11 @@ export function SearchScreen() {
     return getFallbackInfluencers(groupBuys);
   }, [influencersData, groupBuys]);
   const searchResults = useMemo(
-    () => searchInfluencers(influencers, query).slice(0, 8),
-    [influencers, query],
+    () => searchInfluencers(influencers, debouncedQuery).slice(0, 8),
+    [influencers, debouncedQuery],
   );
   const dealResults = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return [];
     return groupBuys.filter((gb) => {
       const name = (gb.productName ?? '').toLowerCase();
@@ -111,9 +118,9 @@ export function SearchScreen() {
       const user = gb.rawPost.influencer.instagramUsername.toLowerCase();
       return name.includes(q) || brand.includes(q) || user.includes(q);
     }).slice(0, 10);
- }, [groupBuys, query]);
+  }, [groupBuys, debouncedQuery]);
 
-  const hasQuery = query.trim().length > 0;
+  const hasQuery = debouncedQuery.trim().length > 0;
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const handleSubmit = useCallback(() => {
