@@ -1,5 +1,7 @@
 import { useCallback, useState, useMemo } from 'react';
 import {
+  Alert,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -10,7 +12,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SText } from '../components/ui/SText';
 import { AppButton } from '../components/AppButton';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { spacing } from '../design/tokens';
+import { borderRadius, spacing } from '../design/tokens';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import type { ColorPalette } from '../context/ThemeContext';
@@ -102,6 +104,13 @@ function ProfileView({
           </SText>
         </View>
 
+        <View style={s.menuGroup}>
+          <MenuRow icon="📋" label="내 제보한 공구" onPress={() => Alert.alert('준비 중', '내 제보 목록 기능은 준비 중입니다.')} />
+          <MenuRow icon="⌑" label="북마크한 공구" onPress={() => Alert.alert('준비 중', '북마크 기능은 준비 중입니다.')} />
+          <MenuRow icon="👥" label="팔로우한 인플루언서" onPress={() => Alert.alert('준비 중', '팔로우 기능은 준비 중입니다.')} />
+          <MenuRow icon="🔔" label="알림 설정" onPress={() => Alert.alert('준비 중', '알림 설정 기능은 준비 중입니다.')} />
+        </View>
+
         <View style={s.logoutSection}>
           <AppButton
             variant="secondary"
@@ -117,6 +126,24 @@ function ProfileView({
 }
 
 // ─── Unauthenticated View ────────────────────────────────────────────────────
+
+function MenuRow({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+  return (
+    <Pressable
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [s.menuRow, pressed && s.menuRowPressed]}
+    >
+      <SText variant="body" style={s.menuIcon}>{icon}</SText>
+      <SText variant="body" style={s.menuLabel}>{label}</SText>
+      <SText variant="body" style={s.menuArrow}>›</SText>
+    </Pressable>
+  );
+}
 
 function UnauthenticatedView({
   onLoginPress,
@@ -194,6 +221,39 @@ function makeStyles(colors: ColorPalette) {
     },
     profileJoined: {
       marginBottom: 0,
+    },
+    menuGroup: {
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.lg,
+      marginBottom: spacing['2xl'],
+      overflow: 'hidden',
+    },
+    menuRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.borderLight,
+    },
+    menuRowPressed: {
+      opacity: 0.6,
+    },
+    menuIcon: {
+      fontSize: 18,
+      marginRight: spacing.md,
+      width: 24,
+      textAlign: 'center',
+    },
+    menuLabel: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '500',
+    },
+    menuArrow: {
+      fontSize: 20,
+      color: colors.textTertiary,
     },
     logoutSection: {
       marginTop: spacing.sm,
