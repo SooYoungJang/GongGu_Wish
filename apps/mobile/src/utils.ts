@@ -17,7 +17,19 @@ export function formatEndDate(dateString: string | null | undefined): string {
 
 export function normalizeOptional(value: string) {
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
+ return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Returns whole days remaining until the deadline (negative if past).
+ * null/undefined/invalid → Infinity (treated as "no deadline").
+ */
+export function getDaysRemaining(dateString: string | null | undefined): number {
+  if (!dateString) return Infinity;
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return Infinity;
+  const diffMs = date.getTime() - Date.now();
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 }
 
 
