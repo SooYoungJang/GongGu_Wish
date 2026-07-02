@@ -113,6 +113,7 @@ function makeStyles(colors: ColorPalette) {
       minWidth: 36,
     },
     calendarDateCircleSelected: {
+      borderRadius: borderRadius.full,
       borderColor: colors.primary,
       borderWidth: 1.5,
     },
