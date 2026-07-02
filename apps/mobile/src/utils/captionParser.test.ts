@@ -54,4 +54,28 @@ describe('parseSubmissionCaption', () => {
       endDate: '2026-07-10',
     });
   });
+
+  it('strips flag and keycap emoji without leaving broken surrogate pairs', () => {
+    const caption = [
+      '🇩🇪퍼스트바이크 공구 MADE 시킨것… 🫡',
+      '1️⃣ 팻 에디션',
+      '정가 229,000원 -> 29% 163,560원~',
+      '시작일 2026.07.01',
+      '종료일 2026.07.02',
+      'https://example.com/deal',
+    ].join('\n');
+
+    const result = parseSubmissionCaption(caption, {
+      referenceDate,
+      fallbackBrandName: 'hanssang_home',
+    });
+
+    expect(result.productName).not.toMatch(/[\ud800-\udfff]/);
+    expect(result.productName).not.toContain('??');
+    expect(result.productName).toContain('퍼스트바이크 공구');
+    expect(result.discountInfo).toBe('정가 229,000원 -> 29% 163,560원~');
+    expect(result.startDate).toBe('2026-07-01');
+    expect(result.endDate).toBe('2026-07-02');
+    expect(result.brandName).toBe('hanssang_home');
+  });
 });
