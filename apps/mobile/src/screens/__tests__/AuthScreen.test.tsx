@@ -236,7 +236,8 @@ describe('AuthScreen', () => {
       });
 
       const actionBar = renderer.root.findByProps({ testID: 'auth-action-bar' });
-      expect(actionBar.findByType(Pressable).props.accessibilityLabel).toBe('로그인');
+      // Email focused -> primary button reads "다음" (focus chaining)
+      expect(actionBar.findByType(Pressable).props.accessibilityLabel).toBe('다음');
       expect(actionBar.findByType(Pressable).props.accessibilityState?.disabled).toBe(false);
     } finally {
       Platform.OS = prevOS;
@@ -332,6 +333,8 @@ describe('AuthScreen', () => {
     act(() => {
       emailInput!.props.onChangeText('test@example.com');
       pwInput!.props.onChangeText('password123!');
+      // Focus password so the primary action reads "로그인" (not "다음")
+      pwInput!.props.onFocus?.();
     });
 
     // Find the login CTA button (unique by accessibilityLabel)

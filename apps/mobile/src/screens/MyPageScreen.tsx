@@ -193,8 +193,9 @@ function makeStyles(colors: ColorPalette) {
       justifyContent: 'center',
     },
     scrollContent: {
-      padding: spacing['2xl'],
-      paddingTop: spacing['3xl'],
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xl,
+      paddingBottom: spacing['2xl'],
     },
     profileCard: {
       alignItems: 'center',

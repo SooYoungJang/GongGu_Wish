@@ -169,8 +169,7 @@ describe('HomeScreenContent redesign', () => {
 
     const text = flattenText(renderer!.toJSON());
 
-    expect(text).toContain('공구캘린더');
-    expect(text).toContain('GongGu Alert');
+    expect(text).toContain('공구위시');
     expect(text).toContain('이달의 공구');
     expect(text).toContain('뷰티');
     expect(text).toContain('패션');

@@ -17,7 +17,7 @@
  *  - Agreement checkboxes (all-agree + required/optional)
  *  - Responsive (mobile-first) + WCAG AA accessibility
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Keyboard,
@@ -429,7 +429,8 @@ const makeStyles = (colors: ColorPalette) =>
       padding: 4,
     },
     pwToggleIcon: {
-      fontSize: 18,
+      fontSize: 12,
+      fontWeight: '700',
       color: colors.textTertiary,
     },
     errorText: {
@@ -657,6 +658,9 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { signIn, signInWithOAuth } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const [focusedLoginField, setFocusedLoginField] = useState<string | null>(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -702,6 +706,24 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
     Alert.alert('준비중', '비밀번호 찾기 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.');
   }, []);
 
+  const handleLoginPrimaryAction = useCallback(() => {
+    if (focusedLoginField === 'login-email') {
+      if (!email.trim()) {
+        setErrors((prev) => ({ ...prev, email: '이메일을 입력해주세요.' }));
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim().toLowerCase())) {
+        setErrors((prev) => ({ ...prev, email: '올바른 이메일 형식이 아닙니다.' }));
+        return;
+      }
+      setErrors((prev) => ({ ...prev, email: '' }));
+      passwordRef.current?.focus();
+      return;
+    }
+
+    handleLogin();
+  }, [focusedLoginField, email, handleLogin]);
+
   const handleSocialLogin = useCallback(
     async (provider: SocialAuthProvider) => {
       setSocialSubmitting(provider);
@@ -723,15 +745,20 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
 
   // ── Report action bar config ─────────────────────────────────────────
   useEffect(() => {
+    const primaryText =
+      focusedLoginField === 'login-email'
+        ? '다음'
+        : (submitting ? '로그인 중...' : '로그인');
+
     onActionBarChange?.({
       variant: 'login',
       primary: {
-        text: submitting ? '로그인 중...' : '로그인',
-        onPress: handleLogin,
+        text: primaryText,
+        onPress: handleLoginPrimaryAction,
         disabled: submitting,
       },
     });
-  }, [submitting, handleLogin, onActionBarChange]);
+  }, [submitting, focusedLoginField, handleLoginPrimaryAction, onActionBarChange]);
 
   return (
     <View accessibilityLabel="로그인">
@@ -765,6 +792,7 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
         <AuthInput
           label="이메일"
           testID="fl-input-email"
+          ref={emailRef}
           value={email}
           onChangeText={(t) => { setEmail(t); setErrors((e) => ({ ...e, email: '' })); }}
           autoCapitalize="none"
@@ -774,12 +802,13 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
           error={errors.email}
           editable={!submitting}
           focusId="login-email"
-          onAuthInputFocus={onInputFocus}
-          onAuthInputBlur={onInputBlur}
+          onAuthInputFocus={(id) => { setFocusedLoginField(id); onInputFocus?.(id); }}
+          onAuthInputBlur={(id) => { setFocusedLoginField((cur) => (cur === id ? null : cur)); onInputBlur?.(id); }}
         />
         <AuthInput
           label="비밀번호"
           testID="fl-input-password"
+          ref={passwordRef}
           value={password}
           onChangeText={(t) => { setPassword(t); setErrors((e) => ({ ...e, password: '' })); }}
           secureTextEntry={!showPassword}
@@ -788,8 +817,8 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
           error={errors.password}
           editable={!submitting}
           focusId="login-password"
-          onAuthInputFocus={onInputFocus}
-          onAuthInputBlur={onInputBlur}
+          onAuthInputFocus={(id) => { setFocusedLoginField(id); onInputFocus?.(id); }}
+          onAuthInputBlur={(id) => { setFocusedLoginField((cur) => (cur === id ? null : cur)); onInputBlur?.(id); }}
           rightElement={
             <Pressable
               accessible
@@ -801,7 +830,7 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
               hitSlop={8}
             >
               <Text style={styles.pwToggleIcon}>
-                {showPassword ? '🙈' : '👁'}
+                {showPassword ? '숨김' : '표시'}
               </Text>
             </Pressable>
           }
@@ -869,6 +898,15 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
 
   const [step, setStep] = useState<SignupStep>(1);
   const socialProviders = useMemo(() => getSocialProvidersForPlatform(), []);
+
+  // Step 1 input refs for focus chaining
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
+
+  // Track which step-1 field currently has focus so the "다음" button can
+  // advance focus to the next field instead of jumping straight to step 2.
+  const [focusedStep1Field, setFocusedStep1Field] = useState<string | null>(null);
 
   // Step 1 state
   const [email, setEmail] = useState('');
@@ -956,6 +994,69 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
   const goToPrevStep = useCallback((target: SignupStep) => {
     setStep(target);
   }, []);
+
+  // Step 1: focus the next field, or advance to step 2 from the last field.
+  // Ordered list maps focusId -> next ref.
+  const step1Fields = useMemo(
+    () => [
+      { id: 'signup-email', ref: emailRef },
+      { id: 'signup-password', ref: passwordRef },
+      { id: 'signup-confirm-password', ref: confirmPasswordRef },
+    ],
+    [],
+  );
+
+  // Per-field validation for step 1 focus chaining.
+  // Returns an error message string, or null if the field is valid.
+  const validateStep1Field = useCallback((index: number): string | null => {
+    if (index === 0) {
+      if (!email.trim()) return '이메일을 입력해주세요.';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim().toLowerCase())) {
+        return '올바른 이메일 형식이 아닙니다.';
+      }
+      return null;
+    }
+    if (index === 1) {
+      if (!password) return '비밀번호를 입력해주세요.';
+      if (password.length < 8) return '비밀번호는 8자 이상이어야 합니다.';
+      if (!/(?=.*[a-zA-Z])(?=.*\d)/.test(password)) return '비밀번호는 영문과 숫자를 포함해야 합니다.';
+      return null;
+    }
+    if (index === 2) {
+      if (!confirmPassword) return '비밀번호를 다시 입력해주세요.';
+      if (password !== confirmPassword) return '비밀번호가 일치하지 않습니다.';
+      return null;
+    }
+    return null;
+  }, [email, password, confirmPassword]);
+
+  const handleStep1Next = useCallback(() => {
+    // Per-field validation before advancing focus.  If the focused field
+    // fails its check, show the error and stay put.
+    // Prefer the live ref's isFocused() to avoid the blur race (pressing the
+    // sticky action bar can blur the input before onPress runs); fall back to
+    // the tracked focusedStep1Field state so chaining still works.
+    let currentIndex = step1Fields.findIndex((f) => f.ref.current?.isFocused());
+    if (currentIndex < 0) {
+      currentIndex = step1Fields.findIndex((f) => f.id === focusedStep1Field);
+    }
+
+    if (currentIndex >= 0 && currentIndex < step1Fields.length - 1) {
+      const error = validateStep1Field(currentIndex);
+      if (error) {
+        const fieldKey = step1Fields[currentIndex].id.replace('signup-', '') as keyof SignupStep1Form;
+        setStep1Errors((prev) => ({ ...prev, [fieldKey]: error }));
+        return;
+      }
+      // Clear error for this field and focus the next one.
+      const fieldKey = step1Fields[currentIndex].id.replace('signup-', '') as keyof SignupStep1Form;
+      setStep1Errors((prev) => ({ ...prev, [fieldKey]: '' }));
+      step1Fields[currentIndex + 1].ref.current?.focus();
+      return;
+    }
+    // Last field (or no focus): validate and advance.
+    goToNextStep();
+  }, [step1Fields, goToNextStep, email, password, confirmPassword, validateStep1Field, focusedStep1Field]);
 
   // ── Agreement handling ───────────────────────────────────────────────────
 
@@ -1093,7 +1194,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
     if (step === 1) {
       onActionBarChange?.({
         variant: 'signup',
-        primary: { text: '다음', onPress: goToNextStep, disabled: submitting },
+        primary: { text: '다음', onPress: handleStep1Next, disabled: submitting },
       });
     } else if (step === 2) {
       onActionBarChange?.({
@@ -1126,6 +1227,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
     step,
     submitting,
     goToNextStep,
+    handleStep1Next,
     goToPrevStep,
     handleCompleteSignup,
     handleVerifyEmailCode,
@@ -1190,13 +1292,14 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
 
       {/* Step 1: Basic Info */}
       {step === 1 && (
-        <View accessible accessibilityLabel="1단계: 기본 정보">
+        <View accessibilityLabel="1단계: 기본 정보">
           <Text style={styles.stepTitle}>기본 정보</Text>
           <Text style={styles.stepDesc}>이메일 인증번호를 받을 기본 정보를 입력해주세요</Text>
 
           <AuthInput
             label="이메일"
             testID="signup-input-email"
+            ref={emailRef}
             value={email}
             onChangeText={(t) => { setEmail(t); setStep1Errors((e) => ({ ...e, email: '' })); }}
             autoCapitalize="none"
@@ -1206,12 +1309,13 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             error={step1Errors.email}
             editable={!submitting}
             focusId="signup-email"
-            onAuthInputFocus={onInputFocus}
-            onAuthInputBlur={onInputBlur}
+            onAuthInputFocus={(id) => { setFocusedStep1Field(id); onInputFocus?.(id); }}
+            onAuthInputBlur={(id) => { setFocusedStep1Field((cur) => (cur === id ? null : cur)); onInputBlur?.(id); }}
           />
           <AuthInput
             label="비밀번호 (8자 이상, 영문+숫자 포함)"
             testID="signup-input-password"
+            ref={passwordRef}
             value={password}
             onChangeText={(t) => { setPassword(t); setStep1Errors((e) => ({ ...e, password: '' })); }}
             secureTextEntry={!showPw}
@@ -1220,19 +1324,19 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             error={step1Errors.password}
             editable={!submitting}
             focusId="signup-password"
-            onAuthInputFocus={onInputFocus}
-            onAuthInputBlur={onInputBlur}
+            onAuthInputFocus={(id) => { setFocusedStep1Field(id); onInputFocus?.(id); }}
+            onAuthInputBlur={(id) => { setFocusedStep1Field((cur) => (cur === id ? null : cur)); onInputBlur?.(id); }}
             rightElement={
               <Pressable
                 accessible
                 accessibilityRole="button"
-                accessibilityLabel={showPw ? '비밀번호 숨기기' : '비밀번호 보기'}
-                onPress={() => setShowPw((p) => !p)}
-                style={styles.pwToggle}
-                hitSlop={8}
-              >
+              accessibilityLabel={showPw ? '비밀번호 숨기기' : '비밀번호 보기'}
+              onPress={() => setShowPw((p) => !p)}
+              style={styles.pwToggle}
+              hitSlop={8}
+            >
                 <Text style={styles.pwToggleIcon}>
-                  {showPw ? '🙈' : '👁'}
+                  {showPw ? '숨김' : '표시'}
                 </Text>
               </Pressable>
             }
@@ -1240,6 +1344,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
           <AuthInput
             label="비밀번호 확인"
             testID="signup-input-confirm-password"
+            ref={confirmPasswordRef}
             value={confirmPassword}
             onChangeText={(t) => { setConfirmPassword(t); setStep1Errors((e) => ({ ...e, confirmPassword: '' })); }}
             secureTextEntry={!showConfirmPw}
@@ -1248,19 +1353,19 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             error={step1Errors.confirmPassword}
             editable={!submitting}
             focusId="signup-confirm-password"
-            onAuthInputFocus={onInputFocus}
-            onAuthInputBlur={onInputBlur}
+            onAuthInputFocus={(id) => { setFocusedStep1Field(id); onInputFocus?.(id); }}
+            onAuthInputBlur={(id) => { setFocusedStep1Field((cur) => (cur === id ? null : cur)); onInputBlur?.(id); }}
             rightElement={
               <Pressable
                 accessible
                 accessibilityRole="button"
-                accessibilityLabel={showConfirmPw ? '비밀번호 숨기기' : '비밀번호 보기'}
-                onPress={() => setShowConfirmPw((p) => !p)}
-                style={styles.pwToggle}
-                hitSlop={8}
-              >
+              accessibilityLabel={showConfirmPw ? '비밀번호 숨기기' : '비밀번호 보기'}
+              onPress={() => setShowConfirmPw((p) => !p)}
+              style={styles.pwToggle}
+              hitSlop={8}
+            >
                 <Text style={styles.pwToggleIcon}>
-                  {showConfirmPw ? '🙈' : '👁'}
+                  {showConfirmPw ? '숨김' : '표시'}
                 </Text>
               </Pressable>
             }
@@ -1272,7 +1377,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
                 accessible
                 accessibilityRole="button"
                 accessibilityLabel="다음 단계"
-                onPress={goToNextStep}
+                onPress={handleStep1Next}
                 disabled={submitting}
                 style={({ pressed }) => [styles.stepNavBtn, styles.stepNavBtnPrimary, pressed && styles.ctaBtnPressed]}
               >
@@ -1285,7 +1390,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
 
       {/* Step 2: Additional Info */}
       {step === 2 && (
-        <View accessible accessibilityLabel="2단계: 추가 정보">
+        <View accessibilityLabel="2단계: 추가 정보">
           <Text style={styles.stepTitle}>추가 정보</Text>
           <Text style={styles.stepDesc}>공구위시에서 사용할 프로필 정보를 입력해주세요</Text>
 
@@ -1346,7 +1451,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
 
       {/* Step 3: Agreement */}
       {step === 3 && (
-        <View accessible accessibilityLabel="3단계: 약관 동의">
+        <View accessibilityLabel="3단계: 약관 동의">
           <Text style={styles.stepTitle}>약관 동의</Text>
           <Text style={styles.stepDesc}>서비스 이용을 위해 약관에 동의해주세요</Text>
 
@@ -1446,7 +1551,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
 
       {/* Step 4: Email Verification */}
       {step === 4 && (
-        <View accessible accessibilityLabel="4단계: 이메일 인증">
+        <View accessibilityLabel="4단계: 이메일 인증">
           <Text style={styles.stepTitle}>이메일 인증</Text>
           <Text style={styles.stepDesc}>{email}로 받은 인증번호를 입력해주세요</Text>
 
@@ -1649,7 +1754,7 @@ type AuthInputProps = Omit<TextInputProps, 'onFocus' | 'onBlur'> & {
   onAuthInputBlur?: (inputId: string) => void;
 };
 
-function AuthInput({
+const AuthInput = forwardRef<TextInput, AuthInputProps>(function AuthInput({
   label,
   error,
   rightElement,
@@ -1658,12 +1763,20 @@ function AuthInput({
   onAuthInputFocus,
   onAuthInputBlur,
   ...inputProps
-}: AuthInputProps) {
+}: AuthInputProps, ref) {
   const { colors } = useTheme();
 
   return (
     <View style={{ marginBottom: 4 }}>
-      <Text
+      <Pressable
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={() => {
+          if (ref && 'current' in ref) ref.current?.focus();
+        }}
+      >
+        <Text
         style={{
           color: colors.textSecondary,
           fontSize: 13,
@@ -1672,7 +1785,8 @@ function AuthInput({
         }}
       >
         {label}
-      </Text>
+        </Text>
+      </Pressable>
       <View
         style={{
           flexDirection: 'row',
@@ -1686,6 +1800,7 @@ function AuthInput({
         }}
       >
         <TextInput
+          ref={ref}
           placeholderTextColor={colors.textTertiary}
           style={[
             {
@@ -1713,7 +1828,7 @@ function AuthInput({
       )}
     </View>
   );
-}
+});
 
 // Keep static styles for SocialButton and SocialButton references only
 // (socialBtn, socialIcon, socialLabel, etc. have no themable colors)
