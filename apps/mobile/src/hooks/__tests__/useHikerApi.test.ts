@@ -76,6 +76,10 @@ describe('useHikerApi', () => {
       likeCount: 42,
       username: 'test_user',
       takenAt: '2026-06-01T12:00:00Z',
+      thumbnailUrl: null,
+      videoUrl: null,
+      mediaUrls: [],
+      mediaType: null,
     });
 
     const hook = mountHook('https://www.instagram.com/p/ABC123/');
@@ -95,6 +99,10 @@ describe('useHikerApi', () => {
       authorName: 'test_user',
       authorUsername: 'test_user',
       postedAt: '2026-06-01T12:00:00Z',
+      thumbnailUrl: null,
+      videoUrl: null,
+      mediaUrls: [],
+      mediaType: null,
     });
   });
 
@@ -105,6 +113,10 @@ describe('useHikerApi', () => {
       likeCount: 123,
       username: 'influencer',
       takenAt: '2026-06-15T10:00:00Z',
+      thumbnailUrl: null,
+      videoUrl: null,
+      mediaUrls: [],
+      mediaType: null,
     });
 
     const hook = mountHook('https://www.instagram.com/p/DEF456/');
@@ -154,6 +166,10 @@ describe('useHikerApi', () => {
       likeCount: null,
       username: 'retry_user',
       takenAt: null,
+      thumbnailUrl: null,
+      videoUrl: null,
+      mediaUrls: [],
+      mediaType: null,
     });
 
     const hook = mountHook('https://www.instagram.com/p/RETRY1/');
@@ -169,6 +185,10 @@ describe('useHikerApi', () => {
       likeCount: 99,
       username: 'retry_user',
       takenAt: null,
+      thumbnailUrl: null,
+      videoUrl: null,
+      mediaUrls: [],
+      mediaType: null,
     });
 
     act(() => {

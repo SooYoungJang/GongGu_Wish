@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Alert, Linking, Share, StyleSheet, View } from 'react-native';
+import { Alert, Image, Linking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppButton } from '../components/AppButton';
@@ -23,6 +23,13 @@ export function DetailScreen({ route }: DetailScreenProps) {
   const isExpired = daysRemaining < 0;
   const isUrgent = daysRemaining >= 0 && daysRemaining <= 3;
 
+  // Collect all media URLs to display (carousel images + videos)
+  const mediaUrls = groupBuy.mediaUrls?.length
+    ? groupBuy.mediaUrls
+    : groupBuy.thumbnailUrl
+      ? [groupBuy.thumbnailUrl]
+      : [];
+
   const handleShare = async () => {
     const productName = groupBuy.productName ?? '공동구매';
     const username = groupBuy.rawPost.influencer.instagramUsername;
@@ -42,7 +49,7 @@ export function DetailScreen({ route }: DetailScreenProps) {
 
   return (
     <SafeAreaView edges={['bottom', 'top']} style={s.safeArea}>
-      <View style={s.container}>
+      <ScrollView style={s.container} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Deadline badge */}
         {(groupBuy.endDate) && (
           <View style={[
@@ -63,6 +70,38 @@ export function DetailScreen({ route }: DetailScreenProps) {
             title={groupBuy.productName ?? '제품명 미확인'}
           />
 
+          {/* Media gallery — thumbnail/carousel images + video */}
+          {mediaUrls.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={s.mediaGallery}
+              contentContainerStyle={s.mediaGalleryContent}
+            >
+              {mediaUrls.map((url, index) => {
+                const isVideo = groupBuy.mediaType === 'VIDEO' || url === groupBuy.videoUrl;
+                return (
+                  <Pressable
+                    key={`${url}-${index}`}
+                    onPress={() => void Linking.openURL(url)}
+                    style={s.mediaItem}
+                  >
+                    <Image
+                      source={{ uri: url }}
+                      style={s.mediaImage}
+                      resizeMode="cover"
+                    />
+                    {isVideo ? (
+                      <View style={s.videoBadge}>
+                        <SText variant="caption" style={s.videoBadgeText}>영상</SText>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
+
           {/* Discount highlight */}
           {groupBuy.discountInfo ? (
             <View style={s.discountHighlight}>
@@ -74,8 +113,16 @@ export function DetailScreen({ route }: DetailScreenProps) {
 
           {/* Info rows */}
           <InfoRow label="브랜드" value={groupBuy.brandName} />
-          <InfoRow label="할인/혜택" value={groupBuy.discountInfo} />
+          {groupBuy.discountInfo ? (
+            <InfoRow label="할인/혜택" value={groupBuy.discountInfo} />
+          ) : null}
+          {groupBuy.startDate ? (
+            <InfoRow label="시작일" value={groupBuy.startDate} />
+          ) : null}
           <InfoRow label="마감" value={deadlineLabel} />
+          {groupBuy.purchaseUrl ? (
+            <InfoRow label="구매 링크" value={groupBuy.purchaseUrl} />
+          ) : null}
           <InfoRow label="요약" value={groupBuy.summary} />
 
           {/* Action buttons */}
@@ -99,7 +146,7 @@ export function DetailScreen({ route }: DetailScreenProps) {
             인스타그램에서 보기
           </AppButton>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -109,8 +156,43 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     safeArea: { flex: 1, backgroundColor: colors.bg },
     container: {
       flex: 1,
+    },
+    scrollContent: {
       paddingTop: spacing.lg,
       paddingHorizontal: spacing.lg,
+      paddingBottom: spacing['4xl'],
+    },
+    mediaGallery: {
+      marginBottom: spacing.lg,
+    },
+    mediaGalleryContent: {
+      gap: spacing.sm,
+      paddingRight: spacing.lg,
+    },
+    mediaItem: {
+      borderRadius: borderRadius.lg,
+      overflow: 'hidden',
+      width: 200,
+      height: 200,
+      backgroundColor: colors.surfaceHover,
+    },
+    mediaImage: {
+      width: '100%',
+      height: '100%',
+    },
+    videoBadge: {
+      position: 'absolute',
+      bottom: spacing.xs,
+      right: spacing.xs,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      borderRadius: borderRadius.full,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+    },
+    videoBadgeText: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '700',
     },
     deadlineBadge: {
       alignSelf: 'flex-start',

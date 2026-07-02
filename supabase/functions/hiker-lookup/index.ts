@@ -20,6 +20,14 @@ interface LookupRequest {
 
 interface InstagramMediaInfo {
   imageUrl: string | null;
+  /** Best image for thumbnail (first carousel image or cover) */
+  thumbnailUrl: string | null;
+  /** Primary video URL if the post is a video/reel */
+  videoUrl: string | null;
+  /** All media URLs from carousel (images + videos) in post order */
+  mediaUrls: string[];
+  /** Dominant media type: IMAGE or VIDEO */
+  mediaType: 'IMAGE' | 'VIDEO' | null;
   caption: string | null;
   likeCount: number | null;
   username: string | null;
@@ -106,6 +114,43 @@ function bestImageUrl(media: Record<string, unknown>): string | null {
   return getString(media.imageUrl) ?? getString(media.thumbnail_url) ?? getString(media.thumbnailUrl);
 }
 
+function bestVideoUrl(media: Record<string, unknown>): string | null {
+  const videoVersions = media.video_versions;
+  if (Array.isArray(videoVersions) && videoVersions[0] && typeof videoVersions[0] === 'object') {
+    return getString((videoVersions[0] as Record<string, unknown>).url);
+  }
+  return null;
+}
+
+function isVideoMedia(media: Record<string, unknown>): boolean {
+  return media.media_type === 2 || media.video_versions !== undefined;
+}
+
+function collectCarouselMedia(media: Record<string, unknown>): { urls: string[]; hasVideo: boolean } {
+  const carousel = media.carousel_media;
+  if (!Array.isArray(carousel)) {
+    return { urls: [], hasVideo: false };
+  }
+
+  const urls: string[] = [];
+  let hasVideo = false;
+
+  for (const item of carousel) {
+    if (!item || typeof item !== 'object') continue;
+    const itemMedia = item as Record<string, unknown>;
+    const videoUrl = bestVideoUrl(itemMedia);
+    if (videoUrl) {
+      urls.push(videoUrl);
+      hasVideo = true;
+    } else {
+      const imageUrl = bestImageUrl(itemMedia);
+      if (imageUrl) urls.push(imageUrl);
+    }
+  }
+
+  return { urls, hasVideo };
+}
+
 async function lookupViaHikerAPI(url: string, apiKey: string): Promise<InstagramMediaInfo> {
   const requestUrl = new URL('https://api.hikerapi.com/v2/media/info/by/url');
   requestUrl.searchParams.set('url', url);
@@ -131,6 +176,10 @@ async function lookupViaHikerAPI(url: string, apiKey: string): Promise<Instagram
 
   return {
     imageUrl: bestImageUrl(media),
+    thumbnailUrl: bestImageUrl(media),
+    videoUrl: bestVideoUrl(media),
+    mediaUrls: [],
+    mediaType: null,
     caption: getString(caption?.text) ?? getString(media.caption_text) ?? getString(media.caption),
     likeCount: getNumber(media.like_count) ?? getNumber(media.likeCount),
     username: getString(user?.username) ?? getString(media.username),
@@ -195,8 +244,28 @@ serve(async (req: Request) => {
       });
     }
 
-    console.log('[hiker-lookup] Calling HikerAPI live');
+
     const result = await lookupViaHikerAPI(body.url, hikerApiKey);
+
+    // Collect all carousel media URLs into mediaUrls, and determine mediaType
+    const carousel = collectCarouselMedia(result as unknown as Record<string, unknown>);
+    if (carousel.urls.length > 0) {
+      (result as any).mediaUrls = carousel.urls;
+      (result as any).mediaType = carousel.hasVideo ? 'VIDEO' : 'IMAGE';
+      if (!result.thumbnailUrl) {
+        (result as any).thumbnailUrl = carousel.urls[0];
+      }
+    } else if (result.imageUrl) {
+      (result as any).mediaUrls = [result.imageUrl];
+      (result as any).mediaType = bestVideoUrl(result as unknown as Record<string, unknown>) ? 'VIDEO' : 'IMAGE';
+    } else if (result.videoUrl) {
+      (result as any).mediaUrls = [result.videoUrl];
+      (result as any).mediaType = 'VIDEO';
+      (result as any).thumbnailUrl = result.videoUrl;
+    } else {
+      (result as any).mediaUrls = [];
+      (result as any).mediaType = null;
+    }
 
     return new Response(JSON.stringify(result), {
       status: 200,

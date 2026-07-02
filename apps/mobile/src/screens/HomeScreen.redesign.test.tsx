@@ -104,6 +104,11 @@ const sampleGroupBuys: GroupBuy[] = [
     discountInfo: '20% 할인',
     summary: '민감 피부를 위한 촉촉한 선크림 공구입니다.',
     confidence: 0.93,
+    startDate: null,
+    thumbnailUrl: null,
+    videoUrl: null,
+    mediaUrls: [],
+    mediaType: null,
     rawPost: { postUrl: 'https://instagram.com/p/1', influencer: { instagramUsername: 'beauty_pick' } },
   },
   {
@@ -115,6 +120,11 @@ const sampleGroupBuys: GroupBuy[] = [
     discountInfo: '1+1 구성',
     summary: '아침 식사용 그래놀라 공동구매입니다.',
     confidence: 0.88,
+    startDate: null,
+    thumbnailUrl: null,
+    videoUrl: null,
+    mediaUrls: [],
+    mediaType: null,
     rawPost: { postUrl: 'https://instagram.com/p/2', influencer: { instagramUsername: 'food_mate' } },
   },
 ];

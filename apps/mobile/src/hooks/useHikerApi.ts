@@ -10,6 +10,14 @@ export type HikerStatus = 'idle' | 'loading' | 'success' | 'error';
 export interface HikerPostData {
   /** URL of the post's primary image */
   imageUrl: string | null;
+  /** Best image for thumbnail (first carousel image or cover) */
+  thumbnailUrl: string | null;
+  /** Primary video URL if the post is a video/reel */
+  videoUrl: string | null;
+  /** All media URLs from carousel (images + videos) in post order */
+  mediaUrls: string[];
+  /** Dominant media type: IMAGE or VIDEO */
+  mediaType: 'IMAGE' | 'VIDEO' | null;
   /** Post caption / summary text */
   caption: string | null;
   /** Instagram display name of the account (same as username) */
@@ -44,6 +52,10 @@ const IDLE_STATE: HikerState = {
 function toPostData(info: InstagramMediaInfo): HikerPostData {
   return {
     imageUrl: info.imageUrl,
+    thumbnailUrl: info.thumbnailUrl,
+    videoUrl: info.videoUrl,
+    mediaUrls: info.mediaUrls,
+    mediaType: info.mediaType,
     caption: info.caption,
     likeCount: info.likeCount,
     authorName: info.username,

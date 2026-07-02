@@ -27,6 +27,11 @@ const sampleGroupBuy: GroupBuy = {
   discountInfo: '20% 할인',
   summary: '공동구매 알림 요약입니다.',
   confidence: 0.82,
+  startDate: null,
+  thumbnailUrl: null,
+  videoUrl: null,
+  mediaUrls: [],
+  mediaType: null,
   rawPost: {
     postUrl: 'https://www.instagram.com/p/sample',
     influencer: {

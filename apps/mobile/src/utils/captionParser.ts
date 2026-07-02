@@ -19,13 +19,22 @@ interface ParsedDate {
 }
 
 const URL_RE = /https?:\/\/[^\s"'<>]+/i;
+
+// Emoji and decorative symbols — Unicode property escapes cover regional
+// indicators (flags), keycaps, ZWJ sequences, and pictographs the old
+// hardcoded allowlist missed (which left broken surrogate pairs as "??").
+// `Extended_Pictographic` + regional indicators covers flags without eating
+// ASCII digits (which also carry the `Emoji` property in some Unicode versions).
+const EMOJI_RE =
+  /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u200d\uFE0F\u20e3\ud800-\udfff]+/gu;
+
 const DATE_TOKEN_RE =
   /(?:20\d{2}\s*[./-]\s*)?\d{1,2}\s*(?:[./-]|월)\s*\d{1,2}\s*(?:일)?/g;
 
 function cleanLine(line: string) {
   return line
-    .replace(/^[\s📍✅✔️•\-–—*·]+/g, '')
-    .replace(/[🌊🤍✨🔥⭐️💜💛💙💚🖤🤎❤️🧡]/g, '')
+    .replace(/^[\s•\-–—*·]+/g, '')
+    .replace(EMOJI_RE, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -80,12 +89,17 @@ function extractDiscountInfo(lines: string[]) {
 }
 
 function extractBrandFromProduct(productName: string) {
+  // Reject URLs (e.g. "https://x..." or ".../x") that the "A x B" pattern
+  // would otherwise misread as a brand name.
+  if (URL_RE.test(productName)) return undefined;
   const xMatch = productName.match(/^(.{2,30}?)\s*(?:x|X|×)\s*(.+)$/);
   return xMatch?.[1]?.trim();
 }
 
 function extractBrandFromXLine(lines: string[]) {
-  const xLine = lines.find((line) => /^.{2,30}?\s*(?:x|X|×)\s*.{2,50}$/.test(line));
+  const xLine = lines.find(
+    (line) => !URL_RE.test(line) && /^.{2,30}?\s*(?:x|X|×)\s*.{2,50}$/.test(line),
+  );
   return xLine ? extractBrandFromProduct(xLine) : undefined;
 }
 
