@@ -53,6 +53,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [discountInfo, setDiscountInfo] = useState('');
+  const [summary, setSummary] = useState('');
 
   // HikerAPI — auto-fetches Instagram post info
   const { status: hikerStatus, data: hikerData, error: hikerError, retry } = useHikerApi(instagramUrl);
@@ -84,6 +85,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
     const shouldFillEndDate = !endDate.trim() && parsed.endDate;
     const shouldFillPurchaseUrl = !purchaseUrl.trim() && parsed.purchaseUrl;
     const shouldFillDiscountInfo = !discountInfo.trim() && parsed.discountInfo;
+    const shouldFillSummary = !summary.trim() && hikerData.caption;
 
     if (shouldFillProductName && parsed.productName) setProductName(parsed.productName);
     if (shouldFillBrandName && parsed.brandName) setBrandName(parsed.brandName);
@@ -91,6 +93,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
     if (shouldFillEndDate && parsed.endDate) setEndDate(parsed.endDate);
     if (shouldFillPurchaseUrl && parsed.purchaseUrl) setPurchaseUrl(parsed.purchaseUrl);
     if (shouldFillDiscountInfo && parsed.discountInfo) setDiscountInfo(parsed.discountInfo);
+    if (shouldFillSummary) setSummary(hikerData.caption!.slice(0, 500));
 
     if (
       shouldFillProductName ||
@@ -98,7 +101,8 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
       shouldFillStartDate ||
       shouldFillEndDate ||
       shouldFillPurchaseUrl ||
-      shouldFillDiscountInfo
+      shouldFillDiscountInfo ||
+      shouldFillSummary
     ) {
       setFeedback({ message: '캡션에서 공구 정보를 자동으로 채웠어요. 필요한 부분만 수정해 주세요.', kind: 'info' });
     }
@@ -114,6 +118,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
     instagramUrl,
     productName,
     purchaseUrl,
+    summary,
     startDate,
   ]);
 
@@ -147,6 +152,9 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
     if (startDate.trim() && endDate.trim() && new Date(startDate.trim()) > new Date(endDate.trim())) {
       return '시작일은 마감일보다 늦을 수 없습니다.';
     }
+    if (summary.trim().length > 500) {
+      return '요약은 500자 이하로 입력해주세요.';
+    }
     return null;
   }
 
@@ -174,7 +182,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
         discountInfo: normalizeOptional(discountInfo),
         instagramUrl: instagramUrl.trim(),
         imageUrls: hikerData?.imageUrl ? [hikerData.imageUrl] : [],
-        summary: hikerData?.caption ?? undefined,
+        summary: summary.trim() || undefined,
         isAnonymous: true,
       });
       void queryClient.invalidateQueries({ queryKey: ['group-buys'] });
@@ -356,6 +364,14 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
               onChangeText={setDiscountInfo}
               placeholder="예: 정가 229,000원 → 29% 163,560원"
               error={fieldErrors.discountInfo}
+            />
+            <FormInput
+              label="요약"
+              value={summary}
+              onChangeText={setSummary}
+              placeholder="공구 한 줄 요약 (최대 500자)"
+              multiline
+              error={fieldErrors.summary}
             />
           </View>
 
