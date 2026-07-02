@@ -15,6 +15,7 @@ import { useSubmissionGuard } from '@gonggu/shared/hooks';
 import { postPublicJson, ApiError } from '../api';
 import { AppButton } from '../components/AppButton';
 import { FormInput } from '../components/FormInput';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { InstagramPreview } from '../components/InstagramPreview';
 import { SText } from '../components/ui/SText';
 import { UrlInputStatus } from '../components/UrlInputStatus';
@@ -154,15 +155,11 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
           showsVerticalScrollIndicator={false}
         >
           {/* ── Header ─────────────────────────────────────── */}
-          <SText variant="eyebrow" style={s.eyebrow}>
-            공구 제보하기
-          </SText>
-          <SText variant="title" style={s.title}>
-            발견한 공구를 알려주세요
-          </SText>
-          <SText variant="subtitle" style={s.subtitle}>
-            인스타그램 게시물 URL만 입력하면 이미지와 정보를 자동으로 불러옵니다
-          </SText>
+          <ScreenHeader
+            eyebrow="공구 제보하기"
+            title="발견한 공구를 알려주세요"
+            subtitle="인스타그램 게시물 URL만 입력하면 이미지와 정보를 자동으로 불러옵니다"
+          />
 
           {/* ── Feedback banner ────────────────────────────── */}
           {feedback ? (
@@ -289,27 +286,9 @@ function makeStyles(colors: ColorPalette) {
       flex: 1,
     },
     scrollContent: {
-      padding: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xl,
       paddingBottom: spacing['4xl'],
-    },
-
-    // Header
-    eyebrow: {
-      marginBottom: spacing.xs,
-      color: colors.primary,
-      letterSpacing: 0.5,
-    },
-    title: {
-      fontSize: 26,
-      fontWeight: '700',
-      color: colors.textPrimary,
-      marginBottom: spacing.xs,
-    },
-    subtitle: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      lineHeight: 20,
-      marginBottom: spacing['2xl'],
     },
 
     // Feedback banner
