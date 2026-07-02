@@ -8,6 +8,8 @@ import type { ColorPalette } from '../../context/ThemeContext';
 
 type WeeklyCalendarStripProps = {
   onPressCalendar: () => void;
+  selectedDate: Date | null;
+  onSelectDate: (date: Date) => void;
 };
 
 function getWeekDays() {
@@ -20,14 +22,16 @@ function getWeekDays() {
   return labels.map((label, index) => {
     const date = new Date(monday);
     date.setDate(monday.getDate() + index);
-    return { label, day: date.getDate(), selected: index === current };
+    return { label, day: date.getDate(), date, isToday: index === current };
   });
 }
 
-export function WeeklyCalendarStrip({ onPressCalendar }: WeeklyCalendarStripProps) {
+export function WeeklyCalendarStrip({ onPressCalendar, selectedDate, onSelectDate }: WeeklyCalendarStripProps) {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const weekDays = useMemo(() => getWeekDays(), []);
+  const isSameDay = (a: Date | null, b: Date) =>
+    a != null && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
   return (
     <View style={s.calendarSection}>
@@ -44,16 +48,28 @@ export function WeeklyCalendarStrip({ onPressCalendar }: WeeklyCalendarStripProp
       </View>
       <View style={s.calendarStrip}>
         {weekDays.map((day) => (
-          <View key={`${day.label}-${day.day}`} style={s.calendarDay}>
+          <Pressable
+            key={`${day.label}-${day.day}`}
+            style={s.calendarDay}
+            accessibilityLabel={`${day.label} ${day.day}일 공구 보기`}
+            accessibilityRole="button"
+            onPress={() => onSelectDate(day.date)}
+          >
             <SText variant="caption">
               {day.label}
             </SText>
-            <View style={[s.calendarDateCircle, day.selected && s.calendarDateCircleSelected]}>
+            <View
+              style={[
+                s.calendarDateCircle,
+                isSameDay(selectedDate, day.date) && s.calendarDateCircleSelected,
+                day.isToday && !isSameDay(selectedDate, day.date) && s.calendarDateCircleToday,
+              ]}
+            >
               <SText variant="label">
                 {day.day}
               </SText>
             </View>
-          </View>
+          </Pressable>
         ))}
       </View>
     </View>
@@ -98,5 +114,9 @@ function makeStyles(colors: ColorPalette) {
       minWidth: 36,
     },
     calendarDateCircleSelected: { backgroundColor: colors.primary },
+    calendarDateCircleToday: {
+      borderColor: colors.primary,
+      borderWidth: 1.5,
+    },
   });
 }

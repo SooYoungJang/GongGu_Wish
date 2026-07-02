@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -91,6 +91,7 @@ export function HomeScreenContent({
 }: HomeScreenContentProps) {
   const { colors, isDark, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
@@ -112,8 +113,16 @@ export function HomeScreenContent({
             {isFetching && groupBuys.length === 0 ? <ActivityIndicator color={colors.primary} /> : null}
             <MonthlyBannerCarousel groupBuys={groupBuys} feedPosts={feedPosts} onPressDeal={onPressDeal} />
             <CategoryRow onPressCategory={onPressCategory} />
-            <WeeklyCalendarStrip onPressCalendar={onPressCalendar} />
-            <ThisWeekDeals groupBuys={groupBuys} onPressDeal={onPressDeal} />
+            <WeeklyCalendarStrip
+              onPressCalendar={onPressCalendar}
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+            />
+            <ThisWeekDeals
+              groupBuys={groupBuys}
+              onPressDeal={onPressDeal}
+              selectedDate={selectedDate}
+            />
             <ExpiringSoonSection groupBuys={groupBuys} onPressDeal={onPressDeal} />
             <SubmitPrompt onPressSubmit={onPressSubmit} />
           </View>
