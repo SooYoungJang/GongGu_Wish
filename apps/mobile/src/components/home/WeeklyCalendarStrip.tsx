@@ -22,7 +22,7 @@ function getWeekDays() {
   return labels.map((label, index) => {
     const date = new Date(monday);
     date.setDate(monday.getDate() + index);
-    return { label, day: date.getDate(), date, isToday: index === current };
+    return { label, day: date.getDate(), date };
   });
 }
 
@@ -62,7 +62,6 @@ export function WeeklyCalendarStrip({ onPressCalendar, selectedDate, onSelectDat
               style={[
                 s.calendarDateCircle,
                 isSameDay(selectedDate, day.date) && s.calendarDateCircleSelected,
-                day.isToday && !isSameDay(selectedDate, day.date) && s.calendarDateCircleToday,
               ]}
             >
               <SText variant="label">
@@ -114,9 +113,5 @@ function makeStyles(colors: ColorPalette) {
       minWidth: 36,
     },
     calendarDateCircleSelected: { backgroundColor: colors.primary },
-    calendarDateCircleToday: {
-      borderColor: colors.primary,
-      borderWidth: 1.5,
-    },
   });
 }

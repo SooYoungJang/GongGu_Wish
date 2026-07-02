@@ -91,7 +91,11 @@ export function HomeScreenContent({
 }: HomeScreenContentProps) {
   const { colors, isDark, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  });
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
