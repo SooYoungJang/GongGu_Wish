@@ -82,10 +82,8 @@ function ProfileView({
         contentContainerStyle={s.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <ScreenHeader
-          eyebrow="MY"
+       <ScreenHeader
           title="마이페이지"
-          subtitle="내 계정 정보를 확인하고 관리하세요."
         />
 
         <View style={s.profileCard}>
@@ -162,9 +160,7 @@ function UnauthenticatedView({
         keyboardShouldPersistTaps="handled"
       >
         <ScreenHeader
-          eyebrow="MY"
           title="마이페이지"
-          subtitle="로그인하고 내 정보를 확인하세요."
         />
 
         <View style={s.loginPrompt}>
