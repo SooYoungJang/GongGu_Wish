@@ -6,6 +6,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -31,7 +32,7 @@ export function MyPageScreen() {
   }, [navigation]);
 
   return (
-    <View style={s.container}>
+    <SafeAreaView edges={['top']} style={s.container}>
       {authLoading ? (
         <View style={[s.center, { backgroundColor: colors.bg }]}>
           <SText variant="body">로딩 중...</SText>
@@ -48,7 +49,7 @@ export function MyPageScreen() {
           colors={colors}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

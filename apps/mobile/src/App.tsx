@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import type { MainTabParamList, RootStackParamList } from './types';
@@ -47,14 +48,14 @@ const TAB_BAR_HEIGHT = 72;
 function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: string }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.placeholderScreen, { backgroundColor: colors.bg }]}>
+    <SafeAreaView edges={['top', 'bottom']} style={[styles.placeholderScreen, { backgroundColor: colors.bg }]}>
       <View style={styles.placeholderHeader}>
         <ScreenHeader title={title} />
       </View>
       <View style={styles.placeholderBody}>
         <Text style={[styles.placeholderSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -60,6 +60,12 @@ vi.mock('@react-navigation/native', () => ({
   }),
 }));
 
+// Mock SafeAreaView as a plain View
+vi.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
 function renderMyPageScreen() {
   let renderer: ReturnType<typeof TestRenderer.create>;
   act(() => {
