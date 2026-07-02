@@ -20,6 +20,10 @@ interface SubmissionRequest {
   summary?: string;
   instagramUrl?: string;
   imageUrls?: string[];
+  thumbnailUrl?: string;
+  videoUrl?: string;
+  mediaUrls?: string[];
+  mediaType?: string;
   reporterName?: string;
   reporterContact?: string;
   isAnonymous?: boolean;
@@ -42,6 +46,10 @@ type ValidatedSubmissionRow = {
   summary: string | null;
   instagram_url: string | null;
   image_urls: string[];
+  thumbnail_url: string | null;
+  video_url: string | null;
+  media_urls: string[];
+  media_type: string | null;
   reporter_name: string | null;
   reporter_contact: string | null;
   is_anonymous: boolean;
@@ -125,6 +133,14 @@ function validate(body: SubmissionRequest) {
   const imageUrls = Array.isArray(body.imageUrls)
     ? body.imageUrls.filter((url): url is string => typeof url === 'string' && isUrl(url)).slice(0, 5)
     : [];
+  const thumbnailUrl = isUrl(normalizeOptional(body.thumbnailUrl)) ? normalizeOptional(body.thumbnailUrl) : null;
+  const videoUrl = isUrl(normalizeOptional(body.videoUrl)) ? normalizeOptional(body.videoUrl) : null;
+  const mediaUrls = Array.isArray(body.mediaUrls)
+    ? body.mediaUrls.filter((url): url is string => typeof url === 'string' && isUrl(url)).slice(0, 20)
+    : [];
+  const mediaType = typeof body.mediaType === 'string' && ['IMAGE', 'VIDEO'].includes(body.mediaType)
+    ? body.mediaType
+    : null;
 
   if (!productName || productName.length < 2) {
     return { error: '제품명은 2자 이상 필수입니다.' };
@@ -160,11 +176,15 @@ function validate(body: SubmissionRequest) {
       purchase_url: purchaseUrl,
       discount_info: discountInfo,
       summary,
-      instagram_url: instagramUrl,
-      image_urls: imageUrls,
-      reporter_name: reporterName,
-      reporter_contact: reporterContact,
-      is_anonymous: body.isAnonymous ?? true,
+    instagram_url: instagramUrl,
+    image_urls: imageUrls,
+    thumbnail_url: thumbnailUrl,
+    video_url: videoUrl,
+    media_urls: mediaUrls,
+    media_type: mediaType,
+    reporter_name: reporterName,
+    reporter_contact: reporterContact,
+    is_anonymous: body.isAnonymous ?? true,
     },
   };
 }
@@ -185,6 +205,10 @@ async function upsertApprovedGroupBuy(
     purchase_url: row.purchase_url,
     discount_info: row.discount_info,
     summary: row.summary,
+    thumbnail_url: row.thumbnail_url,
+    video_url: row.video_url,
+    media_urls: row.media_urls,
+    media_type: row.media_type,
     confidence: 0.9,
     status: 'APPROVED',
     is_all_day: false,
@@ -276,8 +300,18 @@ async function handleSubmission(body: SubmissionRequest) {
 
     const mergedImageUrls = Array.from(new Set([...(existing.image_urls ?? []), ...row.image_urls])).slice(0, 5);
     const updatePayload = {
-      ...row,
+      product_name: row.product_name,
+      brand_name: row.brand_name,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      purchase_url: row.purchase_url,
+      discount_info: row.discount_info,
+      summary: row.summary,
+      instagram_url: row.instagram_url,
       image_urls: mergedImageUrls,
+      reporter_name: row.reporter_name,
+      reporter_contact: row.reporter_contact,
+      is_anonymous: row.is_anonymous,
       status: 'PENDING',
       admin_memo: null,
       reviewed_at: null,
@@ -304,7 +338,18 @@ async function handleSubmission(body: SubmissionRequest) {
     .from('gonggu_submissions')
     .insert({
       id: crypto.randomUUID(),
-      ...row,
+      product_name: row.product_name,
+      brand_name: row.brand_name,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      purchase_url: row.purchase_url,
+      discount_info: row.discount_info,
+      summary: row.summary,
+      instagram_url: row.instagram_url,
+      image_urls: row.image_urls,
+      reporter_name: row.reporter_name,
+      reporter_contact: row.reporter_contact,
+      is_anonymous: row.is_anonymous,
       content_hash: contentHash,
       status: 'PENDING',
       updated_at: new Date().toISOString(),

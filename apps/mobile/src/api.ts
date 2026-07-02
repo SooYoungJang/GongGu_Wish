@@ -85,6 +85,11 @@ export const fallbackGroupBuys: GroupBuy[] = [
     discountInfo: '20% 할인',
     summary: '인플루언서 게시물에서 감지된 공동구매 후보입니다.',
     confidence: 0.82,
+    startDate: null,
+    thumbnailUrl: null,
+    videoUrl: null,
+    mediaUrls: [],
+    mediaType: null,
     rawPost: {
       postUrl: 'https://www.instagram.com/',
       influencer: {
@@ -101,6 +106,11 @@ export const fallbackGroupBuys: GroupBuy[] = [
     discountInfo: '35% 할인',
     summary: '신생아부터 돌까지 필요한 유아용품을 한 번에.',
     confidence: 0.91,
+    startDate: null,
+    thumbnailUrl: null,
+    videoUrl: null,
+    mediaUrls: [],
+    mediaType: null,
     rawPost: {
       postUrl: 'https://www.instagram.com/',
       influencer: {
@@ -117,6 +127,11 @@ export const fallbackGroupBuys: GroupBuy[] = [
     discountInfo: '25% 할인',
     summary: '홈트레이닝에 필요한 모든 도구를 세트로.',
     confidence: 0.78,
+    startDate: null,
+    thumbnailUrl: null,
+    videoUrl: null,
+    mediaUrls: [],
+    mediaType: null,
     rawPost: {
       postUrl: 'https://www.instagram.com/',
       influencer: {
@@ -133,6 +148,11 @@ export const fallbackGroupBuys: GroupBuy[] = [
     discountInfo: '15% 할인',
     summary: '반려동물, 아이 모니터링에 최적화된 스마트 카메라.',
     confidence: 0.85,
+    startDate: null,
+    thumbnailUrl: null,
+    videoUrl: null,
+    mediaUrls: [],
+    mediaType: null,
     rawPost: {
       postUrl: 'https://www.instagram.com/',
       influencer: {
@@ -149,6 +169,11 @@ export const fallbackGroupBuys: GroupBuy[] = [
     discountInfo: '30% 할인',
     summary: '민감성 피부를 위한 저자극 클렌징 라인.',
     confidence: 0.88,
+    startDate: null,
+    thumbnailUrl: null,
+    videoUrl: null,
+    mediaUrls: [],
+    mediaType: null,
     rawPost: {
       postUrl: 'https://www.instagram.com/',
       influencer: {
@@ -175,11 +200,16 @@ export async function fetchGroupBuys(): Promise<GroupBuy[]> {
       id: item.id,
       productName: item.productName ?? null,
       brandName: item.brandName ?? null,
+      startDate: item.startDate ?? null,
       endDate: item.endDate ?? null,
       purchaseUrl: item.purchaseUrl ?? null,
       discountInfo: item.discountInfo ?? null,
       summary: item.summary ?? null,
       confidence: item.confidence ?? 0,
+      thumbnailUrl: item.thumbnailUrl ?? null,
+      videoUrl: item.videoUrl ?? null,
+      mediaUrls: item.mediaUrls ?? [],
+      mediaType: item.mediaType ?? null,
       rawPost: {
         postUrl: item.rawPostId?.postUrl ?? '',
         influencer: {
@@ -247,11 +277,16 @@ export async function fetchGroupBuysByInfluencer(instagramUsername: string): Pro
     id: item.id,
     productName: item.productName ?? null,
     brandName: item.brandName ?? null,
+    startDate: item.startDate ?? null,
     endDate: item.endDate ?? null,
     purchaseUrl: item.purchaseUrl ?? null,
     discountInfo: item.discountInfo ?? null,
     summary: item.summary ?? null,
     confidence: item.confidence ?? 0,
+    thumbnailUrl: item.thumbnailUrl ?? null,
+    videoUrl: item.videoUrl ?? null,
+    mediaUrls: item.mediaUrls ?? [],
+    mediaType: item.mediaType ?? null,
     rawPost: {
       postUrl: item.rawPostId?.postUrl ?? '',
       influencer: {

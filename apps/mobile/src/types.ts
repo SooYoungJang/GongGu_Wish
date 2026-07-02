@@ -25,11 +25,16 @@ export type GroupBuy = {
   id: string;
   productName: string | null;
   brandName: string | null;
+  startDate: string | null;
   endDate: string | null;
   purchaseUrl: string | null;
   discountInfo: string | null;
   summary: string | null;
   confidence: number;
+  thumbnailUrl: string | null;
+  videoUrl: string | null;
+  mediaUrls: string[];
+  mediaType: 'IMAGE' | 'VIDEO' | null;
   rawPost: {
     postUrl: string;
     influencer: {
@@ -71,6 +76,14 @@ export type InfluencerForm = {
 export interface InstagramMediaInfo {
   /** URL of the post's primary image */
   imageUrl: string | null;
+  /** Best image for thumbnail (first carousel image or cover) */
+  thumbnailUrl: string | null;
+  /** Primary video URL if the post is a video/reel */
+  videoUrl: string | null;
+  /** All media URLs from carousel (images + videos) in post order */
+  mediaUrls: string[];
+  /** Dominant media type: IMAGE or VIDEO */
+  mediaType: 'IMAGE' | 'VIDEO' | null;
   /** Post caption / summary text */
   caption: string | null;
   /** Number of likes */
