@@ -16,6 +16,10 @@ vi.mock('@supabase/supabase-js', () => ({
       })),
       signInWithPassword: vi.fn(),
       signUp: vi.fn(),
+      resend: vi.fn(),
+      verifyOtp: vi.fn(),
+      exchangeCodeForSession: vi.fn(),
+      signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
     },
   }),
@@ -39,6 +43,10 @@ vi.mock('../lib/supabase', () => ({
       })),
       signInWithPassword: vi.fn(),
       signUp: vi.fn(),
+      resend: vi.fn(),
+      verifyOtp: vi.fn(),
+      exchangeCodeForSession: vi.fn(),
+      signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
     },
   })),
@@ -50,6 +58,12 @@ vi.mock('@react-navigation/native', () => ({
     navigate: vi.fn(),
     goBack: vi.fn(),
   }),
+}));
+
+// Mock SafeAreaView as a plain View
+vi.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
 function renderMyPageScreen() {

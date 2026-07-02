@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 
 import { SText } from '../components/ui/SText';
@@ -91,6 +92,11 @@ export function HomeScreenContent({
 }: HomeScreenContentProps) {
   const { colors, isDark, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  });
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
@@ -112,8 +118,16 @@ export function HomeScreenContent({
             {isFetching && groupBuys.length === 0 ? <ActivityIndicator color={colors.primary} /> : null}
             <MonthlyBannerCarousel groupBuys={groupBuys} feedPosts={feedPosts} onPressDeal={onPressDeal} />
             <CategoryRow onPressCategory={onPressCategory} />
-            <WeeklyCalendarStrip onPressCalendar={onPressCalendar} />
-            <ThisWeekDeals groupBuys={groupBuys} onPressDeal={onPressDeal} />
+            <WeeklyCalendarStrip
+              onPressCalendar={onPressCalendar}
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+            />
+            <ThisWeekDeals
+              groupBuys={groupBuys}
+              onPressDeal={onPressDeal}
+              selectedDate={selectedDate}
+            />
             <ExpiringSoonSection groupBuys={groupBuys} onPressDeal={onPressDeal} />
             <SubmitPrompt onPressSubmit={onPressSubmit} />
           </View>
@@ -146,6 +160,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const groupBuys = data?.length ? data : fallbackGroupBuys;
   const influencers = influencersData?.length ? influencersData : getFallbackInfluencers(groupBuys);
   const feedPosts = feedsData?.items ?? [];
+
+  useFocusEffect(
+    useCallback(() => {
+      void refetch();
+      void refetchFeeds();
+    }, [refetch, refetchFeeds]),
+  );
 
   return (
     <HomeScreenContent
@@ -181,19 +202,15 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     safeArea: { flex: 1, backgroundColor: colors.bg },
     container: { flex: 1, backgroundColor: colors.bg },
     content: {
-      backgroundColor: colors.surface,
-      borderColor: colors.borderLight,
-      borderRadius: borderRadius['3xl'],
-      borderWidth: StyleSheet.hairlineWidth,
+      backgroundColor: 'transparent',
       paddingBottom: spacing['2xl'],
       paddingHorizontal: spacing.lg,
-      paddingTop: spacing['2xl'],
-      ...shadows.md,
+      paddingTop: spacing.xl,
     },
     listContent: {
       paddingBottom: 132,
-      paddingHorizontal: spacing.sm,
-      paddingTop: spacing.xs,
+      paddingHorizontal: 0,
+      paddingTop: 0,
     },
     notice: { backgroundColor: colors.warningBg, borderRadius: borderRadius.md, marginBottom: spacing.md, padding: spacing.md },
     noticeText: { color: colors.noticeText, fontSize: 12, textAlign: 'center' },

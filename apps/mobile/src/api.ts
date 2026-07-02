@@ -5,7 +5,7 @@
  * - Public data endpoints → PostgREST direct (GET /rest/v1/...)
  * - Edge Function endpoints → POST /functions/v1/...
  * - Admin CRUD → Edge Function (service_role)
- * - postPublicJson → NestJS (kept for public insert without auth)
+ * - postPublicJson('/submissions') → Supabase Edge Function
  *
  * All existing function signatures are preserved for consumer compatibility.
  */
@@ -168,7 +168,7 @@ export const fallbackGroupBuys: GroupBuy[] = [
  */
 export async function fetchGroupBuys(): Promise<GroupBuy[]> {
   try {
-    const { data } = await postgrestGet<any[]>('group_buys?select=*,raw_post_id(*,influencer_id(*))');
+    const { data } = await postgrestGet<any[]>('group_buys?select=*,raw_post_id(*,influencer_id(*))&order=created_at.desc');
     // PostgREST returns raw_post_id and influencer_id as nested objects.
     // Transform to match the app's GroupBuy type which expects rawPost.influencer.instagramUsername.
     return (data || []).map((item) => ({
@@ -321,10 +321,35 @@ export async function postAdminJson<T>(path: string, payload?: unknown) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LEGACY: NestJS (kept for public submission — no anon insert via PostgREST)
+// PUBLIC WRITE — Edge Function for submissions, NestJS fallback for legacy paths
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const PUBLIC_SUBMISSION_TIMEOUT_MS = 15_000;
+
+async function postPublicSubmission<T>(body: unknown): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), PUBLIC_SUBMISSION_TIMEOUT_MS);
+
+  try {
+    return await callEdgeFunction<T>('public-submission', body, { signal: controller.signal });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiError(408, '요청 시간이 초과됐습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
+    }
+    throw new ApiError(0, '네트워크 연결을 확인해주세요.');
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function postPublicJson<T>(path: string, body: unknown) {
+  if (path === '/submissions') {
+    return postPublicSubmission<T>(body);
+  }
+
   let response: Response;
 
   try {

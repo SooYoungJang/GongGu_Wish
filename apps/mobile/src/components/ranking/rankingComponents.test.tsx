@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FollowButton } from './FollowButton';
 import { SellerRankingList } from './SellerRankingList';
 import { SellerRankingRow } from './SellerRankingRow';
+import { ThemeProvider } from '../../context/ThemeContext';
 import type { SellerRanking } from '../../features/ranking/types';
 import { getRankingTrend } from '../../features/ranking/types';
 
@@ -28,10 +29,15 @@ vi.mock('react-native', () => {
       ReactMock.createElement('Pressable', { onPress, style, accessibilityLabel, accessibilityRole, accessibilityState }, children),
     StyleSheet: { create: (styles: unknown) => styles },
     useWindowDimensions: () => ({ width: 375, height: 812, scale: 2, fontScale: 1 }),
+    useColorScheme: () => 'light',
     Text: passthrough('Text'),
     View: passthrough('View'),
   };
 });
+
+function withTheme(ui: React.ReactElement) {
+  return <ThemeProvider>{ui}</ThemeProvider>;
+}
 
 function sampleRanking(overrides: Partial<SellerRanking> = {}): SellerRanking {
   return {
@@ -72,7 +78,7 @@ describe('ranking components', () => {
 
     act(() => {
       renderer = TestRenderer.create(
-        <FollowButton isFollowing={following} sellerName="샘플마켓" onFollow={onFollow} />,
+        withTheme(<FollowButton isFollowing={following} sellerName="샘플마켓" onFollow={onFollow} />),
       );
     });
 
@@ -81,7 +87,9 @@ describe('ranking components', () => {
     const pressable = renderer!.root.findByType('Pressable' as unknown as React.ElementType);
     act(() => pressable.props.onPress({ stopPropagation: vi.fn() }));
     act(() => {
-      renderer!.update(<FollowButton isFollowing={following} sellerName="샘플마켓" onFollow={onFollow} />);
+      renderer!.update(
+        withTheme(<FollowButton isFollowing={following} sellerName="샘플마켓" onFollow={onFollow} />),
+      );
     });
 
     expect(onFollow).toHaveBeenCalledTimes(1);
@@ -95,7 +103,7 @@ describe('ranking components', () => {
 
     act(() => {
       renderer = TestRenderer.create(
-        <SellerRankingRow item={item} onPress={vi.fn()} onToggleFollow={onToggleFollow} />,
+        withTheme(<SellerRankingRow item={item} onPress={vi.fn()} onToggleFollow={onToggleFollow} />),
       );
     });
 
@@ -115,7 +123,7 @@ describe('ranking components', () => {
 
     act(() => {
       renderer = TestRenderer.create(
-        <SellerRankingList state={{ status: 'ready', data: rankings }} bottomPadding={88} />,
+        withTheme(<SellerRankingList state={{ status: 'ready', data: rankings }} bottomPadding={88} />),
       );
     });
 
@@ -133,10 +141,12 @@ describe('ranking components', () => {
 
     act(() => {
       renderer = TestRenderer.create(
-        <SellerRankingList
-          state={{ status: 'empty', message: '아직 집계된 랭킹이 없어요', action: { label: '전체 보기', onPress } }}
-          bottomPadding={0}
-        />,
+        withTheme(
+          <SellerRankingList
+            state={{ status: 'empty', message: '아직 집계된 랭킹이 없어요', action: { label: '전체 보기', onPress } }}
+            bottomPadding={0}
+          />,
+        ),
       );
     });
 

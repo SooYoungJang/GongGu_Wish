@@ -3,7 +3,9 @@ import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RankingCategoryChips, RankingTabs, SellerRankingList } from '../components/ranking';
+import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { SText } from '../components/ui/SText';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { borderRadius, spacing } from '../design/tokens';
 import { MOCK_RANKINGS } from '../features/ranking/rankingFixtures';
 import {
@@ -94,22 +96,19 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
       <View style={s.header}>
-        <View style={s.titleRow}>
-          <View>
-            <SText variant="eyebrow">스토어 랭킹</SText>
-            <SText variant="title" style={{ fontWeight: '900', letterSpacing: -0.6 }}>
-              쇼핑몰 랭킹
-            </SText>
-          </View>
-          <View style={s.headerActions}>
-            <Pressable accessibilityLabel="랭킹 검색" accessibilityRole="button" style={s.iconButton} onPress={() => navigation.navigate('SearchScreen')}>
-              <SText variant="body" style={{ fontSize: 16, fontWeight: '900', color: colors.textPrimary }}>⌕</SText>
-            </Pressable>
-            <Pressable accessibilityLabel="랭킹 알림" accessibilityRole="button" style={s.iconButton} onPress={() => Alert.alert('준비 중', '알림 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}>
-              <SText variant="body" style={{ fontSize: 16, fontWeight: '900', color: colors.textPrimary }}>♡</SText>
-            </Pressable>
-          </View>
-        </View>
+        <ScreenHeader
+          title="쇼핑몰 랭킹"
+          right={
+            <View style={s.headerActions}>
+              <Pressable accessibilityLabel="랭킹 검색" accessibilityRole="button" style={s.iconButton} onPress={() => navigation.navigate('SearchScreen')}>
+                <SearchGlyph color={colors.textPrimary} size={18} />
+              </Pressable>
+              <Pressable accessibilityLabel="랭킹 알림" accessibilityRole="button" style={s.iconButton} onPress={() => Alert.alert('준비 중', '알림 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}>
+                <SText variant="body" style={{ fontSize: 16, fontWeight: '900', color: colors.textPrimary }}>♡</SText>
+              </Pressable>
+            </View>
+          }
+        />
 
         <RankingTabs
           value={activeTab}
@@ -172,7 +171,7 @@ function makeStyles(colors: ColorPalette) {
       backgroundColor: colors.bg,
       gap: spacing.md,
       paddingHorizontal: spacing.lg,
-      paddingTop: spacing.sm,
+      paddingTop: spacing.xl,
       paddingBottom: spacing.md,
     },
     headerActions: {
@@ -215,11 +214,6 @@ function makeStyles(colors: ColorPalette) {
     selectedPeriodChip: {
       backgroundColor: colors.primaryBg,
       borderColor: colors.primaryLight,
-    },
-    titleRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
     },
   });
 }

@@ -3,6 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CalendarScreen } from '../CalendarScreen';
+import { ThemeProvider } from '../../context/ThemeContext';
 import type { GroupBuy } from '../../types';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ vi.mock('react-native', () => {
     StyleSheet: { create: (styles: unknown) => styles },
     Text: ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement('Text', props, children),
     View: ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement('View', props, children),
+    useColorScheme: () => 'light',
     useWindowDimensions: () => ({ width: 390, height: 844 }),
   };
 });
@@ -115,10 +117,12 @@ function renderCalendar() {
   let renderer: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
-      <CalendarScreen
-        navigation={{ navigate: vi.fn(), goBack: vi.fn() } as any}
-        route={{ params: {}, key: 'CalendarScreen', name: 'CalendarScreen' } as any}
-      />,
+      <ThemeProvider>
+        <CalendarScreen
+          navigation={{ navigate: vi.fn(), goBack: vi.fn() } as any}
+          route={{ params: {}, key: 'CalendarScreen', name: 'CalendarScreen' } as any}
+        />
+      </ThemeProvider>,
     );
   });
   return renderer!;

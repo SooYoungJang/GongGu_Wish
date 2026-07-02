@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SUPABASE_URL = 'https://iosdoheblabfimkjnvfj.supabase.co';
 
@@ -15,6 +16,8 @@ export function configureSupabase(anonKey: string): SupabaseClient {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: false,
+        flowType: 'pkce',
+        storage: AsyncStorage,
       },
     });
   }

@@ -21,16 +21,26 @@ vi.mock('react-native', () => {
     TextInput: passthrough('TextInput'),
     View: passthrough('View'),
     Platform: { OS: 'ios', select: (obj: any) => obj.ios ?? obj.default },
+    useColorScheme: () => 'light',
   };
 });
 
+import { ThemeProvider } from '../../context/ThemeContext';
 import { SText } from './SText';
+
+function STextWithTheme(props: React.ComponentProps<typeof SText>) {
+  return (
+    <ThemeProvider>
+      <SText {...props} />
+    </ThemeProvider>
+  );
+}
 
 describe('SText', () => {
   it('renders text content correctly', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="body">Hello World</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="body">Hello World</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -44,7 +54,7 @@ describe('SText', () => {
   it('applies eyebrow typography for variant="eyebrow"', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="eyebrow">Eyebrow</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="eyebrow">Eyebrow</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -60,7 +70,7 @@ describe('SText', () => {
   it('applies title typography for variant="title"', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="title">Title</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="title">Title</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -76,7 +86,7 @@ describe('SText', () => {
   it('applies cardTitle typography for variant="cardTitle"', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="cardTitle">Card Title</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="cardTitle">Card Title</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -92,7 +102,7 @@ describe('SText', () => {
   it('applies body typography for variant="body"', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="body">Body text</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="body">Body text</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -108,7 +118,7 @@ describe('SText', () => {
   it('applies caption typography for variant="caption"', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="caption">Caption</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="caption">Caption</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -124,7 +134,7 @@ describe('SText', () => {
   it('applies label typography for variant="label"', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="label">Label</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="label">Label</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -140,7 +150,7 @@ describe('SText', () => {
   it('applies badge typography for variant="badge"', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="badge">Badge</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="badge">Badge</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -157,9 +167,9 @@ describe('SText', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <SText variant="body" style={{ color: '#FF0000', fontSize: 20 }}>
+        <STextWithTheme variant="body" style={{ color: '#FF0000', fontSize: 20 }}>
           Custom styled
-        </SText>,
+        </STextWithTheme>,
       );
     });
     const json = renderer!.toJSON();
@@ -179,9 +189,9 @@ describe('SText', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <SText variant="body" numberOfLines={2}>
+        <STextWithTheme variant="body" numberOfLines={2}>
           Truncated
-        </SText>,
+        </STextWithTheme>,
       );
     });
     const json = renderer!.toJSON();
@@ -194,7 +204,7 @@ describe('SText', () => {
   it('applies subtitle typography for variant="subtitle"', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="subtitle">Subtitle</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="subtitle">Subtitle</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -210,7 +220,7 @@ describe('SText', () => {
   it('applies cardBrand typography for variant="cardBrand"', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="cardBrand">Brand</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="cardBrand">Brand</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -226,7 +236,7 @@ describe('SText', () => {
   it('applies cardSummary typography for variant="cardSummary"', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<SText variant="cardSummary">Summary</SText>);
+      renderer = TestRenderer.create(<STextWithTheme variant="cardSummary">Summary</STextWithTheme>);
     });
     const json = renderer!.toJSON();
     expect(json).not.toBeNull();
@@ -244,7 +254,7 @@ describe('SText', () => {
     for (const v of variants) {
       let renderer: TestRenderer.ReactTestRenderer;
       act(() => {
-        renderer = TestRenderer.create(<SText variant={v}>{v}</SText>);
+        renderer = TestRenderer.create(<STextWithTheme variant={v}>{v}</STextWithTheme>);
       });
       const json = renderer!.toJSON();
       expect(json).not.toBeNull();

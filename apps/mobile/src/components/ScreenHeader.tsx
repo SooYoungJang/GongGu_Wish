@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { SText } from './ui/SText';
-import { spacing } from '../design/tokens';
+import { borderRadius, spacing } from '../design/tokens';
 import { useTheme } from '../context/ThemeContext';
 import type { ColorPalette } from '../context/ThemeContext';
 
 type ScreenHeaderProps = {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
@@ -15,15 +15,15 @@ type ScreenHeaderProps = {
 };
 
 export function ScreenHeader({ eyebrow, title, subtitle, right, children }: ScreenHeaderProps) {
-  const { colors } = useTheme();
-  const s = useMemo(() => makeStyles(colors), [colors]);
+  const { colors, shadows } = useTheme();
+  const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
 
   return (
     <View style={s.header}>
       <View style={s.topRow}>
         <View style={s.titleBlock}>
-          <SText variant="eyebrow">{eyebrow}</SText>
-          <SText variant="title">{title}</SText>
+          {eyebrow ? <SText variant="eyebrow">{eyebrow}</SText> : null}
+          <SText variant="cardTitle" style={s.title}>{title}</SText>
         </View>
         {right ? <View style={s.right}>{right}</View> : null}
       </View>
@@ -33,24 +33,32 @@ export function ScreenHeader({ eyebrow, title, subtitle, right, children }: Scre
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
   return StyleSheet.create({
     header: {
-      marginBottom: spacing['2xl'],
+      marginBottom: spacing.lg,
     },
     topRow: {
-      alignItems: 'flex-start',
+      alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'space-between',
     },
     titleBlock: {
       flex: 1,
     },
+    title: {
+      fontSize: 20,
+      fontWeight: '800',
+      letterSpacing: -0.3,
+    },
     right: {
+      flexDirection: 'row',
+      gap: spacing.sm,
       marginLeft: spacing.md,
     },
     subtitle: {
       lineHeight: 22,
+      marginTop: spacing.xs,
     },
   });
 }

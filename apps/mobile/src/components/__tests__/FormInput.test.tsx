@@ -3,6 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 
 import { FormInput } from '../FormInput';
+import { ThemeProvider } from '../../context/ThemeContext';
 
 function flattenText(node: any): string {
   if (!node) return '';
@@ -23,12 +24,16 @@ function renderFormInput(props: Record<string, any> = {}) {
   let renderer: ReturnType<typeof TestRenderer.create>;
   act(function() {
     renderer = TestRenderer.create(
-      React.createElement(FormInput, {
-        label: '테스트 필드',
-        value: '',
-        onChangeText: () => {},
-        ...props,
-      }),
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(FormInput, {
+          label: '테스트 필드',
+          value: '',
+          onChangeText: () => {},
+          ...props,
+        }),
+      ),
     );
   });
   return renderer!;

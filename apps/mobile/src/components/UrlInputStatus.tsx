@@ -74,7 +74,6 @@ function LoadingDots({ colors }: { colors: ColorPalette }) {
     return () => {
       loop.stop();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reducedMotion]);
 
   return (

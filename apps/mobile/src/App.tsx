@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import type { MainTabParamList, RootStackParamList } from './types';
@@ -29,7 +30,9 @@ import { MyPageScreen } from './screens/MyPageScreen';
 import { StoreScreen } from './screens/StoreScreen';
 import { SubmitScreen } from './screens/SubmitScreen';
 import { SearchScreen } from './screens/SearchScreen';
+import { ScreenHeader } from './components/ScreenHeader';
 import { borderRadius, spacing } from './design/tokens';
+import { CrownGlyph } from './components/ui/LineGlyphs';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 
@@ -45,10 +48,14 @@ const TAB_BAR_HEIGHT = 72;
 function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: string }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.placeholderScreen, { backgroundColor: colors.bg }]}>
-      <Text style={[styles.placeholderTitle, { color: colors.textPrimary }]}>{title}</Text>
-      <Text style={[styles.placeholderSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
-    </View>
+    <SafeAreaView edges={['top', 'bottom']} style={[styles.placeholderScreen, { backgroundColor: colors.bg }]}>
+      <View style={styles.placeholderHeader}>
+        <ScreenHeader title={title} />
+      </View>
+      <View style={styles.placeholderBody}>
+        <Text style={[styles.placeholderSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -56,18 +63,18 @@ function CommunityScreen() {
   return <PlaceholderScreen title="커뮤니티" subtitle="공구 제보와 후기를 모아볼 수 있는 공간입니다." />;
 }
 
-function tabIcon(routeName: keyof MainTabParamList) {
+function tabIcon(routeName: keyof MainTabParamList, color: string) {
   switch (routeName) {
     case 'Home':
-      return '⌂';
+      return <Text style={[styles.tabIcon, { color }]}>⌂</Text>;
     case 'Search':
-      return '⌕';
+      return <CrownGlyph color={color} size={18} />;
     case 'Submit':
-      return '+';
+      return <Text style={[styles.tabIcon, { color }]}>+</Text>;
     case 'Community':
-      return '◌';
+      return <Text style={[styles.tabIcon, { color }]}>◌</Text>;
     case 'MyPage':
-      return '☻';
+      return <Text style={[styles.tabIcon, { color }]}>☻</Text>;
   }
 }
 
@@ -82,7 +89,7 @@ function tabLabel(routeName: keyof MainTabParamList) {
     case 'Community':
       return '커뮤니티';
     case 'MyPage':
-      return 'MY';
+      return '마이';
   }
 }
 
@@ -114,16 +121,11 @@ function MainTabs() {
           route.name === 'Submit' && { marginHorizontal: submitTabMarginHorizontal },
         ],
         tabBarAccessibilityLabel: `${tabLabel(route.name)} 탭`,
-        tabBarIcon: ({ focused }) => (
-          <Text
-            style={[
-              styles.tabIcon,
-              { color: focused ? colors.primary : colors.textSecondary },
-              route.name === 'Submit' && { color: colors.textInverse },
-            ]}
-          >
-            {tabIcon(route.name)}
-          </Text>
+        tabBarIcon: ({ focused }) => tabIcon(
+          route.name,
+          route.name === 'Submit'
+            ? colors.textInverse
+            : (focused ? colors.primary : colors.textSecondary),
         ),
         tabBarLabel: tabLabel(route.name),
         tabBarActiveTintColor: colors.primary,
@@ -240,15 +242,18 @@ export default function App() {
 
 const styles = StyleSheet.create({
   placeholderScreen: {
+    flex: 1,
+    backgroundColor: undefined,
+  },
+  placeholderHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+  },
+  placeholderBody: {
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    padding: spacing['2xl'],
-  },
-  placeholderTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    marginBottom: spacing.sm,
+    paddingHorizontal: spacing['2xl'],
   },
   placeholderSubtitle: {
     fontSize: 14,

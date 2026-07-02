@@ -3,6 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AlertCard } from './AlertCard';
+import { ThemeProvider } from '../context/ThemeContext';
 import type { GroupBuy } from '../types';
 
 vi.mock('react-native', () => {
@@ -13,6 +14,7 @@ vi.mock('react-native', () => {
     StyleSheet: { create: (styles: unknown) => styles },
     Text: ({ children, ...props }: { children: React.ReactNode }) => ReactMock.createElement('Text', props, children),
     View: ({ children, ...props }: { children: React.ReactNode }) => ReactMock.createElement('View', props, children),
+    useColorScheme: () => 'light',
   };
 });
 
@@ -45,7 +47,11 @@ describe('AlertCard', () => {
   it('renders influencer, product, deadline, confidence, and time signal at a glance', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<AlertCard item={sampleGroupBuy} onPress={vi.fn()} />);
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <AlertCard item={sampleGroupBuy} onPress={vi.fn()} />
+        </ThemeProvider>,
+      );
     });
 
     const text = flattenText(renderer!.toJSON());
@@ -68,7 +74,11 @@ describe('AlertCard', () => {
     const onPress = vi.fn();
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
-      renderer = TestRenderer.create(<AlertCard item={sampleGroupBuy} onPress={onPress} />);
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <AlertCard item={sampleGroupBuy} onPress={onPress} />
+        </ThemeProvider>,
+      );
     });
 
     const pressable = renderer!.root.findByType('Pressable' as unknown as React.ElementType);

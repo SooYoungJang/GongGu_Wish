@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SText } from '../ui/SText';
+import { ScreenHeader } from '../ScreenHeader';
+import { SearchGlyph } from '../ui/LineGlyphs';
 
 import { borderRadius, spacing } from '../../design/tokens';
 import { useTheme } from '../../context/ThemeContext';
@@ -17,109 +19,110 @@ export function HomeHeader({ onOpenBookmarks, onOpenNotifications, onOpenSearch 
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
 
   return (
-    <View style={s.header}>
-      <View>
-        <SText variant="title" style={s.title}>공구캘린더</SText>
-        <SText variant="eyebrow" style={s.kicker}>GongGu Alert</SText>
-      </View>
-      <View style={s.headerActions}>
-        <Pressable
-          accessibilityLabel="검색"
-          accessibilityRole="button"
-          onPress={onOpenSearch}
-          style={s.searchButton}
-        >
-          <SText variant="cardTitle" style={s.searchIcon}>⌕</SText>
-        </Pressable>
-        <Pressable
-          accessibilityLabel="북마크 열기"
-          accessibilityRole="button"
-          onPress={onOpenBookmarks}
-          style={s.bookmarkButton}
-        >
-          <SText variant="cardTitle" style={s.bookmarkIcon}>⌑</SText>
-        </Pressable>
-        <Pressable
-          accessibilityLabel="알림 열기"
-          accessibilityRole="button"
-          onPress={onOpenNotifications}
-          style={s.bellButton}
-        >
-          <SText variant="cardTitle" style={s.bellIcon}>🔔</SText>
-          <View style={s.notificationDot} />
-        </Pressable>
-      </View>
-    </View>
+    <ScreenHeader
+      title="공구위시"
+      right={
+        <View style={s.actions}>
+          <Pressable
+            accessibilityLabel="검색"
+            accessibilityRole="button"
+            onPress={onOpenSearch}
+            style={s.iconButton}
+          >
+            <SearchGlyph color={colors.textPrimary} size={18} />
+          </Pressable>
+          <Pressable
+            accessibilityLabel="북마크 열기"
+            accessibilityRole="button"
+            onPress={onOpenBookmarks}
+            style={s.iconButton}
+          >
+            <SText variant="cardTitle" style={s.bookmarkIcon}>⌑</SText>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="알림 열기"
+            accessibilityRole="button"
+            onPress={onOpenNotifications}
+            style={[s.iconButton, s.bellButton]}
+          >
+            <View style={s.bellIcon}>
+              <View style={s.bellCap} />
+              <View style={s.bellBody} />
+              <View style={s.bellClapper} />
+            </View>
+            <View style={s.notificationDot} />
+          </Pressable>
+        </View>
+      }
+    />
   );
 }
 
 function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
   return StyleSheet.create({
-    header: {
-      alignItems: 'flex-start',
+    actions: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: spacing['2xl'],
+      gap: spacing.sm,
     },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 34,
-      fontWeight: '900',
-      lineHeight: 40,
-    },
-    kicker: {
-      color: colors.primary,
-      fontSize: 18,
-      fontWeight: '800',
-      lineHeight: 24,
-      marginTop: spacing.xs,
-    },
-    headerActions: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs, paddingTop: spacing.xs },
-    searchButton: {
+    iconButton: {
       alignItems: 'center',
-      backgroundColor: colors.primaryBg,
-      borderColor: colors.primary,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
       borderRadius: borderRadius.full,
       borderWidth: 1,
+      height: 38,
       justifyContent: 'center',
-      minHeight: 44,
-      minWidth: 44,
-      ...shadows.sm,
+      width: 38,
     },
-    searchIcon: { color: colors.primary, fontSize: 20, fontWeight: '800' },
-    bookmarkButton: {
-      alignItems: 'center',
-      backgroundColor: colors.bg,
-      borderColor: colors.borderLight,
-      borderRadius: borderRadius.full,
-      borderWidth: 1,
-      justifyContent: 'center',
-      minHeight: 44,
-      minWidth: 44,
-      ...shadows.sm,
-    },
-    bookmarkIcon: { color: colors.textSecondary, fontSize: 20, fontWeight: '800' },
+    bookmarkIcon: { color: colors.textSecondary, fontSize: 18, fontWeight: '800' },
     bellButton: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: 52,
-      minWidth: 52,
       position: 'relative',
     },
     bellIcon: {
-      fontSize: 34,
-      lineHeight: 40,
+      alignItems: 'center',
+      height: 18,
+      justifyContent: 'center',
+      position: 'relative',
+      width: 18,
+    },
+    bellCap: {
+      backgroundColor: colors.textPrimary,
+      borderRadius: borderRadius.full,
+      height: 2,
+      position: 'absolute',
+      top: 1,
+      width: 4,
+    },
+    bellBody: {
+      borderColor: colors.textPrimary,
+      borderTopLeftRadius: 8,
+      borderTopRightRadius: 8,
+      borderWidth: 1.8,
+      borderBottomWidth: 2.2,
+      height: 11,
+      left: 2,
+      position: 'absolute',
+      top: 3,
+      width: 14,
+    },
+    bellClapper: {
+      backgroundColor: colors.textPrimary,
+      borderRadius: borderRadius.full,
+      bottom: 1,
+      height: 3,
+      position: 'absolute',
+      width: 3,
     },
     notificationDot: {
       backgroundColor: colors.primary,
       borderColor: colors.surface,
       borderRadius: borderRadius.full,
       borderWidth: 2,
-      height: 13,
+      height: 9,
       position: 'absolute',
-      right: 5,
-      top: 8,
-      width: 13,
+      right: 4,
+      top: 4,
+      width: 9,
     },
   });
 }

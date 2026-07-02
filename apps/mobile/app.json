@@ -11,6 +11,7 @@
     "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "backgroundColor": "#0f172a",
       "userInterfaceStyle": "automatic",
       "bundleIdentifier": "com.gonggu.wish",

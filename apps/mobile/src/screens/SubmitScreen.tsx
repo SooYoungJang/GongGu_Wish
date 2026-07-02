@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -11,10 +12,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSubmissionGuard } from '@gonggu/shared/hooks';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { postPublicJson, ApiError } from '../api';
 import { AppButton } from '../components/AppButton';
 import { FormInput } from '../components/FormInput';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { InstagramPreview } from '../components/InstagramPreview';
 import { SText } from '../components/ui/SText';
 import { UrlInputStatus } from '../components/UrlInputStatus';
@@ -22,6 +25,7 @@ import { useHikerApi } from '../hooks/useHikerApi';
 import { borderRadius, spacing } from '../design/tokens';
 import type { SubmitScreenProps } from '../types';
 import { isValidOptionalUrl, normalizeOptional } from '../utils';
+import { parseSubmissionCaption } from '../utils/captionParser';
 import { useTheme } from '../context/ThemeContext';
 import type { ColorPalette } from '../context/ThemeContext';
 
@@ -39,13 +43,16 @@ interface Feedback {
 export function SubmitScreen({ navigation }: SubmitScreenProps) {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const queryClient = useQueryClient();
 
   // Form state
   const [instagramUrl, setInstagramUrl] = useState('');
   const [productName, setProductName] = useState('');
   const [brandName, setBrandName] = useState('');
   const [purchaseUrl, setPurchaseUrl] = useState('');
+  const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [discountInfo, setDiscountInfo] = useState('');
 
   // HikerAPI — auto-fetches Instagram post info
   const { status: hikerStatus, data: hikerData, error: hikerError, retry } = useHikerApi(instagramUrl);
@@ -54,8 +61,61 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
   const { guard, reset } = useSubmissionGuard();
   const scrollRef = useRef<ScrollView>(null);
+  const parsedCaptionKeyRef = useRef('');
+
+  useEffect(() => {
+    if (hikerStatus !== 'success' || !hikerData?.caption) return;
+
+    const key = `${instagramUrl.trim()}::${hikerData.caption}`;
+    if (parsedCaptionKeyRef.current === key) return;
+    parsedCaptionKeyRef.current = key;
+
+    const parsed = parseSubmissionCaption(hikerData.caption, {
+      referenceDate: hikerData.postedAt ? new Date(hikerData.postedAt) : new Date(),
+      fallbackBrandName: hikerData.authorUsername ?? hikerData.authorName,
+    });
+
+    const shouldFillProductName = !productName.trim() && parsed.productName;
+    const shouldFillBrandName = !brandName.trim() && parsed.brandName;
+    const shouldFillStartDate = !startDate.trim() && parsed.startDate;
+    const shouldFillEndDate = !endDate.trim() && parsed.endDate;
+    const shouldFillPurchaseUrl = !purchaseUrl.trim() && parsed.purchaseUrl;
+    const shouldFillDiscountInfo = !discountInfo.trim() && parsed.discountInfo;
+
+    if (shouldFillProductName && parsed.productName) setProductName(parsed.productName);
+    if (shouldFillBrandName && parsed.brandName) setBrandName(parsed.brandName);
+    if (shouldFillStartDate && parsed.startDate) setStartDate(parsed.startDate);
+    if (shouldFillEndDate && parsed.endDate) setEndDate(parsed.endDate);
+    if (shouldFillPurchaseUrl && parsed.purchaseUrl) setPurchaseUrl(parsed.purchaseUrl);
+    if (shouldFillDiscountInfo && parsed.discountInfo) setDiscountInfo(parsed.discountInfo);
+
+    if (
+      shouldFillProductName ||
+      shouldFillBrandName ||
+      shouldFillStartDate ||
+      shouldFillEndDate ||
+      shouldFillPurchaseUrl ||
+      shouldFillDiscountInfo
+    ) {
+      setFeedback({ message: '캡션에서 공구 정보를 자동으로 채웠어요. 필요한 부분만 수정해 주세요.', kind: 'info' });
+    }
+  }, [
+    brandName,
+    discountInfo,
+    endDate,
+    hikerData?.authorName,
+    hikerData?.authorUsername,
+    hikerData?.caption,
+    hikerData?.postedAt,
+    hikerStatus,
+    instagramUrl,
+    productName,
+    purchaseUrl,
+    startDate,
+  ]);
 
   // ─── Validation ─────────────────────────────────────────────────────────
 
@@ -72,11 +132,20 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
     if (purchaseUrl.trim() && !isValidOptionalUrl(purchaseUrl)) {
       return '구매 링크는 http(s) URL 형식이어야 합니다.';
     }
+    if (startDate.trim()) {
+      const date = new Date(startDate.trim());
+      if (Number.isNaN(date.getTime())) {
+        return '시작일은 YYYY-MM-DD 형식으로 입력해주세요.';
+      }
+    }
     if (endDate.trim()) {
       const date = new Date(endDate.trim());
       if (Number.isNaN(date.getTime())) {
         return '마감일은 YYYY-MM-DD 형식으로 입력해주세요.';
       }
+    }
+    if (startDate.trim() && endDate.trim() && new Date(startDate.trim()) > new Date(endDate.trim())) {
+      return '시작일은 마감일보다 늦을 수 없습니다.';
     }
     return null;
   }
@@ -99,16 +168,19 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
       await postPublicJson('/submissions', {
         productName: productName.trim(),
         brandName: normalizeOptional(brandName),
+        startDate: normalizeOptional(startDate),
         endDate: normalizeOptional(endDate),
         purchaseUrl: normalizeOptional(purchaseUrl),
+        discountInfo: normalizeOptional(discountInfo),
         instagramUrl: instagramUrl.trim(),
         imageUrls: hikerData?.imageUrl ? [hikerData.imageUrl] : [],
         summary: hikerData?.caption ?? undefined,
         isAnonymous: true,
       });
-      setFeedback({ message: '제보가 접수되었습니다. 운영자 승인 후 캘린더에 반영됩니다.', kind: 'success' });
-      // Brief pause so the user can read the feedback, then navigate
-      setTimeout(() => navigation.navigate('Home'), 900);
+      void queryClient.invalidateQueries({ queryKey: ['group-buys'] });
+      void queryClient.invalidateQueries({ queryKey: ['feeds'] });
+      setFeedback({ message: '제보한 공구가 홈에 바로 등록되었습니다.', kind: 'success' });
+      setIsSuccessModalVisible(true);
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.isRateLimit) {
@@ -143,6 +215,36 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
 
   return (
     <SafeAreaView edges={['top']} style={s.safeArea}>
+      <Modal
+        animationType="fade"
+        transparent
+        visible={isSuccessModalVisible}
+        onRequestClose={() => setIsSuccessModalVisible(false)}
+      >
+        <View style={s.successBackdrop}>
+          <View style={s.successDialog}>
+            <View style={s.successIcon}>
+              <SText variant="body" style={s.successIconText}>✓</SText>
+            </View>
+            <SText variant="title" style={s.successTitle}>
+              제보 완료
+            </SText>
+            <SText variant="body" style={s.successBody}>
+              제보한 공구가 바로 등록됐어요. 홈에서 최신 공구 목록을 다시 불러옵니다.
+            </SText>
+            <AppButton
+              onPress={() => {
+                setIsSuccessModalVisible(false);
+                navigation.navigate('Home');
+              }}
+              style={s.successButton}
+              variant="primary"
+            >
+              홈에서 확인하기
+            </AppButton>
+          </View>
+        </View>
+      </Modal>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={s.flex}
@@ -154,15 +256,11 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
           showsVerticalScrollIndicator={false}
         >
           {/* ── Header ─────────────────────────────────────── */}
-          <SText variant="eyebrow" style={s.eyebrow}>
-            공구 제보하기
-          </SText>
-          <SText variant="title" style={s.title}>
-            발견한 공구를 알려주세요
-          </SText>
-          <SText variant="subtitle" style={s.subtitle}>
-            인스타그램 게시물 URL만 입력하면 이미지와 정보를 자동으로 불러옵니다
-          </SText>
+          <ScreenHeader
+            eyebrow="공구 제보하기"
+            title="발견한 공구를 알려주세요"
+            subtitle="인스타그램 게시물 URL만 입력하면 이미지와 정보를 자동으로 불러옵니다"
+          />
 
           {/* ── Feedback banner ────────────────────────────── */}
           {feedback ? (
@@ -229,6 +327,20 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
               placeholder="예: 샘플뷰티"
             />
             <FormInput
+              label="시작일"
+              value={startDate}
+              onChangeText={setStartDate}
+              placeholder="YYYY-MM-DD"
+              error={fieldErrors.startDate}
+            />
+            <FormInput
+              label="마감일"
+              value={endDate}
+              onChangeText={setEndDate}
+              placeholder="YYYY-MM-DD"
+              error={fieldErrors.endDate}
+            />
+            <FormInput
               label="구매 링크"
               value={purchaseUrl}
               onChangeText={setPurchaseUrl}
@@ -239,11 +351,11 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
               error={fieldErrors.purchaseUrl}
             />
             <FormInput
-              label="마감일"
-              value={endDate}
-              onChangeText={setEndDate}
-              placeholder="YYYY-MM-DD"
-              error={fieldErrors.endDate}
+              label="할인 정보"
+              value={discountInfo}
+              onChangeText={setDiscountInfo}
+              placeholder="예: 정가 229,000원 → 29% 163,560원"
+              error={fieldErrors.discountInfo}
             />
           </View>
 
@@ -289,27 +401,62 @@ function makeStyles(colors: ColorPalette) {
       flex: 1,
     },
     scrollContent: {
-      padding: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xl,
       paddingBottom: spacing['4xl'],
     },
 
-    // Header
-    eyebrow: {
-      marginBottom: spacing.xs,
-      color: colors.primary,
-      letterSpacing: 0.5,
+    // Success modal
+    successBackdrop: {
+      alignItems: 'center',
+      backgroundColor: colors.overlay,
+      flex: 1,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
     },
-    title: {
-      fontSize: 26,
-      fontWeight: '700',
+    successDialog: {
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderColor: colors.borderLight,
+      borderRadius: borderRadius.xl,
+      borderWidth: 1,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing['2xl'],
+      width: '100%',
+      maxWidth: 340,
+    },
+    successIcon: {
+      alignItems: 'center',
+      backgroundColor: colors.successBg,
+      borderRadius: borderRadius.full,
+      height: 52,
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+      width: 52,
+    },
+    successIconText: {
+      color: colors.success,
+      fontSize: 28,
+      fontWeight: '800',
+      lineHeight: 32,
+    },
+    successTitle: {
       color: colors.textPrimary,
-      marginBottom: spacing.xs,
+      fontSize: 20,
+      fontWeight: '800',
+      marginBottom: spacing.sm,
+      textAlign: 'center',
     },
-    subtitle: {
-      fontSize: 14,
+    successBody: {
       color: colors.textSecondary,
-      lineHeight: 20,
-      marginBottom: spacing['2xl'],
+      fontSize: 14,
+      lineHeight: 21,
+      marginBottom: spacing.xl,
+      textAlign: 'center',
+    },
+    successButton: {
+      alignSelf: 'stretch',
+      paddingVertical: 13,
     },
 
     // Feedback banner
@@ -378,6 +525,19 @@ function makeStyles(colors: ColorPalette) {
     },
     urlInputLoading: {
       borderColor: colors.primary,
+    },
+    urlClearButton: {
+      alignItems: 'center',
+      height: 24,
+      justifyContent: 'center',
+      marginLeft: spacing.sm,
+      width: 24,
+    },
+    urlClearIcon: {
+      color: colors.textTertiary,
+      fontSize: 16,
+      fontWeight: '700',
+      lineHeight: 18,
     },
     urlIcon: {
       width: 28,

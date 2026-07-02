@@ -29,6 +29,9 @@ vi.mock('react-native', () => {
       ),
     Image: passthrough('Image'),
     ImageBackground: passthrough('ImageBackground'),
+    Keyboard: {
+      addListener: vi.fn(() => ({ remove: vi.fn() })),
+    },
     Pressable: ({ children, onPress, style, testID, accessibilityLabel, accessibilityRole }: any) =>
       ReactMock.createElement('Pressable', { onPress, style, testID, accessibilityLabel, accessibilityRole }, children),
     RefreshControl: passthrough('RefreshControl'),
@@ -166,8 +169,7 @@ describe('HomeScreenContent redesign', () => {
 
     const text = flattenText(renderer!.toJSON());
 
-    expect(text).toContain('공구캘린더');
-    expect(text).toContain('브랜드명, 제품명으로 검색해보세요');
+    expect(text).toContain('공구위시');
     expect(text).toContain('이달의 공구');
     expect(text).toContain('뷰티');
     expect(text).toContain('패션');

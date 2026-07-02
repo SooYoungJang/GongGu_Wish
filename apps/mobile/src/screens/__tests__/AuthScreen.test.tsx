@@ -20,19 +20,42 @@ import { AuthProvider } from '../../context/AuthContext';
 
 // ─── Hoisted mocks (vi.hoisted ensures they're available when vi.mock factories run) ──
 
-const { mockNavigate, mockGoBack, mockSignInWithPassword, mockSignUp, mockSignInWithOAuth, stableNavigation } = vi.hoisted(
+const {
+  mockNavigate,
+  mockGoBack,
+  mockSignInWithPassword,
+  mockSignUp,
+  mockResend,
+  mockVerifyOtp,
+  mockExchangeCodeForSession,
+  mockSignInWithOAuth,
+  stableNavigation,
+} = vi.hoisted(
   () => {
     const mockNavigate = vi.fn();
     const mockGoBack = vi.fn();
     const mockSignInWithPassword = vi.fn();
     const mockSignUp = vi.fn();
+    const mockResend = vi.fn();
+    const mockVerifyOtp = vi.fn();
+    const mockExchangeCodeForSession = vi.fn();
     const mockSignInWithOAuth = vi.fn();
     // Use a stable object so useNavigation() returns the same reference
     // every call. Without this, LoginPanel's handleLogin re-creates on
     // every render, causing the useLayoutEffect/userEffect to re-fire
     // and creating an infinite re-render loop inside act().
     const stableNavigation = { navigate: mockNavigate, goBack: mockGoBack };
-    return { mockNavigate, mockGoBack, mockSignInWithPassword, mockSignUp, mockSignInWithOAuth, stableNavigation };
+    return {
+      mockNavigate,
+      mockGoBack,
+      mockSignInWithPassword,
+      mockSignUp,
+      mockResend,
+      mockVerifyOtp,
+      mockExchangeCodeForSession,
+      mockSignInWithOAuth,
+      stableNavigation,
+    };
   },
 );
 
@@ -55,6 +78,9 @@ vi.mock('@supabase/supabase-js', () => ({
       })),
       signInWithPassword: mockSignInWithPassword,
       signUp: mockSignUp,
+      resend: mockResend,
+      verifyOtp: mockVerifyOtp,
+      exchangeCodeForSession: mockExchangeCodeForSession,
       signInWithOAuth: mockSignInWithOAuth,
       signOut: vi.fn(),
     },
@@ -71,6 +97,9 @@ vi.mock('../../lib/supabase', () => ({
       })),
       signInWithPassword: mockSignInWithPassword,
       signUp: mockSignUp,
+      resend: mockResend,
+      verifyOtp: mockVerifyOtp,
+      exchangeCodeForSession: mockExchangeCodeForSession,
       signInWithOAuth: mockSignInWithOAuth,
       signOut: vi.fn(),
     },
@@ -138,9 +167,9 @@ describe('AuthScreen', () => {
 
   it('renders social login buttons', () => {
     const renderer = createTestRenderer();
-    expect(findAllText(renderer, '카카오로 로그인').length).toBeGreaterThan(0);
-    expect(findAllText(renderer, 'Apple로 로그인').length).toBeGreaterThan(0);
-    expect(findAllText(renderer, 'Google로 로그인').length).toBeGreaterThan(0);
+    expect(findAllText(renderer, '카카오로 계속하기').length).toBeGreaterThan(0);
+    expect(findAllText(renderer, '네이버로 계속하기').length).toBeGreaterThan(0);
+    expect(findAllText(renderer, 'Apple로 계속하기').length).toBeGreaterThan(0);
   });
 
   it('renders email and password floating labels', () => {
@@ -207,7 +236,8 @@ describe('AuthScreen', () => {
       });
 
       const actionBar = renderer.root.findByProps({ testID: 'auth-action-bar' });
-      expect(actionBar.findByType(Pressable).props.accessibilityLabel).toBe('로그인');
+      // Email focused -> primary button reads "다음" (focus chaining)
+      expect(actionBar.findByType(Pressable).props.accessibilityLabel).toBe('다음');
       expect(actionBar.findByType(Pressable).props.accessibilityState?.disabled).toBe(false);
     } finally {
       Platform.OS = prevOS;
@@ -244,7 +274,7 @@ describe('AuthScreen', () => {
     });
 
     expect(findAllText(renderer, '기본 정보').length).toBeGreaterThan(0);
-    expect(findAllText(renderer, '공구위시 가입을 위한 기본 정보를 입력해주세요').length).toBeGreaterThan(0);
+    expect(findAllText(renderer, '이메일 인증번호를 받을 기본 정보를 입력해주세요').length).toBeGreaterThan(0);
 
     // Labels are always visible (normal flow, not floating), so just verify
     // the confirm-password input exists and can accept text changes.
@@ -303,6 +333,8 @@ describe('AuthScreen', () => {
     act(() => {
       emailInput!.props.onChangeText('test@example.com');
       pwInput!.props.onChangeText('password123!');
+      // Focus password so the primary action reads "로그인" (not "다음")
+      pwInput!.props.onFocus?.();
     });
 
     // Find the login CTA button (unique by accessibilityLabel)
@@ -322,29 +354,114 @@ describe('AuthScreen', () => {
     expect(mockGoBack).toHaveBeenCalledTimes(1);
   });
 
-  it('calls signInWithOAuth with provider config when Kakao button pressed', async () => {
-    mockSignInWithOAuth.mockResolvedValue({ error: null });
+  it('sends email signup code and verifies the in-app code', async () => {
+    mockSignUp.mockResolvedValue({ error: null });
+    mockVerifyOtp.mockResolvedValue({ data: { session: null }, error: null });
     const renderer = createTestRenderer();
 
-    const kakaoBtn = findPressableByText(renderer, '카카오로 로그인');
+    const signupTab = renderer.root.findAllByType(Pressable).find(
+      (p) => p.props.accessibilityLabel === '회원가입 탭',
+    );
+    expect(signupTab).toBeDefined();
+
+    act(() => {
+      signupTab!.props.onPress();
+    });
+
+    const fillInput = (label: string, value: string) => {
+      const input = renderer.root.findAllByType(TextInput).find(
+        (i) => i.props.accessibilityLabel === label,
+      );
+      expect(input).toBeDefined();
+      act(() => {
+        input!.props.onChangeText(value);
+      });
+    };
+
+    fillInput('이메일', 'new@example.com');
+    fillInput('비밀번호 (8자 이상, 영문+숫자 포함)', 'password123');
+    fillInput('비밀번호 확인', 'password123');
+
+    act(() => {
+      renderer.root.findAllByType(Pressable).find(
+        (p) => p.props.accessibilityLabel === '다음 단계',
+      )!.props.onPress();
+    });
+
+    fillInput('닉네임', '공구러');
+
+    act(() => {
+      renderer.root.findAllByType(Pressable).find(
+        (p) => p.props.accessibilityLabel === '다음 단계',
+      )!.props.onPress();
+    });
+
+    act(() => {
+      renderer.root.findAllByType(Pressable).find(
+        (p) => p.props.accessibilityLabel === '전체 동의하기',
+      )!.props.onPress();
+    });
+
+    await act(async () => {
+      renderer.root.findAllByType(Pressable).find(
+        (p) => p.props.accessibilityLabel === '가입 완료',
+      )!.props.onPress();
+    });
+
+    expect(mockSignUp).toHaveBeenCalledWith({
+      email: 'new@example.com',
+      password: 'password123',
+      options: {
+        emailRedirectTo: 'gongguwish://auth/callback',
+        data: {
+          nickname: '공구러',
+          marketing_opt_in: true,
+        },
+      },
+    });
+    expect(findAllText(renderer, '이메일 인증').length).toBeGreaterThan(0);
+
+    fillInput('인증번호', '123456');
+
+    await act(async () => {
+      renderer.root.findAllByType(Pressable).find(
+        (p) => p.props.accessibilityLabel === '인증 완료',
+      )!.props.onPress();
+    });
+
+    expect(mockVerifyOtp).toHaveBeenCalledWith({
+      email: 'new@example.com',
+      token: '123456',
+      type: 'email',
+    });
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls signInWithOAuth with provider config when Kakao button pressed', async () => {
+    mockSignInWithOAuth.mockResolvedValue({ data: { url: 'https://auth.example/kakao' }, error: null });
+    const renderer = createTestRenderer();
+
+    const kakaoBtn = findPressableByText(renderer, '카카오로 계속하기');
     expect(kakaoBtn).toBeDefined();
 
     await act(async () => {
       kakaoBtn!.props.onPress();
     });
 
-    // signInWithOAuth receives { provider, options }
     expect(mockSignInWithOAuth).toHaveBeenCalledWith({
       provider: 'kakao',
-      options: { redirectTo: undefined },
+      options: {
+        redirectTo: 'gongguwish://auth/callback',
+        skipBrowserRedirect: true,
+      },
     });
   });
 
   it('calls signInWithOAuth when Apple login button pressed', async () => {
-    mockSignInWithOAuth.mockResolvedValue({ error: null });
+    mockSignInWithOAuth.mockResolvedValue({ data: { url: 'https://auth.example/apple' }, error: null });
     const renderer = createTestRenderer();
 
-    const appleBtn = findPressableByText(renderer, 'Apple로 로그인');
+    const appleBtn = findPressableByText(renderer, 'Apple로 계속하기');
     expect(appleBtn).toBeDefined();
 
     await act(async () => {
@@ -353,21 +470,25 @@ describe('AuthScreen', () => {
 
     expect(mockSignInWithOAuth).toHaveBeenCalledWith({
       provider: 'apple',
-      options: { redirectTo: undefined },
+      options: {
+        redirectTo: 'gongguwish://auth/callback',
+        skipBrowserRedirect: true,
+      },
     });
   });
 
   it('shows error text when social login fails', async () => {
     mockSignInWithOAuth.mockResolvedValue({
+      data: null,
       error: { message: 'Invalid login credentials' },
     });
     const renderer = createTestRenderer();
 
-    const googleBtn = findPressableByText(renderer, 'Google로 로그인');
-    expect(googleBtn).toBeDefined();
+    const naverBtn = findPressableByText(renderer, '네이버로 계속하기');
+    expect(naverBtn).toBeDefined();
 
     await act(async () => {
-      googleBtn!.props.onPress();
+      naverBtn!.props.onPress();
     });
 
     expect(findAllText(renderer, '이메일 또는 비밀번호가 올바르지 않습니다.').length).toBeGreaterThan(0);
@@ -377,7 +498,7 @@ describe('AuthScreen', () => {
     mockSignInWithOAuth.mockRejectedValue(new Error('Network error'));
     const renderer = createTestRenderer();
 
-    const kakaoBtn = findPressableByText(renderer, '카카오로 로그인');
+    const kakaoBtn = findPressableByText(renderer, '카카오로 계속하기');
     expect(kakaoBtn).toBeDefined();
 
     await act(async () => {

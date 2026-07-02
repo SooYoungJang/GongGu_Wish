@@ -9,6 +9,10 @@ const mockGetSession = vi.fn();
 const mockOnAuthStateChange = vi.fn();
 const mockSignInWithPassword = vi.fn();
 const mockSignUp = vi.fn();
+const mockResend = vi.fn();
+const mockVerifyOtp = vi.fn();
+const mockExchangeCodeForSession = vi.fn();
+const mockSignInWithOAuth = vi.fn();
 const mockSignOut = vi.fn();
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -18,6 +22,10 @@ vi.mock('@supabase/supabase-js', () => ({
       onAuthStateChange: mockOnAuthStateChange,
       signInWithPassword: mockSignInWithPassword,
       signUp: mockSignUp,
+      resend: mockResend,
+      verifyOtp: mockVerifyOtp,
+      exchangeCodeForSession: mockExchangeCodeForSession,
+      signInWithOAuth: mockSignInWithOAuth,
       signOut: mockSignOut,
     },
   }),
@@ -39,6 +47,10 @@ vi.mock('../lib/supabase', () => ({
       onAuthStateChange: mockOnAuthStateChange,
       signInWithPassword: mockSignInWithPassword,
       signUp: mockSignUp,
+      resend: mockResend,
+      verifyOtp: mockVerifyOtp,
+      exchangeCodeForSession: mockExchangeCodeForSession,
+      signInWithOAuth: mockSignInWithOAuth,
       signOut: mockSignOut,
     },
   })),

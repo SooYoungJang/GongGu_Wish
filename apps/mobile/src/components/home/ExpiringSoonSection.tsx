@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SText } from '../../components/ui/SText';
 
 import { borderRadius, spacing, typography } from '../../design/tokens';
@@ -41,7 +41,13 @@ export function ExpiringSoonSection({ groupBuys, onPressDeal }: ExpiringSoonSect
     <View style={s.section}>
       <View style={s.header}>
         <SText variant="cardTitle" style={s.title}>마감임박 공구</SText>
-        <SText variant="cardBrand" style={s.action}>전체보기</SText>
+        <Pressable
+          accessibilityLabel="마감임박 공구 전체보기"
+          accessibilityRole="button"
+          style={s.viewAllBtn}
+        >
+          <SText variant="cardBrand">전체보기</SText>
+        </Pressable>
       </View>
       {expiringItems.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scroll}>
@@ -70,7 +76,16 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: spacing.md,
     },
     title: { color: colors.textPrimary, fontSize: 20, fontWeight: '800' },
-    action: { color: colors.textLink, fontSize: 13, fontWeight: '700' },
+    viewAllBtn: {
+      alignItems: 'center',
+      alignSelf: 'center',
+      backgroundColor: 'transparent',
+      borderWidth: 0,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      minHeight: 44,
+      paddingHorizontal: spacing.xs,
+    },
     scroll: { gap: spacing.md, paddingRight: spacing.lg },
     card: { width: 120, minHeight: 120 },
     empty: {

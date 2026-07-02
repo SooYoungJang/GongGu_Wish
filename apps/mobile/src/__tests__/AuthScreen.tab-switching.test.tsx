@@ -4,6 +4,20 @@ import { describe, expect, it, vi } from 'vitest';
 
 (globalThis as any).__DEV__ = false;
 
+const authMocks = vi.hoisted(() => ({
+  signIn: vi.fn(),
+  signUp: vi.fn(),
+  signUpWithEmailCode: vi.fn(),
+  resendEmailSignUpCode: vi.fn(),
+  verifyEmailCode: vi.fn(),
+  signInWithOAuth: vi.fn(),
+}));
+
+const navigationMock = vi.hoisted(() => ({
+  navigate: vi.fn(),
+  goBack: vi.fn(),
+}));
+
 vi.mock('react-native', () => {
   const ReactMock = require('react');
   const passthrough = (type: string) =>
@@ -26,6 +40,11 @@ vi.mock('react-native', () => {
     },
     Dimensions: { get: () => ({ width: 390, height: 844 }) },
     Easing: { inOut: vi.fn(() => vi.fn()), sin: vi.fn() },
+    Linking: {
+      addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+      getInitialURL: vi.fn(() => Promise.resolve(null)),
+      openURL: vi.fn(() => Promise.resolve(true)),
+    },
     Keyboard: {
       addListener: vi.fn(() => ({ remove: vi.fn() })),
     },
@@ -44,7 +63,7 @@ vi.mock('react-native', () => {
 });
 
 vi.mock('@react-navigation/native', () => ({
-  useNavigation: () => ({ navigate: vi.fn(), goBack: vi.fn() }),
+  useNavigation: () => navigationMock,
   useRoute: () => ({ params: {} }),
 }));
 
@@ -79,11 +98,8 @@ vi.mock('../context/ThemeContext', () => ({
 }));
 
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({
-    signIn: vi.fn(),
-    signUp: vi.fn(),
-    signInWithOAuth: vi.fn(),
-  }),
+  EMAIL_CODE_TTL_SECONDS: 300,
+  useAuth: () => authMocks,
 }));
 
 vi.mock('../schemas/auth', () => ({
@@ -101,11 +117,11 @@ vi.mock('../schemas/auth', () => ({
 
 vi.mock('../utils/authHelpers', () => ({
   mapAuthErrorMessage: vi.fn(() => '오류가 발생했습니다. 다시 시도해주세요.'),
-  SOCIAL_PROVIDERS: [
-    { provider: 'kakao', label: '카카오로 로그인', icon: '💬', backgroundColor: '#FEE500', textColor: '#1a1a1a', accessibilityLabel: '카카오로 로그인' },
-    { provider: 'apple', label: 'Apple로 로그인', icon: '', backgroundColor: '#000000', textColor: '#ffffff', accessibilityLabel: 'Apple로 로그인' },
-    { provider: 'google', label: 'Google로 로그인', icon: 'G', backgroundColor: '#ffffff', textColor: '#1a1a1a', accessibilityLabel: 'Google로 로그인' },
-  ],
+  getSocialProvidersForPlatform: vi.fn(() => [
+    { provider: 'kakao', label: '카카오로 계속하기', icon: '💬', backgroundColor: '#FEE500', textColor: '#1a1a1a', accessibilityLabel: '카카오로 계속하기' },
+    { provider: 'custom:naver', label: '네이버로 계속하기', icon: 'N', backgroundColor: '#03C75A', textColor: '#ffffff', accessibilityLabel: '네이버로 계속하기' },
+    { provider: 'apple', label: 'Apple로 계속하기', icon: '', backgroundColor: '#000000', textColor: '#ffffff', accessibilityLabel: 'Apple로 계속하기' },
+  ]),
 }));
 
 import { AuthScreen } from '../screens/AuthScreen';

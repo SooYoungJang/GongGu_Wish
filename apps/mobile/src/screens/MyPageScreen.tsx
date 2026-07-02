@@ -6,6 +6,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -31,7 +32,7 @@ export function MyPageScreen() {
   }, [navigation]);
 
   return (
-    <View style={s.container}>
+    <SafeAreaView edges={['top']} style={s.container}>
       {authLoading ? (
         <View style={[s.center, { backgroundColor: colors.bg }]}>
           <SText variant="body">로딩 중...</SText>
@@ -48,7 +49,7 @@ export function MyPageScreen() {
           colors={colors}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -81,10 +82,8 @@ function ProfileView({
         contentContainerStyle={s.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <ScreenHeader
-          eyebrow="MY"
+       <ScreenHeader
           title="마이페이지"
-          subtitle="내 계정 정보를 확인하고 관리하세요."
         />
 
         <View style={s.profileCard}>
@@ -161,9 +160,7 @@ function UnauthenticatedView({
         keyboardShouldPersistTaps="handled"
       >
         <ScreenHeader
-          eyebrow="MY"
           title="마이페이지"
-          subtitle="로그인하고 내 정보를 확인하세요."
         />
 
         <View style={s.loginPrompt}>
@@ -193,8 +190,9 @@ function makeStyles(colors: ColorPalette) {
       justifyContent: 'center',
     },
     scrollContent: {
-      padding: spacing['2xl'],
-      paddingTop: spacing['3xl'],
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xl,
+      paddingBottom: spacing['2xl'],
     },
     profileCard: {
       alignItems: 'center',

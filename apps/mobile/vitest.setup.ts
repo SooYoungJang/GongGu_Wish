@@ -43,6 +43,11 @@ vi.mock("react-native", () => {
       cubic: null,
     },
     Image: passthrough("Image"),
+    Linking: {
+      addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+      getInitialURL: vi.fn(() => Promise.resolve(null)),
+      openURL: vi.fn(() => Promise.resolve(true)),
+    },
     Keyboard: {
       addListener: (event: any, cb: any) => {
         if (!globalThis.__keyboardListeners) globalThis.__keyboardListeners = {};
@@ -51,6 +56,8 @@ vi.mock("react-native", () => {
       },
     },
     KeyboardAvoidingView: passthrough("KeyboardAvoidingView"),
+    Modal: ({ children, visible, ...props }: { children?: React.ReactNode; visible?: boolean }) =>
+      visible ? React.createElement("Modal", props, children) : null,
     Platform: {
       OS: "ios",
       select: (obj: Record<string, unknown>) =>
@@ -121,6 +128,12 @@ vi.mock("react-native-keyboard-controller", () => {
 });
 
 vi.mock("@tanstack/react-query", () => ({
+  QueryClient: class QueryClient {
+    constructor(_options?: unknown) {}
+    clear = vi.fn();
+  },
+  QueryClientProvider: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
   useQuery: vi.fn(() => ({
     data: [],
     isLoading: false,

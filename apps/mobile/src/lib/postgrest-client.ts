@@ -144,7 +144,9 @@ const POSTGREST_ERROR_MAP: Record<string, { message: string; status: number }> =
 
 interface PostgrestErrorBody {
   code?: string;
+  error?: string;
   message?: string;
+  errors?: { field: string; message: string; code: string }[];
   details?: string | null;
   hint?: string | null;
 }
@@ -165,6 +167,20 @@ function handlePostgrestError(status: number, body: PostgrestErrorBody): never {
   // Generic error
   const displayMessage = body?.message || `API 오류 (${status})`;
   throw new ApiError(status, displayMessage);
+}
+
+function parseApiErrorBody(status: number, text: string): ApiError {
+  if (text) {
+    try {
+      const body = JSON.parse(text) as PostgrestErrorBody;
+      const message = body.error || body.message || `Edge Function error: ${status}`;
+      return new ApiError(status, message, body.errors);
+    } catch {
+      return new ApiError(status, text);
+    }
+  }
+
+  return new ApiError(status, `Edge Function error: ${status}`);
 }
 
 // ─── Public Request Methods ──────────────────────────────────────────────────
@@ -342,7 +358,7 @@ export async function callEdgeFunction<T>(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    throw new ApiError(response.status, errorText || `Edge Function error: ${response.status}`);
+    throw parseApiErrorBody(response.status, errorText);
   }
 
   if (response.status === 204) {
