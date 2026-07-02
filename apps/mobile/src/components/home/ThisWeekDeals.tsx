@@ -48,16 +48,12 @@ export function ThisWeekDeals({ groupBuys, onPressDeal, selectedDate }: ThisWeek
     return groupBuys.filter((item) => isInThisWeek(item.endDate));
   }, [groupBuys, selectedDate]);
 
-  const heading = selectedDate
-    ? `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 공구`
-    : '이번주 공구';
 
   const emptyText = selectedDate
     ? '선택한 날짜에 공구가 없습니다'
     : '이번주 공구가 없습니다';
   return (
     <View style={s.section}>
-      <SText variant="cardTitle" style={s.heading}>{heading}</SText>
       {thisWeekItems.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scroll}>
           {thisWeekItems.map((item, index) => (
@@ -78,7 +74,6 @@ export function ThisWeekDeals({ groupBuys, onPressDeal, selectedDate }: ThisWeek
 function makeStyles(colors: ColorPalette) {
   return StyleSheet.create({
     section: { marginBottom: spacing.xl },
-    heading: { marginBottom: spacing.md },
     scroll: { gap: spacing.md, paddingRight: spacing.lg },
     card: { width: 120, minHeight: 160 },
     empty: {
