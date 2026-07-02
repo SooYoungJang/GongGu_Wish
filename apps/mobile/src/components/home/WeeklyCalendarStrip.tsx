@@ -112,6 +112,9 @@ function makeStyles(colors: ColorPalette) {
       minHeight: 36,
       minWidth: 36,
     },
-    calendarDateCircleSelected: { backgroundColor: colors.primary },
+    calendarDateCircleSelected: {
+      borderColor: colors.primary,
+      borderWidth: 1.5,
+    },
   });
 }
