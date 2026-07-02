@@ -240,7 +240,8 @@ describe('SubmitScreen', function() {
     });
 
     var text = flattenText(renderer.toJSON());
-    expect(text).toContain('제보가 접수되었습니다');
+    expect(text).toContain('제보 완료');
+    expect(text).toContain('홈에서 확인하기');
   });
 
   it('shows submitting text while in progress', function() {

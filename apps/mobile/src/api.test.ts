@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchGroupBuys } from './api';
+import { fetchGroupBuys, lookupInstagramUrl, postPublicJson } from './api';
 import { configurePostgrest } from './lib/postgrest-client';
 
 const originalFetch = global.fetch;
@@ -22,5 +22,89 @@ describe('public data fetch diagnostics', () => {
     await expect(fetchGroupBuys()).rejects.toThrow('Network request failed');
 
     expect(console.log).toHaveBeenCalledWith('[GroupBuys] fetch failed:', 'Network request failed');
+  });
+
+  it('looks up Instagram metadata through the Supabase hiker function', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        imageUrl: 'https://example.com/post.jpg',
+        caption: '테스트 게시물',
+        likeCount: 42,
+        username: 'gonggu_test',
+        takenAt: '2026-07-04T07:00:00.000Z',
+      }),
+    }) as unknown as typeof fetch;
+
+    await expect(lookupInstagramUrl('https://www.instagram.com/p/ABC123/')).resolves.toEqual({
+      imageUrl: 'https://example.com/post.jpg',
+      caption: '테스트 게시물',
+      likeCount: 42,
+      username: 'gonggu_test',
+      takenAt: '2026-07-04T07:00:00.000Z',
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/functions/v1/hiker-lookup'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ url: 'https://www.instagram.com/p/ABC123/' }),
+      }),
+    );
+  });
+
+  it('surfaces hiker lookup backend messages', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      text: async () => JSON.stringify({ error: 'HikerAPI returned 502' }),
+    }) as unknown as typeof fetch;
+
+    await expect(lookupInstagramUrl('https://www.instagram.com/p/ABC123/')).rejects.toThrow(
+      'HikerAPI returned 502',
+    );
+  });
+
+  it('posts public submissions through the Supabase public-submission function', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'submission-123', status: 'PENDING' }),
+    }) as unknown as typeof fetch;
+
+    await expect(
+      postPublicJson('/submissions', {
+        productName: '테스트 공구',
+        instagramUrl: 'https://www.instagram.com/p/ABC123/',
+        imageUrls: [],
+        isAnonymous: true,
+      }),
+    ).resolves.toEqual({ id: 'submission-123', status: 'PENDING' });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/functions/v1/public-submission'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          productName: '테스트 공구',
+          instagramUrl: 'https://www.instagram.com/p/ABC123/',
+          imageUrls: [],
+          isAnonymous: true,
+        }),
+      }),
+    );
+  });
+
+  it('surfaces public submission edge function errors', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify({ error: '제품명은 2자 이상 필수입니다.' }),
+    }) as unknown as typeof fetch;
+
+    await expect(postPublicJson('/submissions', { productName: '' })).rejects.toThrow(
+      '제품명은 2자 이상 필수입니다.',
+    );
   });
 });

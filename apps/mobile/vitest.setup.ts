@@ -56,6 +56,8 @@ vi.mock("react-native", () => {
       },
     },
     KeyboardAvoidingView: passthrough("KeyboardAvoidingView"),
+    Modal: ({ children, visible, ...props }: { children?: React.ReactNode; visible?: boolean }) =>
+      visible ? React.createElement("Modal", props, children) : null,
     Platform: {
       OS: "ios",
       select: (obj: Record<string, unknown>) =>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 
 import { SText } from '../components/ui/SText';
@@ -159,6 +160,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const groupBuys = data?.length ? data : fallbackGroupBuys;
   const influencers = influencersData?.length ? influencersData : getFallbackInfluencers(groupBuys);
   const feedPosts = feedsData?.items ?? [];
+
+  useFocusEffect(
+    useCallback(() => {
+      void refetch();
+      void refetchFeeds();
+    }, [refetch, refetchFeeds]),
+  );
 
   return (
     <HomeScreenContent
