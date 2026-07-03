@@ -274,7 +274,7 @@ function ProductReelPage({
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_e, gestureState) => {
-          if (!isSummaryVisible) return false;
+          if (!isSummaryVisible || !isSummaryScrollAtTop) return false;
           return gestureState.dy > 4 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         },
         onPanResponderGrant: () => {
@@ -301,7 +301,7 @@ function ProductReelPage({
           }
         },
       }),
-    [isSummaryVisible, summarySheetMaxHeight, summarySheetTranslate],
+    [isSummaryScrollAtTop, isSummaryVisible, summarySheetMaxHeight, summarySheetTranslate],
   );
   const canHandOffSummaryScroll = useCallback(
     (offsetY: number, viewportHeight = summaryScrollViewportHeight, contentHeight = summaryScrollContentHeight) => {
@@ -621,8 +621,9 @@ function ProductReelPage({
                 transform: [{ translateY: summarySheetTranslate }],
               },
             ]}
+            {...sheetPanResponder.panHandlers}
           >
-            <View style={s.summaryHandle} {...sheetPanResponder.panHandlers}>
+            <View style={s.summaryHandle}>
               <View style={s.summaryHandleBar} />
             </View>
             <View style={s.summarySheetHeader}>
@@ -1056,6 +1057,7 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
       alignSelf: 'center',
       backgroundColor: 'rgba(255,255,255,0.62)',
       borderRadius: 2,
+      height: 5,
       width: 58,
     },
     summarySheetHeader: {
