@@ -8,6 +8,7 @@ import {
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  PanResponder,
   Pressable,
   ScrollView,
   Share,
@@ -33,6 +34,9 @@ import { formatEndDate, getDaysRemaining } from '../utils';
 const MAX_VISIBLE_DOTS = 5;
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.m3u8', '.mkv', '.avi', '.ts'];
 
+// When the summary sheet is open the media stage shrinks to a centered card
+// with this much inset on each side.
+const MEDIA_STAGE_SIDE_INSET = 48;
 type MediaItem = {
   url: string;
   isVideo: boolean;
@@ -241,6 +245,11 @@ function ProductReelPage({
   const [isSummaryScrollAtTop, setSummaryScrollAtTop] = useState(true);
   const summaryScrollOffsetRef = useRef(0);
   const [isSummaryVisible, setSummaryVisible] = useState(false);
+  // Media panes use the full screen width when collapsed; when the sheet is open
+  // they shrink to match the inset media stage so media stays centered.
+  const effectiveMediaWidth = isSummaryExpanded
+    ? mediaWidth - MEDIA_STAGE_SIDE_INSET * 2
+    : mediaWidth;
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
@@ -253,6 +262,42 @@ function ProductReelPage({
     Math.min(pageHeight - topInset - spacing.xl, pageHeight * 0.62),
   );
   const summarySheetTranslate = useRef(new Animated.Value(summarySheetMaxHeight)).current;
+  const sheetDragStartY = useRef(0);
+
+  // Pan the sheet with a finger when the scroll is already at the top.
+  const sheetPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_e, gestureState) => {
+          if (!isSummaryVisible) return false;
+          return gestureState.dy > 4 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        },
+        onPanResponderGrant: () => {
+          sheetDragStartY.current = (summarySheetTranslate as any)._value ?? 0;
+          summarySheetTranslate.stopAnimation();
+        },
+        onPanResponderMove: (_e, gestureState) => {
+          const next = sheetDragStartY.current + gestureState.dy;
+          summarySheetTranslate.setValue(Math.max(0, Math.min(next, summarySheetMaxHeight)));
+        },
+        onPanResponderRelease: (_e, gestureState) => {
+          const draggedDown = gestureState.dy > 0;
+          const pastThreshold = gestureState.dy > Math.max(80, summarySheetMaxHeight / 4);
+          const flickedDown = gestureState.vy > 0.4;
+          if (draggedDown && (pastThreshold || flickedDown)) {
+            setSummaryOpen(false);
+          } else {
+            Animated.spring(summarySheetTranslate, {
+              toValue: 0,
+              useNativeDriver: true,
+              friction: 9,
+              tension: 50,
+            }).start();
+          }
+        },
+      }),
+    [isSummaryVisible, summarySheetMaxHeight, summarySheetTranslate],
+  );
   const canHandOffSummaryScroll = useCallback(
     (offsetY: number, viewportHeight = summaryScrollViewportHeight, contentHeight = summaryScrollContentHeight) => {
       if (viewportHeight <= 0 || contentHeight <= 0) return false;
@@ -389,7 +434,7 @@ function ProductReelPage({
       const mediaActive = isActive && index === activeMediaIndex;
 
       return (
-        <View style={[s.mediaPane, { width: mediaWidth }]}>
+        <View style={[s.mediaPane, { width: effectiveMediaWidth }]}>
           {item.isVideo ? (
             mediaActive ? (
               <VideoSlide
@@ -410,7 +455,7 @@ function ProductReelPage({
         </View>
       );
     },
-    [activeMediaIndex, groupBuy.thumbnailUrl, isActive, mediaWidth, s],
+    [activeMediaIndex, effectiveMediaWidth, groupBuy.thumbnailUrl, isActive, s],
   );
 
   return (
@@ -442,7 +487,7 @@ function ProductReelPage({
             maxItemsInRecyclePool={2}
             maintainVisibleContentPosition={{ disabled: true }}
             onMomentumScrollEnd={(event) => {
-              const nextIndex = Math.round(event.nativeEvent.contentOffset.x / mediaWidth);
+              const nextIndex = Math.round(event.nativeEvent.contentOffset.x / effectiveMediaWidth);
               if (nextIndex !== activeMediaIndex && nextIndex >= 0 && nextIndex < mediaItems.length) {
                 setActiveMediaIndex(nextIndex);
               }
@@ -572,7 +617,9 @@ function ProductReelPage({
               },
             ]}
           >
-            <View style={s.summaryHandle} />
+            <View style={s.summaryHandle} {...sheetPanResponder.panHandlers}>
+              <View style={s.summaryHandleBar} />
+            </View>
             <View style={s.summarySheetHeader}>
               <View style={s.summarySheetSeller}>
                 <View style={s.summarySheetAvatar}>
@@ -717,9 +764,9 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     },
     mediaStageWithSheet: {
       borderRadius: 22,
-      left: 48,
+      left: MEDIA_STAGE_SIDE_INSET,
       overflow: 'hidden',
-      right: 48,
+      right: MEDIA_STAGE_SIDE_INSET,
     },
     mediaScroller: { flex: 1 },
     mediaPane: {
@@ -1003,11 +1050,16 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
       paddingTop: spacing.sm,
     },
     summaryHandle: {
+      alignItems: 'center',
+      // Generous touch target so the sheet is easy to grab and drag down.
+      height: 28,
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+    },
+    summaryHandleBar: {
       alignSelf: 'center',
       backgroundColor: 'rgba(255,255,255,0.62)',
       borderRadius: 2,
-      height: 4,
-      marginBottom: spacing.lg,
       width: 58,
     },
     summarySheetHeader: {

@@ -72,12 +72,16 @@ vi.mock('react-native', () => {
     Animated: {
       Value: function AnimatedValue(this: any, value: number) {
         this._value = value;
+        this.stopAnimation = vi.fn();
         this.setValue = vi.fn();
         this.interpolate = vi.fn(() => 0);
       },
       spring: vi.fn(() => ({ start: (cb?: () => void) => cb?.() })),
       timing: vi.fn(() => ({ start: (cb?: () => void) => cb?.() })),
       View: passthrough('Animated.View'),
+    },
+    PanResponder: {
+      create: vi.fn(() => ({ panHandlers: {} })),
     },
     Easing: {
       out: vi.fn((fn: any) => fn),
