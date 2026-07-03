@@ -261,6 +261,11 @@ function ProductReelPage({
     280,
     Math.min(pageHeight - topInset - spacing.xl, pageHeight * 0.62),
   );
+  // Explicit stage height so FlashList items don't get a stale/tall layout
+  // when the sheet opens after horizontal media swipes.
+  const effectiveMediaHeight = isSummaryExpanded
+    ? Math.max(0, pageHeight - (topInset + 64) - (summarySheetMaxHeight + spacing.md))
+    : pageHeight;
   const summarySheetTranslate = useRef(new Animated.Value(summarySheetMaxHeight)).current;
   const sheetDragStartY = useRef(0);
 
@@ -434,7 +439,7 @@ function ProductReelPage({
       const mediaActive = isActive && index === activeMediaIndex;
 
       return (
-        <View style={[s.mediaPane, { width: effectiveMediaWidth }]}>
+        <View style={[s.mediaPane, { width: effectiveMediaWidth, height: effectiveMediaHeight }]}>
           {item.isVideo ? (
             mediaActive ? (
               <VideoSlide
@@ -455,7 +460,7 @@ function ProductReelPage({
         </View>
       );
     },
-    [activeMediaIndex, effectiveMediaWidth, groupBuy.thumbnailUrl, isActive, s],
+    [activeMediaIndex, effectiveMediaHeight, effectiveMediaWidth, groupBuy.thumbnailUrl, isActive, s],
   );
 
   return (
@@ -480,7 +485,7 @@ function ProductReelPage({
             keyExtractor={(item, index) => `${item.url}-${index}`}
             renderItem={renderMediaItem}
             showsHorizontalScrollIndicator={false}
-            style={s.mediaScroller}
+            style={[s.mediaScroller, { height: effectiveMediaHeight }]}
             decelerationRate="fast"
             disableIntervalMomentum
             drawDistance={mediaWidth}
@@ -634,15 +639,6 @@ function ProductReelPage({
                   </SText>
                 </View>
               </View>
-              <Pressable
-                accessibilityLabel="요약 창 닫기"
-                accessibilityRole="button"
-                hitSlop={12}
-                onPress={() => setSummaryOpen(false)}
-                style={({ pressed }) => [s.summaryCloseButton, pressed && s.pressed]}
-              >
-                <Text style={s.summaryCloseIcon}>×</Text>
-              </Pressable>
             </View>
             <Pressable
               accessibilityLabel={isExpired ? '마감된 공구' : '구매 링크 열기'}
@@ -1099,19 +1095,6 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
       fontSize: 13,
       fontWeight: '500',
       marginTop: 2,
-    },
-    summaryCloseButton: {
-      alignItems: 'center',
-      height: 40,
-      justifyContent: 'center',
-      marginLeft: spacing.md,
-      width: 40,
-    },
-    summaryCloseIcon: {
-      color: '#FFFFFF',
-      fontSize: 24,
-      fontWeight: '300',
-      lineHeight: 28,
     },
     summarySheetBuyButton: {
       alignItems: 'center',

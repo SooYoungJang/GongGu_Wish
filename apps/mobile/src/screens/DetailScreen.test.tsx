@@ -353,12 +353,12 @@ describe('DetailScreen', () => {
     expect(flattenText(renderer!.toJSON())).toContain('구매링크');
     expect(
       renderer!.root.find(
-        (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 창 닫기',
+        (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 닫기',
       ),
     ).toBeDefined();
 
     const closeButton = renderer!.root.find(
-      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 창 닫기',
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 닫기',
     );
     const purchaseButton = renderer!.root.findAll(
       (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '구매 링크 열기',
