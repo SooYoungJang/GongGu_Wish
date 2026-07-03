@@ -4,13 +4,20 @@ const videoMock = vi.hoisted(() => ({
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
 }));
+const flashListMock = vi.hoisted(() => ({
+  scrollToOffset: vi.fn(),
+}));
+const pagerViewMock = vi.hoisted(() => ({
+  setPage: vi.fn(),
+  setPageWithoutAnimation: vi.fn(),
+}));
 
 vi.mock('expo-video', () => ({
   VideoView: ({ children, ...props }: any) => {
     const ReactMock = require('react');
     return ReactMock.createElement('VideoView', props, children);
   },
-  useVideoPlayer: (source: any, setup?: (player: any) => void) => {
+  useVideoPlayer: (source: any, setup?: any) => {
     const player = {
       play: vi.fn(),
       pause: vi.fn(),
@@ -36,26 +43,50 @@ vi.mock('../api', () => ({
   fetchGroupBuys: vi.fn(),
 }));
 
-vi.mock('@shopify/flash-list', () => ({
-  FlashList: ({ data = [], renderItem, keyExtractor, children, ...props }: any) => {
-    const ReactMock = require('react');
-    return ReactMock.createElement(
-      'FlashList',
-      props,
-      data.map((item: any, index: number) =>
-        ReactMock.createElement(
-          'FlashListItem',
-          { key: keyExtractor ? keyExtractor(item, index) : String(index) },
-          renderItem({ item, index }),
+vi.mock('@shopify/flash-list', () => {
+  const ReactMock = require('react');
+
+  return {
+    FlashList: ReactMock.forwardRef(({ data = [], renderItem, keyExtractor, children, ...props }: any, ref: any) => {
+      ReactMock.useImperativeHandle(ref, () => ({
+        scrollToOffset: flashListMock.scrollToOffset,
+      }));
+
+      return ReactMock.createElement(
+        'FlashList',
+        props,
+        data.map((item: any, index: number) =>
+          ReactMock.createElement(
+            'FlashListItem',
+            { key: keyExtractor ? keyExtractor(item, index) : String(index) },
+            renderItem({ item, index }),
+          ),
         ),
-      ),
-      children,
-    );
-  },
-}));
+        children,
+      );
+    }),
+  };
+});
+
+vi.mock('react-native-pager-view', () => {
+  const ReactMock = require('react');
+
+  const PagerView = ReactMock.forwardRef(({ children, ...props }: any, ref: any) => {
+    ReactMock.useImperativeHandle(ref, () => ({
+      setPage: pagerViewMock.setPage,
+      setPageWithoutAnimation: pagerViewMock.setPageWithoutAnimation,
+    }));
+
+    return ReactMock.createElement('PagerView', props, children);
+  });
+
+  return {
+    default: PagerView,
+  };
+});
 
 import React, { type ReactNode } from 'react';
-import { Linking } from 'react-native';
+import { Animated, Linking } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -71,17 +102,43 @@ vi.mock('react-native', () => {
     Alert: { alert: vi.fn() },
     Animated: {
       Value: function AnimatedValue(this: any, value: number) {
+        this._listeners = new Map();
         this._value = value;
         this.stopAnimation = vi.fn();
-        this.setValue = vi.fn();
+        this.setValue = vi.fn((nextValue: number) => {
+          this._value = nextValue;
+          this._listeners.forEach((listener: any) => {
+            listener({ value: nextValue });
+          });
+        });
+        this.addListener = vi.fn((listener: any) => {
+          const id = String(this._listeners.size + 1);
+          this._listeners.set(id, listener);
+          return id;
+        });
+        this.removeListener = vi.fn((id: string) => {
+          this._listeners.delete(id);
+        });
         this.interpolate = vi.fn(() => 0);
       },
-      spring: vi.fn(() => ({ start: (cb?: () => void) => cb?.() })),
-      timing: vi.fn(() => ({ start: (cb?: () => void) => cb?.() })),
+      spring: vi.fn((value: any, config: any) => ({
+        start: (cb?: () => void) => {
+          value?.setValue?.(config.toValue);
+          cb?.();
+        },
+        stop: vi.fn(),
+      })),
+      timing: vi.fn((value: any, config: any) => ({
+        start: (cb?: () => void) => {
+          value?.setValue?.(config.toValue);
+          cb?.();
+        },
+        stop: vi.fn(),
+      })),
       View: passthrough('Animated.View'),
     },
     PanResponder: {
-      create: vi.fn(() => ({ panHandlers: {} })),
+      create: vi.fn((handlers: any) => ({ panHandlers: handlers })),
     },
     Easing: {
       out: vi.fn((fn: any) => fn),
@@ -92,6 +149,24 @@ vi.mock('react-native', () => {
     Image: ({ source, style, resizeMode, children }: any) =>
       ReactMock.createElement('Image', { source, style, resizeMode }, children as ReactNode),
     Linking: { openURL: vi.fn() },
+    FlatList: ReactMock.forwardRef(({ data = [], renderItem, keyExtractor, children, ...props }: any, ref: any) => {
+      ReactMock.useImperativeHandle(ref, () => ({
+        scrollToOffset: flashListMock.scrollToOffset,
+      }));
+
+      return ReactMock.createElement(
+        'FlatList',
+        props,
+        data.map((item: any, index: number) =>
+          ReactMock.createElement(
+            'FlatListItem',
+            { key: keyExtractor ? keyExtractor(item, index) : String(index) },
+            renderItem({ item, index }),
+          ),
+        ),
+        children,
+      );
+    }),
     Pressable: ({ children, onPress, style, accessibilityLabel, accessibilityRole, pressRetentionOffset }: any) =>
       ReactMock.createElement('Pressable', { onPress, style, accessibilityLabel, accessibilityRole, pressRetentionOffset }, children),
     ScrollView: ({ children, ...props }: any) => ReactMock.createElement('ScrollView', props, children),
@@ -157,6 +232,25 @@ function flattenText(node: TestRenderer.ReactTestRendererJSON | TestRenderer.Rea
   return node.children?.map((child) => (typeof child === 'string' ? child : flattenText(child))).join(' ') ?? '';
 }
 
+function findVerticalPager(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.find((node) => String(node.type) === 'PagerView');
+}
+
+function findSummaryScrollGesture(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.find((node) => String(node.type) === 'GestureDetector').props.gesture.__handlers;
+}
+
+function findSummarySheet(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.find(
+    (node) => String(node.type) === 'Animated.View' && typeof node.props.onMoveShouldSetPanResponder === 'function',
+  );
+}
+
+function getSheetTranslateY(sheet: TestRenderer.ReactTestInstance) {
+  const transformStyle = sheet.props.style.find((style: any) => style?.transform)?.transform[0];
+  return transformStyle.translateY._value;
+}
+
 const baseGroupBuy: GroupBuy = {
   id: 'group-buy-1',
   productName: '퍼스트 바이크',
@@ -186,6 +280,11 @@ const baseGroupBuy: GroupBuy = {
 beforeEach(() => {
   videoMock.players = [];
   queryMock.groupBuys = undefined;
+  flashListMock.scrollToOffset.mockClear();
+  pagerViewMock.setPage.mockClear();
+  pagerViewMock.setPageWithoutAnimation.mockClear();
+  (Animated.timing as any).mockClear();
+  (Animated.spring as any).mockClear();
 });
 
 describe('DetailScreen', () => {
@@ -303,14 +402,240 @@ describe('DetailScreen', () => {
       );
     });
 
-    const verticalScroll = renderer!.root
-      .findAll((node) => String(node.type) === 'FlashList')
-      .find((node) => node.props.pagingEnabled && !node.props.horizontal);
+    const verticalPager = findVerticalPager(renderer!);
     const text = flattenText(renderer!.toJSON());
 
-    expect(verticalScroll).toBeDefined();
+    expect(verticalPager).toBeDefined();
     expect(text).toContain('퍼스트 바이크');
     expect(text).toContain('다음 공구');
+  });
+
+  it('preserves fetched feed order and starts on the selected reel', () => {
+    const previousGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: 'group-buy-0',
+      productName: '이전 공구',
+      thumbnailUrl: 'https://example.com/previous.jpg',
+      mediaUrls: ['https://example.com/previous.jpg'],
+      rawPost: {
+        postUrl: 'https://instagram.com/p/previous',
+        influencer: {
+          instagramUsername: 'previous_seller',
+        },
+      },
+    };
+    const nextGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: 'group-buy-2',
+      productName: '다음 공구',
+      thumbnailUrl: 'https://example.com/next.jpg',
+      mediaUrls: ['https://example.com/next.jpg'],
+      rawPost: {
+        postUrl: 'https://instagram.com/p/next',
+        influencer: {
+          instagramUsername: 'next_seller',
+        },
+      },
+    };
+    queryMock.groupBuys = [previousGroupBuy, baseGroupBuy, nextGroupBuy];
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const verticalPager = findVerticalPager(renderer!);
+    const text = flattenText(renderer!.toJSON());
+
+    expect(verticalPager.props.initialPage).toBe(1);
+    expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledWith(1);
+    expect(text).toContain('이전 공구');
+    expect(text).toContain('퍼스트 바이크');
+    expect(text).toContain('다음 공구');
+  });
+
+  it('uses a native vertical pager so the reel settles only on full pages', () => {
+    const nextGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: 'group-buy-2',
+      productName: '다음 공구',
+      thumbnailUrl: 'https://example.com/next.jpg',
+      mediaUrls: ['https://example.com/next.jpg'],
+      rawPost: {
+        postUrl: 'https://instagram.com/p/next',
+        influencer: {
+          instagramUsername: 'next_seller',
+        },
+      },
+    };
+    queryMock.groupBuys = [baseGroupBuy, nextGroupBuy];
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const verticalPager = findVerticalPager(renderer!);
+
+    expect(verticalPager.props.orientation).toBe('vertical');
+    expect(verticalPager.props.scrollEnabled).toBe(true);
+    expect(verticalPager.props.overdrag).toBe(true);
+
+    act(() => {
+      verticalPager.props.onPageSelected({ nativeEvent: { position: 1 } });
+    });
+
+    expect(flattenText(renderer!.toJSON())).toContain('다음 공구');
+  });
+
+  it('clears an open summary sheet when leaving and returning to a reel page', () => {
+    const nextGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: 'group-buy-2',
+      productName: '다음 공구',
+      thumbnailUrl: 'https://example.com/next.jpg',
+      mediaUrls: ['https://example.com/next.jpg'],
+      rawPost: {
+        postUrl: 'https://instagram.com/p/next',
+        influencer: {
+          instagramUsername: 'next_seller',
+        },
+      },
+    };
+    queryMock.groupBuys = [baseGroupBuy, nextGroupBuy];
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.findAll(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
+    )[0];
+
+    act(() => {
+      summaryButton?.props.onPress();
+    });
+
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
+
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({ nativeEvent: { position: 1 } });
+    });
+
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({ nativeEvent: { position: 0 } });
+    });
+
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
+  });
+
+  it('does not move to the next reel from a summary bottom-edge pull-up while the sheet is open', () => {
+    const nextGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: 'group-buy-2',
+      productName: '다음 공구',
+      thumbnailUrl: 'https://example.com/next.jpg',
+      mediaUrls: ['https://example.com/next.jpg'],
+      rawPost: {
+        postUrl: 'https://instagram.com/p/next',
+        influencer: {
+          instagramUsername: 'next_seller',
+        },
+      },
+    };
+    queryMock.groupBuys = [
+      { ...baseGroupBuy, summary: Array.from({ length: 16 }, (_, index) => `긴 설명 ${index + 1}`).join('\n') },
+      nextGroupBuy,
+    ];
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy: queryMock.groupBuys[0] } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.findAll(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
+    )[0];
+
+    act(() => {
+      summaryButton.props.onPress();
+    });
+
+    const scrollView = renderer!.root.find((node) => String(node.type) === 'ScrollView');
+    act(() => {
+      scrollView.props.onLayout({ nativeEvent: { layout: { height: 100 } } });
+      scrollView.props.onContentSizeChange(0, 360);
+      scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 260 } } });
+    });
+
+    const verticalPager = findVerticalPager(renderer!);
+
+    expect(verticalPager.props.scrollEnabled).toBe(false);
+
+    act(() => {
+      findSummaryScrollGesture(renderer!).onEnd({ translationY: -100, velocityY: -800 });
+    });
+
+    expect(pagerViewMock.setPage).not.toHaveBeenCalled();
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
+  });
+
+  it('keeps the summary sheet open when bottom-edge pull-up has no next reel', () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      summary: Array.from({ length: 16 }, (_, index) => `긴 설명 ${index + 1}`).join('\n'),
+    };
+    queryMock.groupBuys = [groupBuy];
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.findAll(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
+    )[0];
+
+    act(() => {
+      summaryButton.props.onPress();
+    });
+
+    const scrollView = renderer!.root.find((node) => String(node.type) === 'ScrollView');
+    act(() => {
+      scrollView.props.onLayout({ nativeEvent: { layout: { height: 100 } } });
+      scrollView.props.onContentSizeChange(0, 360);
+      scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 260 } } });
+      findSummaryScrollGesture(renderer!).onEnd({ translationY: -100, velocityY: -800 });
+    });
+
+    expect(pagerViewMock.setPage).not.toHaveBeenCalled();
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
   });
 
   it('opens and closes the summary bottom sheet from the reel preview', () => {
@@ -331,22 +656,20 @@ describe('DetailScreen', () => {
 
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
 
-    const summaryButton = renderer!.root.find(
+    const summaryButton = renderer!.root.findAll(
       (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
-    );
+    )[0];
 
     act(() => {
       summaryButton.props.onPress();
     });
 
-    const verticalListWhileOpen = renderer!.root
-      .findAll((node) => String(node.type) === 'FlashList')
-      .find((node) => node.props.pagingEnabled && !node.props.horizontal);
+    const verticalPagerWhileOpen = findVerticalPager(renderer!);
     const raisedMediaStage = renderer!.root
       .findAll((node) => String(node.type) === 'View')
       .find((node) => JSON.stringify(node.props.style).includes('"borderRadius":22'));
 
-    expect(verticalListWhileOpen?.props.scrollEnabled).toBe(false);
+    expect(verticalPagerWhileOpen.props.scrollEnabled).toBe(false);
     expect(raisedMediaStage).toBeDefined();
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
     expect(flattenText(renderer!.toJSON())).toContain('긴 설명도 시트에서 잘 보여야 합니다.');
@@ -377,11 +700,27 @@ describe('DetailScreen', () => {
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
   });
 
-  it('only re-enables vertical reel swiping when the summary sheet scroll reaches an edge', () => {
+  it('closes from top pull-downs and hands bottom pull-ups to the reel', () => {
     const groupBuy: GroupBuy = {
       ...baseGroupBuy,
       summary: Array.from({ length: 16 }, (_, index) => `긴 설명 ${index + 1}`).join('\n'),
     };
+    queryMock.groupBuys = [
+      groupBuy,
+      {
+        ...baseGroupBuy,
+        id: 'group-buy-2',
+        productName: '다음 공구',
+        thumbnailUrl: 'https://example.com/next.jpg',
+        mediaUrls: ['https://example.com/next.jpg'],
+        rawPost: {
+          postUrl: 'https://instagram.com/p/next',
+          influencer: {
+            instagramUsername: 'next_seller',
+          },
+        },
+      },
+    ];
 
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
@@ -393,9 +732,9 @@ describe('DetailScreen', () => {
       );
     });
 
-    const summaryButton = renderer!.root.find(
+    const summaryButton = renderer!.root.findAll(
       (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
-    );
+    )[0];
 
     act(() => {
       summaryButton.props.onPress();
@@ -409,20 +748,36 @@ describe('DetailScreen', () => {
       scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 120 } } });
     });
 
-    const verticalListInMiddle = renderer!.root
-      .findAll((node) => String(node.type) === 'FlashList')
-      .find((node) => node.props.pagingEnabled && !node.props.horizontal);
-    expect(verticalListInMiddle?.props.scrollEnabled).toBe(false);
+    const sheet = findSummarySheet(renderer!);
+
+    expect(sheet.props.onMoveShouldSetPanResponder({}, { dx: 0, dy: 80 })).toBe(false);
+    expect(sheet.props.onMoveShouldSetPanResponder({}, { dx: 0, dy: -80 })).toBe(false);
+    expect(findSummaryScrollGesture(renderer!).enabled).toBe(false);
+
+    const verticalPagerInMiddle = findVerticalPager(renderer!);
+    expect(verticalPagerInMiddle.props.scrollEnabled).toBe(false);
+
+    act(() => {
+      scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
+    });
+
+    expect(sheet.props.onMoveShouldSetPanResponder({}, { dx: 0, dy: 80 })).toBe(true);
+    expect(findSummaryScrollGesture(renderer!).enabled).toBe(true);
+    expect(findSummaryScrollGesture(renderer!).activeOffsetY).toBe(4);
+
+    const verticalPagerAtTop = findVerticalPager(renderer!);
+    expect(verticalPagerAtTop.props.scrollEnabled).toBe(false);
 
     act(() => {
       scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 260 } } });
     });
 
-   const verticalListAtBottom = renderer!.root
-     .findAll((node) => String(node.type) === 'FlashList')
-     .find((node) => node.props.pagingEnabled && !node.props.horizontal);
-   expect(verticalListAtBottom?.props.scrollEnabled).toBe(true);
- });
+    expect(sheet.props.onMoveShouldSetPanResponder({}, { dx: 0, dy: -80 })).toBe(false);
+    expect(findSummaryScrollGesture(renderer!).enabled).toBe(false);
+
+    const verticalPagerAtBottom = findVerticalPager(renderer!);
+    expect(verticalPagerAtBottom.props.scrollEnabled).toBe(false);
+  });
 
   it('dismisses the summary sheet when dragged down at the top of the scroll', () => {
     const groupBuy: GroupBuy = {
@@ -463,18 +818,19 @@ describe('DetailScreen', () => {
     });
 
     act(() => {
+      scrollView.props.onScrollBeginDrag({ nativeEvent: { contentOffset: { y: 0 } } });
       scrollView.props.onScrollEndDrag({
-        nativeEvent: { contentOffset: { y: 0 }, velocity: { y: 1.2 } },
+        nativeEvent: { contentOffset: { y: -56 }, velocity: { y: 0 } },
       });
     });
 
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
   });
 
-  it('dismisses the summary sheet when content is shorter than the viewport', () => {
+  it('keeps the summary sheet open when the inner scroll only reaches the top during the same drag', () => {
     const groupBuy: GroupBuy = {
       ...baseGroupBuy,
-      summary: '짧은 한 줄 요약입니다.',
+      summary: Array.from({ length: 16 }, (_, index) => `긴 설명 ${index + 1}`).join('\n'),
     };
 
     let renderer: TestRenderer.ReactTestRenderer;
@@ -498,17 +854,180 @@ describe('DetailScreen', () => {
     const scrollView = renderer!.root.find((node) => String(node.type) === 'ScrollView');
 
     act(() => {
-      scrollView.props.onLayout({ nativeEvent: { layout: { height: 200 } } });
-      scrollView.props.onContentSizeChange(0, 80);
+      scrollView.props.onLayout({ nativeEvent: { layout: { height: 100 } } });
+      scrollView.props.onContentSizeChange(0, 360);
+      scrollView.props.onScrollBeginDrag({ nativeEvent: { contentOffset: { y: 140 } } });
+      scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
+    });
+
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
+  });
+
+  it('dismisses the summary sheet when pulling down from the top of the inner scroll', () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      summary: Array.from({ length: 16 }, (_, index) => `긴 설명 ${index + 1}`).join('\n'),
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.find(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
+    );
+
+    act(() => {
+      summaryButton.props.onPress();
+    });
+
+    const scrollView = renderer!.root.find((node) => String(node.type) === 'ScrollView');
+
+    act(() => {
+      scrollView.props.onLayout({ nativeEvent: { layout: { height: 100 } } });
+      scrollView.props.onContentSizeChange(0, 360);
+      scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
+      scrollView.props.onScrollBeginDrag({ nativeEvent: { contentOffset: { y: 0 } } });
     });
 
     act(() => {
-      scrollView.props.onScrollEndDrag({
-        nativeEvent: { contentOffset: { y: 0 }, velocity: { y: 0.8 } },
-      });
+      const gesture = findSummaryScrollGesture(renderer!);
+      gesture.onBegin();
+      gesture.onUpdate({ translationY: 42, velocityY: 0 });
+    });
+
+    expect(getSheetTranslateY(findSummarySheet(renderer!))).toBe(42);
+
+    act(() => {
+      findSummaryScrollGesture(renderer!).onEnd({ translationY: 90, velocityY: 0 });
     });
 
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
+  });
+
+  it('keeps the summary sheet open from an upward edge swipe at the top of the scroll', () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      summary: Array.from({ length: 16 }, (_, index) => `긴 설명 ${index + 1}`).join('\n'),
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.find(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
+    );
+
+    act(() => {
+      summaryButton.props.onPress();
+    });
+
+    const scrollView = renderer!.root.find((node) => String(node.type) === 'ScrollView');
+
+    act(() => {
+      scrollView.props.onLayout({ nativeEvent: { layout: { height: 100 } } });
+      scrollView.props.onContentSizeChange(0, 360);
+      scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
+    });
+
+    expect(findSummaryScrollGesture(renderer!).activeOffsetY).toBe(4);
+
+    act(() => {
+      const gesture = findSummaryScrollGesture(renderer!);
+      gesture.onBegin();
+      gesture.onUpdate({ translationY: -120, velocityY: -800 });
+      gesture.onEnd({ translationY: -120, velocityY: -800 });
+    });
+
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
+  });
+
+  it('dismisses the summary sheet from a downward handle drag', () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      summary: '짧은 한 줄 요약입니다.',
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.find(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
+    );
+
+    act(() => {
+      summaryButton.props.onPress();
+    });
+
+    const handle = renderer!.root.find(
+      (node) => String(node.type) === 'View'
+        && typeof node.props.onStartShouldSetPanResponder === 'function'
+        && typeof node.props.onPanResponderRelease === 'function',
+    );
+
+    act(() => {
+      handle.props.onPanResponderRelease({}, { dy: 180, vy: 0.1 });
+    });
+
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
+  });
+
+  it('keeps the summary sheet open when the handle is dragged upward', () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      summary: '짧은 한 줄 요약입니다.',
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.find(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
+    );
+
+    act(() => {
+      summaryButton.props.onPress();
+    });
+
+    const handle = renderer!.root.find(
+      (node) => String(node.type) === 'View'
+        && typeof node.props.onStartShouldSetPanResponder === 'function'
+        && typeof node.props.onPanResponderRelease === 'function',
+    );
+
+    act(() => {
+      handle.props.onPanResponderMove({}, { dy: -180, vy: -0.2 });
+      handle.props.onPanResponderRelease({}, { dy: -180, vy: -0.2 });
+    });
+
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
   });
 
   it('does not mount video players for inactive product pages', () => {
@@ -533,14 +1052,10 @@ describe('DetailScreen', () => {
       );
     });
 
-    const verticalList = renderer!.root
-      .findAll((node) => String(node.type) === 'FlashList')
-      .find((node) => node.props.pagingEnabled && !node.props.horizontal);
+    const verticalPager = findVerticalPager(renderer!);
     const videoViews = renderer!.root.findAll((node) => String(node.type) === 'VideoView');
 
-    expect(verticalList?.props.drawDistance).toBe(844);
-    expect(verticalList?.props.maxItemsInRecyclePool).toBe(2);
-    expect(verticalList?.props.maintainVisibleContentPosition).toEqual({ disabled: true });
+    expect(verticalPager).toBeDefined();
     expect(videoViews).toHaveLength(0);
     expect(videoMock.players).toHaveLength(0);
   });

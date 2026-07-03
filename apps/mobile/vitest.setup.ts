@@ -84,9 +84,97 @@ vi.mock("react-native", () => {
 });
 
 vi.mock("react-native-reanimated", () => {
-  const Reanimated = require("react-native-reanimated/mock");
-  Reanimated.default.callThrough = true;
-  return Reanimated;
+  const ReactMock = require("react");
+  const animated = {
+    View: ({ children, ...props }: { children?: React.ReactNode }) =>
+      ReactMock.createElement("Reanimated.View", props, children),
+    createAnimatedComponent: (component: unknown) => component,
+  };
+
+  return {
+    default: animated,
+    View: animated.View,
+    cancelAnimation: vi.fn(),
+    Easing: {
+      cubic: vi.fn((value: number) => value),
+      out: vi.fn((fn: unknown) => fn),
+    },
+    runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
+    useAnimatedStyle: (updater: () => unknown) => updater(),
+    useSharedValue: (value: unknown) => ({ value }),
+    withTiming: vi.fn((toValue: unknown, _config?: unknown, callback?: (finished?: boolean) => void) => {
+      callback?.(true);
+      return toValue;
+    }),
+  };
+});
+
+vi.mock("react-native-gesture-handler", () => {
+  const ReactMock = require("react");
+  const chainable = (handlers: Record<string, unknown> = {}) => ({
+    __handlers: handlers,
+    activeOffsetY(value: unknown) {
+      handlers.activeOffsetY = value;
+      return this;
+    },
+    enabled(value: boolean) {
+      handlers.enabled = value;
+      return this;
+    },
+    failOffsetX(value: unknown) {
+      handlers.failOffsetX = value;
+      return this;
+    },
+    onBegin(handler: unknown) {
+      handlers.onBegin = handler;
+      return this;
+    },
+    onEnd(handler: unknown) {
+      handlers.onEnd = handler;
+      return this;
+    },
+    onFinalize(handler: unknown) {
+      handlers.onFinalize = handler;
+      return this;
+    },
+    onUpdate(handler: unknown) {
+      handlers.onUpdate = handler;
+      return this;
+    },
+    runOnJS(value: boolean) {
+      handlers.runOnJS = value;
+      return this;
+    },
+  });
+
+  return {
+    Gesture: {
+      Pan: () => chainable(),
+    },
+    GestureDetector: ({ children, gesture }: { children?: React.ReactNode; gesture: unknown }) =>
+      ReactMock.createElement("GestureDetector", { gesture }, children),
+    GestureHandlerRootView: ({ children, ...props }: { children?: React.ReactNode }) =>
+      ReactMock.createElement("GestureHandlerRootView", props, children),
+    ScrollView: ({ children, ...props }: { children?: React.ReactNode }) =>
+      ReactMock.createElement("ScrollView", props, children),
+  };
+});
+
+vi.mock("react-native-pager-view", () => {
+  const ReactMock = require("react");
+
+  const PagerView = ReactMock.forwardRef(({ children, ...props }: { children?: React.ReactNode }, ref: React.Ref<unknown>) => {
+    ReactMock.useImperativeHandle(ref, () => ({
+      setPage: vi.fn(),
+      setPageWithoutAnimation: vi.fn(),
+    }));
+
+    return ReactMock.createElement("PagerView", props, children);
+  });
+
+  return {
+    default: PagerView,
+  };
 });
 
 vi.mock("react-native-safe-area-context", () => ({

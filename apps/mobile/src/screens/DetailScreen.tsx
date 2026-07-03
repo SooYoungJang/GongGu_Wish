@@ -10,7 +10,6 @@ import {
   type NativeSyntheticEvent,
   PanResponder,
   Pressable,
-  ScrollView,
   Share,
   StatusBar,
   StyleSheet,
@@ -22,6 +21,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { FlashList } from '@shopify/flash-list';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import PagerView from 'react-native-pager-view';
+import { Gesture, GestureDetector, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 
 import { fetchGroupBuys } from '../api';
 import { SText } from '../components/ui/SText';
@@ -33,6 +34,8 @@ import { formatEndDate, getDaysRemaining } from '../utils';
 
 const MAX_VISIBLE_DOTS = 5;
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.m3u8', '.mkv', '.avi', '.ts'];
+const SUMMARY_EDGE_DISMISS_DISTANCE = 56;
+const SUMMARY_SCROLL_TOP_EPSILON = 2;
 
 // When the summary sheet is open the media stage shrinks to a centered card
 // with this much inset on each side.
@@ -83,14 +86,29 @@ function getDisplayMedia(groupBuy: GroupBuy): MediaItem[] {
 }
 
 function getReelItems(current: GroupBuy, fetched?: GroupBuy[]) {
-  const seen = new Set<string>();
-  const ordered = [current, ...(fetched ?? [])];
+  if (!fetched?.length) return [current];
 
-  return ordered.filter((item) => {
-    if (seen.has(item.id)) return false;
+  const seen = new Set<string>();
+  let includedCurrent = false;
+  const ordered = fetched.reduce<GroupBuy[]>((items, item) => {
+    if (seen.has(item.id)) return items;
+
     seen.add(item.id);
-    return true;
-  });
+    if (item.id === current.id) {
+      includedCurrent = true;
+      items.push(current);
+    } else {
+      items.push(item);
+    }
+    return items;
+  }, []);
+
+  return includedCurrent ? ordered : [current, ...ordered];
+}
+
+function getInitialReelIndex(current: GroupBuy, reelItems: GroupBuy[]) {
+  const index = reelItems.findIndex((item) => item.id === current.id);
+  return index >= 0 ? index : 0;
 }
 
 function getVisibleDotIndexes(total: number, activeIndex: number) {
@@ -223,7 +241,8 @@ type ProductReelPageProps = {
   topInset: number;
   bottomInset: number;
   onBack: () => void;
-  onSummarySheetStateChange: (isOpen: boolean, canSwipeReel: boolean) => void;
+  // eslint-disable-next-line no-unused-vars
+  onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
   s: ReturnType<typeof makeStyles>;
 };
 
@@ -243,7 +262,13 @@ function ProductReelPage({
   const [summaryScrollContentHeight, setSummaryScrollContentHeight] = useState(0);
   const [summaryScrollViewportHeight, setSummaryScrollViewportHeight] = useState(0);
   const [isSummaryScrollAtTop, setSummaryScrollAtTop] = useState(true);
+  const [isSummaryScrollAtBottom, setSummaryScrollAtBottom] = useState(false);
   const summaryScrollOffsetRef = useRef(0);
+  const summaryScrollContentHeightRef = useRef(0);
+  const summaryScrollViewportHeightRef = useRef(0);
+  const summaryScrollAtTopRef = useRef(true);
+  const summaryScrollAtBottomRef = useRef(false);
+  const summaryScrollGestureStartedAtTopRef = useRef(true);
   const [isSummaryVisible, setSummaryVisible] = useState(false);
   // Media panes use the full screen width when collapsed; when the sheet is open
   // they shrink to match the inset media stage so media stays centered.
@@ -269,62 +294,38 @@ function ProductReelPage({
   const summarySheetTranslate = useRef(new Animated.Value(summarySheetMaxHeight)).current;
   const sheetDragStartY = useRef(0);
 
-  // Pan the sheet with a finger when the scroll is already at the top.
-  const sheetPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_e, gestureState) => {
-          if (!isSummaryVisible || !isSummaryScrollAtTop) return false;
-          return gestureState.dy > 4 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        },
-        onPanResponderGrant: () => {
-          sheetDragStartY.current = (summarySheetTranslate as any)._value ?? 0;
-          summarySheetTranslate.stopAnimation();
-        },
-        onPanResponderMove: (_e, gestureState) => {
-          const next = sheetDragStartY.current + gestureState.dy;
-          summarySheetTranslate.setValue(Math.max(0, Math.min(next, summarySheetMaxHeight)));
-        },
-        onPanResponderRelease: (_e, gestureState) => {
-          const draggedDown = gestureState.dy > 0;
-          const pastThreshold = gestureState.dy > Math.max(80, summarySheetMaxHeight / 4);
-          const flickedDown = gestureState.vy > 0.4;
-          if (draggedDown && (pastThreshold || flickedDown)) {
-            setSummaryOpen(false);
-          } else {
-            Animated.spring(summarySheetTranslate, {
-              toValue: 0,
-              useNativeDriver: true,
-              friction: 9,
-              tension: 50,
-            }).start();
-          }
-        },
-      }),
-    [isSummaryScrollAtTop, isSummaryVisible, summarySheetMaxHeight, summarySheetTranslate],
-  );
-  const canHandOffSummaryScroll = useCallback(
-    (offsetY: number, viewportHeight = summaryScrollViewportHeight, contentHeight = summaryScrollContentHeight) => {
-      if (viewportHeight <= 0 || contentHeight <= 0) return false;
-      if (contentHeight <= viewportHeight + 2) return true;
+  const resetSummarySheetState = useCallback(() => {
+    setSummaryExpanded(false);
+    setSummaryVisible(false);
+    summaryScrollOffsetRef.current = 0;
+    summaryScrollContentHeightRef.current = 0;
+    summaryScrollViewportHeightRef.current = 0;
+    setSummaryScrollContentHeight(0);
+    setSummaryScrollViewportHeight(0);
+    setSummaryScrollAtTop(true);
+    setSummaryScrollAtBottom(false);
+    summaryScrollAtTopRef.current = true;
+    summaryScrollAtBottomRef.current = false;
+    summaryScrollGestureStartedAtTopRef.current = true;
+    summarySheetTranslate.stopAnimation();
+    summarySheetTranslate.setValue(summarySheetMaxHeight);
+  }, [summarySheetMaxHeight, summarySheetTranslate]);
 
-      const maxOffsetY = Math.max(0, contentHeight - viewportHeight);
-      return offsetY <= 2 || offsetY >= maxOffsetY - 2;
-    },
-    [summaryScrollContentHeight, summaryScrollViewportHeight],
-  );
+  const snapSummarySheetOpen = useCallback(() => {
+    Animated.spring(summarySheetTranslate, {
+      toValue: 0,
+      useNativeDriver: true,
+      friction: 9,
+      tension: 50,
+    }).start();
+  }, [summarySheetTranslate]);
 
   const setSummaryOpen = useCallback(
     (isOpen: boolean) => {
       if (isOpen) {
         setSummaryExpanded(true);
         setSummaryVisible(true);
-        Animated.spring(summarySheetTranslate, {
-          toValue: 0,
-          useNativeDriver: true,
-          friction: 9,
-          tension: 50,
-        }).start();
+        snapSummarySheetOpen();
       } else {
         Animated.timing(summarySheetTranslate, {
           toValue: summarySheetMaxHeight,
@@ -332,78 +333,254 @@ function ProductReelPage({
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }).start(() => {
-          setSummaryExpanded(false);
-          setSummaryVisible(false);
-          summaryScrollOffsetRef.current = 0;
-          setSummaryScrollAtTop(true);
-          summarySheetTranslate.setValue(summarySheetMaxHeight);
+          resetSummarySheetState();
         });
       }
       onSummarySheetStateChange(isOpen, false);
     },
-    [onSummarySheetStateChange, summarySheetMaxHeight, summarySheetTranslate],
+    [onSummarySheetStateChange, resetSummarySheetState, snapSummarySheetOpen, summarySheetMaxHeight, summarySheetTranslate],
+  );
+
+  const startSummarySheetDrag = useCallback(() => {
+    summarySheetTranslate.stopAnimation((value) => {
+      sheetDragStartY.current = typeof value === 'number' ? value : 0;
+    });
+  }, [summarySheetTranslate]);
+
+  const moveSummarySheetDrag = useCallback(
+    (dy: number) => {
+      const next = sheetDragStartY.current + Math.max(0, dy);
+      summarySheetTranslate.setValue(Math.min(next, summarySheetMaxHeight));
+    },
+    [summarySheetMaxHeight, summarySheetTranslate],
+  );
+
+  const finishSummarySheetDrag = useCallback(
+    (dy: number, vy: number) => {
+      const draggedDown = dy > 12;
+      const pastThreshold = dy > Math.max(72, summarySheetMaxHeight * 0.28);
+      const flickedDown = vy > 0.65;
+      if (draggedDown && (pastThreshold || flickedDown)) {
+        setSummaryOpen(false);
+      } else {
+        snapSummarySheetOpen();
+      }
+    },
+    [setSummaryOpen, snapSummarySheetOpen, summarySheetMaxHeight],
+  );
+
+  const handlePanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => isSummaryVisible,
+        onMoveShouldSetPanResponder: (_e, gestureState) => {
+          if (!isSummaryVisible) return false;
+          return Math.abs(gestureState.dy) > 4 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        },
+        onPanResponderGrant: startSummarySheetDrag,
+        onPanResponderMove: (_e, gestureState) => moveSummarySheetDrag(gestureState.dy),
+        onPanResponderRelease: (_e, gestureState) => finishSummarySheetDrag(gestureState.dy, gestureState.vy),
+        onPanResponderTerminate: snapSummarySheetOpen,
+      }),
+    [finishSummarySheetDrag, isSummaryVisible, moveSummarySheetDrag, snapSummarySheetOpen, startSummarySheetDrag],
   );
 
   useEffect(() => {
-    if (!isActive && isSummaryExpanded) {
-      setSummaryExpanded(false);
+    if (!isActive && (isSummaryExpanded || isSummaryVisible)) {
+      resetSummarySheetState();
       onSummarySheetStateChange(false, true);
     }
-  }, [isActive, isSummaryExpanded, onSummarySheetStateChange]);
+  }, [
+    isActive,
+    isSummaryExpanded,
+    isSummaryVisible,
+    onSummarySheetStateChange,
+    resetSummarySheetState,
+  ]);
+
+  useEffect(() => {
+    setActiveMediaIndex(0);
+    resetSummarySheetState();
+    onSummarySheetStateChange(false, true);
+  }, [groupBuy.id, onSummarySheetStateChange, resetSummarySheetState]);
+
+  const canSwipeReelFromSummaryOffset = useCallback(
+    (
+      offsetY: number,
+      viewportHeight = summaryScrollViewportHeightRef.current,
+      contentHeight = summaryScrollContentHeightRef.current,
+    ) => {
+      if (viewportHeight <= 0 || contentHeight <= 0) return false;
+      if (contentHeight <= viewportHeight + 2) return true;
+
+      const maxOffsetY = Math.max(0, contentHeight - viewportHeight);
+      return offsetY >= maxOffsetY - 2;
+    },
+    [],
+  );
+
+  const summaryContentFitsViewport = summaryScrollContentHeight > 0
+    && summaryScrollContentHeight <= summaryScrollViewportHeight + 2;
+
+  const canPullSummarySheetFromScroll = isSummaryScrollAtTop || summaryContentFitsViewport;
+
+  const finishSummarySheetScrollPull = useCallback(
+    (translationY: number, velocityY: number) => {
+      const draggedDown = translationY > 12;
+      const pastThreshold = translationY > SUMMARY_EDGE_DISMISS_DISTANCE;
+      const flickedDown = velocityY > 650;
+      if (draggedDown && (pastThreshold || flickedDown)) {
+        setSummaryOpen(false);
+      } else {
+        snapSummarySheetOpen();
+      }
+    },
+    [setSummaryOpen, snapSummarySheetOpen],
+  );
+
+  const summaryScrollPullGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(isSummaryVisible && canPullSummarySheetFromScroll)
+        .activeOffsetY(4)
+        .failOffsetX([-24, 24])
+        .runOnJS(true)
+        .onBegin(() => {
+          startSummarySheetDrag();
+        })
+        .onUpdate((event) => {
+          const canPullFromTop = summaryScrollAtTopRef.current || summaryContentFitsViewport;
+          if (canPullFromTop && event.translationY > 0) {
+            moveSummarySheetDrag(event.translationY);
+          }
+        })
+        .onEnd((event) => {
+          const canPullFromTop = summaryScrollAtTopRef.current || summaryContentFitsViewport;
+          if (canPullFromTop && event.translationY > 0) {
+            finishSummarySheetScrollPull(event.translationY, event.velocityY);
+          }
+        }),
+    [
+      canPullSummarySheetFromScroll,
+      finishSummarySheetScrollPull,
+      isSummaryVisible,
+      moveSummarySheetDrag,
+      startSummarySheetDrag,
+      summaryContentFitsViewport,
+    ],
+  );
 
   const handleSummaryScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       if (!isSummaryExpanded) return;
       const nextOffset = event.nativeEvent.contentOffset.y;
+      const isPullingPastTop = nextOffset < 0
+        && (summaryScrollGestureStartedAtTopRef.current || summaryContentFitsViewport);
+      const canSwipeReel = canSwipeReelFromSummaryOffset(nextOffset);
       summaryScrollOffsetRef.current = nextOffset;
-      setSummaryScrollAtTop(nextOffset <= 0);
-      onSummarySheetStateChange(true, canHandOffSummaryScroll(event.nativeEvent.contentOffset.y));
+      summaryScrollAtTopRef.current = nextOffset <= SUMMARY_SCROLL_TOP_EPSILON;
+      summaryScrollAtBottomRef.current = canSwipeReel;
+      if (isPullingPastTop) {
+        summarySheetTranslate.setValue(Math.min(-nextOffset, summarySheetMaxHeight));
+      }
+      setSummaryScrollAtTop(summaryScrollAtTopRef.current);
+      setSummaryScrollAtBottom(canSwipeReel);
+      onSummarySheetStateChange(true, canSwipeReel);
     },
-    [canHandOffSummaryScroll, isSummaryExpanded, onSummarySheetStateChange],
+    [
+      canSwipeReelFromSummaryOffset,
+      isSummaryExpanded,
+      onSummarySheetStateChange,
+      summaryContentFitsViewport,
+      summarySheetMaxHeight,
+      summarySheetTranslate,
+    ],
+  );
+
+  const handleSummaryScrollBeginDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const nextOffset = event.nativeEvent.contentOffset.y;
+      const startedAtTop = nextOffset <= SUMMARY_SCROLL_TOP_EPSILON;
+      summaryScrollGestureStartedAtTopRef.current = startedAtTop;
+    },
+    [],
   );
 
   const handleSummaryScrollLayout = useCallback(
     (event: LayoutChangeEvent) => {
       const nextHeight = event.nativeEvent.layout.height;
+      summaryScrollViewportHeightRef.current = nextHeight;
       setSummaryScrollViewportHeight(nextHeight);
       if (isSummaryExpanded) {
-        onSummarySheetStateChange(true, canHandOffSummaryScroll(0, nextHeight, summaryScrollContentHeight));
+        const canSwipeReel = canSwipeReelFromSummaryOffset(summaryScrollOffsetRef.current, nextHeight);
+        summaryScrollAtBottomRef.current = canSwipeReel;
+        setSummaryScrollAtBottom(canSwipeReel);
+        onSummarySheetStateChange(true, canSwipeReel);
       }
     },
-    [canHandOffSummaryScroll, isSummaryExpanded, onSummarySheetStateChange, summaryScrollContentHeight],
+    [canSwipeReelFromSummaryOffset, isSummaryExpanded, onSummarySheetStateChange],
   );
 
   const handleSummaryContentSizeChange = useCallback(
     (_width: number, height: number) => {
+      summaryScrollContentHeightRef.current = height;
       setSummaryScrollContentHeight(height);
       if (isSummaryExpanded) {
-        onSummarySheetStateChange(true, canHandOffSummaryScroll(0, summaryScrollViewportHeight, height));
+        const canSwipeReel = canSwipeReelFromSummaryOffset(summaryScrollOffsetRef.current, undefined, height);
+        summaryScrollAtBottomRef.current = canSwipeReel;
+        setSummaryScrollAtBottom(canSwipeReel);
+        onSummarySheetStateChange(true, canSwipeReel);
       }
     },
-    [canHandOffSummaryScroll, isSummaryExpanded, onSummarySheetStateChange, summaryScrollViewportHeight],
+    [canSwipeReelFromSummaryOffset, isSummaryExpanded, onSummarySheetStateChange],
   );
 
-  const DISMISS_VELOCITY_THRESHOLD = 0.5;
+  // Keep edge bounces enabled so the touch can hand off at both scroll ends.
+  const summaryBounces = isSummaryExpanded
+    && (isSummaryScrollAtTop || isSummaryScrollAtBottom || summaryContentFitsViewport);
 
-  const summaryContentFitsViewport = summaryScrollContentHeight > 0
-    && summaryScrollContentHeight <= summaryScrollViewportHeight + 2;
+  const sheetBodyPanResponder = useMemo(
+    () => {
+      const shouldDragSheet = (_e: unknown, gestureState: { dx: number; dy: number }) => {
+        if (!isSummaryVisible) return false;
+        if (Math.abs(gestureState.dy) <= 4) return false;
+        if (Math.abs(gestureState.dy) <= Math.abs(gestureState.dx)) return false;
+        return gestureState.dy > 4 && (summaryScrollAtTopRef.current || summaryContentFitsViewport);
+      };
 
-  // bounces true at the top so iOS shows an overscroll drag the dismiss handler closes on release.
-  const summaryBounces = isSummaryExpanded && (isSummaryScrollAtTop || summaryContentFitsViewport);
+      return PanResponder.create({
+        onMoveShouldSetPanResponder: shouldDragSheet,
+        onMoveShouldSetPanResponderCapture: shouldDragSheet,
+        onPanResponderGrant: startSummarySheetDrag,
+        onPanResponderMove: (_e, gestureState) => moveSummarySheetDrag(gestureState.dy),
+        onPanResponderRelease: (_e, gestureState) => finishSummarySheetDrag(gestureState.dy, gestureState.vy),
+        onPanResponderTerminate: snapSummarySheetOpen,
+      });
+    },
+    [
+      finishSummarySheetDrag,
+      isSummaryScrollAtTop,
+      isSummaryVisible,
+      moveSummarySheetDrag,
+      snapSummarySheetOpen,
+      startSummarySheetDrag,
+      summaryContentFitsViewport,
+    ],
+  );
 
   const handleSummaryScrollEndDrag = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       if (!isSummaryExpanded) return;
       const { y } = event.nativeEvent.contentOffset;
-      const velocity = event.nativeEvent.velocity?.y ?? 0;
-      const atTop = y <= 0;
-      const pullingDown = velocity > DISMISS_VELOCITY_THRESHOLD;
-      if ((atTop && pullingDown) || summaryContentFitsViewport) {
+      const draggedPastTop = y <= -SUMMARY_EDGE_DISMISS_DISTANCE
+        && (summaryScrollGestureStartedAtTopRef.current || summaryContentFitsViewport);
+      if (draggedPastTop) {
         setSummaryOpen(false);
       }
     },
     [
       isSummaryExpanded,
+      setSummaryOpen,
       summaryContentFitsViewport,
     ],
   );
@@ -482,10 +659,12 @@ function ProductReelPage({
             data={mediaItems}
             horizontal
             pagingEnabled
+            snapToAlignment="start"
+            snapToInterval={effectiveMediaWidth}
             keyExtractor={(item, index) => `${item.url}-${index}`}
             renderItem={renderMediaItem}
             showsHorizontalScrollIndicator={false}
-            style={[s.mediaScroller, { height: effectiveMediaHeight }]}
+            style={{ ...s.mediaScroller, height: effectiveMediaHeight }}
             decelerationRate="fast"
             disableIntervalMomentum
             drawDistance={mediaWidth}
@@ -621,9 +800,9 @@ function ProductReelPage({
                 transform: [{ translateY: summarySheetTranslate }],
               },
             ]}
-            {...sheetPanResponder.panHandlers}
+            {...sheetBodyPanResponder.panHandlers}
           >
-            <View style={s.summaryHandle}>
+            <View style={s.summaryHandle} {...handlePanResponder.panHandlers}>
               <View style={s.summaryHandleBar} />
             </View>
             <View style={s.summarySheetHeader}>
@@ -655,21 +834,26 @@ function ProductReelPage({
                 {isExpired ? '마감' : '구매링크'}
               </SText>
             </Pressable>
-            <ScrollView
-              bounces={summaryBounces}
-              nestedScrollEnabled
-              onContentSizeChange={handleSummaryContentSizeChange}
-              onLayout={handleSummaryScrollLayout}
-              onScroll={handleSummaryScroll}
-              onScrollEndDrag={handleSummaryScrollEndDrag}
-              scrollEventThrottle={16}
-              showsVerticalScrollIndicator={false}
-              style={s.summaryScroll}
-            >
-              <SText variant="body" style={s.summarySheetText}>
-                {summary}
-              </SText>
-            </ScrollView>
+            <GestureDetector gesture={summaryScrollPullGesture}>
+              <GestureScrollView
+                alwaysBounceVertical={summaryBounces}
+                bounces={summaryBounces}
+                nestedScrollEnabled
+                onContentSizeChange={handleSummaryContentSizeChange}
+                onLayout={handleSummaryScrollLayout}
+                onScroll={handleSummaryScroll}
+                onScrollBeginDrag={handleSummaryScrollBeginDrag}
+                onScrollEndDrag={handleSummaryScrollEndDrag}
+                overScrollMode="always"
+                scrollEventThrottle={16}
+                showsVerticalScrollIndicator={false}
+                style={s.summaryScroll}
+              >
+                <SText variant="body" style={s.summarySheetText}>
+                  {summary}
+                </SText>
+              </GestureScrollView>
+            </GestureDetector>
           </Animated.View>
         </View>
       ) : null}
@@ -683,7 +867,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const [activeProductIndex, setActiveProductIndex] = useState(0);
+  const verticalPagerRef = useRef<PagerView>(null);
   const [summarySheetGate, setSummarySheetGate] = useState({ isOpen: false, canSwipeReel: true });
 
   const { data: groupBuys } = useQuery({
@@ -693,6 +877,8 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   });
 
   const reelItems = useMemo(() => getReelItems(groupBuy, groupBuys), [groupBuy, groupBuys]);
+  const initialReelIndex = useMemo(() => getInitialReelIndex(groupBuy, reelItems), [groupBuy.id, reelItems]);
+  const [activeProductIndex, setActiveProductIndex] = useState(initialReelIndex);
   const handleSummarySheetStateChange = useCallback((isOpen: boolean, canSwipeReel: boolean) => {
     setSummarySheetGate({ isOpen, canSwipeReel });
   }, []);
@@ -701,9 +887,15 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     setSummarySheetGate({ isOpen: false, canSwipeReel: true });
   }, [activeProductIndex]);
 
+  useEffect(() => {
+    setActiveProductIndex(initialReelIndex);
+    verticalPagerRef.current?.setPageWithoutAnimation?.(initialReelIndex);
+  }, [initialReelIndex, reelItems.length, groupBuy.id]);
+
   const renderReelItem = useCallback(
     ({ item, index }: { item: GroupBuy; index: number }) => (
       <ProductReelPage
+        key={item.id}
         groupBuy={item}
         isActive={index === activeProductIndex}
         pageHeight={screenHeight}
@@ -715,32 +907,51 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         s={s}
       />
     ),
-    [activeProductIndex, handleSummarySheetStateChange, insets.bottom, insets.top, navigation, s, screenHeight, screenWidth],
+    [
+      activeProductIndex,
+      handleSummarySheetStateChange,
+      insets.bottom,
+      insets.top,
+      navigation,
+      s,
+      screenHeight,
+      screenWidth,
+    ],
   );
 
   return (
     <View style={s.safeArea}>
       <StatusBar barStyle="light-content" />
-      <FlashList
-        data={reelItems}
-        keyExtractor={(item) => item.id}
-        renderItem={renderReelItem}
-        pagingEnabled
-        scrollEnabled={!summarySheetGate.isOpen || summarySheetGate.canSwipeReel}
-        showsVerticalScrollIndicator={false}
-        style={s.verticalScroller}
-        decelerationRate="fast"
-        disableIntervalMomentum
-        drawDistance={screenHeight}
-        maxItemsInRecyclePool={2}
-        maintainVisibleContentPosition={{ disabled: true }}
-        onMomentumScrollEnd={(event) => {
-          const nextIndex = Math.round(event.nativeEvent.contentOffset.y / screenHeight);
+      <PagerView
+        ref={verticalPagerRef}
+        initialPage={initialReelIndex}
+        offscreenPageLimit={1}
+        onPageSelected={(event) => {
+          const nextIndex = event.nativeEvent.position;
           if (nextIndex !== activeProductIndex && nextIndex >= 0 && nextIndex < reelItems.length) {
             setActiveProductIndex(nextIndex);
           }
         }}
-      />
+        orientation="vertical"
+        overdrag
+        scrollEnabled={screenHeight > 0 && reelItems.length > 1 && !summarySheetGate.isOpen}
+        style={s.verticalPager}
+      >
+        {reelItems.map((item, index) => (
+          <View
+            key={item.id}
+            collapsable={false}
+            style={[
+              s.verticalPagerPage,
+              {
+                height: screenHeight,
+              },
+            ]}
+          >
+            {renderReelItem({ item, index })}
+          </View>
+        ))}
+      </PagerView>
     </View>
   );
 }
@@ -748,7 +959,15 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
 function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#05070A' },
-    verticalScroller: { backgroundColor: '#05070A', flex: 1 },
+    verticalPager: {
+      backgroundColor: '#05070A',
+      flex: 1,
+      overflow: 'hidden',
+    },
+    verticalPagerPage: {
+      backgroundColor: '#05070A',
+      width: '100%',
+    },
     reelPage: {
       backgroundColor: '#05070A',
       overflow: 'hidden',
