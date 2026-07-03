@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   Alert,
+  Easing,
   Image,
   Linking,
   type LayoutChangeEvent,
@@ -238,6 +240,7 @@ function ProductReelPage({
   const [summaryScrollViewportHeight, setSummaryScrollViewportHeight] = useState(0);
   const [isSummaryScrollAtTop, setSummaryScrollAtTop] = useState(true);
   const summaryScrollOffsetRef = useRef(0);
+  const [isSummaryVisible, setSummaryVisible] = useState(false);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
@@ -249,6 +252,7 @@ function ProductReelPage({
     280,
     Math.min(pageHeight - topInset - spacing.xl, pageHeight * 0.62),
   );
+  const summarySheetTranslate = useRef(new Animated.Value(summarySheetMaxHeight)).current;
   const canHandOffSummaryScroll = useCallback(
     (offsetY: number, viewportHeight = summaryScrollViewportHeight, contentHeight = summaryScrollContentHeight) => {
       if (viewportHeight <= 0 || contentHeight <= 0) return false;
@@ -262,14 +266,32 @@ function ProductReelPage({
 
   const setSummaryOpen = useCallback(
     (isOpen: boolean) => {
-      setSummaryExpanded(isOpen);
-      if (!isOpen) {
-        summaryScrollOffsetRef.current = 0;
-        setSummaryScrollAtTop(true);
+      if (isOpen) {
+        setSummaryExpanded(true);
+        setSummaryVisible(true);
+        Animated.spring(summarySheetTranslate, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 9,
+          tension: 50,
+        }).start();
+      } else {
+        Animated.timing(summarySheetTranslate, {
+          toValue: summarySheetMaxHeight,
+          duration: 260,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start(() => {
+          setSummaryExpanded(false);
+          setSummaryVisible(false);
+          summaryScrollOffsetRef.current = 0;
+          setSummaryScrollAtTop(true);
+          summarySheetTranslate.setValue(summarySheetMaxHeight);
+        });
       }
       onSummarySheetStateChange(isOpen, false);
     },
-    [onSummarySheetStateChange],
+    [onSummarySheetStateChange, summarySheetMaxHeight, summarySheetTranslate],
   );
 
   useEffect(() => {
@@ -532,7 +554,7 @@ function ProductReelPage({
         </>
       ) : null}
 
-      {summary && isSummaryExpanded ? (
+      {summary && isSummaryVisible ? (
         <View style={s.summaryOverlay} pointerEvents="box-none">
           <Pressable
             accessibilityLabel="요약 닫기"
@@ -540,12 +562,13 @@ function ProductReelPage({
             onPress={() => setSummaryOpen(false)}
             style={s.summaryBackdrop}
           />
-          <View
+          <Animated.View
             style={[
               s.summarySheet,
               {
                 maxHeight: summarySheetMaxHeight,
                 paddingBottom: bottomInset + spacing.lg,
+                transform: [{ translateY: summarySheetTranslate }],
               },
             ]}
           >
@@ -603,7 +626,7 @@ function ProductReelPage({
                 {summary}
               </SText>
             </ScrollView>
-          </View>
+          </Animated.View>
         </View>
       ) : null}
     </View>
@@ -1016,13 +1039,13 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     },
     summarySheetSellerName: {
       color: '#FFFFFF',
-      fontSize: 18,
-      fontWeight: '900',
+      fontSize: 15,
+      fontWeight: '700',
     },
     summarySheetProductName: {
       color: 'rgba(255,255,255,0.66)',
       fontSize: 13,
-      fontWeight: '700',
+      fontWeight: '500',
       marginTop: 2,
     },
     summaryCloseButton: {
@@ -1034,9 +1057,9 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     },
     summaryCloseIcon: {
       color: '#FFFFFF',
-      fontSize: 30,
+      fontSize: 24,
       fontWeight: '300',
-      lineHeight: 34,
+      lineHeight: 28,
     },
     summarySheetBuyButton: {
       alignItems: 'center',
@@ -1055,16 +1078,16 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     summarySheetBuyButtonText: {
       color: '#111318',
       fontSize: 12,
-      fontWeight: '900',
+      fontWeight: '700',
     },
     summaryScroll: {
       flexGrow: 0,
     },
     summarySheetText: {
       color: '#FFFFFF',
-      fontSize: 20,
-      fontWeight: '600',
-      lineHeight: 30,
+      fontSize: 15,
+      fontWeight: '500',
+      lineHeight: 22,
       paddingBottom: spacing.xl,
     },
     pressed: { opacity: 0.72 },

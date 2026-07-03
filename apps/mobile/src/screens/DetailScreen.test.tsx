@@ -69,6 +69,22 @@ vi.mock('react-native', () => {
 
   return {
     Alert: { alert: vi.fn() },
+    Animated: {
+      Value: function AnimatedValue(this: any, value: number) {
+        this._value = value;
+        this.setValue = vi.fn();
+        this.interpolate = vi.fn(() => 0);
+      },
+      spring: vi.fn(() => ({ start: (cb?: () => void) => cb?.() })),
+      timing: vi.fn(() => ({ start: (cb?: () => void) => cb?.() })),
+      View: passthrough('Animated.View'),
+    },
+    Easing: {
+      out: vi.fn((fn: any) => fn),
+      cubic: vi.fn(),
+      inOut: vi.fn((fn: any) => fn),
+      sin: vi.fn(),
+    },
     Image: ({ source, style, resizeMode, children }: any) =>
       ReactMock.createElement('Image', { source, style, resizeMode }, children as ReactNode),
     Linking: { openURL: vi.fn() },
