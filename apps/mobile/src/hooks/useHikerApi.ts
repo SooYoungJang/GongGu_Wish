@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { lookupInstagramUrl } from '../api';
-import type { InstagramMediaInfo } from '../types';
+import type { InstagramMediaInfo, MediaAsset } from '../types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,8 @@ export interface HikerPostData {
   videoUrl: string | null;
   /** All media URLs from carousel (images + videos) in post order */
   mediaUrls: string[];
+  /** Ordered media assets with per-slide type information */
+  mediaItems?: MediaAsset[];
   /** Dominant media type: IMAGE or VIDEO */
   mediaType: 'IMAGE' | 'VIDEO' | null;
   /** Post caption / summary text */
@@ -55,6 +57,7 @@ function toPostData(info: InstagramMediaInfo): HikerPostData {
     thumbnailUrl: info.thumbnailUrl,
     videoUrl: info.videoUrl,
     mediaUrls: info.mediaUrls,
+    mediaItems: info.mediaItems ?? [],
     mediaType: info.mediaType,
     caption: info.caption,
     likeCount: info.likeCount,

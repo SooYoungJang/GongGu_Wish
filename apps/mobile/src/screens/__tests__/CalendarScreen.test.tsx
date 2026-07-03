@@ -128,14 +128,14 @@ function flattenText(node: TestRenderer.ReactTestRendererJSON | TestRenderer.Rea
   return node.children?.map((child) => (typeof child === 'string' ? child : flattenText(child))).join(' ') ?? '';
 }
 
-function renderCalendar() {
+function renderCalendar(params: Record<string, unknown> = {}) {
   let renderer: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
       <ThemeProvider>
         <CalendarScreen
           navigation={{ navigate: vi.fn(), goBack: vi.fn() } as any}
-          route={{ params: {}, key: 'CalendarScreen', name: 'CalendarScreen' } as any}
+          route={{ params, key: 'CalendarScreen', name: 'CalendarScreen' } as any}
         />
       </ThemeProvider>,
     );
@@ -214,16 +214,17 @@ describe('CalendarScreen', () => {
         id: 'gb-today-1',
         productName: '오늘의 딜',
         brandName: '투데이',
+        category: 'beauty',
         endDate: todayStr + 'T23:59:59+09:00',
         purchaseUrl: 'https://example.com',
         discountInfo: '30% 할인',
         summary: '오늘만 특가',
         confidence: 0.95,
-    startDate: null,
-    thumbnailUrl: null,
-    videoUrl: null,
-    mediaUrls: [],
-    mediaType: null,
+        startDate: null,
+        thumbnailUrl: null,
+        videoUrl: null,
+        mediaUrls: [],
+        mediaType: null,
         rawPost: { postUrl: 'https://instagram.com/p/t1', influencer: { instagramUsername: 'daily_deal' } },
       },
     ];
@@ -240,11 +241,50 @@ describe('CalendarScreen', () => {
 
     // Should show the deal
     expect(text).toContain('오늘의 딜');
-    expect(text).toContain('투데이');
+    expect(text).toContain('뷰티');
+    expect(text).toContain('@ daily_deal');
     expect(text).toContain('30% 할인');
     expect(text).toContain('오늘의 공구');
 
     // Reset
+    mockQueryResult = {
+      data: null,
+      isFetching: false,
+      isError: false,
+    };
+  });
+
+  it('opens on the exact initialDate passed from the home weekly strip', () => {
+    mockQueryResult = {
+      data: [
+        {
+          id: 'gb-media-test',
+          productName: '미디어테스트 20260702T163723Z',
+          brandName: null,
+          category: 'digital',
+          startDate: '2026-07-02T00:00:00',
+          endDate: '2026-07-04T00:00:00',
+          purchaseUrl: 'https://example.com/media',
+          discountInfo: null,
+          summary: null,
+          confidence: 0.95,
+          thumbnailUrl: null,
+          videoUrl: null,
+          mediaUrls: [],
+          mediaType: null,
+          rawPost: { postUrl: 'https://instagram.com/p/media', influencer: { instagramUsername: 'media_test' } },
+        },
+      ],
+      isFetching: false,
+      isError: false,
+    };
+
+    const renderer = renderCalendar({ initialDate: '2026-07-02' });
+    const text = flattenText(renderer!.toJSON());
+
+    expect(text).toContain('7월 2일 공구');
+    expect(text).toContain('미디어테스트 20260702T163723Z');
+
     mockQueryResult = {
       data: null,
       isFetching: false,

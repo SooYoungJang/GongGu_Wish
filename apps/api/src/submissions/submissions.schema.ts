@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
 const imageUrlsSchema = z.array(z.string().url()).max(5).default([]);
+const categorySchema = z.enum(['beauty', 'fashion', 'food', 'lifestyle', 'baby', 'digital']);
 
 export const createSubmissionSchema = z.object({
   productName: z.string().min(2).max(100),
   brandName: z.string().max(50).optional(),
+  category: categorySchema.optional(),
   startDate: z.string().date().optional(),
   endDate: z.string().date().optional(),
   purchaseUrl: z.string().url().optional(),

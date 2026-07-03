@@ -10,11 +10,21 @@ export const submissionStatusSchema = z.enum([
 
 export type SubmissionStatus = z.infer<typeof submissionStatusSchema>;
 
+export const submissionCategorySchema = z.enum([
+  "beauty",
+  "fashion",
+  "food",
+  "lifestyle",
+  "baby",
+  "digital",
+]);
+
 export const submissionSchema = z.object({
   id: z.string().uuid(),
   // 제보 내용
   productName: z.string().max(200),
   brandName: z.string().max(100).nullable(),
+  category: submissionCategorySchema.nullable().default(null),
   startDate: z.string().datetime().nullable(),
   endDate: z.string().datetime().nullable(),
   purchaseUrl: z.string().url().nullable(),
@@ -44,6 +54,7 @@ export const submissionSchema = z.object({
       id: z.string().uuid(),
       productName: z.string().nullable(),
       brandName: z.string().nullable(),
+      category: submissionCategorySchema.nullable().default(null),
       startDate: z.string().datetime().nullable(),
       endDate: z.string().datetime().nullable(),
       purchaseUrl: z.string().url().nullable(),
@@ -76,6 +87,7 @@ export const submissionFormSchema = z
   .object({
     productName: z.string().min(1, "제품명은 필수입니다").max(200),
     brandName: z.string().max(100).optional(),
+    category: submissionCategorySchema.optional(),
     startDate: z.string().datetime().optional().or(z.literal("")),
     endDate: z.string().datetime().optional().or(z.literal("")),
     purchaseUrl: z.string().url("올바른 구매 URL을 입력해주세요").optional().or(z.literal("")),
@@ -102,6 +114,7 @@ export type SubmissionForm = z.infer<typeof submissionFormSchema>;
 export const submissionReviewFormSchema = z.object({
   productName: z.string().max(200).optional(),
   brandName: z.string().max(100).optional(),
+  category: submissionCategorySchema.optional(),
   startDate: z.string().datetime().optional().or(z.literal("")),
   endDate: z.string().datetime().optional().or(z.literal("")),
   purchaseUrl: z.string().url().optional().or(z.literal("")),

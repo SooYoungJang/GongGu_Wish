@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Pressable, Share, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SText } from './ui/SText';
 
 import { borderRadius, categoryColors, spacing } from '../design/tokens';
@@ -12,6 +12,15 @@ type DealCardProps = {
   item: GroupBuy;
   category: CategoryColorName;
   onPress: () => void;
+};
+
+const CATEGORY_LABELS: Record<CategoryColorName, string> = {
+  beauty: '뷰티',
+  fashion: '패션',
+  food: '푸드',
+  lifestyle: '라이프',
+  baby: '육아',
+  digital: '디지털',
 };
 
 function formatDeadline(endDate: string | null) {
@@ -30,16 +39,8 @@ export function DealCard({ item, category, onPress }: DealCardProps) {
   const { colors, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
   const token = categoryColors[category];
-
-  const handleShare = async () => {
-    try {
-      await Share.share({
-        message: `${item.productName ?? '공동구매'} (@${item.rawPost.influencer.instagramUsername})\n${item.purchaseUrl ?? item.rawPost.postUrl}`,
-      });
-    } catch {
-      // user cancelled or share failed — silently ignore
-    }
-  };
+  const imageUrl = item.thumbnailUrl ?? item.mediaUrls?.[0] ?? null;
+  const categoryLabel = CATEGORY_LABELS[category];
 
   return (
     <Pressable
@@ -48,22 +49,15 @@ export function DealCard({ item, category, onPress }: DealCardProps) {
       onPress={onPress}
       style={s.card}
     >
-      <View style={s.cardHeader}>
+      {imageUrl ? (
+        <Image source={{ uri: imageUrl }} style={s.image} />
+      ) : (
         <View style={[s.image, { backgroundColor: token.bg, borderColor: token.border }]}>
-          <SText variant="cardTitle" style={[s.imageText, { color: token.text }]}>{item.brandName?.slice(0, 2) ?? '공구'}</SText>
+          <SText variant="cardTitle" style={[s.imageText, { color: token.text }]}>{categoryLabel.slice(0, 2)}</SText>
         </View>
-        <Pressable
-          accessibilityLabel="공구 공유하기"
-          accessibilityRole="button"
-          hitSlop={8}
-          onPress={handleShare}
-          style={s.shareButton}
-        >
-          <SText variant="caption" style={s.shareIcon}>↗</SText>
-        </Pressable>
-      </View>
+      )}
       <SText variant="subtitle" numberOfLines={2} style={s.title}>{item.productName ?? '공동구매 상품'}</SText>
-      <SText variant="caption" numberOfLines={1} style={s.brand}>{item.brandName ?? `@${item.rawPost.influencer.instagramUsername}`}</SText>
+      <SText variant="caption" numberOfLines={1} style={s.brand}>{categoryLabel} · @{item.rawPost.influencer.instagramUsername}</SText>
       <SText variant="cardBrand" style={s.discount}>{item.discountInfo ?? '혜택 확인'}</SText>
       <SText variant="caption" style={s.deadline}>{formatDeadline(item.endDate)}</SText>
     </Pressable>
@@ -73,66 +67,29 @@ export function DealCard({ item, category, onPress }: DealCardProps) {
 function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
   return StyleSheet.create({
     card: {
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-      borderRadius: borderRadius.xl,
-      borderWidth: 1,
       flexBasis: '47%',
       flexGrow: 1,
-      minHeight: 236,
-      padding: spacing.md,
-      ...shadows.sm,
-    },
-    cardHeader: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      marginBottom: spacing.md,
-    },
-    shareButton: {
-      width: 32,
-      height: 32,
-      borderRadius: borderRadius.full,
-      backgroundColor: colors.surfaceHover,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    shareIcon: {
-      fontSize: 16,
-      fontWeight: '800',
-      color: colors.textSecondary,
     },
     image: {
-      flex: 1,
       alignItems: 'center',
-      borderRadius: borderRadius.lg,
-      borderWidth: 1,
+      borderRadius: borderRadius.xl,
       justifyContent: 'center',
-      minHeight: 104,
+      minHeight: 120,
+      resizeMode: 'cover',
+      width: '100%',
+      aspectRatio: 1,
     },
     imageText: { fontSize: 18, fontWeight: '800' },
     title: {
       color: colors.textPrimary,
-      fontSize: 15,
-      fontWeight: '800',
-      lineHeight: 20,
-      marginBottom: spacing.xs,
-    },
-    brand: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      marginBottom: spacing.xs,
-    },
-    discount: {
-      color: colors.accent,
-      fontSize: 13,
-      fontWeight: '800',
-      marginBottom: spacing.xs,
-    },
-    deadline: {
-      color: colors.textTertiary,
-      fontSize: 12,
+      fontSize: 14,
       fontWeight: '700',
+      lineHeight: 19,
+      marginTop: spacing.sm,
+      marginBottom: 2,
     },
+    brand: { color: colors.textSecondary, fontSize: 12, marginBottom: 2 },
+    discount: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+    deadline: { color: colors.textTertiary, fontSize: 11, marginTop: 2 },
   });
 }

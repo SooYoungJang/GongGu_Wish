@@ -259,6 +259,31 @@ describe('HomeScreenContent redesign v2', () => {
 });
 
 describe('HomeScreenContent redesign interactions', () => {
+  it('passes the selected week date when opening the full calendar', () => {
+    const onPressCalendar = vi.fn();
+    const renderer = renderHomeContent({ onPressCalendar });
+
+    const dateButton = renderer.root.findAllByType('Pressable' as unknown as React.ElementType).find(
+      (pressable) => /^[월화수목금토일] \d+일 공구 보기$/.test(String(pressable.props.accessibilityLabel)),
+    );
+    expect(dateButton).toBeDefined();
+    const selectedDay = Number(String(dateButton!.props.accessibilityLabel).match(/(\d+)일/)?.[1]);
+
+    act(() => {
+      dateButton!.props.onPress();
+    });
+
+    const viewAllCta = renderer.root.findByProps({ accessibilityLabel: '전체 캘린더 보기' });
+    act(() => {
+      viewAllCta.props.onPress();
+    });
+
+    expect(onPressCalendar).toHaveBeenCalledTimes(1);
+    const selectedDate = onPressCalendar.mock.calls[0][0] as Date;
+    expect(selectedDate).toBeInstanceOf(Date);
+    expect(selectedDate.getDate()).toBe(selectedDay);
+  });
+
   it('keeps home actions reachable with 44px minimum touch targets', () => {
     const renderer = renderHomeContent();
 

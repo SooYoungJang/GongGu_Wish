@@ -10,16 +10,13 @@ import type { ColorPalette } from '../../context/ThemeContext';
 type FeedSectionProps = {
   feedPosts: FeedPost[];
   onPressFeed: (feedPost: FeedPost) => void;
-  /** Loading state — shown when true and no feedPosts available */
   isLoading?: boolean;
-  /** Error state — shown when true and no feedPosts available */
   isError?: boolean;
-  /** Called when user taps retry after an error */
   onRetry?: () => void;
 };
 
 function FeedCard({ item, onPress, s }: { item: FeedPost; onPress: () => void; s: any }) {
-  const ogImage = item.ogImage ?? item.thumbnailUrl;
+  const imageUrl = item.ogImage ?? item.thumbnailUrl ?? (item.mediaType === 'IMAGE' ? item.mediaUrl : null);
   const title = item.ogTitle ?? item.caption ?? '';
   const description = item.ogDescription ?? '';
   const accountName = item.accountName ?? '알 수 없음';
@@ -32,23 +29,17 @@ function FeedCard({ item, onPress, s }: { item: FeedPost; onPress: () => void; s
       style={s.card}
     >
       <View style={s.thumbnailContainer}>
-        {ogImage ? (
-          <Image source={{ uri: ogImage }} style={s.thumbnail} />
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={s.thumbnail} />
         ) : (
           <View style={s.placeholder}>
             <SText variant="body" style={s.placeholderIcon}>📷</SText>
           </View>
         )}
-        <View style={s.feedMetaPill}>
-          <SText variant="caption" style={s.feedMetaText}>{accountName.slice(0, 1).toUpperCase()}</SText>
-        </View>
-        <View style={s.chatBubble}>
-          <SText variant="caption" style={s.chatBubbleText}>••</SText>
-        </View>
       </View>
       <View style={s.cardBody}>
         <SText variant="cardBrand" numberOfLines={2} style={s.caption}>
-          {title}
+          {title || '새로운 피드'}
         </SText>
         {description ? (
           <SText variant="caption" numberOfLines={2} style={s.description}>
@@ -56,7 +47,7 @@ function FeedCard({ item, onPress, s }: { item: FeedPost; onPress: () => void; s
           </SText>
         ) : null}
         <SText variant="caption" numberOfLines={1} style={s.accountName}>
-          {accountName}
+          @{accountName}
         </SText>
       </View>
     </Pressable>
@@ -67,7 +58,6 @@ export function FeedSection({ feedPosts, onPressFeed, isLoading, isError, onRetr
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
-  // Loading state
   if (isLoading && feedPosts.length === 0) {
     return (
       <View style={s.section}>
@@ -83,7 +73,6 @@ export function FeedSection({ feedPosts, onPressFeed, isLoading, isError, onRetr
     );
   }
 
-  // Error state
   if (isError && feedPosts.length === 0) {
     return (
       <View style={s.section}>
@@ -109,7 +98,6 @@ export function FeedSection({ feedPosts, onPressFeed, isLoading, isError, onRetr
     );
   }
 
-  // Empty state
   if (feedPosts.length === 0) {
     return (
       <View style={s.section}>
@@ -124,7 +112,6 @@ export function FeedSection({ feedPosts, onPressFeed, isLoading, isError, onRetr
     );
   }
 
-  // Normal state: horizontal scroll of feed cards
   return (
     <View style={s.section}>
       <View style={s.headerRow}>
@@ -142,19 +129,13 @@ export function FeedSection({ feedPosts, onPressFeed, isLoading, isError, onRetr
 
 function makeStyles(colors: ColorPalette) {
   return StyleSheet.create({
-    section: {
-      marginBottom: spacing.xl,
-    },
+    section: { marginBottom: spacing.xl },
     headerRow: {
       alignItems: 'center',
       flexDirection: 'row',
       marginBottom: spacing.md,
     },
-    sectionTitle: {
-      color: colors.textPrimary,
-      fontSize: 20,
-      fontWeight: '800',
-    },
+    sectionTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '800' },
     headerDot: {
       backgroundColor: colors.primary,
       borderRadius: borderRadius.full,
@@ -165,33 +146,20 @@ function makeStyles(colors: ColorPalette) {
     scrollContent: { gap: spacing.sm, paddingRight: spacing.lg },
     card: {
       backgroundColor: 'transparent',
-      borderRadius: borderRadius.md,
       minHeight: 44,
-      width: 116,
+      width: 128,
     },
     thumbnailContainer: {
       backgroundColor: colors.primaryBg,
-      borderRadius: borderRadius.md,
-      height: 116,
+      borderRadius: borderRadius.lg,
+      height: 128,
       overflow: 'hidden',
       position: 'relative',
     },
-    thumbnail: {
-      height: '100%',
-      resizeMode: 'cover',
-      width: '100%',
-    },
-    placeholder: {
-      alignItems: 'center',
-      height: '100%',
-      justifyContent: 'center',
-    },
-    placeholderIcon: {
-      fontSize: 32,
-    },
-    cardBody: {
-      paddingTop: spacing.xs,
-    },
+    thumbnail: { height: '100%', resizeMode: 'cover', width: '100%' },
+    placeholder: { alignItems: 'center', height: '100%', justifyContent: 'center' },
+    placeholderIcon: { fontSize: 32 },
+    cardBody: { paddingTop: spacing.xs, width: 128 },
     caption: {
       ...typography.cardBrand,
       color: colors.textPrimary,
@@ -200,57 +168,15 @@ function makeStyles(colors: ColorPalette) {
       lineHeight: 17,
       marginBottom: 2,
     },
-    description: {
-      ...typography.caption,
-      color: colors.textTertiary,
-      fontSize: 11,
-      marginBottom: 2,
-    },
-    accountName: {
-      ...typography.caption,
-      color: colors.textTertiary,
-      fontSize: 11,
-    },
-    feedMetaPill: {
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderColor: colors.borderLight,
-      borderRadius: borderRadius.full,
-      borderWidth: 1,
-      height: 22,
-      justifyContent: 'center',
-      left: spacing.xs,
-      position: 'absolute',
-      top: spacing.xs,
-      width: 22,
-    },
-    feedMetaText: { color: colors.primary, fontSize: 10, fontWeight: '800' },
-    chatBubble: {
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderRadius: borderRadius.full,
-      height: 24,
-      justifyContent: 'center',
-      position: 'absolute',
-      right: spacing.xs,
-      top: spacing.xs,
-      width: 24,
-    },
-    chatBubbleText: { color: colors.textSecondary, fontSize: 10, fontWeight: '900', lineHeight: 12 },
+    description: { ...typography.caption, color: colors.textTertiary, fontSize: 11, marginBottom: 2 },
+    accountName: { ...typography.caption, color: colors.textTertiary, fontSize: 11 },
     statusContainer: {
       alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderRadius: borderRadius.xl,
       gap: spacing.sm,
       padding: spacing.xl,
     },
-    statusText: {
-      color: colors.textSecondary,
-      fontSize: 14,
-    },
-    errorIcon: {
-      fontSize: 28,
-    },
+    statusText: { color: colors.textSecondary, fontSize: 14 },
+    errorIcon: { fontSize: 28 },
     retryButton: {
       backgroundColor: colors.primary,
       borderRadius: borderRadius.md,
@@ -258,10 +184,6 @@ function makeStyles(colors: ColorPalette) {
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.sm,
     },
-    retryText: {
-      color: colors.textInverse,
-      fontSize: 14,
-      fontWeight: '700',
-    },
+    retryText: { color: colors.textInverse, fontSize: 14, fontWeight: '700' },
   });
 }

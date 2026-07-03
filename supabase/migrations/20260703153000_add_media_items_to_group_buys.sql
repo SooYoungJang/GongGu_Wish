@@ -1,0 +1,5 @@
+ALTER TABLE group_buys
+  ADD COLUMN IF NOT EXISTS media_items JSONB DEFAULT '[]'::JSONB;
+
+ALTER TABLE gonggu_submissions
+  ADD COLUMN IF NOT EXISTS media_items JSONB DEFAULT '[]'::JSONB;

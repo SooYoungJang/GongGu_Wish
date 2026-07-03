@@ -9,11 +9,23 @@ export const groupBuyStatusSchema = z.enum([
 
 export type GroupBuyStatus = z.infer<typeof groupBuyStatusSchema>;
 
+export const groupBuyCategorySchema = z.enum([
+  "beauty",
+  "fashion",
+  "food",
+  "lifestyle",
+  "baby",
+  "digital",
+]);
+
+export type GroupBuyCategory = z.infer<typeof groupBuyCategorySchema>;
+
 export const groupBuySchema = z.object({
   id: z.string().uuid(),
   rawPostId: z.string().uuid().nullable(),
   productName: z.string().max(200).nullable(),
   brandName: z.string().max(100).nullable(),
+  category: groupBuyCategorySchema.nullable().default(null),
   startDate: z.string().datetime().nullable(),
   endDate: z.string().datetime().nullable(),
   purchaseUrl: z.string().url().nullable(),
@@ -26,6 +38,8 @@ export const groupBuySchema = z.object({
   sourceType: z.string(),
   submissionId: z.string().uuid().nullable(),
   isAllDay: z.boolean(),
+  isMonthlyFeatured: z.boolean().default(false),
+  monthlyFeaturedRank: z.number().int().nullable().default(null),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

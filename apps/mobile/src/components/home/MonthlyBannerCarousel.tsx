@@ -3,43 +3,50 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SText } from '../../components/ui/SText';
 
 import { borderRadius, spacing } from '../../design/tokens';
-import type { FeedPost, GroupBuy } from '../../types';
+import type { GroupBuy } from '../../types';
+import { formatEndDate, getDaysRemaining } from '../../utils';
 import { useTheme } from '../../context/ThemeContext';
 import type { ColorPalette } from '../../context/ThemeContext';
 
 type MonthlyBannerCarouselProps = {
   groupBuys: GroupBuy[];
-  feedPosts?: FeedPost[];
   onPressDeal: (groupBuy: GroupBuy) => void;
 };
 
-function percentFor(item: GroupBuy) {
-  const discount = item.discountInfo?.match(/(\d{1,3})\s*%/);
-  if (discount?.[1]) return Math.min(Number(discount[1]), 99);
-  return Math.max(40, Math.min(Math.round(item.confidence * 100), 99));
+function bestVisual(item: GroupBuy) {
+  return item.thumbnailUrl ?? (item.mediaType === 'IMAGE' ? item.mediaUrls?.[0] ?? null : null);
 }
 
-function visualFor(index: number, feedPosts: FeedPost[]) {
-  const feed = feedPosts[index % Math.max(feedPosts.length, 1)];
-  return feed?.ogImage ?? feed?.thumbnailUrl ?? feed?.mediaUrl ?? null;
+function isActiveMonthlyFeatured(item: GroupBuy) {
+  const daysRemaining = getDaysRemaining(item.endDate);
+  return item.isMonthlyFeatured === true && daysRemaining >= 0 && daysRemaining !== Infinity;
+}
+
+function compareMonthlyFeatured(a: GroupBuy, b: GroupBuy) {
+  const aRank = a.monthlyFeaturedRank ?? Number.MAX_SAFE_INTEGER;
+  const bRank = b.monthlyFeaturedRank ?? Number.MAX_SAFE_INTEGER;
+  if (aRank !== bRank) return aRank - bRank;
+  return getDaysRemaining(a.endDate) - getDaysRemaining(b.endDate);
 }
 
 function BannerCard({
   item,
   items,
-  feedPosts,
   onPress,
   s,
   colors,
 }: {
   item: GroupBuy;
   items: GroupBuy[];
-  feedPosts: FeedPost[];
   onPress: () => void;
   s: ReturnType<typeof makeStyles>;
   colors: ColorPalette;
 }) {
-  const percent = percentFor(item);
+  const daysRemaining = getDaysRemaining(item.endDate);
+  const deadlineLabel = formatEndDate(item.endDate);
+  const isUrgent = daysRemaining >= 0 && daysRemaining <= 3;
+  const isExpired = daysRemaining < 0;
+  const isOpenEnded = daysRemaining === Infinity;
 
   return (
     <Pressable
@@ -57,29 +64,33 @@ function BannerCard({
             {item.brandName ?? `@${item.rawPost.influencer.instagramUsername}`} · {item.discountInfo ?? '혜택 확인'}
           </SText>
         </View>
-        <View style={s.discountBadge}>
-          <SText variant="label" style={s.discountText}>{percent}%</SText>
+        <View style={[
+          s.deadlineBadge,
+          isOpenEnded && s.openEndedBadge,
+          isUrgent && !isOpenEnded && s.urgentBadge,
+          isExpired && !isOpenEnded && s.expiredBadge,
+        ]}>
+          <SText variant="label" style={s.deadlineBadgeText}>
+            {isOpenEnded ? '상시' : isExpired ? '마감' : isUrgent ? '마감 임박' : `${daysRemaining}일 남음`}
+          </SText>
         </View>
       </View>
 
-      <View style={s.progressRow}>
-        <View style={s.progressTrack}>
-          <View style={[s.progressFill, { width: `${percent}%` }]} />
-        </View>
-        <View style={s.progressBadge}>
-          <SText variant="label" style={s.progressBadgeText}>{percent}%</SText>
-        </View>
+      <View style={s.summaryRow}>
+        <SText variant="body" numberOfLines={2} style={s.summaryText}>
+          {item.summary ?? '이 공동구매의 요약을 확인해보세요.'}
+        </SText>
       </View>
 
       <View style={s.thumbnailRail}>
-        {items.slice(0, 4).map((groupBuy, index) => {
-          const visual = visualFor(index, feedPosts);
+        {items.slice(0, 4).map((groupBuy) => {
+          const visual = bestVisual(groupBuy);
           return (
             <View key={groupBuy.id} style={s.bannerThumb}>
               {visual ? (
                 <Image source={{ uri: visual }} style={s.bannerThumbImage} />
               ) : (
-                <View style={[s.bannerThumbFallback, { backgroundColor: index % 2 === 0 ? colors.primaryBg : colors.surfaceHover }]}>
+                <View style={[s.bannerThumbFallback, { backgroundColor: colors.surfaceHover }]}>
                   <SText variant="caption" style={s.bannerThumbText}>
                     {(groupBuy.brandName ?? groupBuy.productName ?? '공구').slice(0, 2)}
                   </SText>
@@ -89,14 +100,24 @@ function BannerCard({
           );
         })}
       </View>
+
+      <View style={s.footerRow}>
+        <SText variant="caption" style={s.footerText}>
+          마감 {deadlineLabel}
+        </SText>
+      </View>
     </Pressable>
   );
 }
 
-export function MonthlyBannerCarousel({ groupBuys, feedPosts = [], onPressDeal }: MonthlyBannerCarouselProps) {
+export function MonthlyBannerCarousel({ groupBuys, onPressDeal }: MonthlyBannerCarouselProps) {
   const { colors, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
-  const featured = groupBuys[0];
+
+  const featuredItems = useMemo(() => {
+    return groupBuys.filter(isActiveMonthlyFeatured).sort(compareMonthlyFeatured);
+  }, [groupBuys]);
+  const featured = featuredItems[0];
 
   return (
     <View style={s.section}>
@@ -104,8 +125,7 @@ export function MonthlyBannerCarousel({ groupBuys, feedPosts = [], onPressDeal }
       {featured ? (
         <BannerCard
           item={featured}
-          items={groupBuys}
-          feedPosts={feedPosts}
+          items={featuredItems}
           onPress={() => onPressDeal(featured)}
           s={s}
           colors={colors}
@@ -121,76 +141,47 @@ export function MonthlyBannerCarousel({ groupBuys, feedPosts = [], onPressDeal }
 
 function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
   return StyleSheet.create({
-    section: { marginBottom: spacing.lg },
+    section: { marginBottom: spacing.xl },
     sectionTitle: { color: colors.textPrimary, fontSize: 23, fontWeight: '900', marginBottom: spacing.md },
     featureCard: {
-      backgroundColor: colors.bg,
-      borderColor: colors.borderLight,
-      borderRadius: borderRadius['3xl'],
-      borderWidth: StyleSheet.hairlineWidth,
       minHeight: 236,
-      padding: spacing.lg,
-      ...shadows.md,
+      paddingVertical: 0,
     },
     featureHeader: {
       alignItems: 'flex-start',
       flexDirection: 'row',
-      gap: spacing.md,
+      gap: spacing.sm,
       justifyContent: 'space-between',
+      marginBottom: spacing.sm,
     },
     featureTitleBlock: { flex: 1 },
-    bannerTitle: { color: colors.textPrimary, fontSize: 21, fontWeight: '900', lineHeight: 29 },
-    bannerMeta: { color: colors.textSecondary, fontSize: 14, fontWeight: '700', marginTop: spacing.xs },
-    discountBadge: {
-      alignItems: 'center',
-      backgroundColor: colors.primary,
-      borderRadius: borderRadius.md,
-      justifyContent: 'center',
-      minHeight: 32,
-      minWidth: 58,
-      paddingHorizontal: spacing.sm,
-    },
-    discountText: { color: colors.textInverse, fontSize: 17, fontWeight: '900' },
-    progressRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
-    progressTrack: {
-      backgroundColor: colors.borderLight,
-      borderRadius: borderRadius.full,
-      flex: 1,
-      height: 10,
-      overflow: 'hidden',
-    },
-    progressFill: {
-      backgroundColor: colors.primary,
-      borderRadius: borderRadius.full,
-      height: '100%',
-    },
-    progressBadge: {
+    bannerTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '800', lineHeight: 26 },
+    bannerMeta: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', marginTop: 2 },
+    deadlineBadge: {
       alignItems: 'center',
       backgroundColor: colors.primary,
       borderRadius: borderRadius.full,
       justifyContent: 'center',
-      minHeight: 34,
-      minWidth: 64,
-      paddingHorizontal: spacing.sm,
+      minHeight: 28,
+      paddingHorizontal: spacing.md,
     },
-    progressBadgeText: { color: colors.textInverse, fontSize: 17, fontWeight: '900' },
-    thumbnailRail: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.lg },
-    bannerThumb: {
-      borderRadius: borderRadius.md,
-      flex: 1,
-      height: 64,
-      overflow: 'hidden',
-    },
+    openEndedBadge: { backgroundColor: colors.surfaceHover },
+    urgentBadge: { backgroundColor: colors.error },
+    expiredBadge: { backgroundColor: colors.surfaceHover },
+    deadlineBadgeText: { color: colors.textInverse, fontSize: 12, fontWeight: '800' },
+    summaryRow: { marginBottom: spacing.md },
+    summaryText: { color: colors.textSecondary, fontSize: 14, lineHeight: 21 },
+    thumbnailRail: { flexDirection: 'row', gap: spacing.sm },
+    bannerThumb: { borderRadius: borderRadius.lg, flex: 1, height: 80, overflow: 'hidden' },
     bannerThumbImage: { height: '100%', resizeMode: 'cover', width: '100%' },
     bannerThumbFallback: { alignItems: 'center', flex: 1, justifyContent: 'center' },
     bannerThumbText: { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
+    footerRow: { marginTop: spacing.md, paddingTop: spacing.sm, borderTopColor: colors.divider, borderTopWidth: StyleSheet.hairlineWidth },
+    footerText: { color: colors.textTertiary, fontSize: 12, fontWeight: '600' },
     emptyCard: {
       alignItems: 'center',
-      backgroundColor: colors.bg,
-      borderRadius: borderRadius['3xl'],
       minHeight: 120,
       justifyContent: 'center',
-      padding: spacing.lg,
     },
     emptyText: { color: colors.textSecondary },
   });

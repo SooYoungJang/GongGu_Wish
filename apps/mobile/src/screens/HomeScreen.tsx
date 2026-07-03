@@ -23,11 +23,14 @@ import { ThisWeekDeals } from '../components/home/ThisWeekDeals';
 import { WeeklyCalendarStrip } from '../components/home/WeeklyCalendarStrip';
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { borderRadius, spacing } from '../design/tokens';
+import type { CategoryColorName } from '../design/tokens';
 import { useTheme } from '../context/ThemeContext';
 import type { FeedPost, GroupBuy, HomeScreenProps, Influencer } from '../types';
 import type { ColorPalette } from '../context/ThemeContext';
+import { formatDateKey } from '../utils/groupBuyDates';
 
 type HomeAction = () => void;
+type CalendarAction = (date: Date | null) => void;
 
 type HomeScreenContentProps = {
   groupBuys: GroupBuy[];
@@ -39,7 +42,7 @@ type HomeScreenContentProps = {
   onOpenBookmarks: HomeAction;
   onOpenNotifications: HomeAction;
   onOpenSearch: HomeAction;
-  onPressCalendar: HomeAction;
+  onPressCalendar: CalendarAction;
   onPressCategory: (category: string) => void;
   onPressDeal: (groupBuy: GroupBuy) => void;
   onPressFeed: (feedPost: FeedPost) => void;
@@ -97,6 +100,15 @@ export function HomeScreenContent({
     now.setHours(0, 0, 0, 0);
     return now;
   });
+  const [selectedCategory, setSelectedCategory] = useState<CategoryColorName | null>(null);
+  const visibleGroupBuys = useMemo(() => {
+    if (!selectedCategory) return groupBuys;
+    return groupBuys.filter((item) => item.category === selectedCategory);
+  }, [groupBuys, selectedCategory]);
+  const handlePressCategory = useCallback((category: CategoryColorName) => {
+    setSelectedCategory((current) => (current === category ? null : category));
+    onPressCategory(category);
+  }, [onPressCategory]);
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
@@ -116,19 +128,19 @@ export function HomeScreenContent({
               </View>
             ) : null}
             {isFetching && groupBuys.length === 0 ? <ActivityIndicator color={colors.primary} /> : null}
-            <MonthlyBannerCarousel groupBuys={groupBuys} feedPosts={feedPosts} onPressDeal={onPressDeal} />
-            <CategoryRow onPressCategory={onPressCategory} />
+            <MonthlyBannerCarousel groupBuys={groupBuys} onPressDeal={onPressDeal} />
+            <CategoryRow selectedCategory={selectedCategory} onPressCategory={handlePressCategory} />
             <WeeklyCalendarStrip
-              onPressCalendar={onPressCalendar}
+              onPressCalendar={() => onPressCalendar(selectedDate)}
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
             />
             <ThisWeekDeals
-              groupBuys={groupBuys}
+              groupBuys={visibleGroupBuys}
               onPressDeal={onPressDeal}
               selectedDate={selectedDate}
             />
-            <ExpiringSoonSection groupBuys={groupBuys} onPressDeal={onPressDeal} />
+            <ExpiringSoonSection groupBuys={visibleGroupBuys} onPressDeal={onPressDeal} />
             <SubmitPrompt onPressSubmit={onPressSubmit} />
           </View>
         </KeyboardFormScreen>
@@ -179,10 +191,19 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       onOpenBookmarks={() => Alert.alert('준비 중', '북마크 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
       onOpenNotifications={() => Alert.alert('준비 중', '알림 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
       onOpenSearch={() => navigation.navigate('SearchScreen')}
-      onPressCalendar={() => navigation.navigate('CalendarScreen', {})}
+      onPressCalendar={(date) => navigation.navigate('CalendarScreen', {
+        initialDate: date ? formatDateKey(date) : undefined,
+      })}
       onPressCategory={() => undefined}
       onPressDeal={(groupBuy) => navigation.navigate('Detail', { groupBuy })}
-      onPressFeed={(feedPost) => navigation.navigate('FeedDetail', { feedId: feedPost.id })}
+      onPressFeed={(feedPost) => {
+        const groupBuy = groupBuys.find((item) => item.id === feedPost.id);
+        if (groupBuy) {
+          navigation.navigate('Detail', { groupBuy });
+        } else {
+          navigation.navigate('FeedDetail', { feedId: feedPost.id });
+        }
+      }}
       feedsLoading={feedsLoading}
       feedsError={feedsError}
       onRetryFeed={refetchFeeds}
