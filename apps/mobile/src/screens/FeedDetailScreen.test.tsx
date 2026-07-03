@@ -8,6 +8,17 @@ import type { FeedPost } from '../types';
 // Mock expo-secure-store (used by api.ts)
 vi.mock('expo-secure-store', () => ({}));
 
+vi.mock('./DetailScreen', () => ({
+  DetailScreen: ({ route }: any) => {
+    const ReactMock = require('react');
+    return ReactMock.createElement('DetailScreen', { groupBuy: route.params.groupBuy });
+  },
+}));
+
+vi.mock('../api', () => ({
+  fetchGroupBuyById: vi.fn(),
+}));
+
 // Mock react-native
 vi.mock('react-native', () => {
   const ReactMock = require('react');

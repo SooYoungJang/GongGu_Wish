@@ -72,6 +72,47 @@ function renderSubmit(props?: Record<string, any>) {
   return renderer!;
 }
 
+function pressSubmit(renderer: ReturnType<typeof renderSubmit>) {
+  var submitButton = renderer.root.findAll(function(node: any) {
+    return typeof node.type === 'string'
+      && node.type === 'Pressable'
+      && flattenText(node).includes('공구 제보하기');
+  })[0];
+
+  act(function() {
+    submitButton.props.onPress();
+  });
+}
+
+function selectCategory(renderer: ReturnType<typeof renderSubmit>, label: string = '뷰티') {
+  var categoryButton = renderer.root.findByProps({ accessibilityLabel: `${label} 카테고리 선택` });
+  act(function() {
+    categoryButton.props.onPress();
+  });
+}
+
+function getCalendarDateButtons(renderer: ReturnType<typeof renderSubmit>) {
+  return renderer.root.findAll(function(node: any) {
+    return typeof node.type === 'string'
+      && node.type === 'Pressable'
+      && typeof node.props.accessibilityLabel === 'string'
+      && /^\d{4}-\d{2}-\d{2} 선택$/.test(node.props.accessibilityLabel);
+  });
+}
+
+function selectCalendarDateAt(renderer: ReturnType<typeof renderSubmit>, index: number): string {
+  var dayButton = getCalendarDateButtons(renderer)[index];
+  var selectedDate = dayButton.props.accessibilityLabel.replace(' 선택', '');
+  act(function() {
+    dayButton.props.onPress();
+  });
+  return selectedDate;
+}
+
+function selectFirstCalendarDate(renderer: ReturnType<typeof renderSubmit>): string {
+  return selectCalendarDateAt(renderer, 0);
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('SubmitScreen', function() {
@@ -114,6 +155,59 @@ describe('SubmitScreen', function() {
     expect(textInputs[0].props.placeholder).toBe('https://www.instagram.com/p/...');
   });
 
+  it('opens calendar picker for start date and end date', function() {
+    var renderer = renderSubmit();
+
+    act(function() {
+      renderer.root.findByProps({ accessibilityLabel: '시작일 선택' }).props.onPress();
+    });
+
+    var text = flattenText(renderer.toJSON());
+    expect(text).toContain('일 월 화 수 목 금 토');
+    expect(text).toContain('선택된 날짜 없음');
+    expect(text).toContain('날짜 지우기');
+
+    act(function() {
+      renderer.root.findByProps({ accessibilityLabel: '닫기' }).props.onPress();
+    });
+
+    act(function() {
+      renderer.root.findByProps({ accessibilityLabel: '마감일 선택' }).props.onPress();
+    });
+
+    text = flattenText(renderer.toJSON());
+    expect(text).toContain('마감일 선택');
+  });
+
+  it('disables calendar dates outside the selected start and end range', function() {
+    var renderer = renderSubmit();
+
+    act(function() {
+      renderer.root.findByProps({ accessibilityLabel: '시작일 선택' }).props.onPress();
+    });
+    selectCalendarDateAt(renderer, 1);
+
+    act(function() {
+      renderer.root.findByProps({ accessibilityLabel: '마감일 선택' }).props.onPress();
+    });
+    expect(getCalendarDateButtons(renderer)[0].props.disabled).toBe(true);
+
+    act(function() {
+      renderer.root.findByProps({ accessibilityLabel: '닫기' }).props.onPress();
+    });
+
+    var nextRenderer = renderSubmit();
+    act(function() {
+      nextRenderer.root.findByProps({ accessibilityLabel: '마감일 선택' }).props.onPress();
+    });
+    selectCalendarDateAt(nextRenderer, 1);
+
+    act(function() {
+      nextRenderer.root.findByProps({ accessibilityLabel: '시작일 선택' }).props.onPress();
+    });
+    expect(getCalendarDateButtons(nextRenderer)[2].props.disabled).toBe(true);
+  });
+
   it('shows validation error when Instagram URL is too short', function() {
     var renderer = renderSubmit();
     var textInputs = getAllByType(renderer.root, 'TextInput');
@@ -123,15 +217,7 @@ describe('SubmitScreen', function() {
       urlInput.props.onChangeText('ab');
     });
 
-    var pressables = getAllByType(renderer.root, 'Pressable');
-    for (var i = 0; i < pressables.length; i++) {
-      if (typeof pressables[i].props.onPress === 'function') {
-        act(function() {
-          pressables[i].props.onPress();
-        });
-        break;
-      }
-    }
+    pressSubmit(renderer);
 
     var text = flattenText(renderer.toJSON());
     expect(text).toContain('인스타그램 게시물 URL을 입력해주세요');
@@ -146,15 +232,7 @@ describe('SubmitScreen', function() {
       urlInput.props.onChangeText('abcde');
     });
 
-    var pressables = getAllByType(renderer.root, 'Pressable');
-    for (var i = 0; i < pressables.length; i++) {
-      if (typeof pressables[i].props.onPress === 'function') {
-        act(function() {
-          pressables[i].props.onPress();
-        });
-        break;
-      }
-    }
+    pressSubmit(renderer);
 
     var text = flattenText(renderer.toJSON());
     expect(text).toContain('인스타그램 URL 형식이 올바르지 않습니다');
@@ -168,15 +246,7 @@ describe('SubmitScreen', function() {
       textInputs[0].props.onChangeText('https://www.instagram.com/p/ABC123/');
     });
 
-    var pressables = getAllByType(renderer.root, 'Pressable');
-    for (var i = 0; i < pressables.length; i++) {
-      if (typeof pressables[i].props.onPress === 'function') {
-        act(function() {
-          pressables[i].props.onPress();
-        });
-        break;
-      }
-    }
+    pressSubmit(renderer);
 
     var text = flattenText(renderer.toJSON());
     expect(text).toContain('제품명은 2자 이상 필수입니다');
@@ -194,20 +264,47 @@ describe('SubmitScreen', function() {
     act(function() {
       textInputs[1].props.onChangeText('Test Product');
     });
+    selectCategory(renderer);
 
-    var pressables = getAllByType(renderer.root, 'Pressable');
-    for (var i = 0; i < pressables.length; i++) {
-      if (typeof pressables[i].props.onPress === 'function') {
-        act(function() {
-          pressables[i].props.onPress();
-        });
-        break;
-      }
-    }
+    pressSubmit(renderer);
 
     expect(apiModule.postPublicJson).toHaveBeenCalledWith('/submissions', expect.objectContaining({
       instagramUrl: 'https://www.instagram.com/p/ABC123/',
       productName: 'Test Product',
+      category: 'beauty',
+      purchaseUrl: 'https://www.instagram.com/p/ABC123/',
+    }));
+  });
+
+  it('submits selected calendar dates', function() {
+    vi.mocked(apiModule.postPublicJson).mockResolvedValue({ id: 'abc-123' });
+
+    var renderer = renderSubmit();
+    var textInputs = getAllByType(renderer.root, 'TextInput');
+
+    act(function() {
+      textInputs[0].props.onChangeText('https://www.instagram.com/p/ABC123/');
+    });
+    act(function() {
+      textInputs[1].props.onChangeText('Test Product');
+    });
+    selectCategory(renderer);
+
+    act(function() {
+      renderer.root.findByProps({ accessibilityLabel: '시작일 선택' }).props.onPress();
+    });
+    var selectedStartDate = selectFirstCalendarDate(renderer);
+
+    act(function() {
+      renderer.root.findByProps({ accessibilityLabel: '마감일 선택' }).props.onPress();
+    });
+    var selectedEndDate = selectFirstCalendarDate(renderer);
+
+    pressSubmit(renderer);
+
+    expect(apiModule.postPublicJson).toHaveBeenCalledWith('/submissions', expect.objectContaining({
+      startDate: selectedStartDate,
+      endDate: selectedEndDate,
     }));
   });
 
@@ -223,16 +320,9 @@ describe('SubmitScreen', function() {
     act(function() {
       textInputs[1].props.onChangeText('Test Product');
     });
+    selectCategory(renderer);
 
-    var pressables = getAllByType(renderer.root, 'Pressable');
-    for (var i = 0; i < pressables.length; i++) {
-      if (typeof pressables[i].props.onPress === 'function') {
-        act(function() {
-          pressables[i].props.onPress();
-        });
-        break;
-      }
-    }
+    pressSubmit(renderer);
 
     // Flush microtasks so the async handleSubmit completes
     await act(async function() {
@@ -256,16 +346,9 @@ describe('SubmitScreen', function() {
     act(function() {
       textInputs[1].props.onChangeText('Test Product');
     });
+    selectCategory(renderer);
 
-    var pressables = getAllByType(renderer.root, 'Pressable');
-    for (var i = 0; i < pressables.length; i++) {
-      if (typeof pressables[i].props.onPress === 'function') {
-        act(function() {
-          pressables[i].props.onPress();
-        });
-        break;
-      }
-    }
+    pressSubmit(renderer);
 
     var text = flattenText(renderer.toJSON());
     expect(text).toContain('제출 중');
@@ -287,16 +370,9 @@ describe('SubmitScreen', function() {
     act(function() {
       textInputs[1].props.onChangeText('Test Product');
     });
+    selectCategory(renderer);
 
-    var pressables = getAllByType(renderer.root, 'Pressable');
-    for (var i = 0; i < pressables.length; i++) {
-      if (typeof pressables[i].props.onPress === 'function') {
-        act(function() {
-          pressables[i].props.onPress();
-        });
-        break;
-      }
-    }
+    pressSubmit(renderer);
 
     // Flush microtasks
     await act(async function() {
@@ -321,16 +397,9 @@ describe('SubmitScreen', function() {
     act(function() {
       textInputs[1].props.onChangeText('Test Product');
     });
+    selectCategory(renderer);
 
-    var pressables = getAllByType(renderer.root, 'Pressable');
-    for (var i = 0; i < pressables.length; i++) {
-      if (typeof pressables[i].props.onPress === 'function') {
-        act(function() {
-          pressables[i].props.onPress();
-        });
-        break;
-      }
-    }
+    pressSubmit(renderer);
 
     await act(async function() {
       await new Promise(function(resolve) { setTimeout(resolve, 0); });
@@ -356,16 +425,9 @@ describe('SubmitScreen', function() {
     act(function() {
       textInputs[1].props.onChangeText('Valid Product');
     });
+    selectCategory(renderer);
 
-    var pressables = getAllByType(renderer.root, 'Pressable');
-    for (var i = 0; i < pressables.length; i++) {
-      if (typeof pressables[i].props.onPress === 'function') {
-        act(function() {
-          pressables[i].props.onPress();
-        });
-        break;
-      }
-    }
+    pressSubmit(renderer);
 
     await act(async function() {
       await new Promise(function(resolve) { setTimeout(resolve, 0); });
@@ -387,16 +449,9 @@ describe('SubmitScreen', function() {
     act(function() {
       textInputs[1].props.onChangeText('Test Product');
     });
+    selectCategory(renderer);
 
-    var pressables = getAllByType(renderer.root, 'Pressable');
-    for (var i = 0; i < pressables.length; i++) {
-      if (typeof pressables[i].props.onPress === 'function') {
-        act(function() {
-          pressables[i].props.onPress();
-        });
-        break;
-      }
-    }
+    pressSubmit(renderer);
 
     // Check button is disabled
     var submitPressable = getAllByType(renderer.root, 'Pressable');

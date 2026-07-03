@@ -46,6 +46,15 @@ const TRENDING_DEFAULT = [
   '다이어리',
 ];
 
+const CATEGORY_LABELS: Record<string, string> = {
+  beauty: '뷰티',
+  fashion: '패션',
+  food: '푸드',
+  lifestyle: '라이프',
+  baby: '육아',
+  digital: '디지털',
+};
+
 export function SearchScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -114,9 +123,9 @@ export function SearchScreen() {
     if (!q) return [];
     return groupBuys.filter((gb) => {
       const name = (gb.productName ?? '').toLowerCase();
-      const brand = (gb.brandName ?? '').toLowerCase();
+      const category = (gb.category ? CATEGORY_LABELS[gb.category] ?? gb.category : '').toLowerCase();
       const user = gb.rawPost.influencer.instagramUsername.toLowerCase();
-      return name.includes(q) || brand.includes(q) || user.includes(q);
+      return name.includes(q) || category.includes(q) || user.includes(q);
     }).slice(0, 10);
   }, [groupBuys, debouncedQuery]);
 
@@ -163,7 +172,7 @@ export function SearchScreen() {
           <TextInput
             ref={inputRef}
             accessibilityLabel="공구 검색"
-            placeholder="브랜드, 제품명, 인플루언서 검색"
+            placeholder="카테고리, 제품명, 인플루언서 검색"
             placeholderTextColor={colors.textTertiary}
             value={query}
             onChangeText={setQuery}

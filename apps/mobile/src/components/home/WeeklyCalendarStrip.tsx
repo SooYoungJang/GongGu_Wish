@@ -64,7 +64,7 @@ export function WeeklyCalendarStrip({ onPressCalendar, selectedDate, onSelectDat
                 isSameDay(selectedDate, day.date) && s.calendarDateCircleSelected,
               ]}
             >
-              <SText variant="label">
+              <SText variant="label" style={isSameDay(selectedDate, day.date) ? s.calendarDateTextSelected : undefined}>
                 {day.day}
               </SText>
             </View>
@@ -95,16 +95,12 @@ function makeStyles(colors: ColorPalette) {
       paddingHorizontal: spacing.xs,
     },
     calendarStrip: {
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-      borderRadius: borderRadius['2xl'],
-      borderWidth: 1,
       flexDirection: 'row',
       justifyContent: 'space-between',
       marginBottom: spacing.xl,
-      padding: spacing.md,
+      paddingVertical: spacing.sm,
     },
-    calendarDay: { alignItems: 'center', minHeight: 58, minWidth: 38 },
+    calendarDay: { alignItems: 'center', flex: 1, minHeight: 58 },
     calendarDateCircle: {
       alignItems: 'center',
       borderRadius: borderRadius.full,
@@ -113,9 +109,9 @@ function makeStyles(colors: ColorPalette) {
       minWidth: 36,
     },
     calendarDateCircleSelected: {
+      backgroundColor: colors.primary,
       borderRadius: borderRadius.full,
-      borderColor: colors.primary,
-      borderWidth: 1.5,
     },
+    calendarDateTextSelected: { color: colors.textInverse },
   });
 }

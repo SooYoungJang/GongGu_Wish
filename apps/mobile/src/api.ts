@@ -80,6 +80,7 @@ export const fallbackGroupBuys: GroupBuy[] = [
     id: 'sample-1',
     productName: '비건 선크림 공구',
     brandName: 'Sample Beauty',
+    category: 'beauty',
     endDate: '2026-06-15T23:59:59+09:00',
     purchaseUrl: 'https://example.com',
     discountInfo: '20% 할인',
@@ -101,6 +102,7 @@ export const fallbackGroupBuys: GroupBuy[] = [
     id: 'sample-2',
     productName: '프리미엄 유아용품 세트',
     brandName: '맘편한세상',
+    category: 'baby',
     endDate: '2026-07-01T23:59:59+09:00',
     purchaseUrl: 'https://example.com/baby',
     discountInfo: '35% 할인',
@@ -122,6 +124,7 @@ export const fallbackGroupBuys: GroupBuy[] = [
     id: 'sample-3',
     productName: '올인원 홈트레이닝 키트',
     brandName: '핏스타그램',
+    category: 'lifestyle',
     endDate: '2026-06-28T23:59:59+09:00',
     purchaseUrl: 'https://example.com/fitness',
     discountInfo: '25% 할인',
@@ -143,6 +146,7 @@ export const fallbackGroupBuys: GroupBuy[] = [
     id: 'sample-4',
     productName: '스마트 홈 카메라',
     brandName: '테크스토어',
+    category: 'digital',
     endDate: '2026-06-20T23:59:59+09:00',
     purchaseUrl: 'https://example.com/camera',
     discountInfo: '15% 할인',
@@ -164,6 +168,7 @@ export const fallbackGroupBuys: GroupBuy[] = [
     id: 'sample-5',
     productName: '자연유래 클렌징 3종 세트',
     brandName: '글로우스킨',
+    category: 'beauty',
     endDate: '2026-07-10T23:59:59+09:00',
     purchaseUrl: 'https://example.com/skincare',
     discountInfo: '30% 할인',
@@ -193,34 +198,81 @@ export const fallbackGroupBuys: GroupBuy[] = [
  */
 export async function fetchGroupBuys(): Promise<GroupBuy[]> {
   try {
-    const { data } = await postgrestGet<any[]>('group_buys?select=*,raw_post_id(*,influencer_id(*))&order=created_at.desc');
-    // PostgREST returns raw_post_id and influencer_id as nested objects.
-    // Transform to match the app's GroupBuy type which expects rawPost.influencer.instagramUsername.
-    return (data || []).map((item) => ({
-      id: item.id,
-      productName: item.productName ?? null,
-      brandName: item.brandName ?? null,
-      startDate: item.startDate ?? null,
-      endDate: item.endDate ?? null,
-      purchaseUrl: item.purchaseUrl ?? null,
-      discountInfo: item.discountInfo ?? null,
-      summary: item.summary ?? null,
-      confidence: item.confidence ?? 0,
-      thumbnailUrl: item.thumbnailUrl ?? null,
-      videoUrl: item.videoUrl ?? null,
-      mediaUrls: item.mediaUrls ?? [],
-      mediaType: item.mediaType ?? null,
-      rawPost: {
-        postUrl: item.rawPostId?.postUrl ?? '',
-        influencer: {
-          instagramUsername: item.rawPostId?.influencerId?.instagramUsername ?? '',
-        },
-      },
-    })) as GroupBuy[];
+    const { data } = await postgrestGet<any[]>(
+      'group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&order=created_at.desc',
+    );
+    return mapGroupBuyRows(data || []);
   } catch (error) {
     console.log('[GroupBuys] fetch failed:', error instanceof Error ? error.message : String(error));
     throw error;
   }
+}
+
+/**
+ * Map raw PostgREST group_buy rows into the app's GroupBuy type.
+ */
+function mapGroupBuyRows(rows: any[]): GroupBuy[] {
+  return (rows || []).map((item) => ({
+    id: item.id,
+    productName: item.productName ?? item.product_name ?? null,
+    brandName: item.brandName ?? item.brand_name ?? null,
+    category: item.category ?? null,
+    startDate: item.startDate ?? item.start_date ?? null,
+    endDate: item.endDate ?? item.end_date ?? null,
+    purchaseUrl: item.purchaseUrl ?? item.purchase_url ?? null,
+    discountInfo: item.discountInfo ?? item.discount_info ?? null,
+    summary: item.summary ?? null,
+    confidence: item.confidence ?? 0,
+    thumbnailUrl: item.thumbnailUrl ?? item.thumbnail_url ?? null,
+    videoUrl: item.videoUrl ?? item.video_url ?? null,
+    mediaUrls: item.mediaUrls ?? item.media_urls ?? [],
+    mediaItems: item.mediaItems ?? item.media_items ?? [],
+    mediaType: item.mediaType ?? item.media_type ?? null,
+    ...(item.isMonthlyFeatured !== undefined ? { isMonthlyFeatured: item.isMonthlyFeatured } : {}),
+    ...(item.monthlyFeaturedRank !== undefined ? { monthlyFeaturedRank: item.monthlyFeaturedRank } : {}),
+    rawPost: {
+      postUrl: item.rawPostId?.postUrl ?? item.raw_post_id?.postUrl ?? item.raw_post_id?.post_url ?? '',
+      influencer: {
+        instagramUsername:
+          item.rawPostId?.influencerId?.instagramUsername ??
+          item.raw_post_id?.influencer_id?.instagramUsername ??
+          item.raw_post_id?.influencer_id?.instagram_username ??
+          '',
+      },
+    },
+  })) as GroupBuy[];
+}
+
+/**
+ * Convert an approved group buy into a feed post.
+ * This lets the feed section show submissions after they are approved.
+ */
+function mapGroupBuyToFeedPost(item: GroupBuy): FeedPost {
+  const now = new Date().toISOString();
+  const thumbnailUrl = item.thumbnailUrl ?? (item.mediaType === 'IMAGE' ? item.mediaUrls[0] ?? null : null);
+  const mediaUrl = item.mediaType === 'VIDEO'
+    ? item.videoUrl ?? item.mediaUrls[0] ?? thumbnailUrl
+    : item.mediaUrls[0] ?? thumbnailUrl;
+
+  return {
+    id: item.id,
+    instagramUrl: item.rawPost.postUrl,
+    thumbnailUrl,
+    mediaUrl,
+    mediaType: item.mediaType,
+    caption: item.summary ?? null,
+    accountName: item.rawPost.influencer.instagramUsername ?? null,
+    linkUrl: item.purchaseUrl,
+    openDate: item.startDate,
+    closeDate: item.endDate,
+    isActive: true,
+    sortOrder: 0,
+    ogTitle: item.productName,
+    ogDescription: item.summary,
+    ogImage: thumbnailUrl,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 /**
@@ -229,11 +281,15 @@ export async function fetchGroupBuys(): Promise<GroupBuy[]> {
  */
 export async function fetchFeeds(page = 1, limit = 20): Promise<FeedPostListResponse> {
   try {
-    const { data, meta } = await postgrestGet<FeedPost[]>('feed_posts', {
-      pagination: { page, limit },
-    });
+    const { data, meta } = await postgrestGet<any[]>(
+      'group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&order=created_at.desc',
+      {
+        pagination: { page, limit },
+      },
+    );
+    const groupBuys = mapGroupBuyRows(data || []);
     return {
-      items: data,
+      items: groupBuys.map(mapGroupBuyToFeedPost),
       meta: meta ?? { total: 0, page, limit, totalPages: 0 },
     };
   } catch (error) {
@@ -247,12 +303,27 @@ export async function fetchFeeds(page = 1, limit = 20): Promise<FeedPostListResp
  * GET /rest/v1/feed_posts?id=eq.{id}
  */
 export async function fetchFeedPost(id: string): Promise<FeedPost> {
-  const { data } = await postgrestGet<FeedPost[]>('feed_posts', undefined);
-  const post = Array.isArray(data) ? data.find((p) => p.id === id) : undefined;
-  if (!post) {
+  const { data } = await postgrestGet<any[]>(
+    `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
+  );
+  const rows = data || [];
+  const groupBuy = rows[0] ? mapGroupBuyRows([rows[0]])[0] : undefined;
+  if (!groupBuy) {
     throw new ApiError(404, 'Feed post not found');
   }
-  return post;
+  return mapGroupBuyToFeedPost(groupBuy);
+}
+
+export async function fetchGroupBuyById(id: string): Promise<GroupBuy> {
+  const { data } = await postgrestGet<any[]>(
+    `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
+  );
+  const rows = data || [];
+  const groupBuy = rows[0] ? mapGroupBuyRows([rows[0]])[0] : undefined;
+  if (!groupBuy) {
+    throw new ApiError(404, 'Group buy not found');
+  }
+  return groupBuy;
 }
 
 /**
@@ -271,29 +342,9 @@ export async function fetchInfluencers(): Promise<Influencer[]> {
 export async function fetchGroupBuysByInfluencer(instagramUsername: string): Promise<GroupBuy[]> {
   const normalizedUsername = instagramUsername.replace(/^@/, '').toLowerCase();
   const { data } = await postgrestGet<any[]>(
-    `group_buys?select=*,raw_post_id(*,influencer_id(*))&raw_post_id.influencer_id.instagram_username=eq.${normalizedUsername}`,
+    `group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&raw_post_id.influencer_id.instagram_username=eq.${encodeURIComponent(normalizedUsername)}&order=created_at.desc`,
   );
-  return (data || []).map((item) => ({
-    id: item.id,
-    productName: item.productName ?? null,
-    brandName: item.brandName ?? null,
-    startDate: item.startDate ?? null,
-    endDate: item.endDate ?? null,
-    purchaseUrl: item.purchaseUrl ?? null,
-    discountInfo: item.discountInfo ?? null,
-    summary: item.summary ?? null,
-    confidence: item.confidence ?? 0,
-    thumbnailUrl: item.thumbnailUrl ?? null,
-    videoUrl: item.videoUrl ?? null,
-    mediaUrls: item.mediaUrls ?? [],
-    mediaType: item.mediaType ?? null,
-    rawPost: {
-      postUrl: item.rawPostId?.postUrl ?? '',
-      influencer: {
-        instagramUsername: item.rawPostId?.influencerId?.instagramUsername ?? '',
-      },
-    },
-  })) as GroupBuy[];
+  return mapGroupBuyRows(data || []);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

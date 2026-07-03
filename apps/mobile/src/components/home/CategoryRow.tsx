@@ -25,12 +25,13 @@ export const CATEGORIES: CategoryItem[] = [
 type CategoryIconProps = {
   item: CategoryItem;
   index: number;
+  selected: boolean;
   onPress: (category: CategoryColorName) => void;
   s: ReturnType<typeof makeStyles>;
   colors: ColorPalette;
 };
 
-function CategoryIcon({ item, index, onPress, s, colors }: CategoryIconProps) {
+function CategoryIcon({ item, index, selected, onPress, s, colors }: CategoryIconProps) {
   const palette = [
     { bg: colors.surfaceHover, text: colors.textPrimary, border: colors.surfaceHover },
     { bg: colors.borderLight, text: colors.textSecondary, border: colors.borderLight },
@@ -42,25 +43,38 @@ function CategoryIcon({ item, index, onPress, s, colors }: CategoryIconProps) {
       accessibilityLabel={`${item.label} 카테고리 보기`}
       accessibilityRole="button"
       onPress={() => onPress(item.key)}
-      style={[s.categoryItem, { backgroundColor: palette.bg, borderColor: palette.border }]}
+      style={[
+        s.categoryItem,
+        { backgroundColor: palette.bg, borderColor: palette.border },
+        selected && { backgroundColor: colors.primary, borderColor: colors.primary },
+      ]}
     >
-      <SText variant="caption" style={[s.categoryLabel, { color: palette.text }]}>{item.label}</SText>
+      <SText variant="caption" style={[s.categoryLabel, { color: selected ? colors.textInverse : palette.text }]}>{item.label}</SText>
     </Pressable>
   );
 }
 
 type CategoryRowProps = {
   onPressCategory: (category: CategoryColorName) => void;
+  selectedCategory?: CategoryColorName | null;
 };
 
-export function CategoryRow({ onPressCategory }: CategoryRowProps) {
+export function CategoryRow({ onPressCategory, selectedCategory }: CategoryRowProps) {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(), []);
 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>
       {CATEGORIES.map((item, index) => (
-        <CategoryIcon key={item.key} item={item} index={index} onPress={onPressCategory} s={s} colors={colors} />
+        <CategoryIcon
+          key={item.key}
+          item={item}
+          index={index}
+          selected={selectedCategory === item.key}
+          onPress={onPressCategory}
+          s={s}
+          colors={colors}
+        />
       ))}
     </ScrollView>
   );

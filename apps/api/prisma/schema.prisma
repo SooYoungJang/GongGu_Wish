@@ -80,6 +80,7 @@ model GroupBuy {
   rawPost      RawPost?       @relation(fields: [rawPostId], references: [id], onDelete: Cascade)
   productName  String?        @map("product_name")
   brandName    String?        @map("brand_name")
+  category     String?
   startDate    DateTime?      @map("start_date")
   endDate      DateTime?      @map("end_date")
   purchaseUrl  String?        @map("purchase_url")
@@ -96,11 +97,17 @@ model GroupBuy {
   submission   GongguSubmission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
   // 캘린더용 필드
   isAllDay     Boolean        @default(false) @map("is_all_day")
+  // 운영자가 유료 광고/추천 슬롯처럼 지정하는 이달의 공구
+  isMonthlyFeatured Boolean   @default(false) @map("is_monthly_featured")
+  monthlyFeaturedRank Int?    @map("monthly_featured_rank")
+  mediaItems   Json           @default("[]") @map("media_items")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
   @@index([status])
   @@index([endDate])
+  @@index([category])
+  @@index([isMonthlyFeatured, monthlyFeaturedRank, endDate])
   @@index([sourceType])
   @@map("group_buys")
 }
@@ -134,6 +141,7 @@ model GongguSubmission {
   // 제보 내용 (필수)
   productName     String            @map("product_name")
   brandName       String?           @map("brand_name")
+  category        String?
   startDate       DateTime?         @map("start_date")
   endDate         DateTime?         @map("end_date")
   purchaseUrl     String?           @map("purchase_url")
@@ -141,6 +149,7 @@ model GongguSubmission {
   summary         String?           @map("summary")
   instagramUrl    String?           @map("instagram_url")
   imageUrls       String[]          @default([]) @map("image_urls")
+  mediaItems      Json              @default("[]") @map("media_items")
 
   // 제보자 정보
   reporterName    String?           @map("reporter_name")
@@ -166,6 +175,7 @@ model GongguSubmission {
   @@index([status])
   @@index([createdAt])
   @@index([productName])
+  @@index([category])
   @@map("gonggu_submissions")
 }
 

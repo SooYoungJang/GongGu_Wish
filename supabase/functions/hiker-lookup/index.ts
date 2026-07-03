@@ -24,8 +24,14 @@ interface InstagramMediaInfo {
   thumbnailUrl: string | null;
   /** Primary video URL if the post is a video/reel */
   videoUrl: string | null;
-  /** All media URLs from carousel (images + videos) in post order */
+  /** Display-ready media URLs in post order */
   mediaUrls: string[];
+  /** Ordered media assets with per-slide type information */
+  mediaItems: Array<{
+    url: string;
+    mediaType: 'IMAGE' | 'VIDEO';
+    thumbnailUrl?: string | null;
+  }>;
   /** Dominant media type: IMAGE or VIDEO */
   mediaType: 'IMAGE' | 'VIDEO' | null;
   caption: string | null;
@@ -122,36 +128,86 @@ function bestVideoUrl(media: Record<string, unknown>): string | null {
   return null;
 }
 
-function isVideoMedia(media: Record<string, unknown>): boolean {
-  return media.media_type === 2 || media.video_versions !== undefined;
-}
+type CollectedCarouselMedia = {
+  urls: string[];
+  items: InstagramMediaInfo['mediaItems'];
+  hasVideo: boolean;
+  firstVideoUrl: string | null;
+  thumbnailUrl: string | null;
+};
 
-function collectCarouselMedia(media: Record<string, unknown>): { urls: string[]; hasVideo: boolean } {
+export function collectCarouselMedia(media: Record<string, unknown>): CollectedCarouselMedia {
   const carousel = media.carousel_media;
   if (!Array.isArray(carousel)) {
-    return { urls: [], hasVideo: false };
+    return { urls: [], items: [], hasVideo: false, firstVideoUrl: null, thumbnailUrl: null };
   }
 
   const urls: string[] = [];
+  const items: InstagramMediaInfo['mediaItems'] = [];
   let hasVideo = false;
+  let firstVideoUrl: string | null = null;
+  let thumbnailUrl: string | null = null;
 
   for (const item of carousel) {
     if (!item || typeof item !== 'object') continue;
     const itemMedia = item as Record<string, unknown>;
+    const imageUrl = bestImageUrl(itemMedia);
     const videoUrl = bestVideoUrl(itemMedia);
+
+    if (!thumbnailUrl) {
+      thumbnailUrl = imageUrl ?? videoUrl;
+    }
+
     if (videoUrl) {
       urls.push(videoUrl);
+      items.push({ url: videoUrl, mediaType: 'VIDEO', thumbnailUrl: imageUrl });
       hasVideo = true;
-    } else {
-      const imageUrl = bestImageUrl(itemMedia);
-      if (imageUrl) urls.push(imageUrl);
+      if (!firstVideoUrl) {
+        firstVideoUrl = videoUrl;
+      }
+    } else if (imageUrl) {
+      urls.push(imageUrl);
+      items.push({ url: imageUrl, mediaType: 'IMAGE', thumbnailUrl: imageUrl });
     }
   }
 
-  return { urls, hasVideo };
+  return { urls, items, hasVideo, firstVideoUrl, thumbnailUrl };
 }
 
-async function lookupViaHikerAPI(url: string, apiKey: string): Promise<InstagramMediaInfo> {
+export function collectPostMedia(media: Record<string, unknown>): Pick<
+  InstagramMediaInfo,
+  'imageUrl' | 'thumbnailUrl' | 'videoUrl' | 'mediaUrls' | 'mediaItems' | 'mediaType'
+> {
+  const carousel = collectCarouselMedia(media);
+  if (carousel.urls.length > 0) {
+    const thumbnailUrl = carousel.thumbnailUrl ?? bestImageUrl(media);
+    return {
+      imageUrl: thumbnailUrl,
+      thumbnailUrl,
+      videoUrl: carousel.firstVideoUrl,
+      mediaUrls: carousel.urls,
+      mediaItems: carousel.items,
+      mediaType: carousel.hasVideo ? 'VIDEO' : 'IMAGE',
+    };
+  }
+
+  const imageUrl = bestImageUrl(media);
+  const videoUrl = bestVideoUrl(media);
+  const displayUrl = imageUrl ?? videoUrl;
+
+  return {
+    imageUrl,
+    thumbnailUrl: displayUrl,
+    videoUrl,
+    mediaUrls: displayUrl ? [displayUrl] : [],
+    mediaItems: displayUrl
+      ? [{ url: videoUrl ?? displayUrl, mediaType: videoUrl ? 'VIDEO' : 'IMAGE', thumbnailUrl: imageUrl ?? displayUrl }]
+      : [],
+    mediaType: videoUrl ? 'VIDEO' : imageUrl ? 'IMAGE' : null,
+  };
+}
+
+export async function lookupViaHikerAPI(url: string, apiKey: string): Promise<InstagramMediaInfo> {
   const requestUrl = new URL('https://api.hikerapi.com/v2/media/info/by/url');
   requestUrl.searchParams.set('url', url);
 
@@ -173,13 +229,10 @@ async function lookupViaHikerAPI(url: string, apiKey: string): Promise<Instagram
   const user = getRecord(media.user) ?? getRecord(media.owner) ?? getRecord(data?.user);
   const caption = getRecord(media.caption);
   const takenAt = media.taken_at ?? media.takenAt ?? null;
+  const mediaInfo = collectPostMedia(media);
 
   return {
-    imageUrl: bestImageUrl(media),
-    thumbnailUrl: bestImageUrl(media),
-    videoUrl: bestVideoUrl(media),
-    mediaUrls: [],
-    mediaType: null,
+    ...mediaInfo,
     caption: getString(caption?.text) ?? getString(media.caption_text) ?? getString(media.caption),
     likeCount: getNumber(media.like_count) ?? getNumber(media.likeCount),
     username: getString(user?.username) ?? getString(media.username),
@@ -197,7 +250,7 @@ const CORS_HEADERS = {
 
 // ─── Main Handler ────────────────────────────────────────────────────────────
 
-serve(async (req: Request) => {
+async function handler(req: Request) {
   // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: CORS_HEADERS });
@@ -244,28 +297,7 @@ serve(async (req: Request) => {
       });
     }
 
-
     const result = await lookupViaHikerAPI(body.url, hikerApiKey);
-
-    // Collect all carousel media URLs into mediaUrls, and determine mediaType
-    const carousel = collectCarouselMedia(result as unknown as Record<string, unknown>);
-    if (carousel.urls.length > 0) {
-      (result as any).mediaUrls = carousel.urls;
-      (result as any).mediaType = carousel.hasVideo ? 'VIDEO' : 'IMAGE';
-      if (!result.thumbnailUrl) {
-        (result as any).thumbnailUrl = carousel.urls[0];
-      }
-    } else if (result.imageUrl) {
-      (result as any).mediaUrls = [result.imageUrl];
-      (result as any).mediaType = bestVideoUrl(result as unknown as Record<string, unknown>) ? 'VIDEO' : 'IMAGE';
-    } else if (result.videoUrl) {
-      (result as any).mediaUrls = [result.videoUrl];
-      (result as any).mediaType = 'VIDEO';
-      (result as any).thumbnailUrl = result.videoUrl;
-    } else {
-      (result as any).mediaUrls = [];
-      (result as any).mediaType = null;
-    }
 
     return new Response(JSON.stringify(result), {
       status: 200,
@@ -280,4 +312,8 @@ serve(async (req: Request) => {
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
   }
-});
+}
+
+if (import.meta.main) {
+  serve(handler);
+}

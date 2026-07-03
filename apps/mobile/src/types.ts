@@ -21,10 +21,19 @@ export type MainTabParamList = {
   MyPage: undefined;
 };
 
+export type GroupBuyCategory = 'beauty' | 'fashion' | 'food' | 'lifestyle' | 'baby' | 'digital';
+
+export type MediaAsset = {
+  url: string;
+  mediaType: 'IMAGE' | 'VIDEO';
+  thumbnailUrl?: string | null;
+};
+
 export type GroupBuy = {
   id: string;
   productName: string | null;
   brandName: string | null;
+  category?: GroupBuyCategory | null;
   startDate: string | null;
   endDate: string | null;
   purchaseUrl: string | null;
@@ -34,7 +43,10 @@ export type GroupBuy = {
   thumbnailUrl: string | null;
   videoUrl: string | null;
   mediaUrls: string[];
+  mediaItems?: MediaAsset[];
   mediaType: 'IMAGE' | 'VIDEO' | null;
+  isMonthlyFeatured?: boolean;
+  monthlyFeaturedRank?: number | null;
   rawPost: {
     postUrl: string;
     influencer: {
@@ -80,8 +92,10 @@ export interface InstagramMediaInfo {
   thumbnailUrl: string | null;
   /** Primary video URL if the post is a video/reel */
   videoUrl: string | null;
-  /** All media URLs from carousel (images + videos) in post order */
+  /** Display-ready media URLs in post order */
   mediaUrls: string[];
+  /** Ordered media assets with per-slide type information */
+  mediaItems?: MediaAsset[];
   /** Dominant media type: IMAGE or VIDEO */
   mediaType: 'IMAGE' | 'VIDEO' | null;
   /** Post caption / summary text */
@@ -97,6 +111,7 @@ export interface InstagramMediaInfo {
 export type SubmissionReviewForm = {
   productName: string;
   brandName: string;
+  category?: GroupBuyCategory | '';
   startDate: string;
   endDate: string;
   purchaseUrl: string;
@@ -112,6 +127,7 @@ export type ManualSubmissionForm = {
   imageUrl: string;
   productName: string;
   brandName: string;
+  category?: GroupBuyCategory | '';
   startDate: string;
   endDate: string;
   purchaseUrl: string;
@@ -121,7 +137,7 @@ export type ManualSubmissionForm = {
 
 export type PublicSubmissionForm = {
   productName: string;
-  brandName: string;
+  category: GroupBuyCategory;
   endDate: string;
   purchaseUrl: string;
   instagramUrl: string;

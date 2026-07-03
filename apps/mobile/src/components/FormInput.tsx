@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 import { SText } from './ui/SText';
 import { borderRadius, spacing } from '../design/tokens';
@@ -12,19 +12,45 @@ type FormInputProps = TextInputProps & {
   error?: string;
 };
 
-export function FormInput({ label, multiline = false, style, error, ...props }: FormInputProps) {
+export function FormInput({
+  label,
+  multiline = false,
+  style,
+  error,
+  onBlur,
+  onFocus,
+  ...props
+}: FormInputProps) {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const inputRef = useRef<TextInput>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   return (
     <View style={s.inputGroup}>
-      <SText variant="label" style={s.label}>{label}</SText>
+      <Pressable
+        accessibilityLabel={label}
+        accessibilityRole="button"
+        onPress={() => inputRef.current?.focus()}
+      >
+        <SText variant="label" style={[s.label, isFocused && s.labelFocused]}>{label}</SText>
+      </Pressable>
       <TextInput
+        ref={inputRef}
         multiline={multiline}
         placeholderTextColor={colors.textTertiary}
+        onBlur={(event) => {
+          setIsFocused(false);
+          onBlur?.(event);
+        }}
+        onFocus={(event) => {
+          setIsFocused(true);
+          onFocus?.(event);
+        }}
         style={[
           s.input,
           multiline && s.textArea,
+          isFocused && s.inputFocused,
           error && s.inputError,
           style,
         ]}
@@ -48,15 +74,22 @@ function makeStyles(colors: ColorPalette) {
       fontWeight: '600',
       marginBottom: spacing.xs,
     },
+    labelFocused: {
+      color: colors.primary,
+    },
     input: {
       backgroundColor: colors.surface,
       borderColor: colors.border,
-      borderRadius: borderRadius.lg,
-      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      borderWidth: 1.5,
       color: colors.textPrimary,
-      fontSize: 14,
+      fontSize: 15,
+      minHeight: 52,
       paddingHorizontal: spacing.md,
-      paddingVertical: 10,
+      paddingVertical: 0,
+    },
+    inputFocused: {
+      borderColor: colors.primary,
     },
     inputError: {
       borderColor: colors.error,
@@ -67,7 +100,9 @@ function makeStyles(colors: ColorPalette) {
       marginTop: spacing.xs,
     },
     textArea: {
-      minHeight: 88,
+      minHeight: 96,
+      paddingTop: 14,
+      paddingBottom: 14,
       textAlignVertical: 'top',
     },
   });

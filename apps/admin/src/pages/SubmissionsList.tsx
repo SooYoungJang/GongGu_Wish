@@ -49,7 +49,7 @@ export const SubmissionList = () => (
   >
     <Datagrid rowClick="show">
       <TextField source="productName" label="Product" />
-      <TextField source="brandName" label="Brand" />
+      <TextField source="category" label="Category" />
       <SelectField
         source="status"
         choices={[
@@ -72,7 +72,7 @@ export const SubmissionShow = () => (
   <Show>
     <SimpleShowLayout>
       <TextField source="productName" label="Product Name" />
-      <TextField source="brandName" label="Brand" />
+      <TextField source="category" label="Category" />
       <TextField source="summary" />
       <DateField source="startDate" label="Start Date" />
       <DateField source="endDate" label="End Date" />
@@ -102,7 +102,18 @@ export const SubmissionEdit = (props: EditProps) => (
   <Edit {...props}>
     <SimpleForm>
       <TextInput source="productName" label="Product Name" fullWidth />
-      <TextInput source="brandName" label="Brand" fullWidth />
+      <SelectInput
+        source="category"
+        label="Category"
+        choices={[
+          { id: "beauty", name: "뷰티" },
+          { id: "fashion", name: "패션" },
+          { id: "food", name: "푸드" },
+          { id: "lifestyle", name: "라이프" },
+          { id: "baby", name: "육아" },
+          { id: "digital", name: "디지털" },
+        ]}
+      />
       <TextInput source="summary" fullWidth multiline />
       <SelectInput
         source="status"
@@ -123,7 +134,18 @@ export const SubmissionCreate = () => (
   <Create>
     <SimpleForm>
       <TextInput source="productName" label="Product Name" fullWidth required />
-      <TextInput source="brandName" label="Brand" fullWidth />
+      <SelectInput
+        source="category"
+        label="Category"
+        choices={[
+          { id: "beauty", name: "뷰티" },
+          { id: "fashion", name: "패션" },
+          { id: "food", name: "푸드" },
+          { id: "lifestyle", name: "라이프" },
+          { id: "baby", name: "육아" },
+          { id: "digital", name: "디지털" },
+        ]}
+      />
       <TextInput source="summary" fullWidth multiline />
       <TextInput source="purchaseUrl" label="Purchase URL" fullWidth />
       <TextInput source="discountInfo" label="Discount Info" fullWidth />

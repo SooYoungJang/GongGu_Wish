@@ -5,7 +5,7 @@ import { SText } from '../../components/ui/SText';
 import { borderRadius, spacing, typography } from '../../design/tokens';
 import type { GroupBuy } from '../../types';
 import { DealCard } from '../DealCard';
-import { categoryForIndex } from './DealCardGrid';
+import { categoryForGroupBuy } from './DealCardGrid';
 import { useTheme } from '../../context/ThemeContext';
 import type { ColorPalette } from '../../context/ThemeContext';
 
@@ -53,7 +53,7 @@ export function ExpiringSoonSection({ groupBuys, onPressDeal }: ExpiringSoonSect
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scroll}>
           {expiringItems.map((item, index) => (
             <View key={item.id} style={s.card}>
-              <DealCard item={item} category={categoryForIndex(index)} onPress={() => onPressDeal(item)} />
+              <DealCard item={item} category={categoryForGroupBuy(item, index)} onPress={() => onPressDeal(item)} />
             </View>
           ))}
         </ScrollView>
@@ -90,10 +90,6 @@ function makeStyles(colors: ColorPalette) {
     card: { width: 120, minHeight: 120 },
     empty: {
       alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-      borderRadius: borderRadius.xl,
-      borderWidth: 1,
       padding: spacing.lg,
     },
     emptyText: { ...typography.body, textAlign: 'center' },

@@ -11,7 +11,10 @@ import {
   MinLength,
   ArrayMaxSize,
   ValidateIf,
+  IsIn,
 } from 'class-validator';
+
+const GONGGU_CATEGORIES = ['beauty', 'fashion', 'food', 'lifestyle', 'baby', 'digital'] as const;
 
 export class CreateSubmissionDto {
   @ApiProperty({ example: '마롱드파리 크로와상 6입', description: '제품명 (필수)' })
@@ -25,6 +28,12 @@ export class CreateSubmissionDto {
   @IsString()
   @MaxLength(50)
   brandName?: string;
+
+  @ApiPropertyOptional({ enum: GONGGU_CATEGORIES, example: 'beauty', description: '공구 카테고리' })
+  @IsOptional()
+  @IsString()
+  @IsIn(GONGGU_CATEGORIES)
+  category?: string;
 
   @ApiPropertyOptional({ example: '2026-06-20', description: '공구 시작일 (YYYY-MM-DD)' })
   @IsOptional()

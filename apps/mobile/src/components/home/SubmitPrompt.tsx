@@ -33,7 +33,8 @@ export function SubmitPrompt({ onPressSubmit }: SubmitPromptProps) {
 
 function makeStyles(colors: ColorPalette) {
   return StyleSheet.create({
-    submitPrompt: { backgroundColor: colors.primaryBg, borderRadius: borderRadius['2xl'], marginBottom: spacing.xl, padding: spacing.lg },
+    submitPrompt: { marginBottom: spacing.xl },
+    submitPromptTopBorder: { borderTopColor: colors.divider, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.lg },
     submitPromptTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800', marginBottom: spacing.xs },
     submitPromptText: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginBottom: spacing.md },
     submitPromptButton: {
@@ -42,7 +43,7 @@ function makeStyles(colors: ColorPalette) {
       borderRadius: borderRadius.full,
       justifyContent: 'center',
       minHeight: 44,
-      paddingHorizontal: spacing.lg,
+      paddingHorizontal: spacing.xl,
     },
     submitPromptButtonText: { color: colors.textInverse, fontSize: 14, fontWeight: '800' },
   });

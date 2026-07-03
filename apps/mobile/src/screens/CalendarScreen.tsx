@@ -19,6 +19,7 @@ import { SText } from '../components/ui/SText';
 import { borderRadius, spacing } from '../design/tokens';
 import type { CategoryColorName } from '../design/tokens';
 import type { CalendarScreenProps, GroupBuy } from '../types';
+import { formatDateKey, getGroupBuyDateRange, parseDateKey } from '../utils/groupBuyDates';
 import { useTheme } from '../context/ThemeContext';
 import type { ColorPalette } from '../context/ThemeContext';
 
@@ -33,13 +34,6 @@ const SWIPE_THRESHOLD = 50;
 const FOLLOWED_USERNAMES = new Set(['sample_influencer', 'mom_blogger', 'fitness_influencer']);
 
 // ─── Date utilities ──────────────────────────────────────────────────────────
-
-function formatDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 function isSameDay(a: Date, b: Date): boolean {
   return (
@@ -107,13 +101,27 @@ function getMonthGrid(
 function groupGroupBuysByDate(items: GroupBuy[]): Map<string, GroupBuy[]> {
   const map = new Map<string, GroupBuy[]>();
   for (const item of items) {
-    if (!item.endDate) continue;
-    const key = item.endDate.slice(0, 10);
-    const existing = map.get(key);
-    if (existing) {
-      existing.push(item);
-    } else {
-      map.set(key, [item]);
+    const { start, end } = getGroupBuyDateRange(item);
+    if (!start && !end) continue;
+
+    const rangeStart = start ?? end;
+    const rangeEnd = end ?? start;
+    if (!rangeStart || !rangeEnd) continue;
+
+    const cursor = new Date(rangeStart);
+    cursor.setHours(0, 0, 0, 0);
+    const last = new Date(rangeEnd);
+    last.setHours(0, 0, 0, 0);
+
+    while (cursor <= last) {
+      const key = formatDateKey(cursor);
+      const existing = map.get(key);
+      if (existing) {
+        existing.push(item);
+      } else {
+        map.set(key, [item]);
+      }
+      cursor.setDate(cursor.getDate() + 1);
     }
   }
   return map;
@@ -305,7 +313,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const initialParam = route.params?.initialDate;
-  const initialDate = initialParam ? new Date(initialParam) : new Date();
+  const initialDate = (initialParam ? parseDateKey(initialParam) : null) ?? new Date();
 
   const [currentYear, setCurrentYear] = useState(initialDate.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(initialDate.getMonth());

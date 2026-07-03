@@ -24,7 +24,7 @@ export class SubmissionsService {
     const contentHash = createSubmissionHash({
       productName: dto.productName,
       startDate: dto.startDate,
-      purchaseUrl: dto.purchaseUrl,
+      purchaseUrl: dto.purchaseUrl ?? dto.instagramUrl,
     });
 
     // 중복 확인
@@ -45,9 +45,10 @@ export class SubmissionsService {
         data: {
           productName: dto.productName,
           brandName: dto.brandName,
+          category: dto.category,
           startDate: dto.startDate ? new Date(dto.startDate) : undefined,
           endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-          purchaseUrl: dto.purchaseUrl,
+          purchaseUrl: dto.purchaseUrl ?? dto.instagramUrl,
           discountInfo: dto.discountInfo,
           summary: dto.summary,
           instagramUrl: dto.instagramUrl,
@@ -134,9 +135,10 @@ export class SubmissionsService {
       data: {
         // 선택적 필드만 업데이트 (undefined인 경우 무시)
         brandName: dto.brandName ?? undefined,
+        category: dto.category ?? undefined,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-        purchaseUrl: dto.purchaseUrl ?? undefined,
+        purchaseUrl: dto.purchaseUrl ?? dto.instagramUrl ?? undefined,
         discountInfo: dto.discountInfo ?? undefined,
         summary: dto.summary ?? undefined,
         instagramUrl: dto.instagramUrl ?? undefined,
@@ -158,9 +160,10 @@ export class SubmissionsService {
       data: {
         productName: dto.productName,
         brandName: dto.brandName ?? undefined,
+        category: dto.category ?? undefined,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-        purchaseUrl: dto.purchaseUrl ?? undefined,
+        purchaseUrl: dto.purchaseUrl ?? dto.instagramUrl ?? undefined,
         discountInfo: dto.discountInfo ?? undefined,
         summary: dto.summary ?? undefined,
         instagramUrl: dto.instagramUrl ?? undefined,
@@ -347,9 +350,10 @@ export class SubmissionsService {
           submissionId: submission.id,
           productName: submission.productName,
           brandName: submission.brandName,
+          category: submission.category,
           startDate: submission.startDate ? new Date(submission.startDate) : null,
           endDate: submission.endDate ? new Date(submission.endDate) : null,
-          purchaseUrl: submission.purchaseUrl,
+          purchaseUrl: submission.purchaseUrl ?? submission.instagramUrl,
           discountInfo: submission.discountInfo,
           summary: submission.summary,
           confidence: 0.9,

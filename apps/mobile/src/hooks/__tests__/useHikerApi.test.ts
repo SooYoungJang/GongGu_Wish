@@ -79,6 +79,7 @@ describe('useHikerApi', () => {
       thumbnailUrl: null,
       videoUrl: null,
       mediaUrls: [],
+      mediaItems: [],
       mediaType: null,
     });
 
@@ -102,6 +103,7 @@ describe('useHikerApi', () => {
       thumbnailUrl: null,
       videoUrl: null,
       mediaUrls: [],
+      mediaItems: [],
       mediaType: null,
     });
   });

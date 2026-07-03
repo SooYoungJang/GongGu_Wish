@@ -11,6 +11,8 @@ import {
   DateInput,
   SelectInput,
   NumberInput,
+  BooleanField,
+  BooleanInput,
   Show,
   SimpleShowLayout,
   ShowButton,
@@ -51,7 +53,7 @@ export const GroupBuyList = () => (
   >
     <Datagrid rowClick="show">
       <TextField source="productName" label="Product" />
-      <TextField source="brandName" label="Brand" />
+      <TextField source="category" label="Category" />
       <SelectField
         source="status"
         choices={[
@@ -62,6 +64,8 @@ export const GroupBuyList = () => (
         ]}
       />
       <NumberField source="confidence" options={{ minimumFractionDigits: 0, maximumFractionDigits: 2 }} />
+      <BooleanField source="is_monthly_featured" label="이달의 공구" />
+      <NumberField source="monthly_featured_rank" label="노출 순위" />
       <TextField source="sourceType" label="Source" />
       <DateField source="startDate" label="Start" />
       <DateField source="endDate" label="End" />
@@ -76,7 +80,7 @@ export const GroupBuyShow = () => (
   <Show>
     <SimpleShowLayout>
       <TextField source="productName" label="Product Name" />
-      <TextField source="brandName" label="Brand" />
+      <TextField source="category" label="Category" />
       <TextField source="summary" />
       <TextField source="purchaseUrl" label="Purchase URL" />
       <TextField source="discountInfo" label="Discount Info" />
@@ -92,6 +96,8 @@ export const GroupBuyShow = () => (
       <DateField source="startDate" label="Start Date" />
       <DateField source="endDate" label="End Date" />
       <NumberField source="confidence" />
+      <BooleanField source="is_monthly_featured" label="이달의 공구 노출" />
+      <NumberField source="monthly_featured_rank" label="이달의 공구 우선순위" />
       <TextField source="sourceType" label="Source Type" />
       <TextField source="rejectionReason" label="Rejection Reason" />
       <DateField source="createdAt" label="Created" showTime />
@@ -104,12 +110,25 @@ export const GroupBuyEdit = (props: EditProps) => (
   <Edit {...props}>
     <SimpleForm>
       <TextInput source="productName" label="Product Name" fullWidth required />
-      <TextInput source="brandName" label="Brand" fullWidth />
+      <SelectInput
+        source="category"
+        label="Category"
+        choices={[
+          { id: "beauty", name: "뷰티" },
+          { id: "fashion", name: "패션" },
+          { id: "food", name: "푸드" },
+          { id: "lifestyle", name: "라이프" },
+          { id: "baby", name: "육아" },
+          { id: "digital", name: "디지털" },
+        ]}
+      />
       <TextInput source="summary" fullWidth multiline />
       <TextInput source="purchaseUrl" label="Purchase URL" fullWidth />
       <TextInput source="discountInfo" label="Discount Info" fullWidth />
       <DateInput source="startDate" label="Start Date" />
       <DateInput source="endDate" label="End Date" />
+      <BooleanInput source="is_monthly_featured" label="이달의 공구 노출" />
+      <NumberInput source="monthly_featured_rank" label="이달의 공구 우선순위" helperText="숫자가 낮을수록 먼저 노출됩니다." />
       <SelectInput
         source="status"
         choices={[
@@ -128,12 +147,25 @@ export const GroupBuyCreate = () => (
   <Create>
     <SimpleForm>
       <TextInput source="productName" label="Product Name" fullWidth required />
-      <TextInput source="brandName" label="Brand" fullWidth />
+      <SelectInput
+        source="category"
+        label="Category"
+        choices={[
+          { id: "beauty", name: "뷰티" },
+          { id: "fashion", name: "패션" },
+          { id: "food", name: "푸드" },
+          { id: "lifestyle", name: "라이프" },
+          { id: "baby", name: "육아" },
+          { id: "digital", name: "디지털" },
+        ]}
+      />
       <TextInput source="summary" fullWidth multiline />
       <TextInput source="purchaseUrl" label="Purchase URL" fullWidth />
       <TextInput source="discountInfo" label="Discount Info" fullWidth />
       <DateInput source="startDate" label="Start Date" />
       <DateInput source="endDate" label="End Date" />
+      <BooleanInput source="is_monthly_featured" label="이달의 공구 노출" defaultValue={false} />
+      <NumberInput source="monthly_featured_rank" label="이달의 공구 우선순위" helperText="숫자가 낮을수록 먼저 노출됩니다." />
       <SelectInput
         source="status"
         choices={[

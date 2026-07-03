@@ -9,10 +9,16 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 
 type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DUPLICATE' | 'CANCELLED';
+type MediaAsset = {
+  url: string;
+  mediaType: 'IMAGE' | 'VIDEO';
+  thumbnailUrl?: string | null;
+};
 
 interface SubmissionRequest {
   productName?: string;
   brandName?: string;
+  category?: string;
   startDate?: string;
   endDate?: string;
   purchaseUrl?: string;
@@ -23,6 +29,7 @@ interface SubmissionRequest {
   thumbnailUrl?: string;
   videoUrl?: string;
   mediaUrls?: string[];
+  mediaItems?: MediaAsset[];
   mediaType?: string;
   reporterName?: string;
   reporterContact?: string;
@@ -39,6 +46,7 @@ interface ExistingSubmission {
 type ValidatedSubmissionRow = {
   product_name: string;
   brand_name: string | null;
+  category: string | null;
   start_date: string | null;
   end_date: string | null;
   purchase_url: string | null;
@@ -49,6 +57,7 @@ type ValidatedSubmissionRow = {
   thumbnail_url: string | null;
   video_url: string | null;
   media_urls: string[];
+  media_items: MediaAsset[];
   media_type: string | null;
   reporter_name: string | null;
   reporter_contact: string | null;
@@ -60,6 +69,8 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
 };
+
+const GONGGU_CATEGORIES = ['beauty', 'fashion', 'food', 'lifestyle', 'baby', 'digital'];
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -99,6 +110,29 @@ function isDate(value: string | null) {
   return !value || /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function normalizeCategory(value: unknown) {
+  const category = normalizeOptional(value);
+  if (!category) return null;
+  return GONGGU_CATEGORIES.includes(category) ? category : null;
+}
+
+function normalizeMediaItems(value: unknown): MediaAsset[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    .map((item) => {
+      const url = normalizeOptional(item.url);
+      const mediaType = item.mediaType === 'VIDEO' ? 'VIDEO' : item.mediaType === 'IMAGE' ? 'IMAGE' : null;
+      const thumbnailUrl = normalizeOptional(item.thumbnailUrl);
+
+      if (!url || !isUrl(url) || !mediaType || !isUrl(thumbnailUrl)) return null;
+      return { url, mediaType, thumbnailUrl };
+    })
+    .filter((item): item is MediaAsset => item !== null)
+    .slice(0, 20);
+}
+
 async function sha256(input: string) {
   const bytes = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest('SHA-256', bytes);
@@ -122,12 +156,13 @@ async function createSubmissionHash(input: {
 function validate(body: SubmissionRequest) {
   const productName = normalizeOptional(body.productName);
   const brandName = normalizeOptional(body.brandName);
+  const category = normalizeCategory(body.category);
   const startDate = normalizeOptional(body.startDate);
   const endDate = normalizeOptional(body.endDate);
-  const purchaseUrl = normalizeOptional(body.purchaseUrl);
+  const instagramUrl = normalizeOptional(body.instagramUrl);
+  const purchaseUrl = normalizeOptional(body.purchaseUrl) ?? instagramUrl;
   const discountInfo = normalizeOptional(body.discountInfo);
   const summary = normalizeOptional(body.summary);
-  const instagramUrl = normalizeOptional(body.instagramUrl);
   const reporterName = normalizeOptional(body.reporterName);
   const reporterContact = normalizeOptional(body.reporterContact);
   const imageUrls = Array.isArray(body.imageUrls)
@@ -138,6 +173,7 @@ function validate(body: SubmissionRequest) {
   const mediaUrls = Array.isArray(body.mediaUrls)
     ? body.mediaUrls.filter((url): url is string => typeof url === 'string' && isUrl(url)).slice(0, 20)
     : [];
+  const mediaItems = normalizeMediaItems(body.mediaItems);
   const mediaType = typeof body.mediaType === 'string' && ['IMAGE', 'VIDEO'].includes(body.mediaType)
     ? body.mediaType
     : null;
@@ -150,6 +186,9 @@ function validate(body: SubmissionRequest) {
   }
   if (brandName && brandName.length > 50) {
     return { error: '브랜드명은 50자 이하로 입력해주세요.' };
+  }
+  if (body.category && !category) {
+    return { error: '카테고리를 확인해주세요.' };
   }
   if (!isDate(startDate) || !isDate(endDate)) {
     return { error: '날짜는 YYYY-MM-DD 형식으로 입력해주세요.' };
@@ -171,20 +210,22 @@ function validate(body: SubmissionRequest) {
     data: {
       product_name: productName,
       brand_name: brandName,
+      category,
       start_date: startDate,
       end_date: endDate,
       purchase_url: purchaseUrl,
       discount_info: discountInfo,
       summary,
-    instagram_url: instagramUrl,
-    image_urls: imageUrls,
-    thumbnail_url: thumbnailUrl,
-    video_url: videoUrl,
-    media_urls: mediaUrls,
-    media_type: mediaType,
-    reporter_name: reporterName,
-    reporter_contact: reporterContact,
-    is_anonymous: body.isAnonymous ?? true,
+      instagram_url: instagramUrl,
+      image_urls: imageUrls,
+      thumbnail_url: thumbnailUrl,
+      video_url: videoUrl,
+      media_urls: mediaUrls,
+      media_items: mediaItems,
+      media_type: mediaType,
+      reporter_name: reporterName,
+      reporter_contact: reporterContact,
+      is_anonymous: body.isAnonymous ?? true,
     },
   };
 }
@@ -200,6 +241,7 @@ async function upsertApprovedGroupBuy(
     submission_id: submissionId,
     product_name: row.product_name,
     brand_name: row.brand_name,
+    category: row.category,
     start_date: row.start_date,
     end_date: row.end_date,
     purchase_url: row.purchase_url,
@@ -208,6 +250,7 @@ async function upsertApprovedGroupBuy(
     thumbnail_url: row.thumbnail_url,
     video_url: row.video_url,
     media_urls: row.media_urls,
+    media_items: row.media_items,
     media_type: row.media_type,
     confidence: 0.9,
     status: 'APPROVED',
@@ -302,6 +345,7 @@ async function handleSubmission(body: SubmissionRequest) {
     const updatePayload = {
       product_name: row.product_name,
       brand_name: row.brand_name,
+      category: row.category,
       start_date: row.start_date,
       end_date: row.end_date,
       purchase_url: row.purchase_url,
@@ -309,6 +353,11 @@ async function handleSubmission(body: SubmissionRequest) {
       summary: row.summary,
       instagram_url: row.instagram_url,
       image_urls: mergedImageUrls,
+      thumbnail_url: row.thumbnail_url,
+      video_url: row.video_url,
+      media_urls: row.media_urls,
+      media_items: row.media_items,
+      media_type: row.media_type,
       reporter_name: row.reporter_name,
       reporter_contact: row.reporter_contact,
       is_anonymous: row.is_anonymous,
@@ -340,6 +389,7 @@ async function handleSubmission(body: SubmissionRequest) {
       id: crypto.randomUUID(),
       product_name: row.product_name,
       brand_name: row.brand_name,
+      category: row.category,
       start_date: row.start_date,
       end_date: row.end_date,
       purchase_url: row.purchase_url,
@@ -347,6 +397,11 @@ async function handleSubmission(body: SubmissionRequest) {
       summary: row.summary,
       instagram_url: row.instagram_url,
       image_urls: row.image_urls,
+      thumbnail_url: row.thumbnail_url,
+      video_url: row.video_url,
+      media_urls: row.media_urls,
+      media_items: row.media_items,
+      media_type: row.media_type,
       reporter_name: row.reporter_name,
       reporter_contact: row.reporter_contact,
       is_anonymous: row.is_anonymous,
