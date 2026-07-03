@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -236,6 +236,8 @@ function ProductReelPage({
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
   const [summaryScrollContentHeight, setSummaryScrollContentHeight] = useState(0);
   const [summaryScrollViewportHeight, setSummaryScrollViewportHeight] = useState(0);
+  const [isSummaryScrollAtTop, setSummaryScrollAtTop] = useState(true);
+  const summaryScrollOffsetRef = useRef(0);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
@@ -261,6 +263,10 @@ function ProductReelPage({
   const setSummaryOpen = useCallback(
     (isOpen: boolean) => {
       setSummaryExpanded(isOpen);
+      if (!isOpen) {
+        summaryScrollOffsetRef.current = 0;
+        setSummaryScrollAtTop(true);
+      }
       onSummarySheetStateChange(isOpen, false);
     },
     [onSummarySheetStateChange],
@@ -276,6 +282,9 @@ function ProductReelPage({
   const handleSummaryScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       if (!isSummaryExpanded) return;
+      const nextOffset = event.nativeEvent.contentOffset.y;
+      summaryScrollOffsetRef.current = nextOffset;
+      setSummaryScrollAtTop(nextOffset <= 0);
       onSummarySheetStateChange(true, canHandOffSummaryScroll(event.nativeEvent.contentOffset.y));
     },
     [canHandOffSummaryScroll, isSummaryExpanded, onSummarySheetStateChange],
@@ -300,6 +309,31 @@ function ProductReelPage({
       }
     },
     [canHandOffSummaryScroll, isSummaryExpanded, onSummarySheetStateChange, summaryScrollViewportHeight],
+  );
+
+  const DISMISS_VELOCITY_THRESHOLD = 0.5;
+
+  const summaryContentFitsViewport = summaryScrollContentHeight > 0
+    && summaryScrollContentHeight <= summaryScrollViewportHeight + 2;
+
+  // bounces true at the top so iOS shows an overscroll drag the dismiss handler closes on release.
+  const summaryBounces = isSummaryExpanded && (isSummaryScrollAtTop || summaryContentFitsViewport);
+
+  const handleSummaryScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (!isSummaryExpanded) return;
+      const { y } = event.nativeEvent.contentOffset;
+      const velocity = event.nativeEvent.velocity?.y ?? 0;
+      const atTop = y <= 0;
+      const pullingDown = velocity > DISMISS_VELOCITY_THRESHOLD;
+      if ((atTop && pullingDown) || summaryContentFitsViewport) {
+        setSummaryOpen(false);
+      }
+    },
+    [
+      isSummaryExpanded,
+      summaryContentFitsViewport,
+    ],
   );
 
   const handleShare = async () => {
@@ -555,11 +589,12 @@ function ProductReelPage({
               </SText>
             </Pressable>
             <ScrollView
-              bounces={false}
+              bounces={summaryBounces}
               nestedScrollEnabled
               onContentSizeChange={handleSummaryContentSizeChange}
               onLayout={handleSummaryScrollLayout}
               onScroll={handleSummaryScroll}
+              onScrollEndDrag={handleSummaryScrollEndDrag}
               scrollEventThrottle={16}
               showsVerticalScrollIndicator={false}
               style={s.summaryScroll}

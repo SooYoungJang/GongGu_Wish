@@ -398,10 +398,97 @@ describe('DetailScreen', () => {
       scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 260 } } });
     });
 
-    const verticalListAtBottom = renderer!.root
-      .findAll((node) => String(node.type) === 'FlashList')
-      .find((node) => node.props.pagingEnabled && !node.props.horizontal);
-    expect(verticalListAtBottom?.props.scrollEnabled).toBe(true);
+   const verticalListAtBottom = renderer!.root
+     .findAll((node) => String(node.type) === 'FlashList')
+     .find((node) => node.props.pagingEnabled && !node.props.horizontal);
+   expect(verticalListAtBottom?.props.scrollEnabled).toBe(true);
+ });
+
+  it('dismisses the summary sheet when dragged down at the top of the scroll', () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      summary: Array.from({ length: 16 }, (_, index) => `긴 설명 ${index + 1}`).join('\n'),
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.find(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
+    );
+
+    act(() => {
+      summaryButton.props.onPress();
+    });
+
+    const scrollView = renderer!.root.find((node) => String(node.type) === 'ScrollView');
+
+    act(() => {
+      scrollView.props.onLayout({ nativeEvent: { layout: { height: 100 } } });
+      scrollView.props.onContentSizeChange(0, 360);
+      scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 120 } } });
+    });
+
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
+
+    act(() => {
+      scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
+    });
+
+    act(() => {
+      scrollView.props.onScrollEndDrag({
+        nativeEvent: { contentOffset: { y: 0 }, velocity: { y: 1.2 } },
+      });
+    });
+
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
+  });
+
+  it('dismisses the summary sheet when content is shorter than the viewport', () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      summary: '짧은 한 줄 요약입니다.',
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.find(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 자세히 보기',
+    );
+
+    act(() => {
+      summaryButton.props.onPress();
+    });
+
+    const scrollView = renderer!.root.find((node) => String(node.type) === 'ScrollView');
+
+    act(() => {
+      scrollView.props.onLayout({ nativeEvent: { layout: { height: 200 } } });
+      scrollView.props.onContentSizeChange(0, 80);
+    });
+
+    act(() => {
+      scrollView.props.onScrollEndDrag({
+        nativeEvent: { contentOffset: { y: 0 }, velocity: { y: 0.8 } },
+      });
+    });
+
+    expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
   });
 
   it('does not mount video players for inactive product pages', () => {
