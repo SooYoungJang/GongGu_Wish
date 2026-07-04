@@ -22,6 +22,7 @@ import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { fallbackGroupBuys, fetchGroupBuys } from '../api';
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { borderRadius, categoryColors, spacing } from '../design/tokens';
+import { getDaysRemaining } from '../utils';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { CommerceColorPalette } from '../design/commerce';
 import type { GroupBuy, HomeScreenProps } from '../types';
@@ -37,27 +38,16 @@ type HomeScreenContentProps = {
   onOpenBookmarks: HomeAction;
   onOpenNotifications: HomeAction;
   onOpenSearch: HomeAction;
+  onOpenRanking: HomeAction;
   onPressDeal: DealAction;
-  onPressSubmit: HomeAction;
 };
 
-const SHOP_TABS = ['쇼핑 홈', '카테고리', '종근당건강', '특가', '여름생존템'] as const;
+const SHOP_TABS = ['쇼핑 홈', '카테고리', '특가', '여름생존템'] as const;
 type ShopTab = typeof SHOP_TABS[number];
 const HOME_SIDE_PADDING = 16;
 const PROMO_CARD_GAP = 12;
 const PROMO_AUTO_PLAY_MS = 3000;
 const PROMO_WRAP_SETTLE_MS = 450;
-
-type BenefitIconKey = 'attendance' | 'scroll' | 'feed' | 'cat' | 'look' | 'draw';
-
-const BENEFIT_ACTIONS: ReadonlyArray<{ label: string; icon: BenefitIconKey; badge: string | null }> = [
-  { label: '연속 출석', icon: 'attendance', badge: null },
-  { label: '스크롤하기', icon: 'scroll', badge: '60원' },
-  { label: '포인트피드', icon: 'feed', badge: null },
-  { label: '고양이', icon: 'cat', badge: null },
-  { label: '3초구경', icon: 'look', badge: null },
-  { label: '상품 뽑기', icon: 'draw', badge: null },
-] as const;
 
 function getVisual(item: GroupBuy) {
   return item.thumbnailUrl ?? item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ?? item.mediaUrls?.[0] ?? null;
@@ -71,7 +61,6 @@ function getRecommendedItems(groupBuys: GroupBuy[], selectedTab: ShopTab) {
   const items = getDisplayItems(groupBuys);
   const filtered = items.filter((item) => {
     const productName = item.productName ?? '';
-    const brandName = item.brandName ?? '';
     const discountInfo = item.discountInfo ?? '';
     const category = item.category ?? '';
 
@@ -79,8 +68,6 @@ function getRecommendedItems(groupBuys: GroupBuy[], selectedTab: ShopTab) {
       case '쇼핑 홈':
       case '카테고리':
         return true;
-      case '종근당건강':
-        return brandName.includes('종근당') || productName.includes('건강') || category === 'lifestyle';
       case '특가':
         return /특가|할인|sale/i.test(discountInfo) || productName.includes('특가');
       case '여름생존템':
@@ -193,60 +180,6 @@ function PromoProductMockup({ s }: { s: ReturnType<typeof makeStyles> }) {
 }
 
 
-function BenefitIconArt({ icon, s }: { icon: BenefitIconKey; s: ReturnType<typeof makeStyles> }) {
-  switch (icon) {
-    case 'attendance':
-      return (
-        <View style={s.attendanceArt}>
-          <SText variant="cardTitle" style={s.attendanceArtText}>1</SText>
-        </View>
-      );
-    case 'scroll':
-      return (
-        <View style={s.scrollArt}>
-          <View style={s.scrollPalm} />
-          <View style={s.scrollFinger} />
-        </View>
-      );
-    case 'feed':
-      return (
-        <View style={s.feedArt}>
-          <View style={s.feedLineLong} />
-          <View style={s.feedLineShort} />
-        </View>
-      );
-    case 'cat':
-      return (
-        <View style={s.catArt}>
-          <View style={s.catEarLeft} />
-          <View style={s.catEarRight} />
-          <View style={s.catFace}>
-            <View style={s.catEyeRow}>
-              <View style={s.catEye} />
-              <View style={s.catEye} />
-            </View>
-            <View style={s.catMouth} />
-          </View>
-        </View>
-      );
-    case 'look':
-      return (
-        <View style={s.lookArt}>
-          <View style={s.lookBagHandle} />
-          <View style={s.lookBagBody} />
-          <View style={s.lookLens} />
-          <View style={s.lookHandle} />
-        </View>
-      );
-    case 'draw':
-      return (
-        <View style={s.drawCoin}>
-          <SText variant="caption" style={s.drawCoinText}>100</SText>
-        </View>
-      );
-  }
-}
-
 function ShopTabRow({
   selectedTab,
   onSelectTab,
@@ -256,8 +189,23 @@ function ShopTabRow({
   onSelectTab: Dispatch<ShopTab>;
   s: ReturnType<typeof makeStyles>;
 }) {
+  const scrollRef = useRef<ScrollView | null>(null);
+  const tabLayoutsRef = useRef<Record<string, { x: number; width: number }>>({});
+
+  // Scroll the selected tab into view whenever it changes.
+  useEffect(() => {
+    const layout = tabLayoutsRef.current[selectedTab];
+    if (!layout || !scrollRef.current) return;
+    scrollRef.current.scrollTo({ x: Math.max(layout.x - 32, 0), animated: true });
+  }, [selectedTab]);
+
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.shopTabs}>
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={s.shopTabs}
+    >
       {SHOP_TABS.map((tab) => {
         const selected = tab === selectedTab;
         return (
@@ -267,6 +215,9 @@ function ShopTabRow({
             accessibilityState={{ selected }}
             key={tab}
             onPress={() => onSelectTab(tab)}
+            onLayout={(e) => {
+              tabLayoutsRef.current[tab] = { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width };
+            }}
             style={[s.shopTab, selected && s.shopTabSelected]}
           >
             <SText variant="label" style={[s.shopTabText, selected && s.shopTabTextSelected]}>
@@ -465,46 +416,87 @@ function PromoBanner({
   );
 }
 
-function BenefitGrid({
-  onOpenSearch,
-  onPressSubmit,
+function WeeklyGroupBuysSection({
+  groupBuys,
+  onPressDeal,
+  onOpenRanking,
   s,
 }: {
-  onOpenSearch: HomeAction;
-  onPressSubmit: HomeAction;
+  groupBuys: GroupBuy[];
+  onPressDeal: DealAction;
+  onOpenRanking: HomeAction;
   s: ReturnType<typeof makeStyles>;
 }) {
+  const weeklyItems = useMemo(() => {
+    const items = getDisplayItems(groupBuys);
+    return items
+      .filter((item) => {
+        const days = getDaysRemaining(item.endDate);
+        return days >= 0 && days <= 7;
+      })
+      .sort((a, b) => getDaysRemaining(a.endDate) - getDaysRemaining(b.endDate))
+      .slice(0, 6);
+  }, [groupBuys]);
+
   return (
-    <View style={s.benefitSection}>
+    <View style={s.weeklySection}>
       <View style={s.sectionTitleRow}>
-        <SText variant="cardTitle" style={s.sectionTitle}>포인트 · 쿠폰 받기</SText>
-        <View style={s.smallBlueBadge}>
-          <SText variant="caption" style={s.smallBlueBadgeText}>최대 100원</SText>
-        </View>
+        <SText variant="cardTitle" style={s.sectionTitle}>이번주 공구</SText>
+        <Pressable
+          accessibilityLabel="공구 전체보기"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={onOpenRanking}
+          style={s.seeAllButton}
+        >
+          <SText variant="caption" style={s.seeAllText}>전체보기</SText>
+        </Pressable>
       </View>
-      <View style={s.benefitGrid}>
-        {BENEFIT_ACTIONS.map((action) => (
-          <Pressable
-            accessibilityLabel={`${action.label} 열기`}
-            accessibilityRole="button"
-            key={action.label}
-            onPress={action.label === '상품 뽑기' ? onPressSubmit : onOpenSearch}
-            style={s.benefitItem}
-          >
-            <View style={s.benefitIconBox}>
-              {action.badge ? (
-                <View style={s.benefitMiniBadge}>
-                  <SText variant="caption" style={s.benefitMiniBadgeText}>{action.badge}</SText>
+      {weeklyItems.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.weeklyList}>
+          {weeklyItems.map((item) => {
+            const visual = getVisual(item);
+            const days = getDaysRemaining(item.endDate);
+            const categoryToken = categoryColors[item.category ?? 'beauty'];
+            return (
+              <Pressable
+                accessibilityLabel={`${item.productName ?? '공구'} 상세 보기`}
+                accessibilityRole="button"
+                key={item.id}
+                onPress={() => onPressDeal(item)}
+                style={({ pressed }) => [s.weeklyCard, pressed && s.weeklyCardPressed]}
+              >
+                <View style={s.weeklyImageWrap}>
+                  {visual ? (
+                    <Image source={{ uri: visual }} style={s.weeklyImage} />
+                  ) : (
+                    <View style={[s.weeklyFallback, { backgroundColor: categoryToken.bg }]}>
+                      <SText variant="cardTitle" style={[s.weeklyFallbackText, { color: categoryToken.text }]}>
+                        {(item.brandName ?? item.productName ?? '공구').slice(0, 2)}
+                      </SText>
+                    </View>
+                  )}
+                  <View style={s.weeklyDeadlineBadge}>
+                    <SText variant="caption" style={s.weeklyDeadlineText}>
+                      {days === 0 ? '오늘 마감' : `${days}일 남음`}
+                    </SText>
+                  </View>
                 </View>
-              ) : null}
-              <BenefitIconArt icon={action.icon} s={s} />
-            </View>
-            <SText variant="caption" numberOfLines={1} style={s.benefitLabel}>
-              {action.label}
-            </SText>
-          </Pressable>
-        ))}
-      </View>
+                <SText variant="body" numberOfLines={1} style={s.weeklyBrand}>
+                  {item.brandName ?? `@${item.rawPost.influencer.instagramUsername}`}
+                </SText>
+                <SText variant="caption" numberOfLines={2} style={s.weeklyTitle}>
+                  {item.productName ?? '공동구매 상품'}
+                </SText>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : (
+        <View style={s.weeklyEmpty}>
+          <SText variant="body" style={s.weeklyEmptyText}>이번주 공구를 준비 중입니다</SText>
+        </View>
+      )}
     </View>
   );
 }
@@ -604,8 +596,8 @@ export function HomeScreenContent({
   onOpenBookmarks,
   onOpenNotifications,
   onOpenSearch,
+  onOpenRanking,
   onPressDeal,
-  onPressSubmit,
 }: HomeScreenContentProps) {
   const { colors, isDark } = useCommerceTheme();
   const { width } = useWindowDimensions();
@@ -637,7 +629,12 @@ export function HomeScreenContent({
               onPressDeal={onPressDeal}
               s={s}
             />
-            <BenefitGrid onOpenSearch={onOpenSearch} onPressSubmit={onPressSubmit} s={s} />
+            <WeeklyGroupBuysSection
+              groupBuys={groupBuys}
+              onPressDeal={onPressDeal}
+              onOpenRanking={onOpenRanking}
+              s={s}
+            />
             {isError ? (
               <View style={s.notice}>
                 <SText variant="caption" style={s.noticeText}>네트워크 연결 상태를 확인해주세요. (샘플 데이터를 표시 중입니다)</SText>
@@ -676,8 +673,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       onOpenBookmarks={() => Alert.alert('준비 중', '북마크 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
       onOpenNotifications={() => Alert.alert('준비 중', '알림 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
       onOpenSearch={() => navigation.navigate('SearchScreen')}
+      onOpenRanking={() => navigation.navigate('MainTabs', { screen: 'Ranking' })}
       onPressDeal={(groupBuy) => navigation.navigate('Detail', { groupBuy })}
-      onPressSubmit={() => navigation.navigate('Submit')}
     />
   );
 }
@@ -882,10 +879,6 @@ function makeStyles(colors: CommerceColorPalette) {
       minHeight: 160,
     },
     promoEmptyText: { color: colors.muted, fontSize: 15, fontWeight: '700' },
-    benefitSection: {
-      marginBottom: 40,
-      paddingHorizontal: HOME_SIDE_PADDING,
-    },
     sectionTitleRow: {
       alignItems: 'center',
       flexDirection: 'row',
@@ -893,36 +886,59 @@ function makeStyles(colors: CommerceColorPalette) {
       marginBottom: 14,
     },
     sectionTitle: { color: colors.text, flexShrink: 1, fontSize: 20, fontWeight: '900', letterSpacing: 0, lineHeight: 27 },
-    smallBlueBadge: {
-      backgroundColor: colors.blueSoft,
-      borderRadius: borderRadius.sm,
-      marginLeft: spacing.sm,
-      paddingHorizontal: 7,
-      paddingVertical: 4,
+    weeklySection: {
+      marginBottom: 36,
+      paddingHorizontal: HOME_SIDE_PADDING,
     },
-    smallBlueBadgeText: { color: colors.blue, fontSize: 11, fontWeight: '900', letterSpacing: 0, lineHeight: 15 },
-    benefitGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      rowGap: 18,
+    seeAllButton: {
+      paddingHorizontal: 4,
+      paddingVertical: 2,
     },
-    benefitItem: {
-      alignItems: 'center',
-      minHeight: 76,
-      width: '20%',
+    seeAllText: { color: colors.muted, fontSize: 13, fontWeight: '800', letterSpacing: 0, lineHeight: 18 },
+    weeklyList: {
+      gap: 12,
+      paddingHorizontal: 0,
     },
-    benefitIconBox: {
-      alignItems: 'center',
-      backgroundColor: colors.panelBg,
-      borderColor: colors.border,
-      borderRadius: 14,
-      borderWidth: 1,
-      height: 54,
-      justifyContent: 'center',
+    weeklyCard: {
+      width: 148,
+    },
+    weeklyCardPressed: { opacity: 0.8 },
+    weeklyImageWrap: {
+      backgroundColor: colors.softBg,
+      borderRadius: borderRadius.lg,
+      height: 148,
       marginBottom: 8,
+      overflow: 'hidden',
       position: 'relative',
-      width: 54,
+      width: 148,
     },
+    weeklyImage: { height: '100%', resizeMode: 'cover', width: '100%' },
+    weeklyFallback: {
+      alignItems: 'center',
+      flex: 1,
+      justifyContent: 'center',
+    },
+    weeklyFallbackText: { fontSize: 22, fontWeight: '900' },
+    weeklyDeadlineBadge: {
+      backgroundColor: colors.overlay,
+      borderBottomLeftRadius: borderRadius.lg,
+      borderBottomRightRadius: borderRadius.lg,
+      bottom: 0,
+      left: 0,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      position: 'absolute',
+      right: 0,
+    },
+    weeklyDeadlineText: { color: colors.inverse, fontSize: 11, fontWeight: '900', letterSpacing: 0, lineHeight: 15 },
+    weeklyBrand: { color: colors.muted, fontSize: 13, fontWeight: '700', letterSpacing: 0, lineHeight: 18, marginBottom: 2 },
+    weeklyTitle: { color: colors.text, fontSize: 14, fontWeight: '800', letterSpacing: 0, lineHeight: 19 },
+    weeklyEmpty: {
+      alignItems: 'center',
+      minHeight: 120,
+      justifyContent: 'center',
+    },
+    weeklyEmptyText: { color: colors.muted, fontSize: 15, fontWeight: '700' },
     attendanceArt: {
       alignItems: 'center',
       backgroundColor: '#EDF2F7',

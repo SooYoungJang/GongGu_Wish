@@ -1,9 +1,9 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { CompositeScreenProps } from '@react-navigation/native';
+import type { CompositeScreenProps, NavigatorScreenParams } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 export type RootStackParamList = {
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   CalendarScreen: { initialDate?: string };
   Detail: { groupBuy: GroupBuy };
   FeedDetail: { feedId: string };
@@ -11,13 +11,14 @@ export type RootStackParamList = {
   SearchScreen: undefined;
   Admin: undefined;
   Login: undefined;
+  Submit: undefined;
 };
 
 export type MainTabParamList = {
+  Ranking: undefined;
+  Reels: undefined;
   Home: undefined;
   Search: undefined;
-  Submit: undefined;
-  Community: undefined;
   MyPage: undefined;
 };
 
@@ -180,13 +181,10 @@ export type HomeScreenProps = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 export type StoreScreenProps = CompositeScreenProps<
-  BottomTabScreenProps<MainTabParamList, 'Search'>,
+  BottomTabScreenProps<MainTabParamList, 'Ranking'>,
   NativeStackScreenProps<RootStackParamList>
 >;
-export type SubmitScreenProps = CompositeScreenProps<
-  BottomTabScreenProps<MainTabParamList, 'Submit'>,
-  NativeStackScreenProps<RootStackParamList>
->;
+export type SubmitScreenProps = NativeStackScreenProps<RootStackParamList, 'Submit'>;
 export type DetailScreenProps = NativeStackScreenProps<RootStackParamList, 'Detail'>;
 export type FeedDetailScreenProps = NativeStackScreenProps<RootStackParamList, 'FeedDetail'>;
 export type CalendarScreenProps = NativeStackScreenProps<RootStackParamList, 'CalendarScreen'>;

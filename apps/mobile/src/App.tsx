@@ -29,9 +29,7 @@ import { InfluencerGroupBuysScreen } from './screens/InfluencerGroupBuysScreen';
 import { DetailScreen } from './screens/DetailScreen';
 import { MyPageScreen } from './screens/MyPageScreen';
 import { StoreScreen } from './screens/StoreScreen';
-import { SubmitScreen } from './screens/SubmitScreen';
 import { SearchScreen } from './screens/SearchScreen';
-import { ScreenHeader } from './components/ScreenHeader';
 import { spacing } from './design/tokens';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
@@ -45,12 +43,14 @@ const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const TAB_BAR_HEIGHT = 82;
 
+import { SubmitScreen } from './screens/SubmitScreen';
+
 function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: string }) {
   const { colors } = useTheme();
   return (
     <SafeAreaView edges={['top', 'bottom']} style={[styles.placeholderScreen, { backgroundColor: colors.bg }]}>
       <View style={styles.placeholderHeader}>
-        <ScreenHeader title={title} />
+        <Text style={[styles.placeholderTitle, { color: colors.text }]}>{title}</Text>
       </View>
       <View style={styles.placeholderBody}>
         <Text style={[styles.placeholderSubtitle, { color: colors.muted }]}>{subtitle}</Text>
@@ -59,78 +59,87 @@ function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: strin
   );
 }
 
-function CommunityScreen() {
-  return <PlaceholderScreen title="커뮤니티" subtitle="공구 제보와 후기를 모아볼 수 있는 공간입니다." />;
+function ReelsScreen() {
+  return <PlaceholderScreen title="릴스" subtitle="릴스 기능을 준비 중입니다." />;
 }
 
-function HomeTabGlyph({ color }: { color: string }) {
-  return (
-    <View style={styles.tabGlyphFrame}>
-      <View style={[styles.homeRoof, { borderColor: color }]} />
-      <View style={[styles.homeBody, { borderColor: color }]} />
-    </View>
-  );
-}
+// Each GNB icon: when focused the inside is filled with the accent color,
+// when not focused the inside stays transparent so only the outline shows.
 
-function BenefitTabGlyph({ color }: { color: string }) {
-  return <View style={[styles.benefitDiamond, { borderColor: color }]} />;
-}
-
-function ShoppingTabGlyph({ color }: { color: string }) {
-  return (
-    <View style={styles.tabGlyphFrame}>
-      <View style={[styles.shoppingHandle, { borderColor: color }]} />
-      <View style={[styles.shoppingBag, { borderColor: color, backgroundColor: color }]} />
-    </View>
-  );
-}
-
-function ChartTabGlyph({ color }: { color: string }) {
+function RankingTabGlyph({ color, focused }: { color: string; focused: boolean }) {
   return (
     <View style={styles.tabGlyphFrame}>
       <View style={[styles.chartFrame, { borderColor: color }]} />
-      <View style={[styles.chartLine, { backgroundColor: color }]} />
+      {focused ? <View style={[styles.chartBar, { backgroundColor: color }]} /> : null}
     </View>
   );
 }
 
-function MenuTabGlyph({ color }: { color: string }) {
+function ReelsTabGlyph({ color, focused }: { color: string; focused: boolean }) {
+  return (
+    <View style={styles.tabGlyphFrame}>
+      <View style={[styles.reelsFrame, { borderColor: color }]}>
+        <View style={[styles.reelsTriangle, { borderLeftColor: focused ? color : 'transparent' }]} />
+      </View>
+    </View>
+  );
+}
+
+function HomeTabGlyph({ color, focused }: { color: string; focused: boolean }) {
+  return (
+    <View style={styles.tabGlyphFrame}>
+      <View style={[styles.homeRoof, { borderColor: color }]} />
+      <View style={[styles.homeBody, { borderColor: color, backgroundColor: focused ? color : 'transparent' }]} />
+    </View>
+  );
+}
+
+function SearchTabGlyph({ color, focused }: { color: string; focused: boolean }) {
+  return (
+    <View style={styles.tabGlyphFrame}>
+      <View style={[styles.searchCircle, { borderColor: color }]} />
+      <View style={[styles.searchHandle, { borderColor: color, backgroundColor: focused ? color : 'transparent' }]} />
+    </View>
+  );
+}
+
+function MyPageTabGlyph({ color, focused }: { color: string; focused: boolean }) {
   return (
     <View style={styles.menuGlyph}>
-      <View style={[styles.menuLine, { backgroundColor: color }]} />
-      <View style={[styles.menuLine, { backgroundColor: color }]} />
-      <View style={[styles.menuLine, { backgroundColor: color }]} />
+      <View style={[styles.menuLine, { backgroundColor: focused ? color : 'transparent', borderColor: color, borderWidth: 2.2 }]} />
+      <View style={[styles.menuLine, { backgroundColor: focused ? color : 'transparent', borderColor: color, borderWidth: 2.2 }]} />
+      <View style={[styles.menuLine, { backgroundColor: focused ? color : 'transparent', borderColor: color, borderWidth: 2.2 }]} />
     </View>
   );
 }
 
-function tabIcon(routeName: keyof MainTabParamList, color: string) {
+function tabIcon(routeName: keyof MainTabParamList, color: string, focused: boolean) {
   switch (routeName) {
+    case 'Ranking':
+      return <RankingTabGlyph color={color} focused={focused} />;
+    case 'Reels':
+      return <ReelsTabGlyph color={color} focused={focused} />;
     case 'Home':
-      return <HomeTabGlyph color={color} />;
+      return <HomeTabGlyph color={color} focused={focused} />;
     case 'Search':
-      return <BenefitTabGlyph color={color} />;
-    case 'Submit':
-      return <ShoppingTabGlyph color={color} />;
-    case 'Community':
-      return <ChartTabGlyph color={color} />;
+      return <SearchTabGlyph color={color} focused={focused} />;
     case 'MyPage':
-      return <MenuTabGlyph color={color} />;
+      return <MyPageTabGlyph color={color} focused={focused} />;
   }
 }
 
 function tabLabel(routeName: keyof MainTabParamList) {
   switch (routeName) {
+    case 'Ranking':
+      return '랭킹';
+    case 'Reels':
+      return '릴스';
     case 'Home':
       return '홈';
     case 'Search':
-      return '혜택';
-    case 'Submit':
-      return '쇼핑';
-    case 'Community':
-      return '증권';
+      return '검색';
     case 'MyPage':
-      return '전체';
+      return '마이';
   }
 }
 
@@ -155,6 +164,7 @@ function MainTabs() {
         tabBarIcon: ({ focused }) => tabIcon(
           route.name,
           focused ? colors.text : colors.tabInactive,
+          focused,
         ),
         tabBarLabel: tabLabel(route.name),
         tabBarActiveTintColor: colors.text,
@@ -173,10 +183,10 @@ function MainTabs() {
         ],
       })}
     >
+      <Tab.Screen name="Ranking" component={StoreScreen} />
+      <Tab.Screen name="Reels" component={ReelsScreen} />
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Search" component={StoreScreen} />
-      <Tab.Screen name="Submit" component={SubmitScreen} />
-      <Tab.Screen name="Community" component={CommunityScreen} />
+      <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen name="MyPage" component={MyPageScreen} />
     </Tab.Navigator>
   );
@@ -241,6 +251,7 @@ function ThemedStackNavigator() {
       }}
     >
       <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen name="Submit" component={SubmitScreen} />
       <Stack.Screen name="CalendarScreen" component={CalendarScreen} />
       <Stack.Screen name="Detail" component={DetailScreen} />
       <Stack.Screen name="FeedDetail" component={FeedDetailScreen} />
@@ -282,6 +293,10 @@ const styles = StyleSheet.create({
   placeholderHeader: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
+  },
+  placeholderTitle: {
+    fontSize: 22,
+    fontWeight: '900',
   },
   placeholderBody: {
     alignItems: 'center',
@@ -349,33 +364,47 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 18,
   },
-  benefitDiamond: {
-    borderRadius: 4,
+  searchCircle: {
+    borderRadius: 999,
     borderWidth: 2.3,
-    height: 20,
-    marginTop: 4,
-    transform: [{ rotate: '45deg' }],
-    width: 20,
-  },
-  shoppingHandle: {
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderWidth: 2.1,
-    borderBottomWidth: 0,
-    height: 9,
-    left: 12,
+    height: 16,
+    left: 6,
     position: 'absolute',
     top: 3,
-    width: 10,
+    width: 16,
   },
-  shoppingBag: {
-    borderRadius: 5,
-    borderWidth: 2.1,
-    bottom: 3,
-    height: 18,
-    left: 7,
+  searchHandle: {
+    borderBottomRightRadius: 999,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 999,
+    borderWidth: 2.3,
+    bottom: 4,
+    height: 9,
+    left: 18,
     position: 'absolute',
-    width: 20,
+    width: 9,
+  },
+  reelsFrame: {
+    alignItems: 'center',
+    borderColor: 'transparent',
+    borderRadius: 6,
+    borderStyle: 'solid',
+    bottom: 4,
+    height: 20,
+    justifyContent: 'center',
+    left: 9,
+    position: 'absolute',
+    width: 16,
+  },
+  reelsTriangle: {
+    borderBottomColor: 'transparent',
+    borderLeftWidth: 9,
+    borderRightWidth: 0,
+    borderStyle: 'solid',
+    borderTopColor: 'transparent',
+    borderTopWidth: 6,
+    height: 0,
+    width: 0,
   },
   chartFrame: {
     borderBottomWidth: 2.3,
@@ -387,14 +416,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 21,
   },
-  chartLine: {
-    borderRadius: 999,
-    height: 2.4,
-    left: 10,
+  chartBar: {
+    bottom: 6,
+    height: 10,
+    left: 14,
     position: 'absolute',
-    top: 13,
-    transform: [{ rotate: '-22deg' }],
-    width: 18,
+    width: 4,
   },
   menuGlyph: {
     gap: 5,
