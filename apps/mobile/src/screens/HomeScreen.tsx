@@ -19,6 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { SText } from '../components/ui/SText';
 import { SearchGlyph } from '../components/ui/LineGlyphs';
+import { WeeklyCalendarStrip } from '../components/home/WeeklyCalendarStrip';
 import { fallbackGroupBuys, fetchGroupBuys } from '../api';
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { borderRadius, categoryColors, spacing } from '../design/tokens';
@@ -38,11 +39,11 @@ type HomeScreenContentProps = {
   onOpenBookmarks: HomeAction;
   onOpenNotifications: HomeAction;
   onOpenSearch: HomeAction;
-  onOpenRanking: HomeAction;
+  onOpenCalendar: HomeAction;
   onPressDeal: DealAction;
 };
 
-const SHOP_TABS = ['쇼핑 홈', '카테고리', '특가', '여름생존템'] as const;
+const SHOP_TABS = ['쇼핑 홈', '카테고리', '특가', '핫딜템', '쿠팡템', '여름생존템'] as const;
 type ShopTab = typeof SHOP_TABS[number];
 const HOME_SIDE_PADDING = 16;
 const PROMO_CARD_GAP = 12;
@@ -70,6 +71,10 @@ function getRecommendedItems(groupBuys: GroupBuy[], selectedTab: ShopTab) {
         return true;
       case '특가':
         return /특가|할인|sale/i.test(discountInfo) || productName.includes('특가');
+      case '핫딜템':
+        return /핫딜|hot/i.test(productName) || /특가|할인|sale/i.test(discountInfo);
+      case '쿠팡템':
+        return /쿠팡|coupang/i.test(productName) || /로켓|배송/i.test(discountInfo);
       case '여름생존템':
         return /여름|선크림|쿨|마스크팩|양산|샌들/.test(productName) || category === 'beauty' || category === 'fashion';
     }
@@ -419,14 +424,16 @@ function PromoBanner({
 function WeeklyGroupBuysSection({
   groupBuys,
   onPressDeal,
-  onOpenRanking,
+  onOpenCalendar,
   s,
 }: {
   groupBuys: GroupBuy[];
   onPressDeal: DealAction;
-  onOpenRanking: HomeAction;
+  onOpenCalendar: HomeAction;
   s: ReturnType<typeof makeStyles>;
 }) {
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
   const weeklyItems = useMemo(() => {
     const items = getDisplayItems(groupBuys);
     return items
@@ -434,27 +441,34 @@ function WeeklyGroupBuysSection({
         const days = getDaysRemaining(item.endDate);
         return days >= 0 && days <= 7;
       })
-      .sort((a, b) => getDaysRemaining(a.endDate) - getDaysRemaining(b.endDate))
-      .slice(0, 6);
+      .sort((a, b) => getDaysRemaining(a.endDate) - getDaysRemaining(b.endDate));
   }, [groupBuys]);
+
+  // Show items whose deadline falls on the selected day, or all weekly items
+  // when no specific day is picked yet.
+  const dayItems = useMemo(() => {
+    if (!selectedDate) return weeklyItems;
+    return weeklyItems.filter((item) => {
+      if (!item.endDate) return false;
+      const d = new Date(item.endDate);
+      return (
+        d.getFullYear() === selectedDate.getFullYear() &&
+        d.getMonth() === selectedDate.getMonth() &&
+        d.getDate() === selectedDate.getDate()
+      );
+    });
+  }, [weeklyItems, selectedDate]);
 
   return (
     <View style={s.weeklySection}>
-      <View style={s.sectionTitleRow}>
-        <SText variant="cardTitle" style={s.sectionTitle}>이번주 공구</SText>
-        <Pressable
-          accessibilityLabel="공구 전체보기"
-          accessibilityRole="button"
-          hitSlop={8}
-          onPress={onOpenRanking}
-          style={s.seeAllButton}
-        >
-          <SText variant="caption" style={s.seeAllText}>전체보기</SText>
-        </Pressable>
-      </View>
-      {weeklyItems.length > 0 ? (
+      <WeeklyCalendarStrip
+        onPressCalendar={onOpenCalendar}
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+      />
+      {dayItems.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.weeklyList}>
-          {weeklyItems.map((item) => {
+          {dayItems.map((item) => {
             const visual = getVisual(item);
             const days = getDaysRemaining(item.endDate);
             const categoryToken = categoryColors[item.category ?? 'beauty'];
@@ -494,7 +508,7 @@ function WeeklyGroupBuysSection({
         </ScrollView>
       ) : (
         <View style={s.weeklyEmpty}>
-          <SText variant="body" style={s.weeklyEmptyText}>이번주 공구를 준비 중입니다</SText>
+          <SText variant="body" style={s.weeklyEmptyText}>선택한 날짜에 공구가 없습니다</SText>
         </View>
       )}
     </View>
@@ -596,7 +610,7 @@ export function HomeScreenContent({
   onOpenBookmarks,
   onOpenNotifications,
   onOpenSearch,
-  onOpenRanking,
+  onOpenCalendar,
   onPressDeal,
 }: HomeScreenContentProps) {
   const { colors, isDark } = useCommerceTheme();
@@ -632,7 +646,7 @@ export function HomeScreenContent({
             <WeeklyGroupBuysSection
               groupBuys={groupBuys}
               onPressDeal={onPressDeal}
-              onOpenRanking={onOpenRanking}
+              onOpenCalendar={onOpenCalendar}
               s={s}
             />
             {isError ? (
@@ -673,7 +687,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       onOpenBookmarks={() => Alert.alert('준비 중', '북마크 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
       onOpenNotifications={() => Alert.alert('준비 중', '알림 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
       onOpenSearch={() => navigation.navigate('SearchScreen')}
-      onOpenRanking={() => navigation.navigate('MainTabs', { screen: 'Ranking' })}
+      onOpenCalendar={() => navigation.navigate('CalendarScreen', { initialDate: new Date().toISOString() })}
       onPressDeal={(groupBuy) => navigation.navigate('Detail', { groupBuy })}
     />
   );

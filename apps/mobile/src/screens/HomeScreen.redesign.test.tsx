@@ -153,7 +153,7 @@ function renderHomeContent(props: Partial<React.ComponentProps<typeof HomeScreen
         onOpenBookmarks={vi.fn()}
         onOpenNotifications={vi.fn()}
         onOpenSearch={vi.fn()}
-        onOpenRanking={vi.fn()}
+        onOpenCalendar={vi.fn()}
         onPressDeal={vi.fn()}
         {...props}
       />,
@@ -188,7 +188,7 @@ describe('HomeScreenContent redesign', () => {
       (pressable) => typeof pressable.props.accessibilityLabel === 'string' && pressable.props.accessibilityLabel.endsWith('탭'),
     );
 
-    expect(tabPressables).toHaveLength(4);
+    expect(tabPressables).toHaveLength(6);
 
     for (const pressable of tabPressables) {
       const style = flattenStyle(pressable.props.style);
@@ -333,7 +333,7 @@ describe('HomeScreenContent redesign interactions', () => {
     expect(labels).toContain('북마크 열기');
     expect(labels).toContain('알림 열기');
     expect(labels).toContain('상품 검색');
-    expect(labels).toContain('공구 전체보기');
+    expect(labels).toContain('전체 캘린더 보기');
     expect(labels).toContain('비건 선크림 공구 상세 보기');
     for (const pressable of pressables) {
       const style = Array.isArray(pressable.props.style) ? Object.assign({}, ...pressable.props.style) : pressable.props.style;

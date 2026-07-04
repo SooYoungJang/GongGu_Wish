@@ -233,7 +233,7 @@ function ReelAction({ icon, label, onPress, s }: ReelActionProps) {
   );
 }
 
-type ProductReelPageProps = {
+export type ProductReelPageProps = {
   groupBuy: GroupBuy;
   isActive: boolean;
   pageHeight: number;
@@ -246,7 +246,7 @@ type ProductReelPageProps = {
   s: ReturnType<typeof makeStyles>;
 };
 
-function ProductReelPage({
+export function ProductReelPage({
   groupBuy,
   isActive,
   pageHeight,
@@ -1021,7 +1021,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   );
 }
 
-function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
+export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#05070A' },
     verticalPager: {

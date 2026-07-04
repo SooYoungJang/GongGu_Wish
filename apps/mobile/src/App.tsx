@@ -1,12 +1,11 @@
 import React, { useEffect } from 'react';
-import { Platform, StatusBar, StyleSheet, Text, useWindowDimensions, View, LogBox } from 'react-native';
+import { Platform, StatusBar, StyleSheet, useWindowDimensions, View, LogBox } from 'react-native';
 import * as SystemUI from 'expo-system-ui';
 import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -30,7 +29,7 @@ import { DetailScreen } from './screens/DetailScreen';
 import { MyPageScreen } from './screens/MyPageScreen';
 import { StoreScreen } from './screens/StoreScreen';
 import { SearchScreen } from './screens/SearchScreen';
-import { spacing } from './design/tokens';
+import { ReelsScreen } from './screens/ReelsScreen';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 
@@ -44,24 +43,6 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const TAB_BAR_HEIGHT = 82;
 
 import { SubmitScreen } from './screens/SubmitScreen';
-
-function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: string }) {
-  const { colors } = useTheme();
-  return (
-    <SafeAreaView edges={['top', 'bottom']} style={[styles.placeholderScreen, { backgroundColor: colors.bg }]}>
-      <View style={styles.placeholderHeader}>
-        <Text style={[styles.placeholderTitle, { color: colors.text }]}>{title}</Text>
-      </View>
-      <View style={styles.placeholderBody}>
-        <Text style={[styles.placeholderSubtitle, { color: colors.muted }]}>{subtitle}</Text>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-function ReelsScreen() {
-  return <PlaceholderScreen title="릴스" subtitle="릴스 기능을 준비 중입니다." />;
-}
 
 // Each GNB icon: when focused the inside is filled with the accent color,
 // when not focused the inside stays transparent so only the outline shows.
@@ -286,28 +267,6 @@ export default function App() {
 const styles = StyleSheet.create({
   appRoot: {
     flex: 1,
-  },
-  placeholderScreen: {
-    flex: 1,
-  },
-  placeholderHeader: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-  },
-  placeholderTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  placeholderBody: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing['2xl'],
-  },
-  placeholderSubtitle: {
-    fontSize: 14,
-    lineHeight: 22,
-    textAlign: 'center',
   },
   tabBar: {
     borderTopLeftRadius: 22,

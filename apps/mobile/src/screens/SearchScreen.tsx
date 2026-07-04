@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -165,10 +165,14 @@ export function SearchScreen() {
     }).catch(() => setRecent([DEFAULT_RECENT_TERM]));
   }, []);
 
-  useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 300);
-    return () => clearTimeout(t);
-  }, []);
+  // Focus the search input every time the tab is entered so the keyboard
+  // comes up automatically on each visit, not just the first.
+  useFocusEffect(
+    useCallback(() => {
+      const t = setTimeout(() => inputRef.current?.focus(), 300);
+      return () => clearTimeout(t);
+    }, []),
+  );
 
   const saveRecent = useCallback((text: string) => {
     const trimmed = text.trim();
