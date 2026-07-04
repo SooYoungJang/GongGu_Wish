@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -35,11 +35,36 @@ export function ReelsScreen() {
     retry: false,
   });
 
-  // Shuffle the feed items once per data fetch so the reels tab feels fresh.
-  const reelItems = useMemo<GroupBuy[]>(() => {
+  // Base shuffled batch, refreshed each time data arrives.
+  const baseBatch = useMemo<GroupBuy[]>(() => {
     const items = data?.length ? data : fallbackGroupBuys;
     return shuffle(items);
   }, [data]);
+
+  // Infinite scroll: append a fresh shuffled batch whenever the user gets
+  // close to the end so reels never run out.
+  const [reelItems, setReelItems] = useState<GroupBuy[]>([]);
+  const batchCounter = useRef(0);
+
+  useEffect(() => {
+    if (baseBatch.length === 0) return;
+    batchCounter.current = 0;
+    setReelItems([...baseBatch]);
+    setActiveIndex(0);
+  }, [baseBatch]);
+
+  const appendBatch = useCallback(() => {
+    batchCounter.current += 1;
+    setReelItems((prev) => [...prev, ...shuffle(baseBatch)]);
+  }, [baseBatch]);
+
+  // When the active index nears the end, append another batch.
+  useEffect(() => {
+    if (reelItems.length === 0) return;
+    if (activeIndex >= reelItems.length - 2) {
+      appendBatch();
+    }
+  }, [activeIndex, reelItems.length, appendBatch]);
 
   const handleSummarySheetStateChange = useCallback((isOpen: boolean, canSwipeReel: boolean) => {
     setSummarySheetGate({ isOpen, canSwipeReel });
@@ -55,7 +80,8 @@ export function ReelsScreen() {
         mediaWidth={screenWidth}
         topInset={insets.top}
         bottomInset={insets.bottom}
-        onBack={() => pagerRef.current?.setPage?.(0)}
+        onBack={() => {}}
+        showBackButton={false}
         onSummarySheetStateChange={handleSummarySheetStateChange}
         s={s}
       />
@@ -89,7 +115,7 @@ export function ReelsScreen() {
       >
         {reelItems.map((item, index) => (
           <View
-            key={item.id}
+            key={`${item.id}-${index}`}
             collapsable={false}
             style={[s.verticalPagerPage, { height: screenHeight }]}
           >

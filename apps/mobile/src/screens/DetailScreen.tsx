@@ -241,6 +241,7 @@ export type ProductReelPageProps = {
   topInset: number;
   bottomInset: number;
   onBack: () => void;
+  showBackButton?: boolean;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
   s: ReturnType<typeof makeStyles>;
@@ -254,6 +255,7 @@ export function ProductReelPage({
   topInset,
   bottomInset,
   onBack,
+  showBackButton = true,
   onSummarySheetStateChange,
   s,
 }: ProductReelPageProps) {
@@ -755,15 +757,19 @@ export function ProductReelPage({
       <View style={s.scrimBottom} pointerEvents="none" />
 
       <View style={[s.topBar, { paddingTop: topInset + spacing.sm }]}>
-        <Pressable
-          accessibilityLabel="뒤로가기"
-          accessibilityRole="button"
-          hitSlop={12}
-          onPress={onBack}
-          style={({ pressed }) => [s.topIconButton, pressed && s.pressed]}
-        >
-          <Text style={s.topIcon}>‹</Text>
-        </Pressable>
+        {showBackButton ? (
+          <Pressable
+            accessibilityLabel="뒤로가기"
+            accessibilityRole="button"
+            hitSlop={12}
+            onPress={onBack}
+            style={({ pressed }) => [s.topIconButton, pressed && s.pressed]}
+          >
+            <Text style={s.topIcon}>‹</Text>
+          </Pressable>
+        ) : (
+          <View style={s.topIconButton} />
+        )}
         <View style={s.reelsTitleRow}>
           <SText variant="cardTitle" style={s.reelsTitle}>릴스</SText>
         </View>

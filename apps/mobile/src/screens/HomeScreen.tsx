@@ -24,6 +24,7 @@ import { fallbackGroupBuys, fetchGroupBuys } from '../api';
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { borderRadius, categoryColors, spacing } from '../design/tokens';
 import { getDaysRemaining } from '../utils';
+import { isGroupBuyActiveOnDate } from '../utils/groupBuyDates';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { CommerceColorPalette } from '../design/commerce';
 import type { GroupBuy, HomeScreenProps } from '../types';
@@ -196,12 +197,15 @@ function ShopTabRow({
 }) {
   const scrollRef = useRef<ScrollView | null>(null);
   const tabLayoutsRef = useRef<Record<string, { x: number; width: number }>>({});
+  const screenWidth = useWindowDimensions().width;
 
   // Scroll the selected tab into view whenever it changes.
   useEffect(() => {
     const layout = tabLayoutsRef.current[selectedTab];
     if (!layout || !scrollRef.current) return;
-    scrollRef.current.scrollTo({ x: Math.max(layout.x - 32, 0), animated: true });
+    // Center the selected tab so left and right navigation both feel natural.
+    const targetX = Math.max(0, layout.x + layout.width / 2 - screenWidth / 2);
+    scrollRef.current.scrollTo({ x: targetX, animated: true });
   }, [selectedTab]);
 
   return (
@@ -448,15 +452,9 @@ function WeeklyGroupBuysSection({
   // when no specific day is picked yet.
   const dayItems = useMemo(() => {
     if (!selectedDate) return weeklyItems;
-    return weeklyItems.filter((item) => {
-      if (!item.endDate) return false;
-      const d = new Date(item.endDate);
-      return (
-        d.getFullYear() === selectedDate.getFullYear() &&
-        d.getMonth() === selectedDate.getMonth() &&
-        d.getDate() === selectedDate.getDate()
-      );
-    });
+    // Match the CalendarScreen logic: a deal shows on a day when its
+    // start-end range overlaps that day, not only on its deadline.
+    return weeklyItems.filter((item) => isGroupBuyActiveOnDate(item, selectedDate));
   }, [weeklyItems, selectedDate]);
 
   return (
