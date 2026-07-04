@@ -176,8 +176,8 @@ describe('HomeScreenContent redesign', () => {
     expect(text).toContain('포인트 · 쿠폰 받기');
     expect(text).toContain('최대 100원');
     expect(text).toContain('장수영님을 위한 추천 상품');
-    expect(text).toContain('AI');
-    expect(text).toContain('광고');
+    expect(text).not.toContain('AI');
+    expect(text).not.toContain('광고');
     expect(text).toContain('비건 선크림 공구');
     expect(text).not.toContain('등록된 피드');
     expect(text).not.toContain('이번주 공구');

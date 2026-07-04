@@ -2,9 +2,9 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 import { SText } from './ui/SText';
-import { borderRadius, spacing } from '../design/tokens';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
+import { spacing } from '../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 
 type FormInputProps = TextInputProps & {
   label: string;
@@ -21,7 +21,7 @@ export function FormInput({
   onFocus,
   ...props
 }: FormInputProps) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const inputRef = useRef<TextInput>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -38,7 +38,7 @@ export function FormInput({
       <TextInput
         ref={inputRef}
         multiline={multiline}
-        placeholderTextColor={colors.textTertiary}
+        placeholderTextColor={colors.weak}
         onBlur={(event) => {
           setIsFocused(false);
           onBlur?.(event);
@@ -63,46 +63,51 @@ export function FormInput({
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     inputGroup: {
       marginBottom: spacing.md,
     },
     label: {
-      color: colors.textSecondary,
+      color: colors.text,
       fontSize: 13,
-      fontWeight: '600',
-      marginBottom: spacing.xs,
+      fontWeight: '800',
+      letterSpacing: 0,
+      marginBottom: 7,
     },
     labelFocused: {
-      color: colors.primary,
+      color: colors.accent,
     },
     input: {
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-      borderRadius: borderRadius.md,
+      backgroundColor: colors.softBg,
+      borderColor: 'transparent',
+      borderRadius: commerceRadius.lg,
       borderWidth: 1.5,
-      color: colors.textPrimary,
+      color: colors.text,
       fontSize: 15,
+      fontWeight: '600',
       minHeight: 52,
       paddingHorizontal: spacing.md,
       paddingVertical: 0,
     },
     inputFocused: {
-      borderColor: colors.primary,
+      backgroundColor: colors.surface,
+      borderColor: colors.accent,
     },
     inputError: {
+      backgroundColor: colors.errorSoft,
       borderColor: colors.error,
     },
     errorText: {
       color: colors.error,
       fontSize: 12,
+      fontWeight: '700',
       marginTop: spacing.xs,
     },
     textArea: {
-      minHeight: 96,
-      paddingTop: 14,
+      minHeight: 104,
       paddingBottom: 14,
+      paddingTop: 14,
       textAlignVertical: 'top',
     },
   });

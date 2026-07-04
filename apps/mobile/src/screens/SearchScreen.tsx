@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Image, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -11,6 +11,8 @@ import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { SText } from '../components/ui/SText';
 import { fallbackGroupBuys, fetchGroupBuys, fetchInfluencers, searchInfluencers } from '../api';
 import { spacing } from '../design/tokens';
+import { useCommerceTheme } from '../design/useCommerceTheme';
+import type { CommerceColorPalette } from '../design/commerce';
 import type { GroupBuy, Influencer, RootStackParamList } from '../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -36,14 +38,6 @@ function getFallbackInfluencers(groupBuys: GroupBuy[]): Influencer[] {
 const RECENT_KEY = 'search:recent';
 const RECENT_MAX = 8;
 const DEFAULT_RECENT_TERM = '가방';
-const SEARCH_BG = '#FFFFFF';
-const SEARCH_TEXT = '#111827';
-const SEARCH_MUTED = '#6B7280';
-const SEARCH_WEAK = '#9CA3AF';
-const SEARCH_SOFT_BG = '#F3F5F8';
-const SEARCH_ACCENT = '#F0445E';
-const SEARCH_STAR = '#F6C343';
-const SEARCH_BADGE_BG = '#F3F4F6';
 
 const CATEGORY_LABELS: Record<string, string> = {
   beauty: '뷰티',
@@ -142,6 +136,7 @@ export function SearchScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'SearchScreen'>>();
   const inputRef = useRef<TextInput>(null);
+  const { colors, isDark } = useCommerceTheme();
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
 
@@ -217,7 +212,7 @@ export function SearchScreen() {
   const hasQuery = debouncedQuery.trim().length > 0;
   const recentTerms = recent.slice(0, 1);
   const recentProduct = groupBuys[0] ?? null;
-  const s = useMemo(() => makeStyles(), []);
+  const s = useMemo(() => makeStyles(colors), [colors]);
 
   const handleSubmit = useCallback(() => {
     saveRecent(query);
@@ -243,7 +238,9 @@ export function SearchScreen() {
 
   return (
     <View style={s.container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <View style={[s.header, { paddingTop: insets.top + 10 }]}>
+        <SText variant="caption" style={[s.headerPoints, { top: Math.max(insets.top - 12, 8) }]}>59</SText>
         <Pressable
           accessible
           accessibilityRole="button"
@@ -255,12 +252,12 @@ export function SearchScreen() {
           <SText variant="body" style={s.backIcon}>←</SText>
         </Pressable>
         <View style={s.inputWrap}>
-          <SearchGlyph color={SEARCH_WEAK} size={20} />
+          <SearchGlyph color={colors.weak} size={20} />
           <TextInput
             ref={inputRef}
             accessibilityLabel="공구 검색"
             placeholder="상품을 검색해보세요"
-            placeholderTextColor={SEARCH_WEAK}
+            placeholderTextColor={colors.weak}
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={handleSubmit}
@@ -363,25 +360,34 @@ export function SearchScreen() {
   );
 }
 
-function makeStyles() {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: SEARCH_BG },
+    container: { flex: 1, backgroundColor: colors.bg },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      paddingHorizontal: 20,
+      paddingHorizontal: 18,
       paddingBottom: 0,
-      backgroundColor: SEARCH_BG,
+      backgroundColor: colors.bg,
+      position: 'relative',
     },
-    backBtn: { width: 40, height: 48, alignItems: 'flex-start', justifyContent: 'center' },
-    backIcon: { fontSize: 30, color: SEARCH_TEXT, fontWeight: '500', lineHeight: 36 },
+    headerPoints: {
+      color: colors.muted,
+      fontSize: 13,
+      fontWeight: '900',
+      lineHeight: 17,
+      position: 'absolute',
+      right: 25,
+    },
+    backBtn: { width: 28, height: 48, alignItems: 'flex-start', justifyContent: 'center' },
+    backIcon: { fontSize: 30, color: colors.text, fontWeight: '500', lineHeight: 36 },
     inputWrap: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      backgroundColor: SEARCH_SOFT_BG,
+      backgroundColor: colors.softBg,
       borderRadius: 16,
       paddingHorizontal: 14,
       height: 48,
@@ -389,7 +395,7 @@ function makeStyles() {
     input: {
       flex: 1,
       fontSize: 18,
-      color: SEARCH_TEXT,
+      color: colors.text,
       fontWeight: '500',
       height: 48,
       letterSpacing: 0,
@@ -397,33 +403,33 @@ function makeStyles() {
       padding: 0,
     },
     clearBtn: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
-    clearIcon: { fontSize: 24, color: '#D1D5DB', fontWeight: '300', lineHeight: 26 },
-    scrollContent: { paddingBottom: spacing['4xl'], paddingHorizontal: 24 },
+    clearIcon: { fontSize: 24, color: colors.disabled, fontWeight: '300', lineHeight: 26 },
+    scrollContent: { paddingBottom: spacing['4xl'], paddingHorizontal: 18 },
 
-    resultsWrap: { paddingTop: 44 },
-    resultTitle: { color: SEARCH_TEXT, fontSize: 20, fontWeight: '800', letterSpacing: 0, lineHeight: 26, marginBottom: 14 },
+    resultsWrap: { paddingTop: 36 },
+    resultTitle: { color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: 0, lineHeight: 26, marginBottom: 14 },
     resultRow: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingVertical: 14,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: '#EEF0F3',
+      borderBottomColor: colors.borderLight,
     },
     resultLeft: { flex: 1 },
-    resultName: { fontSize: 15, fontWeight: '700', color: SEARCH_TEXT, letterSpacing: 0, lineHeight: 21 },
-    resultMeta: { fontSize: 12, color: SEARCH_WEAK, fontWeight: '500', letterSpacing: 0, lineHeight: 17, marginTop: 3 },
-    resultArrow: { fontSize: 22, color: SEARCH_WEAK, lineHeight: 26 },
+    resultName: { fontSize: 15, fontWeight: '700', color: colors.text, letterSpacing: 0, lineHeight: 21 },
+    resultMeta: { fontSize: 12, color: colors.weak, fontWeight: '500', letterSpacing: 0, lineHeight: 17, marginTop: 3 },
+    resultArrow: { fontSize: 22, color: colors.weak, lineHeight: 26 },
 
     emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 72 },
-    emptyIcon: { fontSize: 40, color: SEARCH_WEAK, marginBottom: spacing.md, opacity: 0.4 },
-    emptyTitle: { fontSize: 15, fontWeight: '800', color: SEARCH_TEXT, marginBottom: spacing.xs },
-    emptyDesc: { fontSize: 13, color: SEARCH_WEAK, lineHeight: 20, textAlign: 'center' },
+    emptyIcon: { fontSize: 40, color: colors.weak, marginBottom: spacing.md, opacity: 0.4 },
+    emptyTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: spacing.xs },
+    emptyDesc: { fontSize: 13, color: colors.weak, lineHeight: 20, textAlign: 'center' },
 
-    suggestWrap: { paddingTop: 50 },
+    suggestWrap: { paddingTop: 32 },
     sectionTitle: {
-      color: SEARCH_TEXT,
+      color: colors.text,
       fontSize: 20,
-      fontWeight: '800',
+      fontWeight: '900',
       letterSpacing: 0,
       lineHeight: 27,
       marginBottom: 24,
@@ -436,7 +442,7 @@ function makeStyles() {
     recentLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 13, minHeight: 36 },
     clockGlyph: {
       alignItems: 'center',
-      borderColor: '#B9C0CA',
+      borderColor: colors.weak,
       borderRadius: 999,
       borderWidth: 1.8,
       height: 20,
@@ -445,7 +451,7 @@ function makeStyles() {
       width: 20,
     },
     clockHandLong: {
-      backgroundColor: '#B9C0CA',
+      backgroundColor: colors.weak,
       borderRadius: 999,
       height: 6,
       left: 9,
@@ -455,7 +461,7 @@ function makeStyles() {
       width: 1.8,
     },
     clockHandShort: {
-      backgroundColor: '#B9C0CA',
+      backgroundColor: colors.weak,
       borderRadius: 999,
       height: 1.8,
       left: 6,
@@ -463,13 +469,13 @@ function makeStyles() {
       top: 10,
       width: 6,
     },
-    recentText: { color: SEARCH_MUTED, fontSize: 16, fontWeight: '600', letterSpacing: 0, lineHeight: 23 },
+    recentText: { color: colors.muted, fontSize: 16, fontWeight: '600', letterSpacing: 0, lineHeight: 23 },
     recentRemove: { alignItems: 'center', height: 38, justifyContent: 'center', marginRight: -3, width: 38 },
-    recentRemoveIcon: { color: '#D1D5DB', fontSize: 28, fontWeight: '200', lineHeight: 32 },
+    recentRemoveIcon: { color: colors.disabled, fontSize: 28, fontWeight: '200', lineHeight: 32 },
     recentProductTitle: {
-      color: SEARCH_TEXT,
+      color: colors.text,
       fontSize: 20,
-      fontWeight: '800',
+      fontWeight: '900',
       letterSpacing: 0,
       lineHeight: 27,
       marginBottom: 20,
@@ -477,20 +483,20 @@ function makeStyles() {
     },
     recentProductCard: {
       minHeight: 250,
-      width: 128,
+      width: 118,
     },
     productImageWrap: {
-      backgroundColor: '#DEDCD5',
+      backgroundColor: colors.panelBg,
       borderRadius: 10,
-      height: 128,
+      height: 118,
       overflow: 'hidden',
       position: 'relative',
-      width: 128,
+      width: 118,
     },
     productImage: { height: '100%', resizeMode: 'cover', width: '100%' },
     productFallbackArt: {
       alignItems: 'center',
-      backgroundColor: '#DAD7D0',
+      backgroundColor: colors.panelBg,
       flex: 1,
       justifyContent: 'center',
       overflow: 'hidden',
@@ -537,7 +543,7 @@ function makeStyles() {
     },
     productSaleBadge: {
       alignItems: 'center',
-      backgroundColor: SEARCH_ACCENT,
+      backgroundColor: colors.accent,
       borderRadius: 7,
       justifyContent: 'center',
       left: 9,
@@ -546,7 +552,7 @@ function makeStyles() {
       position: 'absolute',
       top: 9,
     },
-    productSaleBadgeText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900', letterSpacing: 0, lineHeight: 19 },
+    productSaleBadgeText: { color: colors.inverse, fontSize: 14, fontWeight: '900', letterSpacing: 0, lineHeight: 18 },
     heartButton: {
       alignItems: 'center',
       bottom: 9,
@@ -557,7 +563,7 @@ function makeStyles() {
       width: 32,
     },
     heartText: {
-      color: '#FFFFFF',
+      color: colors.inverse,
       fontSize: 32,
       fontWeight: '300',
       lineHeight: 35,
@@ -566,8 +572,8 @@ function makeStyles() {
       textShadowRadius: 2,
     },
     productName: {
-      color: SEARCH_MUTED,
-      fontSize: 16,
+      color: colors.muted,
+      fontSize: 15,
       fontWeight: '600',
       letterSpacing: 0,
       lineHeight: 23,
@@ -579,25 +585,25 @@ function makeStyles() {
       gap: 4,
       marginTop: 2,
     },
-    discountText: { color: SEARCH_MUTED, fontSize: 16, fontWeight: '800', letterSpacing: 0, lineHeight: 22 },
-    priceText: { color: SEARCH_TEXT, fontSize: 18, fontWeight: '900', letterSpacing: 0, lineHeight: 24 },
+    discountText: { color: colors.muted, fontSize: 16, fontWeight: '800', letterSpacing: 0, lineHeight: 22 },
+    priceText: { color: colors.text, fontSize: 17, fontWeight: '900', letterSpacing: 0, lineHeight: 23 },
     ratingRow: {
       alignItems: 'center',
       flexDirection: 'row',
       gap: 4,
       marginTop: 5,
     },
-    starText: { color: SEARCH_STAR, fontSize: 13, lineHeight: 17 },
-    ratingText: { color: SEARCH_MUTED, fontSize: 13, fontWeight: '600', letterSpacing: 0, lineHeight: 18 },
+    starText: { color: colors.yellow, fontSize: 13, lineHeight: 17 },
+    ratingText: { color: colors.muted, fontSize: 13, fontWeight: '600', letterSpacing: 0, lineHeight: 18 },
     sellerBadge: {
       alignSelf: 'flex-start',
-      backgroundColor: SEARCH_BADGE_BG,
+      backgroundColor: colors.softBg,
       borderRadius: 4,
       marginTop: 6,
       paddingHorizontal: 4,
       paddingVertical: 2,
     },
-    sellerBadgeText: { color: SEARCH_WEAK, fontSize: 11, fontWeight: '800', letterSpacing: 0, lineHeight: 14 },
+    sellerBadgeText: { color: colors.weak, fontSize: 11, fontWeight: '800', letterSpacing: 0, lineHeight: 14 },
     pressed: { opacity: 0.6 },
   });
 }

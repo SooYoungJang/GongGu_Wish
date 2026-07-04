@@ -6,7 +6,9 @@ import { RankingCategoryChips, RankingTabs, SellerRankingList } from '../compone
 import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { SText } from '../components/ui/SText';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { borderRadius, spacing } from '../design/tokens';
+import { spacing } from '../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 import { MOCK_RANKINGS } from '../features/ranking/rankingFixtures';
 import {
   RANKING_CATEGORIES,
@@ -20,8 +22,6 @@ import {
 } from '../features/ranking/types';
 import { useSellerRankings } from '../features/ranking/useSellerRankings';
 import type { StoreScreenProps } from '../types';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
 
 // Space reserved for the floating absolute-positioned tab bar:
 // 70pt bar height + spacing.lg margin + safe area bottom + extra breathing room
@@ -31,7 +31,7 @@ const FLOATING_TAB_RESERVED_HEIGHT = TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_MARGIN;
 
 export function StoreScreen({ navigation }: StoreScreenProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const [activeTab, setActiveTab] = useState<RankingTab>('ranking');
   const [selectedCategory, setSelectedCategory] = useState<RankingCategory>('all');
@@ -101,10 +101,10 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
           right={
             <View style={s.headerActions}>
               <Pressable accessibilityLabel="랭킹 검색" accessibilityRole="button" style={s.iconButton} onPress={() => navigation.navigate('SearchScreen')}>
-                <SearchGlyph color={colors.textPrimary} size={18} />
+                <SearchGlyph color={colors.text} size={19} />
               </Pressable>
               <Pressable accessibilityLabel="랭킹 알림" accessibilityRole="button" style={s.iconButton} onPress={() => Alert.alert('준비 중', '알림 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}>
-                <SText variant="body" style={{ fontSize: 16, fontWeight: '900', color: colors.textPrimary }}>♡</SText>
+                <SText variant="body" style={{ fontSize: 18, fontWeight: '900', color: colors.text }}>♡</SText>
               </Pressable>
             </View>
           }
@@ -131,7 +131,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
                 onPress={() => setPeriod(nextPeriod)}
                 style={[s.periodChip, selected && s.selectedPeriodChip]}
               >
-                <SText variant="caption" style={[{ fontWeight: '800', color: colors.textSecondary, includeFontPadding: false }, selected && { color: colors.primary }]}>
+                <SText variant="caption" style={[{ fontWeight: '900', color: colors.muted, includeFontPadding: false }, selected && { color: colors.accent }]}>
                   {RANKING_PERIOD_LABELS[nextPeriod]}
                 </SText>
               </Pressable>
@@ -161,18 +161,19 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     filterSection: {
+      backgroundColor: colors.bg,
       gap: spacing.sm,
       paddingBottom: spacing.sm,
     },
     header: {
       backgroundColor: colors.bg,
       gap: spacing.md,
+      paddingBottom: spacing.md,
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.xl,
-      paddingBottom: spacing.md,
     },
     headerActions: {
       flexDirection: 'row',
@@ -180,25 +181,25 @@ function makeStyles(colors: ColorPalette) {
     },
     iconButton: {
       alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-      borderRadius: borderRadius.full,
-      borderWidth: 1,
-      height: 38,
+      backgroundColor: colors.softBg,
+      borderRadius: commerceRadius.full,
+      height: 42,
       justifyContent: 'center',
-      width: 38,
+      width: 42,
     },
     listContainer: {
+      backgroundColor: colors.bg,
       flex: 1,
       paddingHorizontal: spacing.lg,
     },
     periodChip: {
       alignItems: 'center',
+      backgroundColor: colors.surface,
       borderColor: colors.border,
-      borderRadius: borderRadius.full,
+      borderRadius: commerceRadius.full,
       borderWidth: 1,
       justifyContent: 'center',
-      height: 32,
+      height: 34,
       paddingHorizontal: spacing.md,
       paddingVertical: 0,
     },
@@ -212,8 +213,8 @@ function makeStyles(colors: ColorPalette) {
       flex: 1,
     },
     selectedPeriodChip: {
-      backgroundColor: colors.primaryBg,
-      borderColor: colors.primaryLight,
+      backgroundColor: colors.accentSoft,
+      borderColor: colors.accent,
     },
   });
 }

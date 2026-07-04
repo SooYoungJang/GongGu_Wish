@@ -8,7 +8,8 @@ import { AlertCard } from '../components/AlertCard';
 import { AppButton } from '../components/AppButton';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SText } from '../components/ui/SText';
-import { borderRadius, spacing } from '../design/tokens';
+import { spacing } from '../design/tokens';
+import { commerceRadius } from '../design/commerce';
 import type { GroupBuy, InfluencerGroupBuysScreenProps } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import type { ColorPalette } from '../context/ThemeContext';
@@ -49,7 +50,7 @@ export function InfluencerGroupBuysScreen({ navigation, route }: InfluencerGroup
 
         {isError ? (
           <View style={s.notice}>
-            <SText variant="caption" style={{ color: colors.noticeText, textAlign: 'center' }}>로컬 API가 꺼져 있어 샘플 데이터를 표시 중입니다.</SText>
+            <SText variant="caption" style={{ color: colors.noticeText, textAlign: 'center' }}>네트워크 연결 상태를 확인해주세요. 샘플 데이터를 표시 중입니다.</SText>
           </View>
         ) : null}
 
@@ -81,15 +82,20 @@ export function InfluencerGroupBuysScreen({ navigation, route }: InfluencerGroup
 function makeStyles(colors: ColorPalette) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.bg },
-    container: { flex: 1 },
+    container: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: spacing.lg, paddingTop: spacing.xl },
     backButton: { alignSelf: 'flex-start', marginTop: 0, paddingHorizontal: spacing.lg, paddingVertical: 10 },
-    notice: { backgroundColor: colors.warningBg, borderRadius: borderRadius.sm, marginBottom: spacing.lg, padding: spacing.md },
-    listContent: { flexGrow: 1, paddingBottom: spacing['2xl'] },
+    notice: {
+      backgroundColor: colors.warningSoft,
+      borderRadius: commerceRadius.lg,
+      marginBottom: spacing.lg,
+      padding: spacing.md,
+    },
+    listContent: { flexGrow: 1, paddingBottom: 122 },
     emptyState: {
       alignItems: 'center',
-      backgroundColor: colors.surface,
+      backgroundColor: colors.panelBg,
       borderColor: colors.border,
-      borderRadius: borderRadius.xl,
+      borderRadius: commerceRadius.xl,
       borderWidth: 1,
       marginTop: spacing.md,
       padding: spacing['2xl'],

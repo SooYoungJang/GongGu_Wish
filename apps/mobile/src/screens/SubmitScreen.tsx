@@ -22,7 +22,8 @@ import { SText } from '../components/ui/SText';
 import { UrlInputStatus } from '../components/UrlInputStatus';
 import { CATEGORIES } from '../components/home/CategoryRow';
 import { useHikerApi } from '../hooks/useHikerApi';
-import { borderRadius, spacing } from '../design/tokens';
+import { spacing } from '../design/tokens';
+import { commerceRadius } from '../design/commerce';
 import type { GroupBuyCategory, SubmitScreenProps } from '../types';
 import { isValidOptionalUrl, normalizeOptional } from '../utils';
 import { parseSubmissionCaption } from '../utils/captionParser';
@@ -811,7 +812,7 @@ function makeStyles(colors: ColorPalette) {
       alignItems: 'center',
       backgroundColor: colors.surface,
       borderColor: colors.borderLight,
-      borderRadius: borderRadius.xl,
+      borderRadius: commerceRadius.xl,
       borderWidth: 1,
       paddingHorizontal: spacing.xl,
       paddingVertical: spacing['2xl'],
@@ -820,8 +821,8 @@ function makeStyles(colors: ColorPalette) {
     },
     successIcon: {
       alignItems: 'center',
-      backgroundColor: colors.successBg,
-      borderRadius: borderRadius.full,
+      backgroundColor: colors.successSoft,
+      borderRadius: commerceRadius.full,
       height: 52,
       justifyContent: 'center',
       marginBottom: spacing.md,
@@ -834,14 +835,14 @@ function makeStyles(colors: ColorPalette) {
       lineHeight: 32,
     },
     successTitle: {
-      color: colors.textPrimary,
+      color: colors.text,
       fontSize: 20,
       fontWeight: '800',
       marginBottom: spacing.sm,
       textAlign: 'center',
     },
     successBody: {
-      color: colors.textSecondary,
+      color: colors.muted,
       fontSize: 14,
       lineHeight: 21,
       marginBottom: spacing.xl,
@@ -863,14 +864,14 @@ function makeStyles(colors: ColorPalette) {
     calendarDialog: {
       backgroundColor: colors.surface,
       borderColor: colors.borderLight,
-      borderRadius: borderRadius.xl,
+      borderRadius: commerceRadius.xl,
       borderWidth: 1,
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.lg,
       paddingBottom: spacing.md,
       width: '100%',
       maxWidth: 360,
-      shadowColor: colors.shadow,
+      shadowColor: '#000000',
       shadowOffset: { width: 0, height: 12 },
       shadowOpacity: 0.16,
       shadowRadius: 28,
@@ -883,26 +884,26 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: spacing.lg,
     },
     calendarEyebrow: {
-      color: colors.primary,
+      color: colors.accent,
       fontSize: 12,
       fontWeight: '800',
       marginBottom: 3,
     },
     calendarSelectedText: {
-      color: colors.textPrimary,
+      color: colors.text,
       fontSize: 20,
       fontWeight: '800',
     },
     calendarCloseButton: {
       alignItems: 'center',
       backgroundColor: colors.bg,
-      borderRadius: borderRadius.full,
+      borderRadius: commerceRadius.full,
       height: 34,
       justifyContent: 'center',
       width: 34,
     },
     calendarCloseText: {
-      color: colors.textSecondary,
+      color: colors.muted,
       fontSize: 22,
       fontWeight: '700',
       lineHeight: 24,
@@ -915,19 +916,19 @@ function makeStyles(colors: ColorPalette) {
     },
     calendarNavButton: {
       alignItems: 'center',
-      borderRadius: borderRadius.full,
+      borderRadius: commerceRadius.full,
       height: 34,
       justifyContent: 'center',
       width: 34,
     },
     calendarNavText: {
-      color: colors.primary,
+      color: colors.accent,
       fontSize: 26,
       fontWeight: '800',
       lineHeight: 28,
     },
     calendarTitle: {
-      color: colors.textPrimary,
+      color: colors.text,
       fontSize: 16,
       fontWeight: '800',
     },
@@ -937,7 +938,7 @@ function makeStyles(colors: ColorPalette) {
       paddingTop: spacing.sm,
     },
     weekdayText: {
-      color: colors.textTertiary,
+      color: colors.weak,
       flex: 1,
       fontSize: 12,
       fontWeight: '700',
@@ -955,7 +956,7 @@ function makeStyles(colors: ColorPalette) {
     },
     calendarDayButton: {
       alignItems: 'center',
-      borderRadius: borderRadius.full,
+      borderRadius: commerceRadius.full,
       height: 36,
       justifyContent: 'center',
       width: 36,
@@ -964,24 +965,24 @@ function makeStyles(colors: ColorPalette) {
       backgroundColor: colors.bg,
     },
     calendarDaySelected: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.accent,
     },
     calendarDayDisabled: {
       opacity: 0.32,
     },
     calendarDayText: {
-      color: colors.textPrimary,
+      color: colors.text,
       fontSize: 14,
       fontWeight: '700',
     },
     calendarDayTodayText: {
-      color: colors.primary,
+      color: colors.accent,
     },
     calendarDayTextSelected: {
-      color: colors.textInverse,
+      color: colors.inverse,
     },
     calendarDayTextDisabled: {
-      color: colors.textTertiary,
+      color: colors.weak,
     },
     calendarFooter: {
       alignItems: 'center',
@@ -991,31 +992,31 @@ function makeStyles(colors: ColorPalette) {
       paddingTop: spacing.sm,
     },
     calendarClearButton: {
-      borderRadius: borderRadius.full,
+      borderRadius: commerceRadius.full,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
     },
     calendarClearText: {
-      color: colors.textTertiary,
+      color: colors.weak,
       fontSize: 13,
       fontWeight: '800',
     },
 
     // Feedback banner
     feedbackBanner: {
-      borderRadius: borderRadius.md,
+      borderRadius: commerceRadius.lg,
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
       marginBottom: spacing.md,
     },
     feedback_info: {
-      backgroundColor: colors.primaryBg,
+      backgroundColor: colors.accentSoft,
     },
     feedback_success: {
-      backgroundColor: colors.successBg,
+      backgroundColor: colors.successSoft,
     },
     feedback_error: {
-      backgroundColor: colors.errorBg,
+      backgroundColor: colors.errorSoft,
     },
     feedbackText: {
       fontSize: 13,
@@ -1023,7 +1024,7 @@ function makeStyles(colors: ColorPalette) {
       lineHeight: 18,
     },
     feedbackText_info: {
-      color: colors.primary,
+      color: colors.accent,
     },
     feedbackText_success: {
       color: colors.success,
@@ -1042,16 +1043,16 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: spacing.sm,
     },
     urlLabel: {
-      color: colors.textPrimary,
+      color: colors.text,
       fontSize: 15,
       marginRight: spacing.sm,
     },
     requiredBadge: {
-      color: colors.primary,
-      backgroundColor: colors.primaryBg,
+      color: colors.accent,
+      backgroundColor: colors.accentSoft,
       paddingHorizontal: spacing.xs,
       paddingVertical: 2,
-      borderRadius: borderRadius.sm,
+      borderRadius: commerceRadius.sm,
       overflow: 'hidden',
       fontWeight: '600',
       fontSize: 11,
@@ -1059,17 +1060,17 @@ function makeStyles(colors: ColorPalette) {
     urlInputWrapper: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.surface,
+      backgroundColor: colors.softBg,
       borderWidth: 1.5,
-      borderColor: colors.primaryBg,
-      borderRadius: borderRadius.lg,
+      borderColor: 'transparent',
+      borderRadius: commerceRadius.lg,
       paddingHorizontal: spacing.md,
     },
     urlInputLoading: {
-      borderColor: colors.primary,
+      borderColor: colors.accent,
     },
     urlInputFocused: {
-      borderColor: colors.primary,
+      borderColor: colors.accent,
     },
     urlClearButton: {
       alignItems: 'center',
@@ -1079,7 +1080,7 @@ function makeStyles(colors: ColorPalette) {
       width: 24,
     },
     urlClearIcon: {
-      color: colors.textTertiary,
+      color: colors.weak,
       fontSize: 16,
       fontWeight: '700',
       lineHeight: 18,
@@ -1087,8 +1088,8 @@ function makeStyles(colors: ColorPalette) {
     urlIcon: {
       width: 28,
       height: 28,
-      borderRadius: borderRadius.full,
-      backgroundColor: colors.primaryBg,
+      borderRadius: commerceRadius.full,
+      backgroundColor: colors.accentSoft,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: spacing.sm,
@@ -1098,8 +1099,9 @@ function makeStyles(colors: ColorPalette) {
     },
     urlInput: {
       flex: 1,
-      fontSize: 14,
-      color: colors.textPrimary,
+      fontSize: 15,
+      color: colors.text,
+      fontWeight: '600',
       paddingVertical: 12,
     },
 
@@ -1108,7 +1110,7 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: spacing.xl,
     },
     sectionLabel: {
-      color: colors.textTertiary,
+      color: colors.weak,
       letterSpacing: 0.8,
       marginBottom: spacing.md,
       fontSize: 11,
@@ -1123,7 +1125,7 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: spacing.sm,
     },
     fieldLabel: {
-      color: colors.textPrimary,
+      color: colors.text,
       fontSize: 15,
       fontWeight: '700',
     },
@@ -1135,8 +1137,8 @@ function makeStyles(colors: ColorPalette) {
     categoryChip: {
       alignItems: 'center',
       backgroundColor: colors.surface,
-      borderColor: colors.borderLight,
-      borderRadius: borderRadius.full,
+      borderColor: colors.border,
+      borderRadius: commerceRadius.full,
       borderWidth: 1,
       justifyContent: 'center',
       minHeight: 40,
@@ -1145,16 +1147,16 @@ function makeStyles(colors: ColorPalette) {
       paddingVertical: spacing.sm,
     },
     categoryChipSelected: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
     },
     categoryChipText: {
-      color: colors.textSecondary,
+      color: colors.muted,
       fontSize: 13,
       fontWeight: '800',
     },
     categoryChipTextSelected: {
-      color: colors.textInverse,
+      color: colors.inverse,
     },
     fieldError: {
       color: colors.error,
@@ -1173,19 +1175,19 @@ function makeStyles(colors: ColorPalette) {
       flex: 1,
     },
     dateLabel: {
-      color: colors.textSecondary,
+      color: colors.muted,
       fontSize: 13,
       fontWeight: '600',
       marginBottom: spacing.xs,
     },
     dateLabelFocused: {
-      color: colors.primary,
+      color: colors.accent,
     },
     dateInput: {
       alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderColor: colors.border,
-      borderRadius: borderRadius.md,
+      backgroundColor: colors.softBg,
+      borderColor: 'transparent',
+      borderRadius: commerceRadius.lg,
       borderWidth: 1.5,
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -1194,19 +1196,19 @@ function makeStyles(colors: ColorPalette) {
       paddingVertical: 0,
     },
     dateInputFocused: {
-      borderColor: colors.primary,
+      borderColor: colors.accent,
     },
     dateInputError: {
       borderColor: colors.error,
     },
     dateValue: {
-      color: colors.textPrimary,
+      color: colors.text,
       flex: 1,
       fontSize: 15,
       fontWeight: '600',
     },
     datePlaceholder: {
-      color: colors.textTertiary,
+      color: colors.weak,
       fontWeight: '400',
     },
     summaryInput: {
@@ -1220,11 +1222,11 @@ function makeStyles(colors: ColorPalette) {
       display: 'none',
     },
     submitButton: {
-      borderRadius: borderRadius.md,
+      borderRadius: commerceRadius.lg,
       height: 54,
       justifyContent: 'center',
       paddingVertical: 0,
-      shadowColor: colors.primary,
+      shadowColor: colors.accent,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,
       shadowRadius: 12,
@@ -1238,11 +1240,11 @@ function makeStyles(colors: ColorPalette) {
       paddingTop: spacing.sm,
     },
     stickySubmitButton: {
-      borderRadius: borderRadius.md,
+      borderRadius: commerceRadius.lg,
       height: 54,
       justifyContent: 'center',
       paddingVertical: 0,
-      shadowColor: colors.primary,
+      shadowColor: colors.accent,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,
       shadowRadius: 12,
@@ -1256,7 +1258,7 @@ function makeStyles(colors: ColorPalette) {
       paddingVertical: spacing.sm,
     },
     cancelText: {
-      color: colors.textTertiary,
+      color: colors.weak,
       fontSize: 13,
     },
     spinner: {

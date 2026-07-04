@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import { StyleSheet, View, type ViewStyle } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { SText } from './ui/SText';
-import { borderRadius, spacing } from '../design/tokens';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
+import { spacing } from '../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 
 type ScreenHeaderProps = {
   eyebrow?: string;
@@ -15,14 +15,18 @@ type ScreenHeaderProps = {
 };
 
 export function ScreenHeader({ eyebrow, title, subtitle, right, children }: ScreenHeaderProps) {
-  const { colors, shadows } = useTheme();
-  const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
+  const { colors } = useCommerceTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <View style={s.header}>
       <View style={s.topRow}>
         <View style={s.titleBlock}>
-          {eyebrow ? <SText variant="eyebrow">{eyebrow}</SText> : null}
+          {eyebrow ? (
+            <View style={s.eyebrowPill}>
+              <SText variant="caption" style={s.eyebrowText}>{eyebrow}</SText>
+            </View>
+          ) : null}
           <SText variant="cardTitle" style={s.title}>{title}</SText>
         </View>
         {right ? <View style={s.right}>{right}</View> : null}
@@ -33,10 +37,10 @@ export function ScreenHeader({ eyebrow, title, subtitle, right, children }: Scre
   );
 }
 
-function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     header: {
-      marginBottom: spacing.lg,
+      marginBottom: 18,
     },
     topRow: {
       alignItems: 'center',
@@ -46,10 +50,28 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     titleBlock: {
       flex: 1,
     },
+    eyebrowPill: {
+      alignSelf: 'flex-start',
+      backgroundColor: colors.accentSoft,
+      borderRadius: commerceRadius.full,
+      marginBottom: 7,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+    },
+    eyebrowText: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: '900',
+      letterSpacing: 0,
+      lineHeight: 14,
+    },
     title: {
-      fontSize: 20,
-      fontWeight: '800',
-      letterSpacing: -0.3,
+      color: colors.text,
+      fontSize: 22,
+      fontWeight: '900',
+      letterSpacing: -0.2,
+      lineHeight: 29,
+      marginBottom: 0,
     },
     right: {
       flexDirection: 'row',
@@ -57,8 +79,13 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
       marginLeft: spacing.md,
     },
     subtitle: {
-      lineHeight: 22,
-      marginTop: spacing.xs,
+      color: colors.muted,
+      fontSize: 14,
+      fontWeight: '600',
+      letterSpacing: 0,
+      lineHeight: 21,
+      marginBottom: 0,
+      marginTop: 6,
     },
   });
 }

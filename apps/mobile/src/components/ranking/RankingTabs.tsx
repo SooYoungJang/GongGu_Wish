@@ -2,11 +2,10 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { SText } from '../ui/SText';
-
-import { borderRadius, spacing } from '../../design/tokens';
+import { spacing } from '../../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
+import { useCommerceTheme } from '../../design/useCommerceTheme';
 import type { RankingTab } from '../../features/ranking/types';
-import { useTheme } from '../../context/ThemeContext';
-import type { ColorPalette } from '../../context/ThemeContext';
 
 export interface RankingTabsProps {
   value: RankingTab;
@@ -21,7 +20,7 @@ const TABS: readonly { key: RankingTab; label: string; countKey: 'rankingCount' 
 ] as const;
 
 export function RankingTabs({ value, rankingCount, followingCount, onChange }: RankingTabsProps) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const counts = { rankingCount, followingCount };
 
@@ -40,7 +39,7 @@ export function RankingTabs({ value, rankingCount, followingCount, onChange }: R
             onPress={() => onChange(tab.key)}
             style={[s.tab, selected && s.selectedTab]}
           >
-            <SText variant="label" style={[{ fontWeight: '800' }, selected && { color: colors.primary }]}>
+            <SText variant="label" style={[s.tabText, selected && s.selectedTabText]}>
               {tab.label}
               {typeof count === 'number' ? ` ${count}` : ''}
             </SText>
@@ -51,25 +50,31 @@ export function RankingTabs({ value, rankingCount, followingCount, onChange }: R
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     container: {
-      backgroundColor: colors.surfaceHover,
-      borderRadius: borderRadius.full,
+      backgroundColor: colors.softBg,
+      borderRadius: commerceRadius.full,
       flexDirection: 'row',
-      gap: spacing.xs,
-      padding: spacing.xs,
-    },
-    tab: {
-      alignItems: 'center',
-      borderRadius: borderRadius.full,
-      flex: 1,
-      justifyContent: 'center',
-      minHeight: 42,
-      paddingHorizontal: spacing.md,
+      padding: 4,
     },
     selectedTab: {
       backgroundColor: colors.surface,
+    },
+    selectedTabText: {
+      color: colors.accent,
+    },
+    tab: {
+      alignItems: 'center',
+      borderRadius: commerceRadius.full,
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 38,
+      paddingHorizontal: spacing.md,
+    },
+    tabText: {
+      color: colors.muted,
+      fontWeight: '900',
     },
   });
 }

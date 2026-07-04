@@ -2,16 +2,15 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { SText } from '../ui/SText';
-
-import { borderRadius, categoryColors, spacing } from '../../design/tokens';
+import { categoryColors, spacing } from '../../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
+import { useCommerceTheme } from '../../design/useCommerceTheme';
 import {
   RANKING_CATEGORY_LABELS,
   RANKING_SORT_CHIPS,
   type RankingCategory,
   type RankingSort,
 } from '../../features/ranking/types';
-import { useTheme } from '../../context/ThemeContext';
-import type { ColorPalette } from '../../context/ThemeContext';
 
 export interface RankingCategoryChipsProps {
   value: RankingCategory;
@@ -21,24 +20,24 @@ export interface RankingCategoryChipsProps {
   onChangeSort: (next: RankingSort) => void;
 }
 
-function getCategoryPalette(colors: ColorPalette, category: RankingCategory) {
+function getCategoryPalette(category: RankingCategory, colors: CommerceColorPalette) {
   if (category === 'all') {
-    return { bg: colors.primaryBg, text: colors.primary, border: colors.primaryLight };
+    return { bg: colors.accentSoft, text: colors.accent, border: colors.accent };
   }
 
   return categoryColors[category];
 }
 
 export function RankingCategoryChips({ value, categories, sort, onChange, onChangeSort }: RankingCategoryChipsProps) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   return (
-    <View style={{ gap: spacing.sm }}>
+    <View style={s.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow}>
         {categories.map((category) => {
           const selected = category === value;
-          const palette = getCategoryPalette(colors, category);
+          const palette = getCategoryPalette(category, colors);
 
           return (
             <Pressable
@@ -55,7 +54,7 @@ export function RankingCategoryChips({ value, categories, sort, onChange, onChan
                 },
               ]}
             >
-              <SText variant="body" style={[{ fontWeight: '800', includeFontPadding: false }, { color: selected ? palette.text : colors.textSecondary }]}>
+              <SText variant="body" style={[s.categoryChipText, { color: selected ? palette.text : colors.muted }]}>
                 {RANKING_CATEGORY_LABELS[category]}
               </SText>
             </Pressable>
@@ -76,7 +75,7 @@ export function RankingCategoryChips({ value, categories, sort, onChange, onChan
               onPress={() => onChangeSort(chip.key)}
               style={[s.sortChip, selected && s.selectedSortChip]}
             >
-              <SText variant="caption" style={[{ fontWeight: '800', includeFontPadding: false, color: colors.textSecondary }, selected && { color: colors.textInverse }]}>{chip.label}</SText>
+              <SText variant="caption" style={[s.sortChipText, selected && s.selectedSortChipText]}>{chip.label}</SText>
             </Pressable>
           );
         })}
@@ -85,34 +84,49 @@ export function RankingCategoryChips({ value, categories, sort, onChange, onChan
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
+    container: {
+      gap: spacing.sm,
+    },
     categoryChip: {
       alignItems: 'center',
-      borderRadius: borderRadius.full,
+      borderRadius: commerceRadius.full,
       borderWidth: 1,
-      justifyContent: 'center',
       height: 36,
+      justifyContent: 'center',
       paddingHorizontal: spacing.md,
       paddingVertical: 0,
+    },
+    categoryChipText: {
+      fontWeight: '800',
+      includeFontPadding: false,
     },
     chipRow: {
       gap: spacing.sm,
       paddingHorizontal: spacing.lg,
     },
     selectedSortChip: {
-      backgroundColor: colors.textPrimary,
-      borderColor: colors.textPrimary,
+      backgroundColor: colors.text,
+      borderColor: colors.text,
+    },
+    selectedSortChipText: {
+      color: colors.bg,
     },
     sortChip: {
       alignItems: 'center',
       borderColor: colors.border,
-      borderRadius: borderRadius.full,
+      borderRadius: commerceRadius.full,
       borderWidth: 1,
-      justifyContent: 'center',
       height: 32,
+      justifyContent: 'center',
       paddingHorizontal: spacing.md,
       paddingVertical: 0,
+    },
+    sortChipText: {
+      color: colors.muted,
+      fontWeight: '900',
+      includeFontPadding: false,
     },
     subChipRow: {
       gap: spacing.sm,

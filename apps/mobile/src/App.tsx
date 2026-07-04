@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Platform, StyleSheet, Text, useWindowDimensions, View, LogBox } from 'react-native';
+import { Platform, StatusBar, StyleSheet, Text, useWindowDimensions, View, LogBox } from 'react-native';
 import * as SystemUI from 'expo-system-ui';
 import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -44,10 +44,6 @@ const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const TAB_BAR_HEIGHT = 82;
-const TAB_TEXT_ACTIVE = '#111827';
-const TAB_TEXT_INACTIVE = '#374151';
-const TAB_BORDER = '#E5E7EB';
-const TAB_SURFACE = '#FFFFFF';
 
 function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: string }) {
   const { colors } = useTheme();
@@ -57,7 +53,7 @@ function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: strin
         <ScreenHeader title={title} />
       </View>
       <View style={styles.placeholderBody}>
-        <Text style={[styles.placeholderSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+        <Text style={[styles.placeholderSubtitle, { color: colors.muted }]}>{subtitle}</Text>
       </View>
     </SafeAreaView>
   );
@@ -139,6 +135,7 @@ function tabLabel(routeName: keyof MainTabParamList) {
 }
 
 function MainTabs() {
+  const { colors } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isNarrow = screenWidth <= 375;
@@ -157,19 +154,19 @@ function MainTabs() {
         tabBarAccessibilityLabel: `${tabLabel(route.name)} 탭`,
         tabBarIcon: ({ focused }) => tabIcon(
           route.name,
-          focused ? TAB_TEXT_ACTIVE : TAB_TEXT_INACTIVE,
+          focused ? colors.text : colors.tabInactive,
         ),
         tabBarLabel: tabLabel(route.name),
-        tabBarActiveTintColor: TAB_TEXT_ACTIVE,
-        tabBarInactiveTintColor: TAB_TEXT_INACTIVE,
+        tabBarActiveTintColor: colors.text,
+        tabBarInactiveTintColor: colors.tabInactive,
         tabBarLabelStyle: [
           styles.tabLabel,
         ],
         tabBarStyle: [
           styles.tabBar,
           {
-            backgroundColor: TAB_SURFACE,
-            borderColor: TAB_BORDER,
+            backgroundColor: colors.bottomBarBg,
+            borderColor: colors.bottomBarBorder,
             height: tabBarHeight,
             paddingBottom: tabBarBottomPadding,
           },
@@ -218,9 +215,12 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
   }, [isDark, colors, bg]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: bg }}>
-      <NavigationContainer theme={navTheme}>{children}</NavigationContainer>
-    </View>
+    <>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={bg} />
+      <View style={{ flex: 1, backgroundColor: bg }}>
+        <NavigationContainer theme={navTheme}>{children}</NavigationContainer>
+      </View>
+    </>
   );
 }
 
@@ -278,7 +278,6 @@ const styles = StyleSheet.create({
   },
   placeholderScreen: {
     flex: 1,
-    backgroundColor: undefined,
   },
   placeholderHeader: {
     paddingHorizontal: spacing.lg,

@@ -3,7 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { spacing } from '../design/tokens';
-import { useTheme } from '../context/ThemeContext';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 
 interface GoBackHeaderProps {
   accessibilityLabel?: string;
@@ -20,8 +20,8 @@ export function GoBackHeader({
 }: GoBackHeaderProps) {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
-  const iconColor = color ?? colors.textSecondary;
+  const { colors } = useCommerceTheme();
+  const iconColor = color ?? colors.text;
 
   const handlePress = onPress ?? (() => navigation.goBack());
 
@@ -46,18 +46,19 @@ export function GoBackHeader({
 
 const styles = StyleSheet.create({
   button: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
     position: 'absolute',
     width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
     zIndex: 10,
   },
   pressed: {
     opacity: 0.7,
   },
   icon: {
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 30,
+    fontWeight: '500',
+    lineHeight: 36,
   },
 });

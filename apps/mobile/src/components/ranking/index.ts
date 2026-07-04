@@ -1,4 +1,3 @@
-export { AdBadge } from './AdBadge';
 export { FollowButton } from './FollowButton';
 export { RankBadge } from './RankBadge';
 export { RankingCategoryChips } from './RankingCategoryChips';

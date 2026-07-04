@@ -16,7 +16,8 @@ import { useQuery } from '@tanstack/react-query';
 import { fallbackGroupBuys, fetchGroupBuys } from '../api';
 import { DealCard } from '../components/DealCard';
 import { SText } from '../components/ui/SText';
-import { borderRadius, spacing } from '../design/tokens';
+import { spacing } from '../design/tokens';
+import { commerceRadius } from '../design/commerce';
 import type { CategoryColorName } from '../design/tokens';
 import type { CalendarScreenProps, GroupBuy } from '../types';
 import { formatDateKey, getGroupBuyDateRange, parseDateKey } from '../utils/groupBuyDates';
@@ -502,7 +503,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
 function makeStyles(colors: ColorPalette) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.bg },
-    container: { flex: 1, paddingHorizontal: spacing.lg },
+    container: { flex: 1, paddingHorizontal: spacing.lg, backgroundColor: colors.bg },
 
     // Header
     headerRow: {
@@ -515,18 +516,20 @@ function makeStyles(colors: ColorPalette) {
     headerNavGroup: {
       alignItems: 'center',
       flexDirection: 'row',
-      gap: spacing.md,
+      gap: spacing.sm,
     },
     navArrow: {
       alignItems: 'center',
+      backgroundColor: colors.softBg,
+      borderRadius: commerceRadius.full,
       justifyContent: 'center',
-      minHeight: 44,
-      minWidth: 44,
+      minHeight: 40,
+      minWidth: 40,
     },
     todayButton: {
       alignItems: 'center',
-      backgroundColor: colors.primary,
-      borderRadius: borderRadius.full,
+      backgroundColor: colors.accent,
+      borderRadius: commerceRadius.full,
       justifyContent: 'center',
       minHeight: 36,
       paddingHorizontal: spacing.lg,
@@ -534,23 +537,25 @@ function makeStyles(colors: ColorPalette) {
     // Filter chip (integrated into headerRow)
     filterChip: {
       alignItems: 'center',
-      borderRadius: borderRadius.full,
+      borderRadius: commerceRadius.full,
       borderWidth: 1,
       justifyContent: 'center',
       minHeight: 34,
-      paddingHorizontal: spacing.lg,
+      paddingHorizontal: spacing.md,
     },
     alertButton: {
       alignItems: 'center',
+      backgroundColor: colors.softBg,
+      borderRadius: commerceRadius.full,
       justifyContent: 'center',
-      minHeight: 34,
-      minWidth: 34,
+      minHeight: 36,
+      minWidth: 36,
     },
     // Calendar grid
     calendarWrapper: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.panelBg,
       borderColor: colors.border,
-      borderRadius: borderRadius['2xl'],
+      borderRadius: commerceRadius.xxl,
       borderWidth: 1,
       marginBottom: spacing.md,
       padding: spacing.sm,
@@ -581,29 +586,29 @@ function makeStyles(colors: ColorPalette) {
       paddingVertical: spacing.xxs,
     },
     dayCellOtherMonth: {
-      opacity: 0.4,
+      opacity: 0.36,
     },
     dayCellToday: {
-      borderColor: colors.primary,
-      borderRadius: borderRadius.full,
+      borderColor: colors.accent,
+      borderRadius: commerceRadius.full,
       borderWidth: 1.5,
     },
     dayCellSelected: {
-      backgroundColor: colors.primary,
-      borderRadius: borderRadius.full,
+      backgroundColor: colors.accent,
+      borderRadius: commerceRadius.full,
       borderWidth: 0,
     },
 
     // Dot indicator
     dot: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.accent,
       borderRadius: DOT_SIZE / 2,
       height: DOT_SIZE,
       marginTop: 2,
       width: DOT_SIZE,
     },
     dotSelected: {
-      backgroundColor: colors.textInverse,
+      backgroundColor: colors.inverse,
     },
     dotSpacer: {
       height: DOT_SIZE + 2,
@@ -613,7 +618,7 @@ function makeStyles(colors: ColorPalette) {
     // Deals section
     dealsHeader: {
       alignItems: 'center',
-      borderTopColor: colors.divider,
+      borderTopColor: colors.borderLight,
       borderTopWidth: 1,
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -637,8 +642,9 @@ function makeStyles(colors: ColorPalette) {
     // Empty state
     emptyDeals: {
       alignItems: 'center',
+      backgroundColor: colors.panelBg,
       borderColor: colors.border,
-      borderRadius: borderRadius.xl,
+      borderRadius: commerceRadius.xl,
       borderWidth: 1,
       marginTop: spacing.md,
       padding: spacing['2xl'],

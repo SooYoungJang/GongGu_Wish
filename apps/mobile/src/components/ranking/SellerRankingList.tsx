@@ -1,17 +1,16 @@
 import { useMemo } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { SText } from '../ui/SText';
-
 import { spacing } from '../../design/tokens';
-import type { RankingLoadState, RankingThumbnail, SellerRanking } from '../../features/ranking/types';
+import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
+import { useCommerceTheme } from '../../design/useCommerceTheme';
+import type { RankingThumbnail, SellerRanking, RankingLoadState } from '../../features/ranking/types';
 import { SellerRankingRow } from './SellerRankingRow';
-import { useTheme } from '../../context/ThemeContext';
-import type { ColorPalette } from '../../context/ThemeContext';
 
 export interface SellerRankingListProps {
   state: RankingLoadState;
-  bottomPadding: number;
+  bottomPadding?: number;
   onRefresh?: () => void;
   onPressItem?: (item: SellerRanking) => void;
   onPressThumbnail?: (thumbnail: RankingThumbnail, item: SellerRanking) => void;
@@ -24,19 +23,19 @@ function RowSeparator() {
 
 export function SellerRankingList({
   state,
-  bottomPadding,
+  bottomPadding = 0,
   onRefresh,
   onPressItem,
   onPressThumbnail,
   onToggleFollow,
 }: SellerRankingListProps) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
-  if (state.status === 'loading' && !state.data) {
+  if (state.status === 'loading') {
     return (
       <View style={s.statusContainer}>
-        <SText variant="body" style={{ fontWeight: '700', textAlign: 'center' }}>랭킹을 불러오는 중…</SText>
+        <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
@@ -44,17 +43,11 @@ export function SellerRankingList({
   if (state.status === 'error') {
     return (
       <View style={s.statusContainer}>
-        <SText variant="body" style={{ color: colors.error, fontWeight: '700', textAlign: 'center' }}>{state.message}</SText>
+        <SText variant="body" style={[s.statusTitle, s.errorText]}>{state.message}</SText>
         {state.retry ? (
-          <SText
-            accessible
-            variant="label"
-            accessibilityLabel="다시 불러오기"
-            onPress={state.retry}
-            style={{ color: colors.primary, fontWeight: '800', marginTop: spacing.sm }}
-          >
-            다시 시도
-          </SText>
+          <Pressable accessibilityLabel="다시 불러오기" accessibilityRole="button" onPress={state.retry} style={s.statusAction}>
+            <SText variant="label" style={s.statusActionText}>다시 시도</SText>
+          </Pressable>
         ) : null}
       </View>
     );
@@ -63,17 +56,11 @@ export function SellerRankingList({
   if (state.status === 'empty') {
     return (
       <View style={s.statusContainer}>
-        <SText variant="body" style={{ fontWeight: '700', textAlign: 'center' }}>{state.message}</SText>
+        <SText variant="body" style={s.statusTitle}>{state.message}</SText>
         {state.action ? (
-          <SText
-            accessible
-            variant="label"
-            accessibilityLabel={state.action.label}
-            onPress={state.action.onPress}
-            style={[{ color: colors.primary, fontWeight: '800', marginTop: spacing.sm }]}
-          >
-            {state.action.label}
-          </SText>
+          <Pressable accessibilityLabel={state.action.label} accessibilityRole="button" onPress={state.action.onPress} style={s.statusAction}>
+            <SText variant="label" style={s.statusActionText}>{state.action.label}</SText>
+          </Pressable>
         ) : null}
       </View>
     );
@@ -110,16 +97,42 @@ const styles = StyleSheet.create({
   },
 });
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
+    errorText: {
+      color: colors.error,
+    },
     list: {
       backgroundColor: colors.bg,
     },
+    statusAction: {
+      backgroundColor: colors.accent,
+      borderRadius: commerceRadius.full,
+      marginTop: spacing.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    statusActionText: {
+      color: colors.inverse,
+      fontWeight: '900',
+    },
     statusContainer: {
       alignItems: 'center',
+      backgroundColor: colors.panelBg,
+      borderColor: colors.border,
+      borderRadius: commerceRadius.xl,
+      borderWidth: 1,
       flex: 1,
       justifyContent: 'center',
+      marginTop: spacing.md,
       paddingHorizontal: spacing['2xl'],
+      paddingVertical: spacing['3xl'],
+    },
+    statusTitle: {
+      color: colors.text,
+      fontWeight: '800',
+      lineHeight: 22,
+      textAlign: 'center',
     },
   });
 }

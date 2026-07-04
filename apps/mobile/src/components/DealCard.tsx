@@ -2,11 +2,11 @@ import { useMemo } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SText } from './ui/SText';
 
-import { borderRadius, categoryColors, spacing } from '../design/tokens';
+import { categoryColors, spacing } from '../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { CategoryColorName } from '../design/tokens';
 import type { GroupBuy } from '../types';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
 
 type DealCardProps = {
   item: GroupBuy;
@@ -36,8 +36,8 @@ function formatDeadline(endDate: string | null) {
 }
 
 export function DealCard({ item, category, onPress }: DealCardProps) {
-  const { colors, shadows } = useTheme();
-  const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
+  const { colors } = useCommerceTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const token = categoryColors[category];
   const imageUrl = item.thumbnailUrl ?? item.mediaUrls?.[0] ?? null;
   const categoryLabel = CATEGORY_LABELS[category];
@@ -47,49 +47,95 @@ export function DealCard({ item, category, onPress }: DealCardProps) {
       accessibilityLabel={`${item.productName ?? '공구'} 상세 보기`}
       accessibilityRole="button"
       onPress={onPress}
-      style={s.card}
+      style={({ pressed }) => [s.card, pressed && s.pressed]}
     >
-      {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={s.image} />
-      ) : (
-        <View style={[s.image, { backgroundColor: token.bg, borderColor: token.border }]}>
-          <SText variant="cardTitle" style={[s.imageText, { color: token.text }]}>{categoryLabel.slice(0, 2)}</SText>
-        </View>
-      )}
+      <View style={s.imageWrap}>
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={s.image} />
+        ) : (
+          <View style={[s.imageFallback, { backgroundColor: token.bg, borderColor: token.border }]}> 
+            <SText variant="cardTitle" style={[s.imageText, { color: token.text }]}>{categoryLabel.slice(0, 2)}</SText>
+          </View>
+        )}
+        {item.discountInfo ? (
+          <View style={s.saleBadge}>
+            <SText variant="caption" style={s.saleBadgeText}>{item.discountInfo}</SText>
+          </View>
+        ) : null}
+      </View>
       <SText variant="subtitle" numberOfLines={2} style={s.title}>{item.productName ?? '공동구매 상품'}</SText>
       <SText variant="caption" numberOfLines={1} style={s.brand}>{categoryLabel} · @{item.rawPost.influencer.instagramUsername}</SText>
-      <SText variant="cardBrand" style={s.discount}>{item.discountInfo ?? '혜택 확인'}</SText>
       <SText variant="caption" style={s.deadline}>{formatDeadline(item.endDate)}</SText>
     </Pressable>
   );
 }
 
-function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     card: {
       flexBasis: '47%',
       flexGrow: 1,
+      minHeight: 206,
+    },
+    pressed: { opacity: 0.74 },
+    imageWrap: {
+      aspectRatio: 1,
+      backgroundColor: colors.panelBg,
+      borderRadius: commerceRadius.lg,
+      overflow: 'hidden',
+      position: 'relative',
+      width: '100%',
     },
     image: {
-      alignItems: 'center',
-      borderRadius: borderRadius.xl,
-      justifyContent: 'center',
-      minHeight: 120,
+      height: '100%',
       resizeMode: 'cover',
       width: '100%',
-      aspectRatio: 1,
     },
-    imageText: { fontSize: 18, fontWeight: '800' },
+    imageFallback: {
+      alignItems: 'center',
+      borderWidth: 1,
+      flex: 1,
+      justifyContent: 'center',
+    },
+    imageText: { fontSize: 18, fontWeight: '900' },
+    saleBadge: {
+      backgroundColor: colors.accent,
+      borderRadius: commerceRadius.sm,
+      left: 8,
+      maxWidth: '82%',
+      paddingHorizontal: 7,
+      paddingVertical: 4,
+      position: 'absolute',
+      top: 8,
+    },
+    saleBadgeText: {
+      color: colors.inverse,
+      fontSize: 11,
+      fontWeight: '900',
+      lineHeight: 14,
+    },
     title: {
-      color: colors.textPrimary,
-      fontSize: 14,
-      fontWeight: '700',
-      lineHeight: 19,
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '800',
+      letterSpacing: 0,
+      lineHeight: 18,
+      marginBottom: 0,
       marginTop: spacing.sm,
-      marginBottom: 2,
     },
-    brand: { color: colors.textSecondary, fontSize: 12, marginBottom: 2 },
-    discount: { color: colors.accent, fontSize: 13, fontWeight: '800' },
-    deadline: { color: colors.textTertiary, fontSize: 11, marginTop: 2 },
+    brand: {
+      color: colors.muted,
+      fontSize: 11,
+      fontWeight: '600',
+      lineHeight: 15,
+      marginTop: 2,
+    },
+    deadline: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '900',
+      lineHeight: 16,
+      marginTop: 2,
+    },
   });
 }

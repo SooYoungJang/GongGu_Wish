@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, type GestureResponderEvent } from 'react-native';
 
 import { SText } from '../ui/SText';
-import { borderRadius, rankingColors, spacing } from '../../design/tokens';
-import { useTheme } from '../../context/ThemeContext';
-import type { ColorPalette } from '../../context/ThemeContext';
+import { spacing } from '../../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
+import { useCommerceTheme } from '../../design/useCommerceTheme';
 
 export interface FollowButtonProps {
   isFollowing: boolean;
@@ -14,9 +14,8 @@ export interface FollowButtonProps {
 }
 
 export function FollowButton({ isFollowing, sellerName, onFollow, onPress }: FollowButtonProps) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
-  const palette = isFollowing ? rankingColors.following.active : rankingColors.following.inactive;
   const handlePress = (event: GestureResponderEvent) => {
     event.stopPropagation();
     onFollow?.();
@@ -30,32 +29,48 @@ export function FollowButton({ isFollowing, sellerName, onFollow, onPress }: Fol
       onPress={handlePress}
       style={({ pressed }) => [
         s.button,
-        {
-          backgroundColor: palette.bg,
-          borderColor: isFollowing ? palette.bg : colors.border,
-          opacity: pressed ? 0.72 : 1,
-        },
+        isFollowing ? s.followingButton : s.followButton,
+        pressed && s.pressed,
       ]}
     >
-      <SText variant="badge" style={[s.text, { color: palette.text }]}>{isFollowing ? '팔로잉' : '팔로우'}</SText>
+      <SText variant="badge" style={[s.text, isFollowing ? s.followingText : s.followText]}>
+        {isFollowing ? '팔로잉' : '팔로우'}
+      </SText>
     </Pressable>
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     button: {
       alignItems: 'center',
-      borderRadius: borderRadius.full,
+      borderRadius: commerceRadius.full,
       borderWidth: 1,
       justifyContent: 'center',
       minHeight: 36,
       minWidth: 62,
       paddingHorizontal: spacing.sm,
     },
+    followButton: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    followingButton: {
+      backgroundColor: colors.softBg,
+      borderColor: colors.border,
+    },
+    pressed: {
+      opacity: 0.72,
+    },
     text: {
       fontSize: 12,
-      fontWeight: '800',
+      fontWeight: '900',
+    },
+    followText: {
+      color: colors.inverse,
+    },
+    followingText: {
+      color: colors.muted,
     },
   });
 }

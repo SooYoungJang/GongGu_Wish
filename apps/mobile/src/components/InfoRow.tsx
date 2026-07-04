@@ -3,11 +3,11 @@ import { StyleSheet, View } from 'react-native';
 
 import { SText } from './ui/SText';
 import { spacing } from '../design/tokens';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
+import type { CommerceColorPalette } from '../design/commerce';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 
 export function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   if (!value) return null;
@@ -19,25 +19,26 @@ export function InfoRow({ label, value }: { label: string; value: string | null 
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     infoRow: {
-      borderBottomColor: colors.border,
+      borderBottomColor: colors.borderLight,
       borderBottomWidth: 1,
       flexDirection: 'row',
       marginBottom: spacing.md,
       paddingBottom: spacing.md,
     },
     infoLabel: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      fontWeight: '600',
-      width: 80,
+      color: colors.weak,
+      fontSize: 13,
+      fontWeight: '900',
+      width: 86,
     },
     infoValue: {
-      color: colors.textPrimary,
+      color: colors.text,
       flex: 1,
       fontSize: 14,
+      fontWeight: '600',
       lineHeight: 20,
     },
   });

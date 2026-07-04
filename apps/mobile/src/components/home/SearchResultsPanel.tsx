@@ -2,10 +2,10 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SText } from '../../components/ui/SText';
 
-import { borderRadius, spacing, typography } from '../../design/tokens';
+import { spacing } from '../../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
+import { useCommerceTheme } from '../../design/useCommerceTheme';
 import type { Influencer } from '../../types';
-import { useTheme } from '../../context/ThemeContext';
-import type { ColorPalette } from '../../context/ThemeContext';
 
 type SearchResultsPanelProps = {
   results: Influencer[];
@@ -13,12 +13,12 @@ type SearchResultsPanelProps = {
 };
 
 export function SearchResultsPanel({ results, onPressInfluencer }: SearchResultsPanelProps) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <View style={s.searchPanel}>
-      <SText variant="label" style={s.searchPanelTitle}>검색 결과</SText>
+      <SText variant="label" style={s.searchPanelTitle}>인플루언서</SText>
       {results.length > 0 ? (
         results.map((influencer) => (
           <Pressable
@@ -26,10 +26,16 @@ export function SearchResultsPanel({ results, onPressInfluencer }: SearchResults
             accessibilityLabel={`${influencer.instagramUsername} 인플루언서 보기`}
             accessibilityRole="button"
             onPress={() => onPressInfluencer(influencer)}
-            style={s.searchResultRow}
+            style={({ pressed }) => [s.searchResultRow, pressed && s.pressed]}
           >
-            <SText variant="label" style={s.searchResultName}>{influencer.displayName ?? influencer.instagramUsername}</SText>
-            <SText variant="caption" style={s.searchResultMeta}>@{influencer.instagramUsername.replace(/^@/, '')}</SText>
+            <View style={s.avatar}>
+              <SText variant="caption" style={s.avatarText}>{(influencer.displayName ?? influencer.instagramUsername).slice(0, 1).toUpperCase()}</SText>
+            </View>
+            <View style={s.resultTextBlock}>
+              <SText variant="label" style={s.searchResultName}>{influencer.displayName ?? influencer.instagramUsername}</SText>
+              <SText variant="caption" style={s.searchResultMeta}>@{influencer.instagramUsername.replace(/^@/, '')}</SText>
+            </View>
+            <SText variant="body" style={s.chevron}>›</SText>
           </Pressable>
         ))
       ) : (
@@ -42,30 +48,46 @@ export function SearchResultsPanel({ results, onPressInfluencer }: SearchResults
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
-    searchPanel: { marginBottom: spacing.lg },
-    searchPanelTitle: { ...typography.label, color: colors.textPrimary, marginBottom: spacing.sm },
+    searchPanel: { marginBottom: spacing.lg, marginTop: spacing.lg },
+    searchPanelTitle: { color: colors.text, fontSize: 20, fontWeight: '900', lineHeight: 27, marginBottom: 14 },
     searchResultRow: {
+      alignItems: 'center',
       backgroundColor: colors.surface,
-      borderColor: colors.border,
-      borderRadius: borderRadius.xl,
-      borderWidth: 1,
-      marginBottom: spacing.sm,
-      minHeight: 56,
-      padding: spacing.md,
+      borderBottomColor: colors.borderLight,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      minHeight: 62,
+      paddingVertical: spacing.sm,
     },
-    searchResultName: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
-    searchResultMeta: { ...typography.caption, marginTop: spacing.xs },
-    emptySearchResult: {
-      backgroundColor: colors.surface,
+    pressed: { opacity: 0.64 },
+    avatar: {
+      alignItems: 'center',
+      backgroundColor: colors.softBg,
       borderColor: colors.border,
-      borderRadius: borderRadius.xl,
+      borderRadius: commerceRadius.full,
+      borderWidth: 1,
+      height: 42,
+      justifyContent: 'center',
+      marginRight: spacing.md,
+      width: 42,
+    },
+    avatarText: { color: colors.accent, fontSize: 15, fontWeight: '900', lineHeight: 19 },
+    resultTextBlock: { flex: 1 },
+    searchResultName: { color: colors.text, fontSize: 15, fontWeight: '800', lineHeight: 20 },
+    searchResultMeta: { color: colors.weak, fontSize: 12, fontWeight: '600', lineHeight: 16, marginTop: 2 },
+    chevron: { color: colors.weak, fontSize: 24, lineHeight: 28 },
+    emptySearchResult: {
+      alignItems: 'center',
+      backgroundColor: colors.panelBg,
+      borderColor: colors.border,
+      borderRadius: commerceRadius.lg,
       borderWidth: 1,
       marginBottom: spacing.sm,
       padding: spacing.lg,
     },
-    emptySearchTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700', marginBottom: spacing.xs },
-    emptySearchText: { ...typography.caption },
+    emptySearchTitle: { color: colors.text, fontSize: 14, fontWeight: '900', marginBottom: spacing.xs },
+    emptySearchText: { color: colors.weak, fontSize: 12, fontWeight: '600', textAlign: 'center' },
   });
 }
