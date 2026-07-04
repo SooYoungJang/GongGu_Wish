@@ -24,7 +24,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import PagerView from 'react-native-pager-view';
 import { Gesture, GestureDetector, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 
-import { fetchGroupBuys, refreshGroupBuyMedia } from '../api';
+import { fetchGroupBuys } from '../api';
 import { SText } from '../components/ui/SText';
 import { borderRadius, spacing } from '../design/tokens';
 import { useTheme } from '../context/ThemeContext';
@@ -53,15 +53,6 @@ function isVideoUrl(url: string): boolean {
     return VIDEO_EXTENSIONS.some((ext) => path.endsWith(ext));
   } catch {
     return VIDEO_EXTENSIONS.some((ext) => url.toLowerCase().includes(ext));
-  }
-}
-
-function isInstagramCdnUrl(url?: string | null): boolean {
-  if (!url) return false;
-  try {
-    return new URL(url).hostname.endsWith('.cdninstagram.com');
-  } catch {
-    return url.includes('cdninstagram.com');
   }
 }
 
@@ -386,40 +377,7 @@ export function ProductReelPage({
   const summaryScrollAtBottomRef = useRef(false);
   const summaryScrollGestureStartedAtTopRef = useRef(true);
   const [isSummaryVisible, setSummaryVisible] = useState(false);
-  const shouldRefreshInstagramMedia = isActive
-    && groupBuy.mediaType === 'VIDEO'
-    && isInstagramCdnUrl(groupBuy.videoUrl);
-  const { data: refreshedMediaResult } = useQuery({
-    queryKey: ['instagram-media-refresh', groupBuy.id, groupBuy.videoUrl],
-    queryFn: () => refreshGroupBuyMedia(groupBuy.id),
-    enabled: shouldRefreshInstagramMedia,
-    retry: false,
-    staleTime: 1000 * 60 * 15,
-  });
-  const refreshedInstagramMedia = refreshedMediaResult?.media;
-  const mediaGroupBuy = useMemo<GroupBuy>(() => {
-    if (!refreshedInstagramMedia?.videoUrl) return groupBuy;
-
-    const mediaItems = refreshedInstagramMedia.mediaItems?.length
-      ? refreshedInstagramMedia.mediaItems
-      : [{
-        url: refreshedInstagramMedia.videoUrl,
-        mediaType: 'VIDEO' as const,
-        thumbnailUrl: refreshedInstagramMedia.thumbnailUrl ?? groupBuy.thumbnailUrl,
-      }];
-
-    return {
-      ...groupBuy,
-      thumbnailUrl: refreshedInstagramMedia.thumbnailUrl ?? groupBuy.thumbnailUrl,
-      videoUrl: refreshedInstagramMedia.videoUrl,
-      mediaUrls: refreshedInstagramMedia.mediaUrls?.length
-        ? refreshedInstagramMedia.mediaUrls
-        : [refreshedInstagramMedia.videoUrl],
-      mediaItems,
-      mediaType: refreshedInstagramMedia.mediaType ?? groupBuy.mediaType,
-    };
-  }, [groupBuy, refreshedInstagramMedia]);
-  const mediaItems = useMemo(() => getDisplayMedia(mediaGroupBuy), [mediaGroupBuy]);
+  const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
