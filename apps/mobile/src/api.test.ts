@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchGroupBuys, lookupInstagramUrl, postPublicJson } from './api';
+import { fetchGroupBuys, lookupInstagramUrl, postPublicJson, refreshGroupBuyMedia } from './api';
 import { configurePostgrest } from './lib/postgrest-client';
 
 const originalFetch = global.fetch;
@@ -63,6 +63,42 @@ describe('public data fetch diagnostics', () => {
 
     await expect(lookupInstagramUrl('https://www.instagram.com/p/ABC123/')).rejects.toThrow(
       'HikerAPI returned 502',
+    );
+  });
+
+  it('refreshes group buy media through the cached media refresh function', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        groupBuyId: 'group-buy-1',
+        refreshed: true,
+        source: 'hiker',
+        instagramUrl: 'https://www.instagram.com/reel/ABC123/',
+        media: {
+          imageUrl: 'https://example.com/thumb.jpg',
+          thumbnailUrl: 'https://example.com/thumb.jpg',
+          videoUrl: 'https://example.com/video.mp4',
+          mediaUrls: ['https://example.com/video.mp4'],
+          mediaType: 'VIDEO',
+        },
+      }),
+    }) as unknown as typeof fetch;
+
+    await expect(refreshGroupBuyMedia('group-buy-1')).resolves.toMatchObject({
+      groupBuyId: 'group-buy-1',
+      refreshed: true,
+      media: {
+        videoUrl: 'https://example.com/video.mp4',
+      },
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/functions/v1/refresh-instagram-media'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ groupBuyId: 'group-buy-1' }),
+      }),
     );
   });
 

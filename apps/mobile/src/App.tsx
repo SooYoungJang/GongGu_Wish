@@ -130,7 +130,7 @@ function MainTabs() {
   const insets = useSafeAreaInsets();
   const isNarrow = screenWidth <= 375;
   const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 10, 0);
-  const tabBarBottomPadding = Math.max(insets.bottom, isNarrow ? 8 : 10);
+  const tabBarBottomPadding = Math.max(insets.bottom - 4, isNarrow ? 4 : 6);
 
   return (
     <Tab.Navigator
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     height: TAB_BAR_HEIGHT,
     left: 0,
-    paddingTop: 8,
+    paddingTop: 4,
     position: 'absolute',
     right: 0,
   },
@@ -283,11 +283,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     minHeight: 52,
-    paddingTop: 6,
+    paddingTop: 0,
   },
   tabIconSlot: {
     height: 28,
-    marginBottom: 1,
+    marginBottom: -1,
     width: 34,
   },
   tabLabel: {

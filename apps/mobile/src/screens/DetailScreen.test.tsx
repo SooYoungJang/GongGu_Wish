@@ -3,6 +3,7 @@ const videoMock = vi.hoisted(() => ({
 }));
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
+  refreshedInstagramMedia: undefined as any,
 }));
 const flashListMock = vi.hoisted(() => ({
   scrollToOffset: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock('expo-video', () => ({
       volume: 0,
       audioMixingMode: 'auto',
       allowsExternalPlayback: true,
+      currentTime: 12,
       source,
     };
     setup?.(player);
@@ -36,11 +38,18 @@ vi.mock('expo-video', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: queryMock.groupBuys, isLoading: false, isError: false }),
+  useQuery: (options?: { queryKey?: unknown[] }) => ({
+    data: options?.queryKey?.[0] === 'instagram-media-refresh'
+      ? queryMock.refreshedInstagramMedia
+      : queryMock.groupBuys,
+    isLoading: false,
+    isError: false,
+  }),
 }));
 
 vi.mock('../api', () => ({
   fetchGroupBuys: vi.fn(),
+  refreshGroupBuyMedia: vi.fn(),
 }));
 
 vi.mock('@shopify/flash-list', () => {
@@ -86,7 +95,7 @@ vi.mock('react-native-pager-view', () => {
 });
 
 import React, { type ReactNode } from 'react';
-import { Animated, Linking } from 'react-native';
+import { Alert, Animated, Linking } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -291,9 +300,12 @@ const baseGroupBuy: GroupBuy = {
 beforeEach(() => {
   videoMock.players = [];
   queryMock.groupBuys = undefined;
+  queryMock.refreshedInstagramMedia = undefined;
   flashListMock.scrollToOffset.mockClear();
   pagerViewMock.setPage.mockClear();
   pagerViewMock.setPageWithoutAnimation.mockClear();
+  (Alert.alert as any).mockClear();
+  (Linking.openURL as any).mockClear();
   (Animated.timing as any).mockClear();
   (Animated.spring as any).mockClear();
 });
@@ -317,7 +329,7 @@ describe('DetailScreen', () => {
     expect(mediaScroll?.props.pagingEnabled).toBe(true);
     expect(images).toHaveLength(3);
     expect(text).toContain('릴스');
-    expect(text).toContain('구매 링크 열기');
+    expect(text).toContain('구매');
     expect(text).not.toContain('팔로우');
   });
 
@@ -351,7 +363,9 @@ describe('DetailScreen', () => {
     const horizontalList = renderer!.root
       .findAll((node) => String(node.type) === 'FlashList')
       .find((node) => node.props.horizontal);
-    expect(renderer!.root.findAll((node) => String(node.type) === 'VideoView')).toHaveLength(0);
+    expect(renderer!.root.findAll((node) => String(node.type) === 'VideoView')).toHaveLength(1);
+    expect(videoMock.players[0]?.pause).toHaveBeenCalled();
+    expect(videoMock.players[0]?.play).not.toHaveBeenCalled();
 
     act(() => {
       horizontalList?.props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: 390 } } });
@@ -360,6 +374,7 @@ describe('DetailScreen', () => {
     const videoViews = renderer!.root.findAll((node) => String(node.type) === 'VideoView');
     expect(videoViews).toHaveLength(1);
     expect(videoViews[0]?.props.contentFit).toBe('contain');
+    expect(videoMock.players.some((player) => player.source.uri === 'https://cdn.example.com/slide-2-video.mp4')).toBe(true);
     expect(videoMock.players[0]?.source).toEqual({
       uri: 'https://cdn.example.com/slide-2-video.mp4',
       contentType: 'auto',
@@ -691,7 +706,7 @@ describe('DetailScreen', () => {
     expect(raisedMediaStage).toBeDefined();
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
     expect(flattenText(renderer!.toJSON())).toContain('긴 설명도 시트에서 잘 보여야 합니다.');
-    expect(flattenText(renderer!.toJSON())).toContain('구매링크');
+    expect(flattenText(renderer!.toJSON())).toContain('구매 링크');
     expect(
       renderer!.root.find(
         (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 닫기',
@@ -702,7 +717,7 @@ describe('DetailScreen', () => {
       (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '요약 닫기',
     );
     const purchaseButton = renderer!.root.findAll(
-      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '구매 링크 열기',
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '구매 링크',
     )[0];
 
     act(() => {
@@ -716,6 +731,60 @@ describe('DetailScreen', () => {
     });
 
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
+  });
+
+  it('shows an alert when the purchase link cannot be opened', async () => {
+    (Linking.openURL as any).mockRejectedValueOnce(new Error('cannot open'));
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const purchaseButton = renderer!.root.findAll(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '구매 링크',
+    )[0];
+
+    act(() => {
+      purchaseButton?.props.onPress();
+    });
+    await Promise.resolve();
+
+    expect(Linking.openURL).toHaveBeenCalledWith('https://example.com/buy');
+    expect(Alert.alert).toHaveBeenCalledWith('오류', '구매 링크를 열 수 없습니다.');
+  });
+
+  it('does nothing when pressing a purchase link for an expired group buy', () => {
+    const expiredGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      endDate: '2020-01-01',
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy: expiredGroupBuy } } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const expiredButton = renderer!.root.findAll(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '마감된 공구',
+    )[0];
+
+    act(() => {
+      expiredButton?.props.onPress();
+    });
+
+    expect(Linking.openURL).not.toHaveBeenCalled();
+    expect(Alert.alert).not.toHaveBeenCalled();
   });
 
   it('closes from top pull-downs and hands bottom pull-ups to the reel', () => {
@@ -1048,7 +1117,7 @@ describe('DetailScreen', () => {
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
   });
 
-  it('does not mount video players for inactive product pages', () => {
+  it('preloads adjacent product page videos without playing them', () => {
     const nextVideoGroupBuy: GroupBuy = {
       ...baseGroupBuy,
       id: 'group-buy-video-next',
@@ -1072,10 +1141,20 @@ describe('DetailScreen', () => {
 
     const verticalPager = findVerticalPager(renderer!);
     const videoViews = renderer!.root.findAll((node) => String(node.type) === 'VideoView');
+    const nextVideoPlayers = videoMock.players.filter(
+      (player) => player.source.uri === 'https://example.com/next-video.mp4',
+    );
 
     expect(verticalPager).toBeDefined();
-    expect(videoViews).toHaveLength(0);
-    expect(videoMock.players).toHaveLength(0);
+    expect(videoViews).toHaveLength(1);
+    expect(nextVideoPlayers.length).toBeGreaterThanOrEqual(1);
+    expect(nextVideoPlayers[0]?.source).toEqual({
+      uri: 'https://example.com/next-video.mp4',
+      contentType: 'auto',
+    });
+    expect(nextVideoPlayers.some((player) => player.pause.mock.calls.length > 0)).toBe(true);
+    expect(nextVideoPlayers.every((player) => player.play.mock.calls.length === 0)).toBe(true);
+    expect(nextVideoPlayers.every((player) => player.currentTime === 0)).toBe(true);
   });
 });
 
@@ -1101,7 +1180,8 @@ describe('DetailScreen video playback', () => {
     const videoViews = renderer!.root.findAll((node) => String(node.type) === 'VideoView');
     const images = renderer!.root.findAll((node) => String(node.type) === 'Image');
     expect(videoViews).toHaveLength(1);
-    expect(images).toHaveLength(1);
+    expect(images).toHaveLength(2);
+    expect(images.some((image) => image.props.source?.uri === groupBuy.thumbnailUrl)).toBe(true);
     expect(videoViews[0]?.props.contentFit).toBe('contain');
     expect(videoViews[0]?.props.pointerEvents).toBe('none');
     expect(videoMock.players[0]?.source).toEqual({
@@ -1114,7 +1194,56 @@ describe('DetailScreen video playback', () => {
     expect(videoMock.players[0]?.play).toHaveBeenCalled();
   });
 
-  it('toggles video playback when the video is tapped', () => {
+  it('uses refreshed Hiker media for expiring Instagram CDN videos', () => {
+    queryMock.refreshedInstagramMedia = {
+      groupBuyId: baseGroupBuy.id,
+      refreshed: true,
+      source: 'hiker',
+      instagramUrl: 'https://instagram.com/reel/DZB4G0Giwzi/',
+      media: {
+        imageUrl: 'https://cdn.example.com/fresh-thumb.jpg',
+        thumbnailUrl: 'https://cdn.example.com/fresh-thumb.jpg',
+        videoUrl: 'https://cdn.example.com/fresh-reel.mp4',
+        mediaUrls: ['https://cdn.example.com/fresh-reel.mp4'],
+        mediaItems: [{
+          url: 'https://cdn.example.com/fresh-reel.mp4',
+          mediaType: 'VIDEO',
+          thumbnailUrl: 'https://cdn.example.com/fresh-thumb.jpg',
+        }],
+        mediaType: 'VIDEO',
+      },
+    };
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      rawPost: {
+        postUrl: '',
+        influencer: { instagramUsername: 'hiker_seller' },
+      },
+      thumbnailUrl: 'https://scontent.cdninstagram.com/v/t51.71878-15/thumb.jpg?ig_cache_key=MzkwOTY1MjcxMDQwMDEzNDM3MA%3D%3D.3',
+      videoUrl: 'https://scontent.cdninstagram.com/o1/v/t2/f2/expired.mp4?oe=EXPIRED',
+      mediaUrls: ['https://scontent.cdninstagram.com/v/t51.71878-15/thumb.jpg?ig_cache_key=MzkwOTY1MjcxMDQwMDEzNDM3MA%3D%3D.3'],
+      mediaType: 'VIDEO',
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
+          navigation={{} as any}
+        />,
+      );
+    });
+
+    const videoViews = renderer!.root.findAll((node) => String(node.type) === 'VideoView');
+    expect(videoViews).toHaveLength(1);
+    expect(videoMock.players[0]?.source).toEqual({
+      uri: 'https://cdn.example.com/fresh-reel.mp4',
+      contentType: 'auto',
+    });
+  });
+
+  it('shows playback and mute controls when the video is tapped', () => {
     const groupBuy: GroupBuy = {
       ...baseGroupBuy,
       videoUrl: 'https://example.com/reel.mp4',
@@ -1134,13 +1263,24 @@ describe('DetailScreen video playback', () => {
 
     const getTotalPlayCalls = () => videoMock.players.reduce((sum, item) => sum + item.play.mock.calls.length, 0);
     const getTotalPauseCalls = () => videoMock.players.reduce((sum, item) => sum + item.pause.mock.calls.length, 0);
+    const videoViews = renderer!.root.findAll((node) => String(node.type) === 'VideoView');
+    const controlsButton = renderer!.root.find(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '동영상 컨트롤 표시',
+    );
+
+    expect(videoViews).toHaveLength(1);
+    expect(controlsButton.props.pressRetentionOffset).toBe(24);
+
+    act(() => {
+      controlsButton.props.onPress();
+    });
+
     const pauseButton = renderer!.root.find(
       (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '동영상 일시정지',
     );
-    const videoViews = renderer!.root.findAll((node) => String(node.type) === 'VideoView');
-
-    expect(videoViews).toHaveLength(1);
-    expect(pauseButton.props.pressRetentionOffset).toBe(24);
+    const muteButton = renderer!.root.find(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '음소거',
+    );
     const pauseCallsBeforeTap = getTotalPauseCalls();
 
     act(() => {
@@ -1163,5 +1303,16 @@ describe('DetailScreen video playback', () => {
     });
 
     expect(getTotalPlayCalls()).toBeGreaterThan(playCallsAfterPause);
+
+    act(() => {
+      muteButton.props.onPress();
+    });
+
+    expect(videoMock.players.some((item) => item.muted === true)).toBe(true);
+    expect(
+      renderer!.root.find(
+        (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '음소거 해제',
+      ),
+    ).toBeDefined();
   });
 });
