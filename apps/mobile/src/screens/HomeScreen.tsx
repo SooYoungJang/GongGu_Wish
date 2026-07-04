@@ -436,17 +436,15 @@ function WeeklyGroupBuysSection({
   onOpenCalendar: HomeAction;
   s: ReturnType<typeof makeStyles>;
 }) {
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  });
 
-  const weeklyItems = useMemo(() => {
-    const items = getDisplayItems(groupBuys);
-    return items
-      .filter((item) => {
-        const days = getDaysRemaining(item.endDate);
-        return days >= 0 && days <= 7;
-      })
-      .sort((a, b) => getDaysRemaining(a.endDate) - getDaysRemaining(b.endDate));
-  }, [groupBuys]);
+  // Use the full groupBuys list (same source as CalendarScreen) so the
+  // per-day results stay in sync with the full calendar view.
+  const weeklyItems = useMemo(() => getDisplayItems(groupBuys), [groupBuys]);
 
   // Show items whose deadline falls on the selected day, or all weekly items
   // when no specific day is picked yet.
@@ -454,7 +452,7 @@ function WeeklyGroupBuysSection({
     if (!selectedDate) return weeklyItems;
     // Match the CalendarScreen logic: a deal shows on a day when its
     // start-end range overlaps that day, not only on its deadline.
-    return weeklyItems.filter((item) => isGroupBuyActiveOnDate(item, selectedDate));
+   return weeklyItems.filter((item) => isGroupBuyActiveOnDate(item, selectedDate));
   }, [weeklyItems, selectedDate]);
 
   return (

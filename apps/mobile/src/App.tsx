@@ -40,7 +40,7 @@ type RootStackWithTabs = RootStackParamList & {
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
-const TAB_BAR_HEIGHT = 64;
+const TAB_BAR_HEIGHT = 72;
 
 import { SubmitScreen } from './screens/SubmitScreen';
 
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     height: TAB_BAR_HEIGHT,
     left: 0,
-    paddingTop: 6,
+    paddingTop: 8,
     position: 'absolute',
     right: 0,
   },
@@ -282,8 +282,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    minHeight: 46,
-    paddingTop: 4,
+    minHeight: 52,
+    paddingTop: 6,
   },
   tabIconSlot: {
     height: 28,
