@@ -3,14 +3,11 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { HomeScreenContent } from './HomeScreen';
-import type { GroupBuy, Influencer } from '../types';
+import type { GroupBuy } from '../types';
 
 vi.mock('../api', () => ({
   fallbackGroupBuys: [],
   fetchGroupBuys: vi.fn(),
-  fetchInfluencers: vi.fn(),
-  searchInfluencers: (influencers: Influencer[], query: string) =>
-    influencers.filter((influencer) => influencer.instagramUsername.includes(query)),
 }));
 
 vi.mock('react-native', () => {
@@ -32,14 +29,19 @@ vi.mock('react-native', () => {
     Keyboard: {
       addListener: vi.fn(() => ({ remove: vi.fn() })),
     },
-    Pressable: ({ children, onPress, style, testID, accessibilityLabel, accessibilityRole }: any) =>
-      ReactMock.createElement('Pressable', { onPress, style, testID, accessibilityLabel, accessibilityRole }, children),
+    Pressable: ({ children, onPress, style, testID, accessibilityLabel, accessibilityRole, accessibilityState }: any) =>
+      ReactMock.createElement(
+        'Pressable',
+        { onPress, style, testID, accessibilityLabel, accessibilityRole, accessibilityState },
+        children,
+      ),
     RefreshControl: passthrough('RefreshControl'),
     ScrollView: ({ children, ...props }: any) => ReactMock.createElement('ScrollView', props, children),
     StatusBar: passthrough('StatusBar'),
     StyleSheet: { create: (styles: unknown) => styles },
     Text: ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement('Text', props, children),
     TextInput: (props: any) => ReactMock.createElement('TextInput', props, props.placeholder),
+    useWindowDimensions: () => ({ width: 393, height: 852, scale: 3, fontScale: 1 }),
     View: ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement('View', props, children),
   };
 });
@@ -129,10 +131,6 @@ const sampleGroupBuys: GroupBuy[] = [
   },
 ];
 
-const influencers: Influencer[] = [
-  { id: 'inf-1', instagramUsername: 'beauty_pick', displayName: '뷰티픽', isActive: true },
-];
-
 function flattenText(node: TestRenderer.ReactTestRendererJSON | TestRenderer.ReactTestRendererJSON[] | null): string {
   if (!node) return '';
   if (Array.isArray(node)) return node.map(flattenText).join(' ');
@@ -149,23 +147,14 @@ function renderHomeContent(props: Partial<React.ComponentProps<typeof HomeScreen
     renderer = TestRenderer.create(
       <HomeScreenContent
         groupBuys={sampleGroupBuys}
-        feedPosts={[]}
-        influencers={influencers}
         isError={false}
         isFetching={false}
         onRefresh={vi.fn()}
         onOpenBookmarks={vi.fn()}
         onOpenNotifications={vi.fn()}
         onOpenSearch={vi.fn()}
-        onPressCalendar={vi.fn()}
-        onPressCategory={vi.fn()}
         onPressDeal={vi.fn()}
-        onPressFeed={vi.fn()}
-        onPressInfluencer={vi.fn()}
         onPressSubmit={vi.fn()}
-        feedsLoading={false}
-        feedsError={false}
-        onRetryFeed={vi.fn()}
         {...props}
       />,
     );
@@ -174,49 +163,92 @@ function renderHomeContent(props: Partial<React.ComponentProps<typeof HomeScreen
 }
 
 describe('HomeScreenContent redesign', () => {
-  it('renders the discovery feed information architecture', () => {
+  it('renders commerce-home information architecture like the reference', () => {
     const renderer = renderHomeContent();
 
     const text = flattenText(renderer!.toJSON());
 
-    expect(text).toContain('공구위시');
-    expect(text).toContain('이달의 공구');
-    expect(text).toContain('뷰티');
-    expect(text).toContain('패션');
-    expect(text).toContain('푸드');
-    expect(text).toContain('월');
-    expect(text).toContain('일');
+    expect(text).toContain('상품을 검색해보세요');
+    expect(text).toContain('쇼핑 홈');
+    expect(text).toContain('카테고리');
+    expect(text).toContain('종근당건강');
+    expect(text).toContain('특가');
+    expect(text).toContain('포인트 · 쿠폰 받기');
+    expect(text).toContain('최대 100원');
+    expect(text).toContain('장수영님을 위한 추천 상품');
+    expect(text).not.toContain('AI');
+    expect(text).not.toContain('광고');
     expect(text).toContain('비건 선크림 공구');
-    expect(text).toContain('전체');
-    expect(text).not.toMatch(/\bHome\b|\bSearch\b|\bSubmit\b|\bCommunity\b|\bMyPage\b/);
+    expect(text).not.toContain('등록된 피드');
+    expect(text).not.toContain('이번주 공구');
   });
 
-  it('uses horizontal pill category containers with token border radius', () => {
+  it('uses horizontal shop tabs with touch targets', () => {
     const renderer = renderHomeContent();
-    const categoryLabels = ['뷰티', '패션', '푸드', '라이프', '육아', '디지털'];
     const pressables = renderer!.root.findAllByType('Pressable' as unknown as React.ElementType);
-    const categoryPressables = pressables.filter(
-      (pressable) => typeof pressable.props.accessibilityLabel === 'string' && pressable.props.accessibilityLabel.endsWith('카테고리 보기'),
+    const tabPressables = pressables.filter(
+      (pressable) => typeof pressable.props.accessibilityLabel === 'string' && pressable.props.accessibilityLabel.endsWith('탭'),
     );
 
-    expect(categoryPressables).toHaveLength(categoryLabels.length);
+    expect(tabPressables).toHaveLength(5);
 
-    for (const pressable of categoryPressables) {
+    for (const pressable of tabPressables) {
       const style = flattenStyle(pressable.props.style);
-      expect(style.borderRadius).toBe(999);
-      expect(style.flexDirection).toBe('row');
       expect(style.minHeight).toBeGreaterThanOrEqual(44);
     }
   });
 
-  it('renders the calendar header with 이번주 공구 title and 전체 textLink', () => {
+  it('keeps category-style tab interaction by selecting and filtering recommendations', () => {
     const renderer = renderHomeContent();
-    const viewAllCta = renderer!.root.findByProps({ accessibilityLabel: '전체 캘린더 보기' });
-    expect(viewAllCta).toBeDefined();
+    const summerTab = renderer.root.findByProps({ accessibilityLabel: '여름생존템 탭' });
+
+    act(() => {
+      summerTab.props.onPress();
+    });
+
+    const selectedSummerTab = renderer.root.findByProps({ accessibilityLabel: '여름생존템 탭' });
+    expect(selectedSummerTab.props.accessibilityState).toEqual({ selected: true });
+
+    const productCardLabels = renderer.root.findAll(
+      (node) => typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.endsWith('상세 보기'),
+    ).map((node) => node.props.accessibilityLabel);
+    expect(productCardLabels).toContain('비건 선크림 공구 상세 보기');
+    expect(productCardLabels).not.toContain('프리미엄 그래놀라 세트 상세 보기');
+  });
+
+  it('renders the hero promo banner with a carousel counter', () => {
+    const renderer = renderHomeContent();
+    const banner = renderer!.root.findByProps({ accessibilityLabel: '비건 선크림 공구 특가 배너 열기' });
+    expect(banner).toBeDefined();
 
     const text = flattenText(renderer!.toJSON());
-    expect(text).toContain('이번주 공구');
-    expect(text).toContain('전체');
+    expect(text).toContain('1,500명 선착순');
+    expect(text).toMatch(/1\s+\|\s+2/);
+  });
+
+  it('snaps the hero promo rail one banner at a time', () => {
+    const renderer = renderHomeContent();
+    const scrollViews = renderer.root.findAllByType('ScrollView' as unknown as React.ElementType);
+    const promoRail = scrollViews.find((scrollView) => scrollView.props.snapToInterval);
+
+    expect(promoRail).toBeDefined();
+    expect(promoRail!.props.decelerationRate).toBe('fast');
+    expect(promoRail!.props.disableIntervalMomentum).toBe(true);
+    expect(promoRail!.props.snapToAlignment).toBe('start');
+    expect(promoRail!.props.snapToInterval).toBe(373);
+  });
+
+  it('wires the hero promo rail for autoplay and manual swipe timer reset', () => {
+    const renderer = renderHomeContent();
+    const scrollViews = renderer.root.findAllByType('ScrollView' as unknown as React.ElementType);
+    const promoRail = scrollViews.find((scrollView) => scrollView.props.snapToInterval);
+
+    expect(promoRail).toBeDefined();
+    expect(promoRail!.props.contentOffset).toEqual({ x: 373, y: 0 });
+    expect(promoRail!.props.scrollEventThrottle).toBe(16);
+    expect(typeof promoRail!.props.onScrollBeginDrag).toBe('function');
+    expect(typeof promoRail!.props.onScrollEndDrag).toBe('function');
+    expect(typeof promoRail!.props.onMomentumScrollEnd).toBe('function');
   });
 
   it('shows network-notice fallback copy, not local-API copy', () => {
@@ -229,18 +261,23 @@ describe('HomeScreenContent redesign', () => {
 });
 
 describe('HomeScreenContent redesign v2', () => {
-  it('shows 이번주 공구 instead of 주간 공구', () => {
+  it('does not render the old weekly calendar sections', () => {
     const renderer = renderHomeContent();
     const text = flattenText(renderer!.toJSON());
     expect(text).not.toContain('주간 공구');
-    expect(text).toContain('이번주 공구');
+    expect(text).not.toContain('이번주 공구');
+    expect(text).not.toContain('마감임박 공구');
   });
 
-  it('renders calendar 전체 as textLink without border', () => {
+  it('renders benefit shortcuts from the reference pattern', () => {
     const renderer = renderHomeContent();
-    const viewAllCta = renderer!.root.findByProps({ accessibilityLabel: '전체 캘린더 보기' });
-    const style = flattenStyle(viewAllCta.props.style);
-    expect(String(style.borderWidth)).toBe('0');
+    const text = flattenText(renderer!.toJSON());
+    expect(text).toContain('연속 출석');
+    expect(text).toContain('스크롤하기');
+    expect(text).toContain('포인트피드');
+    expect(text).toContain('고양이');
+    expect(text).toContain('3초구경');
+    expect(text).toContain('상품 뽑기');
   });
 
   it('removes DISCOVERY FEED eyebrow and 오늘 열려있는 공구 section', () => {
@@ -250,38 +287,40 @@ describe('HomeScreenContent redesign v2', () => {
     expect(text).not.toContain('오늘 열려있는 공구');
   });
 
-  it('renders 마감임박 공구 section with 전체보기 action', () => {
+  it('renders two-column recommendation cards', () => {
     const renderer = renderHomeContent();
-    const text = flattenText(renderer!.toJSON());
-    expect(text).toContain('마감임박 공구');
-    expect(text).toContain('전체보기');
+    const firstCard = renderer.root.findByProps({ accessibilityLabel: '비건 선크림 공구 상세 보기' });
+    const style = flattenStyle(firstCard.props.style);
+    expect(style.flexBasis).toBe('47%');
+    expect(style.minHeight).toBeGreaterThanOrEqual(200);
   });
 });
 
 describe('HomeScreenContent redesign interactions', () => {
-  it('passes the selected week date when opening the full calendar', () => {
-    const onPressCalendar = vi.fn();
-    const renderer = renderHomeContent({ onPressCalendar });
+  it('opens search from the top search box', () => {
+    const onOpenSearch = vi.fn();
+    const renderer = renderHomeContent({ onOpenSearch });
+    const searchButton = renderer.root.findByProps({ accessibilityLabel: '상품 검색' });
+    act(() => {
+      searchButton.props.onPress();
+    });
+    expect(onOpenSearch).toHaveBeenCalledTimes(1);
+  });
 
-    const dateButton = renderer.root.findAllByType('Pressable' as unknown as React.ElementType).find(
-      (pressable) => /^[월화수목금토일] \d+일 공구 보기$/.test(String(pressable.props.accessibilityLabel)),
-    );
-    expect(dateButton).toBeDefined();
-    const selectedDay = Number(String(dateButton!.props.accessibilityLabel).match(/(\d+)일/)?.[1]);
+  it('opens detail from hero banner and recommendation card', () => {
+    const onPressDeal = vi.fn();
+    const renderer = renderHomeContent({ onPressDeal });
+    const banner = renderer.root.findByProps({ accessibilityLabel: '비건 선크림 공구 특가 배너 열기' });
+    const card = renderer.root.findByProps({ accessibilityLabel: '비건 선크림 공구 상세 보기' });
 
     act(() => {
-      dateButton!.props.onPress();
+      banner.props.onPress();
+      card.props.onPress();
     });
 
-    const viewAllCta = renderer.root.findByProps({ accessibilityLabel: '전체 캘린더 보기' });
-    act(() => {
-      viewAllCta.props.onPress();
-    });
-
-    expect(onPressCalendar).toHaveBeenCalledTimes(1);
-    const selectedDate = onPressCalendar.mock.calls[0][0] as Date;
-    expect(selectedDate).toBeInstanceOf(Date);
-    expect(selectedDate.getDate()).toBe(selectedDay);
+    expect(onPressDeal).toHaveBeenCalledTimes(2);
+    expect(onPressDeal).toHaveBeenNthCalledWith(1, sampleGroupBuys[0]);
+    expect(onPressDeal).toHaveBeenNthCalledWith(2, sampleGroupBuys[0]);
   });
 
   it('keeps home actions reachable with 44px minimum touch targets', () => {
@@ -292,7 +331,8 @@ describe('HomeScreenContent redesign interactions', () => {
 
     expect(labels).toContain('북마크 열기');
     expect(labels).toContain('알림 열기');
-    expect(labels).toContain('전체 캘린더 보기');
+    expect(labels).toContain('상품 검색');
+    expect(labels).toContain('상품 뽑기 열기');
     expect(labels).toContain('비건 선크림 공구 상세 보기');
     for (const pressable of pressables) {
       const style = Array.isArray(pressable.props.style) ? Object.assign({}, ...pressable.props.style) : pressable.props.style;

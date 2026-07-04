@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Image, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -7,11 +7,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { SearchResultsPanel } from '../components/home/SearchResultsPanel';
+import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { SText } from '../components/ui/SText';
 import { fallbackGroupBuys, fetchGroupBuys, fetchInfluencers, searchInfluencers } from '../api';
-import { borderRadius, spacing, typography } from '../design/tokens';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
+import { spacing } from '../design/tokens';
+import { useCommerceTheme } from '../design/useCommerceTheme';
+import type { CommerceColorPalette } from '../design/commerce';
 import type { GroupBuy, Influencer, RootStackParamList } from '../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -36,15 +37,7 @@ function getFallbackInfluencers(groupBuys: GroupBuy[]): Influencer[] {
 
 const RECENT_KEY = 'search:recent';
 const RECENT_MAX = 8;
-
-const TRENDING_DEFAULT = [
-  '클렌징 오일',
-  '린넨 원피스',
-  '선크림',
-  '색조 세트',
-  '여름 니트',
-  '다이어리',
-];
+const DEFAULT_RECENT_TERM = '가방';
 
 const CATEGORY_LABELS: Record<string, string> = {
   beauty: '뷰티',
@@ -55,11 +48,95 @@ const CATEGORY_LABELS: Record<string, string> = {
   digital: '디지털',
 };
 
+function getVisual(item: GroupBuy) {
+  return item.thumbnailUrl ?? item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ?? item.mediaUrls?.[0] ?? null;
+}
+
+function getDiscountPercent(item: GroupBuy) {
+  const match = item.discountInfo?.match(/(\d+)\s*%/);
+  return match ? `${match[1]}%` : '41%';
+}
+
+function formatRecentProductName(item: GroupBuy) {
+  return item.productName ?? '뒤척임 제로 경추 베개, 그레이, 74...';
+}
+
+function ClockGlyph({ s }: { s: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={s.clockGlyph}>
+      <View style={s.clockHandLong} />
+      <View style={s.clockHandShort} />
+    </View>
+  );
+}
+
+function ProductFallbackArt({ s }: { s: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={s.productFallbackArt}>
+      <View style={[s.pillowShape, s.pillowBack]} />
+      <View style={[s.pillowShape, s.pillowFront]} />
+      <View style={s.pillowEndLeft} />
+      <View style={s.pillowEndRight} />
+    </View>
+  );
+}
+
+function RecentProductCard({
+  item,
+  onPress,
+  s,
+}: {
+  item: GroupBuy;
+  onPress: () => void;
+  s: ReturnType<typeof makeStyles>;
+}) {
+  const visual = getVisual(item);
+  const discountPercent = getDiscountPercent(item);
+
+  return (
+    <Pressable
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={`${formatRecentProductName(item)} 최근 본 상품 보기`}
+      onPress={onPress}
+      style={({ pressed }) => [s.recentProductCard, pressed && s.pressed]}
+    >
+      <View style={s.productImageWrap}>
+        {visual ? (
+          <Image source={{ uri: visual }} style={s.productImage} />
+        ) : (
+          <ProductFallbackArt s={s} />
+        )}
+        <View style={s.productSaleBadge}>
+          <SText variant="label" style={s.productSaleBadgeText}>{discountPercent} 특가</SText>
+        </View>
+        <View style={s.heartButton}>
+          <SText variant="body" style={s.heartText}>♡</SText>
+        </View>
+      </View>
+      <SText variant="body" numberOfLines={2} style={s.productName}>
+        {formatRecentProductName(item)}
+      </SText>
+      <View style={s.priceRow}>
+        <SText variant="body" style={s.discountText}>{discountPercent}</SText>
+        <SText variant="body" style={s.priceText}>14,652원</SText>
+      </View>
+      <View style={s.ratingRow}>
+        <SText variant="body" style={s.starText}>★</SText>
+        <SText variant="body" style={s.ratingText}>3.7 (527)</SText>
+      </View>
+      <View style={s.sellerBadge}>
+        <SText variant="caption" style={s.sellerBadgeText}>베스트판매자</SText>
+      </View>
+    </Pressable>
+  );
+}
+
 export function SearchScreen() {
-  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'SearchScreen'>>();
   const inputRef = useRef<TextInput>(null);
+  const { colors, isDark } = useCommerceTheme();
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
 
@@ -76,9 +153,16 @@ export function SearchScreen() {
   useEffect(() => {
     AsyncStorage.getItem(RECENT_KEY).then((raw) => {
       if (raw) {
-        try { setRecent(JSON.parse(raw)); } catch { /* ignore */ }
+        try {
+          const parsed = JSON.parse(raw);
+          setRecent(Array.isArray(parsed) ? parsed : [DEFAULT_RECENT_TERM]);
+        } catch {
+          setRecent([DEFAULT_RECENT_TERM]);
+        }
+      } else {
+        setRecent([DEFAULT_RECENT_TERM]);
       }
-    }).catch(() => {});
+    }).catch(() => setRecent([DEFAULT_RECENT_TERM]));
   }, []);
 
   useEffect(() => {
@@ -104,11 +188,6 @@ export function SearchScreen() {
     });
   }, []);
 
-  const clearAllRecent = useCallback(() => {
-    setRecent([]);
-    AsyncStorage.removeItem(RECENT_KEY).catch(() => {});
-  }, []);
-
   const groupBuys = useMemo(() => groupBuysData?.length ? groupBuysData : fallbackGroupBuys, [groupBuysData]);
   const influencers = useMemo(() => {
     if (influencersData?.length) return influencersData;
@@ -123,13 +202,16 @@ export function SearchScreen() {
     if (!q) return [];
     return groupBuys.filter((gb) => {
       const name = (gb.productName ?? '').toLowerCase();
+      const brand = (gb.brandName ?? '').toLowerCase();
       const category = (gb.category ? CATEGORY_LABELS[gb.category] ?? gb.category : '').toLowerCase();
       const user = gb.rawPost.influencer.instagramUsername.toLowerCase();
-      return name.includes(q) || category.includes(q) || user.includes(q);
+      return name.includes(q) || brand.includes(q) || category.includes(q) || user.includes(q);
     }).slice(0, 10);
   }, [groupBuys, debouncedQuery]);
 
   const hasQuery = debouncedQuery.trim().length > 0;
+  const recentTerms = recent.slice(0, 1);
+  const recentProduct = groupBuys[0] ?? null;
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const handleSubmit = useCallback(() => {
@@ -156,7 +238,9 @@ export function SearchScreen() {
 
   return (
     <View style={s.container}>
-      <View style={[s.header, { paddingTop: insets.top + spacing.xs }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <View style={[s.header, { paddingTop: insets.top + 10 }]}>
+        <SText variant="caption" style={[s.headerPoints, { top: Math.max(insets.top - 12, 8) }]}>59</SText>
         <Pressable
           accessible
           accessibilityRole="button"
@@ -168,12 +252,12 @@ export function SearchScreen() {
           <SText variant="body" style={s.backIcon}>←</SText>
         </Pressable>
         <View style={s.inputWrap}>
-          <SText variant="body" style={s.searchIcon}>⌕</SText>
+          <SearchGlyph color={colors.weak} size={20} />
           <TextInput
             ref={inputRef}
             accessibilityLabel="공구 검색"
-            placeholder="카테고리, 제품명, 인플루언서 검색"
-            placeholderTextColor={colors.textTertiary}
+            placeholder="상품을 검색해보세요"
+            placeholderTextColor={colors.weak}
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={handleSubmit}
@@ -195,16 +279,6 @@ export function SearchScreen() {
             </Pressable>
           ) : null}
         </View>
-        <Pressable
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel="취소"
-          hitSlop={8}
-          onPress={() => navigation.goBack()}
-          style={s.cancelBtn}
-        >
-          <SText variant="body" style={s.cancelText}>취소</SText>
-        </Pressable>
       </View>
 
       <KeyboardFormScreen
@@ -250,56 +324,35 @@ export function SearchScreen() {
           </View>
         ) : (
           <View style={s.suggestWrap}>
-            {recent.length > 0 && (
-              <>
-                <View style={s.sectionHeader}>
-                  <SText variant="label" style={s.sectionTitle}>최근 검색</SText>
-                  <Pressable accessible accessibilityRole="button" accessibilityLabel="전체 삭제" hitSlop={8} onPress={clearAllRecent}>
-                    <SText variant="body" style={s.clearAllText}>전체 삭제</SText>
-                  </Pressable>
-                </View>
-                {recent.map((text) => (
-                  <View key={text} style={s.recentRow}>
-                    <Pressable
-                      accessible
-                      accessibilityRole="button"
-                      accessibilityLabel={`${text} 검색`}
-                      style={({ pressed }) => [s.recentLeft, pressed && s.pressed]}
-                      onPress={() => handleRecentTap(text)}
-                    >
-                      <SText variant="body" style={s.recentIcon}>⟳</SText>
-                      <SText variant="body" style={s.recentText}>{text}</SText>
-                    </Pressable>
-                    <Pressable
-                      accessible
-                      accessibilityRole="button"
-                      accessibilityLabel={`${text} 삭제`}
-                      hitSlop={8}
-                      onPress={() => removeRecent(text)}
-                      style={s.recentRemove}
-                    >
-                      <SText variant="body" style={s.recentRemoveIcon}>×</SText>
-                    </Pressable>
-                  </View>
-                ))}
-              </>
-            )}
-            <SText variant="label" style={[s.sectionTitle, { marginTop: recent.length > 0 ? spacing.xl : 0 }]}>인기 검색어</SText>
-            <View style={s.trendingWrap}>
-              {TRENDING_DEFAULT.map((text, i) => (
+            <SText variant="label" style={s.sectionTitle}>최근 검색어</SText>
+            {recentTerms.map((text) => (
+              <View key={text} style={s.recentRow}>
                 <Pressable
-                  key={text}
                   accessible
                   accessibilityRole="button"
-                  accessibilityLabel={`인기 검색어 ${i + 1}위 ${text}`}
-                  style={({ pressed }) => [s.trendingChip, i === 0 && s.trendingHot, pressed && s.pressed]}
+                  accessibilityLabel={`${text} 검색`}
+                  style={({ pressed }) => [s.recentLeft, pressed && s.pressed]}
                   onPress={() => handleRecentTap(text)}
                 >
-                  <SText variant="body" style={[s.trendingRank, i === 0 && s.trendingRankHot]}>{i + 1}</SText>
-                  <SText variant="body" style={[s.trendingText, i === 0 && s.trendingTextHot]}>{text}</SText>
+                  <ClockGlyph s={s} />
+                  <SText variant="body" style={s.recentText}>{text}</SText>
                 </Pressable>
-              ))}
-            </View>
+                <Pressable
+                  accessible
+                  accessibilityRole="button"
+                  accessibilityLabel={`${text} 삭제`}
+                  hitSlop={8}
+                  onPress={() => removeRecent(text)}
+                  style={s.recentRemove}
+                >
+                  <SText variant="body" style={s.recentRemoveIcon}>×</SText>
+                </Pressable>
+              </View>
+            ))}
+            <SText variant="label" style={s.recentProductTitle}>최근 본 상품</SText>
+            {recentProduct ? (
+              <RecentProductCard item={recentProduct} onPress={() => handleSelectDeal(recentProduct)} s={s} />
+            ) : null}
           </View>
         )}
       </KeyboardFormScreen>
@@ -307,91 +360,250 @@ export function SearchScreen() {
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.sm,
-      paddingHorizontal: spacing.md,
-      paddingBottom: spacing.sm,
+      gap: 12,
+      paddingHorizontal: 18,
+      paddingBottom: 0,
       backgroundColor: colors.bg,
+      position: 'relative',
     },
-    backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-    backIcon: { fontSize: 22, color: colors.textPrimary, lineHeight: 28 },
+    headerPoints: {
+      color: colors.muted,
+      fontSize: 13,
+      fontWeight: '900',
+      lineHeight: 17,
+      position: 'absolute',
+      right: 25,
+    },
+    backBtn: { width: 28, height: 48, alignItems: 'flex-start', justifyContent: 'center' },
+    backIcon: { fontSize: 30, color: colors.text, fontWeight: '500', lineHeight: 36 },
     inputWrap: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.sm,
-      backgroundColor: colors.surface,
-      borderRadius: borderRadius.full,
-      paddingHorizontal: spacing.md,
-      height: 44,
-      borderWidth: 1.5,
-      borderColor: colors.border,
+      gap: 10,
+      backgroundColor: colors.softBg,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      height: 48,
     },
-    searchIcon: { fontSize: 18, color: colors.textTertiary },
-    input: { flex: 1, fontSize: 15, color: colors.textPrimary, padding: 0, height: 44 },
-    clearBtn: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
-    clearIcon: { fontSize: 20, color: colors.textTertiary, lineHeight: 22 },
-    cancelBtn: { paddingHorizontal: spacing.xs, height: 36, alignItems: 'center', justifyContent: 'center' },
-    cancelText: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
-    scrollContent: { paddingHorizontal: spacing.lg, paddingBottom: spacing['4xl'] },
+    input: {
+      flex: 1,
+      fontSize: 18,
+      color: colors.text,
+      fontWeight: '500',
+      height: 48,
+      letterSpacing: 0,
+      lineHeight: 24,
+      padding: 0,
+    },
+    clearBtn: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
+    clearIcon: { fontSize: 24, color: colors.disabled, fontWeight: '300', lineHeight: 26 },
+    scrollContent: { paddingBottom: spacing['4xl'], paddingHorizontal: 18 },
 
-    resultsWrap: { paddingTop: spacing.md },
-    resultTitle: { ...typography.label, color: colors.textPrimary, marginBottom: spacing.sm },
+    resultsWrap: { paddingTop: 36 },
+    resultTitle: { color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: 0, lineHeight: 26, marginBottom: 14 },
     resultRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: spacing.md,
+      paddingVertical: 14,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.borderLight,
     },
     resultLeft: { flex: 1 },
-    resultName: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-    resultMeta: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
-    resultArrow: { fontSize: 20, color: colors.textTertiary, lineHeight: 24 },
+    resultName: { fontSize: 15, fontWeight: '700', color: colors.text, letterSpacing: 0, lineHeight: 21 },
+    resultMeta: { fontSize: 12, color: colors.weak, fontWeight: '500', letterSpacing: 0, lineHeight: 17, marginTop: 3 },
+    resultArrow: { fontSize: 22, color: colors.weak, lineHeight: 26 },
 
-    emptyState: { alignItems: 'center', paddingVertical: spacing['4xl'], paddingHorizontal: spacing.xl },
-    emptyIcon: { fontSize: 48, color: colors.textTertiary, marginBottom: spacing.md, opacity: 0.4 },
-    emptyTitle: { fontSize: 15, fontWeight: '700', color: colors.textPrimary, marginBottom: spacing.xs },
-    emptyDesc: { fontSize: 13, color: colors.textTertiary, lineHeight: 20, textAlign: 'center' },
+    emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 72 },
+    emptyIcon: { fontSize: 40, color: colors.weak, marginBottom: spacing.md, opacity: 0.4 },
+    emptyTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: spacing.xs },
+    emptyDesc: { fontSize: 13, color: colors.weak, lineHeight: 20, textAlign: 'center' },
 
-    suggestWrap: { paddingTop: spacing.md },
-    sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
-    sectionTitle: { ...typography.label, color: colors.textPrimary },
-    clearAllText: { fontSize: 12, color: colors.textTertiary, fontWeight: '500' },
+    suggestWrap: { paddingTop: 32 },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: 20,
+      fontWeight: '900',
+      letterSpacing: 0,
+      lineHeight: 27,
+      marginBottom: 24,
+    },
     recentRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.borderLight,
+      minHeight: 36,
     },
-    recentLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
-    recentIcon: { fontSize: 16, color: colors.textTertiary, lineHeight: 20 },
-    recentText: { fontSize: 14, color: colors.textPrimary },
-    recentRemove: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-    recentRemoveIcon: { fontSize: 18, color: colors.textTertiary, lineHeight: 22 },
-
-    trendingWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    trendingChip: {
-      flexDirection: 'row',
+    recentLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 13, minHeight: 36 },
+    clockGlyph: {
       alignItems: 'center',
-      gap: spacing.xs,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      borderRadius: borderRadius.full,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.borderLight,
+      borderColor: colors.weak,
+      borderRadius: 999,
+      borderWidth: 1.8,
+      height: 20,
+      justifyContent: 'center',
+      position: 'relative',
+      width: 20,
     },
-    trendingHot: { backgroundColor: colors.primaryBg, borderColor: colors.primaryLight },
-    trendingRank: { fontSize: 11, fontWeight: '800', color: colors.primary },
-    trendingRankHot: { color: colors.primary },
-    trendingText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-    trendingTextHot: { color: colors.primary },
+    clockHandLong: {
+      backgroundColor: colors.weak,
+      borderRadius: 999,
+      height: 6,
+      left: 9,
+      position: 'absolute',
+      top: 4,
+      transform: [{ rotate: '32deg' }],
+      width: 1.8,
+    },
+    clockHandShort: {
+      backgroundColor: colors.weak,
+      borderRadius: 999,
+      height: 1.8,
+      left: 6,
+      position: 'absolute',
+      top: 10,
+      width: 6,
+    },
+    recentText: { color: colors.muted, fontSize: 16, fontWeight: '600', letterSpacing: 0, lineHeight: 23 },
+    recentRemove: { alignItems: 'center', height: 38, justifyContent: 'center', marginRight: -3, width: 38 },
+    recentRemoveIcon: { color: colors.disabled, fontSize: 28, fontWeight: '200', lineHeight: 32 },
+    recentProductTitle: {
+      color: colors.text,
+      fontSize: 20,
+      fontWeight: '900',
+      letterSpacing: 0,
+      lineHeight: 27,
+      marginBottom: 20,
+      marginTop: 52,
+    },
+    recentProductCard: {
+      minHeight: 250,
+      width: 118,
+    },
+    productImageWrap: {
+      backgroundColor: colors.panelBg,
+      borderRadius: 10,
+      height: 118,
+      overflow: 'hidden',
+      position: 'relative',
+      width: 118,
+    },
+    productImage: { height: '100%', resizeMode: 'cover', width: '100%' },
+    productFallbackArt: {
+      alignItems: 'center',
+      backgroundColor: colors.panelBg,
+      flex: 1,
+      justifyContent: 'center',
+      overflow: 'hidden',
+      position: 'relative',
+    },
+    pillowShape: {
+      backgroundColor: '#F6F7F8',
+      borderColor: 'rgba(156, 163, 175, 0.22)',
+      borderRadius: 16,
+      borderWidth: 1,
+      height: 42,
+      position: 'absolute',
+      width: 100,
+    },
+    pillowBack: {
+      left: 17,
+      top: 49,
+      transform: [{ rotate: '-8deg' }],
+    },
+    pillowFront: {
+      left: 8,
+      top: 63,
+      transform: [{ rotate: '-18deg' }],
+    },
+    pillowEndLeft: {
+      backgroundColor: '#1F2937',
+      borderRadius: 999,
+      height: 13,
+      left: 5,
+      position: 'absolute',
+      top: 79,
+      transform: [{ rotate: '-19deg' }],
+      width: 32,
+    },
+    pillowEndRight: {
+      backgroundColor: '#1F2937',
+      borderRadius: 999,
+      height: 14,
+      position: 'absolute',
+      right: 6,
+      top: 65,
+      transform: [{ rotate: '-11deg' }],
+      width: 28,
+    },
+    productSaleBadge: {
+      alignItems: 'center',
+      backgroundColor: colors.accent,
+      borderRadius: 7,
+      justifyContent: 'center',
+      left: 9,
+      minHeight: 28,
+      paddingHorizontal: 9,
+      position: 'absolute',
+      top: 9,
+    },
+    productSaleBadgeText: { color: colors.inverse, fontSize: 14, fontWeight: '900', letterSpacing: 0, lineHeight: 18 },
+    heartButton: {
+      alignItems: 'center',
+      bottom: 9,
+      height: 32,
+      justifyContent: 'center',
+      position: 'absolute',
+      right: 8,
+      width: 32,
+    },
+    heartText: {
+      color: colors.inverse,
+      fontSize: 32,
+      fontWeight: '300',
+      lineHeight: 35,
+      textShadowColor: 'rgba(31, 41, 55, 0.2)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
+    },
+    productName: {
+      color: colors.muted,
+      fontSize: 15,
+      fontWeight: '600',
+      letterSpacing: 0,
+      lineHeight: 23,
+      marginTop: 10,
+    },
+    priceRow: {
+      alignItems: 'baseline',
+      flexDirection: 'row',
+      gap: 4,
+      marginTop: 2,
+    },
+    discountText: { color: colors.muted, fontSize: 16, fontWeight: '800', letterSpacing: 0, lineHeight: 22 },
+    priceText: { color: colors.text, fontSize: 17, fontWeight: '900', letterSpacing: 0, lineHeight: 23 },
+    ratingRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 4,
+      marginTop: 5,
+    },
+    starText: { color: colors.yellow, fontSize: 13, lineHeight: 17 },
+    ratingText: { color: colors.muted, fontSize: 13, fontWeight: '600', letterSpacing: 0, lineHeight: 18 },
+    sellerBadge: {
+      alignSelf: 'flex-start',
+      backgroundColor: colors.softBg,
+      borderRadius: 4,
+      marginTop: 6,
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+    },
+    sellerBadgeText: { color: colors.weak, fontSize: 11, fontWeight: '800', letterSpacing: 0, lineHeight: 14 },
     pressed: { opacity: 0.6 },
   });
 }

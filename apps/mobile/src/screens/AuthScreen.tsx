@@ -4,8 +4,7 @@
  * Refined Coral Wave design — balances brand identity with app consistency:
  *  - Warm beige (#f5f0eb) background kept as brand signature
  *  - Underline-style tabs (was segment control) for cleaner look
- *  - Refined header icon with premium shadow
- *  - Subtle wave decoration (reduced height, softer opacity)
+ * *  - Subtle wave decoration (reduced height, softer opacity)
  *  - Rounded corners unified to 14px throughout
  *
  * Single-page Login / Signup screen with:
@@ -33,10 +32,8 @@ import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '../context/ThemeContext';
 import { EMAIL_CODE_TTL_SECONDS, useAuth } from '../context/AuthContext';
 import { GoBackHeader } from '../components/GoBackHeader';
-import type { ColorPalette } from '../context/ThemeContext';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import {
@@ -55,7 +52,8 @@ import {
   mapAuthErrorMessage,
   type SocialAuthProvider,
 } from '../utils/authHelpers';
-import { borderRadius } from '../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -93,7 +91,7 @@ type ActionBarConfig = {
 };
 
 
-const makeStyles = (colors: ColorPalette) =>
+const makeStyles = (colors: CommerceColorPalette) =>
   StyleSheet.create({
     // Container
     container: {
@@ -125,39 +123,21 @@ const makeStyles = (colors: ColorPalette) =>
       alignItems: 'center',
       marginBottom: 32,
     },
-    headerIcon: {
-      width: 56,
-      height: 56,
-      backgroundColor: colors.primary,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 14,
-      shadowColor: colors.primary,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.35,
-      shadowRadius: 16,
-      elevation: 8,
-    },
-    headerIconText: {
-      fontSize: 28,
-      color: colors.textInverse,
-    },
     appName: {
       fontWeight: '800',
       fontSize: 22,
-      color: colors.textPrimary,
+      color: colors.text,
       letterSpacing: -0.5,
     },
     appNameAccent: {
-      color: colors.primary,
+      color: colors.accent,
       fontWeight: '800',
       fontSize: 22,
     },
     welcomeText: {
       fontWeight: '400',
       fontSize: 14,
-      color: colors.textSecondary,
+      color: colors.muted,
       marginTop: 6,
       letterSpacing: -0.2,
     },
@@ -178,15 +158,15 @@ const makeStyles = (colors: ColorPalette) =>
       marginBottom: -2,
     },
     tabBtnActive: {
-      borderBottomColor: colors.primary,
+      borderBottomColor: colors.accent,
     },
     tabBtnText: {
       fontSize: 15,
       fontWeight: '600',
-      color: colors.textSecondary,
+      color: colors.muted,
     },
     tabBtnTextActive: {
-      color: colors.primary,
+      color: colors.accent,
     },
 
     // Social section — refined (no title, cleaner)
@@ -205,11 +185,11 @@ const makeStyles = (colors: ColorPalette) =>
     dividerLine: {
       flex: 1,
       height: 1,
-      backgroundColor: colors.borderLight,
+      backgroundColor: colors.softBg,
     },
     dividerText: {
       fontSize: 12,
-      color: colors.textSecondary,
+      color: colors.muted,
       fontWeight: '500',
     },
 
@@ -217,19 +197,19 @@ const makeStyles = (colors: ColorPalette) =>
     ctaBtn: {
       width: '100%',
       height: 54,
-      backgroundColor: colors.primary,
-      borderRadius: borderRadius.md,
+      backgroundColor: colors.accent,
+      borderRadius: commerceRadius.lg,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: 4,
-      shadowColor: colors.primary,
+      shadowColor: colors.accent,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,
       shadowRadius: 12,
       elevation: 6,
     },
     ctaBtnText: {
-      color: colors.textInverse,
+      color: colors.inverse,
       fontSize: 16,
       fontWeight: '700',
       letterSpacing: -0.3,
@@ -252,7 +232,7 @@ const makeStyles = (colors: ColorPalette) =>
     forgotLink: {
       fontSize: 13,
       fontWeight: '500',
-      color: colors.textSecondary,
+      color: colors.muted,
     },
 
     // ── Signup Steps ──
@@ -267,10 +247,10 @@ const makeStyles = (colors: ColorPalette) =>
       width: 8,
       height: 8,
       borderRadius: 4,
-      backgroundColor: colors.borderLight,
+      backgroundColor: colors.softBg,
     },
     stepDotActive: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.accent,
       width: 28,
       borderRadius: 4,
     },
@@ -280,13 +260,13 @@ const makeStyles = (colors: ColorPalette) =>
     stepTitle: {
       fontSize: 18,
       fontWeight: '700',
-      color: colors.textPrimary,
+      color: colors.text,
       marginBottom: 4,
       letterSpacing: -0.3,
     },
     stepDesc: {
       fontSize: 13,
-      color: colors.textSecondary,
+      color: colors.muted,
       marginBottom: 20,
       letterSpacing: -0.2,
     },
@@ -298,26 +278,26 @@ const makeStyles = (colors: ColorPalette) =>
     stepNavBtn: {
       flex: 1,
       height: 48,
-      borderRadius: borderRadius.md,
+      borderRadius: commerceRadius.lg,
       alignItems: 'center',
       justifyContent: 'center',
     },
     stepNavBtnPrimary: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.accent,
       borderWidth: 0,
     },
     stepNavBtnPrimaryText: {
-      color: colors.textInverse,
+      color: colors.inverse,
       fontSize: 14,
       fontWeight: '600',
     },
     stepNavBtnSecondary: {
       backgroundColor: colors.surface,
       borderWidth: 1.5,
-      borderColor: colors.borderLight,
+      borderColor: colors.border,
     },
     stepNavBtnSecondaryText: {
-      color: colors.textSecondary,
+      color: colors.muted,
       fontSize: 14,
       fontWeight: '600',
     },
@@ -345,23 +325,23 @@ const makeStyles = (colors: ColorPalette) =>
       width: 20,
       height: 20,
       borderWidth: 1.5,
-      borderColor: colors.borderLight,
+      borderColor: colors.border,
       borderRadius: 4,
       alignItems: 'center',
       justifyContent: 'center',
     },
     checkboxChecked: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
     },
     checkmark: {
-      color: colors.textInverse,
+      color: colors.inverse,
       fontSize: 13,
       fontWeight: '700',
     },
     agreeLabelAll: {
       fontSize: 14,
-      color: colors.textPrimary,
+      color: colors.text,
       flex: 1,
     },
     agreeLabelBold: {
@@ -369,13 +349,13 @@ const makeStyles = (colors: ColorPalette) =>
     },
     agreeLabel: {
       fontSize: 14,
-      color: colors.textPrimary,
+      color: colors.text,
       flex: 1,
       letterSpacing: -0.2,
     },
     agreeDetail: {
       fontSize: 12,
-      color: colors.textSecondary,
+      color: colors.muted,
     },
 
     // ── Social Button Styles ──
@@ -392,7 +372,7 @@ const makeStyles = (colors: ColorPalette) =>
     // Social buttons
     socialBtn: {
       height: 52,
-      borderRadius: borderRadius.md,
+      borderRadius: commerceRadius.lg,
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 20,
@@ -431,7 +411,7 @@ const makeStyles = (colors: ColorPalette) =>
     pwToggleIcon: {
       fontSize: 12,
       fontWeight: '700',
-      color: colors.textTertiary,
+      color: colors.weak,
     },
     errorText: {
       color: colors.error,
@@ -442,7 +422,7 @@ const makeStyles = (colors: ColorPalette) =>
 // ─── Main Screen ────────────────────────────────────────────────────────────
 
 export function AuthScreen(_props: AuthScreenProps) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
 
@@ -565,17 +545,14 @@ export function AuthScreen(_props: AuthScreenProps) {
   );
 }
 
-// ─── Header: App Icon + Name + Welcome ──────────────────────────────────────
+// ─── Header: App Name + Welcome ─────────────────────────────────────────────
 
 function AuthHeader() {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <View style={styles.header} accessible accessibilityLabel="공구위시">
-      <View style={styles.headerIcon} accessibilityElementsHidden>
-        <Text style={styles.headerIconText}>♥</Text>
-      </View>
       <Text style={styles.appName}>
         공구<Text style={styles.appNameAccent}>위시</Text>
       </Text>
@@ -587,7 +564,7 @@ function AuthHeader() {
 // ─── Tab Bar: Login / Signup ────────────────────────────────────────────────
 
 function AuthTabs({ activeTab, onTabChange }: { activeTab: AuthTab; onTabChange: (tab: AuthTab) => void }) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const switchTab = useCallback((tab: AuthTab) => {
@@ -654,7 +631,7 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
   onInputFocus?: (inputId: string) => void;
   onInputBlur?: (inputId: string) => void;
 }) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { signIn, signInWithOAuth } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -886,7 +863,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
   onInputFocus?: (inputId: string) => void;
   onInputBlur?: (inputId: string) => void;
 }) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
     resendEmailSignUpCode,
@@ -1629,7 +1606,7 @@ function ActionBarArea({
   bottomInset: number;
   onLayoutHeight?: (height: number) => void;
 }) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
@@ -1702,7 +1679,7 @@ function SocialButton({
   onPress: () => void;
   disabled?: boolean;
 }) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
@@ -1764,7 +1741,7 @@ const AuthInput = forwardRef<TextInput, AuthInputProps>(function AuthInput({
   onAuthInputBlur,
   ...inputProps
 }: AuthInputProps, ref) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
 
   return (
     <View style={{ marginBottom: 4 }}>
@@ -1778,7 +1755,7 @@ const AuthInput = forwardRef<TextInput, AuthInputProps>(function AuthInput({
       >
         <Text
         style={{
-          color: colors.textSecondary,
+          color: colors.muted,
           fontSize: 13,
           fontWeight: '600',
           marginBottom: 6,
@@ -1794,19 +1771,19 @@ const AuthInput = forwardRef<TextInput, AuthInputProps>(function AuthInput({
           backgroundColor: colors.surface,
           borderWidth: 1.5,
           borderColor: error ? colors.error : colors.border,
-          borderRadius: borderRadius.md,
+          borderRadius: commerceRadius.lg,
           height: 52,
           paddingHorizontal: 16,
         }}
       >
         <TextInput
           ref={ref}
-          placeholderTextColor={colors.textTertiary}
+          placeholderTextColor={colors.weak}
           style={[
             {
               flex: 1,
               fontSize: 15,
-              color: colors.textPrimary,
+              color: colors.text,
               paddingVertical: 0,
             },
             rightElement ? { paddingRight: 44 } : undefined,

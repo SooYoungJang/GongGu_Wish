@@ -11,8 +11,10 @@ import { FormInput } from '../components/FormInput';
 import { InfoRow } from '../components/InfoRow';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ThemeToggle } from '../components/ThemeToggle';
-import { borderRadius, spacing } from '../design/tokens';
+import { spacing } from '../design/tokens';
+import { commerceRadius } from '../design/commerce';
 import { useTheme } from '../context/ThemeContext';
+import type { ColorPalette } from '../context/ThemeContext';
 import type {
   Influencer,
   InfluencerForm,
@@ -21,7 +23,6 @@ import type {
   SubmissionReviewForm,
   AdminScreenProps,
 } from '../types';
-import type { ColorPalette } from '../context/ThemeContext';
 import { createReviewForm } from '../utils';
 
 // Create a dedicated client for admin queries to avoid duplicate invalidation issues
@@ -187,8 +188,8 @@ export function AdminScreen({ navigation }: AdminScreenProps) {
           subtitle="인스타 계정 등록/비활성화, 공구 후보 목록·상세, 승인/반려를 한 화면에서 처리합니다."
         >
           <View style={s.actionRow}>
-            <SText variant="badge" style={{ backgroundColor: colors.warningBg, borderRadius: borderRadius.full, color: colors.noticeText, paddingHorizontal: 10, paddingVertical: 4 }}>검수 대기 {pendingCount}건</SText>
-            <SText variant="badge" style={{ backgroundColor: colors.warningBg, borderRadius: borderRadius.full, color: colors.noticeText, paddingHorizontal: 10, paddingVertical: 4 }}>soft delete: 비활성화</SText>
+            <SText variant="badge" style={{ backgroundColor: colors.warningBg, borderRadius: commerceRadius.full, color: colors.noticeText, paddingHorizontal: 10, paddingVertical: 4 }}>검수 대기 {pendingCount}건</SText>
+            <SText variant="badge" style={{ backgroundColor: colors.warningBg, borderRadius: commerceRadius.full, color: colors.noticeText, paddingHorizontal: 10, paddingVertical: 4 }}>soft delete: 비활성화</SText>
           </View>
         </ScreenHeader>
 
@@ -257,7 +258,7 @@ export function AdminScreen({ navigation }: AdminScreenProps) {
             <Pressable key={item.id} onPress={() => selectSubmission(item)} style={({ pressed }) => [s.card, pressed && s.pressed]}>
               <View style={s.cardHeader}>
                 <SText variant="label" style={{ color: colors.primary }}>#{item.id.slice(0, 8)} · @{item.rawPost.influencer.instagramUsername}</SText>
-                <SText variant="badge" style={{ backgroundColor: colors.warningBg, borderRadius: borderRadius.full, color: colors.noticeText, paddingHorizontal: 10, paddingVertical: 4 }}>{item.status}</SText>
+                <SText variant="badge" style={{ backgroundColor: colors.warningBg, borderRadius: commerceRadius.full, color: colors.noticeText, paddingHorizontal: 10, paddingVertical: 4 }}>{item.status}</SText>
               </View>
               <SText variant="cardTitle">{item.productName ?? '추정 공구명 미확인'}</SText>
               <SText variant="body" style={{ marginBottom: spacing.sm }}>{item.brandName ?? '브랜드 미확인'} · 출처 {item.rawPost.instagramPostId?.startsWith('manual:') ? '운영자 등록' : '수집/제보'}</SText>
@@ -308,12 +309,33 @@ function makeStyles(colors: ColorPalette) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.bg },
     content: { padding: spacing.lg, paddingBottom: spacing['3xl'] },
-    notice: { backgroundColor: colors.warningBg, borderRadius: borderRadius.sm, marginBottom: spacing.lg, padding: spacing.md },
-    card: { backgroundColor: colors.surface, borderRadius: borderRadius.xl, padding: spacing.lg, marginBottom: spacing.md, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: colors.border },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-    infoRow: { borderBottomColor: colors.border, borderBottomWidth: 1, flexDirection: 'row', marginBottom: spacing.md, paddingBottom: spacing.md },
-    primaryButton: { backgroundColor: colors.primary, marginTop: spacing.lg, paddingVertical: 14, borderRadius: borderRadius.lg, alignItems: 'center' },
-    secondaryButton: { backgroundColor: colors.borderLight, paddingVertical: 10, paddingHorizontal: spacing.lg, borderRadius: borderRadius.md, alignSelf: 'flex-start' },
+    notice: { backgroundColor: colors.warningSoft, borderRadius: commerceRadius.lg, marginBottom: spacing.lg, padding: spacing.md },
+    card: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderRadius: commerceRadius.xl,
+      borderWidth: 1,
+      marginBottom: spacing.md,
+      padding: spacing.lg,
+    },
+    cardHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
+    infoRow: { borderBottomColor: colors.borderLight, borderBottomWidth: 1, flexDirection: 'row', marginBottom: spacing.md, paddingBottom: spacing.md },
+    primaryButton: {
+      alignItems: 'center',
+      backgroundColor: colors.accent,
+      borderRadius: commerceRadius.lg,
+      marginTop: spacing.lg,
+      paddingVertical: 14,
+    },
+    secondaryButton: {
+      alignSelf: 'flex-start',
+      backgroundColor: colors.softBg,
+      borderColor: colors.border,
+      borderRadius: commerceRadius.lg,
+      borderWidth: 1,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: 10,
+    },
     pressed: { opacity: 0.8 },
     actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
   });

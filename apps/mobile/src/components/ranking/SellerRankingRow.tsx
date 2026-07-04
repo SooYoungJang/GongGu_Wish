@@ -2,17 +2,15 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { SText } from '../ui/SText';
-
-import { borderRadius, spacing } from '../../design/tokens';
+import { spacing } from '../../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
+import { useCommerceTheme } from '../../design/useCommerceTheme';
 import type { RankingThumbnail, SellerRanking } from '../../features/ranking/types';
 import { formatCompactCount } from '../../features/ranking/types';
-import { AdBadge } from './AdBadge';
 import { FollowButton } from './FollowButton';
 import { RankBadge } from './RankBadge';
 import { RankingTrendBadge } from './RankingTrendBadge';
 import { ThumbnailStrip } from './ThumbnailStrip';
-import { useTheme } from '../../context/ThemeContext';
-import type { ColorPalette } from '../../context/ThemeContext';
 
 export interface SellerRankingRowProps {
   item: SellerRanking;
@@ -22,8 +20,8 @@ export interface SellerRankingRowProps {
 }
 
 export function SellerRankingRow({ item, onPress, onPressThumbnail, onToggleFollow }: SellerRankingRowProps) {
-  const { colors, shadows } = useTheme();
-  const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
+  const { colors } = useCommerceTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const accessibilityLabel = `${item.rank}위 ${item.displayName}, 진행 중인 공구 ${item.activeDealCount}개`;
 
   return (
@@ -37,19 +35,18 @@ export function SellerRankingRow({ item, onPress, onPressThumbnail, onToggleFoll
         <View style={s.rankAvatarGroup}>
           <RankBadge rank={item.rank} />
           <View style={s.avatarCircle}>
-            <SText variant="title" style={{ fontSize: 18, fontWeight: '900', marginBottom: 0 }}>{item.displayName.charAt(0)}</SText>
+            <SText variant="title" style={s.avatarText}>{item.displayName.charAt(0)}</SText>
           </View>
         </View>
 
         <View style={s.infoColumn}>
           <View style={s.nameRow}>
-            <SText variant="body" style={{ flex: 1, fontWeight: '800', minWidth: 0 }} numberOfLines={1}>
+            <SText variant="body" style={s.sellerName} numberOfLines={1}>
               {item.displayName}
             </SText>
-            {item.isSponsored ? <AdBadge /> : null}
           </View>
 
-          <SText variant="caption" style={{ fontWeight: '600', minWidth: 0, overflow: 'hidden' }} numberOfLines={1}>
+          <SText variant="caption" style={s.metaText} numberOfLines={1}>
             @{item.username} · 공구 {item.activeDealCount}개
             {typeof item.followerCount === 'number' ? ` · 팔로워 ${formatCompactCount(item.followerCount)}` : ''}
           </SText>
@@ -79,15 +76,21 @@ export function SellerRankingRow({ item, onPress, onPressThumbnail, onToggleFoll
   );
 }
 
-function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     avatarCircle: {
       alignItems: 'center',
-      backgroundColor: colors.surfaceHover,
+      backgroundColor: colors.accentSoft,
       borderRadius: 21,
       height: 42,
       justifyContent: 'center',
       width: 42,
+    },
+    avatarText: {
+      color: colors.accent,
+      fontSize: 18,
+      fontWeight: '900',
+      marginBottom: 0,
     },
     endColumn: {
       alignItems: 'flex-end',
@@ -105,6 +108,12 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
       flexDirection: 'row',
       gap: spacing.sm,
     },
+    metaText: {
+      color: colors.weak,
+      fontWeight: '700',
+      minWidth: 0,
+      overflow: 'hidden',
+    },
     nameRow: {
       alignItems: 'center',
       flexDirection: 'row',
@@ -120,14 +129,19 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     },
     row: {
       backgroundColor: colors.surface,
-      borderRadius: borderRadius.xl,
       borderColor: colors.border,
+      borderRadius: commerceRadius.xl,
       borderWidth: 1,
       gap: spacing.sm,
       minHeight: 110,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.md,
-      ...shadows.sm,
+    },
+    sellerName: {
+      color: colors.text,
+      flex: 1,
+      fontWeight: '900',
+      minWidth: 0,
     },
   });
 }

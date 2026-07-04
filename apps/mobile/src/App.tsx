@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Platform, StyleSheet, Text, useWindowDimensions, View, LogBox } from 'react-native';
+import { Platform, StatusBar, StyleSheet, Text, useWindowDimensions, View, LogBox } from 'react-native';
 import * as SystemUI from 'expo-system-ui';
 import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -32,8 +32,7 @@ import { StoreScreen } from './screens/StoreScreen';
 import { SubmitScreen } from './screens/SubmitScreen';
 import { SearchScreen } from './screens/SearchScreen';
 import { ScreenHeader } from './components/ScreenHeader';
-import { borderRadius, spacing } from './design/tokens';
-import { CrownGlyph } from './components/ui/LineGlyphs';
+import { spacing } from './design/tokens';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 
@@ -44,7 +43,7 @@ type RootStackWithTabs = RootStackParamList & {
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
-const TAB_BAR_HEIGHT = 72;
+const TAB_BAR_HEIGHT = 82;
 
 function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: string }) {
   const { colors } = useTheme();
@@ -54,7 +53,7 @@ function PlaceholderScreen({ title, subtitle }: { title: string; subtitle: strin
         <ScreenHeader title={title} />
       </View>
       <View style={styles.placeholderBody}>
-        <Text style={[styles.placeholderSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+        <Text style={[styles.placeholderSubtitle, { color: colors.muted }]}>{subtitle}</Text>
       </View>
     </SafeAreaView>
   );
@@ -64,18 +63,59 @@ function CommunityScreen() {
   return <PlaceholderScreen title="커뮤니티" subtitle="공구 제보와 후기를 모아볼 수 있는 공간입니다." />;
 }
 
+function HomeTabGlyph({ color }: { color: string }) {
+  return (
+    <View style={styles.tabGlyphFrame}>
+      <View style={[styles.homeRoof, { borderColor: color }]} />
+      <View style={[styles.homeBody, { borderColor: color }]} />
+    </View>
+  );
+}
+
+function BenefitTabGlyph({ color }: { color: string }) {
+  return <View style={[styles.benefitDiamond, { borderColor: color }]} />;
+}
+
+function ShoppingTabGlyph({ color }: { color: string }) {
+  return (
+    <View style={styles.tabGlyphFrame}>
+      <View style={[styles.shoppingHandle, { borderColor: color }]} />
+      <View style={[styles.shoppingBag, { borderColor: color, backgroundColor: color }]} />
+    </View>
+  );
+}
+
+function ChartTabGlyph({ color }: { color: string }) {
+  return (
+    <View style={styles.tabGlyphFrame}>
+      <View style={[styles.chartFrame, { borderColor: color }]} />
+      <View style={[styles.chartLine, { backgroundColor: color }]} />
+    </View>
+  );
+}
+
+function MenuTabGlyph({ color }: { color: string }) {
+  return (
+    <View style={styles.menuGlyph}>
+      <View style={[styles.menuLine, { backgroundColor: color }]} />
+      <View style={[styles.menuLine, { backgroundColor: color }]} />
+      <View style={[styles.menuLine, { backgroundColor: color }]} />
+    </View>
+  );
+}
+
 function tabIcon(routeName: keyof MainTabParamList, color: string) {
   switch (routeName) {
     case 'Home':
-      return <Text style={[styles.tabIcon, { color }]}>⌂</Text>;
+      return <HomeTabGlyph color={color} />;
     case 'Search':
-      return <CrownGlyph color={color} size={18} />;
+      return <BenefitTabGlyph color={color} />;
     case 'Submit':
-      return <Text style={[styles.tabIcon, { color }]}>+</Text>;
+      return <ShoppingTabGlyph color={color} />;
     case 'Community':
-      return <Text style={[styles.tabIcon, { color }]}>◌</Text>;
+      return <ChartTabGlyph color={color} />;
     case 'MyPage':
-      return <Text style={[styles.tabIcon, { color }]}>☻</Text>;
+      return <MenuTabGlyph color={color} />;
   }
 }
 
@@ -84,65 +124,51 @@ function tabLabel(routeName: keyof MainTabParamList) {
     case 'Home':
       return '홈';
     case 'Search':
-      return '랭킹';
+      return '혜택';
     case 'Submit':
-      return 'Submit';
+      return '쇼핑';
     case 'Community':
-      return '커뮤니티';
+      return '증권';
     case 'MyPage':
-      return '마이';
+      return '전체';
   }
 }
 
 function MainTabs() {
+  const { colors } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isNarrow = screenWidth <= 375;
-  const tabBarMarginHorizontal = isNarrow ? Math.max(spacing.sm, spacing.lg - 6) : spacing.lg;
-  const tabBarBottomOffset = Math.max(insets.bottom, spacing.sm);
-  const submitTabMarginHorizontal = isNarrow ? spacing.xxs : spacing.xs;
-  const { colors, shadows } = useTheme();
+  const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 10, 0);
+  const tabBarBottomPadding = Math.max(insets.bottom, isNarrow ? 8 : 10);
 
   return (
     <Tab.Navigator
       initialRouteName="Home"
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarIconStyle: route.name === 'Submit' ? {
-          backgroundColor: colors.primary,
-          borderRadius: borderRadius['2xl'],
-          minHeight: 48,
-          minWidth: 48,
-          marginTop: -12,
-          alignItems: 'center',
-          justifyContent: 'center',
-        } : undefined,
+        tabBarIconStyle: styles.tabIconSlot,
         tabBarItemStyle: [
           styles.tabButton,
-          route.name === 'Submit' && { marginHorizontal: submitTabMarginHorizontal },
         ],
         tabBarAccessibilityLabel: `${tabLabel(route.name)} 탭`,
         tabBarIcon: ({ focused }) => tabIcon(
           route.name,
-          route.name === 'Submit'
-            ? colors.textInverse
-            : (focused ? colors.primary : colors.textSecondary),
+          focused ? colors.text : colors.tabInactive,
         ),
         tabBarLabel: tabLabel(route.name),
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarActiveTintColor: colors.text,
+        tabBarInactiveTintColor: colors.tabInactive,
         tabBarLabelStyle: [
-          { fontSize: 11, fontWeight: '700' },
-          route.name === 'Submit' && { color: colors.primary },
+          styles.tabLabel,
         ],
         tabBarStyle: [
           styles.tabBar,
           {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-            bottom: tabBarBottomOffset,
-            marginHorizontal: tabBarMarginHorizontal,
-            ...shadows.md,
+            backgroundColor: colors.bottomBarBg,
+            borderColor: colors.bottomBarBorder,
+            height: tabBarHeight,
+            paddingBottom: tabBarBottomPadding,
           },
         ],
       })}
@@ -189,9 +215,12 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
   }, [isDark, colors, bg]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: bg }}>
-      <NavigationContainer theme={navTheme}>{children}</NavigationContainer>
-    </View>
+    <>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={bg} />
+      <View style={{ flex: 1, backgroundColor: bg }}>
+        <NavigationContainer theme={navTheme}>{children}</NavigationContainer>
+      </View>
+    </>
   );
 }
 
@@ -249,7 +278,6 @@ const styles = StyleSheet.create({
   },
   placeholderScreen: {
     flex: 1,
-    backgroundColor: undefined,
   },
   placeholderHeader: {
     paddingHorizontal: spacing.lg,
@@ -267,21 +295,116 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   tabBar: {
-    borderRadius: 30,
-    borderTopWidth: 0,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: 1,
     height: TAB_BAR_HEIGHT,
-    paddingBottom: spacing.sm,
-    paddingTop: spacing.sm,
+    left: 0,
+    paddingTop: 9,
     position: 'absolute',
+    right: 0,
   },
   tabButton: {
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    minHeight: 52,
+    minHeight: 58,
+    paddingTop: 2,
   },
-  tabIcon: {
-    fontSize: 18,
-    fontWeight: '800',
+  tabIconSlot: {
+    height: 28,
+    marginBottom: 1,
+    width: 34,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 14,
+  },
+  tabGlyphFrame: {
+    height: 28,
+    position: 'relative',
+    width: 34,
+  },
+  homeRoof: {
+    borderLeftWidth: 2.4,
+    borderTopWidth: 2.4,
+    height: 15,
+    left: 9,
+    position: 'absolute',
+    top: 4,
+    transform: [{ rotate: '45deg' }],
+    width: 15,
+  },
+  homeBody: {
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
+    borderBottomWidth: 2.4,
+    borderLeftWidth: 2.4,
+    borderRightWidth: 2.4,
+    bottom: 3,
+    height: 14,
+    left: 8,
+    position: 'absolute',
+    width: 18,
+  },
+  benefitDiamond: {
+    borderRadius: 4,
+    borderWidth: 2.3,
+    height: 20,
+    marginTop: 4,
+    transform: [{ rotate: '45deg' }],
+    width: 20,
+  },
+  shoppingHandle: {
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderWidth: 2.1,
+    borderBottomWidth: 0,
+    height: 9,
+    left: 12,
+    position: 'absolute',
+    top: 3,
+    width: 10,
+  },
+  shoppingBag: {
+    borderRadius: 5,
+    borderWidth: 2.1,
+    bottom: 3,
+    height: 18,
+    left: 7,
+    position: 'absolute',
+    width: 20,
+  },
+  chartFrame: {
+    borderBottomWidth: 2.3,
+    borderLeftWidth: 2.3,
+    borderRadius: 2,
+    bottom: 5,
+    height: 18,
+    left: 7,
+    position: 'absolute',
+    width: 21,
+  },
+  chartLine: {
+    borderRadius: 999,
+    height: 2.4,
+    left: 10,
+    position: 'absolute',
+    top: 13,
+    transform: [{ rotate: '-22deg' }],
+    width: 18,
+  },
+  menuGlyph: {
+    gap: 5,
+    height: 28,
+    justifyContent: 'center',
+    width: 26,
+  },
+  menuLine: {
+    borderRadius: 999,
+    height: 2.4,
+    width: 26,
   },
 });

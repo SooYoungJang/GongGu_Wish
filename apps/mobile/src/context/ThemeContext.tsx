@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { colors, shadows } from '../design/tokens';
 import { colorsDark, shadowsDark } from '../design/tokensDark';
+import { getCommerceColors, type CommerceColorPalette } from '../design/commerce';
 import type { ShadowStyle } from '../design/tokens';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -12,7 +13,8 @@ const THEME_STORAGE_KEY = '@gonggu/theme_mode';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ColorPalette = typeof colors;
+type BaseColorPalette = typeof colors;
+export type ColorPalette = Omit<BaseColorPalette, keyof CommerceColorPalette> & CommerceColorPalette;
 export type ThemeMode = 'system' | 'light' | 'dark';
 
 export interface ThemeContextValue {
@@ -71,12 +73,48 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return themeMode === 'dark';
   }, [themeMode, systemScheme]);
 
-  // Resolved color and shadow palettes
+  // Resolved color and shadow palettes. The shared tokens are extended with
+  // the commerce semantic aliases so all existing and redesigned screens can
+  // read one theme object while light/dark mode stays in sync.
   const [activeColors, activeShadows] = useMemo(() => {
-    if (isDark) {
-      return [colorsDark as unknown as ColorPalette, shadowsDark];
-    }
-    return [colors, shadows];
+    const baseColors = isDark ? colorsDark : colors;
+    const commerce = getCommerceColors(isDark);
+    const mergedColors = {
+      ...baseColors,
+      ...commerce,
+      primary: commerce.accent,
+      primaryLight: commerce.accentLight,
+      primaryDark: commerce.accentDark,
+      primaryBg: commerce.accentSoft,
+      accent: commerce.accent,
+      accentLight: commerce.accentLight,
+      accentBg: commerce.accentSoft,
+      bg: commerce.bg,
+      surface: commerce.surface,
+      surfaceHover: commerce.softBg,
+      textPrimary: commerce.text,
+      textSecondary: commerce.muted,
+      textTertiary: commerce.weak,
+      textInverse: commerce.inverse,
+      textLink: commerce.blue,
+      border: commerce.border,
+      borderLight: commerce.borderLight,
+      divider: commerce.divider,
+      success: commerce.success,
+      successBg: commerce.successSoft,
+      warning: commerce.warning,
+      warningBg: commerce.warningSoft,
+      error: commerce.error,
+      errorBg: commerce.errorSoft,
+      skeleton: commerce.skeleton,
+      shadow: '#000000',
+      overlay: commerce.overlay,
+      badgeBg: commerce.accentSoft,
+      badgeText: commerce.accent,
+      noticeText: commerce.warning,
+    } as ColorPalette;
+
+    return [mergedColors, isDark ? shadowsDark : shadows];
   }, [isDark]);
 
   const toggleTheme = useCallback(() => {

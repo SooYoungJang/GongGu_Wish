@@ -8,8 +8,8 @@ import {
 
 import { SText } from './ui/SText';
 import { spacing } from '../design/tokens';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
+import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -25,11 +25,11 @@ const DOT_COUNT = 3;
 const DOT_SIZE = 6;
 const DOT_ANIM_MS = 600;
 
-function LoadingDots({ colors }: { colors: ColorPalette }) {
+function LoadingDots() {
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const [reducedMotion, setReducedMotion] = useState(false);
 
-  // Create 3 Animated.Values, once per mount
   const opacitiesRef = useRef<Animated.Value[] | null>(null);
   if (!opacitiesRef.current) {
     opacitiesRef.current = Array.from(
@@ -51,7 +51,6 @@ function LoadingDots({ colors }: { colors: ColorPalette }) {
       return;
     }
 
-    // Each dot: delay → fade up → fade down → loop
     const sequences = opacities.map((opacity, i) =>
       Animated.sequence([
         Animated.delay(i * (DOT_ANIM_MS / 2)),
@@ -74,7 +73,7 @@ function LoadingDots({ colors }: { colors: ColorPalette }) {
     return () => {
       loop.stop();
     };
-  }, [reducedMotion]);
+  }, [opacities, reducedMotion]);
 
   return (
     <View style={s.loadingContainer}>
@@ -90,7 +89,8 @@ function LoadingDots({ colors }: { colors: ColorPalette }) {
 
 // ─── Status Icon ─────────────────────────────────────────────────────────────
 
-function SuccessIcon({ colors }: { colors: ColorPalette }) {
+function SuccessIcon() {
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={[s.iconContainer, s.successContainer]}>
@@ -101,7 +101,8 @@ function SuccessIcon({ colors }: { colors: ColorPalette }) {
   );
 }
 
-function ErrorIcon({ colors }: { colors: ColorPalette }) {
+function ErrorIcon() {
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={[s.iconContainer, s.errorContainer]}>
@@ -115,15 +116,13 @@ function ErrorIcon({ colors }: { colors: ColorPalette }) {
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export function UrlInputStatus({ status }: UrlInputStatusProps) {
-  const { colors } = useTheme();
-
   switch (status) {
     case 'loading':
-      return <LoadingDots colors={colors} />;
+      return <LoadingDots />;
     case 'success':
-      return <SuccessIcon colors={colors} />;
+      return <SuccessIcon />;
     case 'error':
-      return <ErrorIcon colors={colors} />;
+      return <ErrorIcon />;
     case 'idle':
     default:
       return null;
@@ -132,38 +131,38 @@ export function UrlInputStatus({ status }: UrlInputStatusProps) {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     loadingContainer: {
-      flexDirection: 'row',
       alignItems: 'center',
+      flexDirection: 'row',
       gap: spacing.xxs,
       marginLeft: spacing.sm,
     },
     dot: {
-      width: DOT_SIZE,
-      height: DOT_SIZE,
+      backgroundColor: colors.accent,
       borderRadius: DOT_SIZE / 2,
-      backgroundColor: colors.primary,
+      height: DOT_SIZE,
+      width: DOT_SIZE,
     },
     iconContainer: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
       alignItems: 'center',
+      borderRadius: commerceRadius.full,
+      height: 24,
       justifyContent: 'center',
       marginLeft: spacing.sm,
+      width: 24,
     },
     successContainer: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.success,
     },
     errorContainer: {
       backgroundColor: colors.error,
     },
     iconText: {
-      color: colors.textInverse,
+      color: colors.inverse,
       fontSize: 14,
-      fontWeight: '700',
+      fontWeight: '900',
       lineHeight: 16,
     },
   });

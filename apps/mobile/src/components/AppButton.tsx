@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { SText } from './ui/SText';
-import { borderRadius, spacing } from '../design/tokens';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
+import { spacing } from '../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 
 type ButtonVariant = 'primary' | 'secondary' | 'accent';
 
@@ -23,7 +23,7 @@ export function AppButton({
   variant = 'primary',
   style,
 }: AppButtonProps) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   return (
@@ -46,31 +46,38 @@ export function AppButton({
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     base: {
       alignItems: 'center',
-      borderRadius: borderRadius.lg,
+      borderRadius: commerceRadius.lg,
+      justifyContent: 'center',
+      minHeight: 50,
       paddingHorizontal: spacing.lg,
-      paddingVertical: 14,
+      paddingVertical: 13,
     },
     primary: {
-      backgroundColor: colors.primary,
-    },
-    accent: {
       backgroundColor: colors.accent,
     },
+    accent: {
+      backgroundColor: colors.text,
+    },
     secondary: {
-      backgroundColor: colors.borderLight,
+      backgroundColor: colors.softBg,
+      borderColor: colors.border,
+      borderWidth: 1,
     },
     text: {
-      color: colors.textInverse,
+      color: colors.inverse,
       fontSize: 16,
-      fontWeight: '600',
+      fontWeight: '900',
+      letterSpacing: 0,
+      lineHeight: 21,
     },
     secondaryText: {
-      color: colors.textSecondary,
+      color: colors.muted,
       fontSize: 14,
+      fontWeight: '800',
     },
     disabled: {
       opacity: 0.55,

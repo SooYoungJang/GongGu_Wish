@@ -71,6 +71,6 @@ function makeStyles(colors: ColorPalette) {
       justifyContent: 'center',
       padding: spacing['2xl'],
     },
-    errorText: { fontSize: 16, marginBottom: spacing.lg },
+    errorText: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: spacing.lg },
   });
 }

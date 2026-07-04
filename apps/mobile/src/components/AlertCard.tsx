@@ -2,11 +2,11 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SText } from './ui/SText';
 
-import { borderRadius, spacing } from '../design/tokens';
+import { spacing } from '../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { GroupBuy } from '../types';
 import { formatEndDate } from '../utils';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
 
 type AlertCardProps = {
   item: GroupBuy;
@@ -14,8 +14,8 @@ type AlertCardProps = {
 };
 
 export function AlertCard({ item, onPress }: AlertCardProps) {
-  const { colors, shadows } = useTheme();
-  const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
+  const { colors } = useCommerceTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
 
   const brandLabel = item.brandName ?? '브랜드 미확인';
   const discountLabel = item.discountInfo ?? '혜택 확인 필요';
@@ -26,28 +26,26 @@ export function AlertCard({ item, onPress }: AlertCardProps) {
   return (
     <Pressable testID={`alert-card-${item.id}`} onPress={onPress} style={({ pressed }) => [s.card, pressed && s.pressed]}>
       <View style={s.brandBadge}>
-        <SText variant="eyebrow" style={s.brandBadgeEyebrow}>BRAND</SText>
+        <SText variant="caption" style={s.brandBadgeEyebrow}>BRAND</SText>
         <SText variant="caption" style={s.brandBadgeText} numberOfLines={2}>{brandLabel}</SText>
       </View>
 
       <View style={s.info}>
         <View style={s.topRow}>
-          <SText variant="eyebrow" style={s.influencerName} numberOfLines={1}>@{influencerUsername}</SText>
+          <SText variant="caption" style={s.influencerName} numberOfLines={1}>@{influencerUsername}</SText>
           <View style={s.deadlinePill}>
-            <SText variant="badge" style={s.deadlineText}>{deadlineLabel}</SText>
+            <SText variant="caption" style={s.deadlineText}>{deadlineLabel}</SText>
           </View>
         </View>
 
         <SText variant="cardTitle" style={s.productName} numberOfLines={1}>{item.productName ?? '제품명 미확인'}</SText>
 
         <View style={s.discountRow}>
-          <SText variant="cardBrand" style={s.discount} numberOfLines={1}>{discountLabel}</SText>
+          <SText variant="caption" style={s.discount} numberOfLines={1}>{discountLabel}</SText>
           <View style={s.confidenceBadge}>
-            <SText variant="badge" style={s.confidenceText}>신뢰도 {confidencePercent}%</SText>
+            <SText variant="caption" style={s.confidenceText}>신뢰도 {confidencePercent}%</SText>
           </View>
         </View>
-
-        <SText variant="caption" style={s.timeText} numberOfLines={1}>시간 정보 · {deadlineLabel}</SText>
 
         {item.summary ? <SText variant="caption" style={s.summary} numberOfLines={2}>{item.summary}</SText> : null}
       </View>
@@ -57,81 +55,83 @@ export function AlertCard({ item, onPress }: AlertCardProps) {
 
 const BRAND_BADGE_SIZE = 76;
 
-function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     card: {
       backgroundColor: colors.surface,
-      borderRadius: borderRadius.xl,
-      borderWidth: 1,
       borderColor: colors.border,
+      borderRadius: commerceRadius.xl,
+      borderWidth: 1,
       flexDirection: 'row',
       marginBottom: spacing.md,
       padding: spacing.md,
-      ...shadows.md,
     },
-    pressed: { opacity: 0.86, transform: [{ scale: 0.995 }] },
+    pressed: { opacity: 0.78 },
     brandBadge: {
-      width: BRAND_BADGE_SIZE,
-      minHeight: BRAND_BADGE_SIZE,
-      borderRadius: borderRadius.lg,
-      backgroundColor: colors.primaryBg,
       alignItems: 'center',
+      backgroundColor: colors.softBg,
+      borderColor: colors.borderLight,
+      borderRadius: commerceRadius.lg,
+      borderWidth: 1,
       justifyContent: 'center',
       marginRight: spacing.md,
+      minHeight: BRAND_BADGE_SIZE,
       padding: spacing.sm,
+      width: BRAND_BADGE_SIZE,
     },
     brandBadgeEyebrow: {
+      color: colors.accent,
       fontSize: 9,
-      fontWeight: '700',
-      color: colors.primary,
+      fontWeight: '900',
       letterSpacing: 0.8,
+      lineHeight: 12,
       marginBottom: spacing.xxs,
     },
     brandBadgeText: {
+      color: colors.text,
       fontSize: 12,
-      fontWeight: '800',
-      color: colors.textPrimary,
+      fontWeight: '900',
       lineHeight: 16,
       textAlign: 'center',
     },
     info: { flex: 1 },
     topRow: {
-      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: 'row',
       gap: spacing.sm,
+      justifyContent: 'space-between',
       marginBottom: spacing.xs,
     },
-    influencerName: { flex: 1, fontSize: 12, fontWeight: '700', color: colors.primary },
+    influencerName: { color: colors.muted, flex: 1, fontSize: 12, fontWeight: '800' },
     productName: {
+      color: colors.text,
       fontSize: 16,
-      fontWeight: '700',
-      color: colors.textPrimary,
+      fontWeight: '900',
+      lineHeight: 21,
       marginBottom: spacing.xxs,
     },
     discountRow: {
-      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: 'row',
       gap: spacing.sm,
+      justifyContent: 'space-between',
       marginBottom: spacing.xs,
     },
-    discount: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.accent },
+    discount: { color: colors.accent, flex: 1, fontSize: 13, fontWeight: '900', lineHeight: 17 },
     deadlinePill: {
-      backgroundColor: colors.badgeBg,
-      borderRadius: borderRadius.full,
+      backgroundColor: colors.accentSoft,
+      borderRadius: commerceRadius.full,
       paddingHorizontal: spacing.sm,
       paddingVertical: spacing.xxs,
     },
-    deadlineText: { color: colors.badgeText, fontSize: 11, fontWeight: '700' },
+    deadlineText: { color: colors.accent, fontSize: 11, fontWeight: '900' },
     confidenceBadge: {
-      backgroundColor: colors.successBg,
-      borderRadius: borderRadius.full,
+      backgroundColor: colors.blueSoft,
+      borderRadius: commerceRadius.full,
       paddingHorizontal: spacing.sm,
       paddingVertical: spacing.xxs,
     },
-    confidenceText: { color: colors.success, fontSize: 11, fontWeight: '700' },
-    timeText: { fontSize: 11, color: colors.textTertiary, marginBottom: spacing.xs },
-    summary: { fontSize: 12, color: colors.textTertiary, lineHeight: 17 },
+    confidenceText: { color: colors.blue, fontSize: 11, fontWeight: '900' },
+    summary: { color: colors.weak, fontSize: 12, fontWeight: '600', lineHeight: 17 },
   });
 }

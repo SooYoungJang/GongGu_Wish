@@ -3,10 +3,10 @@ import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-nat
 import type { ImageStyle } from 'react-native';
 
 import { SText } from './ui/SText';
-import { borderRadius, spacing } from '../design/tokens';
+import { spacing } from '../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
+import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { HikerPostData, HikerStatus } from '../hooks/useHikerApi';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -19,11 +19,11 @@ interface InstagramPreviewProps {
 
 // ─── Empty state ─────────────────────────────────────────────────────────────
 
-function EmptyState({ s }: { s: ReturnType<typeof StyleSheet.create> }) {
+function EmptyState({ s }: { s: ReturnType<typeof makeStyles> }) {
   return (
     <View style={[s.card, s.emptyCard]}>
       <View style={s.emptyIcon}>
-        <SText variant="caption" style={s.emptyIconText}>🔗</SText>
+        <SText variant="caption" style={s.emptyIconText}>↗</SText>
       </View>
       <SText variant="body" style={s.emptyTitle}>
         게시물을 입력하면 미리보기가 표시됩니다
@@ -37,21 +37,21 @@ function EmptyState({ s }: { s: ReturnType<typeof StyleSheet.create> }) {
 
 // ─── Loading skeleton ────────────────────────────────────────────────────────
 
-function LoadingSkeleton({ s }: { s: ReturnType<typeof StyleSheet.create> }) {
+function LoadingSkeleton({ s, colors }: { s: ReturnType<typeof makeStyles>; colors: CommerceColorPalette }) {
   return (
     <View style={s.card}>
+      <View style={s.loadingTopRow}>
+        <ActivityIndicator color={colors.accent} size="small" />
+        <SText variant="label" style={s.loadingText}>게시물을 불러오는 중…</SText>
+      </View>
       <View style={s.skeletonRow}>
-        {/* Skeleton avatar */}
         <View style={[s.skeleton, s.skeletonAvatar]} />
-        {/* Skeleton author + likes */}
         <View style={s.skeletonTextBlock}>
           <View style={[s.skeleton, s.skeletonLine, { width: '55%' }]} />
           <View style={[s.skeleton, s.skeletonLine, { width: '30%', marginTop: 6 }]} />
         </View>
       </View>
-      {/* Skeleton image */}
       <View style={[s.skeleton, s.skeletonImage]} />
-      {/* Skeleton caption */}
       <View style={[s.skeleton, s.skeletonLine, { width: '90%', marginTop: spacing.sm }]} />
       <View style={[s.skeleton, s.skeletonLine, { width: '65%', marginTop: 6 }]} />
     </View>
@@ -60,11 +60,11 @@ function LoadingSkeleton({ s }: { s: ReturnType<typeof StyleSheet.create> }) {
 
 // ─── Error state ─────────────────────────────────────────────────────────────
 
-function ErrorState({ s, error, onRetry }: { s: ReturnType<typeof StyleSheet.create>; error: string; onRetry?: () => void }) {
+function ErrorState({ s, error, onRetry }: { s: ReturnType<typeof makeStyles>; error: string; onRetry?: () => void }) {
   return (
     <View style={[s.card, s.errorCard]}>
       <View style={s.errorIcon}>
-        <SText variant="caption" style={s.errorIconText}>⚠️</SText>
+        <SText variant="caption" style={s.errorIconText}>!</SText>
       </View>
       <SText variant="body" style={s.errorText}>
         {error}
@@ -81,15 +81,14 @@ function ErrorState({ s, error, onRetry }: { s: ReturnType<typeof StyleSheet.cre
 // ─── Success state ───────────────────────────────────────────────────────────
 
 function formatCount(count: number): string {
-  if (count >= 1_0000) return `${(count / 1_0000).toFixed(1)}만`;  // Korean 만
+  if (count >= 1_0000) return `${(count / 1_0000).toFixed(1)}만`;
   if (count >= 1_000) return `${(count / 1_000).toFixed(1)}k`;
   return String(count);
 }
 
-function SuccessState({ s, data }: { s: ReturnType<typeof StyleSheet.create>; data: HikerPostData }) {
+function SuccessState({ s, data }: { s: ReturnType<typeof makeStyles>; data: HikerPostData }) {
   return (
     <View style={s.card}>
-      {/* Author + Likes row */}
       <View style={s.authorRow}>
         <View style={s.authorBlock}>
           <View style={s.avatarPlaceholder}>
@@ -117,7 +116,6 @@ function SuccessState({ s, data }: { s: ReturnType<typeof StyleSheet.create>; da
         ) : null}
       </View>
 
-      {/* Image */}
       {data.imageUrl ? (
         <Image
           source={{ uri: data.imageUrl }}
@@ -127,14 +125,12 @@ function SuccessState({ s, data }: { s: ReturnType<typeof StyleSheet.create>; da
         />
       ) : null}
 
-      {/* Caption */}
       {data.caption ? (
         <SText variant="cardSummary" style={s.caption} numberOfLines={3}>
           {data.caption}
         </SText>
       ) : null}
 
-      {/* Posted date */}
       {data.postedAt ? (
         <SText variant="caption" style={s.date}>
           {new Date(data.postedAt).toLocaleDateString('ko-KR', {
@@ -151,14 +147,14 @@ function SuccessState({ s, data }: { s: ReturnType<typeof StyleSheet.create>; da
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export function InstagramPreview({ status, data, error, onRetry }: InstagramPreviewProps) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   switch (status) {
     case 'idle':
       return <EmptyState s={s} />;
     case 'loading':
-      return <LoadingSkeleton s={s} />;
+      return <LoadingSkeleton s={s} colors={colors} />;
     case 'error':
       return <ErrorState s={s} error={error ?? '알 수 없는 오류가 발생했습니다.'} onRetry={onRetry} />;
     case 'success':
@@ -168,169 +164,184 @@ export function InstagramPreview({ status, data, error, onRetry }: InstagramPrev
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
-    // Card base
-    card: {
-      backgroundColor: colors.surface,
-      borderRadius: borderRadius.xl,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: spacing.lg,
-      marginBottom: spacing['2xl'],
-    },
-
-    // Empty state
-    emptyCard: {
-      alignItems: 'center',
-      paddingVertical: spacing['3xl'],
-      borderStyle: 'dashed',
-    },
-    emptyIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.primaryBg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: spacing.sm,
-    },
-    emptyIconText: {
-      fontSize: 18,
-    },
-    emptyTitle: {
-      textAlign: 'center',
-      marginBottom: spacing.xs,
-      color: colors.textSecondary,
-    },
-    emptySubtitle: {
-      textAlign: 'center',
-      color: colors.textTertiary,
-      lineHeight: 18,
-    },
-
-    // Skeleton
-    skeleton: {
-      backgroundColor: colors.skeleton,
-      borderRadius: borderRadius.sm,
-    },
-    skeletonRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: spacing.sm,
-    },
-    skeletonAvatar: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      marginRight: spacing.sm,
-    },
-    skeletonTextBlock: {
-      flex: 1,
-    },
-    skeletonLine: {
-      height: 12,
-      borderRadius: 6,
-    },
-    skeletonImage: {
-      width: '100%',
-      aspectRatio: 1,
-      borderRadius: borderRadius.md,
-    },
-
-    // Error state
-    errorCard: {
-      alignItems: 'center',
-      paddingVertical: spacing['2xl'],
-      backgroundColor: colors.errorBg,
-      borderColor: colors.error,
-    },
-    errorIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.error,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: spacing.sm,
-    },
-    errorIconText: {
-      fontSize: 18,
-    },
-    errorText: {
-      textAlign: 'center',
-      color: colors.error,
-      marginBottom: spacing.md,
-    },
-    retryButton: {
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.sm,
-      borderRadius: borderRadius.full,
-      backgroundColor: colors.error,
-    },
-    retryText: {
-      color: colors.textInverse,
-    },
-
-    // Success state
-    authorRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: spacing.sm,
-    },
     authorBlock: {
-      flexDirection: 'row',
       alignItems: 'center',
       flex: 1,
+      flexDirection: 'row',
     },
-    avatarPlaceholder: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.primaryBg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: spacing.sm,
-    },
-    avatarText: {
-      fontSize: 14,
+    authorHandle: {
+      color: colors.weak,
       fontWeight: '700',
-      color: colors.primary,
     },
     authorInfo: {
       flex: 1,
     },
     authorName: {
-      color: colors.textPrimary,
+      color: colors.text,
+      fontWeight: '900',
       marginBottom: 0,
     },
-    authorHandle: {
-      color: colors.textTertiary,
+    authorRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: spacing.sm,
+    },
+    avatarPlaceholder: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderRadius: commerceRadius.full,
+      height: 36,
+      justifyContent: 'center',
+      marginRight: spacing.sm,
+      width: 36,
+    },
+    avatarText: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: '900',
+    },
+    caption: {
+      color: colors.muted,
+      fontWeight: '600',
+      lineHeight: 20,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderRadius: commerceRadius.xl,
+      borderWidth: 1,
+      marginBottom: spacing['2xl'],
+      padding: spacing.lg,
+    },
+    date: {
+      color: colors.weak,
+      marginTop: spacing.xs,
+    },
+    emptyCard: {
+      alignItems: 'center',
+      backgroundColor: colors.panelBg,
+      borderStyle: 'dashed',
+      paddingVertical: spacing['3xl'],
+    },
+    emptyIcon: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderRadius: commerceRadius.full,
+      height: 42,
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+      width: 42,
+    },
+    emptyIconText: {
+      color: colors.accent,
+      fontSize: 22,
+      fontWeight: '900',
+      lineHeight: 26,
+    },
+    emptySubtitle: {
+      color: colors.weak,
+      fontWeight: '600',
+      lineHeight: 18,
+      textAlign: 'center',
+    },
+    emptyTitle: {
+      color: colors.text,
+      fontWeight: '900',
+      marginBottom: spacing.xs,
+      textAlign: 'center',
+    },
+    errorCard: {
+      alignItems: 'center',
+      backgroundColor: colors.errorSoft,
+      borderColor: colors.error,
+      paddingVertical: spacing['2xl'],
+    },
+    errorIcon: {
+      alignItems: 'center',
+      backgroundColor: colors.error,
+      borderRadius: commerceRadius.full,
+      height: 40,
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+      width: 40,
+    },
+    errorIconText: {
+      color: colors.inverse,
+      fontSize: 18,
+      fontWeight: '900',
+    },
+    errorText: {
+      color: colors.error,
+      fontWeight: '800',
+      marginBottom: spacing.md,
+      textAlign: 'center',
     },
     likeBadge: {
-      backgroundColor: colors.primaryBg,
-      borderRadius: borderRadius.full,
+      backgroundColor: colors.accentSoft,
+      borderRadius: commerceRadius.full,
       paddingHorizontal: spacing.sm,
       paddingVertical: 4,
     },
     likeCount: {
-      color: colors.primary,
-      fontWeight: '600',
+      color: colors.accent,
+      fontWeight: '900',
+    },
+    loadingText: {
+      color: colors.muted,
+      fontWeight: '800',
+    },
+    loadingTopRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginBottom: spacing.md,
     },
     previewImage: {
-      width: '100%',
       aspectRatio: 1,
-      borderRadius: borderRadius.md,
+      backgroundColor: colors.softBg,
+      borderRadius: commerceRadius.lg,
       marginBottom: spacing.sm,
-      backgroundColor: colors.skeleton,
+      width: '100%',
     },
-    caption: {
-      lineHeight: 20,
+    retryButton: {
+      backgroundColor: colors.error,
+      borderRadius: commerceRadius.full,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
     },
-    date: {
-      marginTop: spacing.xs,
-      color: colors.textTertiary,
+    retryText: {
+      color: colors.inverse,
+      fontWeight: '900',
+    },
+    skeleton: {
+      backgroundColor: colors.softBg,
+      borderRadius: commerceRadius.sm,
+    },
+    skeletonAvatar: {
+      borderRadius: commerceRadius.full,
+      height: 36,
+      marginRight: spacing.sm,
+      width: 36,
+    },
+    skeletonImage: {
+      aspectRatio: 1,
+      borderRadius: commerceRadius.lg,
+      width: '100%',
+    },
+    skeletonLine: {
+      borderRadius: commerceRadius.full,
+      height: 12,
+    },
+    skeletonRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      marginBottom: spacing.sm,
+    },
+    skeletonTextBlock: {
+      flex: 1,
     },
   });
 }

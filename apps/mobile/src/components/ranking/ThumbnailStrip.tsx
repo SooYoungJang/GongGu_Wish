@@ -2,10 +2,10 @@ import { useMemo } from 'react';
 import { Image, Pressable, StyleSheet, View, type GestureResponderEvent, useWindowDimensions } from 'react-native';
 
 import { SText } from '../ui/SText';
-import { borderRadius, spacing } from '../../design/tokens';
+import { spacing } from '../../design/tokens';
+import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
+import { useCommerceTheme } from '../../design/useCommerceTheme';
 import type { RankingThumbnail } from '../../features/ranking/types';
-import { useTheme } from '../../context/ThemeContext';
-import type { ColorPalette } from '../../context/ThemeContext';
 
 export interface ThumbnailStripProps {
   thumbnails: readonly RankingThumbnail[];
@@ -15,7 +15,7 @@ export interface ThumbnailStripProps {
 }
 
 export function ThumbnailStrip({ thumbnails, maxVisible, size = 42, onPressThumbnail }: ThumbnailStripProps) {
-  const { colors } = useTheme();
+  const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const responsiveMaxVisible = maxVisible ?? (width <= 340 ? 2 : 3);
@@ -35,7 +35,7 @@ export function ThumbnailStrip({ thumbnails, maxVisible, size = 42, onPressThumb
     <View style={s.container} accessibilityLabel={`진행 중인 공구 썸네일 ${thumbnails.length}개`}>
       {visible.map((thumbnail, index) => {
         const content = (
-          <View style={[s.thumbnail, { height: size, width: size }]}>
+          <View style={[s.thumbnail, { height: size, width: size }]}> 
             {thumbnail.imageUrl ? (
               <Image source={{ uri: thumbnail.imageUrl }} style={s.image} resizeMode="cover" />
             ) : (
@@ -70,7 +70,7 @@ export function ThumbnailStrip({ thumbnails, maxVisible, size = 42, onPressThumb
   );
 }
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     container: {
       flexDirection: 'row',
@@ -87,21 +87,21 @@ function makeStyles(colors: ColorPalette) {
       justifyContent: 'center',
     },
     moreText: {
-      color: colors.textInverse,
+      color: colors.inverse,
       fontSize: 12,
       fontWeight: '900',
     },
     placeholderText: {
-      color: colors.textSecondary,
+      color: colors.muted,
       fontSize: 11,
-      fontWeight: '800',
+      fontWeight: '900',
       paddingHorizontal: spacing.xs,
     },
     thumbnail: {
       alignItems: 'center',
-      backgroundColor: colors.surfaceHover,
+      backgroundColor: colors.softBg,
       borderColor: colors.borderLight,
-      borderRadius: borderRadius.lg,
+      borderRadius: commerceRadius.lg,
       borderWidth: 1,
       justifyContent: 'center',
       overflow: 'hidden',

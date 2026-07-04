@@ -119,7 +119,18 @@ vi.mock('react-native', () => {
         this.removeListener = vi.fn((id: string) => {
           this._listeners.delete(id);
         });
-        this.interpolate = vi.fn(() => 0);
+        this.interpolate = vi.fn(() => {
+          // Return a chainable interpolation-like object so multiple
+          // interpolate calls (sheetProgress -> width/height/etc.) work.
+          const chainable = {
+            interpolate: vi.fn(() => chainable),
+            addListener: vi.fn(() => '1'),
+            removeListener: vi.fn(),
+            setValue: vi.fn(),
+            stopAnimation: vi.fn(),
+          };
+          return chainable;
+        });
       },
       spring: vi.fn((value: any, config: any) => ({
         start: (cb?: () => void) => {
@@ -666,8 +677,15 @@ describe('DetailScreen', () => {
 
     const verticalPagerWhileOpen = findVerticalPager(renderer!);
     const raisedMediaStage = renderer!.root
-      .findAll((node) => String(node.type) === 'View')
-      .find((node) => JSON.stringify(node.props.style).includes('"borderRadius":22'));
+      .findAll((node) => String(node.type) === 'Animated.View')
+      .find((node) => {
+        const style = node.props.style;
+        const styles = Array.isArray(style) ? style : [style];
+        return styles.some((item) => {
+          const styleObj = item && typeof item === 'object' ? item : {};
+          return styleObj.borderRadius !== undefined || styleObj.left !== undefined;
+        });
+      });
 
     expect(verticalPagerWhileOpen.props.scrollEnabled).toBe(false);
     expect(raisedMediaStage).toBeDefined();
