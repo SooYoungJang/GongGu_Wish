@@ -400,7 +400,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
             <AppButton
               onPress={() => {
                 setIsSuccessModalVisible(false);
-                navigation.navigate('Home');
+                navigation.navigate('MainTabs', { screen: 'Home' });
               }}
               style={s.successButton}
               variant="primary"
@@ -769,7 +769,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
             ) : null}
 
             <Pressable
-              onPress={() => navigation.navigate('Home')}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
               style={s.cancelButton}
               accessibilityRole="button"
             >
