@@ -270,11 +270,6 @@ function ProductReelPage({
   const summaryScrollAtBottomRef = useRef(false);
   const summaryScrollGestureStartedAtTopRef = useRef(true);
   const [isSummaryVisible, setSummaryVisible] = useState(false);
-  // Media panes use the full screen width when collapsed; when the sheet is open
-  // they shrink to match the inset media stage so media stays centered.
-  const effectiveMediaWidth = isSummaryExpanded
-    ? mediaWidth - MEDIA_STAGE_SIDE_INSET * 2
-    : mediaWidth;
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
@@ -286,13 +281,81 @@ function ProductReelPage({
     280,
     Math.min(pageHeight - topInset - spacing.xl, pageHeight * 0.62),
   );
-  // Explicit stage height so FlashList items don't get a stale/tall layout
-  // when the sheet opens after horizontal media swipes.
-  const effectiveMediaHeight = isSummaryExpanded
-    ? Math.max(0, pageHeight - (topInset + 64) - (summarySheetMaxHeight + spacing.md))
-    : pageHeight;
   const summarySheetTranslate = useRef(new Animated.Value(summarySheetMaxHeight)).current;
   const sheetDragStartY = useRef(0);
+  // 0 = sheet fully open, 1 = sheet fully closed. Drives the media stage size
+  // so it smoothly grows/shrinks in sync with the sheet position.
+  const sheetProgress = useRef(
+    summarySheetTranslate.interpolate({
+      inputRange: [0, summarySheetMaxHeight],
+      outputRange: [0, 1],
+      extrapolate: 'clamp',
+    }),
+  ).current;
+  // Media stage interpolations: 0 (open) -> collapsed card, 1 (closed) -> full screen.
+  const mediaStageOpenWidth = mediaWidth - MEDIA_STAGE_SIDE_INSET * 2;
+  const mediaStageOpenHeight = Math.max(
+    0,
+    pageHeight - (topInset + 64) - (summarySheetMaxHeight + spacing.md),
+  );
+  const animatedMediaStageWidth = useRef(
+    sheetProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [mediaStageOpenWidth, mediaWidth],
+      extrapolate: 'clamp',
+    }),
+  ).current;
+  const animatedMediaStageHeight = useRef(
+    sheetProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [mediaStageOpenHeight, pageHeight],
+      extrapolate: 'clamp',
+    }),
+  ).current;
+  const animatedMediaStageTop = useRef(
+    sheetProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [topInset + 64, 0],
+      extrapolate: 'clamp',
+    }),
+  ).current;
+  const animatedMediaStageBottom = useRef(
+    sheetProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [summarySheetMaxHeight + spacing.md, 0],
+      extrapolate: 'clamp',
+    }),
+  ).current;
+  const animatedMediaStageRadius = useRef(
+    sheetProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [22, 0],
+      extrapolate: 'clamp',
+    }),
+  ).current;
+  const animatedMediaStageLeft = useRef(
+    sheetProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [MEDIA_STAGE_SIDE_INSET, 0],
+      extrapolate: 'clamp',
+    }),
+  ).current;
+  const animatedMediaStageRight = useRef(
+    sheetProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [MEDIA_STAGE_SIDE_INSET, 0],
+      extrapolate: 'clamp',
+    }),
+  ).current;
+  // Reel chrome (right rail, bottom info, dots) fades with the sheet: visible
+  // when closed, hidden when the sheet is open.
+  const animatedReelChromeOpacity = useRef(
+    sheetProgress.interpolate({
+      inputRange: [0, 0.35],
+      outputRange: [0, 1],
+      extrapolate: 'clamp',
+    }),
+  ).current;
 
   const resetSummarySheetState = useCallback(() => {
     setSummaryExpanded(false);
@@ -616,7 +679,7 @@ function ProductReelPage({
       const mediaActive = isActive && index === activeMediaIndex;
 
       return (
-        <View style={[s.mediaPane, { width: effectiveMediaWidth, height: effectiveMediaHeight }]}>
+        <Animated.View style={[s.mediaPane, { width: animatedMediaStageWidth, height: animatedMediaStageHeight }]}>
           {item.isVideo ? (
             mediaActive ? (
               <VideoSlide
@@ -634,55 +697,59 @@ function ProductReelPage({
           ) : (
             <Image source={{ uri: item.url }} style={s.mediaFill} resizeMode="contain" />
           )}
-        </View>
+        </Animated.View>
       );
     },
-    [activeMediaIndex, effectiveMediaHeight, effectiveMediaWidth, groupBuy.thumbnailUrl, isActive, s],
+    [activeMediaIndex, animatedMediaStageHeight, animatedMediaStageWidth, groupBuy.thumbnailUrl, isActive, s],
   );
 
   return (
     <View style={[s.reelPage, { height: pageHeight }]}>
-      <View
+      <Animated.View
         style={[
           s.mediaStage,
-          isSummaryExpanded && [
-            s.mediaStageWithSheet,
-            {
-              bottom: summarySheetMaxHeight + spacing.md,
-              top: topInset + 64,
-            },
-          ],
+          {
+            left: animatedMediaStageLeft,
+            right: animatedMediaStageRight,
+            top: animatedMediaStageTop,
+            bottom: animatedMediaStageBottom,
+            borderRadius: animatedMediaStageRadius,
+            overflow: 'hidden',
+          },
         ]}
       >
         {mediaItems.length > 0 ? (
-          <FlashList
-            data={mediaItems}
-            horizontal
-            pagingEnabled
-            snapToAlignment="start"
-            snapToInterval={effectiveMediaWidth}
-            keyExtractor={(item, index) => `${item.url}-${index}`}
-            renderItem={renderMediaItem}
-            showsHorizontalScrollIndicator={false}
-            style={{ ...s.mediaScroller, height: effectiveMediaHeight }}
-            decelerationRate="fast"
-            disableIntervalMomentum
-            drawDistance={mediaWidth}
-            maxItemsInRecyclePool={2}
-            maintainVisibleContentPosition={{ disabled: true }}
-            onMomentumScrollEnd={(event) => {
-              const nextIndex = Math.round(event.nativeEvent.contentOffset.x / effectiveMediaWidth);
-              if (nextIndex !== activeMediaIndex && nextIndex >= 0 && nextIndex < mediaItems.length) {
-                setActiveMediaIndex(nextIndex);
-              }
-            }}
-          />
+          <Animated.View style={{ height: animatedMediaStageHeight, overflow: 'hidden' }}>
+            <FlashList
+              data={mediaItems}
+              horizontal
+              pagingEnabled
+              snapToAlignment="start"
+              snapToInterval={isSummaryExpanded ? mediaStageOpenWidth : mediaWidth}
+              keyExtractor={(item, index) => `${item.url}-${index}`}
+              renderItem={renderMediaItem}
+              showsHorizontalScrollIndicator={false}
+              style={s.mediaScroller}
+              decelerationRate="fast"
+              disableIntervalMomentum
+              drawDistance={mediaWidth}
+              maxItemsInRecyclePool={2}
+              maintainVisibleContentPosition={{ disabled: true }}
+              onMomentumScrollEnd={(event) => {
+                const stepWidth = isSummaryExpanded ? mediaStageOpenWidth : mediaWidth;
+                const nextIndex = Math.round(event.nativeEvent.contentOffset.x / stepWidth);
+                if (nextIndex !== activeMediaIndex && nextIndex >= 0 && nextIndex < mediaItems.length) {
+                  setActiveMediaIndex(nextIndex);
+                }
+              }}
+            />
+          </Animated.View>
         ) : (
           <View style={s.emptyMedia}>
             <SText variant="body" style={s.emptyMediaText}>미디어 없음</SText>
           </View>
         )}
-      </View>
+      </Animated.View>
 
       <View style={s.scrimTop} pointerEvents="none" />
       <View style={s.scrimBottom} pointerEvents="none" />
@@ -703,8 +770,8 @@ function ProductReelPage({
         <View style={s.topIconButton} />
       </View>
 
-      {mediaItems.length > 1 && !isSummaryExpanded ? (
-        <View style={[s.mediaDots, { top: topInset + 62 }]}>
+      {mediaItems.length > 1 ? (
+        <Animated.View style={[s.mediaDots, { top: topInset + 62, opacity: animatedReelChromeOpacity }]}>
           {visibleDots.map((index) => (
             <View
               key={index}
@@ -716,19 +783,18 @@ function ProductReelPage({
               ]}
             />
           ))}
-        </View>
+        </Animated.View>
       ) : null}
 
-      {!isSummaryExpanded ? (
-        <>
-          <View style={[s.rightRail, { bottom: bottomInset + 132 }]}>
+      <>
+          <Animated.View pointerEvents={isSummaryExpanded ? 'none' : 'auto'} style={[s.rightRail, { bottom: bottomInset + 132, opacity: animatedReelChromeOpacity }]}>
             <ReelAction icon="♡" label="관심" onPress={handleSave} s={s} />
             <ReelAction icon="○" label="링크" onPress={handleOpenLink} s={s} />
             <ReelAction icon="↗" label="공유" onPress={handleShare} s={s} />
             <ReelAction icon="⌑" label="저장" onPress={handleSave} s={s} />
-          </View>
+          </Animated.View>
 
-          <View style={[s.bottomInfo, { paddingBottom: bottomInset + spacing.lg }]}>
+          <Animated.View pointerEvents={isSummaryExpanded ? 'none' : 'auto'} style={[s.bottomInfo, { paddingBottom: bottomInset + spacing.lg, opacity: animatedReelChromeOpacity }]}>
             <View style={s.sellerRow}>
               <View style={s.avatar}>
                 <SText variant="caption" style={s.avatarText}>{sellerName.slice(0, 1).toUpperCase()}</SText>
@@ -779,9 +845,8 @@ function ProductReelPage({
                 {isExpired ? '마감된 공구' : '구매 링크 열기'}
               </SText>
             </Pressable>
-          </View>
-        </>
-      ) : null}
+          </Animated.View>
+      </>
 
       {summary && isSummaryVisible ? (
         <View style={s.summaryOverlay} pointerEvents="box-none">

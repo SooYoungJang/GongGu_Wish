@@ -153,6 +153,10 @@ function UnauthenticatedView({
 }) {
   const s = useMemo(() => makeStyles(colors), [colors]);
 
+  const handleLockedMenuPress = useCallback(() => {
+    onLoginPress();
+  }, [onLoginPress]);
+
   return (
     <View style={s.container}>
       <ScrollView
@@ -163,16 +167,52 @@ function UnauthenticatedView({
           title="마이페이지"
         />
 
-        <View style={s.loginPrompt}>
-          <SText variant="body" style={s.loginPromptText}>
-            로그인이 필요합니다.
+        {/* Hero value-proposition card */}
+        <View style={s.guestHero}>
+          <View style={s.guestHeroIconCircle}>
+            <SText variant="title" style={s.guestHeroIcon}>↗</SText>
+          </View>
+          <SText variant="cardTitle" style={s.guestHeroTitle}>
+            더 많은 공구를 만나보세요
           </SText>
-          <AppButton variant="primary" onPress={onLoginPress}>
-            로그인
+          <SText variant="caption" style={s.guestHeroSubtitle}>
+            로그인하면 제보, 북마크, 팔로우, 알림까지{'\n'}모든 기능을 이용할 수 있어요
+          </SText>
+          <AppButton variant="primary" onPress={onLoginPress} style={s.guestHeroButton}>
+            로그인하기
           </AppButton>
+        </View>
+
+        {/* Locked feature preview menu */}
+        <SText variant="caption" style={s.guestMenuLabel}>
+          로그인하면 사용할 수 있어요
+        </SText>
+        <View style={s.menuGroup}>
+          <LockedMenuRow icon="📋" label="내 제보한 공구" onPress={handleLockedMenuPress} />
+          <LockedMenuRow icon="⌑" label="북마크한 공구" onPress={handleLockedMenuPress} />
+          <LockedMenuRow icon="👥" label="팔로우한 인플루언서" onPress={handleLockedMenuPress} />
+          <LockedMenuRow icon="🔔" label="알림 설정" onPress={handleLockedMenuPress} />
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+function LockedMenuRow({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+  return (
+    <Pressable
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [s.menuRow, pressed && s.menuRowPressed]}
+    >
+      <SText variant="body" style={s.menuIcon}>{icon}</SText>
+      <SText variant="body" style={[s.menuLabel, s.lockedMenuLabel]}>{label}</SText>
+      <SText variant="caption" style={s.lockIcon}>🔒</SText>
+    </Pressable>
   );
 }
 
@@ -256,14 +296,53 @@ function makeStyles(colors: ColorPalette) {
     logoutSection: {
       marginTop: spacing.sm,
     },
-    loginPrompt: {
+    guestHero: {
       alignItems: 'center',
-      gap: spacing.md,
-      paddingTop: spacing['3xl'],
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      marginBottom: spacing['2xl'],
+      paddingHorizontal: spacing['2xl'],
+      paddingVertical: spacing['3xl'],
     },
-    loginPromptText: {
+    guestHeroIconCircle: {
+      alignItems: 'center',
+      backgroundColor: colors.primaryBg,
+      borderRadius: 36,
+      height: 72,
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+      width: 72,
+    },
+    guestHeroIcon: {
+      color: colors.primary,
+      fontSize: 30,
+      fontWeight: '700',
+    },
+    guestHeroTitle: {
+      marginBottom: spacing.xs,
       textAlign: 'center',
+    },
+    guestHeroSubtitle: {
+      color: colors.textSecondary,
+      lineHeight: 20,
+      marginBottom: spacing.xl,
+      textAlign: 'center',
+    },
+    guestHeroButton: {
+      minWidth: 200,
+    },
+    guestMenuLabel: {
+      color: colors.textTertiary,
       marginBottom: spacing.sm,
+      marginLeft: spacing.xs,
+      textTransform: 'uppercase',
+    },
+    lockedMenuLabel: {
+      color: colors.textTertiary,
+    },
+    lockIcon: {
+      fontSize: 14,
+      marginLeft: spacing.sm,
     },
   });
 }
