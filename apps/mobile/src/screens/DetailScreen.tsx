@@ -24,7 +24,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import PagerView from 'react-native-pager-view';
 import { Gesture, GestureDetector, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 
-import { fetchGroupBuys } from '../api';
+import { fetchGroupBuys, refreshGroupBuyMedia } from '../api';
 import { SText } from '../components/ui/SText';
 import { borderRadius, spacing } from '../design/tokens';
 import { useTheme } from '../context/ThemeContext';
@@ -53,6 +53,15 @@ function isVideoUrl(url: string): boolean {
     return VIDEO_EXTENSIONS.some((ext) => path.endsWith(ext));
   } catch {
     return VIDEO_EXTENSIONS.some((ext) => url.toLowerCase().includes(ext));
+  }
+}
+
+function isInstagramCdnUrl(url?: string | null): boolean {
+  if (!url) return false;
+  try {
+    return new URL(url).hostname.endsWith('.cdninstagram.com');
+  } catch {
+    return url.includes('cdninstagram.com');
   }
 }
 
@@ -132,11 +141,33 @@ function getVisibleDotIndexes(total: number, activeIndex: number) {
 type VideoSlideProps = {
   url: string;
   isActive: boolean;
+  thumbnailUrl?: string | null;
   s: ReturnType<typeof makeStyles>;
 };
 
-const VideoSlide = memo(function VideoSlide({ url, isActive, s }: VideoSlideProps) {
+function SpeakerGlyph({ muted, s }: { muted: boolean; s: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={s.speakerGlyph}>
+      <View style={s.speakerBox} />
+      <View style={s.speakerHorn} />
+      {muted ? (
+        <View style={s.speakerSlash} />
+      ) : (
+        <>
+          <View style={s.speakerWaveSmall} />
+          <View style={s.speakerWaveLarge} />
+        </>
+      )}
+    </View>
+  );
+}
+
+const VideoSlide = memo(function VideoSlide({ url, isActive, thumbnailUrl, s }: VideoSlideProps) {
   const [shouldPlay, setShouldPlay] = useState(true);
+  const [isMuted, setMuted] = useState(false);
+  const [areControlsVisible, setControlsVisible] = useState(false);
+  const [hasFirstFrame, setHasFirstFrame] = useState(false);
+  const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const source = useMemo(
     () => ({
       uri: url,
@@ -153,8 +184,19 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, s }: VideoSlideProp
     p.allowsExternalPlayback = false;
   });
 
+  const showControlsTemporarily = useCallback(() => {
+    setControlsVisible(true);
+    if (controlsTimerRef.current) {
+      clearTimeout(controlsTimerRef.current);
+    }
+    controlsTimerRef.current = setTimeout(() => {
+      setControlsVisible(false);
+      controlsTimerRef.current = null;
+    }, 1800);
+  }, []);
+
   useEffect(() => {
-    player.muted = false;
+    player.muted = isMuted;
     player.volume = 1;
     player.audioMixingMode = 'doNotMix';
 
@@ -162,13 +204,27 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, s }: VideoSlideProp
       player.play();
     } else {
       player.pause();
+      if (!isActive) player.currentTime = 0;
     }
-  }, [isActive, player, shouldPlay]);
+  }, [isActive, isMuted, player, shouldPlay]);
+
+  useEffect(() => {
+    setHasFirstFrame(false);
+  }, [url]);
+
+  useEffect(() => {
+    return () => {
+      if (controlsTimerRef.current) {
+        clearTimeout(controlsTimerRef.current);
+      }
+    };
+  }, []);
 
   const togglePlayback = useCallback(() => {
+    showControlsTemporarily();
     setShouldPlay((current) => {
       const next = !current;
-      player.muted = false;
+      player.muted = isMuted;
       player.volume = 1;
       player.audioMixingMode = 'doNotMix';
 
@@ -179,7 +235,18 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, s }: VideoSlideProp
       }
       return next;
     });
-  }, [isActive, player]);
+  }, [isActive, isMuted, player, showControlsTemporarily]);
+
+  const toggleMuted = useCallback(() => {
+    showControlsTemporarily();
+    setMuted((current) => {
+      const next = !current;
+      player.muted = next;
+      player.volume = 1;
+      player.audioMixingMode = 'doNotMix';
+      return next;
+    });
+  }, [player, showControlsTemporarily]);
 
   return (
     <View style={s.videoSlide}>
@@ -190,22 +257,41 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, s }: VideoSlideProp
         nativeControls={false}
         pointerEvents="none"
         onFirstFrameRender={() => {
-          player.muted = false;
+          setHasFirstFrame(true);
+          player.muted = isMuted;
           player.volume = 1;
           player.audioMixingMode = 'doNotMix';
           if (isActive && shouldPlay) player.play();
         }}
       />
+      {thumbnailUrl && !hasFirstFrame ? (
+        <Image source={{ uri: thumbnailUrl }} style={s.videoPoster} resizeMode="contain" />
+      ) : null}
       <Pressable
-        accessibilityLabel={shouldPlay ? '동영상 일시정지' : '동영상 재생'}
+        accessibilityLabel="동영상 컨트롤 표시"
         accessibilityRole="button"
-        onPress={togglePlayback}
+        onPress={showControlsTemporarily}
         pressRetentionOffset={24}
         style={s.videoTapLayer}
       />
-      {!shouldPlay ? (
-        <View style={s.pauseOverlay} pointerEvents="none">
-          <Text style={s.pauseIcon}>▶</Text>
+      {areControlsVisible || !shouldPlay ? (
+        <View style={s.videoControlsOverlay} pointerEvents="box-none">
+          <Pressable
+            accessibilityLabel={isMuted ? '음소거 해제' : '음소거'}
+            accessibilityRole="button"
+            onPress={toggleMuted}
+            style={({ pressed }) => [s.muteOverlayButton, pressed && s.pressed]}
+          >
+            <SpeakerGlyph muted={isMuted} s={s} />
+          </Pressable>
+          <Pressable
+            accessibilityLabel={shouldPlay ? '동영상 일시정지' : '동영상 재생'}
+            accessibilityRole="button"
+            onPress={togglePlayback}
+            style={({ pressed }) => [s.playOverlayButton, pressed && s.pressed]}
+          >
+            <Text style={s.pauseIcon}>{shouldPlay ? 'Ⅱ' : '▶'}</Text>
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -233,9 +319,35 @@ function ReelAction({ icon, label, onPress, s }: ReelActionProps) {
   );
 }
 
+function PurchaseGlyph({ s }: { s: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={s.purchaseGlyph}>
+      <View style={s.purchaseLinkRingA} />
+      <View style={s.purchaseLinkRingB} />
+      <View style={s.purchaseLinkBridge} />
+    </View>
+  );
+}
+
+function ReelPurchaseAction({ onPress, s }: Pick<ReelActionProps, 'onPress' | 's'>) {
+  return (
+    <Pressable
+      accessibilityLabel="구매 링크"
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [s.purchaseRailButton, pressed && s.pressed]}
+    >
+      <PurchaseGlyph s={s} />
+      <SText variant="caption" style={s.purchaseRailLabel}>구매 링크</SText>
+    </Pressable>
+  );
+}
+
 export type ProductReelPageProps = {
   groupBuy: GroupBuy;
   isActive: boolean;
+  shouldPreloadVideo?: boolean;
+  bottomChromeOffset?: number;
   pageHeight: number;
   mediaWidth: number;
   topInset: number;
@@ -250,6 +362,8 @@ export type ProductReelPageProps = {
 export function ProductReelPage({
   groupBuy,
   isActive,
+  shouldPreloadVideo = false,
+  bottomChromeOffset = 0,
   pageHeight,
   mediaWidth,
   topInset,
@@ -272,7 +386,40 @@ export function ProductReelPage({
   const summaryScrollAtBottomRef = useRef(false);
   const summaryScrollGestureStartedAtTopRef = useRef(true);
   const [isSummaryVisible, setSummaryVisible] = useState(false);
-  const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
+  const shouldRefreshInstagramMedia = isActive
+    && groupBuy.mediaType === 'VIDEO'
+    && isInstagramCdnUrl(groupBuy.videoUrl);
+  const { data: refreshedMediaResult } = useQuery({
+    queryKey: ['instagram-media-refresh', groupBuy.id, groupBuy.videoUrl],
+    queryFn: () => refreshGroupBuyMedia(groupBuy.id),
+    enabled: shouldRefreshInstagramMedia,
+    retry: false,
+    staleTime: 1000 * 60 * 15,
+  });
+  const refreshedInstagramMedia = refreshedMediaResult?.media;
+  const mediaGroupBuy = useMemo<GroupBuy>(() => {
+    if (!refreshedInstagramMedia?.videoUrl) return groupBuy;
+
+    const mediaItems = refreshedInstagramMedia.mediaItems?.length
+      ? refreshedInstagramMedia.mediaItems
+      : [{
+        url: refreshedInstagramMedia.videoUrl,
+        mediaType: 'VIDEO' as const,
+        thumbnailUrl: refreshedInstagramMedia.thumbnailUrl ?? groupBuy.thumbnailUrl,
+      }];
+
+    return {
+      ...groupBuy,
+      thumbnailUrl: refreshedInstagramMedia.thumbnailUrl ?? groupBuy.thumbnailUrl,
+      videoUrl: refreshedInstagramMedia.videoUrl,
+      mediaUrls: refreshedInstagramMedia.mediaUrls?.length
+        ? refreshedInstagramMedia.mediaUrls
+        : [refreshedInstagramMedia.videoUrl],
+      mediaItems,
+      mediaType: refreshedInstagramMedia.mediaType ?? groupBuy.mediaType,
+    };
+  }, [groupBuy, refreshedInstagramMedia]);
+  const mediaItems = useMemo(() => getDisplayMedia(mediaGroupBuy), [mediaGroupBuy]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
@@ -379,7 +526,7 @@ export function ProductReelPage({
   const snapSummarySheetOpen = useCallback(() => {
     Animated.spring(summarySheetTranslate, {
       toValue: 0,
-      useNativeDriver: true,
+      useNativeDriver: false,
       friction: 9,
       tension: 50,
     }).start();
@@ -396,7 +543,7 @@ export function ProductReelPage({
           toValue: summarySheetMaxHeight,
           duration: 260,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }).start(() => {
           resetSummarySheetState();
         });
@@ -663,11 +810,29 @@ export function ProductReelPage({
 
   const handleOpenLink = () => {
     if (isExpired) {
-      Alert.alert('마감된 공구', '이 공구는 마감되었습니다.');
       return;
     }
 
-    void Linking.openURL(groupBuy.purchaseUrl ?? groupBuy.rawPost.postUrl);
+    const rawUrl = groupBuy.purchaseUrl ?? groupBuy.rawPost.postUrl;
+    const trimmedUrl = rawUrl?.trim();
+    const openUrl = trimmedUrl
+      ? /^https?:\/\//i.test(trimmedUrl)
+        ? trimmedUrl
+        : `https://${trimmedUrl.replace(/^\/+/, '')}`
+      : null;
+
+    if (!openUrl) {
+      Alert.alert('링크 없음', '열 수 있는 구매 링크가 없습니다.');
+      return;
+    }
+
+    try {
+      void Linking.openURL(openUrl).catch(() => {
+        Alert.alert('오류', '구매 링크를 열 수 없습니다.');
+      });
+    } catch {
+      Alert.alert('오류', '구매 링크를 열 수 없습니다.');
+    }
   };
 
   const handleSave = () => {
@@ -679,18 +844,24 @@ export function ProductReelPage({
   const renderMediaItem = useCallback(
     ({ item, index }: { item: MediaItem; index: number }) => {
       const mediaActive = isActive && index === activeMediaIndex;
+      const shouldMountVideo = mediaActive
+        || (shouldPreloadVideo && index === activeMediaIndex)
+        || (isActive && Math.abs(index - activeMediaIndex) <= 1);
+      const thumbnailUrl = item.thumbnailUrl ?? groupBuy.thumbnailUrl ?? null;
 
       return (
         <Animated.View style={[s.mediaPane, { width: animatedMediaStageWidth, height: animatedMediaStageHeight }]}>
           {item.isVideo ? (
-            mediaActive ? (
+            shouldMountVideo ? (
               <VideoSlide
+                key={item.url}
                 url={item.url}
                 isActive={mediaActive}
+                thumbnailUrl={thumbnailUrl}
                 s={s}
               />
-            ) : item.thumbnailUrl ?? groupBuy.thumbnailUrl ? (
-              <Image source={{ uri: item.thumbnailUrl ?? groupBuy.thumbnailUrl ?? '' }} style={s.mediaFill} resizeMode="contain" />
+            ) : thumbnailUrl ? (
+              <Image source={{ uri: thumbnailUrl }} style={s.mediaFill} resizeMode="contain" />
             ) : (
               <View style={s.videoPlaceholder}>
                 <SText variant="body" style={s.videoPlaceholderText}>동영상</SText>
@@ -702,7 +873,7 @@ export function ProductReelPage({
         </Animated.View>
       );
     },
-    [activeMediaIndex, animatedMediaStageHeight, animatedMediaStageWidth, groupBuy.thumbnailUrl, isActive, s],
+    [activeMediaIndex, animatedMediaStageHeight, animatedMediaStageWidth, groupBuy.thumbnailUrl, isActive, s, shouldPreloadVideo],
   );
 
   return (
@@ -753,9 +924,6 @@ export function ProductReelPage({
         )}
       </Animated.View>
 
-      <View style={s.scrimTop} pointerEvents="none" />
-      <View style={s.scrimBottom} pointerEvents="none" />
-
       <View style={[s.topBar, { paddingTop: topInset + spacing.sm }]}>
         {showBackButton ? (
           <Pressable
@@ -793,14 +961,16 @@ export function ProductReelPage({
       ) : null}
 
       <>
-          <Animated.View pointerEvents={isSummaryExpanded ? 'none' : 'auto'} style={[s.rightRail, { bottom: bottomInset + 132, opacity: animatedReelChromeOpacity }]}>
+          <Animated.View pointerEvents={isSummaryExpanded ? 'none' : 'auto'} style={[s.rightRail, { bottom: bottomInset + bottomChromeOffset + 104, opacity: animatedReelChromeOpacity }]}>
             <ReelAction icon="♡" label="관심" onPress={handleSave} s={s} />
             <ReelAction icon="○" label="링크" onPress={handleOpenLink} s={s} />
             <ReelAction icon="↗" label="공유" onPress={handleShare} s={s} />
             <ReelAction icon="⌑" label="저장" onPress={handleSave} s={s} />
+            <ReelPurchaseAction onPress={handleOpenLink} s={s} />
           </Animated.View>
 
-          <Animated.View pointerEvents={isSummaryExpanded ? 'none' : 'auto'} style={[s.bottomInfo, { paddingBottom: bottomInset + spacing.lg, opacity: animatedReelChromeOpacity }]}>
+          <Animated.View pointerEvents={isSummaryExpanded ? 'none' : 'auto'} style={[s.bottomInfo, { paddingBottom: bottomInset + bottomChromeOffset + spacing.lg, opacity: animatedReelChromeOpacity }]}>
+            <View style={s.bottomInfoScrim} pointerEvents="none" />
             <View style={s.sellerRow}>
               <View style={s.avatar}>
                 <SText variant="caption" style={s.avatarText}>{sellerName.slice(0, 1).toUpperCase()}</SText>
@@ -821,7 +991,7 @@ export function ProductReelPage({
                 onPress={() => setSummaryOpen(true)}
                 style={({ pressed }) => [s.summaryPreview, pressed && s.pressed]}
               >
-                <SText variant="body" style={s.summary} numberOfLines={2}>
+                <SText variant="body" style={s.summary} numberOfLines={1}>
                   {summary}
                 </SText>
                 <SText variant="caption" style={s.summaryMore}>더 보기</SText>
@@ -841,16 +1011,6 @@ export function ProductReelPage({
               ) : null}
             </View>
 
-            <Pressable
-              accessibilityLabel={isExpired ? '마감된 공구' : '구매 링크 열기'}
-              accessibilityRole="button"
-              onPress={handleOpenLink}
-              style={({ pressed }) => [s.buyButton, isExpired && s.buyButtonExpired, pressed && !isExpired && s.pressed]}
-            >
-              <SText variant="label" style={s.buyButtonText}>
-                {isExpired ? '마감된 공구' : '구매 링크 열기'}
-              </SText>
-            </Pressable>
           </Animated.View>
       </>
 
@@ -892,7 +1052,7 @@ export function ProductReelPage({
               </View>
             </View>
             <Pressable
-              accessibilityLabel={isExpired ? '마감된 공구' : '구매 링크 열기'}
+              accessibilityLabel={isExpired ? '마감된 공구' : '구매 링크'}
               accessibilityRole="button"
               onPress={handleOpenLink}
               style={({ pressed }) => [
@@ -902,7 +1062,7 @@ export function ProductReelPage({
               ]}
             >
               <SText variant="caption" style={s.summarySheetBuyButtonText}>
-                {isExpired ? '마감' : '구매링크'}
+                {isExpired ? '마감' : '구매 링크'}
               </SText>
             </Pressable>
             <GestureDetector gesture={summaryScrollPullGesture}>
@@ -969,6 +1129,8 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         key={item.id}
         groupBuy={item}
         isActive={index === activeProductIndex}
+        shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
+        bottomChromeOffset={0}
         pageHeight={screenHeight}
         mediaWidth={screenWidth}
         topInset={insets.top}
@@ -1069,9 +1231,97 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       position: 'relative',
       width: '100%',
     },
+    videoPoster: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 1,
+    },
     videoTapLayer: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 2,
+    },
+    videoControlsOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 3,
+    },
+    muteOverlayButton: {
+      alignItems: 'center',
+      backgroundColor: 'rgba(21,18,16,0.58)',
+      borderRadius: 20,
+      height: 40,
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+      width: 40,
+    },
+    speakerGlyph: {
+      height: 17,
+      position: 'relative',
+      width: 18,
+    },
+    speakerBox: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 2,
+      height: 7,
+      left: 1,
+      position: 'absolute',
+      top: 5,
+      width: 4.5,
+    },
+    speakerHorn: {
+      borderBottomColor: 'transparent',
+      borderBottomWidth: 5.5,
+      borderLeftColor: '#FFFFFF',
+      borderLeftWidth: 7,
+      borderTopColor: 'transparent',
+      borderTopWidth: 5.5,
+      height: 0,
+      left: 4.5,
+      position: 'absolute',
+      top: 3,
+      width: 0,
+    },
+    speakerWaveSmall: {
+      borderColor: '#FFFFFF',
+      borderLeftColor: 'transparent',
+      borderRadius: 8,
+      borderWidth: 1.5,
+      height: 9,
+      position: 'absolute',
+      right: 2,
+      top: 3.8,
+      width: 6,
+    },
+    speakerWaveLarge: {
+      borderColor: 'rgba(255,255,255,0.9)',
+      borderLeftColor: 'transparent',
+      borderRadius: 10,
+      borderWidth: 1.5,
+      height: 13,
+      position: 'absolute',
+      right: -3,
+      top: 2,
+      width: 9,
+    },
+    speakerSlash: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 999,
+      height: 2,
+      position: 'absolute',
+      right: -1,
+      top: 7.5,
+      transform: [{ rotate: '-45deg' }],
+      width: 18,
+    },
+    playOverlayButton: {
+      alignItems: 'center',
+      backgroundColor: 'rgba(0,0,0,0.46)',
+      borderColor: 'rgba(255,255,255,0.12)',
+      borderRadius: 38,
+      borderWidth: 1,
+      height: 76,
+      justifyContent: 'center',
+      width: 76,
     },
     emptyMedia: {
       alignItems: 'center',
@@ -1091,40 +1341,11 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       fontSize: 14,
       fontWeight: '800',
     },
-    pauseOverlay: {
-      alignItems: 'center',
-      backgroundColor: 'rgba(0,0,0,0.24)',
-      borderRadius: 34,
-      height: 68,
-      justifyContent: 'center',
-      left: '50%',
-      marginLeft: -34,
-      marginTop: -34,
-      position: 'absolute',
-      top: '50%',
-      width: 68,
-    },
     pauseIcon: {
       color: '#FFFFFF',
       fontSize: 30,
       fontWeight: '800',
       marginLeft: 4,
-    },
-    scrimTop: {
-      backgroundColor: 'rgba(0,0,0,0.20)',
-      height: 96,
-      left: 0,
-      position: 'absolute',
-      right: 0,
-      top: 0,
-    },
-    scrimBottom: {
-      backgroundColor: 'rgba(0,0,0,0.34)',
-      bottom: 0,
-      height: 230,
-      left: 0,
-      position: 'absolute',
-      right: 0,
     },
     topBar: {
       alignItems: 'center',
@@ -1180,7 +1401,7 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
     mediaDotFaded: { opacity: 0.46, width: 16 },
     rightRail: {
       alignItems: 'center',
-      gap: spacing.lg,
+      gap: spacing.sm,
       position: 'absolute',
       right: spacing.md,
       width: 58,
@@ -1191,6 +1412,21 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       justifyContent: 'center',
       width: 52,
     },
+    purchaseRailButton: {
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.18)',
+      borderColor: 'rgba(255,255,255,0.48)',
+      borderRadius: 16,
+      borderWidth: 1,
+      justifyContent: 'center',
+      minHeight: 54,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.22,
+      shadowRadius: 10,
+      width: 58,
+      ...shadows.sm,
+    },
     railIcon: {
       color: '#FFFFFF',
       fontSize: 34,
@@ -1200,6 +1436,54 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       textShadowColor: 'rgba(0,0,0,0.44)',
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
+    },
+    purchaseGlyph: {
+      height: 22,
+      position: 'relative',
+      width: 22,
+    },
+    purchaseLinkRingA: {
+      borderColor: '#FFFFFF',
+      borderRadius: 6,
+      borderWidth: 2,
+      height: 9,
+      left: 2,
+      position: 'absolute',
+      top: 8,
+      transform: [{ rotate: '-32deg' }],
+      width: 13,
+    },
+    purchaseLinkRingB: {
+      borderColor: colors.accent,
+      borderRadius: 6,
+      borderWidth: 2,
+      height: 9,
+      position: 'absolute',
+      right: 2,
+      top: 5,
+      transform: [{ rotate: '-32deg' }],
+      width: 13,
+    },
+    purchaseLinkBridge: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 999,
+      height: 2,
+      left: 8,
+      position: 'absolute',
+      top: 11,
+      transform: [{ rotate: '-32deg' }],
+      width: 7,
+    },
+    purchaseRailLabel: {
+      color: '#FFFFFF',
+      fontSize: 10,
+      fontWeight: '900',
+      lineHeight: 12,
+      marginTop: 1,
+      textAlign: 'center',
+      textShadowColor: 'rgba(0,0,0,0.18)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
     },
     railLabel: {
       color: '#FFFFFF',
@@ -1215,9 +1499,14 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       bottom: 0,
       left: 0,
       paddingHorizontal: spacing.lg,
-      paddingTop: spacing.xl,
+      paddingTop: spacing.md,
       position: 'absolute',
       right: 76,
+    },
+    bottomInfoScrim: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.34)',
+      borderTopRightRadius: 18,
     },
     sellerRow: {
       alignItems: 'center',
@@ -1251,9 +1540,9 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
     },
     productName: {
       color: '#FFFFFF',
-      fontSize: 17,
+      fontSize: 16,
       fontWeight: '800',
-      lineHeight: 22,
+      lineHeight: 20,
       marginBottom: 4,
       textShadowColor: 'rgba(0,0,0,0.45)',
       textShadowOffset: { width: 0, height: 1 },
@@ -1261,13 +1550,13 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
     },
     summaryPreview: {
       alignSelf: 'stretch',
-      marginBottom: spacing.sm,
+      marginBottom: spacing.xs,
     },
     summary: {
       color: '#FFFFFF',
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: '500',
-      lineHeight: 20,
+      lineHeight: 18,
       textShadowColor: 'rgba(0,0,0,0.45)',
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
@@ -1277,7 +1566,7 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       color: 'rgba(255,255,255,0.74)',
       fontSize: 13,
       fontWeight: '800',
-      marginTop: 2,
+      marginTop: 0,
       textShadowColor: 'rgba(0,0,0,0.45)',
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
@@ -1286,7 +1575,7 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: spacing.xs,
-      marginBottom: spacing.md,
+      marginBottom: 0,
     },
     metaPill: {
       backgroundColor: 'rgba(255,255,255,0.18)',
@@ -1302,23 +1591,6 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       color: '#FFFFFF',
       fontSize: 11,
       fontWeight: '800',
-    },
-    buyButton: {
-      alignItems: 'center',
-      alignSelf: 'flex-start',
-      backgroundColor: '#FFFFFF',
-      borderRadius: 8,
-      height: 42,
-      justifyContent: 'center',
-      minWidth: 150,
-      paddingHorizontal: spacing.lg,
-      ...shadows.sm,
-    },
-    buyButtonExpired: { backgroundColor: 'rgba(255,255,255,0.42)' },
-    buyButtonText: {
-      color: '#111318',
-      fontSize: 14,
-      fontWeight: '900',
     },
     summaryOverlay: {
       ...StyleSheet.absoluteFillObject,

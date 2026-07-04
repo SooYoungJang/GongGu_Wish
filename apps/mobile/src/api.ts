@@ -368,6 +368,23 @@ export async function lookupInstagramUrl(url: string): Promise<InstagramMediaInf
   return callEdgeFunction<InstagramMediaInfo>('hiker-lookup', { url });
 }
 
+export type RefreshedInstagramMedia = {
+  groupBuyId: string;
+  refreshed: boolean;
+  source: 'cache' | 'hiker' | 'skipped';
+  instagramUrl: string | null;
+  media: Pick<InstagramMediaInfo, 'imageUrl' | 'thumbnailUrl' | 'videoUrl' | 'mediaUrls' | 'mediaItems' | 'mediaType'>;
+  error?: string;
+};
+
+/**
+ * Refresh an expiring Instagram CDN media URL through a server-side cache.
+ * The Edge Function decides whether HikerAPI is needed and persists fresh URLs.
+ */
+export async function refreshGroupBuyMedia(groupBuyId: string): Promise<RefreshedInstagramMedia> {
+  return callEdgeFunction<RefreshedInstagramMedia>('refresh-instagram-media', { groupBuyId });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Edge Function (service_role)
 // ═══════════════════════════════════════════════════════════════════════════════

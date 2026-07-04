@@ -216,6 +216,9 @@ web3 = 30
 # provider = "hcaptcha"
 # secret = ""
 
+[functions.refresh-instagram-media]
+verify_jwt = false
+
 [auth.email]
 # Allow/disallow new user signups via email to your project.
 enable_signup = true
