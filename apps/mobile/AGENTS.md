@@ -1,0 +1,43 @@
+# apps/mobile 작업 가이드
+
+이 디렉토리는 React Native (Expo) 모바일 앱 코드베이스다.
+
+## 디자인 시스템 (필수)
+
+UI 작업 전 반드시 아래 문서를 먼저 읽는다.
+
+src/design/DESIGN_SYSTEM.md
+
+이 문서는 색상, 간격, 라운드, 타이포그래피 토큰과 useCommerceTheme() 훅, 그리고 재사용 컴포넌트(CommerceCard, CommerceChip, CommerceSearchField, CommerceSectionTitle, CommerceSurface)와 SText 의 사용법을 정의한다. 새 컴포넌트를 만들기 전에 기존 디자인 시스템으로 해결되는지 먼저 확인한다.
+
+## 주요 명령
+
+```sh
+npm start          # Expo dev 서버 (포트 8081)
+npm run typecheck  # tsc --noEmit
+npm test           # vitest run --passWithNoTests
+npm run lint       # eslint src
+```
+
+## 디렉토리 구조
+
+```sh
+src/design/                 # 디자인 토큰 (commerce.ts, tokens.ts, tokensDark.ts), 테마 훅
+src/components/commerce/     # 재사용 커머스 컴포넌트 (CommerceUI.tsx)
+src/components/ui/           # 프리미티브 (SText, LineGlyphs)
+src/components/ranking/      # 셀러 랭킹 도메인 컴포넌트
+src/components/              # 도메인 컴포넌트 (DealCard, AlertCard, AppButton, ...)
+src/screens/                 # 화면 단위 (HomeScreen, SearchScreen, MyPageScreen, ...)
+src/context/                 # ThemeContext (ThemeProvider, useTheme)
+src/features/                # 도메인 타입/훅 (ranking/types.ts, useSellerRankings.ts)
+```
+
+## 테마 접근 규칙
+
+새 코드에서 색상이나 토큰을 쓸 때는 src/design/tokens.ts 에서 직접 import 하지 않는다. useCommerceTheme() 훅을 사용한다. 이 규칙은 라이트/다크 모드 자동 전환을 보장한다. 자세한 내용은 DESIGN_SYSTEM.md 참조.
+
+## 그 외
+
+src_back/ 디렉토리는 백업/이전 버전 소스이므로 참고용으로만 쓴다. 새 작업은 src/ 에서 한다.
+evidence/, screenshots/ 는 QA 산출물이므로 커밋하지 않는다.
+
