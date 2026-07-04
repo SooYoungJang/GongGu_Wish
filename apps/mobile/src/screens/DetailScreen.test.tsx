@@ -3,7 +3,6 @@ const videoMock = vi.hoisted(() => ({
 }));
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
-  refreshedInstagramMedia: undefined as any,
 }));
 const flashListMock = vi.hoisted(() => ({
   scrollToOffset: vi.fn(),
@@ -38,18 +37,11 @@ vi.mock('expo-video', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: (options?: { queryKey?: unknown[] }) => ({
-    data: options?.queryKey?.[0] === 'instagram-media-refresh'
-      ? queryMock.refreshedInstagramMedia
-      : queryMock.groupBuys,
-    isLoading: false,
-    isError: false,
-  }),
+  useQuery: () => ({ data: queryMock.groupBuys, isLoading: false, isError: false }),
 }));
 
 vi.mock('../api', () => ({
   fetchGroupBuys: vi.fn(),
-  refreshGroupBuyMedia: vi.fn(),
 }));
 
 vi.mock('@shopify/flash-list', () => {
@@ -300,7 +292,6 @@ const baseGroupBuy: GroupBuy = {
 beforeEach(() => {
   videoMock.players = [];
   queryMock.groupBuys = undefined;
-  queryMock.refreshedInstagramMedia = undefined;
   flashListMock.scrollToOffset.mockClear();
   pagerViewMock.setPage.mockClear();
   pagerViewMock.setPageWithoutAnimation.mockClear();
@@ -1192,55 +1183,6 @@ describe('DetailScreen video playback', () => {
     expect(videoMock.players[0]?.volume).toBe(1);
     expect(videoMock.players[0]?.audioMixingMode).toBe('doNotMix');
     expect(videoMock.players[0]?.play).toHaveBeenCalled();
-  });
-
-  it('uses refreshed Hiker media for expiring Instagram CDN videos', () => {
-    queryMock.refreshedInstagramMedia = {
-      groupBuyId: baseGroupBuy.id,
-      refreshed: true,
-      source: 'hiker',
-      instagramUrl: 'https://instagram.com/reel/DZB4G0Giwzi/',
-      media: {
-        imageUrl: 'https://cdn.example.com/fresh-thumb.jpg',
-        thumbnailUrl: 'https://cdn.example.com/fresh-thumb.jpg',
-        videoUrl: 'https://cdn.example.com/fresh-reel.mp4',
-        mediaUrls: ['https://cdn.example.com/fresh-reel.mp4'],
-        mediaItems: [{
-          url: 'https://cdn.example.com/fresh-reel.mp4',
-          mediaType: 'VIDEO',
-          thumbnailUrl: 'https://cdn.example.com/fresh-thumb.jpg',
-        }],
-        mediaType: 'VIDEO',
-      },
-    };
-    const groupBuy: GroupBuy = {
-      ...baseGroupBuy,
-      rawPost: {
-        postUrl: '',
-        influencer: { instagramUsername: 'hiker_seller' },
-      },
-      thumbnailUrl: 'https://scontent.cdninstagram.com/v/t51.71878-15/thumb.jpg?ig_cache_key=MzkwOTY1MjcxMDQwMDEzNDM3MA%3D%3D.3',
-      videoUrl: 'https://scontent.cdninstagram.com/o1/v/t2/f2/expired.mp4?oe=EXPIRED',
-      mediaUrls: ['https://scontent.cdninstagram.com/v/t51.71878-15/thumb.jpg?ig_cache_key=MzkwOTY1MjcxMDQwMDEzNDM3MA%3D%3D.3'],
-      mediaType: 'VIDEO',
-    };
-
-    let renderer: TestRenderer.ReactTestRenderer;
-    act(() => {
-      renderer = TestRenderer.create(
-        <DetailScreen
-          route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{} as any}
-        />,
-      );
-    });
-
-    const videoViews = renderer!.root.findAll((node) => String(node.type) === 'VideoView');
-    expect(videoViews).toHaveLength(1);
-    expect(videoMock.players[0]?.source).toEqual({
-      uri: 'https://cdn.example.com/fresh-reel.mp4',
-      contentType: 'auto',
-    });
   });
 
   it('shows playback and mute controls when the video is tapped', () => {
