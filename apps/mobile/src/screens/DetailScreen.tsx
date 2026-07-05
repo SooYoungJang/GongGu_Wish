@@ -1,18 +1,14 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  Animated,
   Alert,
   BackHandler,
-  Easing,
   FlatList,
   Image,
   Keyboard,
-  KeyboardAvoidingView,
   Linking,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  PanResponder,
   Platform,
   Pressable,
   Share,
@@ -29,6 +25,18 @@ import { FlashList } from '@shopify/flash-list';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import PagerView from 'react-native-pager-view';
 import { Gesture, GestureDetector, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
+import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
+import Reanimated, {
+  cancelAnimation,
+  Easing,
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 
 import { fetchGroupBuys } from '../api';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,6 +53,9 @@ const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.m3u8', '.mkv', '.av
 const SUMMARY_EDGE_DISMISS_DISTANCE = 56;
 const SUMMARY_SCROLL_TOP_EPSILON = 2;
 const DETAIL_SEARCH_CHROME_OFFSET = 72;
+const SUMMARY_SHEET_MAX_HEIGHT_RATIO = 0.58;
+const SEARCH_SHEET_MAX_HEIGHT_RATIO = 0.70;
+const BOTTOM_SHEET_ANIMATION_MS = 220;
 
 // When the summary sheet is open the media stage shrinks to a centered card
 // with this much inset on each side.
@@ -264,6 +275,7 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, thumbnailUrl, s }: 
         contentFit="contain"
         nativeControls={false}
         pointerEvents="none"
+        surfaceType={Platform.OS === 'android' ? 'textureView' : undefined}
         onFirstFrameRender={() => {
           setHasFirstFrame(true);
           player.muted = isMuted;
@@ -379,18 +391,12 @@ type DetailSearchSheetProps = {
   maxHeight: number;
   onClose: () => void;
   // eslint-disable-next-line no-unused-vars
-  onKeyboardHeightChange(height: number): void;
-  // eslint-disable-next-line no-unused-vars
-  onSheetDragEnd(dy: number, vy: number): void;
-  // eslint-disable-next-line no-unused-vars
-  onSheetDragMove: (dy: number) => void;
-  onSheetDragStart: () => void;
-  // eslint-disable-next-line no-unused-vars
   onSheetLayout: (event: LayoutChangeEvent) => void;
   // eslint-disable-next-line no-unused-vars
   onSelect(item: GroupBuy): void;
+  keyboardHeight: SharedValue<number>;
   query: string;
-  sheetTranslate: Animated.Value;
+  sheetTranslate: SharedValue<number>;
   // eslint-disable-next-line no-unused-vars
   setQuery(query: string): void;
   s: ReturnType<typeof makeStyles>;
@@ -401,19 +407,16 @@ function DetailSearchSheet({
   data,
   maxHeight,
   onClose,
-  onKeyboardHeightChange,
   onSelect,
-  onSheetDragEnd,
-  onSheetDragMove,
-  onSheetDragStart,
   onSheetLayout,
+  keyboardHeight,
   query,
   sheetTranslate,
   setQuery,
   s,
 }: DetailSearchSheetProps) {
   const inputRef = useRef<TextInput>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const sheetDragStartY = useSharedValue(0);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -422,39 +425,35 @@ function DetailSearchSheet({
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
-      const nextHeight = event.endCoordinates.height;
-      setKeyboardHeight(nextHeight);
-      onKeyboardHeightChange(nextHeight);
-    });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardHeight(0);
-      onKeyboardHeightChange(0);
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, [onKeyboardHeightChange]);
+  const searchSheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: sheetTranslate.value + keyboardHeight.value }],
+  }), [keyboardHeight, sheetTranslate]);
 
-  const dismissPanResponder = useMemo(
-    () => PanResponder.create({
-      onMoveShouldSetPanResponder: (_event, gestureState) => (
-        gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
-      ),
-      onMoveShouldSetPanResponderCapture: (_event, gestureState) => (
-        gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
-      ),
-      onPanResponderGrant: onSheetDragStart,
-      onPanResponderMove: (_event, gestureState) => {
-        onSheetDragMove(gestureState.dy);
-      },
-      onPanResponderRelease: (_event, gestureState) => {
-        onSheetDragEnd(gestureState.dy, gestureState.vy);
-      },
-    }),
-    [onSheetDragEnd, onSheetDragMove, onSheetDragStart],
+  const dismissGesture = useMemo(
+    () => Gesture.Pan()
+      .activeOffsetY(6)
+      .failOffsetX([-24, 24])
+      .onBegin(() => {
+        sheetDragStartY.value = sheetTranslate.value;
+      })
+      .onUpdate((event) => {
+        const next = sheetDragStartY.value + event.translationY;
+        sheetTranslate.value = Math.min(Math.max(next, 0), maxHeight);
+      })
+      .onEnd((event) => {
+        const draggedDown = event.translationY > 12;
+        const pastThreshold = event.translationY > Math.max(72, maxHeight * 0.28);
+        const flickedDown = event.velocityY > 650;
+        if (draggedDown && (pastThreshold || flickedDown)) {
+          runOnJS(onClose)();
+          return;
+        }
+        sheetTranslate.value = withTiming(0, {
+          duration: BOTTOM_SHEET_ANIMATION_MS,
+          easing: Easing.out(Easing.cubic),
+        });
+      }),
+    [maxHeight, onClose, sheetDragStartY, sheetTranslate],
   );
 
   return (
@@ -465,84 +464,85 @@ function DetailSearchSheet({
         onPress={onClose}
         style={s.detailSearchBackdrop}
       />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-        pointerEvents="box-none"
-        style={[s.detailSearchKeyboard, { paddingBottom: keyboardHeight }]}
-      >
-        <Animated.View
-          onLayout={onSheetLayout}
-          style={[
-            s.detailSearchSheet,
-            {
-              maxHeight,
-              paddingBottom: bottomInset + spacing.md,
-              transform: [{ translateY: sheetTranslate }],
-            },
-          ]}
-          {...dismissPanResponder.panHandlers}
-        >
-          <View style={s.detailSearchHandle} />
-          <View style={s.detailSearchHeader}>
-            <SText variant="cardTitle" style={s.detailSearchTitle}>상품 검색</SText>
-          </View>
-          <View style={s.detailSearchInputWrap}>
-            <Ionicons name="search" size={18} color="rgba(255,255,255,0.58)" />
-            <TextInput
-              ref={inputRef}
-              autoCorrect={false}
-              autoFocus
-              onChangeText={setQuery}
-              placeholder="상품명, 브랜드, 인플루언서 검색"
-              placeholderTextColor="rgba(255,255,255,0.46)"
-              returnKeyType="search"
-              style={s.detailSearchInput}
-              value={query}
-            />
-          </View>
-          <FlatList
-            data={data}
-            keyboardShouldPersistTaps="handled"
-            keyExtractor={(item) => item.id}
-            ListEmptyComponent={(
-              <View style={s.detailSearchEmpty}>
-                <SText variant="body" style={s.detailSearchEmptyText}>검색 결과가 없어요</SText>
-              </View>
-            )}
-            renderItem={({ item }) => {
-              const thumb = getGroupBuyThumb(item);
-              const sellerName = item.rawPost.influencer.instagramUsername.replace(/^@/, '');
-              return (
-                <Pressable
-                  accessibilityLabel={`${item.productName ?? '상품'} 보기`}
-                  accessibilityRole="button"
-                  onPress={() => onSelect(item)}
-                  style={({ pressed }) => [s.detailSearchResult, pressed && s.pressed]}
-                >
-                  {thumb ? (
-                    <Image source={{ uri: thumb }} style={s.detailSearchThumb} resizeMode="cover" />
-                  ) : (
-                    <View style={s.detailSearchThumbFallback}>
-                      <Ionicons name="cube-outline" size={20} color="rgba(255,255,255,0.7)" />
+      <View pointerEvents="box-none" style={s.detailSearchKeyboard}>
+        <GestureDetector gesture={dismissGesture}>
+          <Reanimated.View
+            onLayout={onSheetLayout}
+            style={[
+              s.detailSearchSheet,
+              {
+                maxHeight,
+                paddingBottom: bottomInset + spacing.md,
+              },
+              searchSheetStyle,
+            ]}
+          >
+            <View style={s.detailSearchHandle} />
+            <View style={s.detailSearchHeader}>
+              <SText variant="cardTitle" style={s.detailSearchTitle}>상품 검색</SText>
+            </View>
+            <View style={s.detailSearchInputWrap}>
+              <Ionicons name="search" size={18} color="rgba(255,255,255,0.58)" />
+              <TextInput
+                ref={inputRef}
+                autoCorrect={false}
+                autoFocus
+                onChangeText={setQuery}
+                placeholder="상품명, 브랜드, 인플루언서 검색"
+                placeholderTextColor="rgba(255,255,255,0.46)"
+                returnKeyType="search"
+                style={s.detailSearchInput}
+                value={query}
+              />
+            </View>
+            <FlatList
+              data={data}
+              initialNumToRender={8}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
+              keyExtractor={(item) => item.id}
+              ListEmptyComponent={(
+                <View style={s.detailSearchEmpty}>
+                  <SText variant="body" style={s.detailSearchEmptyText}>검색 결과가 없어요</SText>
+                </View>
+              )}
+              renderItem={({ item }) => {
+                const thumb = getGroupBuyThumb(item);
+                const sellerName = item.rawPost.influencer.instagramUsername.replace(/^@/, '');
+                return (
+                  <Pressable
+                    accessibilityLabel={`${item.productName ?? '상품'} 보기`}
+                    accessibilityRole="button"
+                    onPress={() => onSelect(item)}
+                    style={({ pressed }) => [s.detailSearchResult, pressed && s.pressed]}
+                  >
+                    {thumb ? (
+                      <Image source={{ uri: thumb }} style={s.detailSearchThumb} resizeMode="cover" />
+                    ) : (
+                      <View style={s.detailSearchThumbFallback}>
+                        <Ionicons name="cube-outline" size={20} color="rgba(255,255,255,0.7)" />
+                      </View>
+                    )}
+                    <View style={s.detailSearchResultBody}>
+                      <SText variant="cardTitle" style={s.detailSearchResultTitle} numberOfLines={1}>
+                        {item.productName ?? '제품명 미확인'}
+                      </SText>
+                      <SText variant="caption" style={s.detailSearchResultMeta} numberOfLines={1}>
+                        {item.brandName ?? `@${sellerName}`} · {formatEndDate(item.endDate)}
+                      </SText>
                     </View>
-                  )}
-                  <View style={s.detailSearchResultBody}>
-                    <SText variant="cardTitle" style={s.detailSearchResultTitle} numberOfLines={1}>
-                      {item.productName ?? '제품명 미확인'}
-                    </SText>
-                    <SText variant="caption" style={s.detailSearchResultMeta} numberOfLines={1}>
-                      {item.brandName ?? `@${sellerName}`} · {formatEndDate(item.endDate)}
-                    </SText>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.42)" />
-                </Pressable>
-              );
-            }}
-            style={s.detailSearchList}
-          />
-        </Animated.View>
-      </KeyboardAvoidingView>
+                    <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.42)" />
+                  </Pressable>
+                );
+              }}
+              maxToRenderPerBatch={8}
+              removeClippedSubviews={Platform.OS === 'android'}
+              style={s.detailSearchList}
+              windowSize={5}
+            />
+          </Reanimated.View>
+        </GestureDetector>
+      </View>
     </View>
   );
 }
@@ -553,7 +553,8 @@ export type ProductReelPageProps = {
   isSearchSheetVisible?: boolean;
   searchSheetMetrics?: {
     height: number;
-    translateY: Animated.Value;
+    keyboardHeight: SharedValue<number>;
+    translateY: SharedValue<number>;
   } | null;
   shouldPreloadVideo?: boolean;
   bottomChromeOffset?: number;
@@ -612,120 +613,146 @@ export function ProductReelPage({
   const summary = groupBuy.summary ?? groupBuy.discountInfo ?? '';
   const summarySheetMaxHeight = Math.max(
     280,
-    Math.min(pageHeight - topInset - spacing.xl, pageHeight * 0.62),
+    Math.min(pageHeight - topInset - spacing.xl, pageHeight * SUMMARY_SHEET_MAX_HEIGHT_RATIO),
   );
-  const summarySheetTranslate = useRef(new Animated.Value(summarySheetMaxHeight)).current;
-  const sheetDragStartY = useRef(0);
+  const summarySheetTranslate = useSharedValue(summarySheetMaxHeight);
+  const summarySheetDragStartY = useSharedValue(0);
+  const summaryCanPullFromScroll = useSharedValue(1);
   const summarySheetHeightForMedia = Math.max(
     1,
     Math.min(summarySheetMeasuredHeight || summarySheetMaxHeight, summarySheetMaxHeight),
   );
-  const activeSheetTranslate = isSearchSheetVisible && searchSheetMetrics
+  const activeSheetMediaTranslate = isSearchSheetVisible && searchSheetMetrics
     ? searchSheetMetrics.translateY
     : summarySheetTranslate;
-  const activeSheetHeightForMedia = isSearchSheetVisible && searchSheetMetrics
+  const activeSheetBaseHeightForMedia = isSearchSheetVisible && searchSheetMetrics
     ? Math.max(1, searchSheetMetrics.height)
     : summarySheetHeightForMedia;
-  const mediaStageOpenTop = topInset + 64;
+  const activeKeyboardHeightForMedia = isSearchSheetVisible && searchSheetMetrics
+    ? searchSheetMetrics.keyboardHeight
+    : null;
+  const mediaStageOpenTop = topInset + spacing.sm;
   const minMediaStageHeight = Math.min(
     Math.max(MEDIA_STAGE_MIN_HEIGHT, pageHeight * MEDIA_STAGE_MIN_HEIGHT_RATIO),
     Math.max(1, pageHeight - mediaStageOpenTop - MEDIA_STAGE_MIN_SHEET_SPACE),
   );
+  const maxCoveredSheetHeightForMedia = Math.max(1, pageHeight - mediaStageOpenTop);
+  const maxCappedSheetHeightForMedia = Math.max(1, pageHeight - mediaStageOpenTop - minMediaStageHeight);
   const cappedSheetHeightForMedia = Math.min(
-    activeSheetHeightForMedia,
-    Math.max(1, pageHeight - mediaStageOpenTop - minMediaStageHeight),
+    activeSheetBaseHeightForMedia,
+    maxCappedSheetHeightForMedia,
   );
-  // 0 = sheet fully open, 1 = sheet fully closed. Drives the media stage size
-  // so it smoothly grows/shrinks in sync with the sheet position.
-  const sheetProgress = useMemo(
-    () => activeSheetTranslate.interpolate({
-      inputRange: [0, cappedSheetHeightForMedia],
-      outputRange: [0, 1],
-      extrapolate: 'clamp',
-    }),
-    [activeSheetTranslate, cappedSheetHeightForMedia],
-  );
-  // Media stage interpolations: 0 (open) -> collapsed card, 1 (closed) -> full screen.
-  const mediaStageOpenWidth = mediaWidth - MEDIA_STAGE_SIDE_INSET * 2;
-  const mediaStageOpenHeight = Math.max(
-    0,
-    pageHeight - mediaStageOpenTop - cappedSheetHeightForMedia,
-  );
-  const animatedMediaStageWidth = useMemo(
-    () => sheetProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [mediaStageOpenWidth, mediaWidth],
-      extrapolate: 'clamp',
-    }),
-    [mediaStageOpenWidth, mediaWidth, sheetProgress],
-  );
-  const animatedMediaStageHeight = useMemo(
-    () => sheetProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [mediaStageOpenHeight, pageHeight],
-      extrapolate: 'clamp',
-    }),
-    [mediaStageOpenHeight, pageHeight, sheetProgress],
-  );
-  const animatedMediaStageTop = useMemo(
-    () => sheetProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [mediaStageOpenTop, 0],
-      extrapolate: 'clamp',
-    }),
-    [mediaStageOpenTop, sheetProgress],
-  );
-  const animatedMediaStageBottom = useMemo(
-    () => sheetProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [cappedSheetHeightForMedia, 0],
-      extrapolate: 'clamp',
-    }),
-    [cappedSheetHeightForMedia, sheetProgress],
-  );
-  const animatedMediaStageRadius = useMemo(
-    () => sheetProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [22, 0],
-      extrapolate: 'clamp',
-    }),
-    [sheetProgress],
-  );
-  const animatedMediaStageLeft = useMemo(
-    () => sheetProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [MEDIA_STAGE_SIDE_INSET, 0],
-      extrapolate: 'clamp',
-    }),
-    [sheetProgress],
-  );
-  const animatedMediaStageRight = useMemo(
-    () => sheetProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [MEDIA_STAGE_SIDE_INSET, 0],
-      extrapolate: 'clamp',
-    }),
-    [sheetProgress],
-  );
-  // Reel chrome (right rail, bottom info, dots) fades with the sheet: visible
-  // when closed, hidden when the sheet is open.
-  const animatedReelChromeOpacity = useMemo(
-    () => sheetProgress.interpolate({
-      inputRange: [0, 0.35],
-      outputRange: [0, 1],
-      extrapolate: 'clamp',
-    }),
-    [sheetProgress],
-  );
-  const isMediaStageCompact = isSummaryExpanded || isSearchSheetVisible;
-  const mediaStageWidth = animatedMediaStageWidth;
-  const mediaStageHeight = animatedMediaStageHeight;
-  const mediaStageTop = animatedMediaStageTop;
-  const mediaStageBottom = animatedMediaStageBottom;
-  const mediaStageRadius = animatedMediaStageRadius;
-  const mediaStageLeft = animatedMediaStageLeft;
-  const mediaStageRight = animatedMediaStageRight;
-  const reelChromeOpacity = isSearchSheetVisible ? 0 : animatedReelChromeOpacity;
+  // Media stage interpolations: 0 (open) -> compact clipped frame, 1 (closed) -> full screen.
+  const mediaStageFrameStyle = useAnimatedStyle(() => {
+    const keyboardExtra = Math.max(0, -(activeKeyboardHeightForMedia?.value ?? 0));
+    const dynamicSheetHeight = Math.min(
+      activeSheetBaseHeightForMedia + keyboardExtra,
+      maxCoveredSheetHeightForMedia,
+    );
+    const dynamicCappedSheetHeight = Math.min(dynamicSheetHeight, maxCappedSheetHeightForMedia);
+    const progress = interpolate(
+      activeSheetMediaTranslate.value,
+      [0, dynamicCappedSheetHeight],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    const frameLeft = interpolate(progress, [0, 1], [MEDIA_STAGE_SIDE_INSET, 0], Extrapolation.CLAMP);
+    const frameRight = frameLeft;
+    const frameTop = interpolate(progress, [0, 1], [mediaStageOpenTop, 0], Extrapolation.CLAMP);
+    const frameBottom = interpolate(progress, [0, 1], [dynamicCappedSheetHeight, 0], Extrapolation.CLAMP);
+    const frameWidth = Math.max(1, mediaWidth - frameLeft - frameRight);
+    const frameHeight = Math.max(1, pageHeight - frameTop - frameBottom);
+
+    return {
+      borderRadius: interpolate(progress, [0, 1], [22, 0], Extrapolation.CLAMP),
+      height: frameHeight,
+      left: frameLeft,
+      top: frameTop,
+      width: frameWidth,
+    };
+  }, [
+    activeKeyboardHeightForMedia,
+    activeSheetMediaTranslate,
+    activeSheetBaseHeightForMedia,
+    maxCappedSheetHeightForMedia,
+    maxCoveredSheetHeightForMedia,
+    mediaStageOpenTop,
+    mediaWidth,
+    pageHeight,
+  ]);
+  const mediaStageContentStyle = useAnimatedStyle(() => {
+    const keyboardExtra = Math.max(0, -(activeKeyboardHeightForMedia?.value ?? 0));
+    const dynamicSheetHeight = Math.min(
+      activeSheetBaseHeightForMedia + keyboardExtra,
+      maxCoveredSheetHeightForMedia,
+    );
+    const dynamicCappedSheetHeight = Math.min(dynamicSheetHeight, maxCappedSheetHeightForMedia);
+    const progress = interpolate(
+      activeSheetMediaTranslate.value,
+      [0, dynamicCappedSheetHeight],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    const frameLeft = interpolate(progress, [0, 1], [MEDIA_STAGE_SIDE_INSET, 0], Extrapolation.CLAMP);
+    const frameRight = frameLeft;
+    const frameTop = interpolate(progress, [0, 1], [mediaStageOpenTop, 0], Extrapolation.CLAMP);
+    const frameBottom = interpolate(progress, [0, 1], [dynamicCappedSheetHeight, 0], Extrapolation.CLAMP);
+    const frameWidth = Math.max(1, mediaWidth - frameLeft - frameRight);
+    const frameHeight = Math.max(1, pageHeight - frameTop - frameBottom);
+    const contentScale = Math.min(
+      1,
+      Math.max(
+        frameWidth / Math.max(1, mediaWidth),
+        frameHeight / Math.max(1, pageHeight),
+      ),
+    );
+    const contentTranslateX = (frameWidth - mediaWidth) / 2;
+    const contentTranslateY = (frameHeight - pageHeight) / 2;
+
+    return {
+      height: pageHeight,
+      transform: [
+        {
+          translateX: contentTranslateX,
+        },
+        {
+          translateY: contentTranslateY,
+        },
+        {
+          scale: contentScale,
+        },
+      ],
+      width: mediaWidth,
+    };
+  }, [
+    activeKeyboardHeightForMedia,
+    activeSheetBaseHeightForMedia,
+    activeSheetMediaTranslate,
+    maxCappedSheetHeightForMedia,
+    maxCoveredSheetHeightForMedia,
+    mediaStageOpenTop,
+    mediaWidth,
+    pageHeight,
+  ]);
+  const summarySheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: summarySheetTranslate.value }],
+  }), [summarySheetTranslate]);
+  const reelChromeStyle = useAnimatedStyle(() => {
+    if (isSearchSheetVisible) {
+      return { opacity: 0 };
+    }
+
+    const progress = interpolate(
+      summarySheetTranslate.value,
+      [0, cappedSheetHeightForMedia],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+
+    return {
+      opacity: interpolate(progress, [0, 0.35], [0, 1], Extrapolation.CLAMP),
+    };
+  }, [cappedSheetHeightForMedia, isSearchSheetVisible, summarySheetTranslate]);
 
   const resetSummarySheetState = useCallback(() => {
     setSummaryExpanded(false);
@@ -740,17 +767,16 @@ export function ProductReelPage({
     summaryScrollAtTopRef.current = true;
     summaryScrollAtBottomRef.current = false;
     summaryScrollGestureStartedAtTopRef.current = true;
-    summarySheetTranslate.stopAnimation();
-    summarySheetTranslate.setValue(summarySheetMaxHeight);
-  }, [summarySheetMaxHeight, summarySheetTranslate]);
+    summaryCanPullFromScroll.value = 1;
+    cancelAnimation(summarySheetTranslate);
+    summarySheetTranslate.value = summarySheetMaxHeight;
+  }, [summaryCanPullFromScroll, summarySheetMaxHeight, summarySheetTranslate]);
 
   const snapSummarySheetOpen = useCallback(() => {
-    Animated.spring(summarySheetTranslate, {
-      toValue: 0,
-      useNativeDriver: false,
-      friction: 9,
-      tension: 50,
-    }).start();
+    summarySheetTranslate.value = withTiming(0, {
+      duration: BOTTOM_SHEET_ANIMATION_MS,
+      easing: Easing.out(Easing.cubic),
+    });
   }, [summarySheetTranslate]);
 
   const setSummaryOpen = useCallback(
@@ -760,62 +786,52 @@ export function ProductReelPage({
         setSummaryVisible(true);
         snapSummarySheetOpen();
       } else {
-        Animated.timing(summarySheetTranslate, {
-          toValue: summarySheetMaxHeight,
-          duration: 260,
+        summarySheetTranslate.value = withTiming(summarySheetMaxHeight, {
+          duration: BOTTOM_SHEET_ANIMATION_MS,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
-        }).start(() => {
-          resetSummarySheetState();
+        }, (finished) => {
+          if (finished) {
+            runOnJS(resetSummarySheetState)();
+          }
         });
       }
       onSummarySheetStateChange(isOpen, false);
     },
-    [onSummarySheetStateChange, resetSummarySheetState, snapSummarySheetOpen, summarySheetMaxHeight, summarySheetTranslate],
+    [
+      onSummarySheetStateChange,
+      resetSummarySheetState,
+      snapSummarySheetOpen,
+      summarySheetMaxHeight,
+      summarySheetTranslate,
+    ],
   );
 
-  const startSummarySheetDrag = useCallback(() => {
-    summarySheetTranslate.stopAnimation((value) => {
-      sheetDragStartY.current = typeof value === 'number' ? value : 0;
-    });
-  }, [summarySheetTranslate]);
-
-  const moveSummarySheetDrag = useCallback(
-    (dy: number) => {
-      const next = sheetDragStartY.current + Math.max(0, dy);
-      summarySheetTranslate.setValue(Math.min(next, summarySheetMaxHeight));
-    },
-    [summarySheetMaxHeight, summarySheetTranslate],
-  );
-
-  const finishSummarySheetDrag = useCallback(
-    (dy: number, vy: number) => {
-      const draggedDown = dy > 12;
-      const pastThreshold = dy > Math.max(72, summarySheetMaxHeight * 0.28);
-      const flickedDown = vy > 0.65;
-      if (draggedDown && (pastThreshold || flickedDown)) {
-        setSummaryOpen(false);
-      } else {
-        snapSummarySheetOpen();
-      }
-    },
-    [setSummaryOpen, snapSummarySheetOpen, summarySheetMaxHeight],
-  );
-
-  const handlePanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => isSummaryVisible,
-        onMoveShouldSetPanResponder: (_e, gestureState) => {
-          if (!isSummaryVisible) return false;
-          return Math.abs(gestureState.dy) > 4 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        },
-        onPanResponderGrant: startSummarySheetDrag,
-        onPanResponderMove: (_e, gestureState) => moveSummarySheetDrag(gestureState.dy),
-        onPanResponderRelease: (_e, gestureState) => finishSummarySheetDrag(gestureState.dy, gestureState.vy),
-        onPanResponderTerminate: snapSummarySheetOpen,
+  const summarySheetPanGesture = useMemo(
+    () => Gesture.Pan()
+      .enabled(isSummaryVisible)
+      .activeOffsetY(6)
+      .failOffsetX([-24, 24])
+      .onBegin(() => {
+        summarySheetDragStartY.value = summarySheetTranslate.value;
+      })
+      .onUpdate((event) => {
+        const next = summarySheetDragStartY.value + Math.max(0, event.translationY);
+        summarySheetTranslate.value = Math.min(next, summarySheetMaxHeight);
+      })
+      .onEnd((event) => {
+        const draggedDown = event.translationY > 12;
+        const pastThreshold = event.translationY > Math.max(72, summarySheetMaxHeight * 0.28);
+        const flickedDown = event.velocityY > 650;
+        if (draggedDown && (pastThreshold || flickedDown)) {
+          runOnJS(setSummaryOpen)(false);
+          return;
+        }
+        summarySheetTranslate.value = withTiming(0, {
+          duration: BOTTOM_SHEET_ANIMATION_MS,
+          easing: Easing.out(Easing.cubic),
+        });
       }),
-    [finishSummarySheetDrag, isSummaryVisible, moveSummarySheetDrag, snapSummarySheetOpen, startSummarySheetDrag],
+    [isSummaryVisible, setSummaryOpen, summarySheetDragStartY, summarySheetMaxHeight, summarySheetTranslate],
   );
 
   useEffect(() => {
@@ -874,49 +890,50 @@ export function ProductReelPage({
 
   const canPullSummarySheetFromScroll = isSummaryScrollAtTop || summaryContentFitsViewport;
 
-  const finishSummarySheetScrollPull = useCallback(
-    (translationY: number, velocityY: number) => {
-      const draggedDown = translationY > 12;
-      const pastThreshold = translationY > SUMMARY_EDGE_DISMISS_DISTANCE;
-      const flickedDown = velocityY > 650;
-      if (draggedDown && (pastThreshold || flickedDown)) {
-        setSummaryOpen(false);
-      } else {
-        snapSummarySheetOpen();
-      }
-    },
-    [setSummaryOpen, snapSummarySheetOpen],
-  );
-
   const summaryScrollPullGesture = useMemo(
     () =>
       Gesture.Pan()
         .enabled(isSummaryVisible && canPullSummarySheetFromScroll)
         .activeOffsetY(4)
         .failOffsetX([-24, 24])
-        .runOnJS(true)
         .onBegin(() => {
-          startSummarySheetDrag();
+          summarySheetDragStartY.value = summarySheetTranslate.value;
         })
         .onUpdate((event) => {
-          const canPullFromTop = summaryScrollAtTopRef.current || summaryContentFitsViewport;
-          if (canPullFromTop && event.translationY > 0) {
-            moveSummarySheetDrag(event.translationY);
+          if (summaryCanPullFromScroll.value > 0 && event.translationY > 0) {
+            const next = summarySheetDragStartY.value + event.translationY;
+            summarySheetTranslate.value = Math.min(next, summarySheetMaxHeight);
           }
         })
         .onEnd((event) => {
-          const canPullFromTop = summaryScrollAtTopRef.current || summaryContentFitsViewport;
-          if (canPullFromTop && event.translationY > 0) {
-            finishSummarySheetScrollPull(event.translationY, event.velocityY);
+          if (summaryCanPullFromScroll.value <= 0 || event.translationY <= 0) {
+            summarySheetTranslate.value = withTiming(0, {
+              duration: BOTTOM_SHEET_ANIMATION_MS,
+              easing: Easing.out(Easing.cubic),
+            });
+            return;
           }
+
+          const draggedDown = event.translationY > 12;
+          const pastThreshold = event.translationY > SUMMARY_EDGE_DISMISS_DISTANCE;
+          const flickedDown = event.velocityY > 650;
+          if (draggedDown && (pastThreshold || flickedDown)) {
+            runOnJS(setSummaryOpen)(false);
+            return;
+          }
+          summarySheetTranslate.value = withTiming(0, {
+            duration: BOTTOM_SHEET_ANIMATION_MS,
+            easing: Easing.out(Easing.cubic),
+          });
         }),
     [
       canPullSummarySheetFromScroll,
-      finishSummarySheetScrollPull,
       isSummaryVisible,
-      moveSummarySheetDrag,
-      startSummarySheetDrag,
-      summaryContentFitsViewport,
+      setSummaryOpen,
+      summaryCanPullFromScroll,
+      summarySheetDragStartY,
+      summarySheetMaxHeight,
+      summarySheetTranslate,
     ],
   );
 
@@ -927,21 +944,32 @@ export function ProductReelPage({
       const isPullingPastTop = nextOffset < 0
         && (summaryScrollGestureStartedAtTopRef.current || summaryContentFitsViewport);
       const canSwipeReel = canSwipeReelFromSummaryOffset(nextOffset);
+      const nextAtTop = nextOffset <= SUMMARY_SCROLL_TOP_EPSILON;
+      const nextCanPull = nextAtTop || summaryContentFitsViewport;
+      const previousAtTop = summaryScrollAtTopRef.current;
+      const previousAtBottom = summaryScrollAtBottomRef.current;
       summaryScrollOffsetRef.current = nextOffset;
-      summaryScrollAtTopRef.current = nextOffset <= SUMMARY_SCROLL_TOP_EPSILON;
+      summaryScrollAtTopRef.current = nextAtTop;
       summaryScrollAtBottomRef.current = canSwipeReel;
+      summaryCanPullFromScroll.value = nextCanPull ? 1 : 0;
       if (isPullingPastTop) {
-        summarySheetTranslate.setValue(Math.min(-nextOffset, summarySheetMaxHeight));
+        const nextSheetOffset = Math.min(-nextOffset, summarySheetMaxHeight);
+        summarySheetTranslate.value = nextSheetOffset;
       }
-      setSummaryScrollAtTop(summaryScrollAtTopRef.current);
-      setSummaryScrollAtBottom(canSwipeReel);
-      onSummarySheetStateChange(true, canSwipeReel);
+      if (previousAtTop !== nextAtTop) {
+        setSummaryScrollAtTop(nextAtTop);
+      }
+      if (previousAtBottom !== canSwipeReel) {
+        setSummaryScrollAtBottom(canSwipeReel);
+        onSummarySheetStateChange(true, canSwipeReel);
+      }
     },
     [
       canSwipeReelFromSummaryOffset,
       isSummaryExpanded,
       onSummarySheetStateChange,
       summaryContentFitsViewport,
+      summaryCanPullFromScroll,
       summarySheetMaxHeight,
       summarySheetTranslate,
     ],
@@ -963,12 +991,21 @@ export function ProductReelPage({
       setSummaryScrollViewportHeight(nextHeight);
       if (isSummaryExpanded) {
         const canSwipeReel = canSwipeReelFromSummaryOffset(summaryScrollOffsetRef.current, nextHeight);
+        const nextContentFitsViewport = summaryScrollContentHeightRef.current > 0
+          && summaryScrollContentHeightRef.current <= nextHeight + 2;
+        const nextCanPull = summaryScrollAtTopRef.current || nextContentFitsViewport;
+        summaryCanPullFromScroll.value = nextCanPull ? 1 : 0;
         summaryScrollAtBottomRef.current = canSwipeReel;
         setSummaryScrollAtBottom(canSwipeReel);
         onSummarySheetStateChange(true, canSwipeReel);
       }
     },
-    [canSwipeReelFromSummaryOffset, isSummaryExpanded, onSummarySheetStateChange],
+    [
+      canSwipeReelFromSummaryOffset,
+      isSummaryExpanded,
+      onSummarySheetStateChange,
+      summaryCanPullFromScroll,
+    ],
   );
 
   const handleSummarySheetLayout = useCallback(
@@ -987,46 +1024,20 @@ export function ProductReelPage({
       setSummaryScrollContentHeight(height);
       if (isSummaryExpanded) {
         const canSwipeReel = canSwipeReelFromSummaryOffset(summaryScrollOffsetRef.current, undefined, height);
+        const nextContentFitsViewport = height <= summaryScrollViewportHeightRef.current + 2;
+        const nextCanPull = summaryScrollAtTopRef.current || nextContentFitsViewport;
+        summaryCanPullFromScroll.value = nextCanPull ? 1 : 0;
         summaryScrollAtBottomRef.current = canSwipeReel;
         setSummaryScrollAtBottom(canSwipeReel);
         onSummarySheetStateChange(true, canSwipeReel);
       }
     },
-    [canSwipeReelFromSummaryOffset, isSummaryExpanded, onSummarySheetStateChange],
+    [canSwipeReelFromSummaryOffset, isSummaryExpanded, onSummarySheetStateChange, summaryCanPullFromScroll],
   );
 
   // Keep edge bounces enabled so the touch can hand off at both scroll ends.
   const summaryBounces = isSummaryExpanded
     && (isSummaryScrollAtTop || isSummaryScrollAtBottom || summaryContentFitsViewport);
-
-  const sheetBodyPanResponder = useMemo(
-    () => {
-      const shouldDragSheet = (_e: unknown, gestureState: { dx: number; dy: number }) => {
-        if (!isSummaryVisible) return false;
-        if (Math.abs(gestureState.dy) <= 4) return false;
-        if (Math.abs(gestureState.dy) <= Math.abs(gestureState.dx)) return false;
-        return gestureState.dy > 4 && (summaryScrollAtTopRef.current || summaryContentFitsViewport);
-      };
-
-      return PanResponder.create({
-        onMoveShouldSetPanResponder: shouldDragSheet,
-        onMoveShouldSetPanResponderCapture: shouldDragSheet,
-        onPanResponderGrant: startSummarySheetDrag,
-        onPanResponderMove: (_e, gestureState) => moveSummarySheetDrag(gestureState.dy),
-        onPanResponderRelease: (_e, gestureState) => finishSummarySheetDrag(gestureState.dy, gestureState.vy),
-        onPanResponderTerminate: snapSummarySheetOpen,
-      });
-    },
-    [
-      finishSummarySheetDrag,
-      isSummaryScrollAtTop,
-      isSummaryVisible,
-      moveSummarySheetDrag,
-      snapSummarySheetOpen,
-      startSummarySheetDrag,
-      summaryContentFitsViewport,
-    ],
-  );
 
   const handleSummaryScrollEndDrag = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -1094,7 +1105,7 @@ export function ProductReelPage({
       const thumbnailUrl = item.thumbnailUrl ?? groupBuy.thumbnailUrl ?? null;
 
       return (
-        <Animated.View style={[s.mediaPane, { width: mediaStageWidth, height: mediaStageHeight }]}>
+        <View style={[s.mediaPane, { width: mediaWidth, height: pageHeight }]}>
           {item.isVideo ? (
             shouldMountVideo ? (
               <VideoSlide
@@ -1114,15 +1125,15 @@ export function ProductReelPage({
           ) : (
             <Image source={{ uri: item.url }} style={s.mediaFill} resizeMode="contain" />
           )}
-        </Animated.View>
+        </View>
       );
     },
     [
       activeMediaIndex,
       groupBuy.thumbnailUrl,
       isActive,
-      mediaStageHeight,
-      mediaStageWidth,
+      mediaWidth,
+      pageHeight,
       s,
       shouldPreloadVideo,
     ],
@@ -1130,53 +1141,50 @@ export function ProductReelPage({
 
   return (
     <View style={[s.reelPage, { height: pageHeight }]}>
-      <Animated.View
+      <Reanimated.View
         style={[
           s.mediaStage,
-          {
-            left: mediaStageLeft,
-            right: mediaStageRight,
-            top: mediaStageTop,
-            bottom: mediaStageBottom,
-            borderRadius: mediaStageRadius,
-            overflow: 'hidden',
-          },
+          mediaStageFrameStyle,
         ]}
       >
-        {mediaItems.length > 0 ? (
-          <Animated.View style={{ height: mediaStageHeight, overflow: 'hidden' }}>
-            <FlashList
-              data={mediaItems}
-              horizontal
-              pagingEnabled
-              snapToAlignment="start"
-              snapToInterval={isMediaStageCompact ? mediaStageOpenWidth : mediaWidth}
-              keyExtractor={(item, index) => `${item.url}-${index}`}
-              renderItem={renderMediaItem}
-              showsHorizontalScrollIndicator={false}
-              style={s.mediaScroller}
-              decelerationRate="fast"
-              disableIntervalMomentum
-              drawDistance={mediaWidth}
-              maxItemsInRecyclePool={2}
-              maintainVisibleContentPosition={{ disabled: true }}
-              onMomentumScrollEnd={(event) => {
-                const stepWidth = isMediaStageCompact ? mediaStageOpenWidth : mediaWidth;
-                const nextIndex = Math.round(event.nativeEvent.contentOffset.x / stepWidth);
-                if (nextIndex !== activeMediaIndex && nextIndex >= 0 && nextIndex < mediaItems.length) {
-                  setActiveMediaIndex(nextIndex);
-                }
-              }}
-            />
-          </Animated.View>
-        ) : (
-          <View style={s.emptyMedia}>
-            <SText variant="body" style={s.emptyMediaText}>미디어 없음</SText>
-          </View>
-        )}
-      </Animated.View>
+        <Reanimated.View style={[s.mediaStageContent, mediaStageContentStyle]}>
+          {mediaItems.length > 0 ? (
+            <View style={s.mediaViewport}>
+              <FlashList
+                data={mediaItems}
+                horizontal
+                pagingEnabled
+                snapToAlignment="start"
+                snapToInterval={mediaWidth}
+                keyExtractor={(item, index) => `${item.url}-${index}`}
+                renderItem={renderMediaItem}
+                showsHorizontalScrollIndicator={false}
+                style={s.mediaScroller}
+                decelerationRate="fast"
+                disableIntervalMomentum
+                drawDistance={mediaWidth}
+                maxItemsInRecyclePool={2}
+                maintainVisibleContentPosition={{ disabled: true }}
+                onMomentumScrollEnd={(event) => {
+                  const nextIndex = Math.round(event.nativeEvent.contentOffset.x / mediaWidth);
+                  if (nextIndex !== activeMediaIndex && nextIndex >= 0 && nextIndex < mediaItems.length) {
+                    setActiveMediaIndex(nextIndex);
+                  }
+                }}
+              />
+            </View>
+          ) : (
+            <View style={s.emptyMedia}>
+              <SText variant="body" style={s.emptyMediaText}>미디어 없음</SText>
+            </View>
+          )}
+        </Reanimated.View>
+      </Reanimated.View>
 
-      <View style={[s.topBar, { paddingTop: topInset + spacing.sm }]}>
+      <Reanimated.View
+        pointerEvents={isSummaryExpanded || isSearchSheetVisible ? 'none' : 'auto'}
+        style={[s.topBar, { paddingTop: topInset + spacing.sm }, reelChromeStyle]}
+      >
         {showBackButton ? (
           <Pressable
             accessibilityLabel="뒤로가기"
@@ -1194,10 +1202,10 @@ export function ProductReelPage({
           <SText variant="cardTitle" style={s.reelsTitle}>릴스</SText>
         </View>
         <View style={s.topIconButton} />
-      </View>
+      </Reanimated.View>
 
       {mediaItems.length > 1 ? (
-        <Animated.View style={[s.mediaDots, { top: topInset + 62, opacity: reelChromeOpacity }]}>
+        <Reanimated.View style={[s.mediaDots, { top: topInset + 62 }, reelChromeStyle]}>
           {visibleDots.map((index) => (
             <View
               key={index}
@@ -1209,11 +1217,11 @@ export function ProductReelPage({
               ]}
             />
           ))}
-        </Animated.View>
+        </Reanimated.View>
       ) : null}
 
       <>
-          <Animated.View pointerEvents={isSummaryExpanded || isSearchSheetVisible ? 'none' : 'auto'} style={[s.rightRail, { bottom: bottomInset + bottomChromeOffset + 104, opacity: reelChromeOpacity }]}>
+          <Reanimated.View pointerEvents={isSummaryExpanded || isSearchSheetVisible ? 'none' : 'auto'} style={[s.rightRail, { bottom: bottomInset + bottomChromeOffset + 104 }, reelChromeStyle]}>
             <ReelAction
               icon={<Ionicons name={isBookmarked(groupBuy.id) ? 'bookmark' : 'bookmark-outline'} size={26} color={isBookmarked(groupBuy.id) ? colors.accent : '#FFFFFF'} />}
               label={isBookmarked(groupBuy.id) ? '북마크됨' : '북마크'}
@@ -1229,9 +1237,9 @@ export function ProductReelPage({
               s={s}
             />
             <ReelPurchaseAction onPress={handleOpenLink} s={s} />
-          </Animated.View>
+          </Reanimated.View>
 
-          <Animated.View pointerEvents={isSummaryExpanded || isSearchSheetVisible ? 'none' : 'auto'} style={[s.bottomInfo, { paddingBottom: bottomInset + bottomChromeOffset + spacing.lg, opacity: reelChromeOpacity }]}>
+          <Reanimated.View pointerEvents={isSummaryExpanded || isSearchSheetVisible ? 'none' : 'auto'} style={[s.bottomInfo, { paddingBottom: bottomInset + bottomChromeOffset + spacing.lg }, reelChromeStyle]}>
             <View style={s.bottomInfoScrim} pointerEvents="none" />
             <View style={s.sellerRow}>
               <View style={s.avatar}>
@@ -1273,7 +1281,7 @@ export function ProductReelPage({
               ) : null}
             </View>
 
-          </Animated.View>
+          </Reanimated.View>
       </>
 
       {summary && isSummaryVisible ? (
@@ -1284,50 +1292,53 @@ export function ProductReelPage({
             onPress={() => setSummaryOpen(false)}
             style={s.summaryBackdrop}
           />
-          <Animated.View
+          <Reanimated.View
             onLayout={handleSummarySheetLayout}
             style={[
               s.summarySheet,
               {
                 maxHeight: summarySheetMaxHeight,
                 paddingBottom: bottomInset + spacing.lg,
-                transform: [{ translateY: summarySheetTranslate }],
               },
+              summarySheetStyle,
             ]}
-            {...sheetBodyPanResponder.panHandlers}
           >
-            <View style={s.summaryHandle} {...handlePanResponder.panHandlers}>
-              <View style={s.summaryHandleBar} />
-            </View>
-            <View style={s.summarySheetHeader}>
-              <View style={s.summarySheetSeller}>
-                <View style={s.summarySheetAvatar}>
-                  <SText variant="caption" style={s.avatarText}>{sellerName.slice(0, 1).toUpperCase()}</SText>
+            <GestureDetector gesture={summarySheetPanGesture}>
+              <View style={s.summaryDragArea}>
+                <View style={s.summaryHandle}>
+                  <View style={s.summaryHandleBar} />
                 </View>
-                <View style={s.summarySheetTitleBlock}>
-                  <SText variant="cardTitle" style={s.summarySheetSellerName} numberOfLines={1}>
-                    {sellerName}
-                  </SText>
-                  <SText variant="caption" style={s.summarySheetProductName} numberOfLines={1}>
-                    {groupBuy.productName ?? '제품명 미확인'}
-                  </SText>
+                <View style={s.summarySheetHeader}>
+                  <View style={s.summarySheetSeller}>
+                    <View style={s.summarySheetAvatar}>
+                      <SText variant="caption" style={s.avatarText}>{sellerName.slice(0, 1).toUpperCase()}</SText>
+                    </View>
+                    <View style={s.summarySheetTitleBlock}>
+                      <SText variant="cardTitle" style={s.summarySheetSellerName} numberOfLines={1}>
+                        {sellerName}
+                      </SText>
+                      <SText variant="caption" style={s.summarySheetProductName} numberOfLines={1}>
+                        {groupBuy.productName ?? '제품명 미확인'}
+                      </SText>
+                    </View>
+                  </View>
                 </View>
+                <Pressable
+                  accessibilityLabel={isExpired ? '마감된 공구' : '구매 링크'}
+                  accessibilityRole="button"
+                  onPress={handleOpenLink}
+                  style={({ pressed }) => [
+                    s.summarySheetBuyButton,
+                    isExpired && s.summarySheetBuyButtonExpired,
+                    pressed && !isExpired && s.pressed,
+                  ]}
+                >
+                  <SText variant="caption" style={s.summarySheetBuyButtonText}>
+                    {isExpired ? '마감' : '구매 링크'}
+                  </SText>
+                </Pressable>
               </View>
-            </View>
-            <Pressable
-              accessibilityLabel={isExpired ? '마감된 공구' : '구매 링크'}
-              accessibilityRole="button"
-              onPress={handleOpenLink}
-              style={({ pressed }) => [
-                s.summarySheetBuyButton,
-                isExpired && s.summarySheetBuyButtonExpired,
-                pressed && !isExpired && s.pressed,
-              ]}
-            >
-              <SText variant="caption" style={s.summarySheetBuyButtonText}>
-                {isExpired ? '마감' : '구매 링크'}
-              </SText>
-            </Pressable>
+            </GestureDetector>
             <GestureDetector gesture={summaryScrollPullGesture}>
               <GestureScrollView
                 alwaysBounceVertical={summaryBounces}
@@ -1348,7 +1359,7 @@ export function ProductReelPage({
                 </SText>
               </GestureScrollView>
             </GestureDetector>
-          </Animated.View>
+          </Reanimated.View>
         </View>
       ) : null}
     </View>
@@ -1368,26 +1379,26 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const [isSearchSheetVisible, setSearchSheetVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchSheetMeasuredHeight, setSearchSheetMeasuredHeight] = useState(0);
-  const [searchKeyboardHeight, setSearchKeyboardHeight] = useState(0);
+  const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
   const searchSheetMaxHeight = Math.max(
     280,
-    Math.min(screenHeight - insets.top - spacing.xl, screenHeight * 0.70),
+    Math.min(screenHeight - insets.top - spacing.xl, screenHeight * SEARCH_SHEET_MAX_HEIGHT_RATIO),
   );
-  const searchSheetTranslate = useRef(new Animated.Value(searchSheetMaxHeight)).current;
-  const searchSheetDragStartY = useRef(0);
+  const searchSheetTranslate = useSharedValue(searchSheetMaxHeight);
   const searchSheetHeightForMedia = Math.max(
     1,
     Math.min(
-      (searchSheetMeasuredHeight || searchSheetMaxHeight) + searchKeyboardHeight,
+      searchSheetMeasuredHeight || searchSheetMaxHeight,
       Math.max(1, screenHeight - (insets.top + 64)),
     ),
   );
   const searchSheetMetrics = useMemo(
     () => (isSearchSheetVisible ? {
       height: searchSheetHeightForMedia,
+      keyboardHeight,
       translateY: searchSheetTranslate,
     } : null),
-    [isSearchSheetVisible, searchSheetHeightForMedia, searchSheetTranslate],
+    [isSearchSheetVisible, keyboardHeight, searchSheetHeightForMedia, searchSheetTranslate],
   );
 
   useEffect(() => {
@@ -1433,43 +1444,37 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
 
   useEffect(() => {
     if (!isSearchSheetVisible) {
-      searchSheetTranslate.setValue(searchSheetMaxHeight);
+      searchSheetTranslate.value = searchSheetMaxHeight;
     }
   }, [isSearchSheetVisible, searchSheetMaxHeight, searchSheetTranslate]);
 
   const openSearchSheet = useCallback(() => {
     setSearchSheetVisible(true);
-    searchSheetTranslate.stopAnimation();
-    searchSheetTranslate.setValue(searchSheetMaxHeight);
-    setTimeout(() => {
-      Animated.spring(searchSheetTranslate, {
-        toValue: 0,
-        useNativeDriver: false,
-        friction: 9,
-        tension: 50,
-      }).start();
-    }, 0);
+    cancelAnimation(searchSheetTranslate);
+    searchSheetTranslate.value = searchSheetMaxHeight;
+    searchSheetTranslate.value = withTiming(0, {
+      duration: BOTTOM_SHEET_ANIMATION_MS,
+      easing: Easing.out(Easing.cubic),
+    });
   }, [searchSheetMaxHeight, searchSheetTranslate]);
 
   const closeSearchSheet = useCallback(() => {
     Keyboard.dismiss();
-    Animated.timing(searchSheetTranslate, {
-      toValue: searchSheetMaxHeight,
-      duration: 260,
+    searchSheetTranslate.value = withTiming(searchSheetMaxHeight, {
+      duration: BOTTOM_SHEET_ANIMATION_MS,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start(() => {
-      setSearchSheetVisible(false);
-      setSearchKeyboardHeight(0);
+    }, (finished) => {
+      if (finished) {
+        runOnJS(setSearchSheetVisible)(false);
+      }
     });
   }, [searchSheetMaxHeight, searchSheetTranslate]);
 
   const resetSearchSheetClosed = useCallback(() => {
     Keyboard.dismiss();
-    searchSheetTranslate.stopAnimation();
-    searchSheetTranslate.setValue(searchSheetMaxHeight);
+    cancelAnimation(searchSheetTranslate);
+    searchSheetTranslate.value = searchSheetMaxHeight;
     setSearchSheetVisible(false);
-    setSearchKeyboardHeight(0);
   }, [searchSheetMaxHeight, searchSheetTranslate]);
 
   const handleSearchSheetLayout = useCallback(
@@ -1480,39 +1485,6 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       ));
     },
     [searchSheetMaxHeight],
-  );
-
-  const startSearchSheetDrag = useCallback(() => {
-    searchSheetTranslate.stopAnimation((value) => {
-      searchSheetDragStartY.current = typeof value === 'number' ? value : 0;
-    });
-  }, [searchSheetTranslate]);
-
-  const moveSearchSheetDrag = useCallback(
-    (dy: number) => {
-      const next = searchSheetDragStartY.current + dy;
-      searchSheetTranslate.setValue(Math.min(Math.max(next, 0), searchSheetMaxHeight));
-    },
-    [searchSheetMaxHeight, searchSheetTranslate],
-  );
-
-  const finishSearchSheetDrag = useCallback(
-    (dy: number, vy: number) => {
-      const draggedDown = dy > 12;
-      const pastThreshold = dy > Math.max(72, searchSheetMaxHeight * 0.28);
-      const flickedDown = vy > 0.65;
-      if (draggedDown && (pastThreshold || flickedDown)) {
-        closeSearchSheet();
-        return;
-      }
-      Animated.spring(searchSheetTranslate, {
-        toValue: 0,
-        useNativeDriver: false,
-        friction: 9,
-        tension: 50,
-      }).start();
-    },
-    [closeSearchSheet, searchSheetMaxHeight, searchSheetTranslate],
   );
 
   useEffect(() => {
@@ -1616,12 +1588,9 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         <DetailSearchSheet
           bottomInset={insets.bottom}
           data={filteredSearchItems}
+          keyboardHeight={keyboardHeight}
           maxHeight={searchSheetMaxHeight}
           onClose={closeSearchSheet}
-          onKeyboardHeightChange={setSearchKeyboardHeight}
-          onSheetDragEnd={finishSearchSheetDrag}
-          onSheetDragMove={moveSearchSheetDrag}
-          onSheetDragStart={startSearchSheetDrag}
           onSheetLayout={handleSearchSheetLayout}
           onSelect={handleSelectSearchResult}
           query={searchQuery}
@@ -1793,8 +1762,15 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       width: '100%',
     },
     mediaStage: {
-      ...StyleSheet.absoluteFillObject,
       backgroundColor: '#05070A',
+      overflow: 'hidden',
+      position: 'absolute',
+    },
+    mediaStageContent: {
+      backgroundColor: '#05070A',
+      left: 0,
+      position: 'absolute',
+      top: 0,
     },
     mediaStageWithSheet: {
       borderRadius: 22,
@@ -1803,6 +1779,10 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       right: MEDIA_STAGE_SIDE_INSET,
     },
     mediaScroller: { flex: 1 },
+    mediaViewport: {
+      flex: 1,
+      overflow: 'hidden',
+    },
     mediaPane: {
       backgroundColor: '#05070A',
       height: '100%',
@@ -2126,6 +2106,9 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
     summaryBackdrop: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: 'transparent',
+    },
+    summaryDragArea: {
+      flexShrink: 0,
     },
     summarySheet: {
       backgroundColor: '#111417',
