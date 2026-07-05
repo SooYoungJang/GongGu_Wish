@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
-import { Platform, StatusBar, StyleSheet, useWindowDimensions, View, LogBox } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { BackHandler, Platform, StatusBar, StyleSheet, ToastAndroid, useWindowDimensions, View, LogBox } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as SystemUI from 'expo-system-ui';
-import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme, useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -45,6 +46,7 @@ const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const TAB_BAR_HEIGHT = 58;
+const EXIT_BACK_PRESS_WINDOW_MS = 2000;
 const REELS_TAB_COLORS = getCommerceColors(true);
 
 import { SubmitScreen } from './screens/SubmitScreen';
@@ -134,9 +136,55 @@ function MainTabs() {
   const tabBarBottomPadding = Math.max(insets.bottom - 8, isNarrow ? 2 : 4);
   const tabBarBackgroundColor = isIOS ? 'transparent' : colors.bottomBarBg;
 
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  // Active tab name inside the bottom tab navigator, mirrored into a ref from
+  // the tab navigator's state events so the back handler reads a fresh value
+  // without re-subscribing on every tab switch.
+  const activeTabNameRef = useRef<keyof MainTabParamList>('Home');
+  const lastHomeBackPressAtRef = useRef(0);
+
+  // Android back button: if the user is on a non-Home tab, move to Home
+  // instead of exiting the app. On Home, require a second back press while the
+  // toast is visible before exiting.
+  // MainTabs is a stack screen, so this handler unmounts while a detail or
+  // other stack screen is pushed on top, avoiding conflicts with those.
+  useEffect(() => {
+    if (isIOS) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (activeTabNameRef.current !== 'Home') {
+        lastHomeBackPressAtRef.current = 0;
+        navigation.navigate('MainTabs', { screen: 'Home' });
+        return true;
+      }
+
+      const now = Date.now();
+      if (now - lastHomeBackPressAtRef.current <= EXIT_BACK_PRESS_WINDOW_MS) {
+        BackHandler.exitApp();
+        return true;
+      }
+
+      lastHomeBackPressAtRef.current = now;
+      ToastAndroid.show('종료하려면 다시 누르세요', ToastAndroid.SHORT);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [isIOS, navigation]);
+
   return (
     <Tab.Navigator
+      backBehavior="none"
       initialRouteName="Home"
+      screenListeners={{
+        state: (event) => {
+          const activeRouteName = event.data.state.routes[event.data.state.index]?.name;
+          if (activeRouteName) {
+            activeTabNameRef.current = activeRouteName as keyof MainTabParamList;
+            if (activeRouteName !== 'Home') {
+              lastHomeBackPressAtRef.current = 0;
+            }
+          }
+        },
+      }}
       screenOptions={({ route, navigation }) => {
         const navState = navigation.getState();
         const activeRouteName = navState.routes[navState.index]?.name;

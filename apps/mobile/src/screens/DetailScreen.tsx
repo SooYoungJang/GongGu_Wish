@@ -553,6 +553,7 @@ export function ProductReelPage({
   const summaryScrollAtBottomRef = useRef(false);
   const summaryScrollGestureStartedAtTopRef = useRef(true);
   const [isSummaryVisible, setSummaryVisible] = useState(false);
+  const [summarySheetMeasuredHeight, setSummarySheetMeasuredHeight] = useState(0);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const { isNotifying, toggleNotification } = useNotifications();
@@ -568,84 +569,97 @@ export function ProductReelPage({
   );
   const summarySheetTranslate = useRef(new Animated.Value(summarySheetMaxHeight)).current;
   const sheetDragStartY = useRef(0);
+  const summarySheetHeightForMedia = Math.max(
+    1,
+    Math.min(summarySheetMeasuredHeight || summarySheetMaxHeight, summarySheetMaxHeight),
+  );
   // 0 = sheet fully open, 1 = sheet fully closed. Drives the media stage size
   // so it smoothly grows/shrinks in sync with the sheet position.
-  const sheetProgress = useRef(
-    summarySheetTranslate.interpolate({
-      inputRange: [0, summarySheetMaxHeight],
+  const sheetProgress = useMemo(
+    () => summarySheetTranslate.interpolate({
+      inputRange: [0, summarySheetHeightForMedia],
       outputRange: [0, 1],
       extrapolate: 'clamp',
     }),
-  ).current;
+    [summarySheetHeightForMedia, summarySheetTranslate],
+  );
   // Media stage interpolations: 0 (open) -> collapsed card, 1 (closed) -> full screen.
   const mediaStageOpenWidth = mediaWidth - MEDIA_STAGE_SIDE_INSET * 2;
   const mediaStageOpenHeight = Math.max(
     0,
-    pageHeight - (topInset + 64) - (summarySheetMaxHeight + spacing.md),
+    pageHeight - (topInset + 64) - summarySheetHeightForMedia,
   );
-  const animatedMediaStageWidth = useRef(
-    sheetProgress.interpolate({
+  const animatedMediaStageWidth = useMemo(
+    () => sheetProgress.interpolate({
       inputRange: [0, 1],
       outputRange: [mediaStageOpenWidth, mediaWidth],
       extrapolate: 'clamp',
     }),
-  ).current;
-  const animatedMediaStageHeight = useRef(
-    sheetProgress.interpolate({
+    [mediaStageOpenWidth, mediaWidth, sheetProgress],
+  );
+  const animatedMediaStageHeight = useMemo(
+    () => sheetProgress.interpolate({
       inputRange: [0, 1],
       outputRange: [mediaStageOpenHeight, pageHeight],
       extrapolate: 'clamp',
     }),
-  ).current;
-  const animatedMediaStageTop = useRef(
-    sheetProgress.interpolate({
+    [mediaStageOpenHeight, pageHeight, sheetProgress],
+  );
+  const animatedMediaStageTop = useMemo(
+    () => sheetProgress.interpolate({
       inputRange: [0, 1],
       outputRange: [topInset + 64, 0],
       extrapolate: 'clamp',
     }),
-  ).current;
-  const animatedMediaStageBottom = useRef(
-    sheetProgress.interpolate({
+    [sheetProgress, topInset],
+  );
+  const animatedMediaStageBottom = useMemo(
+    () => sheetProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [summarySheetMaxHeight + spacing.md, 0],
+      outputRange: [summarySheetHeightForMedia, 0],
       extrapolate: 'clamp',
     }),
-  ).current;
-  const animatedMediaStageRadius = useRef(
-    sheetProgress.interpolate({
+    [sheetProgress, summarySheetHeightForMedia],
+  );
+  const animatedMediaStageRadius = useMemo(
+    () => sheetProgress.interpolate({
       inputRange: [0, 1],
       outputRange: [22, 0],
       extrapolate: 'clamp',
     }),
-  ).current;
-  const animatedMediaStageLeft = useRef(
-    sheetProgress.interpolate({
+    [sheetProgress],
+  );
+  const animatedMediaStageLeft = useMemo(
+    () => sheetProgress.interpolate({
       inputRange: [0, 1],
       outputRange: [MEDIA_STAGE_SIDE_INSET, 0],
       extrapolate: 'clamp',
     }),
-  ).current;
-  const animatedMediaStageRight = useRef(
-    sheetProgress.interpolate({
+    [sheetProgress],
+  );
+  const animatedMediaStageRight = useMemo(
+    () => sheetProgress.interpolate({
       inputRange: [0, 1],
       outputRange: [MEDIA_STAGE_SIDE_INSET, 0],
       extrapolate: 'clamp',
     }),
-  ).current;
+    [sheetProgress],
+  );
   // Reel chrome (right rail, bottom info, dots) fades with the sheet: visible
   // when closed, hidden when the sheet is open.
-  const animatedReelChromeOpacity = useRef(
-    sheetProgress.interpolate({
+  const animatedReelChromeOpacity = useMemo(
+    () => sheetProgress.interpolate({
       inputRange: [0, 0.35],
       outputRange: [0, 1],
       extrapolate: 'clamp',
     }),
-  ).current;
+    [sheetProgress],
+  );
   const isMediaStageCompact = isSummaryExpanded || isSearchSheetVisible;
   const mediaStageWidth = isSearchSheetVisible ? mediaStageOpenWidth : animatedMediaStageWidth;
   const mediaStageHeight = isSearchSheetVisible ? mediaStageOpenHeight : animatedMediaStageHeight;
   const mediaStageTop = isSearchSheetVisible ? topInset + 64 : animatedMediaStageTop;
-  const mediaStageBottom = isSearchSheetVisible ? summarySheetMaxHeight + spacing.md : animatedMediaStageBottom;
+  const mediaStageBottom = isSearchSheetVisible ? summarySheetHeightForMedia : animatedMediaStageBottom;
   const mediaStageRadius = isSearchSheetVisible ? 22 : animatedMediaStageRadius;
   const mediaStageLeft = isSearchSheetVisible ? MEDIA_STAGE_SIDE_INSET : animatedMediaStageLeft;
   const mediaStageRight = isSearchSheetVisible ? MEDIA_STAGE_SIDE_INSET : animatedMediaStageRight;
@@ -893,6 +907,16 @@ export function ProductReelPage({
       }
     },
     [canSwipeReelFromSummaryOffset, isSummaryExpanded, onSummarySheetStateChange],
+  );
+
+  const handleSummarySheetLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const nextHeight = Math.min(event.nativeEvent.layout.height, summarySheetMaxHeight);
+      setSummarySheetMeasuredHeight((current) => (
+        Math.abs(current - nextHeight) < 1 ? current : nextHeight
+      ));
+    },
+    [summarySheetMaxHeight],
   );
 
   const handleSummaryContentSizeChange = useCallback(
@@ -1199,6 +1223,7 @@ export function ProductReelPage({
             style={s.summaryBackdrop}
           />
           <Animated.View
+            onLayout={handleSummarySheetLayout}
             style={[
               s.summarySheet,
               {
