@@ -34,6 +34,10 @@ vi.mock("react-native", () => {
     AccessibilityInfo: {
       isReduceMotionEnabled: vi.fn(() => Promise.resolve(false)),
     },
+    BackHandler: {
+      addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+      exitApp: vi.fn(),
+    },
     Dimensions: { get: () => ({ width: 390, height: 844 }) },
     Easing: {
       inOut: vi.fn(() => vi.fn()),
