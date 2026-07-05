@@ -1,6 +1,7 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useState } from 'react';
 import {
   Keyboard,
+  type LayoutChangeEvent,
   type ScrollViewProps,
   StyleProp,
   StyleSheet,
@@ -37,20 +38,32 @@ export function KeyboardFormScreen({
 }: KeyboardFormScreenProps) {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [footerHeight, setFooterHeight] = useState(0);
+  const needsKeyboardVisibility = Boolean(footer) && showFooterWhenKeyboardVisible;
 
   useEffect(() => {
+    if (!needsKeyboardVisibility) return undefined;
+
+    const setVisibleIfChanged = (nextVisible: boolean) => {
+      setKeyboardVisible((current) => (current === nextVisible ? current : nextVisible));
+    };
+
     const showSub = Keyboard.addListener('keyboardDidShow', () => {
-      setKeyboardVisible(true);
+      setVisibleIfChanged(true);
     });
 
     const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardVisible(false);
+      setVisibleIfChanged(false);
     });
 
     return () => {
       showSub.remove();
       hideSub.remove();
     };
+  }, [needsKeyboardVisibility]);
+
+  const handleFooterLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height;
+    setFooterHeight((current) => (Math.abs(current - nextHeight) < 1 ? current : nextHeight));
   }, []);
 
   const shouldShowStickyFooter =
@@ -79,9 +92,7 @@ export function KeyboardFormScreen({
               style={[
                 styles.footer,
               ]}
-              onLayout={(event) => {
-                setFooterHeight(event.nativeEvent.layout.height);
-              }}
+              onLayout={handleFooterLayout}
             >
               {footer}
             </View>

@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Ionicons } from '@expo/vector-icons';
 
 import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
@@ -54,8 +55,7 @@ import { SubmitScreen } from './screens/SubmitScreen';
 function RankingTabGlyph({ color, focused }: { color: string; focused: boolean }) {
   return (
     <View style={styles.tabGlyphFrame}>
-      <View style={[styles.chartFrame, { borderColor: color }]} />
-      {focused ? <View style={[styles.chartBar, { backgroundColor: color }]} /> : null}
+      <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={24} color={color} />
     </View>
   );
 }
@@ -73,8 +73,7 @@ function ReelsTabGlyph({ color }: { color: string; focused: boolean }) {
 function HomeTabGlyph({ color, focused }: { color: string; focused: boolean }) {
   return (
     <View style={styles.tabGlyphFrame}>
-      <View style={[styles.homeRoof, { borderColor: color }]} />
-      <View style={[styles.homeBody, { borderColor: color, backgroundColor: focused ? color : 'transparent' }]} />
+      <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
     </View>
   );
 }
@@ -82,18 +81,15 @@ function HomeTabGlyph({ color, focused }: { color: string; focused: boolean }) {
 function SearchTabGlyph({ color, focused }: { color: string; focused: boolean }) {
   return (
     <View style={styles.tabGlyphFrame}>
-      <View style={[styles.searchCircle, { borderColor: color }]} />
-      <View style={[styles.searchHandle, { borderColor: color, backgroundColor: focused ? color : 'transparent' }]} />
+      <Ionicons name={focused ? 'search' : 'search-outline'} size={24} color={color} />
     </View>
   );
 }
 
 function MyPageTabGlyph({ color, focused }: { color: string; focused: boolean }) {
   return (
-    <View style={styles.menuGlyph}>
-      <View style={[styles.menuLine, { backgroundColor: focused ? color : 'transparent', borderColor: color, borderWidth: 2.2 }]} />
-      <View style={[styles.menuLine, { backgroundColor: focused ? color : 'transparent', borderColor: color, borderWidth: 2.2 }]} />
-      <View style={[styles.menuLine, { backgroundColor: focused ? color : 'transparent', borderColor: color, borderWidth: 2.2 }]} />
+    <View style={styles.tabGlyphFrame}>
+      <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
     </View>
   );
 }
@@ -313,54 +309,16 @@ const styles = StyleSheet.create({
   tabIconSlot: {
     height: 28,
     marginBottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
     width: 34,
   },
   tabGlyphFrame: {
+    alignItems: 'center',
     height: 28,
+    justifyContent: 'center',
     position: 'relative',
     width: 34,
-  },
-  homeRoof: {
-    borderLeftWidth: 2.4,
-    borderTopWidth: 2.4,
-    height: 15,
-    left: 9,
-    position: 'absolute',
-    top: 4,
-    transform: [{ rotate: '45deg' }],
-    width: 15,
-  },
-  homeBody: {
-    borderBottomLeftRadius: 5,
-    borderBottomRightRadius: 5,
-    borderBottomWidth: 2.4,
-    borderLeftWidth: 2.4,
-    borderRightWidth: 2.4,
-    bottom: 3,
-    height: 14,
-    left: 8,
-    position: 'absolute',
-    width: 18,
-  },
-  searchCircle: {
-    borderRadius: 999,
-    borderWidth: 2.3,
-    height: 16,
-    left: 6,
-    position: 'absolute',
-    top: 3,
-    width: 16,
-  },
-  searchHandle: {
-    borderBottomRightRadius: 999,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 999,
-    borderWidth: 2.3,
-    bottom: 4,
-    height: 9,
-    left: 18,
-    position: 'absolute',
-    width: 9,
   },
   reelsFrame: {
     alignItems: 'center',
@@ -370,9 +328,6 @@ const styles = StyleSheet.create({
     borderWidth: 2.3,
     height: 22,
     justifyContent: 'center',
-    left: 6,
-    position: 'absolute',
-    top: 3,
     width: 22,
   },
   reelsTriangle: {
@@ -384,35 +339,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'transparent',
     borderTopWidth: 5.5,
     height: 0,
-    marginLeft: 2,
+    marginLeft: 1,
     width: 0,
-  },
-  chartFrame: {
-    borderBottomWidth: 2.3,
-    borderLeftWidth: 2.3,
-    borderRadius: 2,
-    bottom: 5,
-    height: 18,
-    left: 7,
-    position: 'absolute',
-    width: 21,
-  },
-  chartBar: {
-    bottom: 6,
-    height: 10,
-    left: 14,
-    position: 'absolute',
-    width: 4,
-  },
-  menuGlyph: {
-    gap: 5,
-    height: 28,
-    justifyContent: 'center',
-    width: 26,
-  },
-  menuLine: {
-    borderRadius: 999,
-    height: 2.4,
-    width: 26,
   },
 });

@@ -12,6 +12,12 @@ import type { GroupBuy } from '../types';
 import { ProductReelPage, makeStyles } from './DetailScreen';
 
 const REELS_TAB_BAR_OVERLAY_OFFSET = 40;
+const REEL_PAGE_RENDER_RADIUS = 1;
+const NOOP = () => {};
+
+function shouldRenderReelPage(index: number, activeIndex: number) {
+  return Math.abs(index - activeIndex) <= REEL_PAGE_RENDER_RADIUS;
+}
 
 // Fisher-Yates shuffle so each visit to the Reels tab shows feeds in a
 // different random order, like shuffling a playlist.
@@ -79,18 +85,23 @@ export function ReelsScreen() {
     }
   }, [activeIndex, reelItems.length, appendBatch]);
 
+  const activeReelItem = reelItems[activeIndex];
   const lastRecordedIdRef = useRef<string | null>(null);
   useEffect(() => {
-    const item = isTabFocused ? reelItems[activeIndex] : undefined;
+    const item = isTabFocused ? activeReelItem : undefined;
     if (item && item.id !== lastRecordedIdRef.current) {
       lastRecordedIdRef.current = item.id;
       recordView(item);
     }
     if (!isTabFocused) lastRecordedIdRef.current = null;
-  }, [isTabFocused, activeIndex, reelItems, recordView]);
+  }, [isTabFocused, activeReelItem, recordView]);
 
   const handleSummarySheetStateChange = useCallback((isOpen: boolean, canSwipeReel: boolean) => {
-    setSummarySheetGate({ isOpen, canSwipeReel });
+    setSummarySheetGate((current) => (
+      current.isOpen === isOpen && current.canSwipeReel === canSwipeReel
+        ? current
+        : { isOpen, canSwipeReel }
+    ));
   }, []);
 
   const renderReelItem = useCallback(
@@ -105,7 +116,7 @@ export function ReelsScreen() {
         mediaWidth={screenWidth}
         topInset={insets.top}
         bottomInset={insets.bottom}
-        onBack={() => {}}
+        onBack={NOOP}
         showBackButton={false}
         onSummarySheetStateChange={handleSummarySheetStateChange}
         s={s}
@@ -138,15 +149,19 @@ export function ReelsScreen() {
         scrollEnabled={screenHeight > 0 && reelItems.length > 1 && !summarySheetGate.isOpen}
         style={s.verticalPager}
       >
-        {reelItems.map((item, index) => (
-          <View
-            key={`${item.id}-${index}`}
-            collapsable={false}
-            style={[s.verticalPagerPage, { height: screenHeight }]}
-          >
-            {renderReelItem(item, index)}
-          </View>
-        ))}
+        {reelItems.map((item, index) => {
+          const shouldRenderPage = shouldRenderReelPage(index, activeIndex);
+
+          return (
+            <View
+              key={`${item.id}-${index}`}
+              collapsable={false}
+              style={[s.verticalPagerPage, { height: screenHeight }]}
+            >
+              {shouldRenderPage ? renderReelItem(item, index) : null}
+            </View>
+          );
+        })}
       </PagerView>
     </View>
   );

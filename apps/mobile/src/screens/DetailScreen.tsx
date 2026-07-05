@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 import {
   Animated,
   Alert,
+  BackHandler,
   Easing,
   FlatList,
   Image,
@@ -516,6 +517,7 @@ export type ProductReelPageProps = {
   bottomInset: number;
   onBack: () => void;
   showBackButton?: boolean;
+  onCloseSearchSheet?: () => void;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
   s: ReturnType<typeof makeStyles>;
@@ -533,6 +535,7 @@ export function ProductReelPage({
   bottomInset,
   onBack,
   showBackButton = true,
+  onCloseSearchSheet,
   onSummarySheetStateChange,
   s,
 }: ProductReelPageProps) {
@@ -751,6 +754,23 @@ export function ProductReelPage({
     onSummarySheetStateChange,
     resetSummarySheetState,
   ]);
+
+  // 안드로이드 물리 뒤로가기: 바텀시트가 열려 있으면 시트를 닫고, 아니면 기본 동작.
+  useEffect(() => {
+    if (!isActive) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isSearchSheetVisible) {
+        onCloseSearchSheet?.();
+        return true;
+      }
+      if (isSummaryVisible) {
+        setSummaryOpen(false);
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [isActive, isSearchSheetVisible, isSummaryVisible, onCloseSearchSheet, setSummaryOpen]);
 
   useEffect(() => {
     setActiveMediaIndex(0);
@@ -1338,6 +1358,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         topInset={insets.top}
         bottomInset={insets.bottom}
         onBack={() => navigation.goBack()}
+        onCloseSearchSheet={() => setSearchSheetVisible(false)}
         onSummarySheetStateChange={handleSummarySheetStateChange}
         s={s}
       />

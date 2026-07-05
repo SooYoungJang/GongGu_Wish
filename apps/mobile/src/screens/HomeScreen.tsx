@@ -660,11 +660,21 @@ export function HomeScreenContent({
 }
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
-  const { data, isFetching, isError, refetch } = useQuery({
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const { data, isError, refetch } = useQuery({
     queryKey: ['group-buys'],
     queryFn: fetchGroupBuys,
     retry: false,
   });
+
+  const handleManualRefresh = useCallback(async () => {
+    setIsManualRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  }, [refetch]);
 
   const groupBuys = data?.length ? data : fallbackGroupBuys;
 
@@ -678,8 +688,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     <HomeScreenContent
       groupBuys={groupBuys}
       isError={isError}
-      isFetching={isFetching}
-      onRefresh={refetch}
+      isFetching={isManualRefreshing}
+      onRefresh={handleManualRefresh}
       onOpenBookmarks={() => Alert.alert('준비 중', '북마크 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
       onOpenNotifications={() => Alert.alert('준비 중', '알림 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
       onOpenSearch={() => navigation.navigate('SearchScreen')}

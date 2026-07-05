@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, InteractionManager, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -81,7 +81,7 @@ function ProductFallbackArt({ s }: { s: ReturnType<typeof makeStyles> }) {
   );
 }
 
-function RecentProductCard({
+const RecentProductCard = memo(function RecentProductCard({
   item,
   onPress,
   s,
@@ -103,7 +103,7 @@ function RecentProductCard({
     >
       <View style={s.productImageWrap}>
         {visual ? (
-          <Image source={{ uri: visual }} style={s.productImage} />
+          <Image source={{ uri: visual }} style={s.productImage} fadeDuration={0} />
         ) : (
           <ProductFallbackArt s={s} />
         )}
@@ -130,7 +130,39 @@ function RecentProductCard({
       </View>
     </Pressable>
   );
-}
+});
+
+type DealSearchResultRowProps = {
+  item: GroupBuy;
+  // eslint-disable-next-line no-unused-vars
+  onSelect: (item: GroupBuy) => void;
+  s: ReturnType<typeof makeStyles>;
+};
+
+const DealSearchResultRow = memo(function DealSearchResultRow({ item, onSelect, s }: DealSearchResultRowProps) {
+  const handlePress = useCallback(() => {
+    onSelect(item);
+  }, [item, onSelect]);
+
+  return (
+    <Pressable
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={`${item.productName ?? item.rawPost.influencer.instagramUsername} 보기`}
+      onPress={handlePress}
+      style={({ pressed }) => [s.resultRow, pressed && s.pressed]}
+    >
+      <View style={s.resultLeft}>
+        <SText variant="body" style={s.resultName}>{item.productName ?? '제품명 없음'}</SText>
+        <SText variant="body" style={s.resultMeta}>
+          @{item.rawPost.influencer.instagramUsername.replace(/^@/, '')}
+          {item.discountInfo ? ` · ${item.discountInfo}` : ''}
+        </SText>
+      </View>
+      <SText variant="body" style={s.resultArrow}>›</SText>
+    </Pressable>
+  );
+});
 
 export function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -169,8 +201,15 @@ export function SearchScreen() {
   // comes up automatically on each visit, not just the first.
   useFocusEffect(
     useCallback(() => {
-      const t = setTimeout(() => inputRef.current?.focus(), 300);
-      return () => clearTimeout(t);
+      let focusTimer: ReturnType<typeof setTimeout> | null = null;
+      const interactionTask = InteractionManager?.runAfterInteractions?.(() => {
+        focusTimer = setTimeout(() => inputRef.current?.focus(), 220);
+      }) ?? { cancel: () => {} };
+
+      return () => {
+        interactionTask.cancel?.();
+        if (focusTimer) clearTimeout(focusTimer);
+      };
     }, []),
   );
 
@@ -201,20 +240,33 @@ export function SearchScreen() {
     () => searchInfluencers(influencers, debouncedQuery).slice(0, 8),
     [influencers, debouncedQuery],
   );
+  const groupBuySearchIndex = useMemo(
+    () => groupBuys.map((gb) => ({
+      item: gb,
+      text: [
+        gb.productName,
+        gb.brandName,
+        gb.category ? CATEGORY_LABELS[gb.category] ?? gb.category : null,
+        gb.category,
+        gb.rawPost.influencer.instagramUsername,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase(),
+    })),
+    [groupBuys],
+  );
   const dealResults = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
     if (!q) return [];
-    return groupBuys.filter((gb) => {
-      const name = (gb.productName ?? '').toLowerCase();
-      const brand = (gb.brandName ?? '').toLowerCase();
-      const category = (gb.category ? CATEGORY_LABELS[gb.category] ?? gb.category : '').toLowerCase();
-      const user = gb.rawPost.influencer.instagramUsername.toLowerCase();
-      return name.includes(q) || brand.includes(q) || category.includes(q) || user.includes(q);
-    }).slice(0, 10);
-  }, [groupBuys, debouncedQuery]);
+    return groupBuySearchIndex
+      .filter(({ text }) => text.includes(q))
+      .slice(0, 10)
+      .map(({ item }) => item);
+  }, [groupBuySearchIndex, debouncedQuery]);
 
   const hasQuery = debouncedQuery.trim().length > 0;
-  const recentTerms = recent.slice(0, 1);
+  const recentTerms = useMemo(() => recent.slice(0, 1), [recent]);
   const recentProduct = groupBuys[0] ?? null;
   const s = useMemo(() => makeStyles(colors), [colors]);
 
@@ -240,6 +292,19 @@ export function SearchScreen() {
     inputRef.current?.focus();
   }, []);
 
+  const handleBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  const handleClearQuery = useCallback(() => {
+    setQuery('');
+    inputRef.current?.focus();
+  }, []);
+
+  const handleRecentProductPress = useCallback(() => {
+    if (recentProduct) handleSelectDeal(recentProduct);
+  }, [handleSelectDeal, recentProduct]);
+
   return (
     <View style={s.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -250,7 +315,7 @@ export function SearchScreen() {
           accessibilityRole="button"
           accessibilityLabel="뒤로가기"
           hitSlop={8}
-          onPress={() => navigation.goBack()}
+          onPress={handleBack}
           style={s.backBtn}
         >
           <SText variant="body" style={s.backIcon}>←</SText>
@@ -276,7 +341,7 @@ export function SearchScreen() {
               accessibilityRole="button"
               accessibilityLabel="검색어 지우기"
               hitSlop={8}
-              onPress={() => { setQuery(''); inputRef.current?.focus(); }}
+              onPress={handleClearQuery}
               style={s.clearBtn}
             >
               <SText variant="body" style={s.clearIcon}>×</SText>
@@ -295,23 +360,12 @@ export function SearchScreen() {
               <>
                 <SText variant="label" style={s.resultTitle}>공구</SText>
                 {dealResults.map((gb) => (
-                  <Pressable
+                  <DealSearchResultRow
                     key={gb.id}
-                    accessible
-                    accessibilityRole="button"
-                    accessibilityLabel={`${gb.productName ?? gb.rawPost.influencer.instagramUsername} 보기`}
-                    onPress={() => handleSelectDeal(gb)}
-                    style={({ pressed }) => [s.resultRow, pressed && s.pressed]}
-                  >
-                    <View style={s.resultLeft}>
-                      <SText variant="body" style={s.resultName}>{gb.productName ?? '제품명 없음'}</SText>
-                      <SText variant="body" style={s.resultMeta}>
-                        @{gb.rawPost.influencer.instagramUsername.replace(/^@/, '')}
-                        {gb.discountInfo ? ` · ${gb.discountInfo}` : ''}
-                      </SText>
-                    </View>
-                    <SText variant="body" style={s.resultArrow}>›</SText>
-                  </Pressable>
+                    item={gb}
+                    onSelect={handleSelectDeal}
+                    s={s}
+                  />
                 ))}
               </>
             )}
@@ -355,7 +409,7 @@ export function SearchScreen() {
             ))}
             <SText variant="label" style={s.recentProductTitle}>최근 본 상품</SText>
             {recentProduct ? (
-              <RecentProductCard item={recentProduct} onPress={() => handleSelectDeal(recentProduct)} s={s} />
+              <RecentProductCard item={recentProduct} onPress={handleRecentProductPress} s={s} />
             ) : null}
           </View>
         )}

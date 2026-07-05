@@ -106,6 +106,10 @@ vi.mock('react-native', () => {
 
   return {
     Alert: { alert: vi.fn() },
+    BackHandler: {
+      addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+      exitApp: vi.fn(),
+    },
     Animated: {
       Value: function AnimatedValue(this: any, value: number) {
         this._listeners = new Map();

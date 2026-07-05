@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SText } from '../../components/ui/SText';
 
@@ -9,10 +9,43 @@ import type { Influencer } from '../../types';
 
 type SearchResultsPanelProps = {
   results: Influencer[];
+  // eslint-disable-next-line no-unused-vars
   onPressInfluencer: (influencer: Influencer) => void;
 };
 
-export function SearchResultsPanel({ results, onPressInfluencer }: SearchResultsPanelProps) {
+type SearchResultRowProps = {
+  influencer: Influencer;
+  // eslint-disable-next-line no-unused-vars
+  onPressInfluencer: (influencer: Influencer) => void;
+  s: ReturnType<typeof makeStyles>;
+};
+
+const SearchResultRow = memo(function SearchResultRow({ influencer, onPressInfluencer, s }: SearchResultRowProps) {
+  const handlePress = useCallback(() => {
+    onPressInfluencer(influencer);
+  }, [influencer, onPressInfluencer]);
+  const displayName = influencer.displayName ?? influencer.instagramUsername;
+
+  return (
+    <Pressable
+      accessibilityLabel={`${influencer.instagramUsername} 인플루언서 보기`}
+      accessibilityRole="button"
+      onPress={handlePress}
+      style={({ pressed }) => [s.searchResultRow, pressed && s.pressed]}
+    >
+      <View style={s.avatar}>
+        <SText variant="caption" style={s.avatarText}>{displayName.slice(0, 1).toUpperCase()}</SText>
+      </View>
+      <View style={s.resultTextBlock}>
+        <SText variant="label" style={s.searchResultName}>{displayName}</SText>
+        <SText variant="caption" style={s.searchResultMeta}>@{influencer.instagramUsername.replace(/^@/, '')}</SText>
+      </View>
+      <SText variant="body" style={s.chevron}>›</SText>
+    </Pressable>
+  );
+});
+
+export const SearchResultsPanel = memo(function SearchResultsPanel({ results, onPressInfluencer }: SearchResultsPanelProps) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
@@ -21,22 +54,12 @@ export function SearchResultsPanel({ results, onPressInfluencer }: SearchResults
       <SText variant="label" style={s.searchPanelTitle}>인플루언서</SText>
       {results.length > 0 ? (
         results.map((influencer) => (
-          <Pressable
+          <SearchResultRow
             key={influencer.id}
-            accessibilityLabel={`${influencer.instagramUsername} 인플루언서 보기`}
-            accessibilityRole="button"
-            onPress={() => onPressInfluencer(influencer)}
-            style={({ pressed }) => [s.searchResultRow, pressed && s.pressed]}
-          >
-            <View style={s.avatar}>
-              <SText variant="caption" style={s.avatarText}>{(influencer.displayName ?? influencer.instagramUsername).slice(0, 1).toUpperCase()}</SText>
-            </View>
-            <View style={s.resultTextBlock}>
-              <SText variant="label" style={s.searchResultName}>{influencer.displayName ?? influencer.instagramUsername}</SText>
-              <SText variant="caption" style={s.searchResultMeta}>@{influencer.instagramUsername.replace(/^@/, '')}</SText>
-            </View>
-            <SText variant="body" style={s.chevron}>›</SText>
-          </Pressable>
+            influencer={influencer}
+            onPressInfluencer={onPressInfluencer}
+            s={s}
+          />
         ))
       ) : (
         <View style={s.emptySearchResult}>
@@ -46,7 +69,7 @@ export function SearchResultsPanel({ results, onPressInfluencer }: SearchResults
       )}
     </View>
   );
-}
+});
 
 function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
