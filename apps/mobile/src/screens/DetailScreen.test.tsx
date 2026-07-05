@@ -97,6 +97,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DetailScreen } from './DetailScreen';
+import { spacing } from '../design/tokens';
 import type { GroupBuy } from '../types';
 
 vi.mock('react-native', () => {
@@ -161,6 +162,7 @@ vi.mock('react-native', () => {
     PanResponder: {
       create: vi.fn((handlers: any) => ({ panHandlers: handlers })),
     },
+    Platform: { OS: 'ios' },
     Easing: {
       out: vi.fn((fn: any) => fn),
       cubic: vi.fn(),
@@ -170,6 +172,7 @@ vi.mock('react-native', () => {
     Image: ({ source, style, resizeMode, children }: any) =>
       ReactMock.createElement('Image', { source, style, resizeMode }, children as ReactNode),
     Linking: { openURL: vi.fn() },
+    Keyboard: { dismiss: vi.fn() },
     FlatList: ReactMock.forwardRef(({ data = [], renderItem, keyExtractor, children, ...props }: any, ref: any) => {
       ReactMock.useImperativeHandle(ref, () => ({
         scrollToOffset: flashListMock.scrollToOffset,
@@ -195,6 +198,7 @@ vi.mock('react-native', () => {
     StatusBar: ({ ...props }: any) => ReactMock.createElement('StatusBar', props),
     StyleSheet: { create: (styles: unknown) => styles },
     Text: passthrough('Text'),
+    TextInput: passthrough('TextInput'),
     View: passthrough('View'),
     useWindowDimensions: () => ({ width: 390, height: 844, scale: 3, fontScale: 1 }),
   };
@@ -258,18 +262,74 @@ function findVerticalPager(renderer: TestRenderer.ReactTestRenderer) {
 }
 
 function findSummaryScrollGesture(renderer: TestRenderer.ReactTestRenderer) {
-  return renderer.root.find((node) => String(node.type) === 'GestureDetector').props.gesture.__handlers;
+  return renderer.root
+    .findAll((node) => String(node.type) === 'GestureDetector')
+    .map((node) => node.props.gesture.__handlers)
+    .find((handlers) => handlers.activeOffsetY === 4);
 }
 
-function findSummarySheet(renderer: TestRenderer.ReactTestRenderer) {
-  return renderer.root.find(
-    (node) => String(node.type) === 'Animated.View' && typeof node.props.onMoveShouldSetPanResponder === 'function',
-  );
+function findSummarySheetPanGesture(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root
+    .findAll((node) => String(node.type) === 'GestureDetector')
+    .map((node) => node.props.gesture.__handlers)
+    .find((handlers) => handlers.activeOffsetY === 6);
 }
 
-function getSheetTranslateY(sheet: TestRenderer.ReactTestInstance) {
-  const transformStyle = sheet.props.style.find((style: any) => style?.transform)?.transform[0];
-  return transformStyle.translateY._value;
+function flattenStyle(style: any): any[] {
+  if (!Array.isArray(style)) return [style].filter(Boolean);
+  return style.flatMap(flattenStyle).filter(Boolean);
+}
+
+function getTransformValue(styles: any[], key: string) {
+  for (const style of styles) {
+    const transform = style?.transform;
+    if (!Array.isArray(transform)) continue;
+    const entry = transform.find((item: Record<string, number>) => item[key] !== undefined);
+    if (entry) return entry[key];
+  }
+  return undefined;
+}
+
+function getStyleValue(styles: any[], key: string) {
+  for (const style of styles) {
+    if (style?.[key] !== undefined) return style[key];
+  }
+  return undefined;
+}
+
+function getMediaStageFrame(renderer: TestRenderer.ReactTestRenderer) {
+  const animatedViews = renderer.root.findAll((node) => String(node.type) === 'Reanimated.View');
+  const frameNode = animatedViews.find((node) => {
+    const styles = flattenStyle(node.props.style);
+    return styles.some((style) => style?.backgroundColor === '#05070A' && style?.overflow === 'hidden')
+      && getStyleValue(styles, 'height') !== undefined
+      && getStyleValue(styles, 'width') !== undefined;
+  });
+  const contentNode = animatedViews.find((node) => {
+    const styles = flattenStyle(node.props.style);
+    return styles.some((style) => style?.backgroundColor === '#05070A' && style?.position === 'absolute')
+      && getTransformValue(styles, 'scale') !== undefined;
+  });
+  const frameStyles = flattenStyle(frameNode?.props.style);
+  const contentStyles = flattenStyle(contentNode?.props.style);
+  const top = getStyleValue(frameStyles, 'top') as number;
+  const height = getStyleValue(frameStyles, 'height') as number;
+  return {
+    borderRadius: getStyleValue(frameStyles, 'borderRadius') as number,
+    bottom: top + height,
+    contentScale: getTransformValue(contentStyles, 'scale') as number,
+    contentTranslateY: getTransformValue(contentStyles, 'translateY') as number,
+    height,
+    top,
+    width: getStyleValue(frameStyles, 'width') as number,
+  };
+}
+
+function getSearchSheetTranslateY(renderer: TestRenderer.ReactTestRenderer) {
+  const searchSheet = renderer.root
+    .findAll((node) => String(node.type) === 'Reanimated.View')
+    .find((node) => flattenStyle(node.props.style).some((style) => style?.backgroundColor === '#1F2229'));
+  return getTransformValue(flattenStyle(searchSheet?.props.style), 'translateY') as number;
 }
 
 const baseGroupBuy: GroupBuy = {
@@ -299,6 +359,7 @@ const baseGroupBuy: GroupBuy = {
 };
 
 beforeEach(() => {
+  (globalThis as any).__mockKeyboardHeight = 0;
   videoMock.players = [];
   queryMock.groupBuys = undefined;
   flashListMock.scrollToOffset.mockClear();
@@ -692,18 +753,43 @@ describe('DetailScreen', () => {
 
     const verticalPagerWhileOpen = findVerticalPager(renderer!);
     const raisedMediaStage = renderer!.root
-      .findAll((node) => String(node.type) === 'Animated.View')
+      .findAll((node) => String(node.type) === 'Reanimated.View')
       .find((node) => {
         const style = node.props.style;
         const styles = Array.isArray(style) ? style : [style];
         return styles.some((item) => {
           const styleObj = item && typeof item === 'object' ? item : {};
-          return styleObj.borderRadius !== undefined || styleObj.left !== undefined;
+          return styleObj.borderRadius !== undefined && styleObj.height !== undefined;
         });
       });
 
     expect(verticalPagerWhileOpen.props.scrollEnabled).toBe(false);
     expect(raisedMediaStage).toBeDefined();
+    const mediaFrame = getMediaStageFrame(renderer!);
+    const expectedSummarySheetHeight = Math.max(280, Math.min(844 - 24 - spacing.xl, 844 * 0.58));
+    const mediaOpenTop = 24 + spacing.sm;
+    const expectedMediaBottom = 844 - expectedSummarySheetHeight;
+    const expectedContentScale = Math.min(1, Math.max((390 - 96) / 390, (expectedMediaBottom - mediaOpenTop) / 844));
+    const summarySheet = renderer!.root
+      .findAll((node) => String(node.type) === 'Reanimated.View')
+      .find((node) => flattenStyle(node.props.style).some((style) => style?.backgroundColor === '#111417'));
+    const topBar = renderer!.root
+      .findAll((node) => String(node.type) === 'Reanimated.View')
+      .find((node) => {
+        const styles = flattenStyle(node.props.style);
+        return styles.some((style) => style?.justifyContent === 'space-between')
+          && getStyleValue(styles, 'opacity') !== undefined;
+      });
+
+    expect(getStyleValue(flattenStyle(summarySheet?.props.style), 'maxHeight')).toBeCloseTo(expectedSummarySheetHeight, 1);
+    expect(mediaFrame.top).toBeCloseTo(mediaOpenTop, 1);
+    expect(mediaFrame.bottom).toBeCloseTo(expectedMediaBottom, 1);
+    expect(mediaFrame.height).toBeCloseTo(expectedMediaBottom - mediaOpenTop, 1);
+    expect(mediaFrame.width).toBeCloseTo(390 - 96, 1);
+    expect(mediaFrame.borderRadius).toBeCloseTo(22, 1);
+    expect(mediaFrame.contentScale).toBeCloseTo(expectedContentScale, 2);
+    expect(mediaFrame.contentTranslateY).toBeCloseTo((mediaFrame.height - 844) / 2, 1);
+    expect(getStyleValue(flattenStyle(topBar?.props.style), 'opacity')).toBe(0);
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);
     expect(flattenText(renderer!.toJSON())).toContain('긴 설명도 시트에서 잘 보여야 합니다.');
     expect(flattenText(renderer!.toJSON())).toContain('구매 링크');
@@ -731,6 +817,30 @@ describe('DetailScreen', () => {
     });
 
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
+  });
+
+  it('raises the search bottom sheet above the keyboard', () => {
+    (globalThis as any).__mockKeyboardHeight = -300;
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const searchButton = renderer!.root.find(
+      (node) => String(node.type) === 'Pressable' && node.props.accessibilityLabel === '상품 검색',
+    );
+
+    act(() => {
+      searchButton.props.onPress();
+    });
+
+    expect(getSearchSheetTranslateY(renderer!)).toBe(-300);
   });
 
   it('shows an alert when the purchase link cannot be opened', async () => {
@@ -835,10 +945,7 @@ describe('DetailScreen', () => {
       scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 120 } } });
     });
 
-    const sheet = findSummarySheet(renderer!);
-
-    expect(sheet.props.onMoveShouldSetPanResponder({}, { dx: 0, dy: 80 })).toBe(false);
-    expect(sheet.props.onMoveShouldSetPanResponder({}, { dx: 0, dy: -80 })).toBe(false);
+    expect(findSummarySheetPanGesture(renderer!).enabled).toBe(true);
     expect(findSummaryScrollGesture(renderer!).enabled).toBe(false);
 
     const verticalPagerInMiddle = findVerticalPager(renderer!);
@@ -848,7 +955,6 @@ describe('DetailScreen', () => {
       scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
     });
 
-    expect(sheet.props.onMoveShouldSetPanResponder({}, { dx: 0, dy: 80 })).toBe(true);
     expect(findSummaryScrollGesture(renderer!).enabled).toBe(true);
     expect(findSummaryScrollGesture(renderer!).activeOffsetY).toBe(4);
 
@@ -859,7 +965,6 @@ describe('DetailScreen', () => {
       scrollView.props.onScroll({ nativeEvent: { contentOffset: { y: 260 } } });
     });
 
-    expect(sheet.props.onMoveShouldSetPanResponder({}, { dx: 0, dy: -80 })).toBe(false);
     expect(findSummaryScrollGesture(renderer!).enabled).toBe(false);
 
     const verticalPagerAtBottom = findVerticalPager(renderer!);
@@ -989,8 +1094,6 @@ describe('DetailScreen', () => {
       gesture.onUpdate({ translationY: 42, velocityY: 0 });
     });
 
-    expect(getSheetTranslateY(findSummarySheet(renderer!))).toBe(42);
-
     act(() => {
       findSummaryScrollGesture(renderer!).onEnd({ translationY: 90, velocityY: 0 });
     });
@@ -1066,14 +1169,11 @@ describe('DetailScreen', () => {
       summaryButton.props.onPress();
     });
 
-    const handle = renderer!.root.find(
-      (node) => String(node.type) === 'View'
-        && typeof node.props.onStartShouldSetPanResponder === 'function'
-        && typeof node.props.onPanResponderRelease === 'function',
-    );
-
     act(() => {
-      handle.props.onPanResponderRelease({}, { dy: 180, vy: 0.1 });
+      const gesture = findSummarySheetPanGesture(renderer!);
+      gesture.onBegin();
+      gesture.onUpdate({ translationY: 180, velocityY: 100 });
+      gesture.onEnd({ translationY: 180, velocityY: 100 });
     });
 
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(0);
@@ -1103,15 +1203,11 @@ describe('DetailScreen', () => {
       summaryButton.props.onPress();
     });
 
-    const handle = renderer!.root.find(
-      (node) => String(node.type) === 'View'
-        && typeof node.props.onStartShouldSetPanResponder === 'function'
-        && typeof node.props.onPanResponderRelease === 'function',
-    );
-
     act(() => {
-      handle.props.onPanResponderMove({}, { dy: -180, vy: -0.2 });
-      handle.props.onPanResponderRelease({}, { dy: -180, vy: -0.2 });
+      const gesture = findSummarySheetPanGesture(renderer!);
+      gesture.onBegin();
+      gesture.onUpdate({ translationY: -180, velocityY: -200 });
+      gesture.onEnd({ translationY: -180, velocityY: -200 });
     });
 
     expect(renderer!.root.findAll((node) => String(node.type) === 'ScrollView')).toHaveLength(1);

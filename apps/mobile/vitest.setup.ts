@@ -94,6 +94,17 @@ vi.mock("react-native-reanimated", () => {
       ReactMock.createElement("Reanimated.View", props, children),
     createAnimatedComponent: (component: unknown) => component,
   };
+  const interpolate = (
+    value: number,
+    inputRange: number[],
+    outputRange: number[],
+  ) => {
+    const [inputMin, inputMax] = inputRange;
+    const [outputMin, outputMax] = outputRange;
+    if (inputMax === inputMin) return outputMin;
+    const progress = Math.min(1, Math.max(0, (value - inputMin) / (inputMax - inputMin)));
+    return outputMin + (outputMax - outputMin) * progress;
+  };
 
   return {
     default: animated,
@@ -103,9 +114,23 @@ vi.mock("react-native-reanimated", () => {
       cubic: vi.fn((value: number) => value),
       out: vi.fn((fn: unknown) => fn),
     },
+    Extrapolation: {
+      CLAMP: "clamp",
+    },
+    interpolate,
     runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
     useAnimatedStyle: (updater: () => unknown) => updater(),
-    useSharedValue: (value: unknown) => ({ value }),
+    useSharedValue: (value: unknown) => {
+      const ref = ReactMock.useRef<{ value: unknown } | null>(null);
+      if (!ref.current) {
+        ref.current = { value };
+      }
+      return ref.current;
+    },
+    withSpring: vi.fn((toValue: unknown, _config?: unknown, callback?: (finished?: boolean) => void) => {
+      callback?.(true);
+      return toValue;
+    }),
     withTiming: vi.fn((toValue: unknown, _config?: unknown, callback?: (finished?: boolean) => void) => {
       callback?.(true);
       return toValue;
@@ -216,6 +241,11 @@ vi.mock("react-native-keyboard-controller", () => {
     KeyboardStickyView: passthrough("KeyboardStickyView"),
     KeyboardProvider: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
     KeyboardAvoidingView: passthrough("KeyboardAvoidingView"),
+    useReanimatedKeyboardAnimation: () => {
+      const height = React.useRef({ value: (globalThis as any).__mockKeyboardHeight ?? 0 }).current;
+      const progress = React.useRef({ value: 0 }).current;
+      return { height, progress };
+    },
   };
 });
 
