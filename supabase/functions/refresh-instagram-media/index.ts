@@ -36,6 +36,7 @@ type GroupBuyRow = {
   thumbnail_url: string | null;
   video_url: string | null;
   media_urls: string[] | null;
+  media_items: MediaAsset[] | null;
   media_type: 'IMAGE' | 'VIDEO' | null;
   end_date: string | null;
   raw_post_id?: { post_url?: string | null } | null;
@@ -124,10 +125,17 @@ function isGroupBuyExpired(row: GroupBuyRow): boolean {
 function needsRefresh(row: GroupBuyRow, force: boolean, refreshWindowHours: number): boolean {
   if (isGroupBuyExpired(row)) return false;
   if (force) return true;
+
   if (!isInstagramCdnUrl(row.video_url)) return false;
 
   const expiresAt = getCdnExpiryMs(row.video_url);
   if (!expiresAt) return true;
+
+  // CDN이 공구 종료 이후에 만료된다면, 공구가 끝나기 전에는 갱신할 필요가 없다.
+  const groupBuyEnd = row.end_date ? Date.parse(row.end_date) : null;
+  if (Number.isFinite(groupBuyEnd) && expiresAt > groupBuyEnd) {
+    return false;
+  }
 
   return expiresAt <= Date.now() + refreshWindowHours * 60 * 60 * 1000;
 }
@@ -372,9 +380,11 @@ async function lookupViaHikerAPI(url: string, apiKey: string): Promise<Instagram
 }
 
 function rowToResult(row: GroupBuyRow, source: RefreshResult['source'], instagramUrl: string | null): RefreshResult {
-  const mediaItems: MediaAsset[] = row.video_url
-    ? [{ url: row.video_url, mediaType: 'VIDEO', thumbnailUrl: row.thumbnail_url }]
-    : (row.thumbnail_url ? [{ url: row.thumbnail_url, mediaType: 'IMAGE', thumbnailUrl: row.thumbnail_url }] : []);
+  const mediaItems: MediaAsset[] = row.media_items?.length
+    ? row.media_items
+    : row.video_url
+      ? [{ url: row.video_url, mediaType: 'VIDEO', thumbnailUrl: row.thumbnail_url }]
+      : (row.thumbnail_url ? [{ url: row.thumbnail_url, mediaType: 'IMAGE', thumbnailUrl: row.thumbnail_url }] : []);
 
   return {
     groupBuyId: row.id,
@@ -427,19 +437,25 @@ async function refreshRow(row: GroupBuyRow, force: boolean, refreshWindowHours: 
   }
 
   const supabase = createAdminClient();
+  const resolvedMediaItems = media.mediaItems.length
+    ? media.mediaItems
+    : media.videoUrl || media.imageUrl
+      ? [{ url: media.videoUrl ?? media.imageUrl!, mediaType: media.videoUrl ? 'VIDEO' as const : 'IMAGE' as const, thumbnailUrl: media.thumbnailUrl ?? null }]
+      : [];
   const updatePayload = {
     thumbnail_url: media.thumbnailUrl ?? row.thumbnail_url,
-    video_url: media.videoUrl,
-    media_urls: media.mediaUrls.length ? media.mediaUrls : [media.videoUrl],
-    media_type: media.mediaType ?? 'VIDEO',
     updated_at: new Date().toISOString(),
+    video_url: media.videoUrl,
+    media_urls: media.mediaUrls.length ? media.mediaUrls : (media.videoUrl ? [media.videoUrl] : (media.imageUrl ? [media.imageUrl] : [])),
+    media_items: resolvedMediaItems,
+    media_type: media.mediaType ?? (media.videoUrl ? 'VIDEO' : 'IMAGE'),
   };
 
   const { data, error } = await supabase
     .from('group_buys')
     .update(updatePayload)
     .eq('id', row.id)
-    .select('id, thumbnail_url, video_url, media_urls, media_type, end_date, raw_post_id(post_url)')
+    .select('id, thumbnail_url, video_url, media_urls, media_items, media_type, end_date, raw_post_id(post_url)')
     .single();
 
   if (error) throw new Error(error.message);
@@ -453,11 +469,9 @@ async function refreshRow(row: GroupBuyRow, force: boolean, refreshWindowHours: 
       imageUrl: media.imageUrl,
       thumbnailUrl: media.thumbnailUrl ?? data.thumbnail_url ?? null,
       videoUrl: media.videoUrl,
-      mediaUrls: media.mediaUrls.length ? media.mediaUrls : [media.videoUrl],
-      mediaItems: media.mediaItems.length
-        ? media.mediaItems
-        : [{ url: media.videoUrl, mediaType: 'VIDEO', thumbnailUrl: media.thumbnailUrl ?? data.thumbnail_url ?? null }],
-      mediaType: media.mediaType ?? 'VIDEO',
+      mediaUrls: media.mediaUrls.length ? media.mediaUrls : (media.videoUrl ? [media.videoUrl] : []),
+      mediaItems: resolvedMediaItems,
+      mediaType: media.mediaType ?? (media.videoUrl ? 'VIDEO' : 'IMAGE'),
     },
   };
 }
@@ -466,7 +480,7 @@ async function fetchGroupBuy(groupBuyId: string): Promise<GroupBuyRow | null> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('group_buys')
-    .select('id, thumbnail_url, video_url, media_urls, media_type, end_date, raw_post_id(post_url)')
+    .select('id, thumbnail_url, video_url, media_urls, media_items, media_type, end_date, raw_post_id(post_url)')
     .eq('id', groupBuyId)
     .single();
 
@@ -483,7 +497,7 @@ async function fetchBatch(limit: number): Promise<GroupBuyRow[]> {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('group_buys')
-    .select('id, thumbnail_url, video_url, media_urls, media_type, end_date, raw_post_id(post_url)')
+    .select('id, thumbnail_url, video_url, media_urls, media_items, media_type, end_date, raw_post_id(post_url)')
     .eq('status', 'APPROVED')
     .eq('media_type', 'VIDEO')
     .not('video_url', 'is', null)
