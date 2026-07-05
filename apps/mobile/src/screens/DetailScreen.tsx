@@ -49,6 +49,9 @@ const DETAIL_SEARCH_CHROME_OFFSET = 72;
 // When the summary sheet is open the media stage shrinks to a centered card
 // with this much inset on each side.
 const MEDIA_STAGE_SIDE_INSET = 48;
+const MEDIA_STAGE_MIN_HEIGHT = 300;
+const MEDIA_STAGE_MIN_HEIGHT_RATIO = 0.38;
+const MEDIA_STAGE_MIN_SHEET_SPACE = 168;
 type MediaItem = {
   url: string;
   isVideo: boolean;
@@ -373,16 +376,42 @@ function DetailSearchDock({ bottomInset, onPress, s }: DetailSearchDockProps) {
 type DetailSearchSheetProps = {
   bottomInset: number;
   data: GroupBuy[];
+  maxHeight: number;
   onClose: () => void;
+  // eslint-disable-next-line no-unused-vars
+  onKeyboardHeightChange(height: number): void;
+  // eslint-disable-next-line no-unused-vars
+  onSheetDragEnd(dy: number, vy: number): void;
+  // eslint-disable-next-line no-unused-vars
+  onSheetDragMove: (dy: number) => void;
+  onSheetDragStart: () => void;
+  // eslint-disable-next-line no-unused-vars
+  onSheetLayout: (event: LayoutChangeEvent) => void;
   // eslint-disable-next-line no-unused-vars
   onSelect(item: GroupBuy): void;
   query: string;
+  sheetTranslate: Animated.Value;
   // eslint-disable-next-line no-unused-vars
   setQuery(query: string): void;
   s: ReturnType<typeof makeStyles>;
 };
 
-function DetailSearchSheet({ bottomInset, data, onClose, onSelect, query, setQuery, s }: DetailSearchSheetProps) {
+function DetailSearchSheet({
+  bottomInset,
+  data,
+  maxHeight,
+  onClose,
+  onKeyboardHeightChange,
+  onSelect,
+  onSheetDragEnd,
+  onSheetDragMove,
+  onSheetDragStart,
+  onSheetLayout,
+  query,
+  sheetTranslate,
+  setQuery,
+  s,
+}: DetailSearchSheetProps) {
   const inputRef = useRef<TextInput>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
@@ -395,16 +424,19 @@ function DetailSearchSheet({ bottomInset, data, onClose, onSelect, query, setQue
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
+      const nextHeight = event.endCoordinates.height;
+      setKeyboardHeight(nextHeight);
+      onKeyboardHeightChange(nextHeight);
     });
     const hideSub = Keyboard.addListener('keyboardDidHide', () => {
       setKeyboardHeight(0);
+      onKeyboardHeightChange(0);
     });
     return () => {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [onKeyboardHeightChange]);
 
   const dismissPanResponder = useMemo(
     () => PanResponder.create({
@@ -414,13 +446,15 @@ function DetailSearchSheet({ bottomInset, data, onClose, onSelect, query, setQue
       onMoveShouldSetPanResponderCapture: (_event, gestureState) => (
         gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
       ),
+      onPanResponderGrant: onSheetDragStart,
+      onPanResponderMove: (_event, gestureState) => {
+        onSheetDragMove(gestureState.dy);
+      },
       onPanResponderRelease: (_event, gestureState) => {
-        if (gestureState.dy > 56 || gestureState.vy > 0.65) {
-          onClose();
-        }
+        onSheetDragEnd(gestureState.dy, gestureState.vy);
       },
     }),
-    [onClose],
+    [onSheetDragEnd, onSheetDragMove, onSheetDragStart],
   );
 
   return (
@@ -437,8 +471,16 @@ function DetailSearchSheet({ bottomInset, data, onClose, onSelect, query, setQue
         pointerEvents="box-none"
         style={[s.detailSearchKeyboard, { paddingBottom: keyboardHeight }]}
       >
-        <View
-          style={[s.detailSearchSheet, { paddingBottom: bottomInset + spacing.md }]}
+        <Animated.View
+          onLayout={onSheetLayout}
+          style={[
+            s.detailSearchSheet,
+            {
+              maxHeight,
+              paddingBottom: bottomInset + spacing.md,
+              transform: [{ translateY: sheetTranslate }],
+            },
+          ]}
           {...dismissPanResponder.panHandlers}
         >
           <View style={s.detailSearchHandle} />
@@ -499,7 +541,7 @@ function DetailSearchSheet({ bottomInset, data, onClose, onSelect, query, setQue
             }}
             style={s.detailSearchList}
           />
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -509,6 +551,10 @@ export type ProductReelPageProps = {
   groupBuy: GroupBuy;
   isActive: boolean;
   isSearchSheetVisible?: boolean;
+  searchSheetMetrics?: {
+    height: number;
+    translateY: Animated.Value;
+  } | null;
   shouldPreloadVideo?: boolean;
   bottomChromeOffset?: number;
   pageHeight: number;
@@ -527,6 +573,7 @@ export function ProductReelPage({
   groupBuy,
   isActive,
   isSearchSheetVisible = false,
+  searchSheetMetrics = null,
   shouldPreloadVideo = false,
   bottomChromeOffset = 0,
   pageHeight,
@@ -573,21 +620,36 @@ export function ProductReelPage({
     1,
     Math.min(summarySheetMeasuredHeight || summarySheetMaxHeight, summarySheetMaxHeight),
   );
+  const activeSheetTranslate = isSearchSheetVisible && searchSheetMetrics
+    ? searchSheetMetrics.translateY
+    : summarySheetTranslate;
+  const activeSheetHeightForMedia = isSearchSheetVisible && searchSheetMetrics
+    ? Math.max(1, searchSheetMetrics.height)
+    : summarySheetHeightForMedia;
+  const mediaStageOpenTop = topInset + 64;
+  const minMediaStageHeight = Math.min(
+    Math.max(MEDIA_STAGE_MIN_HEIGHT, pageHeight * MEDIA_STAGE_MIN_HEIGHT_RATIO),
+    Math.max(1, pageHeight - mediaStageOpenTop - MEDIA_STAGE_MIN_SHEET_SPACE),
+  );
+  const cappedSheetHeightForMedia = Math.min(
+    activeSheetHeightForMedia,
+    Math.max(1, pageHeight - mediaStageOpenTop - minMediaStageHeight),
+  );
   // 0 = sheet fully open, 1 = sheet fully closed. Drives the media stage size
   // so it smoothly grows/shrinks in sync with the sheet position.
   const sheetProgress = useMemo(
-    () => summarySheetTranslate.interpolate({
-      inputRange: [0, summarySheetHeightForMedia],
+    () => activeSheetTranslate.interpolate({
+      inputRange: [0, cappedSheetHeightForMedia],
       outputRange: [0, 1],
       extrapolate: 'clamp',
     }),
-    [summarySheetHeightForMedia, summarySheetTranslate],
+    [activeSheetTranslate, cappedSheetHeightForMedia],
   );
   // Media stage interpolations: 0 (open) -> collapsed card, 1 (closed) -> full screen.
   const mediaStageOpenWidth = mediaWidth - MEDIA_STAGE_SIDE_INSET * 2;
   const mediaStageOpenHeight = Math.max(
     0,
-    pageHeight - (topInset + 64) - summarySheetHeightForMedia,
+    pageHeight - mediaStageOpenTop - cappedSheetHeightForMedia,
   );
   const animatedMediaStageWidth = useMemo(
     () => sheetProgress.interpolate({
@@ -608,18 +670,18 @@ export function ProductReelPage({
   const animatedMediaStageTop = useMemo(
     () => sheetProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [topInset + 64, 0],
+      outputRange: [mediaStageOpenTop, 0],
       extrapolate: 'clamp',
     }),
-    [sheetProgress, topInset],
+    [mediaStageOpenTop, sheetProgress],
   );
   const animatedMediaStageBottom = useMemo(
     () => sheetProgress.interpolate({
       inputRange: [0, 1],
-      outputRange: [summarySheetHeightForMedia, 0],
+      outputRange: [cappedSheetHeightForMedia, 0],
       extrapolate: 'clamp',
     }),
-    [sheetProgress, summarySheetHeightForMedia],
+    [cappedSheetHeightForMedia, sheetProgress],
   );
   const animatedMediaStageRadius = useMemo(
     () => sheetProgress.interpolate({
@@ -656,13 +718,13 @@ export function ProductReelPage({
     [sheetProgress],
   );
   const isMediaStageCompact = isSummaryExpanded || isSearchSheetVisible;
-  const mediaStageWidth = isSearchSheetVisible ? mediaStageOpenWidth : animatedMediaStageWidth;
-  const mediaStageHeight = isSearchSheetVisible ? mediaStageOpenHeight : animatedMediaStageHeight;
-  const mediaStageTop = isSearchSheetVisible ? topInset + 64 : animatedMediaStageTop;
-  const mediaStageBottom = isSearchSheetVisible ? summarySheetHeightForMedia : animatedMediaStageBottom;
-  const mediaStageRadius = isSearchSheetVisible ? 22 : animatedMediaStageRadius;
-  const mediaStageLeft = isSearchSheetVisible ? MEDIA_STAGE_SIDE_INSET : animatedMediaStageLeft;
-  const mediaStageRight = isSearchSheetVisible ? MEDIA_STAGE_SIDE_INSET : animatedMediaStageRight;
+  const mediaStageWidth = animatedMediaStageWidth;
+  const mediaStageHeight = animatedMediaStageHeight;
+  const mediaStageTop = animatedMediaStageTop;
+  const mediaStageBottom = animatedMediaStageBottom;
+  const mediaStageRadius = animatedMediaStageRadius;
+  const mediaStageLeft = animatedMediaStageLeft;
+  const mediaStageRight = animatedMediaStageRight;
   const reelChromeOpacity = isSearchSheetVisible ? 0 : animatedReelChromeOpacity;
 
   const resetSummarySheetState = useCallback(() => {
@@ -1305,6 +1367,28 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const [isScreenFocused, setScreenFocused] = useState(true);
   const [isSearchSheetVisible, setSearchSheetVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchSheetMeasuredHeight, setSearchSheetMeasuredHeight] = useState(0);
+  const [searchKeyboardHeight, setSearchKeyboardHeight] = useState(0);
+  const searchSheetMaxHeight = Math.max(
+    280,
+    Math.min(screenHeight - insets.top - spacing.xl, screenHeight * 0.70),
+  );
+  const searchSheetTranslate = useRef(new Animated.Value(searchSheetMaxHeight)).current;
+  const searchSheetDragStartY = useRef(0);
+  const searchSheetHeightForMedia = Math.max(
+    1,
+    Math.min(
+      (searchSheetMeasuredHeight || searchSheetMaxHeight) + searchKeyboardHeight,
+      Math.max(1, screenHeight - (insets.top + 64)),
+    ),
+  );
+  const searchSheetMetrics = useMemo(
+    () => (isSearchSheetVisible ? {
+      height: searchSheetHeightForMedia,
+      translateY: searchSheetTranslate,
+    } : null),
+    [isSearchSheetVisible, searchSheetHeightForMedia, searchSheetTranslate],
+  );
 
   useEffect(() => {
     const unsubFocus = navigation.addListener('focus', () => setScreenFocused(true));
@@ -1348,6 +1432,90 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   }, []);
 
   useEffect(() => {
+    if (!isSearchSheetVisible) {
+      searchSheetTranslate.setValue(searchSheetMaxHeight);
+    }
+  }, [isSearchSheetVisible, searchSheetMaxHeight, searchSheetTranslate]);
+
+  const openSearchSheet = useCallback(() => {
+    setSearchSheetVisible(true);
+    searchSheetTranslate.stopAnimation();
+    searchSheetTranslate.setValue(searchSheetMaxHeight);
+    setTimeout(() => {
+      Animated.spring(searchSheetTranslate, {
+        toValue: 0,
+        useNativeDriver: false,
+        friction: 9,
+        tension: 50,
+      }).start();
+    }, 0);
+  }, [searchSheetMaxHeight, searchSheetTranslate]);
+
+  const closeSearchSheet = useCallback(() => {
+    Keyboard.dismiss();
+    Animated.timing(searchSheetTranslate, {
+      toValue: searchSheetMaxHeight,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start(() => {
+      setSearchSheetVisible(false);
+      setSearchKeyboardHeight(0);
+    });
+  }, [searchSheetMaxHeight, searchSheetTranslate]);
+
+  const resetSearchSheetClosed = useCallback(() => {
+    Keyboard.dismiss();
+    searchSheetTranslate.stopAnimation();
+    searchSheetTranslate.setValue(searchSheetMaxHeight);
+    setSearchSheetVisible(false);
+    setSearchKeyboardHeight(0);
+  }, [searchSheetMaxHeight, searchSheetTranslate]);
+
+  const handleSearchSheetLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const nextHeight = Math.min(event.nativeEvent.layout.height, searchSheetMaxHeight);
+      setSearchSheetMeasuredHeight((current) => (
+        Math.abs(current - nextHeight) < 1 ? current : nextHeight
+      ));
+    },
+    [searchSheetMaxHeight],
+  );
+
+  const startSearchSheetDrag = useCallback(() => {
+    searchSheetTranslate.stopAnimation((value) => {
+      searchSheetDragStartY.current = typeof value === 'number' ? value : 0;
+    });
+  }, [searchSheetTranslate]);
+
+  const moveSearchSheetDrag = useCallback(
+    (dy: number) => {
+      const next = searchSheetDragStartY.current + dy;
+      searchSheetTranslate.setValue(Math.min(Math.max(next, 0), searchSheetMaxHeight));
+    },
+    [searchSheetMaxHeight, searchSheetTranslate],
+  );
+
+  const finishSearchSheetDrag = useCallback(
+    (dy: number, vy: number) => {
+      const draggedDown = dy > 12;
+      const pastThreshold = dy > Math.max(72, searchSheetMaxHeight * 0.28);
+      const flickedDown = vy > 0.65;
+      if (draggedDown && (pastThreshold || flickedDown)) {
+        closeSearchSheet();
+        return;
+      }
+      Animated.spring(searchSheetTranslate, {
+        toValue: 0,
+        useNativeDriver: false,
+        friction: 9,
+        tension: 50,
+      }).start();
+    },
+    [closeSearchSheet, searchSheetMaxHeight, searchSheetTranslate],
+  );
+
+  useEffect(() => {
     setSummarySheetGate({ isOpen: false, canSwipeReel: true });
   }, [activeProductIndex]);
 
@@ -1358,7 +1526,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
 
   const handleSelectSearchResult = useCallback((item: GroupBuy) => {
     const nextIndex = reelItems.findIndex((entry) => entry.id === item.id);
-    setSearchSheetVisible(false);
+    resetSearchSheetClosed();
     setSearchQuery('');
     setSummarySheetGate({ isOpen: false, canSwipeReel: true });
     if (nextIndex >= 0) {
@@ -1367,7 +1535,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       return;
     }
     navigation.push('Detail', { groupBuy: item });
-  }, [navigation, reelItems]);
+  }, [navigation, reelItems, resetSearchSheetClosed]);
 
   const renderReelItem = useCallback(
     ({ item, index }: { item: GroupBuy; index: number }) => (
@@ -1376,6 +1544,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         groupBuy={item}
         isActive={isScreenFocused && index === activeProductIndex}
         isSearchSheetVisible={isSearchSheetVisible}
+        searchSheetMetrics={searchSheetMetrics}
         shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
         bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
         pageHeight={screenHeight}
@@ -1383,19 +1552,21 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         topInset={insets.top}
         bottomInset={insets.bottom}
         onBack={() => navigation.goBack()}
-        onCloseSearchSheet={() => setSearchSheetVisible(false)}
+        onCloseSearchSheet={closeSearchSheet}
         onSummarySheetStateChange={handleSummarySheetStateChange}
         s={s}
       />
     ),
     [
       activeProductIndex,
+      closeSearchSheet,
       handleSummarySheetStateChange,
       insets.bottom,
       insets.top,
       isSearchSheetVisible,
       navigation,
       s,
+      searchSheetMetrics,
       screenHeight,
       screenWidth,
     ],
@@ -1437,7 +1608,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       {!summarySheetGate.isOpen && !isSearchSheetVisible ? (
         <DetailSearchDock
           bottomInset={insets.bottom}
-          onPress={() => setSearchSheetVisible(true)}
+          onPress={openSearchSheet}
           s={s}
         />
       ) : null}
@@ -1445,9 +1616,16 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         <DetailSearchSheet
           bottomInset={insets.bottom}
           data={filteredSearchItems}
-          onClose={() => setSearchSheetVisible(false)}
+          maxHeight={searchSheetMaxHeight}
+          onClose={closeSearchSheet}
+          onKeyboardHeightChange={setSearchKeyboardHeight}
+          onSheetDragEnd={finishSearchSheetDrag}
+          onSheetDragMove={moveSearchSheetDrag}
+          onSheetDragStart={startSearchSheetDrag}
+          onSheetLayout={handleSearchSheetLayout}
           onSelect={handleSelectSearchResult}
           query={searchQuery}
+          sheetTranslate={searchSheetTranslate}
           setQuery={setSearchQuery}
           s={s}
         />
@@ -1506,7 +1684,7 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
     },
     detailSearchBackdrop: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.38)',
+      backgroundColor: 'transparent',
     },
     detailSearchKeyboard: {
       justifyContent: 'flex-end',
@@ -1947,7 +2125,7 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
     },
     summaryBackdrop: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.28)',
+      backgroundColor: 'transparent',
     },
     summarySheet: {
       backgroundColor: '#111417',
