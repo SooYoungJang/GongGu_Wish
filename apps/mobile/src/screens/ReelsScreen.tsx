@@ -11,7 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import type { GroupBuy } from '../types';
 import { ProductReelPage, makeStyles } from './DetailScreen';
 
-const REELS_TAB_BAR_OVERLAY_OFFSET = 52;
+const REELS_TAB_BAR_OVERLAY_OFFSET = 40;
 
 // Fisher-Yates shuffle so each visit to the Reels tab shows feeds in a
 // different random order, like shuffling a playlist.

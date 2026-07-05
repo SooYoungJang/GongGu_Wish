@@ -3,17 +3,22 @@ import {
   Animated,
   Alert,
   Easing,
+  FlatList,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
   Linking,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   PanResponder,
+  Platform,
   Pressable,
   Share,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -38,6 +43,7 @@ const MAX_VISIBLE_DOTS = 5;
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.m3u8', '.mkv', '.avi', '.ts'];
 const SUMMARY_EDGE_DISMISS_DISTANCE = 56;
 const SUMMARY_SCROLL_TOP_EPSILON = 2;
+const DETAIL_SEARCH_CHROME_OFFSET = 72;
 
 // When the summary sheet is open the media stage shrinks to a centered card
 // with this much inset on each side.
@@ -111,6 +117,28 @@ function getReelItems(current: GroupBuy, fetched?: GroupBuy[]) {
 function getInitialReelIndex(current: GroupBuy, reelItems: GroupBuy[]) {
   const index = reelItems.findIndex((item) => item.id === current.id);
   return index >= 0 ? index : 0;
+}
+
+function getGroupBuyThumb(item: GroupBuy) {
+  return item.thumbnailUrl
+    ?? item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl
+    ?? item.mediaItems?.find((media) => !media.mediaType || media.mediaType === 'IMAGE')?.url
+    ?? item.mediaUrls?.[0]
+    ?? null;
+}
+
+function getSearchText(item: GroupBuy) {
+  return [
+    item.productName,
+    item.brandName,
+    item.category,
+    item.discountInfo,
+    item.summary,
+    item.rawPost.influencer.instagramUsername,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
 }
 
 function getVisibleDotIndexes(total: number, activeIndex: number) {
@@ -319,9 +347,167 @@ function ReelPurchaseAction({ onPress, s }: Pick<ReelActionProps, 'onPress' | 's
   );
 }
 
+type DetailSearchDockProps = {
+  bottomInset: number;
+  onPress: () => void;
+  s: ReturnType<typeof makeStyles>;
+};
+
+function DetailSearchDock({ bottomInset, onPress, s }: DetailSearchDockProps) {
+  return (
+    <View pointerEvents="box-none" style={[s.detailSearchDock, { paddingBottom: bottomInset + spacing.sm }]}>
+      <Pressable
+        accessibilityLabel="상품 검색"
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [s.detailSearchButton, pressed && s.pressed]}
+      >
+        <Ionicons name="search" size={18} color="rgba(255,255,255,0.82)" />
+        <SText variant="body" style={s.detailSearchButtonText}>상품을 검색해보세요</SText>
+      </Pressable>
+    </View>
+  );
+}
+
+type DetailSearchSheetProps = {
+  bottomInset: number;
+  data: GroupBuy[];
+  onClose: () => void;
+  // eslint-disable-next-line no-unused-vars
+  onSelect(item: GroupBuy): void;
+  query: string;
+  // eslint-disable-next-line no-unused-vars
+  setQuery(query: string): void;
+  s: ReturnType<typeof makeStyles>;
+};
+
+function DetailSearchSheet({ bottomInset, data, onClose, onSelect, query, setQuery, s }: DetailSearchSheetProps) {
+  const inputRef = useRef<TextInput>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 120);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const dismissPanResponder = useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gestureState) => (
+        gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
+      ),
+      onMoveShouldSetPanResponderCapture: (_event, gestureState) => (
+        gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
+      ),
+      onPanResponderRelease: (_event, gestureState) => {
+        if (gestureState.dy > 56 || gestureState.vy > 0.65) {
+          onClose();
+        }
+      },
+    }),
+    [onClose],
+  );
+
+  return (
+    <View style={s.detailSearchOverlay} pointerEvents="box-none">
+      <Pressable
+        accessibilityLabel="상품 검색 닫기"
+        accessibilityRole="button"
+        onPress={onClose}
+        style={s.detailSearchBackdrop}
+      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        pointerEvents="box-none"
+        style={[s.detailSearchKeyboard, { paddingBottom: keyboardHeight }]}
+      >
+        <View
+          style={[s.detailSearchSheet, { paddingBottom: bottomInset + spacing.md }]}
+          {...dismissPanResponder.panHandlers}
+        >
+          <View style={s.detailSearchHandle} />
+          <View style={s.detailSearchHeader}>
+            <SText variant="cardTitle" style={s.detailSearchTitle}>상품 검색</SText>
+          </View>
+          <View style={s.detailSearchInputWrap}>
+            <Ionicons name="search" size={18} color="rgba(255,255,255,0.58)" />
+            <TextInput
+              ref={inputRef}
+              autoCorrect={false}
+              autoFocus
+              onChangeText={setQuery}
+              placeholder="상품명, 브랜드, 인플루언서 검색"
+              placeholderTextColor="rgba(255,255,255,0.46)"
+              returnKeyType="search"
+              style={s.detailSearchInput}
+              value={query}
+            />
+          </View>
+          <FlatList
+            data={data}
+            keyboardShouldPersistTaps="handled"
+            keyExtractor={(item) => item.id}
+            ListEmptyComponent={(
+              <View style={s.detailSearchEmpty}>
+                <SText variant="body" style={s.detailSearchEmptyText}>검색 결과가 없어요</SText>
+              </View>
+            )}
+            renderItem={({ item }) => {
+              const thumb = getGroupBuyThumb(item);
+              const sellerName = item.rawPost.influencer.instagramUsername.replace(/^@/, '');
+              return (
+                <Pressable
+                  accessibilityLabel={`${item.productName ?? '상품'} 보기`}
+                  accessibilityRole="button"
+                  onPress={() => onSelect(item)}
+                  style={({ pressed }) => [s.detailSearchResult, pressed && s.pressed]}
+                >
+                  {thumb ? (
+                    <Image source={{ uri: thumb }} style={s.detailSearchThumb} resizeMode="cover" />
+                  ) : (
+                    <View style={s.detailSearchThumbFallback}>
+                      <Ionicons name="cube-outline" size={20} color="rgba(255,255,255,0.7)" />
+                    </View>
+                  )}
+                  <View style={s.detailSearchResultBody}>
+                    <SText variant="cardTitle" style={s.detailSearchResultTitle} numberOfLines={1}>
+                      {item.productName ?? '제품명 미확인'}
+                    </SText>
+                    <SText variant="caption" style={s.detailSearchResultMeta} numberOfLines={1}>
+                      {item.brandName ?? `@${sellerName}`} · {formatEndDate(item.endDate)}
+                    </SText>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.42)" />
+                </Pressable>
+              );
+            }}
+            style={s.detailSearchList}
+          />
+        </View>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
 export type ProductReelPageProps = {
   groupBuy: GroupBuy;
   isActive: boolean;
+  isSearchSheetVisible?: boolean;
   shouldPreloadVideo?: boolean;
   bottomChromeOffset?: number;
   pageHeight: number;
@@ -338,6 +524,7 @@ export type ProductReelPageProps = {
 export function ProductReelPage({
   groupBuy,
   isActive,
+  isSearchSheetVisible = false,
   shouldPreloadVideo = false,
   bottomChromeOffset = 0,
   pageHeight,
@@ -451,6 +638,15 @@ export function ProductReelPage({
       extrapolate: 'clamp',
     }),
   ).current;
+  const isMediaStageCompact = isSummaryExpanded || isSearchSheetVisible;
+  const mediaStageWidth = isSearchSheetVisible ? mediaStageOpenWidth : animatedMediaStageWidth;
+  const mediaStageHeight = isSearchSheetVisible ? mediaStageOpenHeight : animatedMediaStageHeight;
+  const mediaStageTop = isSearchSheetVisible ? topInset + 64 : animatedMediaStageTop;
+  const mediaStageBottom = isSearchSheetVisible ? summarySheetMaxHeight + spacing.md : animatedMediaStageBottom;
+  const mediaStageRadius = isSearchSheetVisible ? 22 : animatedMediaStageRadius;
+  const mediaStageLeft = isSearchSheetVisible ? MEDIA_STAGE_SIDE_INSET : animatedMediaStageLeft;
+  const mediaStageRight = isSearchSheetVisible ? MEDIA_STAGE_SIDE_INSET : animatedMediaStageRight;
+  const reelChromeOpacity = isSearchSheetVisible ? 0 : animatedReelChromeOpacity;
 
   const resetSummarySheetState = useCallback(() => {
     setSummaryExpanded(false);
@@ -792,7 +988,7 @@ export function ProductReelPage({
       const thumbnailUrl = item.thumbnailUrl ?? groupBuy.thumbnailUrl ?? null;
 
       return (
-        <Animated.View style={[s.mediaPane, { width: animatedMediaStageWidth, height: animatedMediaStageHeight }]}>
+        <Animated.View style={[s.mediaPane, { width: mediaStageWidth, height: mediaStageHeight }]}>
           {item.isVideo ? (
             shouldMountVideo ? (
               <VideoSlide
@@ -815,7 +1011,15 @@ export function ProductReelPage({
         </Animated.View>
       );
     },
-    [activeMediaIndex, animatedMediaStageHeight, animatedMediaStageWidth, groupBuy.thumbnailUrl, isActive, s, shouldPreloadVideo],
+    [
+      activeMediaIndex,
+      groupBuy.thumbnailUrl,
+      isActive,
+      mediaStageHeight,
+      mediaStageWidth,
+      s,
+      shouldPreloadVideo,
+    ],
   );
 
   return (
@@ -824,23 +1028,23 @@ export function ProductReelPage({
         style={[
           s.mediaStage,
           {
-            left: animatedMediaStageLeft,
-            right: animatedMediaStageRight,
-            top: animatedMediaStageTop,
-            bottom: animatedMediaStageBottom,
-            borderRadius: animatedMediaStageRadius,
+            left: mediaStageLeft,
+            right: mediaStageRight,
+            top: mediaStageTop,
+            bottom: mediaStageBottom,
+            borderRadius: mediaStageRadius,
             overflow: 'hidden',
           },
         ]}
       >
         {mediaItems.length > 0 ? (
-          <Animated.View style={{ height: animatedMediaStageHeight, overflow: 'hidden' }}>
+          <Animated.View style={{ height: mediaStageHeight, overflow: 'hidden' }}>
             <FlashList
               data={mediaItems}
               horizontal
               pagingEnabled
               snapToAlignment="start"
-              snapToInterval={isSummaryExpanded ? mediaStageOpenWidth : mediaWidth}
+              snapToInterval={isMediaStageCompact ? mediaStageOpenWidth : mediaWidth}
               keyExtractor={(item, index) => `${item.url}-${index}`}
               renderItem={renderMediaItem}
               showsHorizontalScrollIndicator={false}
@@ -851,7 +1055,7 @@ export function ProductReelPage({
               maxItemsInRecyclePool={2}
               maintainVisibleContentPosition={{ disabled: true }}
               onMomentumScrollEnd={(event) => {
-                const stepWidth = isSummaryExpanded ? mediaStageOpenWidth : mediaWidth;
+                const stepWidth = isMediaStageCompact ? mediaStageOpenWidth : mediaWidth;
                 const nextIndex = Math.round(event.nativeEvent.contentOffset.x / stepWidth);
                 if (nextIndex !== activeMediaIndex && nextIndex >= 0 && nextIndex < mediaItems.length) {
                   setActiveMediaIndex(nextIndex);
@@ -887,7 +1091,7 @@ export function ProductReelPage({
       </View>
 
       {mediaItems.length > 1 ? (
-        <Animated.View style={[s.mediaDots, { top: topInset + 62, opacity: animatedReelChromeOpacity }]}>
+        <Animated.View style={[s.mediaDots, { top: topInset + 62, opacity: reelChromeOpacity }]}>
           {visibleDots.map((index) => (
             <View
               key={index}
@@ -903,7 +1107,7 @@ export function ProductReelPage({
       ) : null}
 
       <>
-          <Animated.View pointerEvents={isSummaryExpanded ? 'none' : 'auto'} style={[s.rightRail, { bottom: bottomInset + bottomChromeOffset + 104, opacity: animatedReelChromeOpacity }]}>
+          <Animated.View pointerEvents={isSummaryExpanded || isSearchSheetVisible ? 'none' : 'auto'} style={[s.rightRail, { bottom: bottomInset + bottomChromeOffset + 104, opacity: reelChromeOpacity }]}>
             <ReelAction
               icon={<Ionicons name={isBookmarked(groupBuy.id) ? 'bookmark' : 'bookmark-outline'} size={26} color={isBookmarked(groupBuy.id) ? colors.accent : '#FFFFFF'} />}
               label={isBookmarked(groupBuy.id) ? '북마크됨' : '북마크'}
@@ -921,7 +1125,7 @@ export function ProductReelPage({
             <ReelPurchaseAction onPress={handleOpenLink} s={s} />
           </Animated.View>
 
-          <Animated.View pointerEvents={isSummaryExpanded ? 'none' : 'auto'} style={[s.bottomInfo, { paddingBottom: bottomInset + bottomChromeOffset + spacing.lg, opacity: animatedReelChromeOpacity }]}>
+          <Animated.View pointerEvents={isSummaryExpanded || isSearchSheetVisible ? 'none' : 'auto'} style={[s.bottomInfo, { paddingBottom: bottomInset + bottomChromeOffset + spacing.lg, opacity: reelChromeOpacity }]}>
             <View style={s.bottomInfoScrim} pointerEvents="none" />
             <View style={s.sellerRow}>
               <View style={s.avatar}>
@@ -1054,6 +1258,8 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const verticalPagerRef = useRef<PagerView>(null);
   const [summarySheetGate, setSummarySheetGate] = useState({ isOpen: false, canSwipeReel: true });
   const [isScreenFocused, setScreenFocused] = useState(true);
+  const [isSearchSheetVisible, setSearchSheetVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const unsubFocus = navigation.addListener('focus', () => setScreenFocused(true));
@@ -1074,6 +1280,21 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const initialReelIndex = useMemo(() => getInitialReelIndex(groupBuy, reelItems), [groupBuy.id, reelItems]);
   const [activeProductIndex, setActiveProductIndex] = useState(initialReelIndex);
   const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
+  const searchItems = useMemo(() => {
+    const seen = new Set<string>();
+    const source = [...reelItems, ...(groupBuys ?? [])];
+    return source.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }, [groupBuys, reelItems]);
+  const filteredSearchItems = useMemo(() => {
+    const normalized = searchQuery.trim().toLowerCase();
+    const source = searchItems.length ? searchItems : [groupBuy];
+    if (!normalized) return source.slice(0, 20);
+    return source.filter((item) => getSearchText(item).includes(normalized)).slice(0, 30);
+  }, [groupBuy, searchItems, searchQuery]);
   useEffect(() => {
     recordView(activeGroupBuy);
   }, [activeGroupBuy, recordView]);
@@ -1090,14 +1311,28 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     verticalPagerRef.current?.setPageWithoutAnimation?.(initialReelIndex);
   }, [initialReelIndex, reelItems.length, groupBuy.id]);
 
+  const handleSelectSearchResult = useCallback((item: GroupBuy) => {
+    const nextIndex = reelItems.findIndex((entry) => entry.id === item.id);
+    setSearchSheetVisible(false);
+    setSearchQuery('');
+    setSummarySheetGate({ isOpen: false, canSwipeReel: true });
+    if (nextIndex >= 0) {
+      setActiveProductIndex(nextIndex);
+      verticalPagerRef.current?.setPage?.(nextIndex);
+      return;
+    }
+    navigation.push('Detail', { groupBuy: item });
+  }, [navigation, reelItems]);
+
   const renderReelItem = useCallback(
     ({ item, index }: { item: GroupBuy; index: number }) => (
       <ProductReelPage
         key={item.id}
         groupBuy={item}
         isActive={isScreenFocused && index === activeProductIndex}
+        isSearchSheetVisible={isSearchSheetVisible}
         shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
-        bottomChromeOffset={0}
+        bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
         pageHeight={screenHeight}
         mediaWidth={screenWidth}
         topInset={insets.top}
@@ -1112,6 +1347,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       handleSummarySheetStateChange,
       insets.bottom,
       insets.top,
+      isSearchSheetVisible,
       navigation,
       s,
       screenHeight,
@@ -1134,7 +1370,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         }}
         orientation="vertical"
         overdrag
-        scrollEnabled={screenHeight > 0 && reelItems.length > 1 && !summarySheetGate.isOpen}
+        scrollEnabled={screenHeight > 0 && reelItems.length > 1 && !summarySheetGate.isOpen && !isSearchSheetVisible}
         style={s.verticalPager}
       >
         {reelItems.map((item, index) => (
@@ -1152,6 +1388,24 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
           </View>
         ))}
       </PagerView>
+      {!summarySheetGate.isOpen && !isSearchSheetVisible ? (
+        <DetailSearchDock
+          bottomInset={insets.bottom}
+          onPress={() => setSearchSheetVisible(true)}
+          s={s}
+        />
+      ) : null}
+      {isSearchSheetVisible ? (
+        <DetailSearchSheet
+          bottomInset={insets.bottom}
+          data={filteredSearchItems}
+          onClose={() => setSearchSheetVisible(false)}
+          onSelect={handleSelectSearchResult}
+          query={searchQuery}
+          setQuery={setSearchQuery}
+          s={s}
+        />
+      ) : null}
     </View>
   );
 }
@@ -1167,6 +1421,146 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
     verticalPagerPage: {
       backgroundColor: '#05070A',
       width: '100%',
+    },
+    detailSearchDock: {
+      bottom: 0,
+      left: 0,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      position: 'absolute',
+      right: 0,
+      zIndex: 20,
+    },
+    detailSearchButton: {
+      alignItems: 'center',
+      backgroundColor: 'rgba(24,27,33,0.92)',
+      borderColor: 'rgba(255,255,255,0.10)',
+      borderRadius: 28,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: spacing.sm,
+      height: 54,
+      paddingHorizontal: spacing.lg,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.28,
+      shadowRadius: 18,
+      ...shadows.md,
+    },
+    detailSearchButtonText: {
+      color: 'rgba(255,255,255,0.72)',
+      flex: 1,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    detailSearchOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'flex-end',
+      zIndex: 40,
+    },
+    detailSearchBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.38)',
+    },
+    detailSearchKeyboard: {
+      justifyContent: 'flex-end',
+    },
+    detailSearchSheet: {
+      backgroundColor: '#1F2229',
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      maxHeight: '70%',
+      minHeight: 360,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+    },
+    detailSearchHandle: {
+      alignSelf: 'center',
+      backgroundColor: 'rgba(255,255,255,0.42)',
+      borderRadius: 999,
+      height: 4,
+      marginBottom: spacing.lg,
+      width: 52,
+    },
+    detailSearchHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'flex-start',
+      marginBottom: spacing.md,
+    },
+    detailSearchTitle: {
+      color: '#FFFFFF',
+      fontSize: 18,
+      fontWeight: '900',
+    },
+    detailSearchInputWrap: {
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      borderColor: 'rgba(255,255,255,0.12)',
+      borderRadius: 22,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: spacing.sm,
+      height: 48,
+      marginBottom: spacing.md,
+      paddingHorizontal: spacing.md,
+    },
+    detailSearchInput: {
+      color: '#FFFFFF',
+      flex: 1,
+      fontSize: 15,
+      fontWeight: '700',
+      padding: 0,
+    },
+    detailSearchList: {
+      flexGrow: 0,
+    },
+    detailSearchResult: {
+      alignItems: 'center',
+      borderBottomColor: 'rgba(255,255,255,0.08)',
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      gap: spacing.md,
+      minHeight: 70,
+      paddingVertical: spacing.sm,
+    },
+    detailSearchThumb: {
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      borderRadius: 12,
+      height: 52,
+      width: 52,
+    },
+    detailSearchThumbFallback: {
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      borderRadius: 12,
+      height: 52,
+      justifyContent: 'center',
+      width: 52,
+    },
+    detailSearchResultBody: {
+      flex: 1,
+      minWidth: 0,
+    },
+    detailSearchResultTitle: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '900',
+      marginBottom: 3,
+    },
+    detailSearchResultMeta: {
+      color: 'rgba(255,255,255,0.56)',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    detailSearchEmpty: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 150,
+    },
+    detailSearchEmptyText: {
+      color: 'rgba(255,255,255,0.58)',
+      fontWeight: '700',
     },
     reelPage: {
       backgroundColor: '#05070A',

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Platform, StatusBar, StyleSheet, useWindowDimensions, View, LogBox } from 'react-native';
+import { BlurView } from 'expo-blur';
 import * as SystemUI from 'expo-system-ui';
 import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -13,6 +14,7 @@ import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
 import { requestNotificationPermissions } from './services/notifications';
+import { getCommerceColors } from './design/commerce';
 
 // Initialize PostgREST client with the Supabase anon key
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -41,7 +43,8 @@ type RootStackWithTabs = RootStackParamList & {
 const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
-const TAB_BAR_HEIGHT = 72;
+const TAB_BAR_HEIGHT = 58;
+const REELS_TAB_COLORS = getCommerceColors(true);
 
 import { SubmitScreen } from './screens/SubmitScreen';
 
@@ -57,11 +60,11 @@ function RankingTabGlyph({ color, focused }: { color: string; focused: boolean }
   );
 }
 
-function ReelsTabGlyph({ color, focused }: { color: string; focused: boolean }) {
+function ReelsTabGlyph({ color }: { color: string; focused: boolean }) {
   return (
     <View style={styles.tabGlyphFrame}>
       <View style={[styles.reelsFrame, { borderColor: color }]}>
-        <View style={[styles.reelsTriangle, { borderLeftColor: focused ? color : 'transparent' }]} />
+        <View style={[styles.reelsTriangle, { borderLeftColor: color }]} />
       </View>
     </View>
   );
@@ -130,40 +133,54 @@ function MainTabs() {
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isNarrow = screenWidth <= 375;
-  const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 10, 0);
-  const tabBarBottomPadding = Math.max(insets.bottom - 4, isNarrow ? 4 : 6);
+  const isIOS = Platform.OS === 'ios';
+  const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 12, 0);
+  const tabBarBottomPadding = Math.max(insets.bottom - 8, isNarrow ? 2 : 4);
+  const tabBarBackgroundColor = isIOS ? 'transparent' : colors.bottomBarBg;
 
   return (
     <Tab.Navigator
       initialRouteName="Home"
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarIconStyle: styles.tabIconSlot,
-        tabBarItemStyle: [
-          styles.tabButton,
-        ],
-        tabBarAccessibilityLabel: `${tabLabel(route.name)} 탭`,
-        tabBarIcon: ({ focused }) => tabIcon(
-          route.name,
-          focused ? colors.text : colors.tabInactive,
-          focused,
-        ),
-        tabBarLabel: tabLabel(route.name),
-        tabBarActiveTintColor: colors.text,
-        tabBarInactiveTintColor: colors.tabInactive,
-        tabBarLabelStyle: [
-          styles.tabLabel,
-        ],
-        tabBarStyle: [
-          styles.tabBar,
-          {
-            backgroundColor: colors.bottomBarBg,
-            borderColor: colors.bottomBarBorder,
-            height: tabBarHeight,
-            paddingBottom: tabBarBottomPadding,
-          },
-        ],
-      })}
+      screenOptions={({ route, navigation }) => {
+        const navState = navigation.getState();
+        const activeRouteName = navState.routes[navState.index]?.name;
+        const isReelsActive = activeRouteName === 'Reels';
+        return {
+          headerShown: false,
+          tabBarIconStyle: styles.tabIconSlot,
+          tabBarItemStyle: [
+            styles.tabButton,
+          ],
+          tabBarAccessibilityLabel: `${tabLabel(route.name)} 탭`,
+          tabBarIcon: ({ focused, color }) => tabIcon(route.name, color, focused),
+          tabBarShowLabel: false,
+          tabBarLabel: tabLabel(route.name),
+          tabBarActiveTintColor: isReelsActive ? REELS_TAB_COLORS.text : colors.text,
+          tabBarInactiveTintColor: isReelsActive ? REELS_TAB_COLORS.tabInactive : colors.tabInactive,
+          tabBarBackground: isIOS
+            ? () => (
+              <BlurView
+                intensity={isReelsActive ? 42 : 34}
+                tint={isReelsActive ? 'systemChromeMaterialDark' : 'systemChromeMaterial'}
+                style={StyleSheet.absoluteFill}
+              />
+            )
+            : undefined,
+          tabBarStyle: [
+            styles.tabBar,
+            {
+              backgroundColor: isReelsActive ? REELS_TAB_COLORS.bottomBarBg : tabBarBackgroundColor,
+              borderColor: isReelsActive
+                ? REELS_TAB_COLORS.bottomBarBorder
+                : isIOS
+                  ? 'rgba(255, 255, 255, 0.20)'
+                  : colors.bottomBarBorder,
+              height: tabBarHeight,
+              paddingBottom: tabBarBottomPadding,
+            },
+          ],
+        };
+      }}
     >
       <Tab.Screen name="Ranking" component={StoreScreen} />
       <Tab.Screen name="Reels" component={ReelsScreen} />
@@ -276,12 +293,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tabBar: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     borderTopWidth: 1,
     height: TAB_BAR_HEIGHT,
     left: 0,
-    paddingTop: 4,
+    overflow: 'hidden',
+    paddingTop: 2,
     position: 'absolute',
     right: 0,
   },
@@ -289,19 +307,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
-    minHeight: 52,
+    minHeight: 42,
     paddingTop: 0,
   },
   tabIconSlot: {
     height: 28,
-    marginBottom: -1,
+    marginBottom: 0,
     width: 34,
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0,
-    lineHeight: 14,
   },
   tabGlyphFrame: {
     height: 28,
@@ -355,21 +367,24 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     borderRadius: 6,
     borderStyle: 'solid',
-    bottom: 4,
-    height: 20,
+    borderWidth: 2.3,
+    height: 22,
     justifyContent: 'center',
-    left: 9,
+    left: 6,
     position: 'absolute',
-    width: 16,
+    top: 3,
+    width: 22,
   },
   reelsTriangle: {
     borderBottomColor: 'transparent',
-    borderLeftWidth: 9,
+    borderBottomWidth: 5.5,
+    borderLeftWidth: 8,
     borderRightWidth: 0,
     borderStyle: 'solid',
     borderTopColor: 'transparent',
-    borderTopWidth: 6,
+    borderTopWidth: 5.5,
     height: 0,
+    marginLeft: 2,
     width: 0,
   },
   chartFrame: {
