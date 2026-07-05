@@ -4,6 +4,11 @@ const videoMock = vi.hoisted(() => ({
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
 }));
+vi.mock('../hooks/useLocalDeals', () => ({
+  useBookmarks: () => ({ bookmarks: [], isBookmarked: () => false, toggleBookmark: vi.fn(), ready: true }),
+  useRecentViews: () => ({ recentViews: [], recordView: vi.fn(), ready: true }),
+  useNotifications: () => ({ notifications: [], isNotifying: () => false, toggleNotification: vi.fn(), ready: true }),
+}));
 const flashListMock = vi.hoisted(() => ({
   scrollToOffset: vi.fn(),
 }));
