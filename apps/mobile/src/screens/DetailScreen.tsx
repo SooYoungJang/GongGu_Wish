@@ -365,11 +365,7 @@ export function ProductReelPage({
   const [isSummaryVisible, setSummaryVisible] = useState(false);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
   const { isBookmarked, toggleBookmark } = useBookmarks();
-  const { recordView } = useRecentViews();
   const { isNotifying, toggleNotification } = useNotifications();
-  useEffect(() => {
-    if (isActive) recordView(groupBuy);
-  }, [isActive, groupBuy, recordView]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
@@ -1052,10 +1048,21 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const { groupBuy } = route.params;
   const { colors, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
+  const { recordView } = useRecentViews();
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const verticalPagerRef = useRef<PagerView>(null);
   const [summarySheetGate, setSummarySheetGate] = useState({ isOpen: false, canSwipeReel: true });
+  const [isScreenFocused, setScreenFocused] = useState(true);
+
+  useEffect(() => {
+    const unsubFocus = navigation.addListener('focus', () => setScreenFocused(true));
+    const unsubBlur = navigation.addListener('blur', () => setScreenFocused(false));
+    return () => {
+      unsubFocus();
+      unsubBlur();
+    };
+  }, [navigation]);
 
   const { data: groupBuys } = useQuery({
     queryKey: ['group-buys'],
@@ -1066,6 +1073,10 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const reelItems = useMemo(() => getReelItems(groupBuy, groupBuys), [groupBuy, groupBuys]);
   const initialReelIndex = useMemo(() => getInitialReelIndex(groupBuy, reelItems), [groupBuy.id, reelItems]);
   const [activeProductIndex, setActiveProductIndex] = useState(initialReelIndex);
+  const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
+  useEffect(() => {
+    recordView(activeGroupBuy);
+  }, [activeGroupBuy, recordView]);
   const handleSummarySheetStateChange = useCallback((isOpen: boolean, canSwipeReel: boolean) => {
     setSummarySheetGate({ isOpen, canSwipeReel });
   }, []);
@@ -1084,7 +1095,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       <ProductReelPage
         key={item.id}
         groupBuy={item}
-        isActive={index === activeProductIndex}
+        isActive={isScreenFocused && index === activeProductIndex}
         shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
         bottomChromeOffset={0}
         pageHeight={screenHeight}

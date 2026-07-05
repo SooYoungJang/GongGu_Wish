@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import PagerView from 'react-native-pager-view';
 
 import { fetchGroupBuys, fallbackGroupBuys } from '../api';
+import { useRecentViews } from '../hooks/useLocalDeals';
 import { useTheme } from '../context/ThemeContext';
 import type { GroupBuy } from '../types';
 import { ProductReelPage, makeStyles } from './DetailScreen';
@@ -30,6 +32,15 @@ export function ReelsScreen() {
   const pagerRef = useRef<PagerView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [summarySheetGate, setSummarySheetGate] = useState({ isOpen: false, canSwipeReel: true });
+  const [isTabFocused, setTabFocused] = useState(true);
+  const { recordView } = useRecentViews();
+
+  useFocusEffect(
+    useCallback(() => {
+      setTabFocused(true);
+      return () => setTabFocused(false);
+    }, []),
+  );
 
   const { data } = useQuery({
     queryKey: ['group-buys'],
@@ -68,6 +79,16 @@ export function ReelsScreen() {
     }
   }, [activeIndex, reelItems.length, appendBatch]);
 
+  const lastRecordedIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const item = isTabFocused ? reelItems[activeIndex] : undefined;
+    if (item && item.id !== lastRecordedIdRef.current) {
+      lastRecordedIdRef.current = item.id;
+      recordView(item);
+    }
+    if (!isTabFocused) lastRecordedIdRef.current = null;
+  }, [isTabFocused, activeIndex, reelItems, recordView]);
+
   const handleSummarySheetStateChange = useCallback((isOpen: boolean, canSwipeReel: boolean) => {
     setSummarySheetGate({ isOpen, canSwipeReel });
   }, []);
@@ -77,7 +98,7 @@ export function ReelsScreen() {
       <ProductReelPage
         key={item.id}
         groupBuy={item}
-        isActive={index === activeIndex}
+        isActive={isTabFocused && index === activeIndex}
         shouldPreloadVideo={Math.abs(index - activeIndex) <= 1}
         bottomChromeOffset={REELS_TAB_BAR_OVERLAY_OFFSET}
         pageHeight={screenHeight}
@@ -90,7 +111,7 @@ export function ReelsScreen() {
         s={s}
       />
     ),
-    [activeIndex, handleSummarySheetStateChange, insets.bottom, insets.top, s, screenHeight, screenWidth],
+    [isTabFocused, activeIndex, handleSummarySheetStateChange, insets.bottom, insets.top, s, screenHeight, screenWidth],
   );
 
   if (reelItems.length === 0) {

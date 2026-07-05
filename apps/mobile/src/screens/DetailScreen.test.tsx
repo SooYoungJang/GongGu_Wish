@@ -313,7 +313,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
-          navigation={{} as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -351,7 +351,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+      navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -388,7 +388,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{} as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -419,7 +419,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -466,7 +466,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -502,7 +502,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -541,7 +541,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -591,7 +591,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy: queryMock.groupBuys[0] } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -635,7 +635,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -671,7 +671,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -737,7 +737,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -766,7 +766,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy: expiredGroupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -810,7 +810,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -873,7 +873,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -921,7 +921,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -957,7 +957,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -1005,7 +1005,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -1049,7 +1049,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -1086,7 +1086,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -1130,7 +1130,7 @@ describe('DetailScreen', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy: baseGroupBuy } } as any}
-          navigation={{ goBack: vi.fn() } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -1168,7 +1168,7 @@ describe('DetailScreen video playback', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{} as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
@@ -1203,7 +1203,7 @@ describe('DetailScreen video playback', () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ key: 'Detail', name: 'Detail', params: { groupBuy } } as any}
-          navigation={{} as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
         />,
       );
     });
