@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { fallbackGroupBuys } from '../api';
+import { useBookmarks, useRecentViews, useNotifications } from '../hooks/useLocalDeals';
 import { AppButton } from '../components/AppButton';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SText } from '../components/ui/SText';
@@ -14,35 +14,6 @@ import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { CommerceColorPalette } from '../design/commerce';
 import { spacing } from '../design/tokens';
 import type { GroupBuy, RootStackParamList } from '../types';
-
-type MenuRowProps = {
-  icon: string;
-  label: string;
-  description?: string;
-  onPress: () => void;
-  s: ReturnType<typeof makeStyles>;
-};
-
-function MenuRow({ icon, label, description, onPress, s }: MenuRowProps) {
-  return (
-    <Pressable
-      accessible
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [s.menuRow, pressed && s.pressed]}
-    >
-      <View style={s.menuIconBox}>
-        <SText variant="body" style={s.menuIcon}>{icon}</SText>
-      </View>
-      <View style={s.menuCopy}>
-        <SText variant="body" style={s.menuLabel}>{label}</SText>
-        {description ? <SText variant="caption" style={s.menuDescription}>{description}</SText> : null}
-      </View>
-      <SText variant="body" style={s.menuArrow}>›</SText>
-    </Pressable>
-  );
-}
 
 function GuestSummaryCards({ todayCount, bookmarkCount, s }: { todayCount: number; bookmarkCount: number; s: ReturnType<typeof makeStyles> }) {
   return (
@@ -127,52 +98,6 @@ function DealShelf({
   );
 }
 
-function NotificationSettingsPanel({
-  deadlineAlertEnabled,
-  recommendAlertEnabled,
-  onToggleDeadline,
-  onToggleRecommend,
-  colors,
-  s,
-}: {
-  deadlineAlertEnabled: boolean;
-  recommendAlertEnabled: boolean;
-  onToggleDeadline: (value: boolean) => void;
-  onToggleRecommend: (value: boolean) => void;
-  colors: CommerceColorPalette;
-  s: ReturnType<typeof makeStyles>;
-}) {
-  return (
-    <View style={s.notificationCard}>
-      <SText variant="cardTitle" style={s.notificationTitle}>알림 설정</SText>
-      <SText variant="caption" style={s.notificationSubtitle}>로그인하지 않아도 이 기기에서 바로 바꿀 수 있어요.</SText>
-      <View style={s.switchRow}>
-        <View style={s.switchCopy}>
-          <SText variant="body" style={s.switchLabel}>마감 임박 알림</SText>
-          <SText variant="caption" style={s.switchDescription}>관심 공구 마감 전에 알려드려요</SText>
-        </View>
-        <Switch
-          value={deadlineAlertEnabled}
-          onValueChange={onToggleDeadline}
-          trackColor={{ false: colors.softBg, true: colors.accentSoft }}
-          thumbColor={deadlineAlertEnabled ? colors.accent : colors.weak}
-        />
-      </View>
-      <View style={[s.switchRow, s.switchRowLast]}>
-        <View style={s.switchCopy}>
-          <SText variant="body" style={s.switchLabel}>추천 공구 알림</SText>
-          <SText variant="caption" style={s.switchDescription}>취향에 맞는 새 공구를 받을 수 있어요</SText>
-        </View>
-        <Switch
-          value={recommendAlertEnabled}
-          onValueChange={onToggleRecommend}
-          trackColor={{ false: colors.softBg, true: colors.accentSoft }}
-          thumbColor={recommendAlertEnabled ? colors.accent : colors.weak}
-        />
-      </View>
-    </View>
-  );
-}
 
 export function MyPageScreen() {
   const { colors } = useCommerceTheme();
@@ -180,10 +105,9 @@ export function MyPageScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [deadlineAlertEnabled, setDeadlineAlertEnabled] = useState(true);
-  const [recommendAlertEnabled, setRecommendAlertEnabled] = useState(false);
-  const viewedToday = useMemo(() => fallbackGroupBuys.slice(0, 3), []);
-  const bookmarkedDeals = useMemo(() => fallbackGroupBuys.slice(1, 4), []);
+  const { bookmarks: bookmarkedDeals } = useBookmarks();
+  const { recentViews: viewedToday } = useRecentViews();
+  const { notifications } = useNotifications();
 
   const handleLoginPress = useCallback(() => {
     navigation.navigate('Login');
@@ -198,13 +122,30 @@ export function MyPageScreen() {
     }
   }, [signOut]);
 
-  const showReady = useCallback((title: string, message: string) => {
-    Alert.alert(title, message);
-  }, []);
-
   const handlePressDeal = useCallback((item: GroupBuy) => {
     navigation.navigate('Detail', { groupBuy: item });
   }, [navigation]);
+
+  const notificationDeals = useMemo<GroupBuy[]>(
+    () => notifications.map((entry) => ({
+      id: entry.groupBuyId,
+      productName: entry.productName,
+      brandName: null,
+      category: null,
+      startDate: null,
+      endDate: entry.endDate,
+      purchaseUrl: null,
+      discountInfo: null,
+      summary: null,
+      confidence: 0,
+      thumbnailUrl: entry.thumbnailUrl,
+      videoUrl: null,
+      mediaUrls: [],
+      mediaType: null,
+      rawPost: { postUrl: '', influencer: { instagramUsername: '' } },
+    })),
+    [notifications],
+  );
 
   if (authLoading) {
     return (
@@ -247,63 +188,30 @@ export function MyPageScreen() {
 
         <DealShelf
           title="오늘 본 목록"
-          subtitle="오늘 둘러본 상품을 빠르게 이어봐요"
+          subtitle="최근 본 공구 최근 10개"
           items={viewedToday}
-          emptyText="오늘 본 상품이 아직 없어요."
+          emptyText="최근 본 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
           s={s}
         />
 
         <DealShelf
           title="북마크한 공구"
-          subtitle={user ? '저장해둔 공구를 모아봤어요' : '이 기기에 저장된 공구를 보여줘요'}
+          subtitle={user ? '저장해둔 공구를 모아봤어요' : '이 기기에 저장된 공구예요'}
           items={bookmarkedDeals}
           emptyText="북마크한 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
           s={s}
         />
 
-        <NotificationSettingsPanel
-          deadlineAlertEnabled={deadlineAlertEnabled}
-          recommendAlertEnabled={recommendAlertEnabled}
-          onToggleDeadline={setDeadlineAlertEnabled}
-          onToggleRecommend={setRecommendAlertEnabled}
-          colors={colors}
+        <DealShelf
+          title="알림 설정한 공구"
+          subtitle="시작 알림을 설정한 공구예요"
+          items={notificationDeals}
+          emptyText="알림을 설정한 공구가 아직 없어요."
+          onPressDeal={handlePressDeal}
           s={s}
         />
-
-        <View style={s.menuGroup}>
-          <MenuRow
-            icon="↺"
-            label="오늘 본 목록"
-            description="방금 둘러본 상품과 공구를 다시 보기"
-            onPress={() => showReady('오늘 본 목록', '최근 본 공구 목록을 준비 중입니다.')}
-            s={s}
-          />
-          <MenuRow
-            icon="♡"
-            label="북마크한 공구"
-            description={user ? '저장한 공구 모아보기' : '로그인 전에는 이 기기에만 저장돼요'}
-            onPress={() => showReady('북마크한 공구', '북마크 목록 기능은 준비 중입니다.')}
-            s={s}
-          />
-          <MenuRow
-            icon="!"
-            label="알림 설정"
-            description="마감 임박·추천 공구 알림을 이 기기에서 관리"
-            onPress={() => showReady('알림 설정', '아래 알림 설정 카드에서 바로 변경할 수 있어요.')}
-            s={s}
-          />
-          {user ? (
-            <MenuRow
-              icon="↗"
-              label="내 제보한 공구"
-              description="직접 제보한 공구 진행 상태 확인"
-              onPress={() => showReady('내 제보한 공구', '내 제보 목록 기능은 준비 중입니다.')}
-              s={s}
-            />
-          ) : null}
-        </View>
 
         <View style={s.settingsCard}>
           <ThemeToggle />

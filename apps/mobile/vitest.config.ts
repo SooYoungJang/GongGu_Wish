@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@gonggu/shared": path.resolve(__dirname, "../../packages/shared/src"),
+      "@expo/vector-icons": path.resolve(__dirname, "./src/__mocks__/vector-icons.tsx"),
     },
   },
   test: {

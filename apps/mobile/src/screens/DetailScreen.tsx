@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   Alert,
@@ -25,6 +25,8 @@ import PagerView from 'react-native-pager-view';
 import { Gesture, GestureDetector, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 
 import { fetchGroupBuys } from '../api';
+import { Ionicons } from '@expo/vector-icons';
+import { useBookmarks, useNotifications, useRecentViews } from '../hooks/useLocalDeals';
 import { SText } from '../components/ui/SText';
 import { borderRadius, spacing } from '../design/tokens';
 import { useTheme } from '../context/ThemeContext';
@@ -135,23 +137,6 @@ type VideoSlideProps = {
   thumbnailUrl?: string | null;
   s: ReturnType<typeof makeStyles>;
 };
-
-function SpeakerGlyph({ muted, s }: { muted: boolean; s: ReturnType<typeof makeStyles> }) {
-  return (
-    <View style={s.speakerGlyph}>
-      <View style={s.speakerBox} />
-      <View style={s.speakerHorn} />
-      {muted ? (
-        <View style={s.speakerSlash} />
-      ) : (
-        <>
-          <View style={s.speakerWaveSmall} />
-          <View style={s.speakerWaveLarge} />
-        </>
-      )}
-    </View>
-  );
-}
 
 const VideoSlide = memo(function VideoSlide({ url, isActive, thumbnailUrl, s }: VideoSlideProps) {
   const [shouldPlay, setShouldPlay] = useState(true);
@@ -273,7 +258,7 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, thumbnailUrl, s }: 
             onPress={toggleMuted}
             style={({ pressed }) => [s.muteOverlayButton, pressed && s.pressed]}
           >
-            <SpeakerGlyph muted={isMuted} s={s} />
+            <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={20} color="#FFFFFF" />
           </Pressable>
           <Pressable
             accessibilityLabel={shouldPlay ? '동영상 일시정지' : '동영상 재생'}
@@ -281,7 +266,7 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, thumbnailUrl, s }: 
             onPress={togglePlayback}
             style={({ pressed }) => [s.playOverlayButton, pressed && s.pressed]}
           >
-            <Text style={s.pauseIcon}>{shouldPlay ? 'Ⅱ' : '▶'}</Text>
+            <Ionicons name={shouldPlay ? 'pause' : 'play'} size={28} color="#FFFFFF" />
           </Pressable>
         </View>
       ) : null}
@@ -290,7 +275,7 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, thumbnailUrl, s }: 
 });
 
 type ReelActionProps = {
-  icon: string;
+  icon: ReactNode;
   label: string;
   onPress: () => void;
   s: ReturnType<typeof makeStyles>;
@@ -304,7 +289,7 @@ function ReelAction({ icon, label, onPress, s }: ReelActionProps) {
       onPress={onPress}
       style={({ pressed }) => [s.railButton, pressed && s.pressed]}
     >
-      <Text style={s.railIcon}>{icon}</Text>
+      <View style={s.railIconBox}>{icon}</View>
       <SText variant="caption" style={s.railLabel}>{label}</SText>
     </Pressable>
   );
@@ -366,6 +351,7 @@ export function ProductReelPage({
 }: ProductReelPageProps) {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
+  const { colors } = useTheme();
   const [summaryScrollContentHeight, setSummaryScrollContentHeight] = useState(0);
   const [summaryScrollViewportHeight, setSummaryScrollViewportHeight] = useState(0);
   const [isSummaryScrollAtTop, setSummaryScrollAtTop] = useState(true);
@@ -378,6 +364,12 @@ export function ProductReelPage({
   const summaryScrollGestureStartedAtTopRef = useRef(true);
   const [isSummaryVisible, setSummaryVisible] = useState(false);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
+  const { isBookmarked, toggleBookmark } = useBookmarks();
+  const { recordView } = useRecentViews();
+  const { isNotifying, toggleNotification } = useNotifications();
+  useEffect(() => {
+    if (isActive) recordView(groupBuy);
+  }, [isActive, groupBuy, recordView]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
@@ -793,10 +785,6 @@ export function ProductReelPage({
     }
   };
 
-  const handleSave = () => {
-    Alert.alert('준비 중', '관심 공구 저장 기능은 준비 중입니다.');
-  };
-
   const visibleDots = getVisibleDotIndexes(mediaItems.length, activeMediaIndex);
 
   const renderMediaItem = useCallback(
@@ -920,10 +908,20 @@ export function ProductReelPage({
 
       <>
           <Animated.View pointerEvents={isSummaryExpanded ? 'none' : 'auto'} style={[s.rightRail, { bottom: bottomInset + bottomChromeOffset + 104, opacity: animatedReelChromeOpacity }]}>
-            <ReelAction icon="♡" label="관심" onPress={handleSave} s={s} />
-            <ReelAction icon="○" label="링크" onPress={handleOpenLink} s={s} />
-            <ReelAction icon="↗" label="공유" onPress={handleShare} s={s} />
-            <ReelAction icon="⌑" label="저장" onPress={handleSave} s={s} />
+            <ReelAction
+              icon={<Ionicons name={isBookmarked(groupBuy.id) ? 'bookmark' : 'bookmark-outline'} size={26} color={isBookmarked(groupBuy.id) ? colors.accent : '#FFFFFF'} />}
+              label={isBookmarked(groupBuy.id) ? '북마크됨' : '북마크'}
+              onPress={() => toggleBookmark(groupBuy)}
+              s={s}
+            />
+            <ReelAction icon={<Ionicons name="link-outline" size={26} color="#FFFFFF" />} label="링크" onPress={handleOpenLink} s={s} />
+            <ReelAction icon={<Ionicons name="share-social-outline" size={26} color="#FFFFFF" />} label="공유" onPress={handleShare} s={s} />
+            <ReelAction
+              icon={<Ionicons name={isNotifying(groupBuy.id) ? 'notifications' : 'notifications-outline'} size={26} color={isNotifying(groupBuy.id) ? colors.accent : '#FFFFFF'} />}
+              label={isNotifying(groupBuy.id) ? '알림설정됨' : '알림'}
+              onPress={() => toggleNotification(groupBuy)}
+              s={s}
+            />
             <ReelPurchaseAction onPress={handleOpenLink} s={s} />
           </Animated.View>
 
@@ -1205,71 +1203,12 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
     },
     muteOverlayButton: {
       alignItems: 'center',
-      backgroundColor: 'rgba(21,18,16,0.58)',
+      backgroundColor: 'rgba(0,0,0,0.5)',
       borderRadius: 20,
       height: 40,
       justifyContent: 'center',
       marginBottom: spacing.sm,
       width: 40,
-    },
-    speakerGlyph: {
-      height: 17,
-      position: 'relative',
-      width: 18,
-    },
-    speakerBox: {
-      backgroundColor: '#FFFFFF',
-      borderRadius: 2,
-      height: 7,
-      left: 1,
-      position: 'absolute',
-      top: 5,
-      width: 4.5,
-    },
-    speakerHorn: {
-      borderBottomColor: 'transparent',
-      borderBottomWidth: 5.5,
-      borderLeftColor: '#FFFFFF',
-      borderLeftWidth: 7,
-      borderTopColor: 'transparent',
-      borderTopWidth: 5.5,
-      height: 0,
-      left: 4.5,
-      position: 'absolute',
-      top: 3,
-      width: 0,
-    },
-    speakerWaveSmall: {
-      borderColor: '#FFFFFF',
-      borderLeftColor: 'transparent',
-      borderRadius: 8,
-      borderWidth: 1.5,
-      height: 9,
-      position: 'absolute',
-      right: 2,
-      top: 3.8,
-      width: 6,
-    },
-    speakerWaveLarge: {
-      borderColor: 'rgba(255,255,255,0.9)',
-      borderLeftColor: 'transparent',
-      borderRadius: 10,
-      borderWidth: 1.5,
-      height: 13,
-      position: 'absolute',
-      right: -3,
-      top: 2,
-      width: 9,
-    },
-    speakerSlash: {
-      backgroundColor: '#FFFFFF',
-      borderRadius: 999,
-      height: 2,
-      position: 'absolute',
-      right: -1,
-      top: 7.5,
-      transform: [{ rotate: '-45deg' }],
-      width: 18,
     },
     playOverlayButton: {
       alignItems: 'center',
@@ -1298,12 +1237,6 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       color: 'rgba(255,255,255,0.78)',
       fontSize: 14,
       fontWeight: '800',
-    },
-    pauseIcon: {
-      color: '#FFFFFF',
-      fontSize: 30,
-      fontWeight: '800',
-      marginLeft: 4,
     },
     topBar: {
       alignItems: 'center',
@@ -1395,6 +1328,12 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
+    railIconBox: {
+      alignItems: 'center',
+      height: 34,
+      justifyContent: 'center',
+      width: 52,
+    },
     purchaseGlyph: {
       height: 22,
       position: 'relative',
@@ -1463,7 +1402,7 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
     },
     bottomInfoScrim: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.34)',
+      backgroundColor: 'transparent',
       borderTopRightRadius: 18,
     },
     sellerRow: {
