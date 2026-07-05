@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useBookmarks, useRecentViews, useNotifications } from '../hooks/useLocalDeals';
+import { requestNotificationPermissions } from '../services/notifications';
 import { AppButton } from '../components/AppButton';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SText } from '../components/ui/SText';
@@ -34,7 +35,7 @@ function getDealVisual(item: GroupBuy) {
   return item.thumbnailUrl ?? item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ?? item.mediaUrls?.[0] ?? null;
 }
 
-function MiniDealCard({ item, onPress, s }: { item: GroupBuy; onPress: (item: GroupBuy) => void; s: ReturnType<typeof makeStyles> }) {
+function MiniDealCard({ item, onPress, onRemove, s }: { item: GroupBuy; onPress: (item: GroupBuy) => void; onRemove?: (item: GroupBuy) => void; s: ReturnType<typeof makeStyles> }) {
   const visual = getDealVisual(item);
   return (
     <Pressable
@@ -56,6 +57,17 @@ function MiniDealCard({ item, onPress, s }: { item: GroupBuy; onPress: (item: Gr
       <SText variant="caption" numberOfLines={1} style={s.miniDealMeta}>
         {item.discountInfo ?? item.brandName ?? '혜택 확인'}
       </SText>
+      {onRemove ? (
+        <Pressable
+          accessibilityLabel={`${item.productName ?? "공구"} 알림 해제`}
+          accessibilityRole="button"
+          onPress={() => onRemove(item)}
+          hitSlop={8}
+          style={s.miniDealRemove}
+        >
+          <SText variant="caption" style={s.miniDealRemoveText}>x</SText>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
@@ -66,6 +78,7 @@ function DealShelf({
   items,
   emptyText,
   onPressDeal,
+  onRemoveDeal,
   s,
 }: {
   title: string;
@@ -73,6 +86,7 @@ function DealShelf({
   items: GroupBuy[];
   emptyText: string;
   onPressDeal: (item: GroupBuy) => void;
+  onRemoveDeal?: (item: GroupBuy) => void;
   s: ReturnType<typeof makeStyles>;
 }) {
   return (
@@ -86,7 +100,7 @@ function DealShelf({
       {items.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.miniDealRail}>
           {items.map((item) => (
-            <MiniDealCard key={`${title}-${item.id}`} item={item} onPress={onPressDeal} s={s} />
+            <MiniDealCard key={`${title}-${item.id}`} item={item} onPress={onPressDeal} onRemove={onRemoveDeal} s={s} />
           ))}
         </ScrollView>
       ) : (
@@ -105,9 +119,19 @@ export function MyPageScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const [loggingOut, setLoggingOut] = useState(false);
-  const { bookmarks: bookmarkedDeals } = useBookmarks();
-  const { recentViews: viewedToday } = useRecentViews();
-  const { notifications } = useNotifications();
+  const { bookmarks: bookmarkedDeals, refresh: refreshBookmarks } = useBookmarks();
+  const { recentViews: viewedToday, refresh: refreshRecent } = useRecentViews();
+  const { notifications, removeNotification, refresh: refreshNotifications } = useNotifications();
+  const [pushEnabled, setPushEnabled] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshBookmarks();
+      refreshRecent();
+      refreshNotifications();
+      requestNotificationPermissions().then(setPushEnabled).catch(() => setPushEnabled(false));
+    }, [refreshBookmarks, refreshRecent, refreshNotifications]),
+  );
 
   const handleLoginPress = useCallback(() => {
     navigation.navigate('Login');
@@ -210,8 +234,35 @@ export function MyPageScreen() {
           items={notificationDeals}
           emptyText="알림을 설정한 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
+          onRemoveDeal={(item) => removeNotification(item.id)}
           s={s}
         />
+
+        <View style={s.notificationCard}>
+          <SText variant="cardTitle" style={s.notificationTitle}>알림 설정</SText>
+          <SText variant="caption" style={s.notificationSubtitle}>
+            {pushEnabled ? '푸시 알림이 활성화되어 있어요.' : '푸시 알림 권한이 꺼져 있어요. 기기 설정에서 켜주세요.'}
+          </SText>
+          <View style={s.switchRow}>
+            <View style={s.switchCopy}>
+              <SText variant="body" style={s.switchLabel}>푸시 알림</SText>
+              <SText variant="caption" style={s.switchDescription}>공구 시작 전 알림 수신</SText>
+            </View>
+            <Switch
+              value={pushEnabled}
+              onValueChange={async (value) => {
+                if (value) {
+                  const granted = await requestNotificationPermissions();
+                  setPushEnabled(granted);
+                } else {
+                  setPushEnabled(false);
+                }
+              }}
+              trackColor={{ false: colors.softBg, true: colors.accentSoft }}
+              thumbColor={pushEnabled ? colors.accent : colors.weak}
+            />
+          </View>
+        </View>
 
         <View style={s.settingsCard}>
           <ThemeToggle />
@@ -403,6 +454,23 @@ function makeStyles(colors: CommerceColorPalette) {
       fontWeight: '900',
       lineHeight: 16,
       marginTop: 2,
+    },
+    miniDealRemove: {
+      alignItems: 'center',
+      backgroundColor: colors.softBg,
+      borderRadius: 10,
+      height: 20,
+      justifyContent: 'center',
+      position: 'absolute',
+      right: 6,
+      top: 6,
+      width: 20,
+    },
+    miniDealRemoveText: {
+      color: colors.weak,
+      fontSize: 14,
+      fontWeight: '900',
+      lineHeight: 16,
     },
     emptyShelf: {
       alignItems: 'center',

@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { NotificationTriggerInput } from 'expo-notifications';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { GroupBuy } from '../types';
 
@@ -16,8 +19,10 @@ export type NotificationEntry = {
   groupBuyId: string;
   productName: string | null;
   endDate: string | null;
+  startDate: string | null;
   thumbnailUrl: string | null;
   scheduledFor: string | null;
+  notificationId: string | null;
   createdAt: string;
 };
 
@@ -60,16 +65,34 @@ async function writeJSON(key: string, value: unknown): Promise<void> {
   }
 }
 
+const IS_EXPO_GO = Constants.appOwnership === 'expo';
+type NotificationsModule = typeof import('expo-notifications');
+let _notificationsModule: NotificationsModule | null = null;
+async function getNotifications(): Promise<NotificationsModule | null> {
+  if (IS_EXPO_GO) return null;
+  if (_notificationsModule) return _notificationsModule;
+  try {
+    _notificationsModule = await import('expo-notifications');
+    return _notificationsModule;
+  } catch {
+    return null;
+  }
+}
+
 export function useBookmarks() {
   const [bookmarks, setBookmarks] = useState<StoredGroupBuy[]>([]);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     readJSON<StoredGroupBuy[]>(BOOKMARK_KEY, []).then((value) => {
       setBookmarks(value);
       setReady(true);
     });
   }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const isBookmarked = useCallback(
     (id: string) => bookmarks.some((item) => item.id === id),
@@ -86,19 +109,23 @@ export function useBookmarks() {
     });
   }, []);
 
-  return { bookmarks, isBookmarked, toggleBookmark, ready };
+  return { bookmarks, isBookmarked, toggleBookmark, refresh, ready };
 }
 
 export function useRecentViews() {
   const [recentViews, setRecentViews] = useState<StoredGroupBuy[]>([]);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     readJSON<StoredGroupBuy[]>(RECENT_KEY, []).then((value) => {
       setRecentViews(value);
       setReady(true);
     });
   }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const recordView = useCallback((item: GroupBuy) => {
     setRecentViews((current) => {
@@ -109,44 +136,127 @@ export function useRecentViews() {
     });
   }, []);
 
-  return { recentViews, recordView, ready };
+  return { recentViews, recordView, refresh, ready };
 }
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState<NotificationEntry[]>([]);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     readJSON<NotificationEntry[]>(NOTI_KEY, []).then((value) => {
       setNotifications(value);
       setReady(true);
     });
   }, []);
 
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
   const isNotifying = useCallback(
     (id: string) => notifications.some((item) => item.groupBuyId === id),
     [notifications],
   );
 
-  const toggleNotification = useCallback((item: GroupBuy) => {
-    setNotifications((current) => {
-      const next = current.some((entry) => entry.groupBuyId === item.id)
-        ? current.filter((entry) => entry.groupBuyId !== item.id)
-        : [
-            {
-              groupBuyId: item.id,
-              productName: item.productName,
-              endDate: item.endDate,
-              thumbnailUrl: item.thumbnailUrl,
-              scheduledFor: item.endDate,
-              createdAt: new Date().toISOString(),
-            },
-            ...current,
-          ];
+  const toggleNotification = useCallback(async (item: GroupBuy) => {
+    const existing = notifications.find((entry) => entry.groupBuyId === item.id);
+    if (existing) {
+      if (existing.notificationId) {
+        const Notifications = await getNotifications();
+        if (Notifications) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(existing.notificationId);
+        } catch {
+          // Expo Go may not support this
+        }
+        }
+      }
+      const next = notifications.filter((entry) => entry.groupBuyId !== item.id);
+      setNotifications(next);
       void writeJSON(NOTI_KEY, next);
-      return next;
-    });
-  }, []);
+    } else {
+      let notificationId: string | null = null;
+      let scheduledFor: string | null = null;
+      const start = item.startDate;
+      if (start) {
+        const triggerDate = new Date(start);
+        if (!Number.isNaN(triggerDate.getTime())) {
+          const notifyAt = new Date(triggerDate.getTime() - 60 * 60 * 1000);
+          if (notifyAt.getTime() > Date.now()) {
+            const triggerSeconds = Math.round((notifyAt.getTime() - Date.now()) / 1000);
+            if (triggerSeconds > 0) {
+              const Notifications = await getNotifications();
+              if (Notifications) {
+              try {
+                notificationId = await Notifications.scheduleNotificationAsync({
+                  content: {
+                    title: '공구 시작 알림',
+                    body: `${item.productName ?? '공동구매'} 공구가 곧 시작될 예정이에요!`,
+                    data: { groupBuyId: item.id },
+                  },
+                  trigger: Platform.select({
+                    ios: {
+                      type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+                      hour: notifyAt.getHours(),
+                      minute: notifyAt.getMinutes(),
+                      day: notifyAt.getDate(),
+                      month: notifyAt.getMonth() + 1,
+                      year: notifyAt.getFullYear(),
+                    },
+                    android: {
+                      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                      seconds: triggerSeconds,
+                      channelId: 'group-buy-start',
+                    },
+                    default: {
+                      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                      seconds: triggerSeconds,
+                      channelId: 'group-buy-start',
+                    },
+                  }) as NotificationTriggerInput,
+                });
+                scheduledFor = notifyAt.toISOString();
+              } catch {
+                // Expo Go does not fully support scheduled notifications
+              }
+              }
+            }
+          }
+        }
+      }
+      const entry: NotificationEntry = {
+        groupBuyId: item.id,
+        productName: item.productName,
+        endDate: item.endDate,
+        startDate: item.startDate,
+        thumbnailUrl: item.thumbnailUrl,
+        scheduledFor,
+        notificationId,
+        createdAt: new Date().toISOString(),
+      };
+      const next = [entry, ...notifications];
+      setNotifications(next);
+      void writeJSON(NOTI_KEY, next);
+    }
+  }, [notifications]);
 
-  return { notifications, isNotifying, toggleNotification, ready };
+  const removeNotification = useCallback(async (groupBuyId: string) => {
+    const existing = notifications.find((entry) => entry.groupBuyId === groupBuyId);
+    if (existing?.notificationId) {
+      const Notifications = await getNotifications();
+      if (Notifications) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(existing.notificationId);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    const next = notifications.filter((entry) => entry.groupBuyId !== groupBuyId);
+    setNotifications(next);
+    void writeJSON(NOTI_KEY, next);
+  }, [notifications]);
+
+  return { notifications, isNotifying, toggleNotification, removeNotification, refresh, ready };
 }

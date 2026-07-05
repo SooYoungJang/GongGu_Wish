@@ -12,6 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
+import { requestNotificationPermissions } from './services/notifications';
 
 // Initialize PostgREST client with the Supabase anon key
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -187,6 +188,12 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(bg);
   }, [bg]);
+
+  useEffect(() => {
+    requestNotificationPermissions().catch(() => {
+      // permission request is best-effort; user can enable later in settings
+    });
+  }, []);
 
   const navTheme = React.useMemo(() => {
     const base = isDark ? DarkTheme : DefaultTheme;

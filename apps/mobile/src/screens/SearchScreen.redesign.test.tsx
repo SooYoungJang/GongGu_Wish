@@ -95,6 +95,10 @@ vi.mock('@react-navigation/native', () => ({
     navigate: mocks.navigate,
     goBack: mocks.goBack,
   }),
+  useFocusEffect: vi.fn((cb: any) => {
+    if (typeof cb === 'function') cb();
+    return vi.fn();
+  }),
 }));
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
@@ -129,6 +133,8 @@ vi.mock('react-native', () => {
 
   return {
     Image: passthrough('Image'),
+    StatusBar: passthrough('StatusBar'),
+    Switch: (props: any) => ReactMock.createElement('Switch', props),
     Pressable: ({ children, onPress, style, accessibilityLabel, accessibilityRole }: any) =>
       ReactMock.createElement('Pressable', { onPress, style, accessibilityLabel, accessibilityRole }, children),
     StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },

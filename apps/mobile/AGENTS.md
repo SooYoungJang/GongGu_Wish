@@ -41,3 +41,13 @@ src/features/                # 도메인 타입/훅 (ranking/types.ts, useSeller
 src_back/ 디렉토리는 백업/이전 버전 소스이므로 참고용으로만 쓴다. 새 작업은 src/ 에서 한다.
 evidence/, screenshots/ 는 QA 산출물이므로 커밋하지 않는다.
 
+## 플랫폼 규칙 (필수)
+
+모든 모바일 앱 작업은 iOS와 Android 양쪽 모두를 대상으로 한다. 한쪽만 구현하지 않는다.
+
+- 네이티브 기능(푸시 알림, 권한, 백그라운드 처리, 카메라, 저장소 등)을 다룰 때는 iOS와 Android 설정을 항상 같이 처리한다.
+- `app.json`의 플랫폼별 설정(`ios`, `android`)을 변경할 때 두 플랫폼 섹션을 모두 확인한다.
+- 플랫폼 분기가 필요한 코드는 `Platform.select` 또는 `Platform.OS`를 사용하고, iOS/Android/default를 모두 명시한다.
+- iOS는 `infoPlist` 권한 사유, `UIBackgroundModes` 등 Info.plist 설정이 필요할 수 있으니 누락하지 않는다.
+- Android는 `AndroidManifest.xml` 권한, notification channel 등 설정이 필요할 수 있으니 누락하지 않는다.
+- 검증 시 iOS 시뮬레이터와 Android 에뮬레이터 양쪽에서 동작을 확인하는 것을 원칙으로 한다.

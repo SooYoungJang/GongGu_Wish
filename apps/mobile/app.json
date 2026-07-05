@@ -16,6 +16,7 @@
       "userInterfaceStyle": "automatic",
       "bundleIdentifier": "com.gonggu.wish",
       "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -35,7 +36,8 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-video"
+      "expo-video",
+      "expo-notifications"
     ]
   }
 }
