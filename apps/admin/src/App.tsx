@@ -35,7 +35,6 @@ type SubmissionForm = {
   mediaUrlsText: string;
   mediaItemsText: string;
   mediaType: "" | "IMAGE" | "VIDEO";
-  confidence: string;
   isAllDay: boolean;
   isMonthlyFeatured: boolean;
   monthlyFeaturedRank: string;
@@ -56,7 +55,6 @@ type GroupBuyForm = {
   mediaItemsText: string;
   mediaType: "" | "IMAGE" | "VIDEO";
   status: GroupBuyStatus;
-  confidence: string;
   isAllDay: boolean;
   isMonthlyFeatured: boolean;
   monthlyFeaturedRank: string;
@@ -65,6 +63,7 @@ type GroupBuyForm = {
 type UserForm = {
   nickname: string;
   fcmToken: string;
+  status: string;
 };
 
 const PAGE_SIZE = 25;
@@ -229,7 +228,6 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
     mediaUrlsText: mediaUrls.length > 0 ? mediaUrls.join("\n") : (item.imageUrls ?? []).join("\n"),
     mediaItemsText: stringifyMediaItems(mediaItems),
     mediaType,
-    confidence: "0.9",
     isAllDay: false,
     isMonthlyFeatured: false,
     monthlyFeaturedRank: "",
@@ -252,7 +250,6 @@ function groupBuyToForm(item: GroupBuy): GroupBuyForm {
     mediaItemsText: stringifyMediaItems(item.mediaItems),
     mediaType: item.mediaType ?? "",
     status: item.status,
-    confidence: item.confidence == null ? "0.9" : String(item.confidence),
     isAllDay: Boolean(item.isAllDay),
     isMonthlyFeatured: Boolean(item.isMonthlyFeatured),
     monthlyFeaturedRank: item.monthlyFeaturedRank == null ? "" : String(item.monthlyFeaturedRank),
@@ -279,7 +276,6 @@ function submissionPayload(form: SubmissionForm) {
     mediaUrls,
     mediaItems,
     mediaType: form.mediaType || null,
-    confidence: Number(form.confidence || 0.9),
     isAllDay: form.isAllDay,
     isMonthlyFeatured: form.isMonthlyFeatured,
     monthlyFeaturedRank: form.monthlyFeaturedRank ? Number(form.monthlyFeaturedRank) : null,
@@ -302,7 +298,6 @@ function groupBuyPayload(form: GroupBuyForm) {
     mediaItems: parseMediaItems(form.mediaItemsText),
     mediaType: form.mediaType || null,
     status: form.status,
-    confidence: Number(form.confidence || 0.9),
     isAllDay: form.isAllDay,
     isMonthlyFeatured: form.isMonthlyFeatured,
     monthlyFeaturedRank: form.monthlyFeaturedRank ? Number(form.monthlyFeaturedRank) : null,
@@ -460,7 +455,7 @@ function AdminShell({ session }: { session: Session }) {
 
   const selectUser = useCallback((item: AppUser | null) => {
     setSelectedUser(item);
-    setUserForm(item ? { nickname: item.nickname ?? "", fcmToken: item.fcmToken ?? "" } : null);
+    setUserForm(item ? { nickname: item.nickname ?? "", fcmToken: item.fcmToken ?? "", status: item.status ?? "ACTIVE" } : null);
   }, []);
 
   const loadDashboard = useCallback(async () => {
@@ -534,7 +529,7 @@ function AdminShell({ session }: { session: Session }) {
       setUsersTotal(data.total);
       setSelectedUser((current) => {
         const next = current ? data.items.find((item) => item.id === current.id) ?? data.items[0] ?? null : data.items[0] ?? null;
-        setUserForm(next ? { nickname: next.nickname ?? "", fcmToken: next.fcmToken ?? "" } : null);
+        setUserForm(next ? { nickname: next.nickname ?? "", fcmToken: next.fcmToken ?? "", status: next.status ?? "ACTIVE" } : null);
         return next;
       });
     } catch (error) {
@@ -665,6 +660,7 @@ function AdminShell({ session }: { session: Session }) {
       const next = await adminApi.updateUser(selectedUser.id, {
         nickname: userForm.nickname,
         fcmToken: userForm.fcmToken,
+        status: userForm.status,
       });
       setNotice({ tone: "success", message: "가입자 정보를 저장했습니다." });
       selectUser(next);
@@ -1115,7 +1111,6 @@ function SubmissionEditor(props: {
           ]}
           onChange={(value) => setField("mediaType", value as SubmissionForm["mediaType"])}
         />
-        <TextField label="신뢰도" value={form.confidence} onChange={(value) => setField("confidence", value)} type="number" />
         <TextField label="이달의 순위" value={form.monthlyFeaturedRank} onChange={(value) => setField("monthlyFeaturedRank", value)} type="number" />
       </div>
 
@@ -1263,7 +1258,6 @@ function GroupBuyEditor(props: {
           options={GROUP_BUY_STATUS_OPTIONS.filter((item) => item.value !== "ALL")}
           onChange={(value) => setField("status", value as GroupBuyStatus)}
         />
-        <TextField label="신뢰도" value={form.confidence} onChange={(value) => setField("confidence", value)} type="number" />
         <TextField label="이달의 순위" value={form.monthlyFeaturedRank} onChange={(value) => setField("monthlyFeaturedRank", value)} type="number" />
       </div>
 
@@ -1321,26 +1315,28 @@ function UserPanel(props: {
           <ListMeta loading={props.loading} page={props.page} total={props.total} totalPages={props.totalPages} />
           <div className="table-wrap">
             <table className="admin-table admin-table--clickable">
-              <thead>
-                <tr>
-                  <th>이메일</th>
-                  <th>닉네임</th>
-                  <th>가입일</th>
-                </tr>
-              </thead>
-              <tbody>
-                {props.items.map((item) => (
-                  <tr
-                    className={props.selected?.id === item.id ? "selected" : ""}
-                    key={item.id}
-                    onClick={() => props.onSelect(item)}
-                  >
-                    <td className="truncate">{item.email}</td>
-                    <td>{item.nickname ?? "-"}</td>
-                    <td>{formatDateTime(item.createdAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
+             <thead>
+               <tr>
+                 <th>이메일</th>
+                 <th>닉네임</th>
+                  <th>상태</th>
+                 <th>가입일</th>
+               </tr>
+             </thead>
+             <tbody>
+               {props.items.map((item) => (
+                 <tr
+                   className={props.selected?.id === item.id ? "selected" : ""}
+                   key={item.id}
+                   onClick={() => props.onSelect(item)}
+                 >
+                   <td className="truncate">{item.email}</td>
+                   <td>{item.nickname ?? "-"}</td>
+                    <td><StatusBadge status={item.status ?? "ACTIVE"} /></td>
+                   <td>{formatDateTime(item.createdAt)}</td>
+                 </tr>
+               ))}
+             </tbody>
             </table>
           </div>
           {props.items.length === 0 && !props.loading ? <div className="empty-state">가입자 없음</div> : null}
@@ -1380,12 +1376,40 @@ function UserEditor(props: {
           <p className="eyebrow">User</p>
           <h3>{props.selected.email ?? props.selected.id}</h3>
         </div>
+        <StatusBadge status={props.selected.status ?? "ACTIVE"} />
       </div>
 
       <div className="form-grid">
         <TextField label="닉네임" value={form.nickname} onChange={(value) => setField("nickname", value)} />
       </div>
       <TextareaField label="FCM 토큰" value={form.fcmToken} onChange={(value) => setField("fcmToken", value)} rows={4} monospace />
+
+      <div className="action-row">
+        <button
+          className="button button--secondary"
+          disabled={props.actionLoading || form.status === "SUSPENDED"}
+          onClick={() => props.onChange({ ...form, status: "SUSPENDED" })}
+          type="button"
+        >
+          정지
+        </button>
+        <button
+          className="button button--danger"
+          disabled={props.actionLoading || form.status === "BANNED"}
+          onClick={() => props.onChange({ ...form, status: "BANNED" })}
+          type="button"
+        >
+          추방
+        </button>
+        <button
+          className="button button--ghost"
+          disabled={props.actionLoading || form.status === "ACTIVE"}
+          onClick={() => props.onChange({ ...form, status: "ACTIVE" })}
+          type="button"
+        >
+          활성화
+        </button>
+      </div>
 
       <div className="action-row action-row--end">
         <button className="button button--primary" disabled={props.actionLoading} onClick={props.onSave} type="button">
@@ -1564,6 +1588,12 @@ function statusLabel(status: string) {
       return "검수 필요";
     case "EXPIRED":
       return "마감";
+    case "ACTIVE":
+      return "활성";
+    case "SUSPENDED":
+      return "정지";
+    case "BANNED":
+      return "추방";
     default:
       return status;
   }

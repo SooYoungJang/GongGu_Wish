@@ -49,7 +49,6 @@ export type GroupBuy = {
   mediaUrls: string[];
   mediaItems: MediaAsset[];
   mediaType: "IMAGE" | "VIDEO" | null;
-  confidence: number | null;
   status: GroupBuyStatus;
   sourceType: string | null;
   submissionId: string | null;
@@ -83,6 +82,7 @@ export type AppUser = {
   fcmToken: string | null;
   createdAt: string;
   updatedAt: string;
+  status: string;
 };
 
 export type ListResponse<T> = {
