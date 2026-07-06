@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, StatusBar, StyleSheet, ToastAndroid, useWindowDimensions, View, LogBox } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as SystemUI from 'expo-system-ui';
@@ -135,6 +135,9 @@ function MainTabs() {
   const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 12, 0);
   const tabBarBottomPadding = Math.max(insets.bottom - 8, isNarrow ? 2 : 4);
   const tabBarBackgroundColor = isIOS ? 'transparent' : colors.bottomBarBg;
+  // When a Reels bottom sheet opens, hide the GNB by sliding it down off-screen
+  // (style preserved, restored when the sheet closes).
+  const [reelsSheetOpen, setReelsSheetOpen] = useState(false);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   // Active tab name inside the bottom tab navigator, mirrored into a ref from
@@ -221,13 +224,17 @@ function MainTabs() {
                   : colors.bottomBarBorder,
               height: tabBarHeight,
               paddingBottom: tabBarBottomPadding,
+              // Slide the GNB off-screen while a Reels bottom sheet is open.
+              bottom: reelsSheetOpen ? -tabBarHeight : 0,
             },
           ],
         };
       }}
     >
       <Tab.Screen name="Ranking" component={StoreScreen} />
-      <Tab.Screen name="Reels" component={ReelsScreen} />
+      <Tab.Screen name="Reels">
+        {() => <ReelsScreen onSheetVisibilityChange={setReelsSheetOpen} />}
+      </Tab.Screen>
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen name="MyPage" component={MyPageScreen} />
