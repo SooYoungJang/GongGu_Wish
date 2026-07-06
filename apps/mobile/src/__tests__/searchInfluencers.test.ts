@@ -31,6 +31,13 @@ describe('searchInfluencers', () => {
     expect(results[0].instagramUsername).toBe('fashionista_kim');
   });
 
+  it('matches display name ignoring spacing', () => {
+    // displayName "패셔니스타 김" — 띄어쓰기 유무와 관계없이 매칭
+    expect(searchInfluencers(mockInfluencers, '패셔니스타김')).toHaveLength(1);
+    expect(searchInfluencers(mockInfluencers, '패 셔 니 스 타 김')).toHaveLength(1);
+    expect(searchInfluencers(mockInfluencers, '스타김')).toHaveLength(1);
+  });
+
   it('strips leading @ from query', () => {
     const results = searchInfluencers(mockInfluencers, '@beauty');
     expect(results).toHaveLength(1);

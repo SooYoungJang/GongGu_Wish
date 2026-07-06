@@ -13,9 +13,9 @@
 import { Platform } from 'react-native';
 
 import type { FeedPost, FeedPostListResponse, GroupBuy, Influencer, InstagramMediaInfo, Submission } from './types';
-export { searchInfluencers } from './utils/search';
+export { searchInfluencers, normalizeForSearch, pushRecentTerm } from './utils/search';
 
-import { postgrestGet, callEdgeFunction } from './lib/postgrest-client';
+import { postgrestGet, postgrestPost, postgrestFetch, callEdgeFunction } from './lib/postgrest-client';
 import { ApiError, type ApiValidationError } from './lib/api-types';
 
 // ─── Re-export ApiError for consumers that import it ─────────────────────────
@@ -333,6 +333,51 @@ export async function fetchGroupBuyById(id: string): Promise<GroupBuy> {
 export async function fetchInfluencers(): Promise<Influencer[]> {
   const { data } = await postgrestGet<Influencer[]>('influencers');
   return data;
+}
+
+// ─── Popular Search Terms (인기 검색어) ──────────────────────────────────────
+
+export type PopularSearchTerm = {
+  rank: number;
+  keyword: string;
+  count: number;
+};
+
+/**
+ * Log a search submission so it counts toward the daily popular-search ranking.
+ * Fire-and-forget: failures are swallowed so they never block the search UX.
+ * POST /rest/v1/search_logs
+ */
+export async function logSearchTerm(keyword: string): Promise<void> {
+  const trimmed = keyword.trim();
+  if (!trimmed) return;
+  try {
+    // return=minimal avoids needing SELECT privileges on search_logs (anon only has INSERT).
+    await postgrestFetch('search_logs', {
+      method: 'POST',
+      body: { keyword: trimmed },
+      prefer: 'return=minimal',
+    });
+  } catch (error) {
+    console.log('[SearchLogs] log failed:', error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * Fetch the top-N popular search terms ranked by daily search volume.
+ * RPC: get_popular_search_terms(limit_count, hours_window) — args passed in POST body.
+ */
+export async function fetchPopularSearchTerms(limit = 10, hours = 24): Promise<PopularSearchTerm[]> {
+  try {
+    const data = await postgrestPost<PopularSearchTerm[]>('rpc/get_popular_search_terms', {
+      limit_count: limit,
+      hours_window: hours,
+    });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.log('[SearchLogs] fetch popular failed:', error instanceof Error ? error.message : String(error));
+    return [];
+  }
 }
 
 /**

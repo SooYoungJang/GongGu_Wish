@@ -47,6 +47,7 @@ import { useTheme } from '../context/ThemeContext';
 import type { ColorPalette } from '../context/ThemeContext';
 import type { DetailScreenProps, GroupBuy } from '../types';
 import { formatEndDate, getDaysRemaining } from '../utils';
+import { normalizeForSearch } from '../utils/search';
 
 const MAX_VISIBLE_DOTS = 5;
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.m3u8', '.mkv', '.avi', '.ts'];
@@ -152,8 +153,8 @@ function getSearchText(item: GroupBuy) {
     item.rawPost.influencer.instagramUsername,
   ]
     .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+    .map((part) => normalizeForSearch(part))
+    .join(' ');
 }
 
 function getVisibleDotIndexes(total: number, activeIndex: number) {
@@ -1378,6 +1379,11 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const [isScreenFocused, setScreenFocused] = useState(true);
   const [isSearchSheetVisible, setSearchSheetVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const [searchSheetMeasuredHeight, setSearchSheetMeasuredHeight] = useState(0);
   const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
   const searchSheetMaxHeight = Math.max(
@@ -1430,11 +1436,11 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     });
   }, [groupBuys, reelItems]);
   const filteredSearchItems = useMemo(() => {
-    const normalized = searchQuery.trim().toLowerCase();
+    const normalized = normalizeForSearch(debouncedQuery);
     const source = searchItems.length ? searchItems : [groupBuy];
     if (!normalized) return source.slice(0, 20);
     return source.filter((item) => getSearchText(item).includes(normalized)).slice(0, 30);
-  }, [groupBuy, searchItems, searchQuery]);
+  }, [groupBuy, searchItems, debouncedQuery]);
   useEffect(() => {
     recordView(activeGroupBuy);
   }, [activeGroupBuy, recordView]);
