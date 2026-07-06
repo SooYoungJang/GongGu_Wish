@@ -39,7 +39,7 @@ type GroupBuyRow = {
   media_items: MediaAsset[] | null;
   media_type: 'IMAGE' | 'VIDEO' | null;
   end_date: string | null;
-  raw_post_id?: { post_url?: string | null } | null;
+  submission?: { instagram_url?: string | null } | null;
 };
 
 type RefreshRequest = {
@@ -72,9 +72,18 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
 };
 
-const INSTAGRAM_SHORTCODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const DEFAULT_REFRESH_WINDOW_HOURS = 1;
 const MAX_BATCH_LIMIT = 50;
+const GROUP_BUY_SELECT = [
+  'id',
+  'thumbnail_url',
+  'video_url',
+  'media_urls',
+  'media_items',
+  'media_type',
+  'end_date',
+  'submission:gonggu_submissions!group_buys_submission_id_fkey(instagram_url)',
+].join(', ');
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -133,80 +142,22 @@ function needsRefresh(row: GroupBuyRow, force: boolean, refreshWindowHours: numb
 
   // CDN이 공구 종료 이후에 만료된다면, 공구가 끝나기 전에는 갱신할 필요가 없다.
   const groupBuyEnd = row.end_date ? Date.parse(row.end_date) : null;
-  if (Number.isFinite(groupBuyEnd) && expiresAt > groupBuyEnd) {
+  if (typeof groupBuyEnd === 'number' && Number.isFinite(groupBuyEnd) && expiresAt > groupBuyEnd) {
     return false;
   }
 
   return expiresAt <= Date.now() + refreshWindowHours * 60 * 60 * 1000;
 }
 
-function decodeBase64Ascii(value: string): string | null {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-  let buffer = 0;
-  let bits = 0;
-  let output = '';
+function getOriginalInstagramUrl(row: GroupBuyRow): string | null {
+  const submissionUrl = row.submission?.instagram_url?.trim();
+  if (submissionUrl && submissionUrl.includes('instagram.com')) return submissionUrl;
 
-  for (const char of normalized) {
-    if (char === '=') break;
-    const index = alphabet.indexOf(char);
-    if (index < 0) return null;
-    buffer = (buffer << 6) | index;
-    bits += 6;
-    if (bits >= 8) {
-      bits -= 8;
-      output += String.fromCharCode((buffer >> bits) & 0xff);
-    }
-  }
-
-  return output;
-}
-
-function shortcodeFromInstagramMediaId(mediaId: string): string | null {
-  try {
-    let value = BigInt(mediaId);
-    if (value <= 0n) return null;
-
-    let shortcode = '';
-    while (value > 0n) {
-      shortcode = INSTAGRAM_SHORTCODE_ALPHABET[Number(value % 64n)] + shortcode;
-      value /= 64n;
-    }
-    return shortcode;
-  } catch {
-    return null;
-  }
-}
-
-function getInstagramMediaIdFromCdnUrl(url?: string | null): string | null {
-  if (!url) return null;
-  try {
-    const cacheKey = new URL(url).searchParams.get('ig_cache_key')?.split('.')[0];
-    if (!cacheKey) return null;
-    const decoded = decodeBase64Ascii(cacheKey);
-    return decoded && /^\d+$/.test(decoded) ? decoded : null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 function getRecoverableInstagramUrl(row: GroupBuyRow): string | null {
-  const postUrl = row.raw_post_id?.post_url?.trim();
-  if (postUrl && postUrl.includes('instagram.com')) return postUrl;
-
-  const mediaCandidates = [
-    row.thumbnail_url,
-    row.video_url,
-    ...(row.media_urls ?? []),
-  ];
-
-  for (const mediaUrl of mediaCandidates) {
-    const mediaId = getInstagramMediaIdFromCdnUrl(mediaUrl);
-    const shortcode = mediaId ? shortcodeFromInstagramMediaId(mediaId) : null;
-    if (shortcode) return `https://www.instagram.com/reel/${shortcode}/`;
-  }
-
-  return null;
+  return getOriginalInstagramUrl(row);
 }
 
 function firstItem(value: unknown): Record<string, unknown> {
@@ -446,16 +397,18 @@ async function refreshRow(row: GroupBuyRow, force: boolean, refreshWindowHours: 
     thumbnail_url: media.thumbnailUrl ?? row.thumbnail_url,
     updated_at: new Date().toISOString(),
     video_url: media.videoUrl,
-    media_urls: media.mediaUrls.length ? media.mediaUrls : (media.videoUrl ? [media.videoUrl] : (media.imageUrl ? [media.imageUrl] : [])),
+    media_urls: media.mediaUrls.length
+      ? media.mediaUrls
+      : (media.videoUrl ? [media.videoUrl] : (media.imageUrl ? [media.imageUrl] : [])),
     media_items: resolvedMediaItems,
-    media_type: media.mediaType ?? (media.videoUrl ? 'VIDEO' : 'IMAGE'),
+    media_type: media.mediaType ?? 'VIDEO',
   };
 
   const { data, error } = await supabase
     .from('group_buys')
     .update(updatePayload)
     .eq('id', row.id)
-    .select('id, thumbnail_url, video_url, media_urls, media_items, media_type, end_date, raw_post_id(post_url)')
+    .select(GROUP_BUY_SELECT)
     .single();
 
   if (error) throw new Error(error.message);
@@ -469,9 +422,11 @@ async function refreshRow(row: GroupBuyRow, force: boolean, refreshWindowHours: 
       imageUrl: media.imageUrl,
       thumbnailUrl: media.thumbnailUrl ?? data.thumbnail_url ?? null,
       videoUrl: media.videoUrl,
-      mediaUrls: media.mediaUrls.length ? media.mediaUrls : (media.videoUrl ? [media.videoUrl] : []),
+      mediaUrls: media.mediaUrls.length
+        ? media.mediaUrls
+        : (media.videoUrl ? [media.videoUrl] : (media.imageUrl ? [media.imageUrl] : [])),
       mediaItems: resolvedMediaItems,
-      mediaType: media.mediaType ?? (media.videoUrl ? 'VIDEO' : 'IMAGE'),
+      mediaType: media.mediaType ?? 'VIDEO',
     },
   };
 }
@@ -480,7 +435,7 @@ async function fetchGroupBuy(groupBuyId: string): Promise<GroupBuyRow | null> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('group_buys')
-    .select('id, thumbnail_url, video_url, media_urls, media_items, media_type, end_date, raw_post_id(post_url)')
+    .select(GROUP_BUY_SELECT)
     .eq('id', groupBuyId)
     .single();
 
@@ -497,7 +452,7 @@ async function fetchBatch(limit: number): Promise<GroupBuyRow[]> {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('group_buys')
-    .select('id, thumbnail_url, video_url, media_urls, media_items, media_type, end_date, raw_post_id(post_url)')
+    .select(GROUP_BUY_SELECT)
     .eq('status', 'APPROVED')
     .eq('media_type', 'VIDEO')
     .not('video_url', 'is', null)
