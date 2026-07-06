@@ -31,7 +31,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export function ReelsScreen() {
+export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChange?: (visible: boolean) => void }) {
   const { colors, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
   const insets = useSafeAreaInsets();
@@ -41,6 +41,10 @@ export function ReelsScreen() {
   const [summarySheetGate, setSummarySheetGate] = useState({ isOpen: false, canSwipeReel: true });
   const [isTabFocused, setTabFocused] = useState(true);
   const { recordView } = useRecentViews();
+
+  useEffect(() => {
+    onSheetVisibilityChange?.(summarySheetGate.isOpen);
+  }, [onSheetVisibilityChange, summarySheetGate.isOpen]);
 
   useFocusEffect(
     useCallback(() => {
