@@ -55,7 +55,8 @@ const SUBMISSION_SELECT = `
   reviewed_by,
   group_buy_id,
   created_at,
-  updated_at
+  updated_at,
+  status
 `;
 
 const GROUP_BUY_SELECT = `
@@ -81,7 +82,8 @@ const GROUP_BUY_SELECT = `
   is_monthly_featured,
   monthly_featured_rank,
   created_at,
-  updated_at
+  updated_at,
+  status
 `;
 
 const USER_SELECT = `
@@ -90,7 +92,8 @@ const USER_SELECT = `
   nickname,
   fcm_token,
   created_at,
-  updated_at
+  updated_at,
+  status
 `;
 
 function json(data: unknown, status = 200) {
@@ -309,6 +312,7 @@ function mapUser(row: Record<string, unknown>) {
     fcmToken: row.fcm_token,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    status: row.status ?? 'ACTIVE',
   };
 }
 
@@ -568,6 +572,13 @@ async function updateUser(supabase: AdminClient, id: string, body: Record<string
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (hasOwn(body, 'nickname')) patch.nickname = str(body.nickname);
   if (hasOwn(body, 'fcmToken')) patch.fcm_token = str(body.fcmToken);
+  if (hasOwn(body, 'status')) {
+    const status = str(body.status);
+    if (status && !['ACTIVE', 'SUSPENDED', 'BANNED'].includes(status)) {
+      throw new Error('유효하지 않은 상태입니다.');
+    }
+    patch.status = status ?? 'ACTIVE';
+  }
 
   const { data, error } = await supabase
     .from('users')
