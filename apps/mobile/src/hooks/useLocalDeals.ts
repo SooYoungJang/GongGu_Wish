@@ -8,7 +8,9 @@ import type { GroupBuy } from '../types';
 const BOOKMARK_KEY = '@gonggu/bookmarks/v1';
 const RECENT_KEY = '@gonggu/recent-views/v1';
 const NOTI_KEY = '@gonggu/notifications/v1';
+const WISH_ITEM_KEY = '@gonggu/wish-items/v1';
 const MAX_RECENT = 10;
+const MAX_WISH_ITEMS = 50;
 
 export type StoredGroupBuy = Pick<
   GroupBuy,
@@ -23,6 +25,17 @@ export type NotificationEntry = {
   thumbnailUrl: string | null;
   scheduledFor: string | null;
   notificationId: string | null;
+  createdAt: string;
+};
+
+export type WishItemEntry = {
+  id: string;
+  groupBuyId: string | null;
+  submissionId: string | null;
+  instagramUrl: string;
+  productName: string | null;
+  thumbnailUrl: string | null;
+  mediaType: 'IMAGE' | 'VIDEO' | null;
   createdAt: string;
 };
 
@@ -271,4 +284,48 @@ export function useNotifications() {
   }, [notifications]);
 
   return { notifications, isNotifying, toggleNotification, removeNotification, refresh, ready };
+}
+
+export function useWishItems() {
+  const [wishItems, setWishItems] = useState<WishItemEntry[]>([]);
+  const [ready, setReady] = useState(false);
+
+  const refresh = useCallback(() => {
+    readJSON<WishItemEntry[]>(WISH_ITEM_KEY, []).then((value) => {
+      setWishItems(value);
+      setReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const recordWishItem = useCallback((entry: Omit<WishItemEntry, 'id' | 'createdAt'> & { id?: string; createdAt?: string }) => {
+    setWishItems((current) => {
+      const normalizedUrl = entry.instagramUrl.trim();
+      const id = entry.id ?? entry.submissionId ?? entry.groupBuyId ?? normalizedUrl;
+      const nextEntry: WishItemEntry = {
+        id,
+        groupBuyId: entry.groupBuyId,
+        submissionId: entry.submissionId,
+        instagramUrl: normalizedUrl,
+        productName: entry.productName,
+        thumbnailUrl: entry.thumbnailUrl,
+        mediaType: entry.mediaType,
+        createdAt: entry.createdAt ?? new Date().toISOString(),
+      };
+      const filtered = current.filter((item) =>
+        item.id !== nextEntry.id &&
+        (!nextEntry.groupBuyId || item.groupBuyId !== nextEntry.groupBuyId) &&
+        (!nextEntry.submissionId || item.submissionId !== nextEntry.submissionId) &&
+        item.instagramUrl !== nextEntry.instagramUrl,
+      );
+      const next = [nextEntry, ...filtered].slice(0, MAX_WISH_ITEMS);
+      void writeJSON(WISH_ITEM_KEY, next);
+      return next;
+    });
+  }, []);
+
+  return { wishItems, recordWishItem, refresh, ready };
 }

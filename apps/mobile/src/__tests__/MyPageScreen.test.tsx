@@ -92,8 +92,11 @@ vi.mock('react-native', () => {
     Text: ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement('Text', props, children),
     Image: passthrough('Image'),
+    Modal: ({ children, visible, ...props }: any) =>
+      visible ? ReactMock.createElement('Modal', props, children) : null,
     Pressable: ({ children, onPress, ...props }: any) =>
       ReactMock.createElement('Pressable', { onPress, ...props }, children),
+    TextInput: (props: any) => ReactMock.createElement('TextInput', props),
     TouchableOpacity: ({ children, onPress, ...props }: any) =>
       ReactMock.createElement('TouchableOpacity', { onPress, ...props }, children),
     ScrollView: ({ children, ...props }: any) =>

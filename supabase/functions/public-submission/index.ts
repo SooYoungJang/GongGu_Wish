@@ -34,6 +34,7 @@ interface SubmissionRequest {
   reporterName?: string;
   reporterContact?: string;
   isAnonymous?: boolean;
+  source?: string;
 }
 
 interface ExistingSubmission {
@@ -101,6 +102,17 @@ function isUrl(value: string | null) {
   try {
     const url = new URL(value);
     return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isInstagramPostUrl(value: string | null) {
+  if (!value || !isUrl(value)) return false;
+  try {
+    const url = new URL(value);
+    const isInstagramHost = url.hostname.includes('instagram.com') || url.hostname.includes('instagr.am');
+    return isInstagramHost && /\/p\/|\/reel\/|\/tv\//.test(url.pathname);
   } catch {
     return false;
   }
@@ -306,7 +318,81 @@ async function markSubmissionApproved(
   return data;
 }
 
+async function handleWishUrlSubmission(body: SubmissionRequest) {
+  const instagramUrl = normalizeOptional(body.instagramUrl);
+  if (!isInstagramPostUrl(instagramUrl)) {
+    return json({ error: '인스타그램 게시물 URL을 입력해주세요.' }, 400);
+  }
+
+  const supabase = createAdminClient();
+  const productName = '검수 대기 위시템';
+  const contentHash = await createSubmissionHash({
+    productName,
+    startDate: null,
+    purchaseUrl: instagramUrl,
+  });
+
+  const { data: existing, error: findError } = await supabase
+    .from('gonggu_submissions')
+    .select('id,status,group_buy_id,image_urls')
+    .eq('content_hash', contentHash)
+    .maybeSingle<ExistingSubmission>();
+
+  if (findError) throw new Error(findError.message);
+
+  if (existing) {
+    return json({
+      alreadyRegistered: true,
+      submissionId: existing.id,
+      groupBuyId: existing.group_buy_id,
+      status: existing.status,
+    });
+  }
+
+  const { data, error } = await supabase
+    .from('gonggu_submissions')
+    .insert({
+      id: crypto.randomUUID(),
+      product_name: productName,
+      brand_name: null,
+      category: null,
+      start_date: null,
+      end_date: null,
+      purchase_url: instagramUrl,
+      discount_info: null,
+      summary: null,
+      instagram_url: instagramUrl,
+      image_urls: [],
+      thumbnail_url: null,
+      video_url: null,
+      media_urls: [],
+      media_items: [],
+      media_type: null,
+      reporter_name: null,
+      reporter_contact: null,
+      is_anonymous: body.isAnonymous ?? true,
+      content_hash: contentHash,
+      status: 'PENDING',
+      admin_memo: '위시 URL 등록: 관리자 승인 시 Hiker API로 상세 정보 확인 필요',
+      updated_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return json({
+    submission: data,
+    submissionId: data.id,
+    status: data.status,
+  });
+}
+
 async function handleSubmission(body: SubmissionRequest) {
+  if (!normalizeOptional(body.productName) && body.source === 'wish-url') {
+    return handleWishUrlSubmission(body);
+  }
+
   const validated = validate(body);
   if ('error' in validated) {
     return json({ error: validated.error }, 400);
