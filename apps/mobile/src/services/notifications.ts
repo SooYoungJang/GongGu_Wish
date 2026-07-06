@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 
 // Expo Go does not fully support expo-notifications native modules.
 // Lazy-load to avoid importing the module at app startup in Expo Go.
-const IS_EXPO_GO = Constants.appOwnership === 'expo';
+export const IS_EXPO_GO = Constants.appOwnership === 'expo';
 let NotificationsModule: typeof import('expo-notifications') | null = null;
 
 async function getNotifications() {
@@ -133,4 +133,28 @@ export async function getScheduledNotifications() {
   const Notifications = await getNotifications();
   if (!Notifications) return [];
   return Notifications.getAllScheduledNotificationsAsync();
+}
+
+// ─── Test helper (dev only) ──────────────────────────────────────────────────
+
+/**
+ * Fire a local notification after `delaySeconds` so we can verify the push
+ * pipeline end-to-end on a real device. Requires a development build —
+ * Expo Go (SDK 53+) removed expo-notifications native support entirely, so
+ * even local scheduling returns null there.
+ * Returns the scheduled notification id, or null on failure.
+ */
+export async function scheduleTestNotification(delaySeconds = 10): Promise<string | null> {
+  if (IS_EXPO_GO) return null;
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '🛎 푸시 테스트',
+      body: `${delaySeconds}초 뒤 알림이 울렸어요! 푸시가 정상 동작합니다.`,
+      data: { test: true },
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: delaySeconds },
+  });
+  return id;
 }

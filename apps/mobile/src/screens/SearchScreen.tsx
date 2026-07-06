@@ -216,8 +216,13 @@ export function SearchScreen() {
 
   const handleSelectDeal = useCallback((gb: GroupBuy) => {
     saveRecent(gb.productName ?? gb.rawPost.influencer.instagramUsername);
+    // Record search-to-deal conversion for popularity scoring (only when a query is active).
+    const activeQuery = query.trim();
+    if (activeQuery) {
+      void logSearchTerm(activeQuery, gb.id);
+    }
     navigation.navigate('Detail', { groupBuy: gb });
-  }, [navigation, saveRecent]);
+}, [navigation, saveRecent, query]);
 
   const handleRecentTap = useCallback((text: string) => {
     setQuery(text);
@@ -231,30 +236,32 @@ export function SearchScreen() {
     inputRef.current?.blur();
   }, [saveRecent]);
 
-  const handleBack = useCallback(() => {
-    navigation.goBack();
-  }, [navigation]);
-
   const handleClearQuery = useCallback(() => {
     setQuery('');
     inputRef.current?.focus();
   }, []);
+  const canGoBack = navigation.canGoBack();
+  const handleBack = useCallback(() => {
+    if (navigation.canGoBack()) navigation.goBack();
+  }, [navigation]);
 
   return (
     <View style={s.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <View style={[s.header, { paddingTop: insets.top + 10 }]}>
         <SText variant="caption" style={[s.headerPoints, { top: Math.max(insets.top - 12, 8) }]}>59</SText>
-        <Pressable
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel="뒤로가기"
-          hitSlop={8}
-          onPress={handleBack}
-          style={s.backBtn}
-        >
-          <SText variant="body" style={s.backIcon}>←</SText>
-        </Pressable>
+        {canGoBack ? (
+          <Pressable
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel="뒤로가기"
+            hitSlop={8}
+            onPress={handleBack}
+            style={s.backBtn}
+          >
+            <SText variant="body" style={s.backIcon}>←</SText>
+          </Pressable>
+        ) : null}
         <View style={s.inputWrap}>
           <SearchGlyph color={colors.weak} size={20} />
           <TextInput
