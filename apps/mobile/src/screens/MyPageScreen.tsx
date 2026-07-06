@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { useBookmarks, useRecentViews, useNotifications } from '../hooks/useLocalDeals';
+import { ApiError, postPublicJson } from '../api';
+import { useBookmarks, useRecentViews, useNotifications, useWishItems } from '../hooks/useLocalDeals';
 import { IS_EXPO_GO, requestNotificationPermissions, scheduleTestNotification } from '../services/notifications';
 import { AppButton } from '../components/AppButton';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -16,12 +17,51 @@ import type { CommerceColorPalette } from '../design/commerce';
 import { spacing } from '../design/tokens';
 import type { GroupBuy, RootStackParamList } from '../types';
 
-function GuestSummaryCards({ bookmarkCount, s }: { bookmarkCount: number; s: ReturnType<typeof makeStyles> }) {
+type PublicWishSubmissionResponse = {
+  alreadyRegistered?: boolean;
+  submissionId?: string | null;
+  submission?: {
+    id?: string;
+  };
+  status?: string;
+};
+
+function isInstagramPostUrl(value: string) {
+  try {
+    const parsed = new URL(value.trim());
+    if (!parsed.hostname.includes('instagram.com') && !parsed.hostname.includes('instagr.am')) {
+      return false;
+    }
+    return /\/p\/|\/reel\/|\/tv\//.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function GuestSummaryCards({
+  wishItemCount,
+  onPressRegisterWish,
+  s,
+}: {
+  wishItemCount: number;
+  onPressRegisterWish: () => void;
+  s: ReturnType<typeof makeStyles>;
+}) {
   return (
     <View style={s.summaryGrid}>
       <View style={s.summaryCard}>
-        <SText variant="caption" style={s.summaryLabel}>북마크한 공구</SText>
-        <SText variant="cardTitle" style={s.summaryValue}>{bookmarkCount}개</SText>
+        <SText variant="caption" style={s.summaryLabel}>내가 등록한 위시템</SText>
+        <View style={s.summaryValueRow}>
+          <SText variant="cardTitle" style={s.summaryValue}>{wishItemCount}개</SText>
+          <Pressable
+            accessibilityLabel="위시 아이템 등록하기"
+            accessibilityRole="button"
+            onPress={onPressRegisterWish}
+            style={({ pressed }) => [s.wishRegisterButton, pressed && s.pressed]}
+          >
+            <SText variant="label" style={s.wishRegisterButtonText}>등록하기</SText>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -120,16 +160,22 @@ export function MyPageScreen() {
   const { bookmarks: bookmarkedDeals, removeBookmark, refresh: refreshBookmarks } = useBookmarks();
   const { recentViews: viewedToday, refresh: refreshRecent } = useRecentViews();
   const { notifications, removeNotification, refresh: refreshNotifications } = useNotifications();
+  const { wishItems, recordWishItem, refresh: refreshWishItems } = useWishItems();
   const [pushEnabled, setPushEnabled] = useState(false);
   const [testScheduled, setTestScheduled] = useState(false);
+  const [wishModalVisible, setWishModalVisible] = useState(false);
+  const [wishUrl, setWishUrl] = useState('');
+  const [wishFeedback, setWishFeedback] = useState<string | null>(null);
+  const [wishSubmitting, setWishSubmitting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       refreshBookmarks();
       refreshRecent();
       refreshNotifications();
+      refreshWishItems();
       requestNotificationPermissions().then(setPushEnabled).catch(() => setPushEnabled(false));
-    }, [refreshBookmarks, refreshRecent, refreshNotifications]),
+    }, [refreshBookmarks, refreshRecent, refreshNotifications, refreshWishItems]),
   );
 
   const handleLoginPress = useCallback(() => {
@@ -148,6 +194,47 @@ export function MyPageScreen() {
   const handlePressDeal = useCallback((item: GroupBuy) => {
     navigation.navigate('Detail', { groupBuy: item });
   }, [navigation]);
+
+  const closeWishModal = useCallback(() => {
+    if (wishSubmitting) return;
+    setWishModalVisible(false);
+    setWishUrl('');
+    setWishFeedback(null);
+  }, [wishSubmitting]);
+
+  const handleSubmitWish = useCallback(async () => {
+    const instagramUrl = wishUrl.trim();
+    if (!isInstagramPostUrl(instagramUrl)) {
+      setWishFeedback('인스타그램 게시물 URL을 입력해주세요.');
+      return;
+    }
+
+    setWishSubmitting(true);
+    setWishFeedback(null);
+    try {
+      const result = await postPublicJson<PublicWishSubmissionResponse>('/submissions', {
+        instagramUrl,
+        isAnonymous: true,
+        source: 'wish-url',
+      });
+      const submissionId = result.submission?.id ?? result.submissionId ?? null;
+      recordWishItem({
+        submissionId,
+        groupBuyId: null,
+        instagramUrl,
+        productName: '검수 대기 위시템',
+        thumbnailUrl: null,
+        mediaType: null,
+      });
+      refreshWishItems();
+      setWishFeedback(result.alreadyRegistered ? '이미 등록된 위시템이에요.' : '위시템 등록 요청이 접수됐어요.');
+      setWishUrl('');
+    } catch (error) {
+      setWishFeedback(error instanceof ApiError ? error.message : '등록에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setWishSubmitting(false);
+    }
+  }, [recordWishItem, refreshWishItems, wishUrl]);
 
   const notificationDeals = useMemo<GroupBuy[]>(
     () => notifications.map((entry) => ({
@@ -182,6 +269,60 @@ export function MyPageScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={s.container}>
+      <Modal
+        animationType="fade"
+        transparent
+        visible={wishModalVisible}
+        onRequestClose={closeWishModal}
+      >
+        <View style={s.modalBackdrop}>
+          <View style={s.wishDialog}>
+            <SText variant="cardTitle" style={s.wishDialogTitle}>위시 아이템 등록하기</SText>
+            <SText variant="caption" style={s.wishDialogDescription}>
+              인스타그램 게시물 URL만 등록하면 검수 후 위시템으로 반영돼요.
+            </SText>
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!wishSubmitting}
+              keyboardType="url"
+              onChangeText={(value) => {
+                setWishUrl(value);
+                setWishFeedback(null);
+              }}
+              placeholder="https://www.instagram.com/p/..."
+              placeholderTextColor={colors.weak}
+              style={s.wishInput}
+              value={wishUrl}
+            />
+            {wishFeedback ? (
+              <SText variant="caption" style={s.wishFeedback}>{wishFeedback}</SText>
+            ) : null}
+            <View style={s.wishDialogActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={wishSubmitting}
+                onPress={closeWishModal}
+                style={({ pressed }) => [s.wishSecondaryButton, pressed && s.pressed]}
+              >
+                <SText variant="label" style={s.wishSecondaryButtonText}>닫기</SText>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={wishSubmitting}
+                onPress={() => void handleSubmitWish()}
+                style={({ pressed }) => [s.wishPrimaryButton, pressed && s.pressed, wishSubmitting && s.disabledButton]}
+              >
+                {wishSubmitting ? (
+                  <ActivityIndicator color={colors.inverse} size="small" />
+                ) : (
+                  <SText variant="label" style={s.wishPrimaryButtonText}>등록</SText>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
       <ScrollView contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
         <ScreenHeader title="마이페이지" />
 
@@ -207,7 +348,11 @@ export function MyPageScreen() {
           </View>
         )}
 
-        <GuestSummaryCards bookmarkCount={bookmarkedDeals.length} s={s} />
+        <GuestSummaryCards
+          wishItemCount={wishItems.length}
+          onPressRegisterWish={() => setWishModalVisible(true)}
+          s={s}
+        />
 
         <DealShelf
           title="최근 본 공구"
@@ -412,6 +557,106 @@ function makeStyles(colors: CommerceColorPalette) {
       color: colors.text,
       fontSize: 22,
       fontWeight: '900',
+    },
+    summaryValueRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+    },
+    wishRegisterButton: {
+      backgroundColor: colors.accent,
+      borderRadius: 999,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    wishRegisterButtonText: {
+      color: colors.inverse,
+      fontSize: 12,
+      fontWeight: '900',
+    },
+    modalBackdrop: {
+      alignItems: 'center',
+      backgroundColor: colors.overlay,
+      flex: 1,
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    wishDialog: {
+      backgroundColor: colors.surface,
+      borderColor: colors.borderLight,
+      borderRadius: 20,
+      borderWidth: 1,
+      padding: spacing.xl,
+      width: '100%',
+    },
+    wishDialogTitle: {
+      color: colors.text,
+      fontSize: 18,
+      fontWeight: '900',
+      marginBottom: spacing.sm,
+    },
+    wishDialogDescription: {
+      color: colors.muted,
+      fontSize: 13,
+      fontWeight: '700',
+      lineHeight: 19,
+      marginBottom: spacing.lg,
+    },
+    wishInput: {
+      backgroundColor: colors.softBg,
+      borderColor: colors.border,
+      borderRadius: 14,
+      borderWidth: 1,
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '700',
+      minHeight: 48,
+      paddingHorizontal: spacing.md,
+    },
+    wishFeedback: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '800',
+      lineHeight: 17,
+      marginTop: spacing.sm,
+    },
+    wishDialogActions: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      justifyContent: 'flex-end',
+      marginTop: spacing.lg,
+    },
+    wishSecondaryButton: {
+      alignItems: 'center',
+      backgroundColor: colors.softBg,
+      borderRadius: 999,
+      justifyContent: 'center',
+      minHeight: 44,
+      minWidth: 76,
+      paddingHorizontal: spacing.lg,
+    },
+    wishSecondaryButtonText: {
+      color: colors.muted,
+      fontSize: 13,
+      fontWeight: '900',
+    },
+    wishPrimaryButton: {
+      alignItems: 'center',
+      backgroundColor: colors.accent,
+      borderRadius: 999,
+      justifyContent: 'center',
+      minHeight: 44,
+      minWidth: 76,
+      paddingHorizontal: spacing.lg,
+    },
+    wishPrimaryButtonText: {
+      color: colors.inverse,
+      fontSize: 13,
+      fontWeight: '900',
+    },
+    disabledButton: {
+      opacity: 0.7,
     },
     dealShelf: {
       marginBottom: spacing.lg,
