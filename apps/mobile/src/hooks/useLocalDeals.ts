@@ -109,7 +109,15 @@ export function useBookmarks() {
     });
   }, []);
 
-  return { bookmarks, isBookmarked, toggleBookmark, refresh, ready };
+  const removeBookmark = useCallback((id: string) => {
+    setBookmarks((current) => {
+      const next = current.filter((entry) => entry.id !== id);
+      void writeJSON(BOOKMARK_KEY, next);
+      return next;
+    });
+  }, []);
+
+  return { bookmarks, isBookmarked, toggleBookmark, removeBookmark, refresh, ready };
 }
 
 export function useRecentViews() {

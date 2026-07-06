@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, InteractionManager, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
+import { InteractionManager, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -9,7 +9,8 @@ import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { SearchResultsPanel } from '../components/home/SearchResultsPanel';
 import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { SText } from '../components/ui/SText';
-import { fallbackGroupBuys, fetchGroupBuys, fetchInfluencers, searchInfluencers } from '../api';
+import { fallbackGroupBuys, fetchGroupBuys, fetchInfluencers, fetchPopularSearchTerms, logSearchTerm, searchInfluencers, type PopularSearchTerm } from '../api';
+import { normalizeForSearch, pushRecentTerm } from '../utils/search';
 import { spacing } from '../design/tokens';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { CommerceColorPalette } from '../design/commerce';
@@ -36,7 +37,7 @@ function getFallbackInfluencers(groupBuys: GroupBuy[]): Influencer[] {
 }
 
 const RECENT_KEY = 'search:recent';
-const RECENT_MAX = 8;
+const RECENT_MAX = 10;
 const DEFAULT_RECENT_TERM = '가방';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -48,19 +49,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   digital: '디지털',
 };
 
-function getVisual(item: GroupBuy) {
-  return item.thumbnailUrl ?? item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ?? item.mediaUrls?.[0] ?? null;
-}
-
-function getDiscountPercent(item: GroupBuy) {
-  const match = item.discountInfo?.match(/(\d+)\s*%/);
-  return match ? `${match[1]}%` : '41%';
-}
-
-function formatRecentProductName(item: GroupBuy) {
-  return item.productName ?? '뒤척임 제로 경추 베개, 그레이, 74...';
-}
-
 function ClockGlyph({ s }: { s: ReturnType<typeof makeStyles> }) {
   return (
     <View style={s.clockGlyph}>
@@ -69,68 +57,6 @@ function ClockGlyph({ s }: { s: ReturnType<typeof makeStyles> }) {
     </View>
   );
 }
-
-function ProductFallbackArt({ s }: { s: ReturnType<typeof makeStyles> }) {
-  return (
-    <View style={s.productFallbackArt}>
-      <View style={[s.pillowShape, s.pillowBack]} />
-      <View style={[s.pillowShape, s.pillowFront]} />
-      <View style={s.pillowEndLeft} />
-      <View style={s.pillowEndRight} />
-    </View>
-  );
-}
-
-const RecentProductCard = memo(function RecentProductCard({
-  item,
-  onPress,
-  s,
-}: {
-  item: GroupBuy;
-  onPress: () => void;
-  s: ReturnType<typeof makeStyles>;
-}) {
-  const visual = getVisual(item);
-  const discountPercent = getDiscountPercent(item);
-
-  return (
-    <Pressable
-      accessible
-      accessibilityRole="button"
-      accessibilityLabel={`${formatRecentProductName(item)} 최근 본 상품 보기`}
-      onPress={onPress}
-      style={({ pressed }) => [s.recentProductCard, pressed && s.pressed]}
-    >
-      <View style={s.productImageWrap}>
-        {visual ? (
-          <Image source={{ uri: visual }} style={s.productImage} fadeDuration={0} />
-        ) : (
-          <ProductFallbackArt s={s} />
-        )}
-        <View style={s.productSaleBadge}>
-          <SText variant="label" style={s.productSaleBadgeText}>{discountPercent} 특가</SText>
-        </View>
-        <View style={s.heartButton}>
-          <SText variant="body" style={s.heartText}>♡</SText>
-        </View>
-      </View>
-      <SText variant="body" numberOfLines={2} style={s.productName}>
-        {formatRecentProductName(item)}
-      </SText>
-      <View style={s.priceRow}>
-        <SText variant="body" style={s.discountText}>{discountPercent}</SText>
-        <SText variant="body" style={s.priceText}>14,652원</SText>
-      </View>
-      <View style={s.ratingRow}>
-        <SText variant="body" style={s.starText}>★</SText>
-        <SText variant="body" style={s.ratingText}>3.7 (527)</SText>
-      </View>
-      <View style={s.sellerBadge}>
-        <SText variant="caption" style={s.sellerBadgeText}>베스트판매자</SText>
-      </View>
-    </Pressable>
-  );
-});
 
 type DealSearchResultRowProps = {
   item: GroupBuy;
@@ -181,6 +107,13 @@ export function SearchScreen() {
 
   const { data: groupBuysData } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys, retry: false });
   const { data: influencersData } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers, retry: false });
+  const { data: popularTerms } = useQuery({
+    queryKey: ['popular-search-terms'],
+    // Rolling 24-hour window keeps the ranking populated even right after midnight.
+    queryFn: () => fetchPopularSearchTerms(10, 24),
+    retry: false,
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
     AsyncStorage.getItem(RECENT_KEY).then((raw) => {
@@ -214,10 +147,9 @@ export function SearchScreen() {
   );
 
   const saveRecent = useCallback((text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!text.trim()) return;
     setRecent((prev) => {
-      const next = [trimmed, ...prev.filter((s) => s !== trimmed)].slice(0, RECENT_MAX);
+      const next = pushRecentTerm(prev, text, RECENT_MAX);
       AsyncStorage.setItem(RECENT_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });
@@ -251,13 +183,13 @@ export function SearchScreen() {
         gb.rawPost.influencer.instagramUsername,
       ]
         .filter(Boolean)
-        .join(' ')
-        .toLowerCase(),
+        .map((part) => normalizeForSearch(part))
+        .join(' '),
     })),
     [groupBuys],
   );
   const dealResults = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
+    const q = normalizeForSearch(debouncedQuery);
     if (!q) return [];
     return groupBuySearchIndex
       .filter(({ text }) => text.includes(q))
@@ -266,12 +198,12 @@ export function SearchScreen() {
   }, [groupBuySearchIndex, debouncedQuery]);
 
   const hasQuery = debouncedQuery.trim().length > 0;
-  const recentTerms = useMemo(() => recent.slice(0, 1), [recent]);
-  const recentProduct = groupBuys[0] ?? null;
+  const recentTerms = useMemo(() => recent.slice(0, RECENT_MAX), [recent]);
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const handleSubmit = useCallback(() => {
     saveRecent(query);
+    void logSearchTerm(query);
   }, [query, saveRecent]);
 
   const handleSelectInfluencer = useCallback((inf: Influencer) => {
@@ -292,6 +224,13 @@ export function SearchScreen() {
     inputRef.current?.focus();
   }, []);
 
+  const handlePopularTermTap = useCallback((text: string) => {
+    setQuery(text);
+    saveRecent(text);
+    void logSearchTerm(text);
+    inputRef.current?.blur();
+  }, [saveRecent]);
+
   const handleBack = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
@@ -300,10 +239,6 @@ export function SearchScreen() {
     setQuery('');
     inputRef.current?.focus();
   }, []);
-
-  const handleRecentProductPress = useCallback(() => {
-    if (recentProduct) handleSelectDeal(recentProduct);
-  }, [handleSelectDeal, recentProduct]);
 
   return (
     <View style={s.container}>
@@ -382,34 +317,55 @@ export function SearchScreen() {
           </View>
         ) : (
           <View style={s.suggestWrap}>
-            <SText variant="label" style={s.sectionTitle}>최근 검색어</SText>
-            {recentTerms.map((text) => (
-              <View key={text} style={s.recentRow}>
-                <Pressable
-                  accessible
-                  accessibilityRole="button"
-                  accessibilityLabel={`${text} 검색`}
-                  style={({ pressed }) => [s.recentLeft, pressed && s.pressed]}
-                  onPress={() => handleRecentTap(text)}
-                >
-                  <ClockGlyph s={s} />
-                  <SText variant="body" style={s.recentText}>{text}</SText>
-                </Pressable>
-                <Pressable
-                  accessible
-                  accessibilityRole="button"
-                  accessibilityLabel={`${text} 삭제`}
-                  hitSlop={8}
-                  onPress={() => removeRecent(text)}
-                  style={s.recentRemove}
-                >
-                  <SText variant="body" style={s.recentRemoveIcon}>×</SText>
-                </Pressable>
-              </View>
-            ))}
-            <SText variant="label" style={s.recentProductTitle}>최근 본 상품</SText>
-            {recentProduct ? (
-              <RecentProductCard item={recentProduct} onPress={handleRecentProductPress} s={s} />
+            {recentTerms.length > 0 ? (
+              <>
+                <SText variant="label" style={s.sectionTitle}>최근 검색어</SText>
+                {recentTerms.map((text) => (
+                  <View key={text} style={s.recentRow}>
+                    <Pressable
+                      accessible
+                      accessibilityRole="button"
+                      accessibilityLabel={`${text} 검색`}
+                      style={({ pressed }) => [s.recentLeft, pressed && s.pressed]}
+                      onPress={() => handleRecentTap(text)}
+                    >
+                      <ClockGlyph s={s} />
+                      <SText variant="body" style={s.recentText}>{text}</SText>
+                    </Pressable>
+                    <Pressable
+                      accessible
+                      accessibilityRole="button"
+                      accessibilityLabel={`${text} 삭제`}
+                      hitSlop={8}
+                      onPress={() => removeRecent(text)}
+                      style={s.recentRemove}
+                    >
+                      <SText variant="body" style={s.recentRemoveIcon}>×</SText>
+                    </Pressable>
+                  </View>
+               ))}
+             </>
+           ) : null}
+            {popularTerms && popularTerms.length > 0 ? (
+              <>
+                <SText variant="label" style={[s.sectionTitle, s.popularTitle]}>인기 검색어</SText>
+                <View style={s.popularGrid}>
+                  {popularTerms.map((term: PopularSearchTerm) => (
+                    <Pressable
+                      key={`${term.rank}-${term.keyword}`}
+                      accessible
+                      accessibilityRole="button"
+                      accessibilityLabel={`인기 검색어 ${term.rank}위 ${term.keyword}`}
+                      hitSlop={6}
+                      onPress={() => handlePopularTermTap(term.keyword)}
+                      style={({ pressed }) => [s.popularItem, pressed && s.pressed]}
+                    >
+                      <SText variant="label" style={s.popularRank}>{term.rank}</SText>
+                      <SText variant="body" style={s.popularKeyword} numberOfLines={1}>{term.keyword}</SText>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
             ) : null}
           </View>
         )}
@@ -497,6 +453,36 @@ function makeStyles(colors: CommerceColorPalette) {
       alignItems: 'center',
       minHeight: 36,
     },
+    popularTitle: { marginTop: 52 },
+    popularGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    popularItem: {
+      alignItems: 'center',
+      backgroundColor: colors.softBg,
+      borderRadius: 999,
+      flexDirection: 'row',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    popularRank: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '900',
+      letterSpacing: 0,
+      lineHeight: 17,
+    },
+    popularKeyword: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '700',
+      letterSpacing: 0,
+      lineHeight: 19,
+      maxWidth: 120,
+    },
     recentLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 13, minHeight: 36 },
     clockGlyph: {
       alignItems: 'center',
@@ -530,138 +516,6 @@ function makeStyles(colors: CommerceColorPalette) {
     recentText: { color: colors.muted, fontSize: 16, fontWeight: '600', letterSpacing: 0, lineHeight: 23 },
     recentRemove: { alignItems: 'center', height: 38, justifyContent: 'center', marginRight: -3, width: 38 },
     recentRemoveIcon: { color: colors.disabled, fontSize: 28, fontWeight: '200', lineHeight: 32 },
-    recentProductTitle: {
-      color: colors.text,
-      fontSize: 20,
-      fontWeight: '900',
-      letterSpacing: 0,
-      lineHeight: 27,
-      marginBottom: 20,
-      marginTop: 52,
-    },
-    recentProductCard: {
-      minHeight: 250,
-      width: 118,
-    },
-    productImageWrap: {
-      backgroundColor: colors.panelBg,
-      borderRadius: 10,
-      height: 118,
-      overflow: 'hidden',
-      position: 'relative',
-      width: 118,
-    },
-    productImage: { height: '100%', resizeMode: 'cover', width: '100%' },
-    productFallbackArt: {
-      alignItems: 'center',
-      backgroundColor: colors.panelBg,
-      flex: 1,
-      justifyContent: 'center',
-      overflow: 'hidden',
-      position: 'relative',
-    },
-    pillowShape: {
-      backgroundColor: '#F6F7F8',
-      borderColor: 'rgba(156, 163, 175, 0.22)',
-      borderRadius: 16,
-      borderWidth: 1,
-      height: 42,
-      position: 'absolute',
-      width: 100,
-    },
-    pillowBack: {
-      left: 17,
-      top: 49,
-      transform: [{ rotate: '-8deg' }],
-    },
-    pillowFront: {
-      left: 8,
-      top: 63,
-      transform: [{ rotate: '-18deg' }],
-    },
-    pillowEndLeft: {
-      backgroundColor: '#1F2937',
-      borderRadius: 999,
-      height: 13,
-      left: 5,
-      position: 'absolute',
-      top: 79,
-      transform: [{ rotate: '-19deg' }],
-      width: 32,
-    },
-    pillowEndRight: {
-      backgroundColor: '#1F2937',
-      borderRadius: 999,
-      height: 14,
-      position: 'absolute',
-      right: 6,
-      top: 65,
-      transform: [{ rotate: '-11deg' }],
-      width: 28,
-    },
-    productSaleBadge: {
-      alignItems: 'center',
-      backgroundColor: colors.accent,
-      borderRadius: 7,
-      justifyContent: 'center',
-      left: 9,
-      minHeight: 28,
-      paddingHorizontal: 9,
-      position: 'absolute',
-      top: 9,
-    },
-    productSaleBadgeText: { color: colors.inverse, fontSize: 14, fontWeight: '900', letterSpacing: 0, lineHeight: 18 },
-    heartButton: {
-      alignItems: 'center',
-      bottom: 9,
-      height: 32,
-      justifyContent: 'center',
-      position: 'absolute',
-      right: 8,
-      width: 32,
-    },
-    heartText: {
-      color: colors.inverse,
-      fontSize: 32,
-      fontWeight: '300',
-      lineHeight: 35,
-      textShadowColor: 'rgba(31, 41, 55, 0.2)',
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 2,
-    },
-    productName: {
-      color: colors.muted,
-      fontSize: 15,
-      fontWeight: '600',
-      letterSpacing: 0,
-      lineHeight: 23,
-      marginTop: 10,
-    },
-    priceRow: {
-      alignItems: 'baseline',
-      flexDirection: 'row',
-      gap: 4,
-      marginTop: 2,
-    },
-    discountText: { color: colors.muted, fontSize: 16, fontWeight: '800', letterSpacing: 0, lineHeight: 22 },
-    priceText: { color: colors.text, fontSize: 17, fontWeight: '900', letterSpacing: 0, lineHeight: 23 },
-    ratingRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 4,
-      marginTop: 5,
-    },
-    starText: { color: colors.yellow, fontSize: 13, lineHeight: 17 },
-    ratingText: { color: colors.muted, fontSize: 13, fontWeight: '600', letterSpacing: 0, lineHeight: 18 },
-    sellerBadge: {
-      alignSelf: 'flex-start',
-      backgroundColor: colors.softBg,
-      borderRadius: 4,
-      marginTop: 6,
-      paddingHorizontal: 4,
-      paddingVertical: 2,
-    },
-    sellerBadgeText: { color: colors.weak, fontSize: 11, fontWeight: '800', letterSpacing: 0, lineHeight: 14 },
     pressed: { opacity: 0.6 },
   });
 }

@@ -16,13 +16,9 @@ import type { CommerceColorPalette } from '../design/commerce';
 import { spacing } from '../design/tokens';
 import type { GroupBuy, RootStackParamList } from '../types';
 
-function GuestSummaryCards({ todayCount, bookmarkCount, s }: { todayCount: number; bookmarkCount: number; s: ReturnType<typeof makeStyles> }) {
+function GuestSummaryCards({ bookmarkCount, s }: { bookmarkCount: number; s: ReturnType<typeof makeStyles> }) {
   return (
     <View style={s.summaryGrid}>
-      <View style={s.summaryCard}>
-        <SText variant="caption" style={s.summaryLabel}>오늘 본 목록</SText>
-        <SText variant="cardTitle" style={s.summaryValue}>{todayCount}개</SText>
-      </View>
       <View style={s.summaryCard}>
         <SText variant="caption" style={s.summaryLabel}>북마크한 공구</SText>
         <SText variant="cardTitle" style={s.summaryValue}>{bookmarkCount}개</SText>
@@ -35,7 +31,7 @@ function getDealVisual(item: GroupBuy) {
   return item.thumbnailUrl ?? item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ?? item.mediaUrls?.[0] ?? null;
 }
 
-function MiniDealCard({ item, onPress, onRemove, s }: { item: GroupBuy; onPress: (item: GroupBuy) => void; onRemove?: (item: GroupBuy) => void; s: ReturnType<typeof makeStyles> }) {
+function MiniDealCard({ item, onPress, onRemove, removeLabel, s }: { item: GroupBuy; onPress: (item: GroupBuy) => void; onRemove?: (item: GroupBuy) => void; removeLabel: string; s: ReturnType<typeof makeStyles> }) {
   const visual = getDealVisual(item);
   return (
     <Pressable
@@ -59,7 +55,7 @@ function MiniDealCard({ item, onPress, onRemove, s }: { item: GroupBuy; onPress:
       </SText>
       {onRemove ? (
         <Pressable
-          accessibilityLabel={`${item.productName ?? "공구"} 알림 해제`}
+          accessibilityLabel={`${item.productName ?? '공구'} ${removeLabel}`}
           accessibilityRole="button"
           onPress={() => onRemove(item)}
           hitSlop={8}
@@ -79,6 +75,7 @@ function DealShelf({
   emptyText,
   onPressDeal,
   onRemoveDeal,
+  removeLabel = '삭제',
   s,
 }: {
   title: string;
@@ -87,6 +84,7 @@ function DealShelf({
   emptyText: string;
   onPressDeal: (item: GroupBuy) => void;
   onRemoveDeal?: (item: GroupBuy) => void;
+  removeLabel?: string;
   s: ReturnType<typeof makeStyles>;
 }) {
   return (
@@ -100,7 +98,7 @@ function DealShelf({
       {items.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.miniDealRail}>
           {items.map((item) => (
-            <MiniDealCard key={`${title}-${item.id}`} item={item} onPress={onPressDeal} onRemove={onRemoveDeal} s={s} />
+            <MiniDealCard key={`${title}-${item.id}`} item={item} onPress={onPressDeal} onRemove={onRemoveDeal} removeLabel={removeLabel} s={s} />
           ))}
         </ScrollView>
       ) : (
@@ -119,7 +117,7 @@ export function MyPageScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const [loggingOut, setLoggingOut] = useState(false);
-  const { bookmarks: bookmarkedDeals, refresh: refreshBookmarks } = useBookmarks();
+  const { bookmarks: bookmarkedDeals, removeBookmark, refresh: refreshBookmarks } = useBookmarks();
   const { recentViews: viewedToday, refresh: refreshRecent } = useRecentViews();
   const { notifications, removeNotification, refresh: refreshNotifications } = useNotifications();
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -198,9 +196,9 @@ export function MyPageScreen() {
           </View>
         ) : (
           <View style={s.guestHero}>
-            <SText variant="cardTitle" style={s.guestHeroTitle}>내 쇼핑 활동을 가볍게 모아봤어요</SText>
+            <SText variant="cardTitle" style={s.guestHeroTitle}>내 활동을 가볍게 모아봤어요</SText>
             <SText variant="caption" style={s.guestHeroSubtitle}>
-              로그인하지 않아도 오늘 본 목록, 북마크, 알림 설정을 확인할 수 있어요.
+              로그인하지 않아도 최근 본 공구, 북마크, 알림 설정을 확인할 수 있어요.
             </SText>
             <Pressable accessibilityRole="button" onPress={handleLoginPress} style={({ pressed }) => [s.softLoginButton, pressed && s.pressed]}>
               <SText variant="label" style={s.softLoginText}>계정 연결해서 여러 기기에서 이어보기</SText>
@@ -208,11 +206,11 @@ export function MyPageScreen() {
           </View>
         )}
 
-        <GuestSummaryCards todayCount={viewedToday.length} bookmarkCount={bookmarkedDeals.length} s={s} />
+        <GuestSummaryCards bookmarkCount={bookmarkedDeals.length} s={s} />
 
         <DealShelf
-          title="오늘 본 목록"
-          subtitle="최근 본 공구 최근 10개"
+          title="최근 본 공구"
+          subtitle="최근 10개까지 모아봤어요"
           items={viewedToday}
           emptyText="최근 본 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
@@ -225,6 +223,8 @@ export function MyPageScreen() {
           items={bookmarkedDeals}
           emptyText="북마크한 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
+          onRemoveDeal={(item) => removeBookmark(item.id)}
+          removeLabel="북마크 해제"
           s={s}
         />
 
@@ -235,6 +235,7 @@ export function MyPageScreen() {
           emptyText="알림을 설정한 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
           onRemoveDeal={(item) => removeNotification(item.id)}
+          removeLabel="알림 해제"
           s={s}
         />
 
