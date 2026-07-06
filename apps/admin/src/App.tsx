@@ -10,12 +10,14 @@ import type {
   GroupBuyStatus,
   HikerLookupResult,
   MediaAsset,
+  AppUser,
   SubmissionStatus,
 } from "@/types";
 import "./App.css";
 
-type TabKey = "dashboard" | "submissions" | "groupBuys";
 type Notice = { tone: "success" | "error" | "info"; message: string } | null;
+
+type TabKey = "dashboard" | "submissions" | "groupBuys" | "users";
 
 type SubmissionForm = {
   productName: string;
@@ -58,6 +60,11 @@ type GroupBuyForm = {
   isAllDay: boolean;
   isMonthlyFeatured: boolean;
   monthlyFeaturedRank: string;
+};
+
+type UserForm = {
+  nickname: string;
+  fcmToken: string;
 };
 
 const PAGE_SIZE = 25;
@@ -431,6 +438,15 @@ function AdminShell({ session }: { session: Session }) {
   const [groupBuyForm, setGroupBuyForm] = useState<GroupBuyForm | null>(null);
   const [groupBuyActionLoading, setGroupBuyActionLoading] = useState(false);
 
+  const [userQuery, setUserQuery] = useState("");
+  const [userPage, setUserPage] = useState(1);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
+  const [userForm, setUserForm] = useState<UserForm | null>(null);
+  const [userActionLoading, setUserActionLoading] = useState(false);
+
   const selectSubmission = useCallback((item: GongguSubmission | null) => {
     setSelectedSubmission(item);
     setSubmissionForm(item ? submissionToForm(item) : null);
@@ -440,6 +456,11 @@ function AdminShell({ session }: { session: Session }) {
   const selectGroupBuy = useCallback((item: GroupBuy | null) => {
     setSelectedGroupBuy(item);
     setGroupBuyForm(item ? groupBuyToForm(item) : null);
+  }, []);
+
+  const selectUser = useCallback((item: AppUser | null) => {
+    setSelectedUser(item);
+    setUserForm(item ? { nickname: item.nickname ?? "", fcmToken: item.fcmToken ?? "" } : null);
   }, []);
 
   const loadDashboard = useCallback(async () => {
@@ -501,6 +522,28 @@ function AdminShell({ session }: { session: Session }) {
     }
   }, [groupBuyPage, groupBuyQuery, groupBuyStatus]);
 
+  const loadUsers = useCallback(async () => {
+    setUsersLoading(true);
+    try {
+      const data = await adminApi.listUsers({
+        page: userPage,
+        limit: PAGE_SIZE,
+        q: userQuery,
+      });
+      setUsers(data.items);
+      setUsersTotal(data.total);
+      setSelectedUser((current) => {
+        const next = current ? data.items.find((item) => item.id === current.id) ?? data.items[0] ?? null : data.items[0] ?? null;
+        setUserForm(next ? { nickname: next.nickname ?? "", fcmToken: next.fcmToken ?? "" } : null);
+        return next;
+      });
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "가입자 목록 조회 실패" });
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [userPage, userQuery]);
+
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
@@ -513,11 +556,16 @@ function AdminShell({ session }: { session: Session }) {
     if (tab === "groupBuys") void loadGroupBuys();
   }, [loadGroupBuys, tab]);
 
+  useEffect(() => {
+    if (tab === "users") void loadUsers();
+  }, [loadUsers, tab]);
+
   const refreshActive = useCallback(async () => {
     await loadDashboard();
     if (tab === "submissions") await loadSubmissions();
     if (tab === "groupBuys") await loadGroupBuys();
-  }, [loadDashboard, loadGroupBuys, loadSubmissions, tab]);
+    if (tab === "users") await loadUsers();
+  }, [loadDashboard, loadGroupBuys, loadSubmissions, loadUsers, tab]);
 
   async function saveSubmission() {
     if (!selectedSubmission || !submissionForm) return;
@@ -608,6 +656,26 @@ function AdminShell({ session }: { session: Session }) {
 
   const submissionTotalPages = Math.max(1, Math.ceil(submissionsTotal / PAGE_SIZE));
   const groupBuyTotalPages = Math.max(1, Math.ceil(groupBuysTotal / PAGE_SIZE));
+  const userTotalPages = Math.max(1, Math.ceil(usersTotal / PAGE_SIZE));
+
+  async function saveUser() {
+    if (!selectedUser || !userForm) return;
+    setUserActionLoading(true);
+    try {
+      const next = await adminApi.updateUser(selectedUser.id, {
+        nickname: userForm.nickname,
+        fcmToken: userForm.fcmToken,
+      });
+      setNotice({ tone: "success", message: "가입자 정보를 저장했습니다." });
+      selectUser(next);
+      await loadUsers();
+      await loadDashboard();
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "가입자 저장 실패" });
+    } finally {
+      setUserActionLoading(false);
+    }
+  }
 
   return (
     <div className="admin-shell">
@@ -628,6 +696,9 @@ function AdminShell({ session }: { session: Session }) {
           </button>
           <button className={tab === "groupBuys" ? "active" : ""} onClick={() => setTab("groupBuys")} type="button">
             공구 관리
+          </button>
+          <button className={tab === "users" ? "active" : ""} onClick={() => setTab("users")} type="button">
+            가입자 관리
           </button>
         </nav>
       </aside>
@@ -714,7 +785,28 @@ function AdminShell({ session }: { session: Session }) {
             selected={selectedGroupBuy}
             status={groupBuyStatus}
             total={groupBuysTotal}
-            totalPages={groupBuyTotalPages}
+           totalPages={groupBuyTotalPages}
+         />
+       ) : null}
+        {tab === "users" ? (
+          <UserPanel
+            actionLoading={userActionLoading}
+            form={userForm}
+            items={users}
+            loading={usersLoading}
+            onFormChange={setUserForm}
+            onPageChange={setUserPage}
+            onQueryChange={(value) => {
+              setUserQuery(value);
+              setUserPage(1);
+            }}
+            onSave={() => void saveUser()}
+            onSelect={selectUser}
+            page={userPage}
+            query={userQuery}
+            selected={selectedUser}
+            total={usersTotal}
+            totalPages={userTotalPages}
           />
         ) : null}
       </main>
@@ -745,6 +837,7 @@ function applyHikerResult(form: SubmissionForm, result: HikerLookupResult): Subm
 function tabTitle(tab: TabKey) {
   if (tab === "submissions") return "위시 검수";
   if (tab === "groupBuys") return "공구 관리";
+  if (tab === "users") return "가입자 관리";
   return "대시보드";
 }
 
@@ -764,43 +857,109 @@ function DashboardPanel({
         <StatCard label="검수 대기" value={totals?.pending ?? 0} icon={<span>Q</span>} color="#d97706" />
         <StatCard label="총 위시" value={totals?.submissions ?? 0} icon={<span>W</span>} color="#2563eb" />
         <StatCard label="등록 공구" value={totals?.groupBuys ?? 0} icon={<span>G</span>} color="#059669" />
-        <StatCard label="사용자" value={totals?.users ?? 0} icon={<span>U</span>} color="#6d28d9" />
+        <StatCard label="가입자" value={totals?.users ?? 0} icon={<span>U</span>} color="#6d28d9" />
+      </div>
+
+      <div className="dashboard-grid">
+        <div className="dashboard-col">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">Queue</p>
+              <h2>검수 대기 위시</h2>
+            </div>
+            <button className="button button--secondary" onClick={onOpenSubmissions} type="button">
+              검수 화면
+            </button>
+          </div>
+          {loading ? <div className="empty-state">조회 중</div> : null}
+          {!loading && dashboard?.pendingQueue.length === 0 ? <div className="empty-state">검수 대기 항목 없음</div> : null}
+          {!loading && dashboard?.pendingQueue.length ? (
+            <div className="table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>상품</th>
+                    <th>URL</th>
+                    <th>접수</th>
+                    <th>상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dashboard.pendingQueue.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.productName}</td>
+                      <td className="truncate">{item.instagramUrl}</td>
+                      <td>{formatDateTime(item.createdAt)}</td>
+                      <td><StatusBadge status={item.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="dashboard-col">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">Recent</p>
+              <h2>최근 가입자</h2>
+            </div>
+          </div>
+          {loading ? <div className="empty-state">조회 중</div> : null}
+          {!loading && dashboard?.recentUsers.length === 0 ? <div className="empty-state">가입자 없음</div> : null}
+          {!loading && dashboard?.recentUsers.length ? (
+            <div className="table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>이메일</th>
+                    <th>닉네임</th>
+                    <th>가입일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dashboard.recentUsers.map((user) => (
+                    <tr key={user.id}>
+                      <td className="truncate">{user.email}</td>
+                      <td>{user.nickname ?? "-"}</td>
+                      <td>{formatDateTime(user.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="section-header">
         <div>
-          <p className="eyebrow">Queue</p>
-          <h2>검수 대기 위시</h2>
+          <p className="eyebrow">Distribution</p>
+          <h2>카테고리별 공구 분포</h2>
         </div>
-        <button className="button button--secondary" onClick={onOpenSubmissions} type="button">
-          검수 화면
-        </button>
       </div>
-
       {loading ? <div className="empty-state">조회 중</div> : null}
-      {!loading && dashboard?.pendingQueue.length === 0 ? <div className="empty-state">검수 대기 항목 없음</div> : null}
-      {!loading && dashboard?.pendingQueue.length ? (
-        <div className="table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>상품</th>
-                <th>URL</th>
-                <th>접수</th>
-                <th>상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dashboard.pendingQueue.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.productName}</td>
-                  <td className="truncate">{item.instagramUrl}</td>
-                  <td>{formatDateTime(item.createdAt)}</td>
-                  <td><StatusBadge status={item.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {!loading && dashboard && Object.keys(dashboard.categoryDistribution).length === 0 ? (
+        <div className="empty-state">승인된 공구 없음</div>
+      ) : null}
+      {!loading && dashboard && Object.keys(dashboard.categoryDistribution).length > 0 ? (
+        <div className="category-bars">
+          {Object.entries(dashboard.categoryDistribution)
+            .sort(([, a], [, b]) => b - a)
+            .map(([category, count]) => {
+              const max = Math.max(...Object.values(dashboard.categoryDistribution));
+              const pct = max > 0 ? Math.round((count / max) * 100) : 0;
+              return (
+                <div key={category} className="category-bar">
+                  <span className="category-bar__label">{category}</span>
+                  <div className="category-bar__track">
+                    <div className="category-bar__fill" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="category-bar__count">{count}</span>
+                </div>
+              );
+            })}
         </div>
       ) : null}
     </section>
@@ -1113,6 +1272,120 @@ function GroupBuyEditor(props: {
       <TextareaField label="요약" value={form.summary} onChange={(value) => setField("summary", value)} rows={5} />
       <TextareaField label="미디어 URL 목록" value={form.mediaUrlsText} onChange={(value) => setField("mediaUrlsText", value)} rows={4} />
       <TextareaField label="미디어 JSON" value={form.mediaItemsText} onChange={(value) => setField("mediaItemsText", value)} rows={7} monospace />
+
+      <div className="action-row action-row--end">
+        <button className="button button--primary" disabled={props.actionLoading} onClick={props.onSave} type="button">
+          저장
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function UserPanel(props: {
+  actionLoading: boolean;
+  form: UserForm | null;
+  items: AppUser[];
+  loading: boolean;
+  onFormChange: (form: UserForm | null) => void;
+  onPageChange: (page: number) => void;
+  onQueryChange: (value: string) => void;
+  onSave: () => void;
+  onSelect: (item: AppUser | null) => void;
+  page: number;
+  query: string;
+  selected: AppUser | null;
+  total: number;
+  totalPages: number;
+}) {
+  return (
+    <section className="panel">
+      <div className="section-header">
+        <div>
+          <p className="eyebrow">Users</p>
+          <h2>가입자 관리</h2>
+        </div>
+        <div className="filters">
+          <input
+            aria-label="검색"
+            className="search-input"
+            onChange={(event) => props.onQueryChange(event.target.value)}
+            placeholder="이메일, 닉네임"
+            value={props.query}
+          />
+        </div>
+      </div>
+
+      <div className="split-view">
+        <div className="table-panel">
+          <ListMeta loading={props.loading} page={props.page} total={props.total} totalPages={props.totalPages} />
+          <div className="table-wrap">
+            <table className="admin-table admin-table--clickable">
+              <thead>
+                <tr>
+                  <th>이메일</th>
+                  <th>닉네임</th>
+                  <th>가입일</th>
+                </tr>
+              </thead>
+              <tbody>
+                {props.items.map((item) => (
+                  <tr
+                    className={props.selected?.id === item.id ? "selected" : ""}
+                    key={item.id}
+                    onClick={() => props.onSelect(item)}
+                  >
+                    <td className="truncate">{item.email}</td>
+                    <td>{item.nickname ?? "-"}</td>
+                    <td>{formatDateTime(item.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {props.items.length === 0 && !props.loading ? <div className="empty-state">가입자 없음</div> : null}
+          <Pagination page={props.page} totalPages={props.totalPages} onPageChange={props.onPageChange} />
+        </div>
+        <UserEditor
+          actionLoading={props.actionLoading}
+          form={props.form}
+          onChange={props.onFormChange}
+          onSave={props.onSave}
+          selected={props.selected}
+        />
+      </div>
+    </section>
+  );
+}
+
+function UserEditor(props: {
+  actionLoading: boolean;
+  form: UserForm | null;
+  onChange: (form: UserForm | null) => void;
+  onSave: () => void;
+  selected: AppUser | null;
+}) {
+  const form = props.form;
+  if (!props.selected || !form) {
+    return <aside className="detail-panel empty-state">선택된 가입자 없음</aside>;
+  }
+  const setField = (key: keyof UserForm, value: string) => {
+    props.onChange({ ...form, [key]: value });
+  };
+
+  return (
+    <aside className="detail-panel">
+      <div className="detail-title">
+        <div>
+          <p className="eyebrow">User</p>
+          <h3>{props.selected.email ?? props.selected.id}</h3>
+        </div>
+      </div>
+
+      <div className="form-grid">
+        <TextField label="닉네임" value={form.nickname} onChange={(value) => setField("nickname", value)} />
+      </div>
+      <TextareaField label="FCM 토큰" value={form.fcmToken} onChange={(value) => setField("fcmToken", value)} rows={4} monospace />
 
       <div className="action-row action-row--end">
         <button className="button button--primary" disabled={props.actionLoading} onClick={props.onSave} type="button">

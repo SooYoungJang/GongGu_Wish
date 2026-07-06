@@ -84,6 +84,15 @@ const GROUP_BUY_SELECT = `
   updated_at
 `;
 
+const USER_SELECT = `
+  id,
+  email,
+  nickname,
+  fcm_token,
+  created_at,
+  updated_at
+`;
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -292,6 +301,17 @@ function mapGroupBuy(row: Record<string, unknown>) {
   };
 }
 
+function mapUser(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    email: row.email,
+    nickname: row.nickname,
+    fcmToken: row.fcm_token,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 async function listSubmissions(supabase: AdminClient, params: AdminRequest['params']) {
   const page = listParam(params, 'page', 1);
   const limit = Math.min(listParam(params, 'limit', 30), 100);
@@ -359,7 +379,36 @@ async function dashboard(supabase: AdminClient) {
     if (result.error) throw new Error(result.error.message);
   }
 
-  const recent = await listSubmissions(supabase, { page: 1, limit: 6, status: 'PENDING' });
+  const [recentPending, recentUsers, recentGroupBuys, categoryDist] = await Promise.all([
+    listSubmissions(supabase, { page: 1, limit: 6, status: 'PENDING' }),
+    supabase
+      .from('users')
+      .select(USER_SELECT)
+      .order('created_at', { ascending: false })
+      .range(0, 4),
+    supabase
+      .from('group_buys')
+      .select(GROUP_BUY_SELECT)
+      .eq('status', 'APPROVED')
+      .order('created_at', { ascending: false })
+      .range(0, 4),
+    supabase
+      .from('group_buys')
+      .select('category')
+      .eq('status', 'APPROVED'),
+  ]);
+
+  if (recentUsers.error) throw new Error(recentUsers.error.message);
+  if (recentGroupBuys.error) throw new Error(recentGroupBuys.error.message);
+  if (categoryDist.error) throw new Error(categoryDist.error.message);
+
+  const categoryCounts: Record<string, number> = {};
+  for (const row of categoryDist.data ?? []) {
+    const cat = (row as Record<string, unknown>).category as string | null;
+    const key = cat ?? '미지정';
+    categoryCounts[key] = (categoryCounts[key] ?? 0) + 1;
+  }
+
   return {
     totals: {
       submissions: submissions.count ?? 0,
@@ -370,7 +419,10 @@ async function dashboard(supabase: AdminClient) {
       activeGroupBuys: activeGroupBuys.count ?? 0,
       users: users.count ?? 0,
     },
-    pendingQueue: recent.items,
+    pendingQueue: recentPending.items,
+    recentUsers: (recentUsers.data ?? []).map((row) => mapUser(row)),
+    recentGroupBuys: (recentGroupBuys.data ?? []).map((row) => mapGroupBuy(row)),
+    categoryDistribution: categoryCounts,
   };
 }
 
@@ -493,6 +545,41 @@ async function rejectSubmission(
   return mapSubmission(data);
 }
 
+async function listUsers(supabase: AdminClient, params: AdminRequest['params']) {
+  const page = listParam(params, 'page', 1);
+  const limit = Math.min(listParam(params, 'limit', 30), 100);
+  const start = (page - 1) * limit;
+  const q = sanitizeSearch(str(params?.q));
+
+  let query = supabase
+    .from('users')
+    .select(USER_SELECT, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(start, start + limit - 1);
+
+  if (q) query = query.or(`email.ilike.%${q}%,nickname.ilike.%${q}%`);
+
+  const { data, error, count } = await query;
+  if (error) throw new Error(error.message);
+  return { items: (data ?? []).map((row) => mapUser(row)), total: count ?? 0 };
+}
+
+async function updateUser(supabase: AdminClient, id: string, body: Record<string, unknown>) {
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (hasOwn(body, 'nickname')) patch.nickname = str(body.nickname);
+  if (hasOwn(body, 'fcmToken')) patch.fcm_token = str(body.fcmToken);
+
+  const { data, error } = await supabase
+    .from('users')
+    .update(compact(patch))
+    .eq('id', id)
+    .select(USER_SELECT)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapUser(data);
+}
+
 async function lookupHiker(body: Record<string, unknown>) {
   const url = str(body.url);
   if (!url) {
@@ -545,6 +632,12 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   }
   if (path === '/admin/group-buys' && method === 'GET') {
     return listGroupBuys(supabase, params);
+  }
+  if (path === '/admin/users' && method === 'GET') {
+    return listUsers(supabase, params);
+  }
+  if (path.startsWith('/admin/users/') && method === 'PATCH') {
+    return updateUser(supabase, path.replace('/admin/users/', ''), body);
   }
   if (path.startsWith('/admin/group-buys/') && method === 'PATCH') {
     const id = path.replace('/admin/group-buys/', '');

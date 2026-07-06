@@ -1,5 +1,6 @@
 import { supabase } from "@/supabase/client";
 import type {
+  AppUser,
   DashboardResponse,
   GongguSubmission,
   GroupBuy,
@@ -125,5 +126,17 @@ export const adminApi = {
     return requestAdmin<HikerLookupResult>("/admin/hiker-lookup", "POST", {
       body: { url },
     });
+  },
+
+  listUsers(params: {
+    page?: number;
+    limit?: number;
+    q?: string;
+  }) {
+    return requestAdmin<ListResponse<AppUser>>("/admin/users", "GET", { params });
+  },
+
+  updateUser(id: string, body: Record<string, unknown>) {
+    return requestAdmin<AppUser>(`/admin/users/${id}`, "PATCH", { body });
   },
 };
