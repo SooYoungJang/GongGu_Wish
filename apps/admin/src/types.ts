@@ -71,6 +71,18 @@ export type DashboardResponse = {
     users: number;
   };
   pendingQueue: GongguSubmission[];
+  recentUsers: AppUser[];
+  recentGroupBuys: GroupBuy[];
+  categoryDistribution: Record<string, number>;
+};
+
+export type AppUser = {
+  id: string;
+  email: string | null;
+  nickname: string | null;
+  fcmToken: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ListResponse<T> = {
