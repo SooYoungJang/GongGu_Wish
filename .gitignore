@@ -53,3 +53,5 @@ fix_env.py
 setup_env.py
 **/discord_post.py
 **/_discord_thread.py
+.vercel
+.env*
