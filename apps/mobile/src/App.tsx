@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     borderRadius: 6,
     borderStyle: 'solid',
-    borderWidth: 2.3,
+    borderWidth: 1.6,
     height: 22,
     justifyContent: 'center',
     width: 22,

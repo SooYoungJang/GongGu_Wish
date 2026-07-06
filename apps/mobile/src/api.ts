@@ -348,14 +348,14 @@ export type PopularSearchTerm = {
  * Fire-and-forget: failures are swallowed so they never block the search UX.
  * POST /rest/v1/search_logs
  */
-export async function logSearchTerm(keyword: string): Promise<void> {
+export async function logSearchTerm(keyword: string, groupBuyId?: string): Promise<void> {
   const trimmed = keyword.trim();
   if (!trimmed) return;
   try {
     // return=minimal avoids needing SELECT privileges on search_logs (anon only has INSERT).
     await postgrestFetch('search_logs', {
       method: 'POST',
-      body: { keyword: trimmed },
+      body: { keyword: trimmed, ...(groupBuyId ? { group_buy_id: groupBuyId } : {}) },
       prefer: 'return=minimal',
     });
   } catch (error) {
@@ -376,6 +376,77 @@ export async function fetchPopularSearchTerms(limit = 10, hours = 24): Promise<P
     return Array.isArray(data) ? data : [];
   } catch (error) {
     console.log('[SearchLogs] fetch popular failed:', error instanceof Error ? error.message : String(error));
+    return [];
+  }
+}
+
+// ─── Popularity Signals (deep views + bookmarks) ────────────────────────────
+
+export type PopularGroupBuy = {
+  groupBuyId: string;
+  deepViews: number;
+  bookmarks: number;
+  searchClicks: number;
+  score: number;
+};
+
+/**
+ * Log a "deep view" — only called after a reel was watched for >= 30s.
+ * Fire-and-forget; failures never block the reels UX.
+ * POST /rest/v1/group_buy_views
+ */
+export async function logDeepView(groupBuyId: string): Promise<void> {
+  const { getSessionId } = await import('./utils/session');
+  const sessionId = await getSessionId();
+  try {
+    await postgrestFetch('group_buy_views', {
+      method: 'POST',
+      body: { group_buy_id: groupBuyId, view_type: 'deep', session_id: sessionId },
+      prefer: 'return=minimal',
+    });
+  } catch (error) {
+    console.log('[Popularity] log deep view failed:', error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * Mirror a bookmark action to the server for popularity aggregation.
+ * bookmark=true inserts, bookmark=false deletes by (group_buy_id, session_id).
+ */
+export async function syncBookmark(groupBuyId: string, bookmark: boolean): Promise<void> {
+  const { getSessionId } = await import('./utils/session');
+  const sessionId = await getSessionId();
+  try {
+    if (bookmark) {
+      await postgrestFetch('group_buy_bookmarks', {
+        method: 'POST',
+        body: { group_buy_id: groupBuyId, session_id: sessionId },
+        prefer: 'return=minimal',
+      });
+    } else {
+      await postgrestFetch(
+        `group_buy_bookmarks?group_buy_id=eq.${encodeURIComponent(groupBuyId)}&session_id=eq.${encodeURIComponent(sessionId)}`,
+        { method: 'DELETE' },
+      );
+    }
+  } catch (error) {
+    console.log('[Popularity] sync bookmark failed:', error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * Fetch group buys ranked by popularity (deep views + bookmarks).
+ * RPC: get_popular_group_buys(limit, hours)
+ */
+export async function fetchPopularGroupBuys(limit = 20, hours = 168): Promise<PopularGroupBuy[]> {
+  try {
+    const data = await postgrestPost<PopularGroupBuy[]>('rpc/get_popular_group_buys', {
+      limit_count: limit,
+      hours_window: hours,
+    });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.log('[Popularity] fetch popular group buys failed:', error instanceof Error ? error.message : String(error));
     return [];
   }
 }

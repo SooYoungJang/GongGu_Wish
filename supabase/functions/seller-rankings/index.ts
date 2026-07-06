@@ -182,48 +182,128 @@ serve(async (req: Request) => {
         auth: { autoRefreshToken: false, persistSession: false },
       });
 
-      // Query influencers with active group buys
+      // Query influencers (active)
       const { data: influencers, error } = await supabase
         .from('influencers')
-        .select(`
-          id,
-          instagram_username,
-          display_name,
-          profile_image_url,
-          group_buys!inner(id, product_name, end_date, status)
-        `)
+        .select('id, instagram_username, display_name, profile_image_url')
         .eq('is_active', true)
         .order('instagram_username', { ascending: true });
 
       if (error) throw new Error(error.message);
 
-      // Transform to ranking format
-      rankings = (influencers ?? []).map((inf, i) => {
-        const activeDeals = (inf.group_buys ?? []).filter(
-          (gb: any) => gb.status === 'APPROVED' && new Date(gb.end_date) > new Date(),
+      // Query approved group buys (flat — no embedded joins to avoid schema-cache issues)
+      const { data: allGroupBuys, error: gbError } = await supabase
+        .from('group_buys')
+        .select('id, product_name, brand_name, category, end_date, status, thumbnail_url, media_items, raw_post_id')
+        .eq('status', 'APPROVED')
+        .order('created_at', { ascending: false });
+
+      if (gbError) throw new Error(gbError.message);
+
+      // Query raw_posts to map group_buy -> influencer
+      const rawPostIds = (allGroupBuys ?? []).map((gb: any) => gb.raw_post_id).filter(Boolean);
+      const influencerByRawPost = new Map<string, string>();
+      if (rawPostIds.length > 0) {
+        const { data: rawPosts, error: rpError } = await supabase
+          .from('raw_posts')
+          .select('id, influencer_id')
+          .in('id', rawPostIds);
+        if (rpError) throw new Error(rpError.message);
+        for (const rp of rawPosts ?? []) {
+          influencerByRawPost.set(rp.id, rp.influencer_id);
+        }
+      }
+
+      // Index group buys by influencer id
+      const dealsByInfluencer = new Map<string, any[]>();
+      for (const gb of allGroupBuys ?? []) {
+        const infId = influencerByRawPost.get(gb.raw_post_id);
+        if (!infId) continue;
+        if (!dealsByInfluencer.has(infId)) dealsByInfluencer.set(infId, []);
+        dealsByInfluencer.get(infId)!.push(gb);
+      }
+
+      // Fetch popularity scores per group buy (deep views + bookmarks)
+      const { data: popularRows, error: popError } = await supabase
+        .rpc('get_popular_group_buys', { limit_count: 100, hours_window: 168 });
+      if (popError) throw new Error(popError.message);
+
+      const scoreMap = new Map<string, number>();
+      const viewMap = new Map<string, number>();
+      for (const row of popularRows ?? []) {
+        scoreMap.set(row.group_buy_id, Number(row.score));
+        viewMap.set(row.group_buy_id, Number(row.deep_views));
+      }
+
+      // Aggregate per seller: sum of deal scores, plus collect thumbnails
+      const sellerAgg = (influencers ?? []).map((inf: any) => {
+        const sellerDeals = dealsByInfluencer.get(inf.id) ?? [];
+        const activeDeals = sellerDeals.filter(
+          (gb: any) => !gb.end_date || new Date(gb.end_date) > new Date(),
         );
 
-        return {
-          id: `seller-${inf.id}`,
-          sellerId: inf.id,
-          rank: i + 1,
-          previousRank: null,
-          trend: { kind: 'new' } as RankingTrend,
-          displayName: inf.display_name ?? inf.instagram_username,
-          username: inf.instagram_username,
-          avatarUrl: inf.profile_image_url,
-          category: 'beauty' as Exclude<RankingCategory, 'all'>,
-          activeDealCount: activeDeals.length,
-          isFollowing: false,
-          isSponsored: false,
-          thumbnails: activeDeals.slice(0, 3).map((deal: any) => ({
+        // Sum popularity scores for this seller's deals
+        const sellerScore = activeDeals.reduce(
+          (sum: number, gb: any) => sum + (scoreMap.get(gb.id) ?? 0),
+          0,
+        );
+        const endingSoonCount = activeDeals.filter(
+          (gb: any) => gb.end_date && new Date(gb.end_date).getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000,
+        ).length;
+
+        // Derive category from the seller's most popular deal
+        const dealsByScore = [...activeDeals].sort(
+          (a: any, b: any) => (scoreMap.get(b.id) ?? 0) - (scoreMap.get(a.id) ?? 0),
+        );
+        const category = (dealsByScore[0]?.category ?? 'lifestyle') as Exclude<RankingCategory, 'all'>;
+
+        // Thumbnails: top deals by score, with real image URLs
+        const thumbnails: RankingThumbnail[] = dealsByScore.slice(0, 3).map((deal: any) => {
+          const thumb = deal.thumbnail_url
+            ?? deal.media_items?.find((m: any) => m.thumbnailUrl)?.thumbnailUrl
+            ?? deal.media_items?.find((m: any) => m.url && (m.mediaType === 'IMAGE' || !m.mediaType))?.url
+            ?? null;
+          return {
             id: `thumb-${deal.id}`,
-            imageUrl: null,
+            imageUrl: thumb,
             label: deal.product_name,
             groupBuyId: deal.id,
-          })),
+          };
+        });
+
+        return {
+          seller: inf,
+          sellerScore,
+          activeDealCount: activeDeals.length,
+          endingSoonCount,
+          category,
+          thumbnails,
+          representativeGroupBuyId: dealsByScore[0]?.id ?? null,
         };
       });
+
+      // Sort sellers by popularity score (real "인기" ranking), tiebreak by deal count
+      sellerAgg.sort((a, b) => b.sellerScore - a.sellerScore || b.activeDealCount - a.activeDealCount);
+
+      // Build ranking output
+      rankings = sellerAgg.map((agg, i) => ({
+        id: `seller-${agg.seller.id}`,
+        sellerId: agg.seller.id,
+        rank: i + 1,
+        previousRank: null,
+        trend: { kind: 'new' } as RankingTrend,
+        displayName: agg.seller.display_name ?? agg.seller.instagram_username,
+        username: agg.seller.instagram_username,
+        avatarUrl: agg.seller.profile_image_url,
+        category: agg.category,
+        activeDealCount: agg.activeDealCount,
+        endingSoonCount: agg.endingSoonCount,
+        trustScore: null,
+        isFollowing: false,
+        isSponsored: false,
+        thumbnails: agg.thumbnails,
+        representativeGroupBuyId: agg.representativeGroupBuyId,
+      }));
     }
 
     const response: RankingResponse = { data: rankings };

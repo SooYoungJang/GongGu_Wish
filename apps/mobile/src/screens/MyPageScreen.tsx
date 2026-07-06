@@ -5,7 +5,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useBookmarks, useRecentViews, useNotifications } from '../hooks/useLocalDeals';
-import { requestNotificationPermissions } from '../services/notifications';
+import { IS_EXPO_GO, requestNotificationPermissions, scheduleTestNotification } from '../services/notifications';
 import { AppButton } from '../components/AppButton';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SText } from '../components/ui/SText';
@@ -121,6 +121,7 @@ export function MyPageScreen() {
   const { recentViews: viewedToday, refresh: refreshRecent } = useRecentViews();
   const { notifications, removeNotification, refresh: refreshNotifications } = useNotifications();
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [testScheduled, setTestScheduled] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -263,6 +264,26 @@ export function MyPageScreen() {
               thumbColor={pushEnabled ? colors.accent : colors.weak}
             />
           </View>
+          {IS_EXPO_GO ? (
+            <View style={s.testButton}>
+              <SText variant="label" style={s.testButtonText}>개발 빌드에서만 테스트 가능해요</SText>
+            </View>
+          ) : (
+          <Pressable
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel="테스트 알림 보내기"
+            onPress={async () => {
+              setTestScheduled(true);
+              await scheduleTestNotification(10);
+            }}
+            style={({ pressed }) => [s.testButton, pressed && s.pressed]}
+          >
+            <SText variant="label" style={s.testButtonText}>
+              {testScheduled ? '10초 뒤 알림 예약됨' : '테스트 알림 보내기 (10초)'}
+            </SText>
+          </Pressable>
+          )}
         </View>
 
         <View style={s.settingsCard}>
@@ -538,6 +559,17 @@ function makeStyles(colors: CommerceColorPalette) {
       fontWeight: '700',
       lineHeight: 17,
       marginTop: 3,
+    },
+    testButton: {
+      alignItems: 'center',
+      backgroundColor: colors.accentSoft,
+      borderRadius: 12,
+      marginTop: spacing.md,
+      paddingVertical: spacing.md,
+    },
+    testButtonText: {
+      color: colors.accent,
+      fontWeight: '900',
     },
     menuGroup: {
       backgroundColor: colors.surface,

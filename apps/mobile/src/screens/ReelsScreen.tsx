@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import PagerView from 'react-native-pager-view';
 
 import { fetchGroupBuys, fallbackGroupBuys } from '../api';
+import { logDeepView } from '../api';
 import { useRecentViews } from '../hooks/useLocalDeals';
 import { useTheme } from '../context/ThemeContext';
 import type { GroupBuy } from '../types';
@@ -95,6 +96,29 @@ export function ReelsScreen() {
     }
     if (!isTabFocused) lastRecordedIdRef.current = null;
   }, [isTabFocused, activeReelItem, recordView]);
+
+  // ── Deep view tracking: count a view only after 30s of continuous watch ──
+  const DEEP_VIEW_THRESHOLD_MS = 30_000;
+  const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (deepViewTimerRef.current) {
+      clearTimeout(deepViewTimerRef.current);
+      deepViewTimerRef.current = null;
+    }
+    // Only track while the tab is focused and no overlay sheet is open.
+    if (isTabFocused && !summarySheetGate.isOpen && activeReelItem) {
+      const id = activeReelItem.id;
+      deepViewTimerRef.current = setTimeout(() => {
+        void logDeepView(id);
+      }, DEEP_VIEW_THRESHOLD_MS);
+    }
+    return () => {
+      if (deepViewTimerRef.current) {
+        clearTimeout(deepViewTimerRef.current);
+        deepViewTimerRef.current = null;
+      }
+    };
+  }, [isTabFocused, summarySheetGate.isOpen, activeReelItem]);
 
   const handleSummarySheetStateChange = useCallback((isOpen: boolean, canSwipeReel: boolean) => {
     setSummarySheetGate((current) => (

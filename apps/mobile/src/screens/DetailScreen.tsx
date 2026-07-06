@@ -38,7 +38,7 @@ import Reanimated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import { fetchGroupBuys } from '../api';
+import { fetchGroupBuys, logDeepView } from '../api';
 import { Ionicons } from '@expo/vector-icons';
 import { useBookmarks, useNotifications, useRecentViews } from '../hooks/useLocalDeals';
 import { SText } from '../components/ui/SText';
@@ -1444,6 +1444,27 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   useEffect(() => {
     recordView(activeGroupBuy);
   }, [activeGroupBuy, recordView]);
+  // ── Deep view tracking: count a view only after 30s of continuous watch ──
+  const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+     if (deepViewTimerRef.current) {
+       clearTimeout(deepViewTimerRef.current);
+       deepViewTimerRef.current = null;
+     }
+     const overlayOpen = summarySheetGate.isOpen || isSearchSheetVisible;
+     if (!overlayOpen && activeGroupBuy) {
+       const id = activeGroupBuy.id;
+       deepViewTimerRef.current = setTimeout(() => {
+         void logDeepView(id);
+       }, 30_000);
+     }
+     return () => {
+       if (deepViewTimerRef.current) {
+         clearTimeout(deepViewTimerRef.current);
+         deepViewTimerRef.current = null;
+       }
+     };
+  }, [activeGroupBuy, summarySheetGate.isOpen, isSearchSheetVisible]);
   const handleSummarySheetStateChange = useCallback((isOpen: boolean, canSwipeReel: boolean) => {
     setSummarySheetGate({ isOpen, canSwipeReel });
   }, []);

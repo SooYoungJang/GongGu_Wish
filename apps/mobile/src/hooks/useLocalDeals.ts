@@ -100,6 +100,7 @@ export function useBookmarks() {
   );
 
   const toggleBookmark = useCallback((item: GroupBuy) => {
+    const isCurrentlyBookmarked = bookmarks.some((entry) => entry.id === item.id);
     setBookmarks((current) => {
       const next = current.some((entry) => entry.id === item.id)
         ? current.filter((entry) => entry.id !== item.id)
@@ -107,6 +108,8 @@ export function useBookmarks() {
       void writeJSON(BOOKMARK_KEY, next);
       return next;
     });
+    // Mirror to server for popularity aggregation (fire-and-forget).
+    void import('../api').then(({ syncBookmark }) => syncBookmark(item.id, !isCurrentlyBookmarked));
   }, []);
 
   const removeBookmark = useCallback((id: string) => {
@@ -115,6 +118,7 @@ export function useBookmarks() {
       void writeJSON(BOOKMARK_KEY, next);
       return next;
     });
+    void import('../api').then(({ syncBookmark }) => syncBookmark(id, false));
   }, []);
 
   return { bookmarks, isBookmarked, toggleBookmark, removeBookmark, refresh, ready };
