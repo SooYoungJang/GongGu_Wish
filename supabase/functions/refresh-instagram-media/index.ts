@@ -73,7 +73,7 @@ const CORS_HEADERS = {
 };
 
 const DEFAULT_REFRESH_WINDOW_HOURS = 1;
-const MAX_BATCH_LIMIT = 50;
+const MAX_BATCH_LIMIT = 100;
 const GROUP_BUY_SELECT = [
   'id',
   'thumbnail_url',
@@ -447,18 +447,13 @@ async function fetchGroupBuy(groupBuyId: string): Promise<GroupBuyRow | null> {
   return data as GroupBuyRow;
 }
 
-async function fetchBatch(limit: number): Promise<GroupBuyRow[]> {
+async function fetchBatch(limit: number, refreshWindowHours: number): Promise<GroupBuyRow[]> {
   const supabase = createAdminClient();
-  const now = new Date().toISOString();
   const { data, error } = await supabase
-    .from('group_buys')
-    .select(GROUP_BUY_SELECT)
-    .eq('status', 'APPROVED')
-    .eq('media_type', 'VIDEO')
-    .not('video_url', 'is', null)
-    .or(`end_date.is.null,end_date.gte.${now}`)
-    .order('updated_at', { ascending: true })
-    .limit(limit);
+    .rpc('get_refreshable_instagram_media', {
+      limit_count: limit,
+      refresh_window_hours: refreshWindowHours,
+    });
 
   if (error) throw new Error(error.message);
   return (data ?? []) as GroupBuyRow[];
@@ -483,7 +478,7 @@ async function handler(req: Request) {
 
     if (body.mode === 'batch') {
       const limit = Math.min(Math.max(1, body.limit ?? 20), MAX_BATCH_LIMIT);
-      const rows = await fetchBatch(limit);
+      const rows = await fetchBatch(limit, refreshWindowHours);
       const results: RefreshResult[] = [];
 
       for (const row of rows) {
