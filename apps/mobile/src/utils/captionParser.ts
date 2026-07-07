@@ -26,7 +26,7 @@ const URL_RE = /https?:\/\/[^\s"'<>]+/i;
 // `Extended_Pictographic` + regional indicators covers flags without eating
 // ASCII digits (which also carry the `Emoji` property in some Unicode versions).
 const EMOJI_RE =
-  /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u200d\uFE0F\u20e3\ud800-\udfff]+/gu;
+  /(?:\p{Extended_Pictographic}|[\u{1F1E6}-\u{1F1FF}]|\u200d|\uFE0F|\u20e3|[\ud800-\udfff])+/gu;
 
 const DATE_TOKEN_RE =
   /(?:20\d{2}\s*[./-]\s*)?\d{1,2}\s*(?:[./-]|월)\s*\d{1,2}\s*(?:일)?/g;

@@ -8,6 +8,7 @@
     "start:dev": "nest start --watch",
     "test": "jest",
     "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "export:raw-posts": "tsx src/cli/export-raw-posts.ts",
