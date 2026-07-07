@@ -1,4 +1,14 @@
 :root {
+  --ink: #111827;
+  --muted: #475467;
+  --line: #d2d7e3;
+  --line-soft: #e4e9f0;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --red: #c4302b;
+  --green: #0d8b5e;
+  --amber: #b45309;
+  --panel-soft: #f9fafc;
   color: #111827;
   background: #f6f7f9;
   font-family:
