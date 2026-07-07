@@ -5,9 +5,10 @@ interface StatCardProps {
   value: number;
   icon?: ReactNode;
   color?: string;
+  suffix?: string;
 }
 
-export function StatCard({ label, value, icon, color }: StatCardProps) {
+export function StatCard({ label, value, icon, color, suffix = "" }: StatCardProps) {
   return (
     <div className="stat-card">
       {icon && (
@@ -21,7 +22,10 @@ export function StatCard({ label, value, icon, color }: StatCardProps) {
       )}
       <div>
         <div className="stat-card__label">{label}</div>
-        <div className="stat-card__value">{value.toLocaleString()}</div>
+        <div className="stat-card__value">
+          {value.toLocaleString()}
+          {suffix ? <span>{suffix}</span> : null}
+        </div>
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
-import { colors } from '../../design/tokens';
+import { commerceLightColors } from '../../design/commerce';
 import { Animated } from 'react-native';
 import { UrlInputStatus } from '../UrlInputStatus';
 
@@ -103,24 +103,24 @@ describe('UrlInputStatus', function() {
   });
 
   it('uses correct tokens.ts colors for success and error icons', function() {
-    // Verify success icon has backgroundColor === colors.primary
+    // Verify success icon has backgroundColor === commerce success
     const successRenderer = renderStatus('success');
     const successViews = getAllByType(successRenderer.root, 'View');
     const successIcon = successViews.find(function(v: any) {
       const style = v.props.style;
       return Array.isArray(style) && style.some(function(s: any) {
-        return s && s.backgroundColor === colors.primary;
+        return s && s.backgroundColor === commerceLightColors.success;
       });
     });
     expect(successIcon).toBeTruthy();
 
-    // Verify error icon has backgroundColor === colors.error
+    // Verify error icon has backgroundColor === commerce error
     const errorRenderer = renderStatus('error');
     const errorViews = getAllByType(errorRenderer.root, 'View');
     const errorIcon = errorViews.find(function(v: any) {
       const style = v.props.style;
       return Array.isArray(style) && style.some(function(s: any) {
-        return s && s.backgroundColor === colors.error;
+        return s && s.backgroundColor === commerceLightColors.error;
       });
     });
     expect(errorIcon).toBeTruthy();

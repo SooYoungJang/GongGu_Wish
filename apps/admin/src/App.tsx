@@ -419,8 +419,10 @@ function AdminShell({ session }: { session: Session }) {
   const [submissionsTotal, setSubmissionsTotal] = useState(0);
   const [submissionsLoading, setSubmissionsLoading] = useState(false);
   const [selectedSubmission, setSelectedSubmission] = useState<GongguSubmission | null>(null);
+  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<string>>(new Set());
   const [submissionForm, setSubmissionForm] = useState<SubmissionForm | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [bulkRejectReason, setBulkRejectReason] = useState("");
   const [submissionActionLoading, setSubmissionActionLoading] = useState(false);
 
   const [groupBuyStatus, setGroupBuyStatus] = useState<"ALL" | GroupBuyStatus>("APPROVED");
@@ -481,6 +483,10 @@ function AdminShell({ session }: { session: Session }) {
       });
       setSubmissions(data.items);
       setSubmissionsTotal(data.total);
+      setSelectedSubmissionIds((current) => {
+        const pageIds = new Set(data.items.map((item) => item.id));
+        return new Set([...current].filter((id) => pageIds.has(id)));
+      });
       setSelectedSubmission((current) => {
         const next = current ? data.items.find((item) => item.id === current.id) ?? data.items[0] ?? null : data.items[0] ?? null;
         setSubmissionForm(next ? submissionToForm(next) : null);
@@ -562,6 +568,33 @@ function AdminShell({ session }: { session: Session }) {
     if (tab === "users") await loadUsers();
   }, [loadDashboard, loadGroupBuys, loadSubmissions, loadUsers, tab]);
 
+  const toggleSubmissionSelection = useCallback((id: string, checked: boolean) => {
+    setSelectedSubmissionIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const togglePageSubmissionSelection = useCallback((checked: boolean) => {
+    setSelectedSubmissionIds((current) => {
+      if (!checked) return new Set();
+      const next = new Set(current);
+      for (const item of submissions) {
+        if (item.status === "PENDING") next.add(item.id);
+      }
+      return next;
+    });
+  }, [submissions]);
+
+  const clearSubmissionSelection = useCallback(() => {
+    setSelectedSubmissionIds(new Set());
+  }, []);
+
   async function saveSubmission() {
     if (!selectedSubmission || !submissionForm) return;
     setSubmissionActionLoading(true);
@@ -608,6 +641,66 @@ function AdminShell({ session }: { session: Session }) {
       await loadDashboard();
     } catch (error) {
       setNotice({ tone: "error", message: error instanceof Error ? error.message : "반려 실패" });
+    } finally {
+      setSubmissionActionLoading(false);
+    }
+  }
+
+  async function bulkApproveSubmissions() {
+    const selected = submissions.filter((item) => selectedSubmissionIds.has(item.id) && item.status === "PENDING");
+    if (selected.length === 0) {
+      setNotice({ tone: "info", message: "검수 대기 상태인 선택 항목이 없습니다." });
+      return;
+    }
+
+    const invalid = selected.find((item) => text(item.productName).trim().length < 2);
+    if (invalid) {
+      setNotice({ tone: "error", message: "제품명이 비어 있는 위시는 상세 검수 후 승인해주세요." });
+      selectSubmission(invalid);
+      return;
+    }
+
+    setSubmissionActionLoading(true);
+    try {
+      for (const item of selected) {
+        await adminApi.approveSubmission(item.id, submissionPayload(submissionToForm(item)));
+      }
+      setNotice({ tone: "success", message: `${selected.length.toLocaleString()}개 위시를 공구로 등록했습니다.` });
+      setSelectedSubmissionIds(new Set());
+      await loadSubmissions();
+      await loadDashboard();
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "일괄 승인 실패" });
+    } finally {
+      setSubmissionActionLoading(false);
+    }
+  }
+
+  async function bulkRejectSubmissions() {
+    const selected = submissions.filter((item) => selectedSubmissionIds.has(item.id) && item.status === "PENDING");
+    if (selected.length === 0) {
+      setNotice({ tone: "info", message: "검수 대기 상태인 선택 항목이 없습니다." });
+      return;
+    }
+
+    const reason = bulkRejectReason.trim();
+    if (!reason) {
+      setNotice({ tone: "error", message: "일괄 반려 사유를 입력해주세요." });
+      return;
+    }
+
+    setSubmissionActionLoading(true);
+    try {
+      for (const item of selected) {
+        await adminApi.rejectSubmission(item.id, reason);
+      }
+      setNotice({ tone: "success", message: `${selected.length.toLocaleString()}개 위시를 반려했습니다.` });
+      setBulkRejectReason("");
+      setSelectedSubmissionIds(new Set());
+      await loadSubmissions();
+      await loadDashboard();
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "일괄 반려 실패" });
     } finally {
       setSubmissionActionLoading(false);
     }
@@ -680,21 +773,32 @@ function AdminShell({ session }: { session: Session }) {
           <span className="brand-mark">G</span>
           <div>
             <strong>GongGu</strong>
-            <span>Admin</span>
+            <span>Operations Console</span>
+          </div>
+        </div>
+        <div className="sidebar-summary">
+          <span className="summary-dot" />
+          <div>
+            <strong>{dashboard?.totals.pending.toLocaleString() ?? "-"}</strong>
+            <span>검수 대기</span>
           </div>
         </div>
         <nav className="nav-tabs" aria-label="관리자 메뉴">
           <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")} type="button">
-            대시보드
+            <span>Overview</span>
+            <strong>대시보드</strong>
           </button>
           <button className={tab === "submissions" ? "active" : ""} onClick={() => setTab("submissions")} type="button">
-            위시 검수
+            <span>Review queue</span>
+            <strong>위시 검수</strong>
           </button>
           <button className={tab === "groupBuys" ? "active" : ""} onClick={() => setTab("groupBuys")} type="button">
-            공구 관리
+            <span>Catalog</span>
+            <strong>공구 관리</strong>
           </button>
           <button className={tab === "users" ? "active" : ""} onClick={() => setTab("users")} type="button">
-            가입자 관리
+            <span>Audience</span>
+            <strong>가입자 관리</strong>
           </button>
         </nav>
       </aside>
@@ -704,6 +808,7 @@ function AdminShell({ session }: { session: Session }) {
           <div>
             <p className="eyebrow">{formatDateTime(new Date().toISOString())}</p>
             <h1>{tabTitle(tab)}</h1>
+            <p className="topbar-copy">오늘의 운영 상태와 처리 우선순위를 확인합니다.</p>
           </div>
           <div className="topbar-actions">
             <span className="operator">{session.user.email ?? session.user.id}</span>
@@ -729,16 +834,23 @@ function AdminShell({ session }: { session: Session }) {
         {tab === "submissions" ? (
           <SubmissionPanel
             actionLoading={submissionActionLoading}
+            bulkRejectReason={bulkRejectReason}
             form={submissionForm}
             items={submissions}
             loading={submissionsLoading}
             onApprove={() => void approveSubmission()}
+            onBulkApprove={() => void bulkApproveSubmissions()}
+            onBulkReject={() => void bulkRejectSubmissions()}
+            onBulkRejectReasonChange={setBulkRejectReason}
+            onClearSelection={clearSubmissionSelection}
             onFormChange={setSubmissionForm}
             onLookupHiker={() => void lookupHiker()}
             onReject={() => void rejectSubmission()}
             onRejectReasonChange={setRejectReason}
             onSave={() => void saveSubmission()}
             onSelect={selectSubmission}
+            onToggleAllSelected={togglePageSubmissionSelection}
+            onToggleSelected={toggleSubmissionSelection}
             onStatusChange={(value) => {
               setSubmissionStatus(value);
               setSubmissionPage(1);
@@ -751,6 +863,7 @@ function AdminShell({ session }: { session: Session }) {
             page={submissionPage}
             rejectReason={rejectReason}
             selected={selectedSubmission}
+            selectedIds={selectedSubmissionIds}
             status={submissionStatus}
             query={submissionQuery}
             total={submissionsTotal}
@@ -847,13 +960,48 @@ function DashboardPanel({
   onOpenSubmissions: () => void;
 }) {
   const totals = dashboard?.totals;
+  const pending = totals?.pending ?? 0;
+  const submissions = totals?.submissions ?? 0;
+  const approved = totals?.approved ?? 0;
+  const rejected = totals?.rejected ?? 0;
+  const approvalRate = submissions > 0 ? Math.round((approved / submissions) * 100) : 0;
+  const rejectionRate = submissions > 0 ? Math.round((rejected / submissions) * 100) : 0;
   return (
     <section className="panel">
+      <div className="hero-panel">
+        <div>
+          <p className="eyebrow">Ops command center</p>
+          <h2>오늘 처리해야 할 승인 큐를 먼저 보여줍니다.</h2>
+          <p>검수 대기 항목, 승인율, 반려율을 기준으로 운영 우선순위를 정리했습니다.</p>
+        </div>
+        <button className="button button--primary" onClick={onOpenSubmissions} type="button">
+          검수 큐 열기
+        </button>
+      </div>
+
       <div className="stat-grid">
-        <StatCard label="검수 대기" value={totals?.pending ?? 0} icon={<span>Q</span>} color="#d97706" />
-        <StatCard label="총 위시" value={totals?.submissions ?? 0} icon={<span>W</span>} color="#2563eb" />
-        <StatCard label="등록 공구" value={totals?.groupBuys ?? 0} icon={<span>G</span>} color="#059669" />
-        <StatCard label="가입자" value={totals?.users ?? 0} icon={<span>U</span>} color="#6d28d9" />
+        <StatCard label="검수 대기" value={pending} icon={<span>Q</span>} color="#b45309" />
+        <StatCard label="승인율" value={approvalRate} suffix="%" icon={<span>A</span>} color="#047857" />
+        <StatCard label="등록 공구" value={totals?.groupBuys ?? 0} icon={<span>G</span>} color="#1d4ed8" />
+        <StatCard label="가입자" value={totals?.users ?? 0} icon={<span>U</span>} color="#7c3aed" />
+      </div>
+
+      <div className="ops-grid">
+        <div className="ops-card">
+          <span>승인</span>
+          <strong>{approved.toLocaleString()}</strong>
+          <p>모바일 캘린더와 알림에 노출 가능한 공구 후보입니다.</p>
+        </div>
+        <div className="ops-card">
+          <span>반려</span>
+          <strong>{rejected.toLocaleString()}</strong>
+          <p>정보 부족, 링크 오류, 중복 등 품질 관리 이력입니다.</p>
+        </div>
+        <div className="ops-card">
+          <span>반려율</span>
+          <strong>{rejectionRate}%</strong>
+          <p>제보 품질을 판단하는 운영 지표로 추적합니다.</p>
+        </div>
       </div>
 
       <div className="dashboard-grid">
@@ -864,11 +1012,11 @@ function DashboardPanel({
               <h2>검수 대기 위시</h2>
             </div>
             <button className="button button--secondary" onClick={onOpenSubmissions} type="button">
-              검수 화면
+              큐로 이동
             </button>
           </div>
-          {loading ? <div className="empty-state">조회 중</div> : null}
-          {!loading && dashboard?.pendingQueue.length === 0 ? <div className="empty-state">검수 대기 항목 없음</div> : null}
+          {loading ? <LoadingRows /> : null}
+          {!loading && dashboard?.pendingQueue.length === 0 ? <div className="empty-state">검수 대기 항목이 없습니다.</div> : null}
           {!loading && dashboard?.pendingQueue.length ? (
             <div className="table-wrap">
               <table className="admin-table">
@@ -883,7 +1031,10 @@ function DashboardPanel({
                 <tbody>
                   {dashboard.pendingQueue.map((item) => (
                     <tr key={item.id}>
-                      <td>{item.productName}</td>
+                      <td>
+                        <strong>{item.productName || "검수 대기 위시템"}</strong>
+                        <span>{item.brandName || item.reporterName || "제보자 정보 없음"}</span>
+                      </td>
                       <td className="truncate">{item.instagramUrl}</td>
                       <td>{formatDateTime(item.createdAt)}</td>
                       <td><StatusBadge status={item.status} /></td>
@@ -899,27 +1050,30 @@ function DashboardPanel({
           <div className="section-header">
             <div>
               <p className="eyebrow">Recent</p>
-              <h2>최근 가입자</h2>
+              <h2>최근 승인 공구</h2>
             </div>
           </div>
-          {loading ? <div className="empty-state">조회 중</div> : null}
-          {!loading && dashboard?.recentUsers.length === 0 ? <div className="empty-state">가입자 없음</div> : null}
-          {!loading && dashboard?.recentUsers.length ? (
+          {loading ? <LoadingRows /> : null}
+          {!loading && dashboard?.recentGroupBuys.length === 0 ? <div className="empty-state">승인된 공구가 없습니다.</div> : null}
+          {!loading && dashboard?.recentGroupBuys.length ? (
             <div className="table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>이메일</th>
-                    <th>닉네임</th>
-                    <th>가입일</th>
+                    <th>상품</th>
+                    <th>카테고리</th>
+                    <th>마감</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dashboard.recentUsers.map((user) => (
-                    <tr key={user.id}>
-                      <td className="truncate">{user.email}</td>
-                      <td>{user.nickname ?? "-"}</td>
-                      <td>{formatDateTime(user.createdAt)}</td>
+                  {dashboard.recentGroupBuys.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <strong>{item.productName || "상품명 없음"}</strong>
+                        <span>{item.brandName || "브랜드 미지정"}</span>
+                      </td>
+                      <td>{item.category ?? "-"}</td>
+                      <td>{item.endDate ? dateInput(item.endDate) : "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -964,10 +1118,15 @@ function DashboardPanel({
 
 function SubmissionPanel(props: {
   actionLoading: boolean;
+  bulkRejectReason: string;
   form: SubmissionForm | null;
   items: GongguSubmission[];
   loading: boolean;
   onApprove: () => void;
+  onBulkApprove: () => void;
+  onBulkReject: () => void;
+  onBulkRejectReasonChange: (value: string) => void;
+  onClearSelection: () => void;
   onFormChange: (form: SubmissionForm | null) => void;
   onLookupHiker: () => void;
   onReject: () => void;
@@ -977,20 +1136,28 @@ function SubmissionPanel(props: {
   onStatusChange: (value: "ALL" | SubmissionStatus) => void;
   onQueryChange: (value: string) => void;
   onPageChange: (page: number) => void;
+  onToggleAllSelected: (checked: boolean) => void;
+  onToggleSelected: (id: string, checked: boolean) => void;
   page: number;
   rejectReason: string;
   selected: GongguSubmission | null;
+  selectedIds: Set<string>;
   status: "ALL" | SubmissionStatus;
   query: string;
   total: number;
   totalPages: number;
 }) {
+  const selectableItems = props.items.filter((item) => item.status === "PENDING");
+  const selectedCount = selectableItems.filter((item) => props.selectedIds.has(item.id)).length;
+  const allPageSelected = selectableItems.length > 0 && selectedCount === selectableItems.length;
+
   return (
     <section className="panel">
       <div className="section-header">
         <div>
           <p className="eyebrow">Wish Review</p>
           <h2>모바일 위시 등록 큐</h2>
+          <p>검색, 상태 필터, 원본 조회, Hiker 보강, 승인/반려 사유 기록을 한 흐름으로 처리합니다.</p>
         </div>
         <Filters
           query={props.query}
@@ -1000,6 +1167,28 @@ function SubmissionPanel(props: {
           onStatusChange={props.onStatusChange}
         />
       </div>
+      <div className="bulk-bar">
+        <div>
+          <strong>{selectedCount.toLocaleString()}개 선택됨</strong>
+          <span>현재 페이지의 검수 대기 항목만 일괄 처리합니다.</span>
+        </div>
+        <input
+          aria-label="일괄 반려 사유"
+          className="bulk-reason"
+          onChange={(event) => props.onBulkRejectReasonChange(event.target.value)}
+          placeholder="일괄 반려 사유"
+          value={props.bulkRejectReason}
+        />
+        <button className="button button--secondary" disabled={selectedCount === 0 || props.actionLoading} onClick={props.onClearSelection} type="button">
+          선택 해제
+        </button>
+        <button className="button button--danger" disabled={selectedCount === 0 || props.actionLoading} onClick={props.onBulkReject} type="button">
+          선택 반려
+        </button>
+        <button className="button button--primary" disabled={selectedCount === 0 || props.actionLoading} onClick={props.onBulkApprove} type="button">
+          선택 승인
+        </button>
+      </div>
       <div className="split-view">
         <div className="table-panel">
           <ListMeta loading={props.loading} page={props.page} total={props.total} totalPages={props.totalPages} />
@@ -1007,8 +1196,18 @@ function SubmissionPanel(props: {
             <table className="admin-table admin-table--clickable">
               <thead>
                 <tr>
+                  <th className="checkbox-cell">
+                    <input
+                      aria-label="현재 페이지 선택"
+                      checked={allPageSelected}
+                      disabled={selectableItems.length === 0}
+                      onChange={(event) => props.onToggleAllSelected(event.target.checked)}
+                      type="checkbox"
+                    />
+                  </th>
                   <th>상품</th>
-                  <th>인스타그램 URL</th>
+                  <th>제보자</th>
+                  <th>원본</th>
                   <th>접수</th>
                   <th>상태</th>
                 </tr>
@@ -1020,7 +1219,23 @@ function SubmissionPanel(props: {
                     key={item.id}
                     onClick={() => props.onSelect(item)}
                   >
-                    <td>{item.productName}</td>
+                    <td className="checkbox-cell" onClick={(event) => event.stopPropagation()}>
+                      <input
+                        aria-label={`${item.productName ?? "위시"} 선택`}
+                        checked={props.selectedIds.has(item.id)}
+                        disabled={item.status !== "PENDING"}
+                        onChange={(event) => props.onToggleSelected(item.id, event.target.checked)}
+                        type="checkbox"
+                      />
+                    </td>
+                    <td>
+                      <strong>{item.productName || "검수 대기 위시템"}</strong>
+                      <span>{item.brandName || item.category || "분류 전"}</span>
+                    </td>
+                    <td>
+                      <strong>{item.isAnonymous ? "익명 제보" : item.reporterName || "제보자 미입력"}</strong>
+                      <span>{item.reporterContact || "연락처 없음"}</span>
+                    </td>
                     <td className="truncate">{item.instagramUrl}</td>
                     <td>{formatDateTime(item.createdAt)}</td>
                     <td><StatusBadge status={item.status} /></td>
@@ -1078,8 +1293,22 @@ function SubmissionEditor(props: {
         <div>
           <p className="eyebrow">Review</p>
           <h3>{form.productName || "검수 대기 위시템"}</h3>
+          <p>접수 {formatDateTime(props.selected.createdAt)} · 수정 {formatDateTime(props.selected.updatedAt)}</p>
         </div>
         <StatusBadge status={props.selected.status} />
+      </div>
+
+      <div className="review-preview">
+        {form.thumbnailUrl ? (
+          <img alt="" src={form.thumbnailUrl} />
+        ) : (
+          <div className="preview-empty">No image</div>
+        )}
+        <div>
+          <strong>{form.brandName || "브랜드 미지정"}</strong>
+          <span>{form.category || "카테고리 미지정"}</span>
+          <p>{form.summary || "요약이 없습니다. Hiker 조회 또는 수동 입력으로 승인 품질을 높여주세요."}</p>
+        </div>
       </div>
 
       <div className="action-row">
@@ -1121,6 +1350,25 @@ function SubmissionEditor(props: {
       <TextareaField label="미디어 JSON" value={form.mediaItemsText} onChange={(value) => setField("mediaItemsText", value)} rows={7} monospace />
       <TextareaField label="관리 메모" value={form.adminMemo} onChange={(value) => setField("adminMemo", value)} rows={3} />
       <TextareaField label="반려 사유" value={props.rejectReason} onChange={props.onRejectReasonChange} rows={3} />
+
+      <div className="audit-card">
+        <div>
+          <span>검수자</span>
+          <strong>{props.selected.reviewedBy || "아직 없음"}</strong>
+        </div>
+        <div>
+          <span>검수 시각</span>
+          <strong>{formatDateTime(props.selected.reviewedAt)}</strong>
+        </div>
+        <div>
+          <span>연결 공구</span>
+          <strong>{props.selected.groupBuyId || "-"}</strong>
+        </div>
+        <div>
+          <span>콘텐츠 해시</span>
+          <strong>{props.selected.contentHash || "-"}</strong>
+        </div>
+      </div>
 
       <div className="action-row action-row--end">
         <button className="button button--secondary" disabled={props.actionLoading} onClick={props.onSave} type="button">
@@ -1477,6 +1725,16 @@ function Pagination({
       <button className="button button--ghost" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} type="button">
         다음
       </button>
+    </div>
+  );
+}
+
+function LoadingRows() {
+  return (
+    <div className="loading-rows" aria-label="조회 중">
+      <span />
+      <span />
+      <span />
     </div>
   );
 }

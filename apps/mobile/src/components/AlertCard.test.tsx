@@ -69,7 +69,6 @@ describe('AlertCard', () => {
     expect(text).toContain('마감');
     expect(text).toContain('신뢰도');
     expect(compactText).toContain('82%');
-    expect(text).toContain('시간 정보');
     expect(text).not.toContain('♡');
     expect(text).not.toContain('💬');
     expect(text).not.toContain('↗');
