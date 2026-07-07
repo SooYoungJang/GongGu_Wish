@@ -1192,7 +1192,7 @@ function SubmissionPanel(props: {
       <div className="split-view">
         <div className="table-panel">
           <ListMeta loading={props.loading} page={props.page} total={props.total} totalPages={props.totalPages} />
-          <div className="table-wrap">
+          <div className="table-wrap desktop-table">
             <table className="admin-table admin-table--clickable">
               <thead>
                 <tr>
@@ -1244,6 +1244,14 @@ function SubmissionPanel(props: {
               </tbody>
             </table>
           </div>
+          <MobileSubmissionCards
+            items={props.items}
+            loading={props.loading}
+            onSelect={props.onSelect}
+            onToggleSelected={props.onToggleSelected}
+            selected={props.selected}
+            selectedIds={props.selectedIds}
+          />
           {props.items.length === 0 && !props.loading ? <div className="empty-state">항목 없음</div> : null}
           <Pagination page={props.page} totalPages={props.totalPages} onPageChange={props.onPageChange} />
         </div>
@@ -1262,6 +1270,78 @@ function SubmissionPanel(props: {
         />
       </div>
     </section>
+  );
+}
+
+function MobileSubmissionCards({
+  items,
+  loading,
+  onSelect,
+  onToggleSelected,
+  selected,
+  selectedIds,
+}: {
+  items: GongguSubmission[];
+  loading: boolean;
+  onSelect: (item: GongguSubmission | null) => void;
+  onToggleSelected: (id: string, checked: boolean) => void;
+  selected: GongguSubmission | null;
+  selectedIds: Set<string>;
+}) {
+  if (loading) {
+    return (
+      <div className="mobile-card-list">
+        <LoadingRows />
+      </div>
+    );
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mobile-card-list" aria-label="모바일 위시 검수 목록">
+      {items.map((item) => {
+        const checked = selectedIds.has(item.id);
+        const isPending = item.status === "PENDING";
+        const isSelected = selected?.id === item.id;
+        return (
+          <article
+            className={`mobile-record-card${isSelected ? " selected" : ""}`}
+            key={item.id}
+            onClick={() => onSelect(item)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") onSelect(item);
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            <div className="mobile-record-card__top">
+              <label className="mobile-check" onClick={(event) => event.stopPropagation()}>
+                <input
+                  aria-label={`${item.productName ?? "위시"} 선택`}
+                  checked={checked}
+                  disabled={!isPending}
+                  onChange={(event) => onToggleSelected(item.id, event.target.checked)}
+                  type="checkbox"
+                />
+                <span>{checked ? "선택됨" : isPending ? "선택" : "완료"}</span>
+              </label>
+              <StatusBadge status={item.status} />
+            </div>
+            <strong>{item.productName || "검수 대기 위시템"}</strong>
+            <p>{item.brandName || item.category || "분류 전"}</p>
+            <div className="mobile-record-meta">
+              <span>제보자</span>
+              <strong>{item.isAnonymous ? "익명 제보" : item.reporterName || "제보자 미입력"}</strong>
+              <span>접수</span>
+              <strong>{formatDateTime(item.createdAt)}</strong>
+              <span>원본</span>
+              <strong>{item.instagramUrl || "-"}</strong>
+            </div>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1422,7 +1502,7 @@ function GroupBuyPanel(props: {
       <div className="split-view">
         <div className="table-panel">
           <ListMeta loading={props.loading} page={props.page} total={props.total} totalPages={props.totalPages} />
-          <div className="table-wrap">
+          <div className="table-wrap desktop-table">
             <table className="admin-table admin-table--clickable">
               <thead>
                 <tr>
@@ -1450,6 +1530,12 @@ function GroupBuyPanel(props: {
               </tbody>
             </table>
           </div>
+          <MobileGroupBuyCards
+            items={props.items}
+            loading={props.loading}
+            onSelect={props.onSelect}
+            selected={props.selected}
+          />
           {props.items.length === 0 && !props.loading ? <div className="empty-state">항목 없음</div> : null}
           <Pagination page={props.page} totalPages={props.totalPages} onPageChange={props.onPageChange} />
         </div>
@@ -1462,6 +1548,58 @@ function GroupBuyPanel(props: {
         />
       </div>
     </section>
+  );
+}
+
+function MobileGroupBuyCards({
+  items,
+  loading,
+  onSelect,
+  selected,
+}: {
+  items: GroupBuy[];
+  loading: boolean;
+  onSelect: (item: GroupBuy | null) => void;
+  selected: GroupBuy | null;
+}) {
+  if (loading) {
+    return (
+      <div className="mobile-card-list">
+        <LoadingRows />
+      </div>
+    );
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mobile-card-list" aria-label="모바일 공구 목록">
+      {items.map((item) => (
+        <article
+          className={`mobile-record-card${selected?.id === item.id ? " selected" : ""}`}
+          key={item.id}
+          onClick={() => onSelect(item)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") onSelect(item);
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="mobile-record-card__top">
+            <span className="mobile-record-kicker">{item.category ?? "미지정"}</span>
+            <StatusBadge status={item.status} />
+          </div>
+          <strong>{item.productName || "상품명 없음"}</strong>
+          <p>{item.brandName || "브랜드 미지정"}</p>
+          <div className="mobile-record-meta">
+            <span>마감</span>
+            <strong>{item.endDate ? dateInput(item.endDate) : "-"}</strong>
+            <span>추천</span>
+            <strong>{item.isMonthlyFeatured ? item.monthlyFeaturedRank ?? "노출" : "-"}</strong>
+          </div>
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -1561,7 +1699,7 @@ function UserPanel(props: {
       <div className="split-view">
         <div className="table-panel">
           <ListMeta loading={props.loading} page={props.page} total={props.total} totalPages={props.totalPages} />
-          <div className="table-wrap">
+          <div className="table-wrap desktop-table">
             <table className="admin-table admin-table--clickable">
              <thead>
                <tr>
@@ -1587,6 +1725,12 @@ function UserPanel(props: {
              </tbody>
             </table>
           </div>
+          <MobileUserCards
+            items={props.items}
+            loading={props.loading}
+            onSelect={props.onSelect}
+            selected={props.selected}
+          />
           {props.items.length === 0 && !props.loading ? <div className="empty-state">가입자 없음</div> : null}
           <Pagination page={props.page} totalPages={props.totalPages} onPageChange={props.onPageChange} />
         </div>
@@ -1599,6 +1743,56 @@ function UserPanel(props: {
         />
       </div>
     </section>
+  );
+}
+
+function MobileUserCards({
+  items,
+  loading,
+  onSelect,
+  selected,
+}: {
+  items: AppUser[];
+  loading: boolean;
+  onSelect: (item: AppUser | null) => void;
+  selected: AppUser | null;
+}) {
+  if (loading) {
+    return (
+      <div className="mobile-card-list">
+        <LoadingRows />
+      </div>
+    );
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mobile-card-list" aria-label="모바일 가입자 목록">
+      {items.map((item) => (
+        <article
+          className={`mobile-record-card${selected?.id === item.id ? " selected" : ""}`}
+          key={item.id}
+          onClick={() => onSelect(item)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") onSelect(item);
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="mobile-record-card__top">
+            <span className="mobile-record-kicker">{item.nickname ?? "닉네임 없음"}</span>
+            <StatusBadge status={item.status ?? "ACTIVE"} />
+          </div>
+          <strong>{item.email ?? item.id}</strong>
+          <p>{item.fcmToken ? "푸시 토큰 등록됨" : "푸시 토큰 없음"}</p>
+          <div className="mobile-record-meta">
+            <span>가입일</span>
+            <strong>{formatDateTime(item.createdAt)}</strong>
+          </div>
+        </article>
+      ))}
+    </div>
   );
 }
 
