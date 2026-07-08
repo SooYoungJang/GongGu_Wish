@@ -1032,16 +1032,18 @@ textarea:focus {
     position: sticky;
     top: 0;
     z-index: 20;
-    padding: 10px 12px;
+    padding: 8px 12px;
+    padding-top: max(8px, env(safe-area-inset-top));
   }
 
   .brand-block {
-    padding: 2px 2px 10px;
+    padding: 0 0 6px;
   }
 
   .brand-mark {
-    width: 34px;
-    height: 34px;
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
   }
 
   .brand-block span:not(.brand-mark) {
@@ -1049,20 +1051,24 @@ textarea:focus {
   }
 
   .sidebar-summary {
-    margin: 0 0 10px;
-    padding: 9px 10px;
+    margin: 0 0 6px;
+    padding: 6px 8px;
   }
 
   .sidebar-summary strong {
-    font-size: 18px;
+    font-size: 15px;
+  }
+
+  .sidebar-summary span {
+    font-size: 11px;
   }
 
   .nav-tabs {
     display: flex;
-    gap: 8px;
-    margin: 0 -12px;
+    gap: 6px;
+    margin: 0 -12px 0;
     overflow-x: auto;
-    padding: 0 12px 2px;
+    padding: 0 12px;
     scrollbar-width: none;
   }
 
@@ -1071,21 +1077,24 @@ textarea:focus {
   }
 
   .nav-tabs button {
-    flex: 0 0 132px;
-    min-height: 50px;
-    padding: 9px 11px;
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 7px 12px;
+    border-radius: 6px;
   }
 
   .nav-tabs button span {
-    font-size: 11px;
+    display: none;
   }
 
   .nav-tabs button strong {
     font-size: 13px;
+    margin: 0;
   }
 
   .workspace {
-    padding: 14px;
+    padding: 10px 12px;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
   }
 
   .topbar,
@@ -1095,11 +1104,50 @@ textarea:focus {
     flex-direction: column;
   }
 
+  .topbar {
+    margin-bottom: 10px;
+  }
+
+  .topbar h1 {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  .topbar-copy {
+    font-size: 12px;
+    line-height: 1.4;
+    margin-top: 4px;
+  }
+
+  .eyebrow {
+    font-size: 10px;
+    margin-bottom: 3px;
+  }
+
   .topbar-actions,
   .filters,
   .bulk-bar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .topbar-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .topbar-actions .button {
+    flex: 1 1 auto;
+    min-height: 36px;
+    font-size: 13px;
+    padding: 0 10px;
+  }
+
+  .operator {
+    max-width: 100%;
+    font-size: 11px;
+    padding: 6px 8px;
   }
 
   .search-input,
@@ -1110,10 +1158,66 @@ textarea:focus {
     max-width: none;
   }
 
+  .filters {
+    gap: 6px;
+  }
+
+  .filters .search-input,
+  .filters select {
+    min-height: 36px;
+    font-size: 13px;
+  }
+
+  .section-header {
+    margin-bottom: 10px;
+  }
+
+  .section-header h2 {
+    font-size: 16px;
+  }
+
+  .section-header p {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .hero-panel {
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+
+  .hero-panel h2 {
+    font-size: 16px;
+  }
+
+  .hero-panel p {
+    font-size: 12px;
+  }
+
   .form-grid,
   .audit-card,
   .review-preview {
     grid-template-columns: 1fr;
+  }
+
+  .form-grid {
+    gap: 8px;
+  }
+
+  .field span,
+  .checkbox-field span {
+    font-size: 11px;
+  }
+
+  input,
+  select {
+    height: 36px;
+    font-size: 14px;
+  }
+
+  textarea {
+    font-size: 14px;
+    padding: 8px;
   }
 
   .desktop-table {
@@ -1122,42 +1226,250 @@ textarea:focus {
 
   .mobile-card-list {
     display: grid;
-    gap: 10px;
+    gap: 8px;
   }
 
   .panel,
   .table-panel,
   .detail-panel {
-    padding: 12px;
+    padding: 10px;
+  }
+
+  .panel {
+    padding: 10px;
   }
 
   .stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .stat-card {
-    min-height: 96px;
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-    padding: 14px;
-  }
-
-  .stat-card__icon {
-    width: 34px;
-    height: 34px;
-  }
-
-  .stat-card__value {
-    font-size: 24px;
-  }
-
-  .list-meta {
+    gap: 8px;
     margin-bottom: 10px;
   }
 
+  .stat-card {
+    min-height: 72px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px;
+    border-radius: 6px;
+  }
+
+  .stat-card__icon {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .stat-card__label {
+    font-size: 11px;
+  }
+
+  .stat-card__value {
+    font-size: 20px;
+  }
+
+  .stat-card__value span {
+    font-size: 13px;
+  }
+
+  .ops-grid {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .ops-card {
+    min-height: 80px;
+    padding: 10px;
+    border-radius: 6px;
+  }
+
+  .ops-card strong {
+    font-size: 22px;
+  }
+
+  .dashboard-grid {
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .dashboard-col {
+    padding: 10px;
+    border-radius: 6px;
+  }
+
+  .category-bar {
+    grid-template-columns: 60px 1fr 28px;
+    gap: 8px;
+  }
+
+  .category-bar__label {
+    font-size: 12px;
+  }
+
+  .category-bar__count {
+    font-size: 12px;
+  }
+
+  .bulk-bar {
+    padding: 8px;
+    gap: 6px;
+    border-radius: 6px;
+  }
+
+  .bulk-bar > div {
+    min-width: 0;
+  }
+
+  .bulk-bar strong {
+    font-size: 13px;
+  }
+
+  .bulk-bar span {
+    font-size: 11px;
+  }
+
+  .bulk-reason {
+    min-height: 36px;
+    font-size: 13px;
+  }
+
+  .button {
+    min-height: 36px;
+    font-size: 13px;
+    padding: 0 10px;
+    border-radius: 6px;
+  }
+
+  .list-meta {
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .pagination {
+    gap: 6px;
+  }
+
+  .pagination .button {
+    min-height: 36px;
+    font-size: 13px;
+  }
+
+  .mobile-record-card {
+    padding: 10px;
+    gap: 6px;
+    border-radius: 6px;
+  }
+
+  .mobile-record-card > strong {
+    font-size: 14px;
+  }
+
+  .mobile-record-card > p {
+    font-size: 12px;
+  }
+
+  .mobile-record-meta {
+    grid-template-columns: 48px 1fr;
+    gap: 4px 8px;
+    padding-top: 6px;
+  }
+
+  .mobile-record-meta span,
+  .mobile-record-meta strong {
+    font-size: 11px;
+  }
+
+  .mobile-check {
+    min-height: 28px;
+    font-size: 11px;
+  }
+
+  .mobile-record-kicker {
+    font-size: 10px;
+  }
+
+  .status-badge {
+    min-height: 22px;
+    padding: 0 7px;
+    font-size: 11px;
+  }
+
+  .notice {
+    padding: 8px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+  }
+
+  .empty-state {
+    padding: 20px 14px;
+    font-size: 13px;
+  }
+
+  .review-preview {
+    padding: 8px;
+    gap: 8px;
+    border-radius: 6px;
+  }
+
+  .review-preview img,
+  .preview-empty {
+    width: 100%;
+    height: 140px;
+    border-radius: 6px;
+  }
+
+  .review-preview strong {
+    font-size: 13px;
+  }
+
+  .review-preview span {
+    font-size: 11px;
+  }
+
+  .review-preview p {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .audit-card {
+    padding: 8px;
+    gap: 6px;
+    border-radius: 6px;
+  }
+
+  .audit-card span {
+    font-size: 10px;
+  }
+
+  .audit-card strong {
+    font-size: 12px;
+  }
+
+  .detail-title h3 {
+    font-size: 15px;
+  }
+
+  .detail-title p {
+    font-size: 11px;
+  }
+
+  .checkbox-field {
+    font-size: 12px;
+  }
+
+  .checkbox-field input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
+
+  .loading-rows span {
+    height: 36px;
+    border-radius: 6px;
+  }
+
   .detail-panel {
-    gap: 12px;
+    gap: 10px;
   }
 
   .detail-panel.empty-state {
@@ -1170,22 +1482,25 @@ textarea:focus {
     z-index: 100;
     overflow-y: auto;
     border-radius: 0;
-    padding: 0 14px 14px;
+    padding: 0 12px 12px;
+    padding-top: max(0px, env(safe-area-inset-top));
+    background: var(--panel);
   }
 
   .detail-back-bar {
     position: sticky;
     top: 0;
     z-index: 10;
-    margin: 0 -14px 8px;
-    padding: 10px 14px;
+    margin: 0 -12px 8px;
+    padding: 8px 12px;
+    padding-top: max(8px, env(safe-area-inset-top));
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 4px 12px rgba(16, 24, 40, 0.06);
   }
 
   .detail-back {
-    min-height: 40px;
-    font-size: 15px;
+    min-height: 36px;
+    font-size: 14px;
   }
 
   .detail-panel .action-row--end {
@@ -1193,15 +1508,15 @@ textarea:focus {
     bottom: 0;
     z-index: 5;
     margin: 0 -12px -12px;
-    padding: 12px;
+    padding: 10px 12px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 -12px 28px rgba(16, 24, 40, 0.08);
   }
 
-  .review-preview img,
-  .preview-empty {
-    width: 100%;
-    height: 160px;
+  .detail-panel .action-row--end .button {
+    flex: 1 1 0;
+    min-height: 40px;
   }
 }
