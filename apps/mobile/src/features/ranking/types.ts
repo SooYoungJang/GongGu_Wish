@@ -2,16 +2,26 @@ export type RankingTab = 'ranking' | 'following';
 
 export type RankingCategory =
   | 'all'
+  | 'food'
+  | 'living'
   | 'beauty'
   | 'fashion'
-  | 'food'
-  | 'lifestyle'
+  | 'home'
+  | 'kitchen'
+  | 'electronics'
+  | 'pet'
+  | 'auto'
+  | 'hobby'
   | 'baby'
-  | 'digital';
+  | 'sports'
+  | 'stationery'
+  | 'books'
+  | 'media'
+  | 'travel';
 
 export type RankingPeriod = 'today' | 'weekly' | 'monthly';
 
-export type RankingSort = 'popular' | 'rising' | 'deadlineSoon' | 'newDeal' | 'brand';
+export type RankingSort = 'popular' | 'rising' | 'deadlineSoon' | 'newDeal';
 
 export type RankingTrend =
   | { kind: 'up'; delta: number }
@@ -91,30 +101,49 @@ export function formatCompactCount(value: number): string {
 
 export const RANKING_CATEGORIES: readonly RankingCategory[] = [
   'all',
+  'food',
+  'living',
   'beauty',
   'fashion',
-  'food',
-  'lifestyle',
+  'home',
+  'kitchen',
+  'electronics',
+  'pet',
+  'auto',
+  'hobby',
   'baby',
-  'digital',
+  'sports',
+  'stationery',
+  'books',
+  'media',
+  'travel',
 ] as const;
 
 export const RANKING_CATEGORY_LABELS: Record<RankingCategory, string> = {
   all: '전체',
+  food: '식품',
+  living: '생활용품',
   beauty: '뷰티',
   fashion: '패션',
-  food: '푸드',
-  lifestyle: '라이프',
-  baby: '육아',
-  digital: '디지털',
+  home: '홈인테리어',
+  kitchen: '주방용품',
+  electronics: '전자제품',
+  pet: '반려동물',
+  auto: '자동차용품',
+  hobby: '취미',
+  baby: '출산-육아',
+  sports: '스포츠',
+  stationery: '문구',
+  books: '도서',
+  media: '음반-DVD',
+  travel: '여행',
 };
 
 export const RANKING_SORT_CHIPS: readonly { key: RankingSort; label: string }[] = [
-  { key: 'popular', label: '인기 셀러' },
-  { key: 'rising', label: '인기 공구' },
+  { key: 'popular', label: '인기 공구' },
+  { key: 'rising', label: '급상승' },
   { key: 'newDeal', label: '신규 오픈' },
   { key: 'deadlineSoon', label: '마감임박' },
-  { key: 'brand', label: '브랜드' },
 ] as const;
 
 export const RANKING_PERIOD_LABELS: Record<RankingPeriod, string> = {

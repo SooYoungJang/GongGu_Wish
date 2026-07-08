@@ -14,12 +14,22 @@ export type CategoryItem = {
 };
 
 export const CATEGORIES: CategoryItem[] = [
+  { key: 'food', label: '식품', icon: '●' },
+  { key: 'living', label: '생활용품', icon: '◇' },
   { key: 'beauty', label: '뷰티', icon: '✦' },
   { key: 'fashion', label: '패션', icon: '◒' },
-  { key: 'food', label: '푸드', icon: '●' },
-  { key: 'lifestyle', label: '라이프', icon: '◇' },
-  { key: 'baby', label: '육아', icon: '♡' },
-  { key: 'digital', label: '디지털', icon: '⌁' },
+  { key: 'home', label: '홈인테리어', icon: '■' },
+  { key: 'kitchen', label: '주방용품', icon: '▲' },
+  { key: 'electronics', label: '전자제품', icon: '⌁' },
+  { key: 'pet', label: '반려동물', icon: '♡' },
+  { key: 'auto', label: '자동차용품', icon: '○' },
+  { key: 'hobby', label: '취미', icon: '☆' },
+  { key: 'baby', label: '출산-육아', icon: '♥' },
+  { key: 'sports', label: '스포츠', icon: '⚽' },
+  { key: 'stationery', label: '문구', icon: '✎' },
+  { key: 'books', label: '도서', icon: '✍' },
+  { key: 'media', label: '음반-DVD', icon: '▶' },
+  { key: 'travel', label: '여행', icon: '✈' },
 ];
 
 type CategoryIconProps = {

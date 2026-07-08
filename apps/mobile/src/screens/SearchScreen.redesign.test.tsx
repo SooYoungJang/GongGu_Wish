@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => {
     id: 'gb-1',
     productName: '뒤척임 제로 경추 베개, 그레이, 74...',
     brandName: '베스트베개',
-    category: 'lifestyle',
+    category: 'living',
     startDate: null,
     endDate: null,
     purchaseUrl: 'https://example.com',

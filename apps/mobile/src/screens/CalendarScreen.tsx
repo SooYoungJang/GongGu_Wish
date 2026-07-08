@@ -129,7 +129,7 @@ function groupGroupBuysByDate(items: GroupBuy[]): Map<string, GroupBuy[]> {
 }
 
 function categoryForIndex(index: number): CategoryColorName {
-  const keys: CategoryColorName[] = ['beauty', 'fashion', 'food', 'lifestyle', 'baby', 'digital'];
+  const keys: CategoryColorName[] = ['food', 'living', 'beauty', 'fashion', 'home', 'kitchen', 'electronics', 'pet', 'auto', 'hobby', 'baby', 'sports', 'stationery', 'books', 'media', 'travel'];
   return keys[index % keys.length];
 }
 

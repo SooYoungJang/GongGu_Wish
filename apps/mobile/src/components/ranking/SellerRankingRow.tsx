@@ -48,7 +48,6 @@ export function SellerRankingRow({ item, onPress, onPressThumbnail, onToggleFoll
 
           <SText variant="caption" style={s.metaText} numberOfLines={1}>
             @{item.username} · 공구 {item.activeDealCount}개
-            {typeof item.followerCount === 'number' ? ` · 팔로워 ${formatCompactCount(item.followerCount)}` : ''}
           </SText>
         </View>
 

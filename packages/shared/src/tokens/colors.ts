@@ -110,6 +110,62 @@ export const categoryPastel = {
     text: 'oklch(0.45 0.13 250)',
     border: 'oklch(0.87 0.055 250)',
   },
+  // New categories (expanded taxonomy)
+  home: {
+    bg: 'oklch(0.95 0.035 40)',
+    text: 'oklch(0.46 0.11 40)',
+    border: 'oklch(0.87 0.05 40)',
+  },
+  kitchen: {
+    bg: 'oklch(0.95 0.04 120)',
+    text: 'oklch(0.44 0.12 120)',
+    border: 'oklch(0.87 0.055 120)',
+  },
+  electronics: {
+    bg: 'oklch(0.95 0.04 250)',
+    text: 'oklch(0.45 0.13 250)',
+    border: 'oklch(0.87 0.055 250)',
+  },
+  pet: {
+    bg: 'oklch(0.96 0.035 60)',
+    text: 'oklch(0.46 0.10 60)',
+    border: 'oklch(0.87 0.05 60)',
+  },
+  auto: {
+    bg: 'oklch(0.94 0.035 260)',
+    text: 'oklch(0.47 0.12 260)',
+    border: 'oklch(0.86 0.05 260)',
+  },
+  hobby: {
+    bg: 'oklch(0.95 0.045 320)',
+    text: 'oklch(0.46 0.13 320)',
+    border: 'oklch(0.87 0.06 320)',
+  },
+  sports: {
+    bg: 'oklch(0.95 0.04 160)',
+    text: 'oklch(0.44 0.12 160)',
+    border: 'oklch(0.87 0.055 160)',
+  },
+  stationery: {
+    bg: 'oklch(0.96 0.035 200)',
+    text: 'oklch(0.45 0.10 200)',
+    border: 'oklch(0.87 0.05 200)',
+  },
+  books: {
+    bg: 'oklch(0.95 0.04 25)',
+    text: 'oklch(0.46 0.12 25)',
+    border: 'oklch(0.87 0.055 25)',
+  },
+  media: {
+    bg: 'oklch(0.95 0.04 300)',
+    text: 'oklch(0.46 0.13 300)',
+    border: 'oklch(0.87 0.055 300)',
+  },
+  travel: {
+    bg: 'oklch(0.95 0.045 220)',
+    text: 'oklch(0.45 0.12 220)',
+    border: 'oklch(0.87 0.06 220)',
+  },
 } as const;
 
 /**

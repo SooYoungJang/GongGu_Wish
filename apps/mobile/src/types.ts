@@ -22,7 +22,23 @@ export type MainTabParamList = {
   MyPage: undefined;
 };
 
-export type GroupBuyCategory = 'beauty' | 'fashion' | 'food' | 'lifestyle' | 'baby' | 'digital';
+export type GroupBuyCategory =
+  | 'food'
+  | 'living'
+  | 'beauty'
+  | 'fashion'
+  | 'home'
+  | 'kitchen'
+  | 'electronics'
+  | 'pet'
+  | 'auto'
+  | 'hobby'
+  | 'baby'
+  | 'sports'
+  | 'stationery'
+  | 'books'
+  | 'media'
+  | 'travel';
 
 export type MediaAsset = {
   url: string;
@@ -48,6 +64,7 @@ export type GroupBuy = {
   mediaType: 'IMAGE' | 'VIDEO' | null;
   isMonthlyFeatured?: boolean;
   monthlyFeaturedRank?: number | null;
+  createdAt?: string;
   rawPost: {
     postUrl: string;
     influencer: {

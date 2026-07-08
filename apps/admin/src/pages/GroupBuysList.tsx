@@ -114,12 +114,22 @@ export const GroupBuyEdit = (props: EditProps) => (
         source="category"
         label="Category"
         choices={[
+          { id: "food", name: "식품" },
+          { id: "living", name: "생활용품" },
           { id: "beauty", name: "뷰티" },
           { id: "fashion", name: "패션" },
-          { id: "food", name: "푸드" },
-          { id: "lifestyle", name: "라이프" },
-          { id: "baby", name: "육아" },
-          { id: "digital", name: "디지털" },
+          { id: "home", name: "홈인테리어" },
+          { id: "kitchen", name: "주방용품" },
+          { id: "electronics", name: "전자제품" },
+          { id: "pet", name: "반려동물" },
+          { id: "auto", name: "자동차용품" },
+          { id: "hobby", name: "취미" },
+          { id: "baby", name: "출산-육아" },
+          { id: "sports", name: "스포츠" },
+          { id: "stationery", name: "문구" },
+          { id: "books", name: "도서" },
+          { id: "media", name: "음반-DVD" },
+  { id: "travel", name: "여행" },
         ]}
       />
       <TextInput source="summary" fullWidth multiline />
@@ -151,12 +161,22 @@ export const GroupBuyCreate = () => (
         source="category"
         label="Category"
         choices={[
+          { id: "food", name: "식품" },
+          { id: "living", name: "생활용품" },
           { id: "beauty", name: "뷰티" },
           { id: "fashion", name: "패션" },
-          { id: "food", name: "푸드" },
-          { id: "lifestyle", name: "라이프" },
-          { id: "baby", name: "육아" },
-          { id: "digital", name: "디지털" },
+          { id: "home", name: "홈인테리어" },
+          { id: "kitchen", name: "주방용품" },
+          { id: "electronics", name: "전자제품" },
+          { id: "pet", name: "반려동물" },
+          { id: "auto", name: "자동차용품" },
+          { id: "hobby", name: "취미" },
+          { id: "baby", name: "출산-육아" },
+          { id: "sports", name: "스포츠" },
+          { id: "stationery", name: "문구" },
+          { id: "books", name: "도서" },
+          { id: "media", name: "음반-DVD" },
+  { id: "travel", name: "여행" },
         ]}
       />
       <TextInput source="summary" fullWidth multiline />

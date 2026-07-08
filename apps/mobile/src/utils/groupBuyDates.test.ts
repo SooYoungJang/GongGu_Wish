@@ -8,7 +8,7 @@ function makeGroupBuy(overrides: Partial<GroupBuy>): GroupBuy {
     id: 'gb-date-test',
     productName: '거제 소노캄',
     brandName: null,
-    category: 'lifestyle',
+    category: 'living',
     startDate: null,
     endDate: null,
     purchaseUrl: null,
