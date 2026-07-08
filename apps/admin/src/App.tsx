@@ -1277,6 +1277,7 @@ function SubmissionPanel(props: {
           onSave={props.onSave}
           rejectReason={props.rejectReason}
           selected={props.selected}
+          onClose={() => props.onSelect(null)}
         />
       </div>
     </section>
@@ -1366,6 +1367,7 @@ function SubmissionEditor(props: {
   onSave: () => void;
   rejectReason: string;
   selected: GongguSubmission | null;
+  onClose: () => void;
 }) {
   const form = props.form;
   if (!props.selected || !form) {
@@ -1379,6 +1381,9 @@ function SubmissionEditor(props: {
   const canApprove = props.selected.status === "PENDING";
   return (
     <aside className="detail-panel">
+      <div className="detail-back-bar">
+        <button className="detail-back" onClick={props.onClose} type="button">← 목록으로</button>
+      </div>
       <div className="detail-title">
         <div>
           <p className="eyebrow">Review</p>
@@ -1553,6 +1558,7 @@ function GroupBuyPanel(props: {
           actionLoading={props.actionLoading}
           form={props.form}
           onChange={props.onFormChange}
+          onClose={() => props.onSelect(null)}
           onSave={props.onSave}
           selected={props.selected}
         />
@@ -1619,6 +1625,7 @@ function GroupBuyEditor(props: {
   onChange: (form: GroupBuyForm | null) => void;
   onSave: () => void;
   selected: GroupBuy | null;
+  onClose: () => void;
 }) {
   const form = props.form;
   if (!props.selected || !form) {
@@ -1630,6 +1637,9 @@ function GroupBuyEditor(props: {
 
   return (
     <aside className="detail-panel">
+      <div className="detail-back-bar">
+        <button className="detail-back" onClick={props.onClose} type="button">← 목록으로</button>
+      </div>
       <div className="detail-title">
         <div>
           <p className="eyebrow">{props.selected.sourceType ?? "GROUP_BUY"}</p>
@@ -1748,6 +1758,7 @@ function UserPanel(props: {
           actionLoading={props.actionLoading}
           form={props.form}
           onChange={props.onFormChange}
+          onClose={() => props.onSelect(null)}
           onSave={props.onSave}
           selected={props.selected}
         />
@@ -1812,6 +1823,7 @@ function UserEditor(props: {
   onChange: (form: UserForm | null) => void;
   onSave: () => void;
   selected: AppUser | null;
+  onClose: () => void;
 }) {
   const form = props.form;
   if (!props.selected || !form) {
@@ -1823,6 +1835,9 @@ function UserEditor(props: {
 
   return (
     <aside className="detail-panel">
+      <div className="detail-back-bar">
+        <button className="detail-back" onClick={props.onClose} type="button">← 목록으로</button>
+      </div>
       <div className="detail-title">
         <div>
           <p className="eyebrow">User</p>

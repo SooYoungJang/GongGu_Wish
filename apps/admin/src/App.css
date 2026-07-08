@@ -544,6 +544,33 @@
   padding: 16px;
 }
 
+.detail-back-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.detail-back:hover {
+  background: var(--panel-soft);
+  color: var(--ink);
+}
+
 .detail-title {
   display: flex;
   align-items: flex-start;
@@ -1131,6 +1158,34 @@ textarea:focus {
 
   .detail-panel {
     gap: 12px;
+  }
+
+  .detail-panel.empty-state {
+    display: none;
+  }
+
+  .detail-panel:not(.empty-state) {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    overflow-y: auto;
+    border-radius: 0;
+    padding: 0 14px 14px;
+  }
+
+  .detail-back-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    margin: 0 -14px 8px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 4px 12px rgba(16, 24, 40, 0.06);
+  }
+
+  .detail-back {
+    min-height: 40px;
+    font-size: 15px;
   }
 
   .detail-panel .action-row--end {
