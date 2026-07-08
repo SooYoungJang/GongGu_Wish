@@ -336,6 +336,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .mobile-record-meta span, .mobile-record-meta strong { min-width: 0; font-size: 11px; line-height: 1.3; }
 .mobile-record-meta span { color: var(--muted); font-weight: 700; }
 .mobile-record-meta strong { overflow: hidden; color: var(--ink); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-record-meta strong { white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
+/* Prevent any child from exceeding parent width */
+.mobile-record-card *, .review-preview *, .audit-card *, .detail-panel * { max-width: 100%; }
+.admin-shell, .workspace, .panel, .section, .split-view, .table-panel, .detail-panel, .bulk-bar, .hero-panel { max-width: 100%; overflow-wrap: anywhere; }
 
 /* ===== Bottom tab bar (mobile) ===== */
 .bottom-tab-bar { display: none; }
@@ -367,6 +371,14 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 
   .admin-shell { grid-template-columns: 1fr; background: var(--bg); }
   .sidebar { display: none; }
+  .admin-shell, .workspace, .panel, .split-view, .table-panel, .detail-panel, .bulk-bar, .section-header, .hero-panel, .form-grid, .audit-card, .review-preview, .mobile-card-list, .mobile-record-card, .stat-grid, .ops-grid, .dashboard-grid, .dashboard-col, .category-bars, .category-bar { overflow-x: hidden; max-width: 100%; box-sizing: border-box; }
+  .split-view { display: flex; flex-direction: column; gap: 10px; }
+  .table-panel { padding: 0; border: 0; box-shadow: none; background: transparent; }
+  .mobile-record-meta { grid-template-columns: 1fr; gap: 2px; }
+  .mobile-record-meta strong { white-space: normal; }
+  .filters { width: 100%; }
+  .section-header { width: 100%; }
+  .panel { width: 100%; }
 
   /* Bottom tab bar — iOS frosted glass */
   .bottom-tab-bar {
