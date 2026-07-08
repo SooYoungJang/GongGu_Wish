@@ -46,7 +46,12 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.01em;
+  overflow-x: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
+
+html { overflow-x: hidden; }
 
 #root { min-height: 100vh; min-height: 100dvh; }
 a { color: var(--accent); text-decoration: none; }
@@ -178,6 +183,10 @@ button { font-family: inherit; }
 
 .section-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
 .section-header h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+.section-header > div, .filters { min-width: 0; }
+.filters { flex-wrap: wrap; }
+.panel, .table-panel, .split-view { min-width: 0; }
+.split-view > * { min-width: 0; }
 
 /* ===== Stats ===== */
 .stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
@@ -394,8 +403,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
   .hero-panel p { font-size: 12px; }
 
   .filters { flex-direction: column; gap: 6px; }
-  .search-input, .filters select, .button, .bulk-reason { width: 100%; max-width: none; }
+  .search-input, .filters select, .bulk-reason { width: 100%; max-width: none; }
   .filters .search-input, .filters select { min-height: 38px; font-size: 14px; }
+  .bulk-bar { flex-direction: column; align-items: stretch; }
+  .bulk-bar .button { width: 100%; }
+  .action-row { flex-wrap: wrap; }
+  .action-row .button { flex: 1 1 auto; min-width: 0; }
 
   .form-grid, .audit-card, .review-preview { grid-template-columns: 1fr; }
   .form-grid { gap: 8px; }
@@ -464,11 +477,17 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
   .detail-panel.empty-state { display: none; }
   .detail-panel:not(.empty-state) {
     position: fixed; inset: 0; z-index: 100;
-    overflow-y: auto; border-radius: 0;
+    overflow-y: auto; overflow-x: hidden; border-radius: 0;
     padding: 0 14px 14px;
     padding-top: max(0px, env(safe-area-inset-top));
     background: var(--bg);
   }
+  .detail-panel:not(.empty-state) .review-preview,
+  .detail-panel:not(.empty-state) .audit-card,
+  .detail-panel:not(.empty-state) .form-grid { max-width: 100%; }
+  .detail-panel:not(.empty-state) p,
+  .detail-panel:not(.empty-state) strong { word-break: break-word; overflow-wrap: anywhere; }
+  .detail-panel:not(.empty-state) .audit-card strong { white-space: normal; }
   .detail-back-bar {
     display: flex; align-items: center;
     position: sticky; top: 0; z-index: 10;
