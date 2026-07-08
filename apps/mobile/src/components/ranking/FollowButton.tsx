@@ -24,7 +24,7 @@ export function FollowButton({ isFollowing, sellerName, onFollow, onPress }: Fol
 
   return (
     <Pressable
-      accessibilityLabel={`${sellerName} ${isFollowing ? '팔로잉 해제' : '팔로우'}`}
+      accessibilityLabel={`${sellerName} ${isFollowing ? '알림 해제' : '알림'}`}
       accessibilityRole="button"
       onPress={handlePress}
       style={({ pressed }) => [
@@ -34,7 +34,7 @@ export function FollowButton({ isFollowing, sellerName, onFollow, onPress }: Fol
       ]}
     >
       <SText variant="badge" style={[s.text, isFollowing ? s.followingText : s.followText]}>
-        {isFollowing ? '팔로잉' : '팔로우'}
+        {isFollowing ? '알림중' : '알림'}
       </SText>
     </Pressable>
   );

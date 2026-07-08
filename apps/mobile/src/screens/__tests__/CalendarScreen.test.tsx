@@ -261,7 +261,7 @@ describe('CalendarScreen', () => {
           id: 'gb-media-test',
           productName: '미디어테스트 20260702T163723Z',
           brandName: null,
-          category: 'digital',
+          category: 'electronics',
           startDate: '2026-07-02T00:00:00',
           endDate: '2026-07-04T00:00:00',
           purchaseUrl: 'https://example.com/media',

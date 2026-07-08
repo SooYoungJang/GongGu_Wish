@@ -69,12 +69,22 @@ type UserForm = {
 const PAGE_SIZE = 25;
 const CATEGORY_OPTIONS = [
   { value: "", label: "미지정" },
+  { value: "food", label: "식품" },
+  { value: "living", label: "생활용품" },
   { value: "beauty", label: "뷰티" },
   { value: "fashion", label: "패션" },
-  { value: "food", label: "푸드" },
-  { value: "lifestyle", label: "라이프" },
-  { value: "baby", label: "육아" },
-  { value: "digital", label: "디지털" },
+  { value: "home", label: "홈인테리어" },
+  { value: "kitchen", label: "주방용품" },
+  { value: "electronics", label: "전자제품" },
+  { value: "pet", label: "반려동물" },
+  { value: "auto", label: "자동차용품" },
+  { value: "hobby", label: "취미" },
+  { value: "baby", label: "출산-육아" },
+  { value: "sports", label: "스포츠" },
+  { value: "stationery", label: "문구" },
+  { value: "books", label: "도서" },
+  { value: "media", label: "음반-DVD" },
+  { value: "travel", label: "여행" },
 ];
 
 const SUBMISSION_STATUS_OPTIONS: Array<{ value: "ALL" | SubmissionStatus; label: string }> = [

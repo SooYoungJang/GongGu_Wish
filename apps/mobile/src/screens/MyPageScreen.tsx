@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -400,6 +400,14 @@ export function MyPageScreen() {
               onValueChange={async (value) => {
                 if (value) {
                   const granted = await requestNotificationPermissions();
+                  if (!granted) {
+                    Alert.alert(
+                      '알림을 켤 수 없어요',
+                      IS_EXPO_GO
+                        ? 'Expo Go에서는 푸시 알림이 지원되지 않아요. 개발 빌드에서 이용 가능합니다.'
+                        : '기기 설정에서 알림 권한을 허용해 주세요.',
+                    );
+                  }
                   setPushEnabled(granted);
                 } else {
                   setPushEnabled(false);

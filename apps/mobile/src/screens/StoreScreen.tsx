@@ -20,7 +20,8 @@ import {
   type RankingThumbnail,
   type SellerRanking,
 } from '../features/ranking/types';
-import { useSellerRankings } from '../features/ranking/useSellerRankings';
+import { usePopularGroupBuys } from '../features/ranking/usePopularGroupBuys';
+import { syncNotification } from '../api';
 import type { StoreScreenProps } from '../types';
 
 // Space reserved for the floating absolute-positioned tab bar:
@@ -38,16 +39,9 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const [period, setPeriod] = useState<RankingPeriod>('weekly');
   const [sort, setSort] = useState<RankingSort>('popular');
 
-  const rankingState = useSellerRankings({
-    tab: activeTab,
-    category: selectedCategory,
-    period,
-    sort,
-  });
+  const rankingState = usePopularGroupBuys(period, selectedCategory, sort);
 
-  const [followedIds, setFollowedIds] = useState<Set<string>>(
-    () => new Set(MOCK_RANKINGS.filter((item) => item.isFollowing).map((item) => item.sellerId)),
-  );
+  const [followedIds, setFollowedIds] = useState<Set<string>>(() => new Set());
 
   const patchedRankingState = useMemo(() => {
     if (rankingState.status !== 'ready' || !rankingState.data) return rankingState;
@@ -82,6 +76,10 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   }, [navigation]);
 
   const handleToggleFollow = useCallback((item: SellerRanking) => {
+    const willFollow = !followedIds.has(item.sellerId);
+    if (item.representativeGroupBuyId) {
+      void syncNotification(item.representativeGroupBuyId, willFollow);
+    }
     setFollowedIds((prev) => {
       const next = new Set(prev);
       if (next.has(item.sellerId)) {
@@ -91,7 +89,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       }
       return next;
     });
-  }, []);
+  }, [followedIds]);
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>

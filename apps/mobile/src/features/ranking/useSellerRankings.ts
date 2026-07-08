@@ -40,10 +40,6 @@ function applyRankingQuery(items: SellerRanking[], query: SellerRankingQuery): S
     next = [...next].sort((a, b) => (a.trend.kind === 'new' ? -1 : 0) - (b.trend.kind === 'new' ? -1 : 0) || a.rank - b.rank);
   }
 
-  if (query.sort === 'brand') {
-    next = [...next].sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko-KR'));
-  }
-
   return next;
 }
 

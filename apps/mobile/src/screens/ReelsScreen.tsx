@@ -101,8 +101,8 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
     if (!isTabFocused) lastRecordedIdRef.current = null;
   }, [isTabFocused, activeReelItem, recordView]);
 
-  // ── Deep view tracking: count a view only after 30s of continuous watch ──
-  const DEEP_VIEW_THRESHOLD_MS = 30_000;
+  // ── Deep view tracking: count a view only after 10s of continuous watch ──
+  const DEEP_VIEW_THRESHOLD_MS = 10_000;
   const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (deepViewTimerRef.current) {

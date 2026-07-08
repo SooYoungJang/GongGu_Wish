@@ -25,9 +25,9 @@ export { ApiError } from './lib/api-types';
 // ─── Ranking types (mobile-specific) ─────────────────────────────────────────
 
 export type RankingCategory =
-  | 'all' | 'beauty' | 'fashion' | 'food' | 'lifestyle' | 'baby' | 'digital';
+  | 'all' | 'food' | 'living' | 'beauty' | 'fashion' | 'home' | 'kitchen' | 'electronics' | 'pet' | 'auto' | 'hobby' | 'baby' | 'sports' | 'stationery' | 'books' | 'media' | 'travel';
 export type RankingPeriod = 'today' | 'weekly' | 'monthly';
-export type RankingSort = 'popular' | 'rising' | 'deadlineSoon' | 'newDeal' | 'brand';
+export type RankingSort = 'popular' | 'rising' | 'deadlineSoon' | 'newDeal';
 export type RankingTrend =
   | { kind: 'up'; delta: number }
   | { kind: 'down'; delta: number }
@@ -124,7 +124,7 @@ export const fallbackGroupBuys: GroupBuy[] = [
     id: 'sample-3',
     productName: '올인원 홈트레이닝 키트',
     brandName: '핏스타그램',
-    category: 'lifestyle',
+    category: 'living',
     endDate: '2026-06-28T23:59:59+09:00',
     purchaseUrl: 'https://example.com/fitness',
     discountInfo: '25% 할인',
@@ -146,7 +146,7 @@ export const fallbackGroupBuys: GroupBuy[] = [
     id: 'sample-4',
     productName: '스마트 홈 카메라',
     brandName: '테크스토어',
-    category: 'digital',
+    category: 'electronics',
     endDate: '2026-06-20T23:59:59+09:00',
     purchaseUrl: 'https://example.com/camera',
     discountInfo: '15% 할인',
@@ -230,6 +230,7 @@ function mapGroupBuyRows(rows: any[]): GroupBuy[] {
     mediaType: item.mediaType ?? item.media_type ?? null,
     ...(item.isMonthlyFeatured !== undefined ? { isMonthlyFeatured: item.isMonthlyFeatured } : {}),
     ...(item.monthlyFeaturedRank !== undefined ? { monthlyFeaturedRank: item.monthlyFeaturedRank } : {}),
+    createdAt: item.createdAt ?? item.created_at ?? undefined,
     rawPost: {
       postUrl: item.rawPostId?.postUrl ?? item.raw_post_id?.postUrl ?? item.raw_post_id?.post_url ?? '',
       influencer: {
@@ -386,12 +387,13 @@ export type PopularGroupBuy = {
   groupBuyId: string;
   deepViews: number;
   bookmarks: number;
+  notifications: number;
   searchClicks: number;
   score: number;
 };
 
 /**
- * Log a "deep view" — only called after a reel was watched for >= 30s.
+ * Log a "deep view" — only called after a reel was watched for >= 10s.
  * Fire-and-forget; failures never block the reels UX.
  * POST /rest/v1/group_buy_views
  */
@@ -435,6 +437,31 @@ export async function syncBookmark(groupBuyId: string, bookmark: boolean): Promi
 }
 
 /**
+ * Mirror a notification opt-in to the server for popularity aggregation.
+ * enabled=true inserts, enabled=false deletes by (group_buy_id, session_id).
+ */
+export async function syncNotification(groupBuyId: string, enabled: boolean): Promise<void> {
+  const { getSessionId } = await import('./utils/session');
+  const sessionId = await getSessionId();
+  try {
+    if (enabled) {
+      await postgrestFetch('group_buy_notifications', {
+        method: 'POST',
+        body: { group_buy_id: groupBuyId, session_id: sessionId },
+        prefer: 'return=minimal',
+      });
+    } else {
+      await postgrestFetch(
+        `group_buy_notifications?group_buy_id=eq.${encodeURIComponent(groupBuyId)}&session_id=eq.${encodeURIComponent(sessionId)}`,
+        { method: 'DELETE' },
+      );
+    }
+  } catch (error) {
+    console.log('[Popularity] sync notification failed:', error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
  * Fetch group buys ranked by popularity (deep views + bookmarks).
  * RPC: get_popular_group_buys(limit, hours)
  */
@@ -449,6 +476,47 @@ export async function fetchPopularGroupBuys(limit = 20, hours = 168): Promise<Po
     console.log('[Popularity] fetch popular group buys failed:', error instanceof Error ? error.message : String(error));
     return [];
   }
+}
+
+/**
+ * Period-to-hours mapping for popular group buys.
+ * today = 24h, weekly = 7d (168h), monthly = 30d (720h)
+ */
+export const POPULAR_PERIOD_HOURS: Record<'today' | 'weekly' | 'monthly', number> = {
+  today: 24,
+  weekly: 168,
+  monthly: 720,
+};
+
+/**
+ * Fetch detailed group buys for a list of IDs (single PostgREST batch call).
+ */
+export async function fetchGroupBuysByIds(ids: string[]): Promise<GroupBuy[]> {
+  if (ids.length === 0) return [];
+  try {
+    const { data } = await postgrestGet<any[]>(
+      `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=in.(${encodeURIComponent(ids.join(','))})&status=eq.APPROVED`,
+    );
+    return mapGroupBuyRows(data || []);
+  } catch (error) {
+    console.log('[GroupBuys] fetch by ids failed:', error instanceof Error ? error.message : String(error));
+    return [];
+  }
+}
+
+/**
+ * Fetch popular group buys enriched with full GroupBuy detail.
+ */
+export async function fetchPopularGroupBuysWithDetail(
+  limit = 20,
+  hours = 168,
+): Promise<Array<PopularGroupBuy & { groupBuy?: GroupBuy }>> {
+  const popular = await fetchPopularGroupBuys(limit, hours);
+  if (popular.length === 0) return [];
+  const ids = popular.map((p) => p.groupBuyId);
+  const details = await fetchGroupBuysByIds(ids);
+  const detailMap = new Map(details.map((g) => [g.id, g]));
+  return popular.map((p) => ({ ...p, groupBuy: detailMap.get(p.groupBuyId) }));
 }
 
 /**

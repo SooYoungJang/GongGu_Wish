@@ -17,10 +17,20 @@ type DealCardProps = {
 const CATEGORY_LABELS: Record<CategoryColorName, string> = {
   beauty: '뷰티',
   fashion: '패션',
-  food: '푸드',
-  lifestyle: '라이프',
+  food: '식품',
   baby: '육아',
-  digital: '디지털',
+  living: '생활용품',
+  home: '홈인테리어',
+  kitchen: '주방용품',
+  electronics: '전자제품',
+  pet: '반려동물',
+  auto: '자동차용품',
+  hobby: '취미',
+  sports: '스포츠',
+  stationery: '문구',
+  books: '도서',
+  media: '음반-DVD',
+  travel: '여행',
 };
 
 function formatDeadline(endDate: string | null) {
