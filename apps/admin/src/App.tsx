@@ -927,8 +927,26 @@ function AdminShell({ session }: { session: Session }) {
             total={usersTotal}
             totalPages={userTotalPages}
           />
-        ) : null}
+       ) : null}
       </main>
+      <nav className="bottom-tab-bar" aria-label="모바일 하단 탭">
+        <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")} type="button">
+          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 12L12 3l9 9v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9z" fill="currentColor"/></svg>
+          <span>대시보드</span>
+        </button>
+        <button className={tab === "submissions" ? "active" : ""} onClick={() => setTab("submissions")} type="button">
+          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9l2 2 4-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>검수</span>
+        </button>
+        <button className={tab === "groupBuys" ? "active" : ""} onClick={() => setTab("groupBuys")} type="button">
+          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-14L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>공구</span>
+        </button>
+        <button className={tab === "users" ? "active" : ""} onClick={() => setTab("users")} type="button">
+          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-1.13a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm6 0a4 4 0 0 0 0-8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>사용자</span>
+        </button>
+      </nav>
     </div>
   );
 }
