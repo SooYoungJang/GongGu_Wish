@@ -462,6 +462,8 @@ function AdminShell({ session }: { session: Session }) {
     setSelectedGroupBuy(null);
     setGroupBuyForm(null);
     setExpandedUserId(null);
+    setSelectedUser(null);
+    setUserForm(null);
     setTab(next);
   }, []);
 
@@ -514,7 +516,7 @@ function AdminShell({ session }: { session: Session }) {
         return new Set([...current].filter((id) => pageIds.has(id)));
       });
       setSelectedSubmission((current) => {
-        const next = current ? data.items.find((item) => item.id === current.id) ?? data.items[0] ?? null : data.items[0] ?? null;
+        const next = current ? data.items.find((item) => item.id === current.id) ?? null : null;
         setSubmissionForm(next ? submissionToForm(next) : null);
         setRejectReason(next?.adminMemo ?? "");
         return next;
@@ -538,7 +540,7 @@ function AdminShell({ session }: { session: Session }) {
       setGroupBuys(data.items);
       setGroupBuysTotal(data.total);
       setSelectedGroupBuy((current) => {
-        const next = current ? data.items.find((item) => item.id === current.id) ?? data.items[0] ?? null : data.items[0] ?? null;
+        const next = current ? data.items.find((item) => item.id === current.id) ?? null : null;
         setGroupBuyForm(next ? groupBuyToForm(next) : null);
         return next;
       });
@@ -560,7 +562,7 @@ function AdminShell({ session }: { session: Session }) {
       setUsers(data.items);
       setUsersTotal(data.total);
       setSelectedUser((current) => {
-        const next = current ? data.items.find((item) => item.id === current.id) ?? data.items[0] ?? null : data.items[0] ?? null;
+        const next = current ? data.items.find((item) => item.id === current.id) ?? null : null;
         setUserForm(next ? { nickname: next.nickname ?? "", fcmToken: next.fcmToken ?? "", status: next.status ?? "ACTIVE" } : null);
         return next;
       });
