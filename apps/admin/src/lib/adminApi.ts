@@ -1,6 +1,8 @@
 import { supabase } from "@/supabase/client";
 import type {
   AppUser,
+  CdnRefreshResult,
+  CdnRefreshStatusResponse,
   DashboardResponse,
   GongguSubmission,
   GroupBuy,
@@ -138,5 +140,25 @@ export const adminApi = {
 
   updateUser(id: string, body: Record<string, unknown>) {
     return requestAdmin<AppUser>(`/admin/users/${id}`, "PATCH", { body });
+  },
+
+  cdnRefreshStatus(params: {
+    limit?: number;
+    status?: string | null;
+    refreshWindowHours?: number;
+  }) {
+    return requestAdmin<CdnRefreshStatusResponse>("/admin/cdn-refresh", "GET", { params });
+  },
+
+  refreshSingleCdn(groupBuyId: string, force = false) {
+    return requestAdmin<CdnRefreshResult>("/admin/cdn-refresh", "POST", {
+      body: { groupBuyId, force },
+    });
+  },
+
+  refreshBatchCdn(limit = 20, refreshWindowHours = 1) {
+    return requestAdmin<{ results: CdnRefreshResult[] }>("/admin/cdn-refresh", "POST", {
+      body: { mode: "batch", limit, refreshWindowHours },
+    });
   },
 };

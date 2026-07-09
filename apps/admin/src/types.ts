@@ -102,3 +102,42 @@ export type HikerLookupResult = {
   username: string | null;
   takenAt: string | null;
 };
+
+export type CdnRefreshStatus = "expired" | "expiring" | "healthy" | "unknown" | "no_cdn";
+
+export type CdnRefreshRow = {
+  id: string;
+  productName: string | null;
+  brandName: string | null;
+  category: string | null;
+  videoUrl: string | null;
+  thumbnailUrl: string | null;
+  endDate: string | null;
+  updatedAt: string;
+  mediaRefreshedAt: string | null;
+  cdnExpiresAt: string | null;
+  refreshStatus: CdnRefreshStatus;
+  instagramUrl: string | null;
+};
+
+export type CdnRefreshSummary = {
+  total: number;
+  expired: number;
+  expiring: number;
+  healthy: number;
+  unknown: number;
+  noCdn: number;
+};
+
+export type CdnRefreshStatusResponse = {
+  items: CdnRefreshRow[];
+  summary: CdnRefreshSummary;
+};
+
+export type CdnRefreshResult = {
+  groupBuyId?: string;
+  refreshed?: boolean;
+  source?: "cache" | "hiker" | "skipped";
+  error?: string;
+  results?: CdnRefreshResult[];
+};

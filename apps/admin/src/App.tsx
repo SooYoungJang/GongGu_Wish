@@ -4,6 +4,8 @@ import { adminApi } from "@/lib/adminApi";
 import { StatCard } from "@/components/StatCard";
 import { supabase } from "@/supabase/client";
 import type {
+  CdnRefreshStatus,
+  CdnRefreshStatusResponse,
   DashboardResponse,
   GongguSubmission,
   GroupBuy,
@@ -17,7 +19,7 @@ import "./App.css";
 
 type Notice = { tone: "success" | "error" | "info"; message: string } | null;
 
-type TabKey = "dashboard" | "submissions" | "groupBuys" | "users";
+type TabKey = "dashboard" | "submissions" | "groupBuys" | "users" | "cdnRefresh";
 
 type SubmissionForm = {
   productName: string;
@@ -453,6 +455,10 @@ function AdminShell({ session }: { session: Session }) {
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
   const [userForm, setUserForm] = useState<UserForm | null>(null);
   const [userActionLoading, setUserActionLoading] = useState(false);
+  const [cdnStatus, setCdnStatus] = useState<CdnRefreshStatusResponse | null>(null);
+  const [cdnLoading, setCdnLoading] = useState(false);
+  const [cdnRefreshLoading, setCdnRefreshLoading] = useState<string | "batch" | null>(null);
+  const [cdnStatusFilter, setCdnStatusFilter] = useState<string>("all");
   const [detailType, setDetailType] = useState<"submission" | "groupBuy" | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const switchTab = useCallback((next: TabKey) => {
@@ -589,12 +595,33 @@ function AdminShell({ session }: { session: Session }) {
     if (tab === "users") void loadUsers();
   }, [loadUsers, tab]);
 
+  const loadCdnStatus = useCallback(async () => {
+    setCdnLoading(true);
+    try {
+      const data = await adminApi.cdnRefreshStatus({
+        limit: 100,
+        status: cdnStatusFilter === "all" ? null : cdnStatusFilter,
+        refreshWindowHours: 1,
+      });
+      setCdnStatus(data);
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "CDN 갱신 상태 조회 실패" });
+    } finally {
+      setCdnLoading(false);
+    }
+  }, [cdnStatusFilter]);
+
+  useEffect(() => {
+    if (tab === "cdnRefresh") void loadCdnStatus();
+  }, [loadCdnStatus, tab]);
+
   const refreshActive = useCallback(async () => {
     await loadDashboard();
     if (tab === "submissions") await loadSubmissions();
     if (tab === "groupBuys") await loadGroupBuys();
     if (tab === "users") await loadUsers();
-  }, [loadDashboard, loadGroupBuys, loadSubmissions, loadUsers, tab]);
+    if (tab === "cdnRefresh") await loadCdnStatus();
+  }, [loadDashboard, loadGroupBuys, loadSubmissions, loadUsers, loadCdnStatus, tab]);
 
   const toggleSubmissionSelection = useCallback((id: string, checked: boolean) => {
     setSelectedSubmissionIds((current) => {
@@ -811,6 +838,41 @@ function AdminShell({ session }: { session: Session }) {
     }
   }
 
+  async function refreshSingleCdn(groupBuyId: string) {
+    setCdnRefreshLoading(groupBuyId);
+    try {
+      const result = await adminApi.refreshSingleCdn(groupBuyId, false);
+      if (result.error) {
+        setNotice({ tone: "error", message: `갱신 실패: ${result.error}` });
+      } else if (result.refreshed) {
+        setNotice({ tone: "success", message: "CDN 미디어를 갱신했습니다." });
+      } else {
+        setNotice({ tone: "info", message: `갱신 불필요 (캐시 유지)` });
+      }
+      await loadCdnStatus();
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "CDN 갱신 실패" });
+    } finally {
+      setCdnRefreshLoading(null);
+    }
+  }
+
+  async function refreshBatchCdn() {
+    setCdnRefreshLoading("batch");
+    try {
+      const result = await adminApi.refreshBatchCdn(30, 1);
+      const results = result.results ?? [];
+      const refreshed = results.filter((item) => item.refreshed).length;
+      const skipped = results.filter((item) => !item.refreshed).length;
+      setNotice({ tone: "success", message: `배치 갱신 완료: 갱신 ${refreshed}건, 건너뜀 ${skipped}건` });
+      await loadCdnStatus();
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "CDN 배치 갱신 실패" });
+    } finally {
+      setCdnRefreshLoading(null);
+    }
+  }
+
   async function saveUser() {
     if (!selectedUser || !userForm) return;
     setUserActionLoading(true);
@@ -864,6 +926,10 @@ function AdminShell({ session }: { session: Session }) {
           <button className={tab === "users" ? "active" : ""} onClick={() => switchTab("users")} type="button">
             <span>Audience</span>
             <strong>가입자 관리</strong>
+          </button>
+          <button className={tab === "cdnRefresh" ? "active" : ""} onClick={() => switchTab("cdnRefresh")} type="button">
+            <span>Media cache</span>
+            <strong>CDN 갱신</strong>
           </button>
         </nav>
       </aside>
@@ -1014,6 +1080,18 @@ function AdminShell({ session }: { session: Session }) {
             expandedUserId={expandedUserId}
           />
       ) : null}
+        {tab === "cdnRefresh" ? (
+          <CdnRefreshPanel
+            loading={cdnLoading}
+            refreshLoading={cdnRefreshLoading}
+            statusFilter={cdnStatusFilter}
+            onStatusFilterChange={setCdnStatusFilter}
+            onRefreshSingle={(id) => void refreshSingleCdn(id)}
+            onRefreshBatch={() => void refreshBatchCdn()}
+            onReload={() => void loadCdnStatus()}
+            data={cdnStatus}
+          />
+        ) : null}
         </>
         )}
       </main>
@@ -1033,6 +1111,10 @@ function AdminShell({ session }: { session: Session }) {
         <button className={tab === "users" ? "active" : ""} onClick={() => switchTab("users")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-1.13a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm6 0a4 4 0 0 0 0-8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>사용자</span>
+        </button>
+        <button className={tab === "cdnRefresh" ? "active" : ""} onClick={() => switchTab("cdnRefresh")} type="button">
+          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><path d="M21 3v5h-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <span>CDN</span>
         </button>
       </nav>
     </div>
@@ -1063,6 +1145,7 @@ function tabTitle(tab: TabKey) {
   if (tab === "submissions") return "위시 검수";
   if (tab === "groupBuys") return "공구 관리";
   if (tab === "users") return "가입자 관리";
+  if (tab === "cdnRefresh") return "CDN 갱신";
   return "대시보드";
 }
 
@@ -2253,4 +2336,165 @@ function statusLabel(status: string) {
     default:
       return status;
   }
+}
+
+const CDN_STATUS_LABELS: Record<CdnRefreshStatus, string> = {
+  expired: "만료됨",
+  expiring: "만료 임박",
+  healthy: "정상",
+  unknown: "알 수 없음",
+  no_cdn: "CDN 아님",
+};
+
+function cdnStatusClass(status: CdnRefreshStatus): string {
+  if (status === "expired") return "status-badge status-badge--rejected";
+  if (status === "expiring") return "status-badge status-badge--pending";
+  if (status === "healthy") return "status-badge status-badge--approved";
+  return "status-badge status-badge--duplicate";
+}
+
+const CDN_STATUS_OPTIONS = [
+  { value: "all", label: "전체" },
+  { value: "expired", label: "만료됨" },
+  { value: "expiring", label: "만료 임박" },
+  { value: "healthy", label: "정상" },
+  { value: "unknown", label: "알 수 없음" },
+  { value: "no_cdn", label: "CDN 아님" },
+];
+
+function CdnRefreshPanel(props: {
+  loading: boolean;
+  refreshLoading: string | "batch" | null;
+  statusFilter: string;
+  onStatusFilterChange: (value: string) => void;
+  onRefreshSingle: (id: string) => void;
+  onRefreshBatch: () => void;
+  onReload: () => void;
+  data: CdnRefreshStatusResponse | null;
+}) {
+  const summary = props.data?.summary;
+  const items = props.data?.items ?? [];
+
+  return (
+    <section className="panel">
+      <div className="section-header">
+        <div>
+          <p className="eyebrow">Media Cache</p>
+          <h2>CDN 미디어 갱신</h2>
+          <p>Instagram CDN URL 만료 상태를 조회하고 수동으로 갱신합니다. 시간당 자동 배치가 실행됩니다.</p>
+        </div>
+        <div className="filters">
+          <select
+            aria-label="상태 필터"
+            onChange={(event) => props.onStatusFilterChange(event.target.value)}
+            value={props.statusFilter}
+          >
+            {CDN_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {summary ? (
+        <div className="stat-grid">
+          <StatCard label="전체 VIDEO" value={summary.total} />
+          <StatCard label="만료됨" value={summary.expired} />
+          <StatCard label="만료 임박" value={summary.expiring} />
+          <StatCard label="정상" value={summary.healthy} />
+        </div>
+      ) : null}
+
+      <div className="bulk-bar">
+        <div>
+          <strong>수동 갱신</strong>
+          <span>만료 임박 항목을 최대 30건 갱신합니다.</span>
+        </div>
+        <button
+          className="button button--primary"
+          disabled={props.refreshLoading !== null}
+          onClick={props.onRefreshBatch}
+          type="button"
+        >
+          {props.refreshLoading === "batch" ? "갱신 중..." : "배치 갱신"}
+        </button>
+        <button
+          className="button button--secondary"
+          disabled={props.loading}
+          onClick={props.onReload}
+          type="button"
+        >
+          새로고침
+        </button>
+      </div>
+
+      <div className="table-wrap desktop-table">
+        <table className="admin-table admin-table--clickable">
+          <thead>
+            <tr>
+              <th>상품</th>
+              <th>만료 시각</th>
+              <th>마지막 갱신</th>
+              <th>상태</th>
+              <th>갱신</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id}>
+                <td>
+                  <strong>{item.productName || "상품명 없음"}</strong>
+                  <span>{item.brandName || item.category || "분류 없음"}</span>
+                </td>
+                <td>{item.cdnExpiresAt ? formatDateTime(item.cdnExpiresAt) : "-"}</td>
+                <td>{item.mediaRefreshedAt ? formatDateTime(item.mediaRefreshedAt) : "기록 없음"}</td>
+                <td><span className={cdnStatusClass(item.refreshStatus)}>{CDN_STATUS_LABELS[item.refreshStatus]}</span></td>
+                <td>
+                  <button
+                    className="button button--secondary"
+                    disabled={props.refreshLoading !== null}
+                    onClick={() => props.onRefreshSingle(item.id)}
+                    type="button"
+                  >
+                    {props.refreshLoading === item.id ? "..." : "갱신"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mobile-card-list" aria-label="모바일 CDN 갱신 목록">
+        {items.map((item) => (
+          <article className="mobile-record-card mobile-record-card--static" key={item.id}>
+            <div className="mobile-record-card__top">
+              <span className="mobile-record-kicker">{item.category ?? "미지정"}</span>
+              <span className={cdnStatusClass(item.refreshStatus)}>{CDN_STATUS_LABELS[item.refreshStatus]}</span>
+            </div>
+            <strong>{item.productName ?? "상품명 없음"}</strong>
+            <p>{item.brandName ?? "브랜드 미지정"}</p>
+            <div className="mobile-record-meta">
+              <span>만료</span>
+              <strong>{item.cdnExpiresAt ? formatDateTime(item.cdnExpiresAt) : "알 수 없음"}</strong>
+              <span>갱신</span>
+              <strong>{item.mediaRefreshedAt ? formatDateTime(item.mediaRefreshedAt) : "기록 없음"}</strong>
+            </div>
+            <div className="action-row">
+              <button
+                className="button button--primary"
+                disabled={props.refreshLoading !== null}
+                onClick={() => props.onRefreshSingle(item.id)}
+                type="button"
+              >
+                {props.refreshLoading === item.id ? "갱신 중..." : "수동 갱신"}
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      {!props.loading && items.length === 0 ? <div className="empty-state">조회된 항목이 없습니다.</div> : null}
+    </section>
+  );
 }

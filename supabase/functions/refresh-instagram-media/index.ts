@@ -393,9 +393,11 @@ async function refreshRow(row: GroupBuyRow, force: boolean, refreshWindowHours: 
     : media.videoUrl || media.imageUrl
       ? [{ url: media.videoUrl ?? media.imageUrl!, mediaType: media.videoUrl ? 'VIDEO' as const : 'IMAGE' as const, thumbnailUrl: media.thumbnailUrl ?? null }]
       : [];
+  const nowIso = new Date().toISOString();
   const updatePayload = {
     thumbnail_url: media.thumbnailUrl ?? row.thumbnail_url,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
+    media_refreshed_at: nowIso,
     video_url: media.videoUrl,
     media_urls: media.mediaUrls.length
       ? media.mediaUrls
