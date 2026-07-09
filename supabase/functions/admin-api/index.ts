@@ -591,6 +591,116 @@ async function updateUser(supabase: AdminClient, id: string, body: Record<string
   return mapUser(data);
 }
 
+type CdnRefreshStatusRow = {
+  id: string;
+  productName: string | null;
+  brandName: string | null;
+  category: string | null;
+  videoUrl: string | null;
+  thumbnailUrl: string | null;
+  endDate: string | null;
+  updatedAt: string;
+  mediaRefreshedAt: string | null;
+  cdnExpiresAt: string | null;
+  refreshStatus: "expired" | "expiring" | "healthy" | "unknown" | "no_cdn";
+  instagramUrl: string | null;
+};
+
+type CdnRefreshStatusResponse = {
+  items: CdnRefreshStatusRow[];
+  summary: {
+    total: number;
+    expired: number;
+    expiring: number;
+    healthy: number;
+    unknown: number;
+    noCdn: number;
+  };
+};
+
+function mapCdnRow(row: Record<string, unknown>): CdnRefreshStatusRow {
+  return {
+    id: row.id,
+    productName: row.product_name,
+    brandName: row.brand_name,
+    category: row.category,
+    videoUrl: row.video_url,
+    thumbnailUrl: row.thumbnail_url,
+    endDate: row.end_date,
+    updatedAt: row.updated_at,
+    mediaRefreshedAt: row.media_refreshed_at,
+    cdnExpiresAt: row.cdn_expires_at,
+    refreshStatus: row.refresh_status,
+    instagramUrl: row.instagram_url,
+  };
+}
+
+async function listCdnRefreshStatus(supabase: AdminClient, params: AdminRequest["params"]) {
+  const limitCount = listParam(params, "limit", 50);
+  const refreshWindowHours = num(params?.refreshWindowHours, 1) ?? 1;
+  const statusFilter = str(params?.status) ?? null;
+
+  const { data, error } = await supabase.rpc("get_instagram_cdn_refresh_status", {
+    limit_count: limitCount,
+    refresh_window_hours: refreshWindowHours,
+    status_filter: statusFilter,
+  });
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const items = rows.map((row) => mapCdnRow(row));
+
+  const summary = items.reduce(
+    (acc, item) => {
+      acc.total += 1;
+      if (item.refreshStatus === "expired") acc.expired += 1;
+      else if (item.refreshStatus === "expiring") acc.expiring += 1;
+      else if (item.refreshStatus === "healthy") acc.healthy += 1;
+      else if (item.refreshStatus === "unknown") acc.unknown += 1;
+      else if (item.refreshStatus === "no_cdn") acc.noCdn += 1;
+      return acc;
+    },
+    { total: 0, expired: 0, expiring: 0, healthy: 0, unknown: 0, noCdn: 0 },
+  );
+
+  return { items, summary };
+}
+
+async function triggerCdnRefresh(body: Record<string, unknown>) {
+  const { supabaseUrl, serviceRoleKey } = getSupabaseEnv();
+  const groupBuyId = str(body.groupBuyId);
+  const mode = body.mode === "batch" ? "batch" : "single";
+
+  const requestPayload: Record<string, unknown> =
+    mode === "batch"
+      ? { mode: "batch", limit: num(body.limit, 20), refreshWindowHours: num(body.refreshWindowHours, 1) }
+      : { groupBuyId, force: bool(body.force, false) };
+
+  if (mode === "single" && !groupBuyId) {
+    throw new Error("groupBuyId is required for single refresh.");
+  }
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/refresh-instagram-media`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${serviceRoleKey}`,
+      "apikey": serviceRoleKey,
+    },
+    body: JSON.stringify(requestPayload),
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = payload && typeof payload === "object" && "error" in payload
+      ? String((payload as { error: unknown }).error)
+      : `CDN refresh failed: ${response.status}`;
+    throw new Error(message);
+  }
+
+  return payload;
+}
+
 async function lookupHiker(body: Record<string, unknown>) {
   const url = str(body.url);
   if (!url) {
@@ -662,6 +772,12 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
     return mapGroupBuy(data);
   }
 
+  if (path === "/admin/cdn-refresh" && method === "GET") {
+    return listCdnRefreshStatus(supabase, params);
+  }
+  if (path === "/admin/cdn-refresh" && method === "POST") {
+    return triggerCdnRefresh(body);
+  }
   throw new Error(`Unknown route: ${method} ${path}`);
 }
 
