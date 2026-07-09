@@ -16,6 +16,17 @@ describe("shared root token exports", () => {
       "lifestyle",
       "baby",
       "digital",
+      "home",
+      "kitchen",
+      "electronics",
+      "pet",
+      "auto",
+      "hobby",
+      "sports",
+      "stationery",
+      "books",
+      "media",
+      "travel",
     ]);
     expect(colors.cardOverlayGradient.bottom).toBe("oklch(0 0 0 / 0.62)");
   });
