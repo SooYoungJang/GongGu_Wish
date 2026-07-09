@@ -453,21 +453,28 @@ function AdminShell({ session }: { session: Session }) {
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
   const [userForm, setUserForm] = useState<UserForm | null>(null);
   const [userActionLoading, setUserActionLoading] = useState(false);
+  const [detailType, setDetailType] = useState<"submission" | "groupBuy" | null>(null);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
 
   const selectSubmission = useCallback((item: GongguSubmission | null) => {
     setSelectedSubmission(item);
     setSubmissionForm(item ? submissionToForm(item) : null);
     setRejectReason(item?.adminMemo ?? "");
+    setDetailType(item ? "submission" : null);
+    if (item) window.history.pushState({ detail: "submission", id: item.id }, "");
   }, []);
 
   const selectGroupBuy = useCallback((item: GroupBuy | null) => {
     setSelectedGroupBuy(item);
     setGroupBuyForm(item ? groupBuyToForm(item) : null);
+    setDetailType(item ? "groupBuy" : null);
+    if (item) window.history.pushState({ detail: "groupBuy", id: item.id }, "");
   }, []);
 
   const selectUser = useCallback((item: AppUser | null) => {
     setSelectedUser(item);
     setUserForm(item ? { nickname: item.nickname ?? "", fcmToken: item.fcmToken ?? "", status: item.status ?? "ACTIVE" } : null);
+    setExpandedUserId(item ? item.id : null);
   }, []);
 
   const loadDashboard = useCallback(async () => {
@@ -756,6 +763,43 @@ function AdminShell({ session }: { session: Session }) {
   const groupBuyTotalPages = Math.max(1, Math.ceil(groupBuysTotal / PAGE_SIZE));
   const userTotalPages = Math.max(1, Math.ceil(usersTotal / PAGE_SIZE));
 
+  function closeDetail() {
+    setDetailType(null);
+    setSelectedSubmission(null);
+    setSubmissionForm(null);
+    setSelectedGroupBuy(null);
+    setGroupBuyForm(null);
+    window.history.back();
+  }
+
+  useEffect(() => {
+    function handlePopState() {
+      setDetailType(null);
+      setSelectedSubmission(null);
+      setSubmissionForm(null);
+      setSelectedGroupBuy(null);
+      setGroupBuyForm(null);
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  async function toggleGroupBuyVisibility(hide: boolean) {
+    if (!selectedGroupBuy) return;
+    setGroupBuyActionLoading(true);
+    try {
+      const next = await adminApi.updateGroupBuy(selectedGroupBuy.id, { status: hide ? "REJECTED" : "APPROVED" });
+      setNotice({ tone: "success", message: hide ? "\uB178\uCD9C\uC744 \uC911\uC9C0\uD588\uC2B5\uB2C8\uB2E4." : "\uB2E4\uC2DC \uB178\uCD9C\uD588\uC2B5\uB2C8\uB2E4." });
+      selectGroupBuy(next);
+      await loadGroupBuys();
+      await loadDashboard();
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "\uC0C1\uD0DC \uBCC0\uACBD \uC2E4\uD328" });
+    } finally {
+      setGroupBuyActionLoading(false);
+    }
+  }
+
   async function saveUser() {
     if (!selectedUser || !userForm) return;
     setUserActionLoading(true);
@@ -833,6 +877,36 @@ function AdminShell({ session }: { session: Session }) {
 
         {notice ? <div className={`notice notice--${notice.tone}`}>{notice.message}</div> : null}
 
+        {detailType === "submission" && selectedSubmission && submissionForm ? (
+          <SubmissionEditor
+            actionLoading={submissionActionLoading}
+            form={submissionForm}
+            onApprove={() => void approveSubmission()}
+            onChange={setSubmissionForm}
+            onClose={closeDetail}
+            onLookupHiker={() => void lookupHiker()}
+            onReject={() => void rejectSubmission()}
+            onRejectReasonChange={setRejectReason}
+            onSave={() => void saveSubmission()}
+            rejectReason={rejectReason}
+            selected={selectedSubmission}
+          />
+        ) : null}
+
+        {detailType === "groupBuy" && selectedGroupBuy && groupBuyForm ? (
+          <GroupBuyEditor
+            actionLoading={groupBuyActionLoading}
+            form={groupBuyForm}
+            onChange={setGroupBuyForm}
+            onClose={closeDetail}
+            onSave={() => void saveGroupBuy()}
+            onToggleVisibility={toggleGroupBuyVisibility}
+            selected={selectedGroupBuy}
+          />
+        ) : null}
+
+        {!detailType && (
+          <>
         {tab === "dashboard" ? (
           <DashboardPanel
             dashboard={dashboard}
@@ -919,15 +993,18 @@ function AdminShell({ session }: { session: Session }) {
               setUserQuery(value);
               setUserPage(1);
             }}
-            onSave={() => void saveUser()}
+           onSave={() => void saveUser()}
             onSelect={selectUser}
             page={userPage}
             query={userQuery}
             selected={selectedUser}
             total={usersTotal}
             totalPages={userTotalPages}
+            expandedUserId={expandedUserId}
           />
-       ) : null}
+      ) : null}
+        </>
+        )}
       </main>
       <nav className="bottom-tab-bar" aria-label="모바일 하단 탭">
         <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")} type="button">
@@ -1046,7 +1123,8 @@ function DashboardPanel({
           {loading ? <LoadingRows /> : null}
           {!loading && dashboard?.pendingQueue.length === 0 ? <div className="empty-state">검수 대기 항목이 없습니다.</div> : null}
           {!loading && dashboard?.pendingQueue.length ? (
-            <div className="table-wrap">
+            <>
+            <div className="table-wrap desktop-table">
               <table className="admin-table">
                 <thead>
                   <tr>
@@ -1068,9 +1146,26 @@ function DashboardPanel({
                       <td><StatusBadge status={item.status} /></td>
                     </tr>
                   ))}
-                </tbody>
+               </tbody>
               </table>
             </div>
+            <div className="mobile-card-list">
+              {dashboard.pendingQueue.map((item) => (
+                <article className="mobile-record-card" key={item.id}>
+                  <div className="mobile-record-card__top">
+                    <span className="mobile-record-kicker">{item.brandName ?? "브랜드 미확정"}</span>
+                    <StatusBadge status={item.status} />
+                  </div>
+                  <strong>{item.productName ?? "검수 대기 위시템"}</strong>
+                  <p>{item.instagramUrl ?? "URL 없음"}</p>
+                  <div className="mobile-record-meta">
+                    <span>일시</span>
+                    <strong>{formatDateTime(item.createdAt)}</strong>
+                  </div>
+                </article>
+              ))}
+            </div>
+            </>
           ) : null}
         </div>
 
@@ -1084,7 +1179,8 @@ function DashboardPanel({
           {loading ? <LoadingRows /> : null}
           {!loading && dashboard?.recentGroupBuys.length === 0 ? <div className="empty-state">승인된 공구가 없습니다.</div> : null}
           {!loading && dashboard?.recentGroupBuys.length ? (
-            <div className="table-wrap">
+            <>
+            <div className="table-wrap desktop-table">
               <table className="admin-table">
                 <thead>
                   <tr>
@@ -1107,6 +1203,23 @@ function DashboardPanel({
                 </tbody>
               </table>
             </div>
+            <div className="mobile-card-list">
+              {dashboard.recentGroupBuys.map((item) => (
+                <article className="mobile-record-card" key={item.id}>
+                  <div className="mobile-record-card__top">
+                    <span className="mobile-record-kicker">{item.category ?? "카테고리 미정"}</span>
+                    <StatusBadge status={item.status} />
+                  </div>
+                  <strong>{item.productName ?? "상품명 없음"}</strong>
+                  <p>{item.brandName ?? "브랜드 미확정"}</p>
+                  <div className="mobile-record-meta">
+                    <span>종료일</span>
+                    <strong>{item.endDate ? dateInput(item.endDate) : "미정"}</strong>
+                  </div>
+                </article>
+              ))}
+            </div>
+            </>
           ) : null}
         </div>
       </div>
@@ -1644,6 +1757,7 @@ function GroupBuyEditor(props: {
   onSave: () => void;
   selected: GroupBuy | null;
   onClose: () => void;
+  onToggleVisibility?: (hide: boolean) => void;
 }) {
   const form = props.form;
   if (!props.selected || !form) {
@@ -1652,6 +1766,7 @@ function GroupBuyEditor(props: {
   const setField = <K extends keyof GroupBuyForm>(key: K, value: GroupBuyForm[K]) => {
     props.onChange({ ...form, [key]: value });
   };
+  const isHidden = form.status === "REJECTED";
 
   return (
     <aside className="detail-panel">
@@ -1664,6 +1779,10 @@ function GroupBuyEditor(props: {
           <h3>{form.productName || "상품명 없음"}</h3>
         </div>
         <StatusBadge status={form.status} />
+      </div>
+      <div className="visibility-toggle">
+        <button className="button button--danger" disabled={props.actionLoading || !isHidden} onClick={() => props.onToggleVisibility?.(true)} type="button">노출 중지</button>
+        <button className="button button--primary" disabled={props.actionLoading || isHidden} onClick={() => props.onToggleVisibility?.(false)} type="button">다시 노출</button>
       </div>
 
       <div className="form-grid">
@@ -1715,6 +1834,7 @@ function UserPanel(props: {
   selected: AppUser | null;
   total: number;
   totalPages: number;
+  expandedUserId: string | null;
 }) {
   return (
     <section className="panel">
@@ -1768,6 +1888,11 @@ function UserPanel(props: {
             loading={props.loading}
             onSelect={props.onSelect}
             selected={props.selected}
+            expandedUserId={props.expandedUserId}
+            form={props.form}
+            onFormChange={props.onFormChange}
+            actionLoading={props.actionLoading}
+            onSave={props.onSave}
           />
           {props.items.length === 0 && !props.loading ? <div className="empty-state">가입자 없음</div> : null}
           <Pagination page={props.page} totalPages={props.totalPages} onPageChange={props.onPageChange} />
@@ -1790,11 +1915,21 @@ function MobileUserCards({
   loading,
   onSelect,
   selected,
+  expandedUserId,
+  form,
+  onFormChange,
+  actionLoading,
+  onSave,
 }: {
   items: AppUser[];
   loading: boolean;
   onSelect: (item: AppUser | null) => void;
   selected: AppUser | null;
+  expandedUserId: string | null;
+  form: UserForm | null;
+  onFormChange: (form: UserForm | null) => void;
+  actionLoading: boolean;
+  onSave: () => void;
 }) {
   if (loading) {
     return (
@@ -1807,29 +1942,44 @@ function MobileUserCards({
   if (items.length === 0) return null;
 
   return (
-    <div className="mobile-card-list" aria-label="모바일 가입자 목록">
+    <div className="mobile-card-list" aria-label="모바일 사용자 목록">
       {items.map((item) => (
-        <article
-          className={`mobile-record-card${selected?.id === item.id ? " selected" : ""}`}
-          key={item.id}
-          onClick={() => onSelect(item)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") onSelect(item);
-          }}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="mobile-record-card__top">
-            <span className="mobile-record-kicker">{item.nickname ?? "닉네임 없음"}</span>
-            <StatusBadge status={item.status ?? "ACTIVE"} />
-          </div>
-          <strong>{item.email ?? item.id}</strong>
-          <p>{item.fcmToken ? "푸시 토큰 등록됨" : "푸시 토큰 없음"}</p>
-          <div className="mobile-record-meta">
-            <span>가입일</span>
-            <strong>{formatDateTime(item.createdAt)}</strong>
-          </div>
-        </article>
+        <div key={item.id}>
+          <article
+            className={`mobile-record-card${selected?.id === item.id ? " selected" : ""}`}
+            onClick={() => onSelect(item)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") onSelect(item);
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            <div className="mobile-record-card__top">
+              <span className="mobile-record-kicker">{item.nickname ?? "닉네임 없음"}</span>
+              <StatusBadge status={item.status ?? "ACTIVE"} />
+            </div>
+            <strong>{item.email ?? item.id}</strong>
+            <p>{item.fcmToken ? "푸시 토큰 등록됨" : "푸시 토큰 없음"}</p>
+            <div className="mobile-record-meta">
+              <span>가입일</span>
+              <strong>{formatDateTime(item.createdAt)}</strong>
+            </div>
+          </article>
+          {expandedUserId === item.id && form ? (
+            <div className="user-inline-editor expanded">
+              <TextField label="닉네임" value={form.nickname} onChange={(value) => onFormChange({ ...form, nickname: value })} />
+              <TextareaField label="FCM 토큰" value={form.fcmToken} onChange={(value) => onFormChange({ ...form, fcmToken: value })} rows={4} monospace />
+              <div className="action-row">
+                <button className="button button--secondary" disabled={actionLoading || form.status === "SUSPENDED"} onClick={() => onFormChange({ ...form, status: "SUSPENDED" })} type="button">정지</button>
+                <button className="button button--danger" disabled={actionLoading || form.status === "BANNED"} onClick={() => onFormChange({ ...form, status: "BANNED" })} type="button">차단</button>
+                <button className="button button--ghost" disabled={actionLoading || form.status === "ACTIVE"} onClick={() => onFormChange({ ...form, status: "ACTIVE" })} type="button">활성화</button>
+              </div>
+              <div className="action-row action-row--end">
+                <button className="button button--primary" disabled={actionLoading} onClick={onSave} type="button">저장</button>
+              </div>
+            </div>
+          ) : null}
+        </div>
       ))}
     </div>
   );
