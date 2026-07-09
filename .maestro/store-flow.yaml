@@ -1,0 +1,51 @@
+appId: com.gonggu.wish
+---
+# Store / influencer group buys E2E.
+# Run: maestro test .maestro/store-flow.yaml
+
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구"
+    timeout: 15000
+
+# Look for store entry
+- tapOn:
+    text: "스토어"
+    optional: true
+- waitForAnimationToEnd
+
+# If no store text, try influencer
+- tapOn:
+    text: "인플루언서"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: store-01-opened
+
+# Scroll
+- swipe:
+    start: 50%,60%
+    end: 50%,40%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: store-02-scrolled
+
+# Tap a card
+- tapOn:
+    point: "50%,50%"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: store-03-card-tapped
+
+# Go back
+- back
+- waitForAnimationToEnd
+- takeScreenshot: store-04-back
+
+# Return to home
+- tapOn:
+    text: "공구"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: store-05-home

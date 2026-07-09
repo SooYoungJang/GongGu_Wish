@@ -1,0 +1,67 @@
+appId: com.gonggu.wish
+---
+# Reels screen E2E — scroll reels, open/close bottom sheet.
+# Run: maestro test .maestro/reels-flow.yaml
+
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구"
+    timeout: 15000
+
+# Look for reels entry — tap reels icon or text
+- tapOn:
+    text: "릴스"
+    optional: true
+- waitForAnimationToEnd
+
+# If no reels text, try bottom area
+- tapOn:
+    point: "50%,95%"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: reels-01-opened
+
+# Swipe up to next reel
+- swipe:
+    start: 50%,70%
+    end: 50%,30%
+    duration: 400
+- waitForAnimationToEnd
+- takeScreenshot: reels-02-next
+
+# Swipe up again
+- swipe:
+    start: 50%,70%
+    end: 50%,30%
+    duration: 400
+- waitForAnimationToEnd
+- takeScreenshot: reels-03-next2
+
+# Swipe down to previous
+- swipe:
+    start: 50%,30%
+    end: 50%,70%
+    duration: 400
+- waitForAnimationToEnd
+- takeScreenshot: reels-04-prev
+
+# Tap more button (bottom right area)
+- tapOn:
+    point: "90%,80%"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: reels-05-more
+
+# Dismiss by tapping center
+- tapOn:
+    point: "50%,50%"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: reels-06-dismiss
+
+# Go back
+- back
+- waitForAnimationToEnd
+- takeScreenshot: reels-07-back

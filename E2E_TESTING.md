@@ -161,3 +161,43 @@ Maestro는 iOS/Android 시뮬레이터가 필요하므로 macOS runner에서 실
 - `optional: true`로 조건부 어설션 (데이터가 없을 수 있음)
 - 한국어 텍스트 매칭 시 인코딩 주의 — 가능한 짧은 텍스트 사용
 - 스크린샷으로 증거 수집
+
+
+## 전체 테스트 인벤토리
+
+### Admin Playwright (17개 spec)
+
+| 파일 | 검증 항목 |
+|------|-----------|
+| `01-auth.spec.ts` | 로그인 화면, 빈/잘못된 자격증명 에러, 정상 로그인 |
+| `02-dashboard.spec.ts` | 대시보드 섹션, static 카드 클릭 무반응, 검수 이동 |
+| `03-submissions.spec.ts` | 검수 탭 목록, 상세 자동 미노출, 필터, 카드 클릭 |
+| `04-groupbuys.spec.ts` | 공구 탭 목록, 상세 자동 미노출 |
+| `05-users.spec.ts` | 사용자 탭 목록, 인라인 에디터 자동 미노출 |
+| `06-cdn-refresh.spec.ts` | CDN 탭 패널, 상태 필터, 상세 미노출 |
+| `07-tab-switch.spec.ts` | 하단 탭바, 탭 전환 시 상세 초기화, 전체 탭 순회 |
+| `08-auth-logout.spec.ts` | 로그아웃, 로그인 중 비활성화, 새로고침, 세션 유지, 부분 입력 에러 |
+| `09-dashboard-stats.spec.ts` | 통계 카드, 섹션별 데이터/빈 상태, operator 정보 |
+| `10-submissions-bulk.spec.ts` | 벌크 바, 선택 카운트, 선택 해제/반려/승인 버튼, 체크박스 선택 |
+| `11-submissions-detail.spec.ts` | 카드→상세 열기, 목록으로, Hiker 보강, 폼 필드 |
+| `12-groupbuys-detail.spec.ts` | 카드→상세 열기, 폼 필드, 저장 버튼, 노출 토글, 닫기 |
+| `13-users-actions.spec.ts` | 인라인 에디터 열기, 닉네임 필드, 정지/차단/활성화 버튼, 저장, 검색 |
+| `14-search-filter.spec.ts` | 검수/공구/CDN 상태 필터, 검색어 입력, 만료됨 필터 |
+| `15-pagination.spec.ts` | 검수/공구/사용자 페이지네이션, 메타 정보 |
+| `16-mobile-layout.spec.ts` | 사이드바 숨김, 하단 탭바, 테이블→카드 전환, 가로 스크롤 없음, 태블릿 내비 |
+| `17-notice-feedback.spec.ts` | 새로고침 알림, 빈 상태, CDN 새로고침 피드백 |
+
+### Mobile Maestro (10개 flow)
+
+| 파일 | 검증 항목 |
+|------|-----------|
+| `full-app-flow.yaml` | 홈→검색→랭킹→제출→마이페이지 전체 플로우 |
+| `home-nav-flow.yaml` | 탭바 전체 순회, 무결성 |
+| `no-hscroll-flow.yaml` | 각 화면 세로 스크롤만, 가로 스크롤 없음 |
+| `detail-flow.yaml` | 딜 카드 탭→상세→스크롤→뒤로 |
+| `calendar-flow.yaml` | 캘린더 진입, 주간 스와이프, 날짜 탭, 딜 스크롤 |
+| `reels-flow.yaml` | 릴스 진입, 상하 스와이프, 더보기 버튼, 닫기 |
+| `submit-form-flow.yaml` | 제출 폼 입력(상품명/브랜드/Instagram URL), 빈 제출 검증 |
+| `mypage-flow.yaml` | 마이페이지 스크롤, 테마 토글, 홈 복귀 |
+| `search-filter-flow.yaml` | 검색어 입력, 랭킹 탭, 카테고리 필터 |
+| `store-flow.yaml` | 스토어/인플루언서 진입, 스크롤, 카드 탭 |

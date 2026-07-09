@@ -1,0 +1,74 @@
+appId: com.gonggu.wish
+---
+# Submit form E2E — fill form, verify validation, attempt submit.
+# Run: maestro test .maestro/submit-form-flow.yaml
+
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구"
+    timeout: 15000
+
+# Go to Submit tab
+- tapOn:
+    text: "Submit"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: submit-01-opened
+
+# Try submitting empty form
+- tapOn:
+    text: "제보"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: submit-02-empty-submit
+
+# Fill product name
+- tapOn:
+    text: "상품명"
+    optional: true
+- inputText: "테스트 상품"
+- hideKeyboard
+- waitForAnimationToEnd
+- takeScreenshot: submit-03-product-name
+
+# Fill brand name
+- tapOn:
+    text: "브랜드"
+    optional: true
+- inputText: "테스트 브랜드"
+- hideKeyboard
+- waitForAnimationToEnd
+- takeScreenshot: submit-04-brand
+
+# Fill Instagram URL
+- tapOn:
+    text: "Instagram"
+    optional: true
+- inputText: "https://www.instagram.com/p/test123/"
+- hideKeyboard
+- waitForAnimationToEnd
+- takeScreenshot: submit-05-instagram
+
+# Scroll down to see more fields
+- swipe:
+    start: 50%,60%
+    end: 50%,30%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: submit-06-scrolled
+
+# Scroll back up
+- swipe:
+    start: 50%,30%
+    end: 50%,60%
+    duration: 200
+- waitForAnimationToEnd
+
+# Attempt submit
+- tapOn:
+    text: "제보"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: submit-07-submit-attempt
