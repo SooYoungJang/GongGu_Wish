@@ -455,6 +455,17 @@ function AdminShell({ session }: { session: Session }) {
   const [userActionLoading, setUserActionLoading] = useState(false);
   const [detailType, setDetailType] = useState<"submission" | "groupBuy" | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const switchTab = useCallback((next: TabKey) => {
+    setDetailType(null);
+    setSelectedSubmission(null);
+    setSubmissionForm(null);
+    setSelectedGroupBuy(null);
+    setGroupBuyForm(null);
+    setExpandedUserId(null);
+    setSelectedUser(null);
+    setUserForm(null);
+    setTab(next);
+  }, []);
 
   const selectSubmission = useCallback((item: GongguSubmission | null) => {
     setSelectedSubmission(item);
@@ -505,7 +516,7 @@ function AdminShell({ session }: { session: Session }) {
         return new Set([...current].filter((id) => pageIds.has(id)));
       });
       setSelectedSubmission((current) => {
-        const next = current ? data.items.find((item) => item.id === current.id) ?? data.items[0] ?? null : data.items[0] ?? null;
+        const next = current ? data.items.find((item) => item.id === current.id) ?? null : null;
         setSubmissionForm(next ? submissionToForm(next) : null);
         setRejectReason(next?.adminMemo ?? "");
         return next;
@@ -529,7 +540,7 @@ function AdminShell({ session }: { session: Session }) {
       setGroupBuys(data.items);
       setGroupBuysTotal(data.total);
       setSelectedGroupBuy((current) => {
-        const next = current ? data.items.find((item) => item.id === current.id) ?? data.items[0] ?? null : data.items[0] ?? null;
+        const next = current ? data.items.find((item) => item.id === current.id) ?? null : null;
         setGroupBuyForm(next ? groupBuyToForm(next) : null);
         return next;
       });
@@ -551,7 +562,7 @@ function AdminShell({ session }: { session: Session }) {
       setUsers(data.items);
       setUsersTotal(data.total);
       setSelectedUser((current) => {
-        const next = current ? data.items.find((item) => item.id === current.id) ?? data.items[0] ?? null : data.items[0] ?? null;
+        const next = current ? data.items.find((item) => item.id === current.id) ?? null : null;
         setUserForm(next ? { nickname: next.nickname ?? "", fcmToken: next.fcmToken ?? "", status: next.status ?? "ACTIVE" } : null);
         return next;
       });
@@ -838,19 +849,19 @@ function AdminShell({ session }: { session: Session }) {
           </div>
         </div>
         <nav className="nav-tabs" aria-label="관리자 메뉴">
-          <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")} type="button">
+          <button className={tab === "dashboard" ? "active" : ""} onClick={() => switchTab("dashboard")} type="button">
             <span>Overview</span>
             <strong>대시보드</strong>
           </button>
-          <button className={tab === "submissions" ? "active" : ""} onClick={() => setTab("submissions")} type="button">
+          <button className={tab === "submissions" ? "active" : ""} onClick={() => switchTab("submissions")} type="button">
             <span>Review queue</span>
             <strong>위시 검수</strong>
           </button>
-          <button className={tab === "groupBuys" ? "active" : ""} onClick={() => setTab("groupBuys")} type="button">
+          <button className={tab === "groupBuys" ? "active" : ""} onClick={() => switchTab("groupBuys")} type="button">
             <span>Catalog</span>
             <strong>공구 관리</strong>
           </button>
-          <button className={tab === "users" ? "active" : ""} onClick={() => setTab("users")} type="button">
+          <button className={tab === "users" ? "active" : ""} onClick={() => switchTab("users")} type="button">
             <span>Audience</span>
             <strong>가입자 관리</strong>
           </button>
@@ -911,7 +922,7 @@ function AdminShell({ session }: { session: Session }) {
           <DashboardPanel
             dashboard={dashboard}
             loading={dashboardLoading}
-            onOpenSubmissions={() => setTab("submissions")}
+            onOpenSubmissions={() => switchTab("submissions")}
           />
         ) : null}
 
@@ -1007,19 +1018,19 @@ function AdminShell({ session }: { session: Session }) {
         )}
       </main>
       <nav className="bottom-tab-bar" aria-label="모바일 하단 탭">
-        <button className={tab === "dashboard" ? "active" : ""} onClick={() => setTab("dashboard")} type="button">
+        <button className={tab === "dashboard" ? "active" : ""} onClick={() => switchTab("dashboard")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 12L12 3l9 9v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9z" fill="currentColor"/></svg>
           <span>대시보드</span>
         </button>
-        <button className={tab === "submissions" ? "active" : ""} onClick={() => setTab("submissions")} type="button">
+        <button className={tab === "submissions" ? "active" : ""} onClick={() => switchTab("submissions")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9l2 2 4-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>검수</span>
         </button>
-        <button className={tab === "groupBuys" ? "active" : ""} onClick={() => setTab("groupBuys")} type="button">
+        <button className={tab === "groupBuys" ? "active" : ""} onClick={() => switchTab("groupBuys")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-14L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>공구</span>
         </button>
-        <button className={tab === "users" ? "active" : ""} onClick={() => setTab("users")} type="button">
+        <button className={tab === "users" ? "active" : ""} onClick={() => switchTab("users")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-1.13a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm6 0a4 4 0 0 0 0-8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>사용자</span>
         </button>
@@ -1151,7 +1162,7 @@ function DashboardPanel({
             </div>
             <div className="mobile-card-list">
               {dashboard.pendingQueue.map((item) => (
-                <article className="mobile-record-card" key={item.id}>
+                <article className="mobile-record-card mobile-record-card--static" key={item.id}>
                   <div className="mobile-record-card__top">
                     <span className="mobile-record-kicker">{item.brandName ?? "브랜드 미확정"}</span>
                     <StatusBadge status={item.status} />
@@ -1205,7 +1216,7 @@ function DashboardPanel({
             </div>
             <div className="mobile-card-list">
               {dashboard.recentGroupBuys.map((item) => (
-                <article className="mobile-record-card" key={item.id}>
+                <article className="mobile-record-card mobile-record-card--static" key={item.id}>
                   <div className="mobile-record-card__top">
                     <span className="mobile-record-kicker">{item.category ?? "카테고리 미정"}</span>
                     <StatusBadge status={item.status} />
