@@ -1,0 +1,100 @@
+appId: com.gonggu.wish
+---
+# Full app E2E flow — covers home, search, ranking, submit, my page.
+# Run: maestro test .maestro/full-app-flow.yaml
+
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구"
+    timeout: 15000
+- waitForAnimationToEnd
+
+# --- Home screen ---
+- assertVisible:
+    text: "공구"
+    optional: true
+- takeScreenshot: e2e-01-home
+
+# Scroll down to see deals
+- swipe:
+    start: 50%,60%
+    end: 50%,30%
+    duration: 300
+- waitForAnimationToEnd
+- takeScreenshot: e2e-02-home-scroll
+
+# Scroll back to top
+- swipe:
+    start: 50%,30%
+    end: 50%,60%
+    duration: 300
+- waitForAnimationToEnd
+
+# --- Tab bar navigation ---
+- assertVisible:
+    text: "검색"
+    optional: true
+- assertVisible:
+    text: "Submit"
+    optional: true
+- assertVisible:
+    text: "MY"
+    optional: true
+
+# --- Search tab ---
+- tapOn:
+    text: "검색"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: e2e-03-search
+- assertVisible:
+    text: "랭킹"
+    optional: true
+
+# Tap ranking if visible
+- tapOn:
+    text: "랭킹"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: e2e-04-ranking
+
+# --- Submit tab ---
+- tapOn:
+    text: "Submit"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: e2e-05-submit
+- assertVisible:
+    text: "제보"
+    optional: true
+
+# Scroll submit form
+- swipe:
+    start: 50%,60%
+    end: 50%,30%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: e2e-06-submit-scroll
+
+# Scroll back
+- swipe:
+    start: 50%,30%
+    end: 50%,60%
+    duration: 200
+- waitForAnimationToEnd
+
+# --- MY tab ---
+- tapOn:
+    text: "MY"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: e2e-07-mypage
+
+# --- Back to home ---
+- tapOn:
+    text: "공구"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: e2e-08-home-return

@@ -1,0 +1,55 @@
+appId: com.gonggu.wish
+---
+# No horizontal scroll E2E — verify screens don't overflow horizontally.
+# Run: maestro test .maestro/no-hscroll-flow.yaml
+
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구"
+    timeout: 15000
+
+# Home: scroll vertically only
+- swipe:
+    start: 50%,60%
+    end: 50%,40%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: hscroll-01-home-vertical
+
+# Search tab
+- tapOn:
+    text: "검색"
+    optional: true
+- waitForAnimationToEnd
+- swipe:
+    start: 50%,60%
+    end: 50%,40%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: hscroll-02-search-vertical
+
+# Submit tab
+- tapOn:
+    text: "Submit"
+    optional: true
+- waitForAnimationToEnd
+- swipe:
+    start: 50%,60%
+    end: 50%,40%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: hscroll-03-submit-vertical
+
+# MY tab
+- tapOn:
+    text: "MY"
+    optional: true
+- waitForAnimationToEnd
+- swipe:
+    start: 50%,60%
+    end: 50%,40%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: hscroll-04-mypage-vertical

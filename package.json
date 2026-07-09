@@ -28,7 +28,10 @@
     "admin:lint": "turbo run lint --filter=@gonggu/admin",
     "admin:test": "turbo run test --filter=@gonggu/admin",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "test:e2e:admin": "turbo run test:e2e --filter=@gonggu/admin",
+    "test:e2e:web": "turbo run test:e2e --filter=@gonggu/web",
+    "test:e2e:mobile": "maestro test .maestro/full-app-flow.yaml"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
