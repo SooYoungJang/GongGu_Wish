@@ -69,32 +69,32 @@ function flattenText(node: TestRenderer.ReactTestRendererJSON | TestRenderer.Rea
 }
 
 describe('ranking components', () => {
-  it('toggles FollowButton visual state through its onFollow prop', () => {
-    let following = false;
-    const onFollow = vi.fn(() => {
-      following = !following;
-    });
-    let renderer: TestRenderer.ReactTestRenderer;
+ it('toggles FollowButton visual state through its onFollow prop', () => {
+   let following = false;
+   const onFollow = vi.fn(() => {
+     following = !following;
+   });
+   let renderer: TestRenderer.ReactTestRenderer;
 
-    act(() => {
-      renderer = TestRenderer.create(
-        withTheme(<FollowButton isFollowing={following} sellerName="샘플마켓" onFollow={onFollow} />),
-      );
-    });
+   act(() => {
+     renderer = TestRenderer.create(
+       withTheme(<FollowButton isFollowing={following} sellerName="샘플마켓" onFollow={onFollow} />),
+     );
+   });
 
-    expect(flattenText(renderer!.toJSON())).toContain('팔로우');
+    expect(flattenText(renderer!.toJSON())).toContain('알림');
 
-    const pressable = renderer!.root.findByType('Pressable' as unknown as React.ElementType);
-    act(() => pressable.props.onPress({ stopPropagation: vi.fn() }));
-    act(() => {
-      renderer!.update(
-        withTheme(<FollowButton isFollowing={following} sellerName="샘플마켓" onFollow={onFollow} />),
-      );
-    });
+   const pressable = renderer!.root.findByType('Pressable' as unknown as React.ElementType);
+   act(() => pressable.props.onPress({ stopPropagation: vi.fn() }));
+   act(() => {
+     renderer!.update(
+       withTheme(<FollowButton isFollowing={following} sellerName="샘플마켓" onFollow={onFollow} />),
+     );
+   });
 
-    expect(onFollow).toHaveBeenCalledTimes(1);
-    expect(flattenText(renderer!.toJSON())).toContain('팔로잉');
-  });
+   expect(onFollow).toHaveBeenCalledTimes(1);
+   expect(flattenText(renderer!.toJSON())).toContain('알림중');
+ });
 
   it('wires seller row follow button to the selected ranking item', () => {
     const item = sampleRanking({ id: 'rank-follow-target', displayName: '팔로우대상' });
@@ -107,9 +107,9 @@ describe('ranking components', () => {
       );
     });
 
-    const followButton = renderer!.root
-      .findAllByType('Pressable' as unknown as React.ElementType)
-      .find((pressable) => pressable.props.accessibilityLabel === '팔로우대상 팔로우');
+   const followButton = renderer!.root
+     .findAllByType('Pressable' as unknown as React.ElementType)
+     .find((pressable) => pressable.props.accessibilityLabel === '팔로우대상 알림');
 
     act(() => followButton!.props.onPress({ stopPropagation: vi.fn() }));
 
@@ -130,10 +130,11 @@ describe('ranking components', () => {
     const flatList = renderer!.root.findByType('FlatList' as unknown as React.ElementType);
     const text = flattenText(renderer!.toJSON());
 
-    expect(flatList.props.accessibilityLabel).toBe('셀러 랭킹 목록');
-    expect(text).toContain('샘플마켓');
-    expect(text).toContain('팔로워 1.2만');
-  });
+   expect(flatList.props.accessibilityLabel).toBe('셀러 랭킹 목록');
+   expect(text).toContain('샘플마켓');
+    expect(text).toContain('공구');
+    expect(text).toContain('7');
+ });
 
   it('renders ranking empty state action when rankings are empty', () => {
     const onPress = vi.fn();

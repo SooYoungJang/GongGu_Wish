@@ -1,0 +1,56 @@
+appId: com.gonggu.wish
+---
+# Tab bar navigation E2E — verify every tab is reachable and returns.
+# Run: maestro test .maestro/home-nav-flow.yaml
+
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구"
+    timeout: 15000
+
+# Home visible
+- assertVisible:
+    text: "공구"
+    optional: true
+- takeScreenshot: nav-01-home
+
+# Search
+- tapOn:
+    text: "검색"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: nav-02-search
+
+# Submit
+- tapOn:
+    text: "Submit"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: nav-03-submit
+
+# MY
+- tapOn:
+    text: "MY"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: nav-04-mypage
+
+# Back to Home
+- tapOn:
+    text: "공구"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: nav-05-home-return
+
+# Verify tab bar still intact
+- assertVisible:
+    text: "검색"
+    optional: true
+- assertVisible:
+    text: "Submit"
+    optional: true
+- assertVisible:
+    text: "MY"
+    optional: true

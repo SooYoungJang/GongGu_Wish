@@ -59,7 +59,6 @@ export type SellerRanking = {
   representativeGroupBuyId?: string | null;
 };
 export type SellerRankingQuery = {
-  tab: 'ranking' | 'following';
   category: RankingCategory;
   period: RankingPeriod;
   sort: RankingSort;

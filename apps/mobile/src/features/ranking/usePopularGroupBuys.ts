@@ -42,13 +42,15 @@ function groupBuyToSellerRanking(
     activeDealCount: popular.bookmarks,
     endingSoonCount: popular.searchClicks,
     trustScore: Math.round(Number(popular.score)),
-    isFollowing: false,
-    isSponsored: false,
-    thumbnails: gb.thumbnailUrl
-      ? [{ id: `thumb-${popular.groupBuyId}`, imageUrl: gb.thumbnailUrl, label: null, groupBuyId: popular.groupBuyId }]
-      : (gb.mediaUrls ?? []).slice(0, 3).map((url) => ({ id: `thumb-${popular.groupBuyId}-`, imageUrl: url, label: null, groupBuyId: popular.groupBuyId })),
-    representativeGroupBuyId: popular.groupBuyId,
-  };
+   isFollowing: false,
+   isSponsored: false,
+   thumbnails: gb.thumbnailUrl
+     ? [{ id: `thumb-${popular.groupBuyId}`, imageUrl: gb.thumbnailUrl, label: null, groupBuyId: popular.groupBuyId }]
+     : (gb.mediaUrls ?? []).slice(0, 3).map((url) => ({ id: `thumb-${popular.groupBuyId}-`, imageUrl: url, label: null, groupBuyId: popular.groupBuyId })),
+   representativeGroupBuyId: popular.groupBuyId,
+   startDate: gb.startDate,
+   endDate: gb.endDate,
+ };
 }
 
 export function usePopularGroupBuys(

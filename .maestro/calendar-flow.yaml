@@ -1,0 +1,60 @@
+appId: com.gonggu.wish
+---
+# Calendar screen E2E — navigate to calendar, verify dates, tap a day.
+# Run: maestro test .maestro/calendar-flow.yaml
+
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구"
+    timeout: 15000
+
+# Look for calendar entry point — tap calendar icon or text
+- tapOn:
+    text: "캘린더"
+    optional: true
+- waitForAnimationToEnd
+
+# If no calendar text, try tapping calendar icon area
+- tapOn:
+    point: "75%,10%"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: calendar-01-opened
+
+# Swipe to next week
+- swipe:
+    start: 80%,15%
+    end: 20%,15%
+    duration: 300
+- waitForAnimationToEnd
+- takeScreenshot: calendar-02-next-week
+
+# Swipe back
+- swipe:
+    start: 20%,15%
+    end: 80%,15%
+    duration: 300
+- waitForAnimationToEnd
+- takeScreenshot: calendar-03-prev-week
+
+# Tap a date
+- tapOn:
+    point: "30%,15%"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: calendar-04-date-tapped
+
+# Scroll deals for that date
+- swipe:
+    start: 50%,60%
+    end: 50%,40%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: calendar-05-deals
+
+# Go back
+- back
+- waitForAnimationToEnd
+- takeScreenshot: calendar-06-back

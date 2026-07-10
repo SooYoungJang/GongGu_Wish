@@ -4,14 +4,13 @@
 //
 // Provides:
 //   - Ranking (all sellers sorted by active deal count)
-//   - Following (sellers the user follows)
 //   - Category filtering (beauty, fashion, food, lifestyle, baby, digital)
 //   - Period filtering (today, weekly, monthly)
 //   - Sort modes (popular, rising, deadlineSoon, newDeal, brand)
 //
 // Deploy: supabase functions deploy seller-rankings
 // Invoke: POST /functions/v1/seller-rankings
-//   { "tab": "ranking", "category": "all", "period": "weekly", "sort": "popular" }
+//   { "category": "all", "period": "weekly", "sort": "popular" }
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
@@ -19,13 +18,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type RankingTab = 'ranking' | 'following';
 type RankingCategory = 'all' | 'beauty' | 'fashion' | 'food' | 'lifestyle' | 'baby' | 'digital';
 type RankingPeriod = 'today' | 'weekly' | 'monthly';
 type RankingSort = 'popular' | 'rising' | 'deadlineSoon' | 'newDeal' | 'brand';
 
 interface RankingRequest {
-  tab: RankingTab;
   category: RankingCategory;
   period: RankingPeriod;
   sort: RankingSort;

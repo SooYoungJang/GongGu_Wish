@@ -126,7 +126,6 @@ export const MOCK_RANKINGS: SellerRanking[] = [
 ];
 
 export const MOCK_QUERY: SellerRankingQuery = {
-  tab: 'ranking',
   category: 'all',
   period: 'weekly',
   sort: 'popular',

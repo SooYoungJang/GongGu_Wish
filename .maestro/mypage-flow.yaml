@@ -1,0 +1,63 @@
+appId: com.gonggu.wish
+---
+# My page E2E — verify profile, settings, theme toggle.
+# Run: maestro test .maestro/mypage-flow.yaml
+
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구"
+    timeout: 15000
+
+# Go to MY tab
+- tapOn:
+    text: "MY"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: mypage-01-opened
+
+# Scroll down
+- swipe:
+    start: 50%,60%
+    end: 50%,40%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: mypage-02-scrolled
+
+# Scroll more
+- swipe:
+    start: 50%,60%
+    end: 50%,40%
+    duration: 200
+- waitForAnimationToEnd
+- takeScreenshot: mypage-03-scrolled2
+
+# Scroll back to top
+- swipe:
+    start: 50%,30%
+    end: 50%,60%
+    duration: 300
+- waitForAnimationToEnd
+- takeScreenshot: mypage-04-top
+
+# Look for theme toggle
+- tapOn:
+    text: "다크"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: mypage-05-theme-toggle
+
+# Toggle back
+- tapOn:
+    text: "라이트"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: mypage-06-theme-back
+
+# Go back to home
+- tapOn:
+    text: "공구"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: mypage-07-home

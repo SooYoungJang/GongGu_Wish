@@ -2,27 +2,26 @@ import { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RankingCategoryChips, RankingTabs, SellerRankingList } from '../components/ranking';
+import { RankingCategoryChips, SellerRankingList } from '../components/ranking';
 import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { SText } from '../components/ui/SText';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { spacing } from '../design/tokens';
 import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
 import { useCommerceTheme } from '../design/useCommerceTheme';
-import { MOCK_RANKINGS } from '../features/ranking/rankingFixtures';
 import {
   RANKING_CATEGORIES,
   RANKING_PERIOD_LABELS,
   type RankingCategory,
   type RankingPeriod,
   type RankingSort,
-  type RankingTab,
   type RankingThumbnail,
   type SellerRanking,
 } from '../features/ranking/types';
 import { usePopularGroupBuys } from '../features/ranking/usePopularGroupBuys';
 import { syncNotification } from '../api';
-import type { StoreScreenProps } from '../types';
+import { useNotifications } from '../hooks/useLocalDeals';
+import type { StoreScreenProps, GroupBuy } from '../types';
 
 // Space reserved for the floating absolute-positioned tab bar:
 // 70pt bar height + spacing.lg margin + safe area bottom + extra breathing room
@@ -30,33 +29,55 @@ const TAB_BAR_HEIGHT = 70;
 const TAB_BAR_BOTTOM_MARGIN = spacing.lg;
 const FLOATING_TAB_RESERVED_HEIGHT = TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_MARGIN;
 
+// 랭킹 행을 GroupBuy로 변환해 useNotifications.toggleNotification에 넘긴다.
+// startDate/endDate가 있으면 시작 1시간 전 푸시가 예약되고, 없어도 알림 항목은
+// 마이페이지·릴스가 읽는 공유 스토어에 저장된다.
+function rankingToGroupBuy(item: SellerRanking): GroupBuy {
+  const groupBuyId = item.representativeGroupBuyId ?? item.id;
+  return {
+    id: groupBuyId,
+    productName: item.displayName,
+    brandName: null,
+    category: item.category,
+    startDate: item.startDate ?? null,
+    endDate: item.endDate ?? null,
+    purchaseUrl: null,
+    discountInfo: null,
+    summary: null,
+    confidence: 0,
+    thumbnailUrl: item.thumbnails[0]?.imageUrl ?? null,
+    videoUrl: null,
+    mediaUrls: [],
+    mediaType: null,
+    rawPost: { postUrl: '', influencer: { instagramUsername: item.username } },
+  };
+}
+
 export function StoreScreen({ navigation }: StoreScreenProps) {
   const insets = useSafeAreaInsets();
-  const { colors } = useCommerceTheme();
-  const s = useMemo(() => makeStyles(colors), [colors]);
-  const [activeTab, setActiveTab] = useState<RankingTab>('ranking');
-  const [selectedCategory, setSelectedCategory] = useState<RankingCategory>('all');
+ const { colors } = useCommerceTheme();
+ const s = useMemo(() => makeStyles(colors), [colors]);
+ const [selectedCategory, setSelectedCategory] = useState<RankingCategory>('all');
   const [period, setPeriod] = useState<RankingPeriod>('weekly');
   const [sort, setSort] = useState<RankingSort>('popular');
 
-  const rankingState = usePopularGroupBuys(period, selectedCategory, sort);
+ const rankingState = usePopularGroupBuys(period, selectedCategory, sort);
+ const { isNotifying, toggleNotification } = useNotifications();
 
-  const [followedIds, setFollowedIds] = useState<Set<string>>(() => new Set());
+ const patchedRankingState = useMemo(() => {
+   if (rankingState.status !== 'ready' || !rankingState.data) return rankingState;
+   return {
+     ...rankingState,
+     data: rankingState.data.map((item) => ({
+       ...item,
+       // 알림 버튼은 진짜 알림 설정 상태를 반영한다. useNotifications 스토어는
+       // 마이페이지("알림 설정한 공구")와 릴스(bell)가 함께 읽는 같은 저장소다.
+       isFollowing: isNotifying(item.representativeGroupBuyId ?? item.id),
+     })),
+   };
+ }, [rankingState, isNotifying]);
 
-  const patchedRankingState = useMemo(() => {
-    if (rankingState.status !== 'ready' || !rankingState.data) return rankingState;
-    return {
-      ...rankingState,
-      data: rankingState.data.map((item) => ({
-        ...item,
-        isFollowing: followedIds.has(item.sellerId),
-      })),
-    };
-  }, [rankingState, followedIds]);
-
-  const rankingCount = MOCK_RANKINGS.length;
-  const followingCount = useMemo(() => followedIds.size, [followedIds]);
-  const bottomPadding = FLOATING_TAB_RESERVED_HEIGHT + insets.bottom + spacing['2xl'];
+ const bottomPadding = FLOATING_TAB_RESERVED_HEIGHT + insets.bottom + spacing['2xl'];
 
   const handlePressSeller = useCallback(
     (item: SellerRanking) => {
@@ -75,21 +96,19 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
     });
   }, [navigation]);
 
-  const handleToggleFollow = useCallback((item: SellerRanking) => {
-    const willFollow = !followedIds.has(item.sellerId);
-    if (item.representativeGroupBuyId) {
-      void syncNotification(item.representativeGroupBuyId, willFollow);
-    }
-    setFollowedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(item.sellerId)) {
-        next.delete(item.sellerId);
-      } else {
-        next.add(item.sellerId);
-      }
-      return next;
-    });
-  }, [followedIds]);
+ const handleToggleNotification = useCallback(
+   (item: SellerRanking) => {
+     const groupBuyId = item.representativeGroupBuyId;
+     if (!groupBuyId) return;
+     const willEnable = !isNotifying(groupBuyId);
+     // 서버 인기도 집계용 미러 (fire-and-forget)
+     void syncNotification(groupBuyId, willEnable);
+     // 진짜 알림 등록/해제: useNotifications 스토어에 쓰면 마이페이지·릴스에 즉시 반영되고,
+     // startDate가 있으면 시작 1시간 전 푸시도 예약된다.
+     void toggleNotification(rankingToGroupBuy(item));
+   },
+   [isNotifying, toggleNotification],
+ );
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
@@ -106,17 +125,11 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
               </Pressable>
             </View>
           }
-        />
+       />
 
-        <RankingTabs
-          value={activeTab}
-          rankingCount={rankingCount}
-          followingCount={followingCount}
-          onChange={setActiveTab}
-        />
-      </View>
+     </View>
 
-      <View style={s.filterSection}>
+     <View style={s.filterSection}>
         <View style={s.periodRow}>
           {(['today', 'weekly', 'monthly'] as const).map((nextPeriod) => {
             const selected = nextPeriod === period;
@@ -150,10 +163,10 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         <SellerRankingList
           state={patchedRankingState}
           bottomPadding={bottomPadding}
-          onPressItem={handlePressSeller}
-          onPressThumbnail={handlePressThumbnail}
-          onToggleFollow={handleToggleFollow}
-        />
+         onPressItem={handlePressSeller}
+         onPressThumbnail={handlePressThumbnail}
+         onToggleFollow={handleToggleNotification}
+       />
       </View>
     </SafeAreaView>
   );
