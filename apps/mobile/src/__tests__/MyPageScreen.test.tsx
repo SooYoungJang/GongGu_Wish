@@ -1,16 +1,29 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import * as api from '../api';
 import { MyPageScreen } from '../screens/MyPageScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
+
+const navigationMocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
+  goBack: vi.fn(),
+}));
+const focusedCallbacks = vi.hoisted(() => new Set<Function>());
+const authMocks = vi.hoisted(() => ({
+  session: null as any,
+  signOut: vi.fn().mockResolvedValue(undefined),
+}));
+const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
 
 // Mock @supabase/supabase-js
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      getSession: vi.fn().mockResolvedValue({ data: { session: authMocks.session } }),
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
@@ -20,7 +33,7 @@ vi.mock('@supabase/supabase-js', () => ({
       verifyOtp: vi.fn(),
       exchangeCodeForSession: vi.fn(),
       signInWithOAuth: vi.fn(),
-      signOut: vi.fn(),
+      signOut: authMocks.signOut,
     },
   }),
 }));
@@ -37,7 +50,7 @@ vi.mock('../lib/supabase', () => ({
   configureSupabase: vi.fn(),
   getSupabase: vi.fn(() => ({
     auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      getSession: vi.fn().mockResolvedValue({ data: { session: authMocks.session } }),
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
@@ -47,7 +60,7 @@ vi.mock('../lib/supabase', () => ({
       verifyOtp: vi.fn(),
       exchangeCodeForSession: vi.fn(),
       signInWithOAuth: vi.fn(),
-      signOut: vi.fn(),
+      signOut: authMocks.signOut,
     },
   })),
 }));
@@ -55,11 +68,14 @@ vi.mock('../lib/supabase', () => ({
 // Mock useNavigation hook
 vi.mock('@react-navigation/native', () => ({
   useNavigation: () => ({
-    navigate: vi.fn(),
-    goBack: vi.fn(),
+    navigate: navigationMocks.navigate,
+    goBack: navigationMocks.goBack,
   }),
   useFocusEffect: vi.fn((cb: any) => {
-    if (typeof cb === 'function') cb();
+    if (typeof cb === 'function' && !focusedCallbacks.has(cb)) {
+      focusedCallbacks.add(cb);
+      cb();
+    }
     return vi.fn();
   }),
 }));
@@ -115,7 +131,7 @@ vi.mock('react-native', () => {
       removeEventListener: vi.fn(),
     },
     Share: { share: vi.fn() },
-    Alert: { alert: vi.fn() },
+    Alert: alertMocks,
     ActivityIndicator: passthrough('ActivityIndicator'),
   };
 });
@@ -125,19 +141,31 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-function renderMyPageScreen() {
+function renderScreen(screen: React.ReactElement) {
   let renderer: ReturnType<typeof TestRenderer.create>;
   act(() => {
     renderer = TestRenderer.create(
       React.createElement(ThemeProvider, null,
         React.createElement(AuthProvider, null,
-          React.createElement(MyPageScreen),
+          screen,
         ),
       ),
     );
   });
   return renderer!;
 }
+
+function renderMyPageScreen() {
+  return renderScreen(React.createElement(MyPageScreen));
+}
+
+beforeEach(() => {
+  authMocks.session = null;
+  authMocks.signOut.mockClear();
+  alertMocks.alert.mockClear();
+  navigationMocks.navigate.mockClear();
+  navigationMocks.goBack.mockClear();
+});
 
 describe('MyPageScreen', () => {
   it('renders without crashing', () => {
@@ -149,5 +177,72 @@ describe('MyPageScreen', () => {
     const renderer = renderMyPageScreen();
     const json = renderer.toJSON();
     expect(json).not.toBeNull();
+  });
+
+  it('opens settings from the top-right menu', async () => {
+    const renderer = renderMyPageScreen();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const menuButton = renderer.root.findByProps({
+      accessibilityLabel: '설정 열기',
+    });
+
+    act(() => {
+      menuButton.props.onPress();
+    });
+
+    expect(navigationMocks.navigate).toHaveBeenCalledWith('Settings');
+  });
+
+  it('renders notification and theme controls on the settings screen', () => {
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('알림 설정');
+    expect(rendered).toContain('화면 테마');
+    expect(rendered).toContain('시스템');
+    expect(rendered).toContain('라이트');
+    expect(rendered).toContain('다크');
+  });
+
+  it('places account deletion at the bottom and asks for confirmation', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: {
+        id: 'user-1',
+        email: 'user@example.com',
+        created_at: '2026-01-01T00:00:00.000Z',
+      },
+    };
+    const deleteSpy = vi.spyOn(api, 'deleteAccount').mockResolvedValue(undefined);
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const deleteButton = renderer.root.findByProps({
+      accessibilityLabel: '회원탈퇴',
+    });
+    act(() => {
+      deleteButton.props.onPress();
+    });
+
+    expect(alertMocks.alert).toHaveBeenCalledWith('회원탈퇴', expect.stringContaining('복구할 수 없어요'), expect.any(Array));
+    const options = alertMocks.alert.mock.calls.at(-1)?.[2] as Array<{
+      onPress?: () => void;
+    }>;
+    act(() => {
+      options[1]?.onPress?.();
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(deleteSpy).toHaveBeenCalledOnce();
+    deleteSpy.mockRestore();
   });
 });

@@ -19,6 +19,9 @@ export function ThemeToggle() {
       <View style={s.optionRow}>
         {(['system', 'light', 'dark'] as const).map((mode) => (
           <Pressable
+            accessibilityLabel={mode === 'system' ? '시스템' : mode === 'light' ? '라이트' : '다크'}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: themeMode === mode }}
             key={mode}
             onPress={() => setThemeMode(mode)}
             style={[s.option, themeMode === mode && s.optionActive]}

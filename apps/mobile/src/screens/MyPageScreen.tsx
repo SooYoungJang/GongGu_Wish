@@ -1,19 +1,18 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 
 import { ApiError, postPublicJson } from '../api';
 import { useBookmarks, useRecentViews, useNotifications, useWishItems } from '../hooks/useLocalDeals';
-import { IS_EXPO_GO, requestNotificationPermissions, scheduleTestNotification } from '../services/notifications';
 import { AppButton } from '../components/AppButton';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SText } from '../components/ui/SText';
-import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import { useCommerceTheme } from '../design/useCommerceTheme';
-import type { CommerceColorPalette } from '../design/commerce';
+import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
 import { spacing } from '../design/tokens';
 import type { GroupBuy, RootStackParamList } from '../types';
 
@@ -161,8 +160,6 @@ export function MyPageScreen() {
   const { recentViews: viewedToday, refresh: refreshRecent } = useRecentViews();
   const { notifications, removeNotification, refresh: refreshNotifications } = useNotifications();
   const { wishItems, recordWishItem, refresh: refreshWishItems } = useWishItems();
-  const [pushEnabled, setPushEnabled] = useState(false);
-  const [testScheduled, setTestScheduled] = useState(false);
   const [wishModalVisible, setWishModalVisible] = useState(false);
   const [wishUrl, setWishUrl] = useState('');
   const [wishFeedback, setWishFeedback] = useState<string | null>(null);
@@ -174,7 +171,6 @@ export function MyPageScreen() {
       refreshRecent();
       refreshNotifications();
       refreshWishItems();
-      requestNotificationPermissions().then(setPushEnabled).catch(() => setPushEnabled(false));
     }, [refreshBookmarks, refreshRecent, refreshNotifications, refreshWishItems]),
   );
 
@@ -324,7 +320,21 @@ export function MyPageScreen() {
         </View>
       </Modal>
       <ScrollView contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
-        <ScreenHeader title="마이페이지" />
+        <ScreenHeader
+          title="마이페이지"
+          right={(
+            <Pressable
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel="설정 열기"
+              hitSlop={8}
+              onPress={() => navigation.navigate('Settings')}
+              style={({ pressed }) => [s.headerButton, pressed && s.pressed]}
+            >
+              <Ionicons name="menu-outline" size={24} color={colors.text} />
+            </Pressable>
+          )}
+        />
 
         {user ? (
           <View style={s.profileCard}>
@@ -385,64 +395,6 @@ export function MyPageScreen() {
           s={s}
         />
 
-        <View style={s.notificationCard}>
-          <SText variant="cardTitle" style={s.notificationTitle}>알림 설정</SText>
-          <SText variant="caption" style={s.notificationSubtitle}>
-            {pushEnabled ? '푸시 알림이 활성화되어 있어요.' : '푸시 알림 권한이 꺼져 있어요. 기기 설정에서 켜주세요.'}
-          </SText>
-          <View style={s.switchRow}>
-            <View style={s.switchCopy}>
-              <SText variant="body" style={s.switchLabel}>푸시 알림</SText>
-              <SText variant="caption" style={s.switchDescription}>공구 시작 전 알림 수신</SText>
-            </View>
-            <Switch
-              value={pushEnabled}
-              onValueChange={async (value) => {
-                if (value) {
-                  const granted = await requestNotificationPermissions();
-                  if (!granted) {
-                    Alert.alert(
-                      '알림을 켤 수 없어요',
-                      IS_EXPO_GO
-                        ? 'Expo Go에서는 푸시 알림이 지원되지 않아요. 개발 빌드에서 이용 가능합니다.'
-                        : '기기 설정에서 알림 권한을 허용해 주세요.',
-                    );
-                  }
-                  setPushEnabled(granted);
-                } else {
-                  setPushEnabled(false);
-                }
-              }}
-              trackColor={{ false: colors.softBg, true: colors.accentSoft }}
-              thumbColor={pushEnabled ? colors.accent : colors.weak}
-            />
-          </View>
-          {IS_EXPO_GO ? (
-            <View style={s.testButton}>
-              <SText variant="label" style={s.testButtonText}>개발 빌드에서만 테스트 가능해요</SText>
-            </View>
-          ) : (
-          <Pressable
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel="테스트 알림 보내기"
-            onPress={async () => {
-              setTestScheduled(true);
-              await scheduleTestNotification(10);
-            }}
-            style={({ pressed }) => [s.testButton, pressed && s.pressed]}
-          >
-            <SText variant="label" style={s.testButtonText}>
-              {testScheduled ? '10초 뒤 알림 예약됨' : '테스트 알림 보내기 (10초)'}
-            </SText>
-          </Pressable>
-          )}
-        </View>
-
-        <View style={s.settingsCard}>
-          <ThemeToggle />
-        </View>
-
         {user ? (
           <View style={s.logoutSection}>
             <AppButton variant="secondary" onPress={handleLogout} disabled={loggingOut}>
@@ -473,6 +425,13 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingBottom: 122,
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.xl,
+    },
+    headerButton: {
+      alignItems: 'center',
+      borderRadius: commerceRadius.full,
+      height: 44,
+      justifyContent: 'center',
+      width: 44,
     },
     profileCard: {
       alignItems: 'center',
@@ -761,69 +720,6 @@ function makeStyles(colors: CommerceColorPalette) {
       color: colors.weak,
       fontWeight: '700',
     },
-    notificationCard: {
-      backgroundColor: colors.surface,
-      borderColor: colors.borderLight,
-      borderRadius: 20,
-      borderWidth: 1,
-      marginBottom: spacing.lg,
-      paddingHorizontal: spacing.lg,
-      paddingTop: spacing.lg,
-    },
-    notificationTitle: {
-      color: colors.text,
-      fontSize: 18,
-      fontWeight: '900',
-      lineHeight: 24,
-    },
-    notificationSubtitle: {
-      color: colors.weak,
-      fontSize: 12,
-      fontWeight: '700',
-      lineHeight: 17,
-      marginTop: 2,
-      marginBottom: spacing.sm,
-    },
-    switchRow: {
-      alignItems: 'center',
-      borderBottomColor: colors.borderLight,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      minHeight: 70,
-      paddingVertical: spacing.sm,
-    },
-    switchRowLast: {
-      borderBottomWidth: 0,
-    },
-    switchCopy: {
-      flex: 1,
-      paddingRight: spacing.md,
-    },
-    switchLabel: {
-      color: colors.text,
-      fontSize: 15,
-      fontWeight: '900',
-      lineHeight: 20,
-    },
-    switchDescription: {
-      color: colors.weak,
-      fontSize: 12,
-      fontWeight: '700',
-      lineHeight: 17,
-      marginTop: 3,
-    },
-    testButton: {
-      alignItems: 'center',
-      backgroundColor: colors.accentSoft,
-      borderRadius: 12,
-      marginTop: spacing.md,
-      paddingVertical: spacing.md,
-    },
-    testButtonText: {
-      color: colors.accent,
-      fontWeight: '900',
-    },
     menuGroup: {
       backgroundColor: colors.surface,
       borderColor: colors.borderLight,
@@ -882,14 +778,6 @@ function makeStyles(colors: CommerceColorPalette) {
       fontWeight: '500',
       lineHeight: 28,
       marginLeft: spacing.sm,
-    },
-    settingsCard: {
-      backgroundColor: colors.surface,
-      borderColor: colors.borderLight,
-      borderRadius: 20,
-      borderWidth: 1,
-      marginBottom: spacing.lg,
-      paddingHorizontal: spacing.lg,
     },
     logoutSection: {
       marginTop: spacing.sm,

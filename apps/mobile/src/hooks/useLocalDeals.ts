@@ -101,6 +101,38 @@ async function getNotifications(): Promise<NotificationsModule | null> {
   }
 }
 
+/** Clear locally stored account activity after a successful account deletion. */
+export async function clearLocalUserData(): Promise<void> {
+  const storedNotifications = await readJSON<NotificationEntry[]>(NOTI_KEY, []);
+  const Notifications = await getNotifications();
+
+  if (Notifications) {
+    await Promise.all(
+      storedNotifications
+        .map((entry) => entry.notificationId)
+        .filter((notificationId): notificationId is string => Boolean(notificationId))
+        .map(async (notificationId) => {
+          try {
+            await Notifications.cancelScheduledNotificationAsync(notificationId);
+          } catch {
+            // A notification may already have been delivered or cancelled.
+          }
+        }),
+    );
+  }
+
+  await Promise.all(
+    [BOOKMARK_KEY, RECENT_KEY, NOTI_KEY, WISH_ITEM_KEY].map(async (key) => {
+      try {
+        await AsyncStorage.removeItem(key);
+      } catch {
+        // Local storage cleanup is best-effort after the server deletion.
+      }
+    }),
+  );
+  publishNotifications([]);
+}
+
 export function useBookmarks() {
   const [bookmarks, setBookmarks] = useState<StoredGroupBuy[]>([]);
   const [ready, setReady] = useState(false);

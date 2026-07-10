@@ -35,6 +35,7 @@ import { MyPageScreen } from './screens/MyPageScreen';
 import { StoreScreen } from './screens/StoreScreen';
 import { SearchScreen } from './screens/SearchScreen';
 import { ReelsScreen } from './screens/ReelsScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 
@@ -305,6 +306,8 @@ function ThemedStackNavigator() {
         headerShown: false,
         contentStyle: { backgroundColor: colors.bg },
         headerStyle: { backgroundColor: colors.bg },
+        headerTintColor: colors.text,
+        headerTitleStyle: { color: colors.text },
         headerShadowVisible: false,
       }}
     >
@@ -317,6 +320,7 @@ function ThemedStackNavigator() {
       <Stack.Screen name="InfluencerGroupBuys" component={InfluencerGroupBuysScreen} />
       <Stack.Screen name="SearchScreen" component={SearchScreen} />
       <Stack.Screen name="Admin" component={AdminScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: true, title: '설정', headerBackTitle: '뒤로' }} />
     </Stack.Navigator>
   );
 }

@@ -568,6 +568,14 @@ export async function refreshGroupBuyMedia(groupBuyId: string): Promise<Refreshe
   return callEdgeFunction<RefreshedInstagramMedia>('refresh-instagram-media', { groupBuyId });
 }
 
+/** Permanently delete the authenticated user's account and server-side profile. */
+export async function deleteAccount(): Promise<void> {
+  const result = await callEdgeFunction<{ deleted?: boolean }>('delete-account', {});
+  if (!result.deleted) {
+    throw new ApiError(502, '회원탈퇴 처리 결과를 확인할 수 없습니다.');
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Edge Function (service_role)
 // ═══════════════════════════════════════════════════════════════════════════════
