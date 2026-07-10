@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CalendarScreen } from '../CalendarScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
@@ -8,7 +8,7 @@ import type { GroupBuy } from '../../types';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
-vi.mock('../api', () => ({
+vi.mock('../../api', () => ({
   fallbackGroupBuys: [],
   fetchGroupBuys: vi.fn(),
 }));
@@ -162,6 +162,14 @@ function renderCalendarWithData(groupBuys: GroupBuy[]) {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('CalendarScreen', () => {
+  beforeEach(() => {
+    mockQueryResult = {
+      data: null,
+      isFetching: false,
+      isError: false,
+    };
+  });
+
   it('renders the calendar header with current year and month', () => {
     const renderer = renderCalendar();
     const text = flattenText(renderer!.toJSON());

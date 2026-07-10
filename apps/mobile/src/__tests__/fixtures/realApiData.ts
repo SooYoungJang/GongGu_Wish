@@ -207,6 +207,7 @@ export const expectedGroupBuys = [
     mediaUrls: [],
     mediaItems: [],
     mediaType: null,
+    createdAt: '2026-06-12T14:04:21.682',
     rawPost: {
       postUrl: 'https://instagram.com/p/TESTPOST001',
       influencer: {
@@ -230,6 +231,7 @@ export const expectedGroupBuys = [
     mediaUrls: [],
     mediaItems: [],
     mediaType: null,
+    createdAt: '2026-06-20T15:00:00',
     rawPost: {
       postUrl: 'https://instagram.com/p/LINENDRESS001',
       influencer: {
@@ -253,6 +255,7 @@ export const expectedGroupBuys = [
     mediaUrls: [],
     mediaItems: [],
     mediaType: null,
+    createdAt: '2026-06-25T16:00:00',
     rawPost: {
       postUrl: 'https://instagram.com/p/CLEANSING001',
       influencer: {
