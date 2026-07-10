@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { adminApi } from "@/lib/adminApi";
 import { StatCard } from "@/components/StatCard";
+import {
+  monthlyFeaturedRankInputValue,
+  normalizeMonthlyFeaturedRankInput,
+  parseMonthlyFeaturedRank,
+} from "@/lib/monthlyFeaturedRank";
+import {
+  getGroupBuyVisibility,
+  groupBuyStatusForVisibility,
+  shouldReturnToGroupBuyList,
+} from "@/lib/groupBuyVisibility";
 import { supabase } from "@/supabase/client";
 import type {
   CdnRefreshStatus,
@@ -69,6 +79,7 @@ type UserForm = {
 };
 
 const PAGE_SIZE = 25;
+const SEARCH_DEBOUNCE_MS = 250;
 const CATEGORY_OPTIONS = [
   { value: "", label: "미지정" },
   { value: "food", label: "식품" },
@@ -105,6 +116,17 @@ const GROUP_BUY_STATUS_OPTIONS: Array<{ value: "ALL" | GroupBuyStatus; label: st
   { value: "EXPIRED", label: "마감" },
   { value: "ALL", label: "전체" },
 ];
+
+function useDebouncedValue<T>(value: T, delay = SEARCH_DEBOUNCE_MS): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedValue(value), delay);
+    return () => window.clearTimeout(timeoutId);
+  }, [delay, value]);
+
+  return debouncedValue;
+}
 
 function isAdminUser(user: User | null | undefined) {
   const role = user?.app_metadata?.role;
@@ -264,7 +286,7 @@ function groupBuyToForm(item: GroupBuy): GroupBuyForm {
     status: item.status,
     isAllDay: Boolean(item.isAllDay),
     isMonthlyFeatured: Boolean(item.isMonthlyFeatured),
-    monthlyFeaturedRank: item.monthlyFeaturedRank == null ? "" : String(item.monthlyFeaturedRank),
+    monthlyFeaturedRank: monthlyFeaturedRankInputValue(item.monthlyFeaturedRank),
   };
 }
 
@@ -290,7 +312,7 @@ function submissionPayload(form: SubmissionForm) {
     mediaType: form.mediaType || null,
     isAllDay: form.isAllDay,
     isMonthlyFeatured: form.isMonthlyFeatured,
-    monthlyFeaturedRank: form.monthlyFeaturedRank ? Number(form.monthlyFeaturedRank) : null,
+    monthlyFeaturedRank: parseMonthlyFeaturedRank(form.monthlyFeaturedRank),
   };
 }
 
@@ -312,7 +334,7 @@ function groupBuyPayload(form: GroupBuyForm) {
     status: form.status,
     isAllDay: form.isAllDay,
     isMonthlyFeatured: form.isMonthlyFeatured,
-    monthlyFeaturedRank: form.monthlyFeaturedRank ? Number(form.monthlyFeaturedRank) : null,
+    monthlyFeaturedRank: parseMonthlyFeaturedRank(form.monthlyFeaturedRank),
   };
 }
 
@@ -423,9 +445,11 @@ function AdminShell({ session }: { session: Session }) {
   const [notice, setNotice] = useState<Notice>(null);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [submissionStatus, setSubmissionStatus] = useState<"ALL" | SubmissionStatus>("PENDING");
   const [submissionQuery, setSubmissionQuery] = useState("");
+  const debouncedSubmissionQuery = useDebouncedValue(submissionQuery);
   const [submissionPage, setSubmissionPage] = useState(1);
   const [submissions, setSubmissions] = useState<GongguSubmission[]>([]);
   const [submissionsTotal, setSubmissionsTotal] = useState(0);
@@ -439,6 +463,7 @@ function AdminShell({ session }: { session: Session }) {
 
   const [groupBuyStatus, setGroupBuyStatus] = useState<"ALL" | GroupBuyStatus>("APPROVED");
   const [groupBuyQuery, setGroupBuyQuery] = useState("");
+  const debouncedGroupBuyQuery = useDebouncedValue(groupBuyQuery);
   const [groupBuyPage, setGroupBuyPage] = useState(1);
   const [groupBuys, setGroupBuys] = useState<GroupBuy[]>([]);
   const [groupBuysTotal, setGroupBuysTotal] = useState(0);
@@ -448,6 +473,7 @@ function AdminShell({ session }: { session: Session }) {
   const [groupBuyActionLoading, setGroupBuyActionLoading] = useState(false);
 
   const [userQuery, setUserQuery] = useState("");
+  const debouncedUserQuery = useDebouncedValue(userQuery);
   const [userPage, setUserPage] = useState(1);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [usersTotal, setUsersTotal] = useState(0);
@@ -461,6 +487,15 @@ function AdminShell({ session }: { session: Session }) {
   const [cdnStatusFilter, setCdnStatusFilter] = useState<string>("all");
   const [detailType, setDetailType] = useState<"submission" | "groupBuy" | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const submissionRequestIdRef = useRef(0);
+  const groupBuyRequestIdRef = useRef(0);
+  const userRequestIdRef = useRef(0);
+  const submissionQueryRef = useRef(submissionQuery);
+  const groupBuyQueryRef = useRef(groupBuyQuery);
+  const userQueryRef = useRef(userQuery);
+  submissionQueryRef.current = submissionQuery;
+  groupBuyQueryRef.current = groupBuyQuery;
+  userQueryRef.current = userQuery;
   const switchTab = useCallback((next: TabKey) => {
     setDetailType(null);
     setSelectedSubmission(null);
@@ -473,19 +508,19 @@ function AdminShell({ session }: { session: Session }) {
     setTab(next);
   }, []);
 
-  const selectSubmission = useCallback((item: GongguSubmission | null) => {
+  const selectSubmission = useCallback((item: GongguSubmission | null, addHistory = true) => {
     setSelectedSubmission(item);
     setSubmissionForm(item ? submissionToForm(item) : null);
     setRejectReason(item?.adminMemo ?? "");
     setDetailType(item ? "submission" : null);
-    if (item) window.history.pushState({ detail: "submission", id: item.id }, "");
+    if (item && addHistory) window.history.pushState({ detail: "submission", id: item.id }, "");
   }, []);
 
-  const selectGroupBuy = useCallback((item: GroupBuy | null) => {
+  const selectGroupBuy = useCallback((item: GroupBuy | null, addHistory = true) => {
     setSelectedGroupBuy(item);
     setGroupBuyForm(item ? groupBuyToForm(item) : null);
     setDetailType(item ? "groupBuy" : null);
-    if (item) window.history.pushState({ detail: "groupBuy", id: item.id }, "");
+    if (item && addHistory) window.history.pushState({ detail: "groupBuy", id: item.id }, "");
   }, []);
 
   const selectUser = useCallback((item: AppUser | null) => {
@@ -507,14 +542,17 @@ function AdminShell({ session }: { session: Session }) {
   }, []);
 
   const loadSubmissions = useCallback(async () => {
+    const requestId = ++submissionRequestIdRef.current;
+    const requestQuery = debouncedSubmissionQuery;
     setSubmissionsLoading(true);
     try {
       const data = await adminApi.listSubmissions({
         page: submissionPage,
         limit: PAGE_SIZE,
         status: submissionStatus,
-        q: submissionQuery,
+        q: requestQuery,
       });
+      if (requestId !== submissionRequestIdRef.current || requestQuery !== submissionQueryRef.current) return;
       setSubmissions(data.items);
       setSubmissionsTotal(data.total);
       setSelectedSubmissionIds((current) => {
@@ -528,21 +566,25 @@ function AdminShell({ session }: { session: Session }) {
         return next;
       });
     } catch (error) {
+      if (requestId !== submissionRequestIdRef.current || requestQuery !== submissionQueryRef.current) return;
       setNotice({ tone: "error", message: error instanceof Error ? error.message : "위시 목록 조회 실패" });
     } finally {
-      setSubmissionsLoading(false);
+      if (requestId === submissionRequestIdRef.current) setSubmissionsLoading(false);
     }
-  }, [submissionPage, submissionQuery, submissionStatus]);
+  }, [debouncedSubmissionQuery, submissionPage, submissionStatus]);
 
   const loadGroupBuys = useCallback(async () => {
+    const requestId = ++groupBuyRequestIdRef.current;
+    const requestQuery = debouncedGroupBuyQuery;
     setGroupBuysLoading(true);
     try {
       const data = await adminApi.listGroupBuys({
         page: groupBuyPage,
         limit: PAGE_SIZE,
         status: groupBuyStatus,
-        q: groupBuyQuery,
+        q: requestQuery,
       });
+      if (requestId !== groupBuyRequestIdRef.current || requestQuery !== groupBuyQueryRef.current) return;
       setGroupBuys(data.items);
       setGroupBuysTotal(data.total);
       setSelectedGroupBuy((current) => {
@@ -551,20 +593,24 @@ function AdminShell({ session }: { session: Session }) {
         return next;
       });
     } catch (error) {
+      if (requestId !== groupBuyRequestIdRef.current || requestQuery !== groupBuyQueryRef.current) return;
       setNotice({ tone: "error", message: error instanceof Error ? error.message : "공구 목록 조회 실패" });
     } finally {
-      setGroupBuysLoading(false);
+      if (requestId === groupBuyRequestIdRef.current) setGroupBuysLoading(false);
     }
-  }, [groupBuyPage, groupBuyQuery, groupBuyStatus]);
+  }, [debouncedGroupBuyQuery, groupBuyPage, groupBuyStatus]);
 
   const loadUsers = useCallback(async () => {
+    const requestId = ++userRequestIdRef.current;
+    const requestQuery = debouncedUserQuery;
     setUsersLoading(true);
     try {
       const data = await adminApi.listUsers({
         page: userPage,
         limit: PAGE_SIZE,
-        q: userQuery,
+        q: requestQuery,
       });
+      if (requestId !== userRequestIdRef.current || requestQuery !== userQueryRef.current) return;
       setUsers(data.items);
       setUsersTotal(data.total);
       setSelectedUser((current) => {
@@ -573,11 +619,12 @@ function AdminShell({ session }: { session: Session }) {
         return next;
       });
     } catch (error) {
+      if (requestId !== userRequestIdRef.current || requestQuery !== userQueryRef.current) return;
       setNotice({ tone: "error", message: error instanceof Error ? error.message : "가입자 목록 조회 실패" });
     } finally {
-      setUsersLoading(false);
+      if (requestId === userRequestIdRef.current) setUsersLoading(false);
     }
-  }, [userPage, userQuery]);
+  }, [debouncedUserQuery, userPage]);
 
   useEffect(() => {
     void loadDashboard();
@@ -616,11 +663,16 @@ function AdminShell({ session }: { session: Session }) {
   }, [loadCdnStatus, tab]);
 
   const refreshActive = useCallback(async () => {
-    await loadDashboard();
-    if (tab === "submissions") await loadSubmissions();
-    if (tab === "groupBuys") await loadGroupBuys();
-    if (tab === "users") await loadUsers();
-    if (tab === "cdnRefresh") await loadCdnStatus();
+    setIsRefreshing(true);
+    try {
+      await loadDashboard();
+      if (tab === "submissions") await loadSubmissions();
+      if (tab === "groupBuys") await loadGroupBuys();
+      if (tab === "users") await loadUsers();
+      if (tab === "cdnRefresh") await loadCdnStatus();
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [loadDashboard, loadGroupBuys, loadSubmissions, loadUsers, loadCdnStatus, tab]);
 
   const toggleSubmissionSelection = useCallback((id: string, checked: boolean) => {
@@ -656,7 +708,7 @@ function AdminShell({ session }: { session: Session }) {
     try {
       const next = await adminApi.updateSubmission(selectedSubmission.id, submissionPayload(submissionForm));
       setNotice({ tone: "success", message: "위시 정보를 저장했습니다." });
-      selectSubmission(next);
+      selectSubmission(next, false);
       await loadSubmissions();
       await loadDashboard();
     } catch (error) {
@@ -676,6 +728,7 @@ function AdminShell({ session }: { session: Session }) {
     try {
       await adminApi.approveSubmission(selectedSubmission.id, submissionPayload(submissionForm));
       setNotice({ tone: "success", message: "위시를 공구로 등록했습니다." });
+      closeDetail();
       await loadSubmissions();
       await loadDashboard();
     } catch (error) {
@@ -689,9 +742,9 @@ function AdminShell({ session }: { session: Session }) {
     if (!selectedSubmission) return;
     setSubmissionActionLoading(true);
     try {
-      const next = await adminApi.rejectSubmission(selectedSubmission.id, rejectReason.trim() || "관리자 반려");
+      await adminApi.rejectSubmission(selectedSubmission.id, rejectReason.trim() || "관리자 반려");
       setNotice({ tone: "success", message: "위시를 반려했습니다." });
-      selectSubmission(next);
+      closeDetail();
       await loadSubmissions();
       await loadDashboard();
     } catch (error) {
@@ -787,7 +840,11 @@ function AdminShell({ session }: { session: Session }) {
     try {
       const next = await adminApi.updateGroupBuy(selectedGroupBuy.id, groupBuyPayload(groupBuyForm));
       setNotice({ tone: "success", message: "공구 정보를 저장했습니다." });
-      selectGroupBuy(next);
+      if (shouldReturnToGroupBuyList(groupBuyStatus, next.status)) {
+        closeDetail();
+      } else {
+        selectGroupBuy(next, false);
+      }
       await loadGroupBuys();
       await loadDashboard();
     } catch (error) {
@@ -826,9 +883,13 @@ function AdminShell({ session }: { session: Session }) {
     if (!selectedGroupBuy) return;
     setGroupBuyActionLoading(true);
     try {
-      const next = await adminApi.updateGroupBuy(selectedGroupBuy.id, { status: hide ? "REJECTED" : "APPROVED" });
+      const next = await adminApi.updateGroupBuy(selectedGroupBuy.id, { status: groupBuyStatusForVisibility(hide) });
       setNotice({ tone: "success", message: hide ? "\uB178\uCD9C\uC744 \uC911\uC9C0\uD588\uC2B5\uB2C8\uB2E4." : "\uB2E4\uC2DC \uB178\uCD9C\uD588\uC2B5\uB2C8\uB2E4." });
-      selectGroupBuy(next);
+      if (shouldReturnToGroupBuyList(groupBuyStatus, next.status)) {
+        closeDetail();
+      } else {
+        selectGroupBuy(next, false);
+      }
       await loadGroupBuys();
       await loadDashboard();
     } catch (error) {
@@ -893,6 +954,9 @@ function AdminShell({ session }: { session: Session }) {
     }
   }
 
+  const showSubmissionDetail = detailType === "submission" && selectedSubmission && submissionForm;
+  const showGroupBuyDetail = detailType === "groupBuy" && selectedGroupBuy && groupBuyForm;
+
   return (
     <div className="admin-shell">
       <aside className="sidebar">
@@ -911,23 +975,23 @@ function AdminShell({ session }: { session: Session }) {
           </div>
         </div>
         <nav className="nav-tabs" aria-label="관리자 메뉴">
-          <button className={tab === "dashboard" ? "active" : ""} onClick={() => switchTab("dashboard")} type="button">
+          <button aria-current={tab === "dashboard" ? "page" : undefined} className={tab === "dashboard" ? "active" : ""} onClick={() => switchTab("dashboard")} type="button">
             <span>Overview</span>
             <strong>대시보드</strong>
           </button>
-          <button className={tab === "submissions" ? "active" : ""} onClick={() => switchTab("submissions")} type="button">
+          <button aria-current={tab === "submissions" ? "page" : undefined} className={tab === "submissions" ? "active" : ""} onClick={() => switchTab("submissions")} type="button">
             <span>Review queue</span>
             <strong>위시 검수</strong>
           </button>
-          <button className={tab === "groupBuys" ? "active" : ""} onClick={() => switchTab("groupBuys")} type="button">
+          <button aria-current={tab === "groupBuys" ? "page" : undefined} className={tab === "groupBuys" ? "active" : ""} onClick={() => switchTab("groupBuys")} type="button">
             <span>Catalog</span>
             <strong>공구 관리</strong>
           </button>
-          <button className={tab === "users" ? "active" : ""} onClick={() => switchTab("users")} type="button">
+          <button aria-current={tab === "users" ? "page" : undefined} className={tab === "users" ? "active" : ""} onClick={() => switchTab("users")} type="button">
             <span>Audience</span>
             <strong>가입자 관리</strong>
           </button>
-          <button className={tab === "cdnRefresh" ? "active" : ""} onClick={() => switchTab("cdnRefresh")} type="button">
+          <button aria-current={tab === "cdnRefresh" ? "page" : undefined} className={tab === "cdnRefresh" ? "active" : ""} onClick={() => switchTab("cdnRefresh")} type="button">
             <span>Media cache</span>
             <strong>CDN 갱신</strong>
           </button>
@@ -943,8 +1007,8 @@ function AdminShell({ session }: { session: Session }) {
           </div>
           <div className="topbar-actions">
             <span className="operator">{session.user.email ?? session.user.id}</span>
-            <button className="button button--secondary" onClick={() => void refreshActive()} type="button">
-              새로고침
+            <button className="button button--secondary" disabled={isRefreshing} onClick={() => void refreshActive()} type="button">
+              {isRefreshing ? "새로고침 중..." : "새로고침"}
             </button>
             <button className="button button--ghost" onClick={() => void supabase.auth.signOut()} type="button">
               로그아웃
@@ -952,9 +1016,14 @@ function AdminShell({ session }: { session: Session }) {
           </div>
         </header>
 
-        {notice ? <div className={`notice notice--${notice.tone}`}>{notice.message}</div> : null}
+        {notice ? (
+          <div aria-live={notice.tone === "error" ? "assertive" : "polite"} className={`notice notice--${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"}>
+            <span>{notice.message}</span>
+            <button aria-label="알림 닫기" className="notice__dismiss" onClick={() => setNotice(null)} type="button">닫기</button>
+          </div>
+        ) : null}
 
-        {detailType === "submission" && selectedSubmission && submissionForm ? (
+        {showSubmissionDetail ? (
           <SubmissionEditor
             actionLoading={submissionActionLoading}
             form={submissionForm}
@@ -970,7 +1039,7 @@ function AdminShell({ session }: { session: Session }) {
           />
         ) : null}
 
-        {detailType === "groupBuy" && selectedGroupBuy && groupBuyForm ? (
+        {showGroupBuyDetail ? (
           <GroupBuyEditor
             actionLoading={groupBuyActionLoading}
             form={groupBuyForm}
@@ -982,7 +1051,7 @@ function AdminShell({ session }: { session: Session }) {
           />
         ) : null}
 
-        {!detailType && (
+        {!showSubmissionDetail && !showGroupBuyDetail && (
           <>
         {tab === "dashboard" ? (
           <DashboardPanel
@@ -1046,6 +1115,7 @@ function AdminShell({ session }: { session: Session }) {
             }}
             onSave={() => void saveGroupBuy()}
             onSelect={selectGroupBuy}
+            onToggleVisibility={toggleGroupBuyVisibility}
             onStatusChange={(value) => {
               setGroupBuyStatus(value);
               setGroupBuyPage(1);
@@ -1096,23 +1166,23 @@ function AdminShell({ session }: { session: Session }) {
         )}
       </main>
       <nav className="bottom-tab-bar" aria-label="모바일 하단 탭">
-        <button className={tab === "dashboard" ? "active" : ""} onClick={() => switchTab("dashboard")} type="button">
+        <button aria-current={tab === "dashboard" ? "page" : undefined} className={tab === "dashboard" ? "active" : ""} onClick={() => switchTab("dashboard")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M3 12L12 3l9 9v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9z" fill="currentColor"/></svg>
           <span>대시보드</span>
         </button>
-        <button className={tab === "submissions" ? "active" : ""} onClick={() => switchTab("submissions")} type="button">
+        <button aria-current={tab === "submissions" ? "page" : undefined} className={tab === "submissions" ? "active" : ""} onClick={() => switchTab("submissions")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9l2 2 4-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>검수</span>
         </button>
-        <button className={tab === "groupBuys" ? "active" : ""} onClick={() => switchTab("groupBuys")} type="button">
+        <button aria-current={tab === "groupBuys" ? "page" : undefined} className={tab === "groupBuys" ? "active" : ""} onClick={() => switchTab("groupBuys")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-14L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>공구</span>
         </button>
-        <button className={tab === "users" ? "active" : ""} onClick={() => switchTab("users")} type="button">
+        <button aria-current={tab === "users" ? "page" : undefined} className={tab === "users" ? "active" : ""} onClick={() => switchTab("users")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-1.13a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm6 0a4 4 0 0 0 0-8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>사용자</span>
         </button>
-        <button className={tab === "cdnRefresh" ? "active" : ""} onClick={() => switchTab("cdnRefresh")} type="button">
+        <button aria-current={tab === "cdnRefresh" ? "page" : undefined} className={tab === "cdnRefresh" ? "active" : ""} onClick={() => switchTab("cdnRefresh")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><path d="M21 3v5h-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
           <span>CDN</span>
         </button>
@@ -1385,6 +1455,11 @@ function SubmissionPanel(props: {
   const selectableItems = props.items.filter((item) => item.status === "PENDING");
   const selectedCount = selectableItems.filter((item) => props.selectedIds.has(item.id)).length;
   const allPageSelected = selectableItems.length > 0 && selectedCount === selectableItems.length;
+  const isFiltered = props.query.trim().length > 0 || props.status !== "PENDING";
+  const resetFilters = () => {
+    props.onQueryChange("");
+    props.onStatusChange("PENDING");
+  };
 
   return (
     <section className="panel">
@@ -1395,7 +1470,10 @@ function SubmissionPanel(props: {
           <p>검색, 상태 필터, 원본 조회, Hiker 보강, 승인/반려 사유 기록을 한 흐름으로 처리합니다.</p>
         </div>
         <Filters
+          onClear={resetFilters}
           query={props.query}
+          queryPlaceholder="상품명, 제보자, URL"
+          showClear={isFiltered}
           status={props.status}
           statusOptions={SUBMISSION_STATUS_OPTIONS}
           onQueryChange={props.onQueryChange}
@@ -1487,7 +1565,9 @@ function SubmissionPanel(props: {
             selected={props.selected}
             selectedIds={props.selectedIds}
           />
-          {props.items.length === 0 && !props.loading ? <div className="empty-state">항목 없음</div> : null}
+          {props.items.length === 0 && !props.loading ? (
+            <ListEmptyState message={isFiltered ? "조건에 맞는 항목이 없습니다." : "검수 대기 항목이 없습니다."} onClear={isFiltered ? resetFilters : undefined} />
+          ) : null}
           <Pagination page={props.page} totalPages={props.totalPages} onPageChange={props.onPageChange} />
         </div>
 
@@ -1660,7 +1740,17 @@ function SubmissionEditor(props: {
           ]}
           onChange={(value) => setField("mediaType", value as SubmissionForm["mediaType"])}
         />
-        <TextField label="이달의 순위" value={form.monthlyFeaturedRank} onChange={(value) => setField("monthlyFeaturedRank", value)} type="number" />
+        <TextField
+          label="이달의 공구 노출 순서"
+          value={form.monthlyFeaturedRank}
+          onChange={(value) => {
+            const normalized = normalizeMonthlyFeaturedRankInput(value);
+            if (normalized !== null) setField("monthlyFeaturedRank", normalized);
+          }}
+          type="number"
+          min={1}
+          step={1}
+        />
       </div>
 
       <CheckboxField label="종일 공구" checked={form.isAllDay} onChange={(value) => setField("isAllDay", value)} />
@@ -1715,6 +1805,7 @@ function GroupBuyPanel(props: {
   onQueryChange: (value: string) => void;
   onSave: () => void;
   onSelect: (item: GroupBuy | null) => void;
+  onToggleVisibility: (hide: boolean) => void;
   onStatusChange: (value: "ALL" | GroupBuyStatus) => void;
   page: number;
   query: string;
@@ -1723,6 +1814,12 @@ function GroupBuyPanel(props: {
   total: number;
   totalPages: number;
 }) {
+  const isFiltered = props.query.trim().length > 0 || props.status !== "APPROVED";
+  const resetFilters = () => {
+    props.onQueryChange("");
+    props.onStatusChange("APPROVED");
+  };
+
   return (
     <section className="panel">
       <div className="section-header">
@@ -1731,7 +1828,10 @@ function GroupBuyPanel(props: {
           <h2>공구 노출 관리</h2>
         </div>
         <Filters
+          onClear={resetFilters}
           query={props.query}
+          queryPlaceholder="상품명, 브랜드, URL"
+          showClear={isFiltered}
           status={props.status}
           statusOptions={GROUP_BUY_STATUS_OPTIONS}
           onQueryChange={props.onQueryChange}
@@ -1749,7 +1849,7 @@ function GroupBuyPanel(props: {
                   <th>상품</th>
                   <th>카테고리</th>
                   <th>마감</th>
-                  <th>추천</th>
+                  <th>이달의 공구 노출 순서</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -1776,7 +1876,9 @@ function GroupBuyPanel(props: {
             onSelect={props.onSelect}
             selected={props.selected}
           />
-          {props.items.length === 0 && !props.loading ? <div className="empty-state">항목 없음</div> : null}
+          {props.items.length === 0 && !props.loading ? (
+            <ListEmptyState message={isFiltered ? "조건에 맞는 공구가 없습니다." : "승인된 공구가 없습니다."} onClear={isFiltered ? resetFilters : undefined} />
+          ) : null}
           <Pagination page={props.page} totalPages={props.totalPages} onPageChange={props.onPageChange} />
         </div>
         <GroupBuyEditor
@@ -1785,6 +1887,7 @@ function GroupBuyPanel(props: {
           onChange={props.onFormChange}
           onClose={() => props.onSelect(null)}
           onSave={props.onSave}
+          onToggleVisibility={props.onToggleVisibility}
           selected={props.selected}
         />
       </div>
@@ -1835,7 +1938,7 @@ function MobileGroupBuyCards({
           <div className="mobile-record-meta">
             <span>마감</span>
             <strong>{item.endDate ? dateInput(item.endDate) : "-"}</strong>
-            <span>추천</span>
+            <span>이달 노출</span>
             <strong>{item.isMonthlyFeatured ? item.monthlyFeaturedRank ?? "노출" : "-"}</strong>
           </div>
         </article>
@@ -1851,7 +1954,7 @@ function GroupBuyEditor(props: {
   onSave: () => void;
   selected: GroupBuy | null;
   onClose: () => void;
-  onToggleVisibility?: (hide: boolean) => void;
+  onToggleVisibility: (hide: boolean) => void;
 }) {
   const form = props.form;
   if (!props.selected || !form) {
@@ -1860,7 +1963,7 @@ function GroupBuyEditor(props: {
   const setField = <K extends keyof GroupBuyForm>(key: K, value: GroupBuyForm[K]) => {
     props.onChange({ ...form, [key]: value });
   };
-  const isHidden = form.status === "REJECTED";
+  const visibility = getGroupBuyVisibility(form.status);
 
   return (
     <aside className="detail-panel">
@@ -1875,8 +1978,8 @@ function GroupBuyEditor(props: {
         <StatusBadge status={form.status} />
       </div>
       <div className="visibility-toggle">
-        <button className="button button--danger" disabled={props.actionLoading || !isHidden} onClick={() => props.onToggleVisibility?.(true)} type="button">노출 중지</button>
-        <button className="button button--primary" disabled={props.actionLoading || isHidden} onClick={() => props.onToggleVisibility?.(false)} type="button">다시 노출</button>
+        <button className="button button--danger" disabled={props.actionLoading || !visibility.canHide} onClick={() => props.onToggleVisibility(true)} type="button">노출 중지</button>
+        <button className="button button--primary" disabled={props.actionLoading || !visibility.canShow} onClick={() => props.onToggleVisibility(false)} type="button">다시 노출</button>
       </div>
 
       <div className="form-grid">
@@ -1895,7 +1998,17 @@ function GroupBuyEditor(props: {
           options={GROUP_BUY_STATUS_OPTIONS.filter((item) => item.value !== "ALL")}
           onChange={(value) => setField("status", value as GroupBuyStatus)}
         />
-        <TextField label="이달의 순위" value={form.monthlyFeaturedRank} onChange={(value) => setField("monthlyFeaturedRank", value)} type="number" />
+        <TextField
+          label="이달의 공구 노출 순서"
+          value={form.monthlyFeaturedRank}
+          onChange={(value) => {
+            const normalized = normalizeMonthlyFeaturedRankInput(value);
+            if (normalized !== null) setField("monthlyFeaturedRank", normalized);
+          }}
+          type="number"
+          min={1}
+          step={1}
+        />
       </div>
 
       <CheckboxField label="종일 공구" checked={form.isAllDay} onChange={(value) => setField("isAllDay", value)} />
@@ -1930,6 +2043,8 @@ function UserPanel(props: {
   totalPages: number;
   expandedUserId: string | null;
 }) {
+  const isFiltered = props.query.trim().length > 0;
+
   return (
     <section className="panel">
       <div className="section-header">
@@ -1945,6 +2060,11 @@ function UserPanel(props: {
             placeholder="이메일, 닉네임"
             value={props.query}
           />
+          {isFiltered ? (
+            <button className="button button--ghost filters__reset" onClick={() => props.onQueryChange("")} type="button">
+              초기화
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -1988,7 +2108,9 @@ function UserPanel(props: {
             actionLoading={props.actionLoading}
             onSave={props.onSave}
           />
-          {props.items.length === 0 && !props.loading ? <div className="empty-state">가입자 없음</div> : null}
+          {props.items.length === 0 && !props.loading ? (
+            <ListEmptyState message={isFiltered ? "조건에 맞는 가입자가 없습니다." : "가입자가 없습니다."} onClear={isFiltered ? () => props.onQueryChange("") : undefined} />
+          ) : null}
           <Pagination page={props.page} totalPages={props.totalPages} onPageChange={props.onPageChange} />
         </div>
         <UserEditor
@@ -2150,13 +2272,19 @@ function UserEditor(props: {
 }
 
 function Filters<T extends string>({
+  onClear,
   query,
+  queryPlaceholder,
+  showClear,
   status,
   statusOptions,
   onQueryChange,
   onStatusChange,
 }: {
+  onClear: () => void;
   query: string;
+  queryPlaceholder: string;
+  showClear: boolean;
   status: T;
   statusOptions: Array<{ value: T; label: string }>;
   onQueryChange: (value: string) => void;
@@ -2168,23 +2296,28 @@ function Filters<T extends string>({
         aria-label="검색"
         className="search-input"
         onChange={(event) => onQueryChange(event.target.value)}
-        placeholder="상품명, 브랜드, URL"
+        placeholder={queryPlaceholder}
         value={query}
       />
-      <select value={status} onChange={(event) => onStatusChange(event.target.value as T)}>
+      <select aria-label="상태 필터" value={status} onChange={(event) => onStatusChange(event.target.value as T)}>
         {statusOptions.map((item) => (
           <option key={item.value} value={item.value}>{item.label}</option>
         ))}
       </select>
+      {showClear ? (
+        <button className="button button--ghost filters__reset" onClick={onClear} type="button">
+          초기화
+        </button>
+      ) : null}
     </div>
   );
 }
 
 function ListMeta({ loading, page, total, totalPages }: { loading: boolean; page: number; total: number; totalPages: number }) {
   return (
-    <div className="list-meta">
-      <span>{loading ? "조회 중" : `${total.toLocaleString()}건`}</span>
-      <span>{page} / {totalPages}</span>
+    <div aria-live="polite" className="list-meta">
+      <span>{loading ? "목록 조회 중" : `총 ${total.toLocaleString()}건`}</span>
+      <span aria-label={`현재 ${page}페이지, 전체 ${totalPages}페이지`}>{page} / {totalPages}</span>
     </div>
   );
 }
@@ -2198,14 +2331,30 @@ function Pagination({
   totalPages: number;
   onPageChange: (page: number) => void;
 }) {
+  if (totalPages <= 1) return null;
+
   return (
-    <div className="pagination">
-      <button className="button button--ghost" disabled={page <= 1} onClick={() => onPageChange(page - 1)} type="button">
+    <nav aria-label="목록 페이지 이동" className="pagination">
+      <button aria-label="이전 페이지" className="button button--ghost" disabled={page <= 1} onClick={() => onPageChange(page - 1)} type="button">
         이전
       </button>
-      <button className="button button--ghost" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} type="button">
+      <span aria-live="polite" className="pagination__status">{page} / {totalPages}</span>
+      <button aria-label="다음 페이지" className="button button--ghost" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} type="button">
         다음
       </button>
+    </nav>
+  );
+}
+
+function ListEmptyState({ message, onClear }: { message: string; onClear?: () => void }) {
+  return (
+    <div className="empty-state empty-state--action">
+      <span>{message}</span>
+      {onClear ? (
+        <button className="button button--ghost" onClick={onClear} type="button">
+          검색/필터 초기화
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -2222,21 +2371,25 @@ function LoadingRows() {
 
 function TextField({
   label,
+  min,
   onChange,
   required,
+  step,
   type = "text",
   value,
 }: {
   label: string;
+  min?: number;
   onChange: (value: string) => void;
   required?: boolean;
+  step?: number;
   type?: string;
   value: string;
 }) {
   return (
     <label className="field field--stack">
       <span>{label}{required ? " *" : ""}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} type={type} />
+      <input min={min} step={step} value={value} onChange={(event) => onChange(event.target.value)} type={type} />
     </label>
   );
 }
@@ -2374,6 +2527,7 @@ function CdnRefreshPanel(props: {
 }) {
   const summary = props.data?.summary;
   const items = props.data?.items ?? [];
+  const lastRefreshedAt = props.data?.lastRefreshedAt ?? null;
 
   return (
     <section className="panel">
@@ -2382,6 +2536,13 @@ function CdnRefreshPanel(props: {
           <p className="eyebrow">Media Cache</p>
           <h2>CDN 미디어 갱신</h2>
           <p>Instagram CDN URL 만료 상태를 조회하고 수동으로 갱신합니다. 시간당 자동 배치가 실행됩니다.</p>
+          {lastRefreshedAt ? (
+            <p className="cdn-last-refreshed">
+              마지막 배치 갱신: <strong>{formatDateTime(lastRefreshedAt)}</strong>
+            </p>
+          ) : (
+            <p className="cdn-last-refreshed">마지막 배치 갱신: <strong>기록 없음</strong></p>
+          )}
         </div>
         <div className="filters">
           <select
