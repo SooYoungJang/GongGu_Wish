@@ -18,7 +18,7 @@ test.describe("알림 및 피드백", () => {
   });
 
   test("CDN 탭 새로고침 클릭 시 피드백", async ({ adminPage: page }) => {
-    await page.locator('button:has-text("CDN")').first().click();
+    await page.locator("button:visible").filter({ hasText: /CDN 갱신|CDN/ }).first().click();
     await page.waitForTimeout(1000);
     const reloadBtn = page.locator('button:has-text("새로고침")');
     if (await reloadBtn.isVisible().catch(() => false)) {

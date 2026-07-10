@@ -1,0 +1,26 @@
+appId: com.gonggu.wish
+tags:
+  - e2e
+  - evidence
+  - mobile
+  - submit
+---
+# A user opens the submit form from Home and verifies the form entry point.
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "상품 검색"
+    timeout: 15000
+- swipe:
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구 제보하기"
+    timeout: 10000
+- tapOn: "공구 제보하기"
+- waitForAnimationToEnd
+- assertVisible: "발견한 공구를 알려주세요"
+- assertVisible: "인스타그램 게시물 URL"

@@ -2,13 +2,11 @@
   "expo": {
     "name": "GongGu Wish",
     "slug": "gonggu-wish",
-    "entryPoint": "./index.js",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#ffffff",
     "scheme": "gongguwish",
-    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "usesAppleSignIn": true,
@@ -24,7 +22,6 @@
     },
     "android": {
       "package": "com.gonggu.wish",
-      "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize"
     },
     "web": {

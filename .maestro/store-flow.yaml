@@ -1,51 +1,41 @@
 appId: com.gonggu.wish
 ---
-# Store / influencer group buys E2E.
+# Store / ranking screen E2E -- verify ranking tab loads, scroll, search entry.
 # Run: maestro test .maestro/store-flow.yaml
-
 - launchApp:
     clearState: false
 - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "공구"
+    visible:
+      id: "공구 검색"
     timeout: 15000
-
-# Look for store entry
+# Go to Ranking tab
 - tapOn:
-    text: "스토어"
-    optional: true
+    id: "tab-Ranking"
 - waitForAnimationToEnd
-
-# If no store text, try influencer
-- tapOn:
-    text: "인플루언서"
-    optional: true
-- waitForAnimationToEnd
-- takeScreenshot: store-01-opened
-
-# Scroll
+- assertVisible: "쇼핑몰 랭킹"
+- takeScreenshot: store-01-ranking-loaded
+# Ranking search button
+- assertVisible:
+    id: "랭킹 검색"
+- takeScreenshot: store-02-search-btn
+# Scroll ranking list
 - swipe:
-    start: 50%,60%
-    end: 50%,40%
-    duration: 200
-- waitForAnimationToEnd
-- takeScreenshot: store-02-scrolled
-
-# Tap a card
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
+- takeScreenshot: store-03-scrolled
+# Tap ranking search to enter search
 - tapOn:
-    point: "50%,50%"
-    optional: true
+    id: "랭킹 검색"
 - waitForAnimationToEnd
-- takeScreenshot: store-03-card-tapped
-
-# Go back
 - back
 - waitForAnimationToEnd
 - takeScreenshot: store-04-back
-
 # Return to home
 - tapOn:
-    text: "공구"
-    optional: true
+    id: "tab-Home"
 - waitForAnimationToEnd
-- takeScreenshot: store-05-home
+- assertVisible:
+    id: "공구 검색"
+- takeScreenshot: store-05-back-home

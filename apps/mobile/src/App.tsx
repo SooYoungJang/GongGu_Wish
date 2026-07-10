@@ -199,6 +199,8 @@ function MainTabs() {
             styles.tabButton,
           ],
           tabBarAccessibilityLabel: `${tabLabel(route.name)} 탭`,
+          // Stable selector for E2E (Maestro): id "tab-<routeName>"
+          tabBarTestID: `tab-${route.name}`,
           tabBarIcon: ({ focused, color }) => tabIcon(route.name, color, focused),
           tabBarShowLabel: false,
           tabBarLabel: tabLabel(route.name),

@@ -1,74 +1,65 @@
 appId: com.gonggu.wish
 ---
-# Submit form E2E — fill form, verify validation, attempt submit.
+# Submit form E2E -- open form via home, verify fields, validation, attempt submit.
 # Run: maestro test .maestro/submit-form-flow.yaml
-
 - launchApp:
     clearState: false
 - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "공구"
+    visible:
+      id: "공구 검색"
     timeout: 15000
-
-# Go to Submit tab
-- tapOn:
-    text: "Submit"
-    optional: true
+# Scroll to find submit prompt
+- swipe:
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
 - waitForAnimationToEnd
-- takeScreenshot: submit-01-opened
-
-# Try submitting empty form
+- extendedWaitUntil:
+    visible:
+      id: "공구 제보하기"
+    timeout: 10000
 - tapOn:
-    text: "제보"
-    optional: true
+    id: "공구 제보하기"
 - waitForAnimationToEnd
-- takeScreenshot: submit-02-empty-submit
-
-# Fill product name
+# Form header must be visible
+- assertVisible: "발견한 공구를 알려주세요"
+- takeScreenshot: submit-01-form-open
+# Instagram URL field (hero input)
+- assertVisible:
+    id: "인스타그램 게시물 URL"
 - tapOn:
-    text: "상품명"
-    optional: true
-- inputText: "테스트 상품"
-- hideKeyboard
+    id: "인스타그램 게시물 URL"
 - waitForAnimationToEnd
-- takeScreenshot: submit-03-product-name
-
-# Fill brand name
-- tapOn:
-    text: "브랜드"
-    optional: true
-- inputText: "테스트 브랜드"
-- hideKeyboard
-- waitForAnimationToEnd
-- takeScreenshot: submit-04-brand
-
-# Fill Instagram URL
-- tapOn:
-    text: "Instagram"
-    optional: true
 - inputText: "https://www.instagram.com/p/test123/"
 - hideKeyboard
 - waitForAnimationToEnd
-- takeScreenshot: submit-05-instagram
-
+- takeScreenshot: submit-02-instagram-filled
 # Scroll down to see more fields
 - swipe:
-    start: 50%,60%
-    end: 50%,30%
-    duration: 200
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
 - waitForAnimationToEnd
-- takeScreenshot: submit-06-scrolled
-
-# Scroll back up
+- takeScreenshot: submit-03-more-fields
+# Attempt submit with partial data -- should not crash
 - swipe:
-    start: 50%,30%
-    end: 50%,60%
-    duration: 200
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
 - waitForAnimationToEnd
-
-# Attempt submit
+- extendedWaitUntil:
+    visible: "공구 제보하기"
+    timeout: 5000
 - tapOn:
-    text: "제보"
-    optional: true
+    text: "공구 제보하기"
 - waitForAnimationToEnd
-- takeScreenshot: submit-07-submit-attempt
+- takeScreenshot: submit-04-attempt-submit
+# Go back to home
+- back
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "공구 검색"
+    timeout: 10000
+- takeScreenshot: submit-05-back-home

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GongGu Wish · E2E Control Room</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212b;
+      --muted: #6f7a83;
+      --paper: #f7f5f0;
+      --surface: #fffdfa;
+      --line: #e5e1d8;
+      --coral: #ec6f5d;
+      --coral-soft: #ffe9e3;
+      --green: #267a58;
+      --green-soft: #e4f4ea;
+      --amber: #9a6611;
+      --amber-soft: #fff2d5;
+      --red: #b64242;
+      --red-soft: #fde8e8;
+      --shadow: 0 18px 45px rgba(39, 45, 50, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: inherit; }
+    .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
+    header { padding: 42px 0 28px; }
+    .eyebrow { color: var(--coral); font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 10px 0 8px; font-size: clamp(30px, 5vw, 54px); letter-spacing: -.045em; line-height: 1; }
+    .lede { max-width: 690px; margin: 0; color: var(--muted); font-size: 16px; line-height: 1.6; }
+    .meta-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+    .meta { border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12px; padding: 8px 12px; }
+    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 12px 0 24px; }
+    .stat { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); padding: 18px; }
+    .stat strong { display: block; font-size: 30px; letter-spacing: -.04em; }
+    .stat span { color: var(--muted); font-size: 12px; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 22px 0 14px; }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    button, select, input { font: inherit; }
+    .filter { cursor: pointer; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); padding: 9px 13px; }
+    .filter[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: white; }
+    .search { min-width: min(100%, 280px); border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 11px 13px; outline: none; }
+    .search:focus { border-color: var(--coral); box-shadow: 0 0 0 3px var(--coral-soft); }
+    .group { margin: 24px 0 34px; }
+    .group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+    h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
+    .group-heading span { color: var(--muted); font-size: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .card { display: flex; flex-direction: column; min-height: 245px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 8px 22px rgba(39,45,50,.04); padding: 17px; }
+    .card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .tool { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .status { border-radius: 999px; font-size: 11px; font-weight: 800; padding: 6px 9px; }
+    .status.pass { background: var(--green-soft); color: var(--green); }
+    .status.fail { background: var(--red-soft); color: var(--red); }
+    .status.pending { background: var(--amber-soft); color: var(--amber); }
+    .card h3 { margin: 18px 0 8px; font-size: 17px; letter-spacing: -.02em; }
+    .card p { flex: 1; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .card-foot { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+    .tag { border-radius: 7px; background: #f0eee8; color: #68716f; font-size: 11px; padding: 5px 7px; }
+    .evidence { margin-top: 36px; border: 1px solid var(--line); border-radius: 18px; background: #202b34; color: #f8f7f2; padding: 20px; }
+    .evidence h2 { color: white; }
+    .evidence p { color: #b7c0c4; font-size: 13px; line-height: 1.6; }
+    .evidence code { color: #ffd5c9; font-size: 12px; }
+    footer { padding: 34px 0 48px; color: var(--muted); font-size: 12px; }
+    .empty { grid-column: 1 / -1; border: 1px dashed var(--line); border-radius: 16px; color: var(--muted); padding: 30px; text-align: center; }
+    @media (max-width: 880px) { .summary { grid-template-columns: repeat(2, 1fr); } .grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px) { .shell { width: min(100% - 22px, 480px); } header { padding-top: 28px; } .summary, .grid { grid-template-columns: 1fr; } .stat { padding: 15px; } .card { min-height: 210px; } .toolbar { align-items: stretch; } .search { width: 100%; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="eyebrow">GongGu Wish / Quality</div>
+      <h1>E2E Control Room</h1>
+      <p class="lede">모바일 앱과 관리자 웹의 사용자 여정, 녹화 게이트, 후속 조치를 한 화면에서 확인하는 로컬 대시보드.</p>
+      <div class="meta-row"><span class="meta">기준일 2026-07-10</span><span class="meta">Linear 기록 GON-252</span><span class="meta">Obsidian 결과 문서 연동</span></div>
+    </header>
+
+    <section class="summary" aria-label="E2E 요약">
+      <div class="stat"><strong id="total">0</strong><span>전체 시나리오</span></div>
+      <div class="stat"><strong id="passed">0</strong><span>통과</span></div>
+      <div class="stat"><strong id="failed">0</strong><span>실패</span></div>
+      <div class="stat"><strong id="pending">0</strong><span>대기</span></div>
+    </section>
+
+    <div class="toolbar">
+      <div class="filters" role="group" aria-label="플랫폼 필터">
+        <button class="filter" data-platform="all" aria-pressed="true">전체</button>
+        <button class="filter" data-platform="mobile" aria-pressed="false">React Native · Maestro</button>
+        <button class="filter" data-platform="admin" aria-pressed="false">Admin · Playwright</button>
+        <button class="filter" data-platform="web" aria-pressed="false">Web · Playwright</button>
+      </div>
+      <input class="search" id="search" type="search" placeholder="시나리오 검색" aria-label="시나리오 검색" />
+    </div>
+
+    <section class="group" data-group="mobile"><div class="group-heading"><h2>모바일 앱</h2><span>React Native · Maestro</span></div><div class="grid" id="mobile-grid"></div></section>
+    <section class="group" data-group="admin"><div class="group-heading"><h2>관리자 웹</h2><span>Playwright · Admin</span></div><div class="grid" id="admin-grid"></div></section>
+    <section class="group" data-group="web"><div class="group-heading"><h2>사용자 웹</h2><span>Playwright · Web</span></div><div class="grid" id="web-grid"></div></section>
+
+    <section class="evidence"><h2>증적 규칙</h2><p>녹화 파일이 없거나 손상됐거나 duration이 0초면 E2E는 실패다. 모바일 Obsidian 첨부본은 480×854 이하 H.264 MP4로 압축한다. 현재 상세 결과는 <code>e2e-evidence/mobile/2026-07-10-mobile-e2e/result.md</code>와 Linear <code>GON-252</code>에 기록되어 있다.</p></section>
+    <footer>로컬 정적 대시보드 · 데이터는 실행 결과를 반영해 갱신하는 시작점</footer>
+  </main>
+  <script>
+    const cases = [
+      { platform: 'mobile', tool: 'Maestro', title: '네비게이션 · 검색 진입', status: 'pass', detail: '홈 → 랭킹 → 마이 → 홈 → 검색 화면 진입', tags: ['PASS', '30s video', 'Linear GON-252'] },
+      { platform: 'mobile', tool: 'Maestro', title: '캘린더 팔로잉 필터', status: 'pass', detail: '전체 캘린더 → 팔로잉 필터 활성화 → 오늘 이동', tags: ['PASS', '25s video', '480×854'] },
+      { platform: 'mobile', tool: 'Maestro', title: '공구 제보 진입', status: 'fail', detail: 'HomeScreen에 SubmitPrompt 진입점이 렌더링되지 않아 폼 진입 실패', tags: ['FAIL', 'follow-up needed'] },
+      { platform: 'mobile', tool: 'Maestro', title: '녹화 게이트', status: 'fail', detail: 'record --local이 moov atom을 완성하지 못해 3회 재시도 후 실패', tags: ['FAIL', 'retry 3x'] },
+      { platform: 'admin', tool: 'Playwright', title: '로그인 화면 렌더링', status: 'pass', detail: 'Chromium 단일 테스트 및 video.webm duration 검증 통과', tags: ['PASS', '1.16s video'] },
+      { platform: 'admin', tool: 'Playwright', title: '올바른 로그인 → 대시보드', status: 'fail', detail: '대시보드 heading이 노출되지 않아 3회 재시도 후 실패', tags: ['FAIL', 'retry 3x'] },
+      { platform: 'web', tool: 'Playwright', title: '사용자 웹 E2E', status: 'pending', detail: '실행 전 — Playwright video 게이트 설정 완료', tags: ['PENDING', 'video on'] },
+    ];
+    const labels = { pass: 'PASS', fail: 'FAIL', pending: 'PENDING' };
+    let platform = 'all';
+    function render() {
+      const query = document.querySelector('#search').value.trim().toLowerCase();
+      const visible = cases.filter(item => (platform === 'all' || item.platform === platform) && (!query || `${item.title} ${item.detail} ${item.tool}`.toLowerCase().includes(query)));
+      document.querySelector('#total').textContent = visible.length;
+      document.querySelector('#passed').textContent = visible.filter(item => item.status === 'pass').length;
+      document.querySelector('#failed').textContent = visible.filter(item => item.status === 'fail').length;
+      document.querySelector('#pending').textContent = visible.filter(item => item.status === 'pending').length;
+      for (const key of ['mobile', 'admin', 'web']) {
+        const grid = document.querySelector(`#${key}-grid`);
+        const rows = visible.filter(item => item.platform === key);
+        grid.innerHTML = rows.length ? rows.map(item => `<article class="card"><div class="card-top"><span class="tool">${item.tool}</span><span class="status ${item.status}">${labels[item.status]}</span></div><h3>${item.title}</h3><p>${item.detail}</p><div class="card-foot">${item.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div></article>`).join('') : '<div class="empty">표시할 시나리오가 없습니다.</div>';
+        grid.closest('.group').hidden = rows.length === 0;
+      }
+    }
+    document.querySelectorAll('.filter').forEach(button => button.addEventListener('click', () => { platform = button.dataset.platform; document.querySelectorAll('.filter').forEach(item => item.setAttribute('aria-pressed', String(item === button))); render(); }));
+    document.querySelector('#search').addEventListener('input', render);
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+appId: com.gonggu.wish
+tags:
+  - e2e
+  - evidence
+  - mobile
+  - calendar
+---
+# A user opens the full calendar and toggles followed-seller filtering.
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "상품 검색"
+    timeout: 15000
+- tapOn: "전체 캘린더 보기"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "오늘로 이동"
+    timeout: 10000
+- assertVisible: "팔로잉만 보기 비활성화"
+- tapOn: "팔로잉만 보기 비활성화"
+- waitForAnimationToEnd
+- assertVisible: "팔로잉만 보기 활성화"
+- tapOn: "오늘로 이동"
+- waitForAnimationToEnd
+- assertVisible: "팔로잉만 보기 활성화"

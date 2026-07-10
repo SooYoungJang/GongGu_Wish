@@ -9,7 +9,7 @@ test.describe("로그인/로그아웃 세션", () => {
     await page.fill('input[type="email"]', ADMIN_EMAIL);
     await page.fill('input[type="password"]', ADMIN_PASSWORD);
     await page.click('button[type="submit"]');
-    await expect(page.locator("text=대시보드")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible({ timeout: 15000 });
     await page.click('button:has-text("로그아웃")');
     await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 5000 });
   });
@@ -28,7 +28,7 @@ test.describe("로그인/로그아웃 세션", () => {
     await page.fill('input[type="email"]', ADMIN_EMAIL);
     await page.fill('input[type="password"]', ADMIN_PASSWORD);
     await page.click('button[type="submit"]');
-    await expect(page.locator("text=대시보드")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible({ timeout: 15000 });
     await expect(page.locator('button:has-text("새로고침")')).toBeVisible();
   });
 
@@ -64,8 +64,8 @@ test.describe("로그인/로그아웃 세션", () => {
     await page.fill('input[type="email"]', ADMIN_EMAIL);
     await page.fill('input[type="password"]', ADMIN_PASSWORD);
     await page.click('button[type="submit"]');
-    await expect(page.locator("text=대시보드")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible({ timeout: 15000 });
     await page.reload();
-    await expect(page.locator("text=대시보드")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible({ timeout: 15000 });
   });
 });

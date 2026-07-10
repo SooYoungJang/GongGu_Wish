@@ -10,8 +10,10 @@ export default defineConfig({
   reporter: "html",
   use: {
     baseURL: "http://localhost:3000",
+    video: "on",
     trace: "on-first-retry",
   },
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR ?? "test-results",
   projects: [
     {
       name: "chromium",

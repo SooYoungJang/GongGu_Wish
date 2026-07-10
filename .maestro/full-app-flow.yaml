@@ -1,100 +1,79 @@
 appId: com.gonggu.wish
 ---
-# Full app E2E flow — covers home, search, ranking, submit, my page.
+# Full app E2E flow -- covers home, search, ranking, submit, my page.
 # Run: maestro test .maestro/full-app-flow.yaml
-
 - launchApp:
-    clearState: true
+    clearState: false
 - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "공구"
+    visible:
+      id: "공구 검색"
     timeout: 15000
-- waitForAnimationToEnd
-
 # --- Home screen ---
 - assertVisible:
-    text: "공구"
-    optional: true
-- takeScreenshot: e2e-01-home
-
-# Scroll down to see deals
+    id: "공구 검색"
 - swipe:
-    start: 50%,60%
-    end: 50%,30%
-    duration: 300
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
 - waitForAnimationToEnd
-- takeScreenshot: e2e-02-home-scroll
-
-# Scroll back to top
 - swipe:
-    start: 50%,30%
-    end: 50%,60%
-    duration: 300
+    start: 50%,20%
+    end: 50%,80%
+    duration: 400
 - waitForAnimationToEnd
-
-# --- Tab bar navigation ---
-- assertVisible:
-    text: "검색"
-    optional: true
-- assertVisible:
-    text: "Submit"
-    optional: true
-- assertVisible:
-    text: "MY"
-    optional: true
-
-# --- Search tab ---
+- takeScreenshot: full-01-home
+# --- Tab bar navigation: Search ---
 - tapOn:
-    text: "검색"
-    optional: true
+    id: "tab-Search"
 - waitForAnimationToEnd
-- takeScreenshot: e2e-03-search
 - assertVisible:
-    text: "랭킹"
-    optional: true
-
-# Tap ranking if visible
+    id: "공구 검색"
+- takeScreenshot: full-02-search
+# --- Ranking tab ---
 - tapOn:
-    text: "랭킹"
-    optional: true
+    id: "tab-Ranking"
 - waitForAnimationToEnd
-- takeScreenshot: e2e-04-ranking
-
-# --- Submit tab ---
+- assertVisible: "쇼핑몰 랭킹"
+- swipe:
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
+- takeScreenshot: full-03-ranking
+# --- Submit entry from Home ---
 - tapOn:
-    text: "Submit"
-    optional: true
+    id: "tab-Home"
 - waitForAnimationToEnd
-- takeScreenshot: e2e-05-submit
-- assertVisible:
-    text: "제보"
-    optional: true
-
-# Scroll submit form
 - swipe:
-    start: 50%,60%
-    end: 50%,30%
-    duration: 200
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
 - waitForAnimationToEnd
-- takeScreenshot: e2e-06-submit-scroll
-
-# Scroll back
-- swipe:
-    start: 50%,30%
-    end: 50%,60%
-    duration: 200
+- extendedWaitUntil:
+    visible:
+      id: "공구 제보하기"
+    timeout: 10000
+- tapOn:
+    id: "공구 제보하기"
 - waitForAnimationToEnd
-
+- assertVisible: "발견한 공구를 알려주세요"
+- takeScreenshot: full-04-submit-form
+- back
+- waitForAnimationToEnd
 # --- MY tab ---
 - tapOn:
-    text: "MY"
-    optional: true
+    id: "tab-MyPage"
 - waitForAnimationToEnd
-- takeScreenshot: e2e-07-mypage
-
+- assertVisible: "마이페이지"
+- swipe:
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
+- takeScreenshot: full-05-mypage
 # --- Back to home ---
 - tapOn:
-    text: "공구"
-    optional: true
+    id: "tab-Home"
 - waitForAnimationToEnd
-- takeScreenshot: e2e-08-home-return
+- assertVisible:
+    id: "공구 검색"
+- takeScreenshot: full-06-back-home

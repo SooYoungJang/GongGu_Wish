@@ -10,7 +10,7 @@ test.describe("모바일 레이아웃", () => {
       await page.fill('input[type="email"]', process.env.E2E_ADMIN_EMAIL ?? "admin@gonggu.local");
       await page.fill('input[type="password"]', process.env.E2E_ADMIN_PASSWORD ?? "Admin123!@#");
       await page.click('button[type="submit"]');
-      await expect(page.locator("text=대시보드")).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible({ timeout: 15000 });
     }
     const sidebar = page.locator(".sidebar");
     await expect(sidebar).toBeHidden();
@@ -26,7 +26,7 @@ test.describe("모바일 레이아웃", () => {
       await page.fill('input[type="email"]', process.env.E2E_ADMIN_EMAIL ?? "admin@gonggu.local");
       await page.fill('input[type="password"]', process.env.E2E_ADMIN_PASSWORD ?? "Admin123!@#");
       await page.click('button[type="submit"]');
-      await expect(page.locator("text=대시보드")).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible({ timeout: 15000 });
     }
     const tabBar = page.locator(".bottom-tab-bar");
     await expect(tabBar).toBeVisible();
@@ -42,9 +42,9 @@ test.describe("모바일 레이아웃", () => {
       await page.fill('input[type="email"]', process.env.E2E_ADMIN_EMAIL ?? "admin@gonggu.local");
       await page.fill('input[type="password"]', process.env.E2E_ADMIN_PASSWORD ?? "Admin123!@#");
       await page.click('button[type="submit"]');
-      await expect(page.locator("text=대시보드")).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible({ timeout: 15000 });
     }
-    await page.locator('button:has-text("검수")').first().click();
+    await page.locator("button:visible").filter({ hasText: /위시 검수|검수/ }).first().click();
     await page.waitForTimeout(1000);
     const desktopTable = page.locator(".desktop-table");
     await expect(desktopTable).toBeHidden();
@@ -62,7 +62,7 @@ test.describe("모바일 레이아웃", () => {
       await page.fill('input[type="email"]', process.env.E2E_ADMIN_EMAIL ?? "admin@gonggu.local");
       await page.fill('input[type="password"]', process.env.E2E_ADMIN_PASSWORD ?? "Admin123!@#");
       await page.click('button[type="submit"]');
-      await expect(page.locator("text=대시보드")).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible({ timeout: 15000 });
     }
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
@@ -79,7 +79,7 @@ test.describe("모바일 레이아웃", () => {
       await page.fill('input[type="email"]', process.env.E2E_ADMIN_EMAIL ?? "admin@gonggu.local");
       await page.fill('input[type="password"]', process.env.E2E_ADMIN_PASSWORD ?? "Admin123!@#");
       await page.click('button[type="submit"]');
-      await expect(page.locator("text=대시보드")).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible({ timeout: 15000 });
     }
     const navTabs = page.locator(".nav-tabs");
     await expect(navTabs).toBeVisible();

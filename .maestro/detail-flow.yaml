@@ -1,38 +1,38 @@
 appId: com.gonggu.wish
 ---
-# Deal detail screen E2E — tap a deal card, verify detail, go back.
+# Deal detail screen E2E -- tap a deal card, verify detail, go back.
 # Run: maestro test .maestro/detail-flow.yaml
-
 - launchApp:
     clearState: false
 - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "공구"
+    visible:
+      id: "공구 검색"
     timeout: 15000
-
-# Scroll to find a deal card
+# Scroll home to find a deal card
 - swipe:
-    start: 50%,60%
-    end: 50%,40%
-    duration: 300
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
 - waitForAnimationToEnd
-
-# Tap first deal card (center area)
+# Tap first deal card with 상세 보기 a11y label if present
 - tapOn:
-    point: "50%,55%"
+    id: "공구 상세 보기"
     optional: true
 - waitForAnimationToEnd
 - takeScreenshot: detail-01-opened
-
 # Scroll detail content
 - swipe:
-    start: 50%,60%
-    end: 50%,40%
-    duration: 200
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
 - waitForAnimationToEnd
 - takeScreenshot: detail-02-scrolled
-
 # Go back
 - back
 - waitForAnimationToEnd
-- takeScreenshot: detail-03-back
+- extendedWaitUntil:
+    visible:
+      id: "공구 검색"
+    timeout: 10000
+- takeScreenshot: detail-03-back-home

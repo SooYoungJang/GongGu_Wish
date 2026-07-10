@@ -1,0 +1,37 @@
+appId: com.gonggu.wish
+tags:
+  - e2e
+  - user-journey
+  - search
+---
+# A user searches for something unavailable, then resets the search.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "공구 검색"
+    timeout: 15000
+- tapOn:
+    id: "tab-Search"
+- waitForAnimationToEnd
+- tapOn:
+    id: "공구 검색"
+- waitForAnimationToEnd
+- inputText: "maestro-no-result-9f14"
+- hideKeyboard
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "검색 결과가 없어요"
+    timeout: 5000
+- takeScreenshot: search-empty-01-no-results
+- tapOn:
+    id: "검색어 지우기"
+- waitForAnimationToEnd
+- assertNotVisible: "검색 결과가 없어요"
+- takeScreenshot: search-empty-02-cleared
+- tapOn:
+    id: "tab-Home"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "공구 검색"
