@@ -8,16 +8,15 @@ test.describe("대시보드 통계 및 데이터", () => {
   });
 
   test("검수 대기 섹션에 데이터 또는 빈 상태가 표시된다", async ({ adminPage: page }) => {
-    const section = page.locator("text=검수 대기").locator("..");
-    await expect(section).toBeVisible();
+    await expect(page.getByRole("heading", { name: "검수 대기 위시" })).toBeVisible();
   });
 
   test("최근 승인 공구 섹션이 표시된다", async ({ adminPage: page }) => {
-    await expect(page.locator("text=최근 승인 공구")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: "최근 승인 공구" })).toBeVisible({ timeout: 10000 });
   });
 
   test("카테고리 분포 섹션이 표시된다", async ({ adminPage: page }) => {
-    await expect(page.locator("text=카테고리별 공구 분포")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: "카테고리별 공구 분포" })).toBeVisible({ timeout: 10000 });
   });
 
   test("새로고침 버튼 클릭 시 로딩 상태가 된다", async ({ adminPage: page }) => {
@@ -27,12 +26,14 @@ test.describe("대시보드 통계 및 데이터", () => {
   });
 
   test("대시보드에서 검수 대기 위시템이 표시되거나 빈 상태다", async ({ adminPage: page }) => {
-    const pendingSection = page.locator("text=검수 대기");
-    await expect(pendingSection).toBeVisible({ timeout: 10000 });
-    const cards = page.locator(".mobile-record-card--static");
-    const emptyState = page.locator(".empty-state");
-    const hasContent = (await cards.count()) > 0 || (await emptyState.count()) > 0;
-    expect(hasContent).toBeTruthy();
+    const queueSection = page.locator(".dashboard-col").filter({
+      has: page.getByRole("heading", { name: "검수 대기 위시" }),
+    });
+
+    await expect(queueSection).toBeVisible({ timeout: 10000 });
+    await expect(
+      queueSection.locator(".loading-rows:visible, .empty-state:visible, table:visible, .mobile-record-card--static:visible").first(),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test("최근 승인 공구 카드는 static 클래스를 가진다", async ({ adminPage: page }) => {

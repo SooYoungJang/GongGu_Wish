@@ -1,63 +1,54 @@
 appId: com.gonggu.wish
 ---
-# My page E2E — verify profile, settings, theme toggle.
+# My page E2E -- verify profile, sections, scroll.
 # Run: maestro test .maestro/mypage-flow.yaml
-
 - launchApp:
     clearState: false
 - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "공구"
+    visible:
+      id: "공구 검색"
     timeout: 15000
-
 # Go to MY tab
 - tapOn:
-    text: "MY"
-    optional: true
+    id: "tab-MyPage"
 - waitForAnimationToEnd
-- takeScreenshot: mypage-01-opened
-
-# Scroll down
+- assertVisible: "마이페이지"
+- takeScreenshot: mypage-01-loaded
+# Section headers must be present
+- assertVisible: "최근 본 공구"
+- takeScreenshot: mypage-02-recent
 - swipe:
-    start: 50%,60%
-    end: 50%,40%
-    duration: 200
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
 - waitForAnimationToEnd
-- takeScreenshot: mypage-02-scrolled
-
-# Scroll more
+- assertVisible: "북마크한 공구"
+- takeScreenshot: mypage-03-bookmarks
 - swipe:
-    start: 50%,60%
-    end: 50%,40%
-    duration: 200
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
 - waitForAnimationToEnd
-- takeScreenshot: mypage-03-scrolled2
-
+- assertVisible: "알림 설정한 공구"
+- takeScreenshot: mypage-04-alerts
 # Scroll back to top
 - swipe:
-    start: 50%,30%
-    end: 50%,60%
-    duration: 300
+    start: 50%,20%
+    end: 50%,80%
+    duration: 400
 - waitForAnimationToEnd
-- takeScreenshot: mypage-04-top
-
-# Look for theme toggle
+- swipe:
+    start: 50%,20%
+    end: 50%,80%
+    duration: 400
+- waitForAnimationToEnd
+- assertVisible: "마이페이지"
+- takeScreenshot: mypage-05-back-top
+# Return to home
 - tapOn:
-    text: "다크"
-    optional: true
+    id: "tab-Home"
 - waitForAnimationToEnd
-- takeScreenshot: mypage-05-theme-toggle
-
-# Toggle back
-- tapOn:
-    text: "라이트"
-    optional: true
-- waitForAnimationToEnd
-- takeScreenshot: mypage-06-theme-back
-
-# Go back to home
-- tapOn:
-    text: "공구"
-    optional: true
-- waitForAnimationToEnd
-- takeScreenshot: mypage-07-home
+- assertVisible:
+    id: "공구 검색"
+- takeScreenshot: mypage-06-back-home

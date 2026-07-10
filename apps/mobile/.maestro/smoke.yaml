@@ -1,0 +1,13 @@
+appId: com.gonggu.wish
+tags:
+  - smoke
+  - android
+---
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "이번주 공구"
+    timeout: 30000
+- takeScreenshot:
+    path: smoke-home-tabs

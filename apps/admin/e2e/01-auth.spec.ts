@@ -30,7 +30,7 @@ test.describe("관리자 로그인", () => {
     await page.goto("/");
     await page.fill('input[type="email"]', ADMIN_EMAIL);
     await page.fill('input[type="password"]', ADMIN_PASSWORD);
-    await page.click('button[type="submit"]');
-    await expect(page.locator("text=대시보드")).toBeVisible({ timeout: 15000 });
+   await page.click('button[type="submit"]');
+    await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible({ timeout: 15000 });
   });
 });

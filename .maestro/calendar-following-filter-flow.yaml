@@ -1,0 +1,44 @@
+appId: com.gonggu.wish
+tags:
+  - e2e
+  - user-journey
+  - calendar
+---
+# A user enables and disables the followed-sellers calendar filter.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "전체 캘린더 보기"
+    timeout: 15000
+- tapOn:
+    id: "전체 캘린더 보기"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "팔로잉만 보기 비활성화"
+- tapOn:
+    id: "팔로잉만 보기 비활성화"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "팔로잉만 보기 활성화"
+    timeout: 5000
+- takeScreenshot: calendar-following-01-enabled
+- tapOn:
+    id: "오늘로 이동"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "팔로잉만 보기 활성화"
+- tapOn:
+    id: "팔로잉만 보기 활성화"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "팔로잉만 보기 비활성화"
+    timeout: 5000
+- takeScreenshot: calendar-following-02-disabled
+- back
+- waitForAnimationToEnd
+- assertVisible:
+    id: "공구 검색"

@@ -1,0 +1,28 @@
+appId: com.gonggu.wish
+tags:
+  - e2e
+  - evidence
+  - mobile
+---
+# Evidence flow uses the accessibility labels currently exposed by the RN app.
+# It covers launch, tab navigation, and search entry.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "상품 검색"
+    timeout: 15000
+- assertVisible: "상품 검색"
+- tapOn: "랭킹 탭"
+- waitForAnimationToEnd
+- assertVisible: "쇼핑몰 랭킹"
+- tapOn: "마이 탭"
+- waitForAnimationToEnd
+- assertVisible: "마이페이지"
+- tapOn: "홈 탭"
+- waitForAnimationToEnd
+- assertVisible: "상품 검색"
+- tapOn: "검색 탭"
+- waitForAnimationToEnd
+- assertVisible: "공구 검색"

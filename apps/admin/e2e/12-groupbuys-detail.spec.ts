@@ -2,9 +2,9 @@ import { test, expect } from "./auth";
 
 test.describe("공구 상세 패널", () => {
   test("공구 카드 클릭 시 상세 패널이 열린다", async ({ adminPage: page }) => {
-    await page.locator('button:has-text("공구")').first().click();
+    await page.locator("button:visible").filter({ hasText: /공구 관리|공구/ }).first().click();
     await page.waitForTimeout(1000);
-    const cards = page.locator(".mobile-record-card:not(.mobile-record-card--static)");
+    const cards = page.locator("tbody tr:visible, .mobile-record-card:visible:not(.mobile-record-card--static)");
     const count = await cards.count().catch(() => 0);
     if (count > 0) {
       await cards.first().click({ force: true });
@@ -14,9 +14,9 @@ test.describe("공구 상세 패널", () => {
   });
 
   test("공구 상세에 폼 필드가 있다", async ({ adminPage: page }) => {
-    await page.locator('button:has-text("공구")').first().click();
+    await page.locator("button:visible").filter({ hasText: /공구 관리|공구/ }).first().click();
     await page.waitForTimeout(1000);
-    const cards = page.locator(".mobile-record-card:not(.mobile-record-card--static)");
+    const cards = page.locator("tbody tr:visible, .mobile-record-card:visible:not(.mobile-record-card--static)");
     const count = await cards.count().catch(() => 0);
     if (count > 0) {
       await cards.first().click({ force: true });
@@ -31,9 +31,9 @@ test.describe("공구 상세 패널", () => {
   });
 
   test("공구 상세에 저장 버튼이 있다", async ({ adminPage: page }) => {
-    await page.locator('button:has-text("공구")').first().click();
+    await page.locator("button:visible").filter({ hasText: /공구 관리|공구/ }).first().click();
     await page.waitForTimeout(1000);
-    const cards = page.locator(".mobile-record-card:not(.mobile-record-card--static)");
+    const cards = page.locator("tbody tr:visible, .mobile-record-card:visible:not(.mobile-record-card--static)");
     const count = await cards.count().catch(() => 0);
     if (count > 0) {
       await cards.first().click({ force: true });
@@ -45,9 +45,9 @@ test.describe("공구 상세 패널", () => {
   });
 
   test("공구 상세에 노출 토글 버튼이 있다", async ({ adminPage: page }) => {
-    await page.locator('button:has-text("공구")').first().click();
+    await page.locator("button:visible").filter({ hasText: /공구 관리|공구/ }).first().click();
     await page.waitForTimeout(1000);
-    const cards = page.locator(".mobile-record-card:not(.mobile-record-card--static)");
+    const cards = page.locator("tbody tr:visible, .mobile-record-card:visible:not(.mobile-record-card--static)");
     const count = await cards.count().catch(() => 0);
     if (count > 0) {
       await cards.first().click({ force: true });
@@ -59,9 +59,9 @@ test.describe("공구 상세 패널", () => {
   });
 
   test("공구 상세 닫기 후 목록으로 돌아간다", async ({ adminPage: page }) => {
-    await page.locator('button:has-text("공구")').first().click();
+    await page.locator("button:visible").filter({ hasText: /공구 관리|공구/ }).first().click();
     await page.waitForTimeout(1000);
-    const cards = page.locator(".mobile-record-card:not(.mobile-record-card--static)");
+    const cards = page.locator("tbody tr:visible, .mobile-record-card:visible:not(.mobile-record-card--static)");
     const count = await cards.count().catch(() => 0);
     if (count > 0) {
       await cards.first().click({ force: true });

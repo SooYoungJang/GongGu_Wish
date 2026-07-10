@@ -1,67 +1,48 @@
 appId: com.gonggu.wish
 ---
-# Reels screen E2E — scroll reels, open/close bottom sheet.
+# Reels screen E2E -- open reels tab, scroll feeds, go back.
 # Run: maestro test .maestro/reels-flow.yaml
-
 - launchApp:
     clearState: false
 - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "공구"
+    visible:
+      id: "공구 검색"
     timeout: 15000
-
-# Look for reels entry — tap reels icon or text
+# Enter Reels tab
 - tapOn:
-    text: "릴스"
-    optional: true
+    id: "tab-Reels"
 - waitForAnimationToEnd
-
-# If no reels text, try bottom area
-- tapOn:
-    point: "50%,95%"
-    optional: true
-- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "tab-Reels"
+    timeout: 10000
 - takeScreenshot: reels-01-opened
-
 # Swipe up to next reel
 - swipe:
-    start: 50%,70%
-    end: 50%,30%
-    duration: 400
+    start: 50%,80%
+    end: 50%,20%
+    duration: 500
 - waitForAnimationToEnd
 - takeScreenshot: reels-02-next
-
 # Swipe up again
 - swipe:
-    start: 50%,70%
-    end: 50%,30%
-    duration: 400
+    start: 50%,80%
+    end: 50%,20%
+    duration: 500
 - waitForAnimationToEnd
 - takeScreenshot: reels-03-next2
-
 # Swipe down to previous
 - swipe:
-    start: 50%,30%
-    end: 50%,70%
-    duration: 400
+    start: 50%,20%
+    end: 50%,80%
+    duration: 500
 - waitForAnimationToEnd
 - takeScreenshot: reels-04-prev
-
-# Tap more button (bottom right area)
+# Back to home
 - tapOn:
-    point: "90%,80%"
-    optional: true
+    id: "tab-Home"
 - waitForAnimationToEnd
-- takeScreenshot: reels-05-more
-
-# Dismiss by tapping center
-- tapOn:
-    point: "50%,50%"
-    optional: true
-- waitForAnimationToEnd
-- takeScreenshot: reels-06-dismiss
-
-# Go back
-- back
-- waitForAnimationToEnd
-- takeScreenshot: reels-07-back
+- assertVisible:
+    id: "공구 검색"
+- takeScreenshot: reels-05-back-home

@@ -15,9 +15,11 @@ export default defineConfig({
   expect: { timeout: 10000 },
   use: {
     baseURL: BASE_URL,
+    video: "on",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR ?? "test-results",
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "Mobile Chrome", use: { ...devices["Pixel 5"] } },

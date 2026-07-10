@@ -2,6 +2,20 @@
 
 이 디렉토리는 React Native (Expo) 모바일 앱 코드베이스다.
 
+## 개발 시작 규칙 (필수)
+
+모든 개발 작업은 시작할 때 반드시 아래 agent-skills 스킬을 먼저 사용해 시작한다. 작업 유형에 맞는 스킬을 발견하고 적용하기 위함이다.
+
+[$agent-skills:using-agent-skills](C:\Users\장수영\.codex\plugins\cache\agent-skills\agent-skills\1.0.0\skills\using-agent-skills\SKILL.md)
+
+## e2e 테스트 증거 및 앱 중요사항 기록 (필수)
+
+e2e 테스트를 실행하면 반드시 증거를 남긴다. 증거는 아래 폴더에 저장한다.
+
+C:\Users\장수영\Documents\GongGu_Wish_Vault
+
+증거뿐만 아니라 앱과 관련된 중요 사항(회귀 포인트, 플랫폼별 차이, 알려진 이슈, 검증 결과 등)이 있으면 같이 폴더에 기록한다.
+
 ## 디자인 시스템 (필수)
 
 UI 작업 전 반드시 아래 문서를 먼저 읽는다.

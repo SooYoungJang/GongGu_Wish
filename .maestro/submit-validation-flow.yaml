@@ -1,0 +1,51 @@
+appId: com.gonggu.wish
+tags:
+  - e2e
+  - user-journey
+  - submit
+---
+# A user attempts to submit an empty report and receives the required-URL error.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "공구 검색"
+    timeout: 15000
+- swipe:
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "공구 제보하기"
+    timeout: 10000
+- tapOn:
+    id: "공구 제보하기"
+- waitForAnimationToEnd
+- assertVisible: "발견한 공구를 알려주세요"
+- swipe:
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
+- waitForAnimationToEnd
+- swipe:
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "공구 제보하기"
+    timeout: 5000
+- tapOn:
+    text: "공구 제보하기"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "인스타그램 게시물 URL을 입력해주세요."
+    timeout: 5000
+- takeScreenshot: submit-validation-01-required-url
+- back
+- waitForAnimationToEnd
+- assertVisible:
+    id: "공구 검색"

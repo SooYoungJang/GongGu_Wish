@@ -2,9 +2,9 @@ import { test, expect } from "./auth";
 
 test.describe("검수 상세 패널", () => {
   test("카드 클릭 시 상세 패널이 열린다", async ({ adminPage: page }) => {
-    await page.locator('button:has-text("검수")').first().click();
+    await page.locator("button:visible").filter({ hasText: /위시 검수|검수/ }).first().click();
     await page.waitForTimeout(1000);
-    const cards = page.locator(".mobile-record-card:not(.mobile-record-card--static)");
+    const cards = page.locator("tbody tr:visible, .mobile-record-card:visible:not(.mobile-record-card--static)");
     const count = await cards.count().catch(() => 0);
     if (count > 0) {
       await cards.first().click({ force: true });
@@ -14,9 +14,9 @@ test.describe("검수 상세 패널", () => {
   });
 
   test("상세 패널에 목록으로 버튼이 있다", async ({ adminPage: page }) => {
-    await page.locator('button:has-text("검수")').first().click();
+    await page.locator("button:visible").filter({ hasText: /위시 검수|검수/ }).first().click();
     await page.waitForTimeout(1000);
-    const cards = page.locator(".mobile-record-card:not(.mobile-record-card--static)");
+    const cards = page.locator("tbody tr:visible, .mobile-record-card:visible:not(.mobile-record-card--static)");
     const count = await cards.count().catch(() => 0);
     if (count > 0) {
       await cards.first().click({ force: true });
@@ -32,9 +32,9 @@ test.describe("검수 상세 패널", () => {
   });
 
   test("상세 패널에 Hiker 보강 버튼이 있다", async ({ adminPage: page }) => {
-    await page.locator('button:has-text("검수")').first().click();
+    await page.locator("button:visible").filter({ hasText: /위시 검수|검수/ }).first().click();
     await page.waitForTimeout(1000);
-    const cards = page.locator(".mobile-record-card:not(.mobile-record-card--static)");
+    const cards = page.locator("tbody tr:visible, .mobile-record-card:visible:not(.mobile-record-card--static)");
     const count = await cards.count().catch(() => 0);
     if (count > 0) {
       await cards.first().click({ force: true });
@@ -46,9 +46,9 @@ test.describe("검수 상세 패널", () => {
   });
 
   test("상세 패널에 폼 필드들이 있다", async ({ adminPage: page }) => {
-    await page.locator('button:has-text("검수")').first().click();
+    await page.locator("button:visible").filter({ hasText: /위시 검수|검수/ }).first().click();
     await page.waitForTimeout(1000);
-    const cards = page.locator(".mobile-record-card:not(.mobile-record-card--static)");
+    const cards = page.locator("tbody tr:visible, .mobile-record-card:visible:not(.mobile-record-card--static)");
     const count = await cards.count().catch(() => 0);
     if (count > 0) {
       await cards.first().click({ force: true });

@@ -1,67 +1,52 @@
 appId: com.gonggu.wish
 ---
-# Search and filter E2E — search, apply filters, verify results.
+# Search and filter E2E -- search input, clear, ranking filter.
 # Run: maestro test .maestro/search-filter-flow.yaml
-
 - launchApp:
     clearState: false
 - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "공구"
+    visible:
+      id: "공구 검색"
     timeout: 15000
-
 # Go to Search tab
 - tapOn:
-    text: "검색"
-    optional: true
+    id: "tab-Search"
 - waitForAnimationToEnd
-- takeScreenshot: search-01-opened
-
-# Tap search bar
+- assertVisible:
+    id: "공구 검색"
+- takeScreenshot: search-01-tab
+# Tap search bar and type a query
 - tapOn:
-    point: "50%,15%"
-    optional: true
-- inputText: "테스트"
+    id: "공구 검색"
+- waitForAnimationToEnd
+- inputText: "공구"
 - hideKeyboard
 - waitForAnimationToEnd
 - takeScreenshot: search-02-query
-
-# Clear search
-- back
-- waitForAnimationToEnd
-
-# Tap ranking tab
+# Clear search via the clear button
+- extendedWaitUntil:
+    visible:
+      id: "검색어 지우기"
+    timeout: 5000
 - tapOn:
-    text: "랭킹"
-    optional: true
+    id: "검색어 지우기"
 - waitForAnimationToEnd
-- takeScreenshot: search-03-ranking
-
-# Scroll ranking
+- takeScreenshot: search-03-cleared
+# Go to Ranking and verify header
+- tapOn:
+    id: "tab-Ranking"
+- waitForAnimationToEnd
+- assertVisible: "쇼핑몰 랭킹"
 - swipe:
-    start: 50%,60%
-    end: 50%,40%
-    duration: 200
-- waitForAnimationToEnd
+    start: 50%,80%
+    end: 50%,20%
+    duration: 400
 - takeScreenshot: search-04-ranking-scroll
-
-# Tap a category filter if visible
+# Back to home
 - tapOn:
-    text: "뷰티"
-    optional: true
+    id: "tab-Home"
 - waitForAnimationToEnd
-- takeScreenshot: search-05-category
-
-# Tap another category
-- tapOn:
-    text: "패션"
-    optional: true
-- waitForAnimationToEnd
-- takeScreenshot: search-06-category2
-
-# Go back to home
-- tapOn:
-    text: "공구"
-    optional: true
-- waitForAnimationToEnd
-- takeScreenshot: search-07-home
+- assertVisible:
+    id: "공구 검색"
+- takeScreenshot: search-05-back-home
