@@ -8,10 +8,6 @@ import type { RankingLoadState, SellerRanking, SellerRankingQuery } from './type
 function applyRankingQuery(items: SellerRanking[], query: SellerRankingQuery): SellerRanking[] {
   let next = items;
 
-  if (query.tab === 'following') {
-    next = next.filter((item) => item.isFollowing);
-  }
-
   if (query.category !== 'all') {
     next = next.filter((item) => item.category === query.category);
   }
@@ -72,15 +68,15 @@ export function useSellerRankings(query: SellerRankingQuery): RankingLoadState {
 
     const data = rankingsQuery.data ?? [];
 
-    if (data.length === 0) {
-      return {
-        status: 'empty',
-        message: query.tab === 'following' ? '팔로우한 셀러가 없어요' : '아직 집계된 랭킹이 없어요',
-      };
-    }
+   if (data.length === 0) {
+     return {
+       status: 'empty',
+       message: '아직 집계된 랭킹이 없어요',
+     };
+   }
 
     return { status: 'ready', data, refreshing: rankingsQuery.isFetching && !rankingsQuery.isLoading };
-  }, [query.tab, rankingsQuery.data, rankingsQuery.isError, rankingsQuery.isFetching, rankingsQuery.isLoading, rankingsQuery.refetch]);
+  }, [rankingsQuery.data, rankingsQuery.isError, rankingsQuery.isFetching, rankingsQuery.isLoading, rankingsQuery.refetch]);
 }
 
 export { applyRankingQuery };

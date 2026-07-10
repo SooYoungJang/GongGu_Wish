@@ -19,7 +19,6 @@ import type { SellerRanking, SellerRankingQuery } from '../types';
  * ========================================================================= */
 
 const BASE_QUERY: SellerRankingQuery = {
-  tab: 'ranking',
   category: 'all',
   period: 'weekly',
   sort: 'popular',
@@ -59,24 +58,9 @@ describe('applyRankingQuery', () => {
     rankingFixture({ id: 'c', rank: 3, category: 'fashion', displayName: '패션하우스', isFollowing: true, endingSoonCount: 1, followerCount: 20000, trend: { kind: 'same' } }),
     rankingFixture({ id: 'd', rank: 4, category: 'food', displayName: '다담', isFollowing: false, endingSoonCount: 0, followerCount: 10000, trend: { kind: 'down', delta: 2 } }),
     rankingFixture({ id: 'e', rank: 5, category: 'electronics', displayName: '테크샵', isFollowing: false, endingSoonCount: 7, followerCount: 80000, trend: { kind: 'new' } }),
-  ];
+ ];
 
-  /* ── Tab filter ── */
-
-  it('filters by following tab when tab=following', () => {
-    const q: SellerRankingQuery = { ...BASE_QUERY, tab: 'following' };
-    const result = applyRankingQuery(allItems, q);
-    expect(result).toHaveLength(2);
-    expect(result.every((r) => r.isFollowing)).toBe(true);
-  });
-
-  it('returns all items when tab=ranking', () => {
-    const q: SellerRankingQuery = { ...BASE_QUERY, tab: 'ranking' };
-    const result = applyRankingQuery(allItems, q);
-    expect(result).toHaveLength(allItems.length);
-  });
-
-  /* ── Category filter (7 categories) ── */
+/* ── Category filter (7 categories) ── */
 
   it('filters by specific category', () => {
     const q: SellerRankingQuery = { ...BASE_QUERY, category: 'food' };
@@ -162,10 +146,10 @@ describe('applyRankingQuery', () => {
 
   /* ── Combinations ── */
 
-  it('combines following + category filter', () => {
-    const q: SellerRankingQuery = { tab: 'following', category: 'food', period: 'weekly', sort: 'popular' };
+  it('applies category filter on its own', () => {
+    const q: SellerRankingQuery = { category: 'food', period: 'weekly', sort: 'popular' };
     const result = applyRankingQuery(allItems, q);
-    expect(result.every((r) => r.isFollowing && r.category === 'food')).toBe(true);
+    expect(result.every((r) => r.category === 'food')).toBe(true);
   });
 
   it('combines category filter with sort', () => {
@@ -174,22 +158,22 @@ describe('applyRankingQuery', () => {
     expect(result.length).toBeLessThanOrEqual(allItems.length);
   });
 
-  it('applies all 7 categories × 3 periods × 5 sorts without error', () => {
-    const categories: SellerRankingQuery['category'][] = ['all', 'beauty', 'fashion', 'food', 'living', 'baby', 'electronics'];
-    const periods: SellerRankingQuery['period'][] = ['today', 'weekly', 'monthly'];
-    const sorts: SellerRankingQuery['sort'][] = ['popular', 'rising', 'deadlineSoon', 'newDeal'];
+ it('applies all 7 categories × 3 periods × 5 sorts without error', () => {
+   const categories: SellerRankingQuery['category'][] = ['all', 'beauty', 'fashion', 'food', 'living', 'baby', 'electronics'];
+   const periods: SellerRankingQuery['period'][] = ['today', 'weekly', 'monthly'];
+   const sorts: SellerRankingQuery['sort'][] = ['popular', 'rising', 'deadlineSoon', 'newDeal'];
     let totalCombos = 0;
     for (const category of categories) {
       for (const period of periods) {
         for (const sort of sorts) {
-          const q: SellerRankingQuery = { tab: 'ranking', category, period, sort };
+       const q: SellerRankingQuery = { category, period, sort };
           const result = applyRankingQuery(allItems, q);
           expect(Array.isArray(result)).toBe(true);
           totalCombos++;
         }
       }
     }
-    expect(totalCombos).toBe(7 * 3 * 5);
+    expect(totalCombos).toBe(7 * 3 * 4);
   });
 
   /* ── Edge cases ── */
@@ -237,17 +221,11 @@ describe('try-API-then-fallback (fallback path)', () => {
     expect(result.every((r) => r.category === 'food')).toBe(true);
   });
 
-  it('fallback filters MOCK_RANKINGS by following tab', () => {
-    const q: SellerRankingQuery = { ...BASE_QUERY, tab: 'following' };
-    const result = applyRankingQuery(MOCK_RANKINGS, q);
-    expect(result.every((r) => r.isFollowing)).toBe(true);
-  });
-
-  it('fallback with failing API scenario — no items match extreme filter', () => {
-    // Unlikely-to-match filter should still run without throwing
-    const q: SellerRankingQuery = { tab: 'following', category: 'electronics', period: 'today', sort: 'newDeal' };
-    const result = applyRankingQuery(MOCK_RANKINGS, q);
-    // Assert it ran without error (may be empty depending on data)
-    expect(Array.isArray(result)).toBe(true);
-  });
+ it('fallback with failing API scenario — no items match extreme filter', () => {
+   // Unlikely-to-match filter should still run without throwing
+   const q: SellerRankingQuery = { category: 'electronics', period: 'today', sort: 'newDeal' };
+   const result = applyRankingQuery(MOCK_RANKINGS, q);
+   // Assert it ran without error (may be empty depending on data)
+   expect(Array.isArray(result)).toBe(true);
+ });
 });

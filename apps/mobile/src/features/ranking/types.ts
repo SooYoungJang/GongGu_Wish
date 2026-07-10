@@ -1,5 +1,3 @@
-export type RankingTab = 'ranking' | 'following';
-
 export type RankingCategory =
   | 'all'
   | 'food'
@@ -50,14 +48,15 @@ export type SellerRanking = {
   activeDealCount: number;
   endingSoonCount?: number | null;
   trustScore?: number | null;
-  isFollowing: boolean;
-  isSponsored: boolean;
-  thumbnails: RankingThumbnail[];
-  representativeGroupBuyId?: string | null;
+ isFollowing: boolean;
+ isSponsored: boolean;
+ thumbnails: RankingThumbnail[];
+ representativeGroupBuyId?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
 };
 
 export type SellerRankingQuery = {
-  tab: RankingTab;
   category: RankingCategory;
   period: RankingPeriod;
   sort: RankingSort;

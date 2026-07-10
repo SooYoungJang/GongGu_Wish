@@ -28,6 +28,15 @@ export type NotificationEntry = {
   createdAt: string;
 };
 
+type NotificationListener = (entries: NotificationEntry[]) => void;
+const notificationListeners = new Set<NotificationListener>();
+let notificationSnapshot: NotificationEntry[] = [];
+
+function publishNotifications(entries: NotificationEntry[]) {
+  notificationSnapshot = entries;
+  notificationListeners.forEach((listener) => listener(entries));
+}
+
 export type WishItemEntry = {
   id: string;
   groupBuyId: string | null;
@@ -165,18 +174,22 @@ export function useRecentViews() {
 }
 
 export function useNotifications() {
-  const [notifications, setNotifications] = useState<NotificationEntry[]>([]);
+  const [notifications, setNotifications] = useState<NotificationEntry[]>(notificationSnapshot);
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(() => {
     readJSON<NotificationEntry[]>(NOTI_KEY, []).then((value) => {
-      setNotifications(value);
+      publishNotifications(value);
       setReady(true);
     });
   }, []);
 
   useEffect(() => {
+    notificationListeners.add(setNotifications);
     refresh();
+    return () => {
+      notificationListeners.delete(setNotifications);
+    };
   }, [refresh]);
 
   const isNotifying = useCallback(
@@ -198,8 +211,8 @@ export function useNotifications() {
         }
       }
       const next = notifications.filter((entry) => entry.groupBuyId !== item.id);
-      setNotifications(next);
-      void writeJSON(NOTI_KEY, next);
+      await writeJSON(NOTI_KEY, next);
+      publishNotifications(next);
     } else {
       let notificationId: string | null = null;
       let scheduledFor: string | null = null;
@@ -261,8 +274,8 @@ export function useNotifications() {
         createdAt: new Date().toISOString(),
       };
       const next = [entry, ...notifications];
-      setNotifications(next);
-      void writeJSON(NOTI_KEY, next);
+      await writeJSON(NOTI_KEY, next);
+      publishNotifications(next);
     }
   }, [notifications]);
 
@@ -279,8 +292,8 @@ export function useNotifications() {
       }
     }
     const next = notifications.filter((entry) => entry.groupBuyId !== groupBuyId);
-    setNotifications(next);
-    void writeJSON(NOTI_KEY, next);
+    await writeJSON(NOTI_KEY, next);
+    publishNotifications(next);
   }, [notifications]);
 
   return { notifications, isNotifying, toggleNotification, removeNotification, refresh, ready };
