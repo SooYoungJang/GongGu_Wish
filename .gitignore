@@ -49,3 +49,11 @@ pnpm-debug.log*
 # misc
 .vercel
 .env*
+
+# Agent / tool artifacts
+.agents/
+.codex/
+.tokensave/
+tmp/
+skills-lock.json
+apps/mobile/.maestro/output/
