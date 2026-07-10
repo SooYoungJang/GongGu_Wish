@@ -7,6 +7,7 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { normalizeMonthlyFeaturedRank } from './monthlyFeaturedRank.ts';
 
 type AdminMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DUPLICATE' | 'CANCELLED';
@@ -237,7 +238,9 @@ function normalizeGroupBuyPatch(body: Record<string, unknown>) {
   if (hasOwn(body, 'status')) patch.status = str(body.status) as GroupBuyStatus;
   if (hasOwn(body, 'isAllDay')) patch.is_all_day = bool(body.isAllDay);
   if (hasOwn(body, 'isMonthlyFeatured')) patch.is_monthly_featured = bool(body.isMonthlyFeatured);
-  if (hasOwn(body, 'monthlyFeaturedRank')) patch.monthly_featured_rank = num(body.monthlyFeaturedRank);
+  if (hasOwn(body, 'monthlyFeaturedRank')) {
+    patch.monthly_featured_rank = normalizeMonthlyFeaturedRank(body.monthlyFeaturedRank);
+  }
 
   return patch;
 }
@@ -482,7 +485,9 @@ async function approveSubmission(
     media_type: str(body.mediaType),
     is_all_day: hasOwn(body, 'isAllDay') ? bool(body.isAllDay) : false,
     is_monthly_featured: hasOwn(body, 'isMonthlyFeatured') ? bool(body.isMonthlyFeatured) : false,
-    monthly_featured_rank: hasOwn(body, 'monthlyFeaturedRank') ? num(body.monthlyFeaturedRank) : null,
+    monthly_featured_rank: hasOwn(body, 'monthlyFeaturedRank')
+      ? normalizeMonthlyFeaturedRank(body.monthlyFeaturedRank)
+      : null,
     source_type: 'SUBMISSION',
     submission_id: id,
     status: 'APPROVED',
@@ -650,6 +655,23 @@ async function listCdnRefreshStatus(supabase: AdminClient, params: AdminRequest[
   const rows = (data ?? []) as Record<string, unknown>[];
   const items = rows.map((row) => mapCdnRow(row));
 
+  // Most recent media_refreshed_at across all approved VIDEO group buys,
+  // representing the last time the hourly batch actually refreshed a CDN URL.
+  let lastRefreshedAt: string | null = null;
+  const { data: lastRefreshRow, error: lastRefreshError } = await supabase
+    .from("group_buys")
+    .select("media_refreshed_at")
+    .eq("status", "APPROVED")
+    .eq("media_type", "VIDEO")
+    .not("media_refreshed_at", "is", null)
+    .order("media_refreshed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (lastRefreshError) throw new Error(lastRefreshError.message);
+  if (lastRefreshRow?.media_refreshed_at) {
+    lastRefreshedAt = String(lastRefreshRow.media_refreshed_at);
+  }
+
   const summary = items.reduce(
     (acc, item) => {
       acc.total += 1;
@@ -663,7 +685,7 @@ async function listCdnRefreshStatus(supabase: AdminClient, params: AdminRequest[
     { total: 0, expired: 0, expiring: 0, healthy: 0, unknown: 0, noCdn: 0 },
   );
 
-  return { items, summary };
+  return { items, summary, lastRefreshedAt };
 }
 
 async function triggerCdnRefresh(body: Record<string, unknown>) {

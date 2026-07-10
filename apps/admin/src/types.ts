@@ -132,6 +132,7 @@ export type CdnRefreshSummary = {
 export type CdnRefreshStatusResponse = {
   items: CdnRefreshRow[];
   summary: CdnRefreshSummary;
+  lastRefreshedAt: string | null;
 };
 
 export type CdnRefreshResult = {
