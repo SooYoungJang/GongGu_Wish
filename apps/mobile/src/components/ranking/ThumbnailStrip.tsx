@@ -9,7 +9,7 @@ import type { RankingThumbnail } from '../../features/ranking/types';
 
 export interface ThumbnailStripProps {
   thumbnails: readonly RankingThumbnail[];
-  maxVisible?: 2 | 3;
+  maxVisible?: 1 | 2 | 3;
   size?: number;
   onPressThumbnail?: (thumbnail: RankingThumbnail) => void;
 }
@@ -35,7 +35,7 @@ export function ThumbnailStrip({ thumbnails, maxVisible, size = 42, onPressThumb
     <View style={s.container} accessibilityLabel={`진행 중인 공구 썸네일 ${thumbnails.length}개`}>
       {visible.map((thumbnail, index) => {
         const content = (
-          <View style={[s.thumbnail, { height: size, width: size }]}> 
+          <View style={[s.thumbnail, { height: size, width: size }]}>
             {thumbnail.imageUrl ? (
               <Image source={{ uri: thumbnail.imageUrl }} style={s.image} resizeMode="cover" />
             ) : (
@@ -45,7 +45,9 @@ export function ThumbnailStrip({ thumbnails, maxVisible, size = 42, onPressThumb
             )}
             {index === visible.length - 1 && hiddenCount > 0 ? (
               <View style={s.moreOverlay}>
-                <SText variant="caption" style={s.moreText}>+{hiddenCount}</SText>
+                <SText variant="caption" style={s.moreText}>
+                  +{hiddenCount}
+                </SText>
               </View>
             ) : null}
           </View>
@@ -101,7 +103,8 @@ function makeStyles(colors: CommerceColorPalette) {
       alignItems: 'center',
       backgroundColor: colors.softBg,
       borderColor: colors.borderLight,
-      borderRadius: commerceRadius.lg,
+      borderRadius: commerceRadius.sm,
+      borderCurve: 'continuous',
       borderWidth: 1,
       justifyContent: 'center',
       overflow: 'hidden',
