@@ -1,5 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { GroupBuy } from '../types';
 import { clearLocalUserData, useNotifications } from './useLocalDeals';
@@ -48,6 +48,10 @@ const GROUP_BUY: GroupBuy = {
 };
 
 describe('useNotifications', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     storage.values.clear();
     storage.writeGate = null;
