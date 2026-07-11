@@ -1,0 +1,37 @@
+appId: com.gonggu.wish
+---
+# Polished HomeScreen promo banner evidence flow.
+#
+# Run with:
+#   maestro test .maestro/home-promo-banner-polish-evidence.yaml
+
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "상품 검색"
+    timeout: 15000
+- waitForAnimationToEnd
+
+- assertVisible:
+    id: "home-shop-heading"
+- assertVisible:
+    id: "promo-visual-.*"
+- assertVisible:
+    id: "promo-counter-.*"
+- assertVisible:
+    id: "promo-start-date"
+    text: '시작일 (확인 중|[0-9]{1,2}\.[0-9]{1,2})'
+- assertVisible:
+    id: "promo-end-date"
+    text: '마감일 (확인 중|[0-9]{1,2}\.[0-9]{1,2})'
+- takeScreenshot: ev-07-home-promo-banner-reviewed-final
+
+- swipe:
+    start: 85%, 34%
+    end: 15%, 34%
+    duration: 500
+- waitForAnimationToEnd
+- assertVisible:
+    id: "promo-counter-.*"
+- takeScreenshot: ev-08-home-promo-banner-reviewed-next-slide-final
