@@ -34,6 +34,7 @@ import { isGroupBuyActiveOnDate } from '../utils/groupBuyDates';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { CommerceColorPalette } from '../design/commerce';
 import type { GroupBuy, HomeScreenProps } from '../types';
+import promoScrimSource from '../assets/promo-scrim.png';
 
 type HomeAction = () => void;
 type DealAction = Dispatch<GroupBuy>;
@@ -52,8 +53,14 @@ const HOME_SIDE_PADDING = 16;
 const PROMO_CARD_GAP = 12;
 const PROMO_AUTO_PLAY_MS = 3000;
 const PROMO_WRAP_SETTLE_MS = 450;
-const PROMO_BENEFIT_PATTERN =
-  /(?:할인|특가|쿠폰|증정|1\s*\+\s*1|무료\s*배송|[0-9,]+\s*원|선착순|한정\s*구성)/i;
+const DAY_IN_MS = 86_400_000;
+
+type PromoStatusCopy = {
+  accentLabel: string;
+  accessibilityLabel: string;
+  detailLabel?: string;
+  secondaryLabel?: string;
+};
 
 function getVisual(item: GroupBuy) {
   return (
@@ -65,11 +72,24 @@ function getVisual(item: GroupBuy) {
 }
 
 function getPromoVisual(item: GroupBuy) {
+  const firstImage = item.mediaItems?.find(
+    (media) => media.mediaType === 'IMAGE' && media.url.trim(),
+  );
+  if (firstImage) return firstImage.url.trim();
+
+  const firstImageUrl = item.mediaUrls.find((url) =>
+    /\.(?:avif|gif|heic|heif|jpe?g|png|webp)(?:$|[?#])/i.test(url),
+  );
+  if (firstImageUrl) return firstImageUrl;
+
+  const firstPoster = item.mediaItems?.find((media) =>
+    media.thumbnailUrl?.trim(),
+  )?.thumbnailUrl;
+
   return (
-    item.thumbnailUrl ??
-    item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ??
-    item.mediaItems?.find((media) => media.mediaType === 'IMAGE')?.url ??
-    item.mediaUrls[0] ??
+    firstPoster?.trim() ??
+    (item.mediaType === 'IMAGE' ? item.mediaUrls[0] : null) ??
+    item.thumbnailUrl?.trim() ??
     null
   );
 }
@@ -92,26 +112,174 @@ function formatDeadlineLabel(endDate: string | null) {
   return `${date.getMonth() + 1}/${date.getDate()} 마감`;
 }
 
-function getPromoAccountLabel(item: GroupBuy) {
-  const username = item.rawPost.influencer.instagramUsername
-    .trim()
-    .replace(/^@+/, '');
-  if (username) return `@${username}`;
-
-  return item.brandName?.trim() || '공동구매 추천';
-}
-
 function getPromoFallbackMark(item: GroupBuy) {
   const source =
     item.brandName?.trim() || item.productName?.trim() || '공동구매';
   return source.replace(/\s/g, '').slice(0, 2).toUpperCase();
 }
 
-function getPromoBenefit(item: GroupBuy) {
-  const discountInfo = item.discountInfo?.trim();
-  return discountInfo && PROMO_BENEFIT_PATTERN.test(discountInfo)
-    ? discountInfo
+function parsePromoDate(value: string | null, endOfDay = false) {
+  if (!value) return null;
+
+  const trimmedValue = value.trim();
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmedValue);
+  if (dateOnlyMatch) {
+    const [, yearValue, monthValue, dayValue] = dateOnlyMatch;
+    const year = Number(yearValue);
+    const month = Number(monthValue) - 1;
+    const day = Number(dayValue);
+    const date = new Date(
+      year,
+      month,
+      day,
+      endOfDay ? 23 : 0,
+      endOfDay ? 59 : 0,
+      endOfDay ? 59 : 0,
+      endOfDay ? 999 : 0,
+    );
+
+    return date.getFullYear() === year &&
+      date.getMonth() === month &&
+      date.getDate() === day
+      ? date
+      : null;
+  }
+
+  const date = new Date(trimmedValue);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatPromoPrice(rawPrice: string | undefined) {
+  if (!rawPrice) return null;
+  const numericPrice = Number(rawPrice.replace(/,/g, ''));
+  if (!Number.isSafeInteger(numericPrice) || numericPrice <= 0) return null;
+  return `${numericPrice.toLocaleString('ko-KR')}원`;
+}
+
+function getPromoPrice(discountInfo: string | null) {
+  if (!discountInfo) return null;
+
+  const labeledPrices = Array.from(
+    discountInfo.matchAll(
+      /(?:공구가|판매가|할인가|최종가|특가|가격)\s*[:：]?\s*(?:₩\s*)?([0-9][0-9,]*)(?:\s*원|\b(?!\s*%))/gi,
+    ),
+  );
+  const labeledPrice = labeledPrices.at(-1)?.[1];
+  if (labeledPrice) return formatPromoPrice(labeledPrice);
+
+  const candidates = [
+    ...Array.from(
+      discountInfo.matchAll(
+        /([0-9][0-9,]*)\s*원(?!\s*(?:할인|쿠폰|적립|혜택|지원))/g,
+      ),
+      (match) => ({ index: match.index, rawPrice: match[1] }),
+    ),
+    ...Array.from(discountInfo.matchAll(/₩\s*([0-9][0-9,]*)/g), (match) => ({
+      index: match.index,
+      rawPrice: match[1],
+    })),
+  ]
+    .filter(({ index }) => {
+      const precedingCopy = discountInfo.slice(Math.max(0, index - 16), index);
+      return !/(?:배송비|배송료|택배비|운임|수수료|보증금|예약금|쿠폰|적립금?|지원금?|혜택)\s*[:：]?\s*$/i.test(
+        precedingCopy,
+      );
+    })
+    .sort((left, right) => left.index - right.index);
+
+  return candidates.length === 1
+    ? formatPromoPrice(candidates[0].rawPrice)
     : null;
+}
+
+function getPromoDiscountPercent(discountInfo: string | null) {
+  if (!discountInfo) return null;
+
+  const patterns = [
+    /(?:할인율|할인|특가|OFF)\s*[:：]?\s*([0-9]{1,3})\s*%/i,
+    /([0-9]{1,3})\s*%\s*(?:할인|특가|OFF)/i,
+    /^\s*([0-9]{1,2})\s*%(?=\s+(?:₩|[0-9][0-9,]*\s*원))/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = discountInfo.match(pattern);
+    const percent = match ? Number(match[1]) : Number.NaN;
+    if (Number.isInteger(percent) && percent > 0 && percent <= 100) {
+      return percent;
+    }
+  }
+
+  return null;
+}
+
+function getPromoStatusCopy(item: GroupBuy, now = new Date()): PromoStatusCopy {
+  const startDate = parsePromoDate(item.startDate);
+  const endDate = parsePromoDate(item.endDate, true);
+
+  if (endDate && endDate.getTime() < now.getTime()) {
+    return {
+      accentLabel: '공구 종료',
+      accessibilityLabel: '공구 종료',
+    };
+  }
+
+  const price = getPromoPrice(item.discountInfo);
+  const discountPercent = getPromoDiscountPercent(item.discountInfo);
+
+  if (startDate && startDate.getTime() > now.getTime()) {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startDay = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+    );
+    const daysUntilStart = Math.max(
+      0,
+      Math.round((startDay.getTime() - today.getTime()) / DAY_IN_MS),
+    );
+    const timingLabel = daysUntilStart === 0 ? '오늘' : `D+${daysUntilStart}`;
+    const spokenTiming =
+      daysUntilStart === 0 ? '오늘 시작' : `${daysUntilStart}일 후 시작`;
+    const dateLabel = `${startDate.getMonth() + 1}/${startDate.getDate()} 시작`;
+    const priceLabel = price ?? '가격 공개 예정';
+
+    return {
+      accentLabel: timingLabel,
+      accessibilityLabel: `${spokenTiming}, ${dateLabel}, ${priceLabel}`,
+      detailLabel: dateLabel,
+      secondaryLabel: priceLabel,
+    };
+  }
+
+  if (discountPercent && price) {
+    return {
+      accentLabel: `${discountPercent}%`,
+      accessibilityLabel: `${discountPercent}% 할인, ${price}`,
+      detailLabel: price,
+    };
+  }
+
+  if (discountPercent) {
+    return {
+      accentLabel: `${discountPercent}%`,
+      accessibilityLabel: `${discountPercent}% 할인, 상세에서 가격 확인`,
+      detailLabel: '상세에서 가격 확인',
+    };
+  }
+
+  if (price) {
+    return {
+      accentLabel: '공구 진행 중',
+      accessibilityLabel: `공구 진행 중, ${price}`,
+      detailLabel: price,
+    };
+  }
+
+  return {
+    accentLabel: '공구 진행 중',
+    accessibilityLabel: '공구 진행 중, 상세에서 가격 확인',
+    detailLabel: '상세에서 가격 확인',
+  };
 }
 
 function HomeTopBar({
@@ -231,11 +399,13 @@ function PromoBanner({
   onPressDeal,
   s,
   cardWidth,
+  sidePadding,
 }: {
   groupBuys: GroupBuy[];
   onPressDeal: DealAction;
   s: ReturnType<typeof makeStyles>;
   cardWidth: number;
+  sidePadding: number;
 }) {
   const promoItems = useMemo(
     () => getDisplayItems(groupBuys).slice(0, 6),
@@ -248,10 +418,9 @@ function PromoBanner({
   const scheduleAutoPlayRef = useRef<() => void>(() => {});
   const snapInterval = cardWidth + PROMO_CARD_GAP;
   const canAutoPlay = promoItems.length > 1;
-  const isCompact = cardWidth < 320;
-  const visualSize = Math.min(
-    132,
-    Math.max(96, Math.round(cardWidth * 0.36)),
+  const cardHeight = Math.min(
+    260,
+    Math.max(224, Math.round(cardWidth / 1.16)),
   );
   const loopingPromoItems = useMemo(() => {
     if (promoItems.length <= 1)
@@ -401,7 +570,10 @@ function PromoBanner({
       ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={s.promoRail}
+      contentContainerStyle={[
+        s.promoRail,
+        { paddingHorizontal: sidePadding },
+      ]}
       contentOffset={canAutoPlay ? { x: snapInterval, y: 0 } : undefined}
       decelerationRate="fast"
       disableIntervalMomentum
@@ -414,27 +586,13 @@ function PromoBanner({
     >
       {loopingPromoItems.map(({ item, index, clone }, renderIndex) => {
         const visual = getPromoVisual(item);
-        const benefit = getPromoBenefit(item);
         const productName = item.productName?.trim() || '공동구매 상품';
-        const accountLabel = getPromoAccountLabel(item);
-        const purchaseHook = benefit;
-        const deadlineLabel = formatDeadlineLabel(item.endDate);
-        const promoLead =
-          deadlineLabel === '마감일 확인 중'
-            ? '공동구매 추천'
-            : deadlineLabel;
-        const accessibilityLabel = Array.from(
-          new Set(
-            [
-              productName,
-              benefit,
-              accountLabel,
-              promoLead,
-              purchaseHook,
-              '상세 열기',
-            ].filter((value): value is string => Boolean(value)),
-          ),
-        ).join(', ');
+        const statusCopy = getPromoStatusCopy(item);
+        const accessibilityLabel = [
+          productName,
+          statusCopy.accessibilityLabel,
+          '상세 열기',
+        ].join(', ');
         return (
           <Pressable
             accessibilityElementsHidden={clone}
@@ -443,89 +601,81 @@ function PromoBanner({
             importantForAccessibility={clone ? 'no-hide-descendants' : 'auto'}
             key={`${item.id}-${renderIndex}-${clone ? 'clone' : 'real'}`}
             onPress={() => onPressDeal(item)}
-            style={[
-              s.promoCard,
-              isCompact && s.promoCardCompact,
-              { width: cardWidth },
-            ]}
+            style={[s.promoCard, { height: cardHeight, width: cardWidth }]}
           >
             <View
-              style={[s.promoMain, isCompact && s.promoMainCompact]}
-              testID={clone ? undefined : `promo-main-${item.id}`}
+              pointerEvents="none"
+              style={s.promoBackground}
+              testID={clone ? undefined : `promo-background-${item.id}`}
             >
-              <View
-                style={s.promoCopy}
-                testID={clone ? undefined : `promo-copy-${item.id}`}
-              >
-                <SText variant="label" numberOfLines={1} style={s.promoLead}>
-                  {promoLead}
-                </SText>
-                <SText
-                  variant="cardTitle"
-                  numberOfLines={2}
-                  style={s.promoTitle}
-                >
-                  {productName}
-                </SText>
-              </View>
-              <View
-                style={[
-                  s.promoMedia,
-                  { width: visualSize },
-                ]}
-                testID={clone ? undefined : `promo-media-${item.id}`}
-              >
-                <View
-                  style={[
-                    s.promoVisual,
-                    { height: visualSize, width: visualSize },
-                  ]}
-                  testID={clone ? undefined : `promo-visual-${item.id}`}
-                >
-                  <PromoArtwork
-                    clone={clone}
-                    fallbackMark={getPromoFallbackMark(item)}
-                    itemId={item.id}
-                    key={`${item.id}:${visual ?? 'placeholder'}`}
-                    s={s}
-                    uri={visual}
-                  />
-                  <View
-                    pointerEvents="none"
-                    style={s.promoCounter}
-                    testID={clone ? undefined : `promo-counter-${item.id}`}
-                  >
-                    <SText variant="caption" style={s.promoCounterText}>
-                      {index + 1} / {promoItems.length}
-                    </SText>
-                  </View>
-                </View>
-                <SText
-                  variant="caption"
-                  numberOfLines={1}
-                  style={s.promoAccount}
-                  testID={clone ? undefined : `promo-account-${item.id}`}
-                >
-                  {accountLabel}
-                  </SText>
-              </View>
+              <PromoArtwork
+                clone={clone}
+                fallbackMark={getPromoFallbackMark(item)}
+                itemId={item.id}
+                key={`${item.id}:${visual ?? 'placeholder'}`}
+                s={s}
+                uri={visual}
+              />
             </View>
-            {purchaseHook ? (
+            <Image
+              accessible={false}
+              resizeMode="stretch"
+              source={promoScrimSource}
+              style={s.promoScrim}
+              testID={clone ? undefined : `promo-scrim-${item.id}`}
+            />
+            <View
+              pointerEvents="none"
+              style={s.promoCounter}
+              testID={clone ? undefined : `promo-counter-${item.id}`}
+            >
+              <SText variant="caption" style={s.promoCounterText}>
+                {index + 1} / {promoItems.length}
+              </SText>
+            </View>
+            <View
+              pointerEvents="none"
+              style={s.promoOverlay}
+              testID={clone ? undefined : `promo-overlay-${item.id}`}
+            >
+              <SText
+                variant="cardTitle"
+                numberOfLines={2}
+                style={s.promoTitle}
+              >
+                {productName}
+              </SText>
               <View
-                style={s.promoPurchaseHookRow}
-                testID={
-                  clone ? undefined : `promo-purchase-hook-${item.id}`
-                }
+                style={s.promoStatusRow}
+                testID={clone ? undefined : `promo-status-${item.id}`}
               >
                 <SText
-                  variant="caption"
+                  variant="label"
                   numberOfLines={1}
-                  style={s.promoPurchaseHook}
+                  style={s.promoStatusAccent}
                 >
-                  {purchaseHook}
+                  {statusCopy.accentLabel}
                 </SText>
+                {statusCopy.detailLabel ? (
+                  <SText
+                    variant="label"
+                    numberOfLines={1}
+                    style={s.promoStatusDetail}
+                  >
+                    {statusCopy.detailLabel}
+                  </SText>
+                ) : null}
               </View>
-            ) : null}
+              {statusCopy.secondaryLabel ? (
+                <SText
+                  variant="body"
+                  numberOfLines={1}
+                  style={s.promoSecondary}
+                >
+                  {statusCopy.secondaryLabel}
+                </SText>
+              ) : null}
+            </View>
           </Pressable>
         );
       })}
@@ -756,7 +906,14 @@ export function HomeScreenContent({
 }: HomeScreenContentProps) {
   const { colors, isDark } = useCommerceTheme();
   const { width } = useWindowDimensions();
-  const promoCardWidth = Math.max(0, width - HOME_SIDE_PADDING * 2);
+  const promoCardWidth = Math.max(
+    0,
+    Math.min(width - HOME_SIDE_PADDING * 2, Math.max(260, width - 88)),
+  );
+  const promoSidePadding = Math.max(
+    HOME_SIDE_PADDING,
+    Math.round((width - promoCardWidth) / 2),
+  );
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   return (
@@ -782,6 +939,7 @@ export function HomeScreenContent({
               groupBuys={groupBuys}
               onPressDeal={onPressDeal}
               s={s}
+              sidePadding={promoSidePadding}
             />
             <WeeklyGroupBuysSection
               groupBuys={groupBuys}
@@ -916,92 +1074,39 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     promoRail: {
       gap: 12,
-      paddingHorizontal: HOME_SIDE_PADDING,
       paddingTop: 4,
       paddingBottom: 24,
     },
     promoCard: {
       backgroundColor: colors.promoBg,
-      borderRadius: 20,
+      borderRadius: 24,
       borderCurve: 'continuous',
-      minHeight: 200,
-      justifyContent: 'space-between',
       overflow: 'hidden',
-      paddingBottom: 16,
-      paddingHorizontal: 16,
-      paddingTop: 16,
       position: 'relative',
     },
-    promoCardCompact: {
-      paddingHorizontal: 14,
-    },
-    promoMain: {
-      alignItems: 'flex-start',
-      flexDirection: 'row',
-      gap: 12,
-      minHeight: 132,
-    },
-    promoMainCompact: {
-      gap: 8,
-    },
-    promoCopy: { alignSelf: 'flex-start', flex: 1, gap: 4, minWidth: 0 },
-    promoLead: {
-      color: colors.accent,
-      fontSize: 13,
-      fontWeight: '800',
-      includeFontPadding: false,
-      letterSpacing: 0,
-      lineHeight: 18,
+    promoBackground: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: colors.promoBg,
+      overflow: 'hidden',
     },
     promoTitle: {
-      color: colors.promoText,
+      color: colors.inverse,
       fontSize: 20,
       fontWeight: '900',
-      letterSpacing: 0,
-      lineHeight: 25,
+      letterSpacing: -0.3,
+      lineHeight: 26,
+      textShadowColor: 'rgba(0, 0, 0, 0.38)',
+      textShadowOffset: { height: 1, width: 0 },
+      textShadowRadius: 4,
     },
-    promoMedia: {
-      alignSelf: 'flex-start',
-      gap: 4,
-      paddingTop: 4,
-    },
-    promoAccount: {
-      color: colors.promoMuted,
-      fontSize: 11,
-      fontWeight: '700',
-      includeFontPadding: false,
-      letterSpacing: 0,
-      lineHeight: 14,
-      textAlign: 'center',
-    },
-    promoVisual: {
-      alignSelf: 'flex-start',
-      backgroundColor: 'transparent',
-      borderCurve: 'continuous',
-      borderRadius: 16,
-      justifyContent: 'center',
-      overflow: 'hidden',
-      position: 'relative',
-    },
-    promoPurchaseHookRow: {
-      flexShrink: 1,
-      marginTop: 10,
-    },
-    promoPurchaseHook: {
-      color: colors.promoMuted,
-      fontSize: 12,
-      fontWeight: '700',
-      letterSpacing: 0,
-      lineHeight: 16,
-    },
-    promoImage: { height: '100%', width: '100%' },
-    promoImagePending: { opacity: 0, position: 'absolute' },
+    promoImage: { ...StyleSheet.absoluteFillObject },
+    promoImagePending: { opacity: 0 },
     promoArtworkFallback: {
+      ...StyleSheet.absoluteFillObject,
       alignItems: 'center',
+      backgroundColor: colors.promoBg,
       gap: 6,
-      height: '100%',
       justifyContent: 'center',
-      width: '100%',
     },
     promoArtworkMark: {
       alignItems: 'center',
@@ -1026,18 +1131,63 @@ function makeStyles(colors: CommerceColorPalette) {
       letterSpacing: 0,
       lineHeight: 14,
     },
+    promoScrim: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    promoOverlay: {
+      bottom: 0,
+      left: 0,
+      paddingBottom: 18,
+      paddingHorizontal: 18,
+      paddingTop: 38,
+      position: 'absolute',
+      right: 0,
+    },
+    promoStatusRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 7,
+      marginTop: 7,
+      minWidth: 0,
+    },
+    promoStatusAccent: {
+      color: colors.accent,
+      flexShrink: 0,
+      fontSize: 14,
+      fontWeight: '900',
+      includeFontPadding: false,
+      letterSpacing: 0,
+      lineHeight: 19,
+    },
+    promoStatusDetail: {
+      color: colors.inverse,
+      flexShrink: 1,
+      fontSize: 14,
+      fontWeight: '800',
+      includeFontPadding: false,
+      letterSpacing: 0,
+      lineHeight: 19,
+    },
+    promoSecondary: {
+      color: 'rgba(255, 255, 255, 0.94)',
+      fontSize: 13,
+      fontWeight: '700',
+      letterSpacing: 0,
+      lineHeight: 18,
+      marginTop: 2,
+    },
     promoCounter: {
       alignItems: 'center',
       backgroundColor: colors.overlay,
       borderRadius: borderRadius.full,
       borderCurve: 'continuous',
-      bottom: 4,
       justifyContent: 'center',
       minHeight: 22,
       minWidth: 36,
       paddingHorizontal: 7,
       position: 'absolute',
-      right: 4,
+      right: 12,
+      top: 12,
     },
     promoCounterText: {
       color: colors.inverse,
