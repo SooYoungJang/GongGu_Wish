@@ -1,11 +1,19 @@
-import { useMemo } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Pressable,
+  StyleSheet,
+  View,
+  type FlatListProps,
+  type ListRenderItem,
+} from 'react-native';
 
 import { SText } from '../ui/SText';
 import { spacing } from '../../design/tokens';
 import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
 import { useCommerceTheme } from '../../design/useCommerceTheme';
-import type { RankingThumbnail, SellerRanking, RankingLoadState } from '../../features/ranking/types';
+import type { SellerRanking, RankingLoadState } from '../../features/ranking/types';
 import { SellerRankingRow } from './SellerRankingRow';
 
 export interface SellerRankingListProps {
@@ -13,25 +21,34 @@ export interface SellerRankingListProps {
   bottomPadding?: number;
   onRefresh?: () => void;
   onPressItem?: (item: SellerRanking) => void;
-  onPressThumbnail?: (thumbnail: RankingThumbnail, item: SellerRanking) => void;
   onToggleFollow?: (item: SellerRanking) => void;
+  topInset?: number;
+  onScroll?: FlatListProps<SellerRanking>['onScroll'];
 }
 
-function RowSeparator() {
-  return <View style={styles.separator} />;
-}
+const NOOP = () => undefined;
 
 export function SellerRankingList({
   state,
   bottomPadding = 0,
   onRefresh,
   onPressItem,
-  onPressThumbnail,
   onToggleFollow,
+  onScroll,
+  topInset = spacing.sm,
 }: SellerRankingListProps) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
-
+  const contentContainerStyle = useMemo(
+    () => [s.content, { paddingTop: topInset }],
+    [s.content, topInset],
+  );
+  const renderItem: ListRenderItem<SellerRanking> = useCallback(
+    ({ item }) => (
+      <SellerRankingRow item={item} onPress={onPressItem ?? NOOP} onToggleFollow={onToggleFollow ?? NOOP} />
+    ),
+    [onPressItem, onToggleFollow],
+  );
   if (state.status === 'loading') {
     return (
       <View style={s.statusContainer}>
@@ -43,10 +60,19 @@ export function SellerRankingList({
   if (state.status === 'error') {
     return (
       <View style={s.statusContainer}>
-        <SText variant="body" style={[s.statusTitle, s.errorText]}>{state.message}</SText>
+        <SText variant="body" style={[s.statusTitle, s.errorText]}>
+          {state.message}
+        </SText>
         {state.retry ? (
-          <Pressable accessibilityLabel="다시 불러오기" accessibilityRole="button" onPress={state.retry} style={s.statusAction}>
-            <SText variant="label" style={s.statusActionText}>다시 시도</SText>
+          <Pressable
+            accessibilityLabel="다시 불러오기"
+            accessibilityRole="button"
+            onPress={state.retry}
+            style={s.statusAction}
+          >
+            <SText variant="label" style={s.statusActionText}>
+              다시 시도
+            </SText>
           </Pressable>
         ) : null}
       </View>
@@ -56,10 +82,19 @@ export function SellerRankingList({
   if (state.status === 'empty') {
     return (
       <View style={s.statusContainer}>
-        <SText variant="body" style={s.statusTitle}>{state.message}</SText>
+        <SText variant="body" style={s.statusTitle}>
+          {state.message}
+        </SText>
         {state.action ? (
-          <Pressable accessibilityLabel={state.action.label} accessibilityRole="button" onPress={state.action.onPress} style={s.statusAction}>
-            <SText variant="label" style={s.statusActionText}>{state.action.label}</SText>
+          <Pressable
+            accessibilityLabel={state.action.label}
+            accessibilityRole="button"
+            onPress={state.action.onPress}
+            style={s.statusAction}
+          >
+            <SText variant="label" style={s.statusActionText}>
+              {state.action.label}
+            </SText>
           </Pressable>
         ) : null}
       </View>
@@ -67,43 +102,38 @@ export function SellerRankingList({
   }
 
   return (
-    <FlatList
-      accessibilityLabel="셀러 랭킹 목록"
+    <Animated.FlatList
+      accessibilityLabel="공구 랭킹 목록"
       accessibilityRole="list"
+      alwaysBounceVertical={false}
+      contentContainerStyle={contentContainerStyle}
       data={state.data}
-      ItemSeparatorComponent={RowSeparator}
       keyExtractor={(item) => item.id}
       ListFooterComponent={<View style={{ height: bottomPadding }} />}
+      onScroll={onScroll}
       onRefresh={onRefresh}
       progressViewOffset={spacing.lg}
       refreshing={'refreshing' in state ? !!state.refreshing : false}
+      renderItem={renderItem}
+      scrollEventThrottle={16}
       scrollIndicatorInsets={{ bottom: bottomPadding }}
-      renderItem={({ item }) => (
-        <SellerRankingRow
-          item={item}
-          onPress={onPressItem ?? (() => {})}
-          onPressThumbnail={onPressThumbnail}
-          onToggleFollow={onToggleFollow ?? (() => {})}
-        />
-      )}
+      showsVerticalScrollIndicator={false}
       style={s.list}
     />
   );
 }
 
-const styles = StyleSheet.create({
-  separator: {
-    height: spacing.sm,
-  },
-});
-
 function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
+    content: {
+      paddingHorizontal: spacing.lg,
+    },
     errorText: {
       color: colors.error,
     },
     list: {
       backgroundColor: colors.bg,
+      flex: 1,
     },
     statusAction: {
       backgroundColor: colors.accent,
@@ -118,10 +148,7 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     statusContainer: {
       alignItems: 'center',
-      backgroundColor: colors.panelBg,
-      borderColor: colors.border,
-      borderRadius: commerceRadius.xl,
-      borderWidth: 1,
+      backgroundColor: colors.bg,
       flex: 1,
       justifyContent: 'center',
       marginTop: spacing.md,

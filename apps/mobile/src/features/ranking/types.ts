@@ -48,10 +48,10 @@ export type SellerRanking = {
   activeDealCount: number;
   endingSoonCount?: number | null;
   trustScore?: number | null;
- isFollowing: boolean;
- isSponsored: boolean;
- thumbnails: RankingThumbnail[];
- representativeGroupBuyId?: string | null;
+  isFollowing: boolean;
+  isSponsored: boolean;
+  thumbnails: RankingThumbnail[];
+  representativeGroupBuyId?: string | null;
   startDate?: string | null;
   endDate?: string | null;
 };
@@ -64,9 +64,24 @@ export type SellerRankingQuery = {
 
 export type RankingLoadState =
   | { status: 'loading'; data?: SellerRanking[] }
-  | { status: 'error'; data?: SellerRanking[]; message: string; retry?: () => void }
-  | { status: 'empty'; message: string; action?: { label: string; onPress: () => void } }
-  | { status: 'ready'; data: SellerRanking[]; refreshing?: boolean };
+  | {
+      status: 'error';
+      data?: SellerRanking[];
+      message: string;
+      retry?: () => void;
+    }
+  | {
+      status: 'empty';
+      message: string;
+      action?: { label: string; onPress: () => void };
+      updatedAt?: number;
+    }
+  | {
+      status: 'ready';
+      data: SellerRanking[];
+      refreshing?: boolean;
+      updatedAt?: number;
+    };
 
 export function getRankingTrend(rank: number, previousRank: number | null): RankingTrend {
   if (previousRank == null) {
@@ -96,6 +111,21 @@ export function formatCompactCount(value: number): string {
   }
 
   return value.toLocaleString('ko-KR');
+}
+
+export function formatRankingUpdatedAt(updatedAt: number | null | undefined, now = Date.now()): string {
+  if (!updatedAt || !Number.isFinite(updatedAt)) {
+    return '최근 업데이트';
+  }
+
+  const elapsedMinutes = Math.floor(Math.max(0, now - updatedAt) / 60_000);
+  if (elapsedMinutes < 1) return '방금 업데이트';
+  if (elapsedMinutes < 60) return `${elapsedMinutes}분 전 업데이트`;
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `${elapsedHours}시간 전 업데이트`;
+
+  return `${Math.floor(elapsedHours / 24)}일 전 업데이트`;
 }
 
 export const RANKING_CATEGORIES: readonly RankingCategory[] = [
@@ -130,7 +160,7 @@ export const RANKING_CATEGORY_LABELS: Record<RankingCategory, string> = {
   pet: '반려동물',
   auto: '자동차용품',
   hobby: '취미',
-  baby: '출산-육아',
+  baby: '육아',
   sports: '스포츠',
   stationery: '문구',
   books: '도서',
@@ -138,7 +168,10 @@ export const RANKING_CATEGORY_LABELS: Record<RankingCategory, string> = {
   travel: '여행',
 };
 
-export const RANKING_SORT_CHIPS: readonly { key: RankingSort; label: string }[] = [
+export const RANKING_SORT_CHIPS: readonly {
+  key: RankingSort;
+  label: string;
+}[] = [
   { key: 'popular', label: '인기 공구' },
   { key: 'rising', label: '급상승' },
   { key: 'newDeal', label: '신규 오픈' },

@@ -1,13 +1,9 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import {
-  POPULAR_PERIOD_HOURS,
-  fetchPopularGroupBuysWithDetail,
-} from '../../api';
+import { POPULAR_PERIOD_HOURS, fetchPopularGroupBuysWithDetail } from '../../api';
 import type { GroupBuy } from '../../types';
 import {
-  getRankingTrend,
   type RankingCategory,
   type RankingLoadState,
   type RankingPeriod,
@@ -15,15 +11,16 @@ import {
   type SellerRanking,
 } from './types';
 
-export const POPULAR_PERIOD_LABELS: Record<RankingPeriod, string> = {
-  today: '?ㅻ뒛',
-  weekly: '二쇨컙',
-  monthly: '?붽컙',
-};
-
 function groupBuyToSellerRanking(
   index: number,
-  popular: { groupBuyId: string; deepViews: number; bookmarks: number; searchClicks: number; score: number; groupBuy?: GroupBuy },
+  popular: {
+    groupBuyId: string;
+    deepViews: number;
+    bookmarks: number;
+    searchClicks: number;
+    score: number;
+    groupBuy?: GroupBuy;
+  },
 ): SellerRanking | null {
   const gb = popular.groupBuy;
   if (!gb) return null;
@@ -42,15 +39,27 @@ function groupBuyToSellerRanking(
     activeDealCount: popular.bookmarks,
     endingSoonCount: popular.searchClicks,
     trustScore: Math.round(Number(popular.score)),
-   isFollowing: false,
-   isSponsored: false,
-   thumbnails: gb.thumbnailUrl
-     ? [{ id: `thumb-${popular.groupBuyId}`, imageUrl: gb.thumbnailUrl, label: null, groupBuyId: popular.groupBuyId }]
-     : (gb.mediaUrls ?? []).slice(0, 3).map((url) => ({ id: `thumb-${popular.groupBuyId}-`, imageUrl: url, label: null, groupBuyId: popular.groupBuyId })),
-   representativeGroupBuyId: popular.groupBuyId,
-   startDate: gb.startDate,
-   endDate: gb.endDate,
- };
+    isFollowing: false,
+    isSponsored: false,
+    thumbnails: gb.thumbnailUrl
+      ? [
+          {
+            id: `thumb-${popular.groupBuyId}`,
+            imageUrl: gb.thumbnailUrl,
+            label: null,
+            groupBuyId: popular.groupBuyId,
+          },
+        ]
+      : (gb.mediaUrls ?? []).slice(0, 3).map((url, mediaIndex) => ({
+          id: `thumb-${popular.groupBuyId}-${mediaIndex}`,
+          imageUrl: url,
+          label: null,
+          groupBuyId: popular.groupBuyId,
+        })),
+    representativeGroupBuyId: popular.groupBuyId,
+    startDate: gb.startDate,
+    endDate: gb.endDate,
+  };
 }
 
 export function usePopularGroupBuys(
@@ -90,7 +99,9 @@ export function usePopularGroupBuys(
     });
     // Re-sort by the selected sort chip (server already ranks by score).
     const sorted = [...rows];
-    if (sort === 'newDeal') {
+    if (sort === 'rising') {
+      sorted.sort((a, b) => b.searchClicks - a.searchClicks || b.deepViews - a.deepViews || b.bookmarks - a.bookmarks);
+    } else if (sort === 'newDeal') {
       sorted.sort((a, b) => {
         const ta = a.groupBuy?.createdAt ? Date.parse(a.groupBuy.createdAt) : 0;
         const tb = b.groupBuy?.createdAt ? Date.parse(b.groupBuy.createdAt) : 0;
@@ -103,7 +114,7 @@ export function usePopularGroupBuys(
         return ta - tb;
       });
     }
-    // 'popular' and 'rising' keep server score order.
+    // 'popular' keeps the server score order.
     const data: SellerRanking[] = [];
     sorted.forEach((row, index) => {
       const mapped = groupBuyToSellerRanking(index, row);
@@ -113,7 +124,8 @@ export function usePopularGroupBuys(
     if (data.length === 0) {
       return {
         status: 'empty',
-      message: '이 기간에 인기 공구가 없습니다.',
+        message: '이 기간에 인기 공구가 없습니다.',
+        updatedAt: query.dataUpdatedAt || undefined,
       };
     }
 
@@ -121,6 +133,7 @@ export function usePopularGroupBuys(
       status: 'ready',
       data,
       refreshing: query.isFetching && !query.isLoading,
+      updatedAt: query.dataUpdatedAt || undefined,
     };
   }, [period, category, sort, query.data, query.isError, query.isFetching, query.isLoading, query.refetch]);
 }

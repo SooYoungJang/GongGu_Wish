@@ -53,7 +53,10 @@ pnpm-debug.log*
 # Agent / tool artifacts
 .agents/
 .codex/
+.codex-remote-attachments/
 .tokensave/
 tmp/
 skills-lock.json
 apps/mobile/.maestro/output/
+apps/mobile/.expo-server.*.log
+/ranking-*.png

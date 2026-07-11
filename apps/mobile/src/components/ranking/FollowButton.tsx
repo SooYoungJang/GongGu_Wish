@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, type GestureResponderEvent } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Pressable, StyleSheet } from 'react-native';
 
-import { SText } from '../ui/SText';
-import { spacing } from '../../design/tokens';
 import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
 import { useCommerceTheme } from '../../design/useCommerceTheme';
 
@@ -10,32 +9,21 @@ export interface FollowButtonProps {
   isFollowing: boolean;
   sellerName: string;
   onFollow?: () => void;
-  onPress?: () => void;
 }
 
-export function FollowButton({ isFollowing, sellerName, onFollow, onPress }: FollowButtonProps) {
+export function FollowButton({ isFollowing, sellerName, onFollow }: FollowButtonProps) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
-  const handlePress = (event: GestureResponderEvent) => {
-    event.stopPropagation();
-    onFollow?.();
-    onPress?.();
-  };
 
   return (
     <Pressable
       accessibilityLabel={`${sellerName} ${isFollowing ? '알림 해제' : '알림'}`}
+      accessibilityHint="공구 알림 설정을 변경합니다"
       accessibilityRole="button"
-      onPress={handlePress}
-      style={({ pressed }) => [
-        s.button,
-        isFollowing ? s.followingButton : s.followButton,
-        pressed && s.pressed,
-      ]}
+      onPress={onFollow}
+      style={({ pressed }) => [s.button, isFollowing ? s.followingButton : s.followButton, pressed && s.pressed]}
     >
-      <SText variant="badge" style={[s.text, isFollowing ? s.followingText : s.followText]}>
-        {isFollowing ? '알림중' : '알림'}
-      </SText>
+      <Ionicons color={colors.accent} name={isFollowing ? 'notifications' : 'notifications-outline'} size={20} />
     </Pressable>
   );
 }
@@ -46,31 +34,20 @@ function makeStyles(colors: CommerceColorPalette) {
       alignItems: 'center',
       borderRadius: commerceRadius.full,
       borderWidth: 1,
+      height: 40,
       justifyContent: 'center',
-      minHeight: 36,
-      minWidth: 62,
-      paddingHorizontal: spacing.sm,
+      width: 40,
     },
     followButton: {
-      backgroundColor: colors.accent,
+      backgroundColor: 'transparent',
       borderColor: colors.accent,
     },
     followingButton: {
-      backgroundColor: colors.softBg,
-      borderColor: colors.border,
+      backgroundColor: colors.accentSoft,
+      borderColor: colors.accentSoft,
     },
     pressed: {
       opacity: 0.72,
-    },
-    text: {
-      fontSize: 12,
-      fontWeight: '900',
-    },
-    followText: {
-      color: colors.inverse,
-    },
-    followingText: {
-      color: colors.muted,
     },
   });
 }

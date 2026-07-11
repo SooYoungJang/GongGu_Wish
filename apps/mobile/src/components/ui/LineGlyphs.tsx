@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 
 type SearchGlyphProps = {
@@ -11,38 +12,7 @@ type CrownGlyphProps = {
 };
 
 export function SearchGlyph({ color, size = 18 }: SearchGlyphProps) {
-  const lensSize = Math.round(size * 0.62);
-  const stroke = Math.max(1.6, size * 0.1);
-  const handleWidth = Math.round(size * 0.4);
-
-  return (
-    <View style={[styles.frame, { width: size, height: size }]}>
-      <View
-        style={{
-          position: 'absolute',
-          left: 1,
-          top: 1,
-          width: lensSize,
-          height: lensSize,
-          borderRadius: lensSize / 2,
-          borderWidth: stroke,
-          borderColor: color,
-        }}
-      />
-      <View
-        style={{
-          position: 'absolute',
-          right: 1,
-          top: Math.round(size * 0.67),
-          width: handleWidth,
-          height: 2,
-          borderRadius: 999,
-          backgroundColor: color,
-          transform: [{ rotate: '45deg' }],
-        }}
-      />
-    </View>
-  );
+  return <Ionicons color={color} name="search-outline" size={size} />;
 }
 
 export function CrownGlyph({ color, size = 18 }: CrownGlyphProps) {

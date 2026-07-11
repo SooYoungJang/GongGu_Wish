@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { SText } from '../ui/SText';
-import { spacing } from '../../design/tokens';
-import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
+import type { CommerceColorPalette } from '../../design/commerce';
 import { useCommerceTheme } from '../../design/useCommerceTheme';
 import type { RankingTrend } from '../../features/ranking/types';
 
@@ -14,13 +13,13 @@ export interface RankingTrendBadgeProps {
 function getTrendStyle(trend: RankingTrend, colors: CommerceColorPalette) {
   switch (trend.kind) {
     case 'up':
-      return { label: `▲${trend.delta}`, bg: colors.accentSoft, text: colors.accent };
+      return { label: `▲${trend.delta}`, text: colors.accent };
     case 'down':
-      return { label: `▼${trend.delta}`, bg: colors.blueSoft, text: colors.blue };
+      return { label: `▼${trend.delta}`, text: colors.blue };
     case 'new':
-      return { label: 'NEW', bg: colors.successSoft, text: colors.success };
+      return { label: 'NEW', text: colors.success };
     default:
-      return { label: '―', bg: colors.softBg, text: colors.weak };
+      return { label: '-', text: colors.weak };
   }
 }
 
@@ -30,25 +29,19 @@ export function RankingTrendBadge({ trend }: RankingTrendBadgeProps) {
   const styles = useMemo(() => makeStyles(), []);
 
   return (
-    <View style={[styles.badge, { backgroundColor: palette.bg }]}>
-      <SText variant="caption" style={[styles.text, { color: palette.text }]}>{palette.label}</SText>
-    </View>
+    <SText variant="caption" style={[styles.text, { color: palette.text }]}>
+      {palette.label}
+    </SText>
   );
 }
 
 function makeStyles() {
   return StyleSheet.create({
-    badge: {
-      alignItems: 'center',
-      borderRadius: commerceRadius.full,
-      justifyContent: 'center',
-      minHeight: 24,
-      minWidth: 44,
-      paddingHorizontal: spacing.sm,
-    },
     text: {
       fontSize: 11,
       fontWeight: '900',
+      minWidth: 24,
+      textAlign: 'center',
     },
   });
 }
