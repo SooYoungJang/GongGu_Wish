@@ -212,8 +212,9 @@ export function useNotifications() {
 
   const refresh = useCallback(() => {
     readJSON<NotificationEntry[]>(NOTI_KEY, []).then((value) => {
+      if (!mountedRef.current) return;
       publishNotifications(value);
-      if (mountedRef.current) setReady(true);
+      setReady(true);
     });
   }, []);
 
