@@ -52,12 +52,8 @@ const HOME_SIDE_PADDING = 16;
 const PROMO_CARD_GAP = 12;
 const PROMO_AUTO_PLAY_MS = 3000;
 const PROMO_WRAP_SETTLE_MS = 450;
-const TRANSPARENT_PRODUCT_IMAGE_PATTERN = /\.(?:png|webp)(?:[?#]|$)/i;
-const PROMO_DATE_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
-  day: 'numeric',
-  month: 'numeric',
-  timeZone: 'Asia/Seoul',
-});
+const PROMO_BENEFIT_PATTERN =
+  /(?:할인|특가|쿠폰|증정|1\s*\+\s*1|무료\s*배송|[0-9,]+\s*원|선착순|한정\s*구성)/i;
 
 function getVisual(item: GroupBuy) {
   return (
@@ -69,18 +65,11 @@ function getVisual(item: GroupBuy) {
 }
 
 function getPromoVisual(item: GroupBuy) {
-  const transparentProductImage =
-    item.mediaItems?.find(
-      (media) =>
-        media.mediaType === 'IMAGE' &&
-        TRANSPARENT_PRODUCT_IMAGE_PATTERN.test(media.url),
-    )?.url ??
-    item.mediaUrls.find((url) => TRANSPARENT_PRODUCT_IMAGE_PATTERN.test(url));
-
   return (
-    transparentProductImage ??
-    getVisual(item) ??
+    item.thumbnailUrl ??
+    item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ??
     item.mediaItems?.find((media) => media.mediaType === 'IMAGE')?.url ??
+    item.mediaUrls[0] ??
     null
   );
 }
@@ -103,15 +92,26 @@ function formatDeadlineLabel(endDate: string | null) {
   return `${date.getMonth() + 1}/${date.getDate()} 마감`;
 }
 
-function formatPromoDate(dateValue: string | null) {
-  if (!dateValue) return '확인 중';
+function getPromoAccountLabel(item: GroupBuy) {
+  const username = item.rawPost.influencer.instagramUsername
+    .trim()
+    .replace(/^@+/, '');
+  if (username) return `@${username}`;
 
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return '확인 중';
+  return item.brandName?.trim() || '공동구매 추천';
+}
 
-  return PROMO_DATE_FORMATTER.format(date)
-    .replace(/\s/g, '')
-    .replace(/\.$/, '');
+function getPromoFallbackMark(item: GroupBuy) {
+  const source =
+    item.brandName?.trim() || item.productName?.trim() || '공동구매';
+  return source.replace(/\s/g, '').slice(0, 2).toUpperCase();
+}
+
+function getPromoBenefit(item: GroupBuy) {
+  const discountInfo = item.discountInfo?.trim();
+  return discountInfo && PROMO_BENEFIT_PATTERN.test(discountInfo)
+    ? discountInfo
+    : null;
 }
 
 function HomeTopBar({
@@ -140,48 +140,44 @@ function HomeTopBar({
   );
 }
 
-function PromoProductMockup({
+function PromoArtworkFallback({
+  mark,
   s,
   testID,
 }: {
+  mark: string;
   s: ReturnType<typeof makeStyles>;
   testID?: string;
 }) {
-  const packs = [
-    { tone: '#D95E6A', label: 'REAL' },
-    { tone: '#3484B9', label: 'FRESH' },
-  ];
-
   return (
     <View
       accessibilityElementsHidden
       accessible={false}
       importantForAccessibility="no-hide-descendants"
-      style={s.promoMockupGrid}
+      style={s.promoArtworkFallback}
       testID={testID}
     >
-      {packs.map((pack, index) => (
-        <View
-          key={`${pack.label}-${index}`}
-          style={[s.promoMockupPack, { backgroundColor: pack.tone }]}
-        >
-          <SText variant="caption" style={s.promoMockupText}>
-            {pack.label}
-          </SText>
-          <View style={s.promoMockupLeaf} />
-        </View>
-      ))}
+      <View style={s.promoArtworkMark}>
+        <SText variant="label" style={s.promoArtworkMarkText}>
+          {mark}
+        </SText>
+      </View>
+      <SText variant="caption" style={s.promoArtworkFallbackText}>
+        이미지 준비 중
+      </SText>
     </View>
   );
 }
 
 function PromoArtwork({
   clone,
+  fallbackMark,
   itemId,
   s,
   uri,
 }: {
   clone: boolean;
+  fallbackMark: string;
   itemId: string;
   s: ReturnType<typeof makeStyles>;
   uri: string | null;
@@ -191,7 +187,8 @@ function PromoArtwork({
   return (
     <>
       {!isLoaded ? (
-        <PromoProductMockup
+        <PromoArtworkFallback
+          mark={fallbackMark}
           s={s}
           testID={clone ? undefined : `promo-artwork-placeholder-${itemId}`}
         />
@@ -201,7 +198,7 @@ function PromoArtwork({
           accessible={false}
           onError={() => setIsLoaded(false)}
           onLoad={() => setIsLoaded(true)}
-          resizeMode="contain"
+          resizeMode="cover"
           source={{ uri }}
           style={[s.promoImage, !isLoaded && s.promoImagePending]}
           testID={clone ? undefined : `promo-image-${itemId}`}
@@ -252,10 +249,9 @@ function PromoBanner({
   const snapInterval = cardWidth + PROMO_CARD_GAP;
   const canAutoPlay = promoItems.length > 1;
   const isCompact = cardWidth < 320;
-  const visualWidth = Math.min(136, Math.max(96, Math.round(cardWidth * 0.36)));
-  const visualHeight = Math.min(
-    146,
-    Math.max(112, Math.round(visualWidth * 1.08)),
+  const visualSize = Math.min(
+    132,
+    Math.max(96, Math.round(cardWidth * 0.36)),
   );
   const loopingPromoItems = useMemo(() => {
     if (promoItems.length <= 1)
@@ -418,16 +414,31 @@ function PromoBanner({
     >
       {loopingPromoItems.map(({ item, index, clone }, renderIndex) => {
         const visual = getPromoVisual(item);
-        const startDateLabel = formatPromoDate(item.startDate);
-        const endDateLabel = formatPromoDate(item.endDate);
+        const benefit = getPromoBenefit(item);
+        const productName = item.productName?.trim() || '공동구매 상품';
+        const accountLabel = getPromoAccountLabel(item);
+        const purchaseHook = benefit;
+        const deadlineLabel = formatDeadlineLabel(item.endDate);
+        const promoLead =
+          deadlineLabel === '마감일 확인 중'
+            ? '공동구매 추천'
+            : deadlineLabel;
+        const accessibilityLabel = Array.from(
+          new Set(
+            [
+              productName,
+              benefit,
+              accountLabel,
+              promoLead,
+              purchaseHook,
+              '상세 열기',
+            ].filter((value): value is string => Boolean(value)),
+          ),
+        ).join(', ');
         return (
           <Pressable
             accessibilityElementsHidden={clone}
-            accessibilityLabel={
-              clone
-                ? undefined
-                : `${item.productName ?? '공구'} 특가 배너, 시작일 ${startDateLabel}, 마감일 ${endDateLabel}, 열기`
-            }
+            accessibilityLabel={clone ? undefined : accessibilityLabel}
             accessibilityRole="button"
             importantForAccessibility={clone ? 'no-hide-descendants' : 'auto'}
             key={`${item.id}-${renderIndex}-${clone ? 'clone' : 'real'}`}
@@ -438,81 +449,83 @@ function PromoBanner({
               { width: cardWidth },
             ]}
           >
-            <View style={[s.promoMain, isCompact && s.promoMainCompact]}>
-              <View style={s.promoCopy}>
+            <View
+              style={[s.promoMain, isCompact && s.promoMainCompact]}
+              testID={clone ? undefined : `promo-main-${item.id}`}
+            >
+              <View
+                style={s.promoCopy}
+                testID={clone ? undefined : `promo-copy-${item.id}`}
+              >
                 <SText variant="label" numberOfLines={1} style={s.promoLead}>
-                  {index === 0 ? '1,500명 선착순' : '오늘의 공구 특가'}
+                  {promoLead}
                 </SText>
                 <SText
                   variant="cardTitle"
                   numberOfLines={2}
                   style={s.promoTitle}
                 >
-                  {item.productName ?? '공동구매 상품'}
-                </SText>
-                <SText
-                  variant="cardTitle"
-                  numberOfLines={1}
-                  style={s.promoPrice}
-                >
-                  {item.discountInfo ?? '혜택 확인'}
-                </SText>
-                <SText
-                  variant="body"
-                  numberOfLines={2}
-                  style={s.promoDescription}
-                >
-                  {item.brandName ??
-                    `@${item.rawPost.influencer.instagramUsername}`}
+                  {productName}
                 </SText>
               </View>
               <View
                 style={[
-                  s.promoVisual,
-                  { height: visualHeight, width: visualWidth },
+                  s.promoMedia,
+                  { width: visualSize },
                 ]}
-                testID={clone ? undefined : `promo-visual-${item.id}`}
+                testID={clone ? undefined : `promo-media-${item.id}`}
               >
-                <PromoArtwork
-                  clone={clone}
-                  itemId={item.id}
-                  key={`${item.id}:${visual ?? 'placeholder'}`}
-                  s={s}
-                  uri={visual}
-                />
                 <View
-                  pointerEvents="none"
-                  style={s.promoCounter}
-                  testID={clone ? undefined : `promo-counter-${item.id}`}
+                  style={[
+                    s.promoVisual,
+                    { height: visualSize, width: visualSize },
+                  ]}
+                  testID={clone ? undefined : `promo-visual-${item.id}`}
                 >
-                  <SText variant="caption" style={s.promoCounterText}>
-                    {index + 1} | {promoItems.length}
-                  </SText>
+                  <PromoArtwork
+                    clone={clone}
+                    fallbackMark={getPromoFallbackMark(item)}
+                    itemId={item.id}
+                    key={`${item.id}:${visual ?? 'placeholder'}`}
+                    s={s}
+                    uri={visual}
+                  />
+                  <View
+                    pointerEvents="none"
+                    style={s.promoCounter}
+                    testID={clone ? undefined : `promo-counter-${item.id}`}
+                  >
+                    <SText variant="caption" style={s.promoCounterText}>
+                      {index + 1} / {promoItems.length}
+                    </SText>
+                  </View>
                 </View>
+                <SText
+                  variant="caption"
+                  numberOfLines={1}
+                  style={s.promoAccount}
+                  testID={clone ? undefined : `promo-account-${item.id}`}
+                >
+                  {accountLabel}
+                  </SText>
               </View>
             </View>
-            <View
-              style={s.promoDateRow}
-              testID={clone ? undefined : `promo-date-row-${item.id}`}
-            >
-              <SText
-                variant="caption"
-                numberOfLines={1}
-                style={s.promoDateText}
-                testID={clone ? undefined : 'promo-start-date'}
+            {purchaseHook ? (
+              <View
+                style={s.promoPurchaseHookRow}
+                testID={
+                  clone ? undefined : `promo-purchase-hook-${item.id}`
+                }
               >
-                시작일 {startDateLabel}
-              </SText>
-              <View style={s.promoDateDivider} />
-              <SText
-                variant="caption"
-                numberOfLines={1}
-                style={s.promoDateText}
-                testID={clone ? undefined : 'promo-end-date'}
-              >
-                마감일 {endDateLabel}
-              </SText>
-            </View>
+                <SText
+                  variant="caption"
+                  numberOfLines={1}
+                  style={s.promoPurchaseHook}
+                >
+                  {purchaseHook}
+                </SText>
+              </View>
+            ) : null}
           </Pressable>
         );
       })}
@@ -905,147 +918,133 @@ function makeStyles(colors: CommerceColorPalette) {
       gap: 12,
       paddingHorizontal: HOME_SIDE_PADDING,
       paddingTop: 4,
-      paddingBottom: 30,
+      paddingBottom: 24,
     },
     promoCard: {
       backgroundColor: colors.promoBg,
-      borderRadius: 24,
+      borderRadius: 20,
       borderCurve: 'continuous',
-      minHeight: 240,
+      minHeight: 200,
+      justifyContent: 'space-between',
       overflow: 'hidden',
       paddingBottom: 16,
-      paddingHorizontal: 20,
-      paddingTop: 18,
+      paddingHorizontal: 16,
+      paddingTop: 16,
       position: 'relative',
     },
     promoCardCompact: {
-      paddingHorizontal: 16,
+      paddingHorizontal: 14,
     },
     promoMain: {
-      alignItems: 'center',
+      alignItems: 'flex-start',
       flexDirection: 'row',
       gap: 12,
-      minHeight: 146,
+      minHeight: 132,
     },
     promoMainCompact: {
       gap: 8,
     },
-    promoCopy: { flex: 1, minWidth: 0 },
+    promoCopy: { alignSelf: 'flex-start', flex: 1, gap: 4, minWidth: 0 },
     promoLead: {
       color: colors.accent,
-      fontSize: 14,
-      fontWeight: '900',
+      fontSize: 13,
+      fontWeight: '800',
+      includeFontPadding: false,
       letterSpacing: 0,
-      lineHeight: 19,
-      marginBottom: 6,
+      lineHeight: 18,
     },
     promoTitle: {
       color: colors.promoText,
       fontSize: 20,
       fontWeight: '900',
       letterSpacing: 0,
-      lineHeight: 26,
+      lineHeight: 25,
     },
-    promoPrice: {
-      color: colors.promoText,
-      fontSize: 22,
-      fontWeight: '900',
-      letterSpacing: 0,
-      lineHeight: 28,
-      marginTop: 2,
+    promoMedia: {
+      alignSelf: 'flex-start',
+      gap: 4,
+      paddingTop: 4,
     },
-    promoDescription: {
+    promoAccount: {
       color: colors.promoMuted,
-      fontSize: 13,
-      fontWeight: '800',
+      fontSize: 11,
+      fontWeight: '700',
+      includeFontPadding: false,
       letterSpacing: 0,
-      lineHeight: 18,
-      marginTop: 8,
+      lineHeight: 14,
+      textAlign: 'center',
     },
     promoVisual: {
-      alignSelf: 'center',
-      backgroundColor: colors.inverse,
+      alignSelf: 'flex-start',
+      backgroundColor: 'transparent',
       borderCurve: 'continuous',
-      borderRadius: 18,
+      borderRadius: 16,
       justifyContent: 'center',
       overflow: 'hidden',
-      padding: 6,
       position: 'relative',
     },
-    promoDateRow: {
-      alignItems: 'center',
-      borderTopColor: colors.borderLight,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-      marginTop: 12,
-      minHeight: 32,
-      paddingTop: 10,
-    },
-    promoDateText: {
-      color: colors.promoMuted,
+    promoPurchaseHookRow: {
       flexShrink: 1,
+      marginTop: 10,
+    },
+    promoPurchaseHook: {
+      color: colors.promoMuted,
       fontSize: 12,
-      fontWeight: '800',
+      fontWeight: '700',
       letterSpacing: 0,
       lineHeight: 16,
     },
-    promoDateDivider: { backgroundColor: colors.border, height: 12, width: 1 },
     promoImage: { height: '100%', width: '100%' },
     promoImagePending: { opacity: 0, position: 'absolute' },
-    promoMockupGrid: {
+    promoArtworkFallback: {
       alignItems: 'center',
-      flexDirection: 'row',
-      gap: 8,
+      gap: 6,
       height: '100%',
       justifyContent: 'center',
-      paddingBottom: 24,
-      paddingHorizontal: 6,
-      paddingTop: 4,
       width: '100%',
     },
-    promoMockupPack: {
+    promoArtworkMark: {
       alignItems: 'center',
-      borderColor: 'rgba(17, 24, 39, 0.08)',
-      borderRadius: 4,
-      borderWidth: 1,
-      height: 72,
+      backgroundColor: colors.softBg,
+      borderCurve: 'continuous',
+      borderRadius: borderRadius.full,
+      height: 64,
       justifyContent: 'center',
-      width: 44,
+      width: 64,
     },
-    promoMockupText: {
-      color: '#FFFFFF',
-      fontSize: 6,
+    promoArtworkMarkText: {
+      color: colors.promoText,
+      fontSize: 18,
       fontWeight: '900',
       letterSpacing: 0,
-      lineHeight: 9,
+      lineHeight: 24,
     },
-    promoMockupLeaf: {
-      backgroundColor: 'rgba(56, 161, 105, 0.45)',
-      borderRadius: 999,
-      height: 10,
-      marginTop: 4,
-      width: 10,
+    promoArtworkFallbackText: {
+      color: colors.promoMuted,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0,
+      lineHeight: 14,
     },
     promoCounter: {
       alignItems: 'center',
       backgroundColor: colors.overlay,
       borderRadius: borderRadius.full,
-      bottom: 8,
+      borderCurve: 'continuous',
+      bottom: 4,
       justifyContent: 'center',
-      minHeight: 26,
-      minWidth: 42,
-      paddingHorizontal: 8,
+      minHeight: 22,
+      minWidth: 36,
+      paddingHorizontal: 7,
       position: 'absolute',
-      right: 8,
+      right: 4,
     },
     promoCounterText: {
       color: colors.inverse,
-      fontSize: 13,
+      fontSize: 11,
       fontWeight: '800',
       letterSpacing: 0,
-      lineHeight: 18,
+      lineHeight: 15,
     },
     promoEmpty: {
       alignItems: 'center',
