@@ -58,7 +58,7 @@
     "eslint": "^9.39.5",
     "jsdom": "^26.0.0",
     "react-test-renderer": "19.2.0",
-    "typescript": "^5.7.2",
+    "typescript": "^6.0.3",
     "vitest": "^3.0.0"
   }
 }
