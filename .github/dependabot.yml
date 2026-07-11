@@ -5,6 +5,24 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    groups:
+      react-runtime:
+        applies-to: version-updates
+        patterns:
+          - react
+          - react-dom
+          - react-test-renderer
+    # Expo SDK-managed package majors must move with a coordinated SDK upgrade.
+    ignore:
+      - dependency-name: expo
+        update-types:
+          - version-update:semver-major
+      - dependency-name: expo-*
+        update-types:
+          - version-update:semver-major
+      - dependency-name: babel-preset-expo
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: "/"
