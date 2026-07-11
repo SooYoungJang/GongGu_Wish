@@ -1,88 +1,36 @@
 appId: com.gonggu.wish
 ---
-# HomeScreen v2 E2E evidence flow
-# Captures the key sections of the redesigned HomeScreen v2 with
-# distinct screenshots via varied scroll positions and interactions.
+# HomeScreen header and promo banner evidence flow.
 #
 # Run with:
 #   maestro test .maestro/home-screen-v2-evidence.yaml
 
-# Step 0: Fresh launch with cleared state
 - launchApp:
     clearState: true
 - waitForAnimationToEnd
 - extendedWaitUntil:
-    visible: "공구캘린더"
+    visible: "상품 검색"
     timeout: 15000
 - waitForAnimationToEnd
 
-# Step 1: Dismiss any error banner by tapping bottom-right
-- tapOn:
-    point: "95%,95%"
-- waitForAnimationToEnd
+- assertVisible:
+    id: "home-shop-heading"
+- assertVisible: "쇼핑 홈"
+- assertNotVisible: "카테고리 탭"
+- assertNotVisible: "특가 탭"
+- assertNotVisible: "핫딜템 탭"
+- assertNotVisible: "쿠팡템 탭"
+- assertNotVisible: "여름생존템 탭"
+- assertNotVisible: "알림 열기"
+- assertNotVisible: "북마크 열기"
+- assertVisible:
+    id: "promo-start-date"
+    text: '시작일 (확인 중|[0-9]{1,2}\.[0-9]{1,2})'
+- assertVisible:
+    id: "promo-end-date"
+    text: '마감일 (확인 중|[0-9]{1,2}\.[0-9]{1,2})'
+- takeScreenshot: ev-01-home-header-and-promo-dates
 
-# Step 2: Verify all sections visible in initial viewport
-- assertVisible: "이달의 공구"
-- assertVisible: "뷰티 카테고리 보기"
-- assertVisible: "패션 카테고리 보기"
-- assertVisible: "푸드 카테고리 보기"
-- assertVisible: "라이프 카테고리 보기"
-- assertVisible: "육아 카테고리 보기"
-- assertVisible: "디지털 카테고리 보기"
 - assertVisible: "이번주 공구"
 - assertVisible: "전체 캘린더 보기"
-- assertVisible: "북마크 열기"
-- assertVisible: "알림 열기"
-- waitForAnimationToEnd
-
-# Step 3: Full HomeScreen overview (initial viewport)
-- takeScreenshot: ev-01-home-overview
-
-# Step 4: Scroll down slightly to shift view for CategoryRow evidence
-- swipe:
-    start: 50%,50%
-    end: 50%,40%
-    duration: 200
-- waitForAnimationToEnd
-- takeScreenshot: ev-02-category-row
-
-# Step 5: Scroll further to middle for WeeklyCalendarStrip evidence
-- swipe:
-    start: 50%,50%
-    end: 50%,20%
-    duration: 200
-- waitForAnimationToEnd
-- takeScreenshot: ev-03-weekly-calendar-strip
-
-# Step 6: Scroll UP a bit to get different view for ThisWeekDeals evidence
-- swipe:
-    start: 50%,30%
-    end: 50%,50%
-    duration: 200
-- waitForAnimationToEnd
-# Tap on a deal card if visible, to add visual distinction
-- tapOn:
-    point: "50%,50%"
-    optional: true
-- waitForAnimationToEnd
-- takeScreenshot: ev-04-this-week-deals
-
-# Step 7: Scroll to very bottom for ExpiringSoonSection evidence
-- scroll
-- waitForAnimationToEnd
-- assertVisible:
-    text: "마감임박 공구"
-    optional: true
-- assertVisible:
-    text: "전체보기"
-    optional: true
-- waitForAnimationToEnd
-- takeScreenshot: ev-05-expiring-soon-textlink
-
-# Step 8: Scroll back to top for header evidence
-- swipe:
-    start: 50%,30%
-    end: 50%,70%
-    duration: 400
-- waitForAnimationToEnd
-- takeScreenshot: ev-06-header-actions
+- takeScreenshot: ev-02-home-banner-layout
