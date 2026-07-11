@@ -236,7 +236,9 @@ export async function lookupViaHikerAPI(url: string, apiKey: string): Promise<In
     caption: getString(caption?.text) ?? getString(media.caption_text) ?? getString(media.caption),
     likeCount: getNumber(media.like_count) ?? getNumber(media.likeCount),
     username: getString(user?.username) ?? getString(media.username),
-    takenAt: typeof takenAt === 'number' ? new Date(takenAt * 1000).toISOString() : takenAt,
+    takenAt: typeof takenAt === 'number'
+      ? new Date(takenAt * 1000).toISOString()
+      : getString(takenAt),
   };
 }
 
