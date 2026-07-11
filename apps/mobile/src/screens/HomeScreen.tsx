@@ -52,6 +52,7 @@ const HOME_SIDE_PADDING = 16;
 const PROMO_CARD_GAP = 12;
 const PROMO_AUTO_PLAY_MS = 3000;
 const PROMO_WRAP_SETTLE_MS = 450;
+const TRANSPARENT_PRODUCT_IMAGE_PATTERN = /\.(?:png|webp)(?:[?#]|$)/i;
 const PROMO_DATE_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
   day: 'numeric',
   month: 'numeric',
@@ -63,6 +64,23 @@ function getVisual(item: GroupBuy) {
     item.thumbnailUrl ??
     item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ??
     item.mediaUrls?.[0] ??
+    null
+  );
+}
+
+function getPromoVisual(item: GroupBuy) {
+  const transparentProductImage =
+    item.mediaItems?.find(
+      (media) =>
+        media.mediaType === 'IMAGE' &&
+        TRANSPARENT_PRODUCT_IMAGE_PATTERN.test(media.url),
+    )?.url ??
+    item.mediaUrls.find((url) => TRANSPARENT_PRODUCT_IMAGE_PATTERN.test(url));
+
+  return (
+    transparentProductImage ??
+    getVisual(item) ??
+    item.mediaItems?.find((media) => media.mediaType === 'IMAGE')?.url ??
     null
   );
 }
@@ -122,32 +140,74 @@ function HomeTopBar({
   );
 }
 
-function PromoProductMockup({ s }: { s: ReturnType<typeof makeStyles> }) {
+function PromoProductMockup({
+  s,
+  testID,
+}: {
+  s: ReturnType<typeof makeStyles>;
+  testID?: string;
+}) {
   const packs = [
     { tone: '#D95E6A', label: 'REAL' },
     { tone: '#3484B9', label: 'FRESH' },
-    { tone: '#E9F7EA', label: 'ALOE' },
-    { tone: '#F4FAF3', label: 'HERB' },
-    { tone: '#EAF7EC', label: 'TEA' },
   ];
 
   return (
-    <View style={s.promoMockupGrid}>
+    <View
+      accessibilityElementsHidden
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
+      style={s.promoMockupGrid}
+      testID={testID}
+    >
       {packs.map((pack, index) => (
         <View
           key={`${pack.label}-${index}`}
           style={[s.promoMockupPack, { backgroundColor: pack.tone }]}
         >
-          <SText
-            variant="caption"
-            style={[s.promoMockupText, index >= 2 && s.promoMockupTextDark]}
-          >
+          <SText variant="caption" style={s.promoMockupText}>
             {pack.label}
           </SText>
           <View style={s.promoMockupLeaf} />
         </View>
       ))}
     </View>
+  );
+}
+
+function PromoArtwork({
+  clone,
+  itemId,
+  s,
+  uri,
+}: {
+  clone: boolean;
+  itemId: string;
+  s: ReturnType<typeof makeStyles>;
+  uri: string | null;
+}) {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  return (
+    <>
+      {!isLoaded ? (
+        <PromoProductMockup
+          s={s}
+          testID={clone ? undefined : `promo-artwork-placeholder-${itemId}`}
+        />
+      ) : null}
+      {uri ? (
+        <Image
+          accessible={false}
+          onError={() => setIsLoaded(false)}
+          onLoad={() => setIsLoaded(true)}
+          resizeMode="contain"
+          source={{ uri }}
+          style={[s.promoImage, !isLoaded && s.promoImagePending]}
+          testID={clone ? undefined : `promo-image-${itemId}`}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -192,6 +252,11 @@ function PromoBanner({
   const snapInterval = cardWidth + PROMO_CARD_GAP;
   const canAutoPlay = promoItems.length > 1;
   const isCompact = cardWidth < 320;
+  const visualWidth = Math.min(136, Math.max(96, Math.round(cardWidth * 0.36)));
+  const visualHeight = Math.min(
+    146,
+    Math.max(112, Math.round(visualWidth * 1.08)),
+  );
   const loopingPromoItems = useMemo(() => {
     if (promoItems.length <= 1)
       return promoItems.map((item, index) => ({ item, index, clone: false }));
@@ -352,7 +417,7 @@ function PromoBanner({
       snapToInterval={snapInterval}
     >
       {loopingPromoItems.map(({ item, index, clone }, renderIndex) => {
-        const visual = getVisual(item);
+        const visual = getPromoVisual(item);
         const startDateLabel = formatPromoDate(item.startDate);
         const endDateLabel = formatPromoDate(item.endDate);
         return (
@@ -402,14 +467,28 @@ function PromoBanner({
                 </SText>
               </View>
               <View
-                style={[s.promoVisual, isCompact && s.promoVisualCompact]}
+                style={[
+                  s.promoVisual,
+                  { height: visualHeight, width: visualWidth },
+                ]}
                 testID={clone ? undefined : `promo-visual-${item.id}`}
               >
-                {visual ? (
-                  <Image source={{ uri: visual }} style={s.promoImage} />
-                ) : (
-                  <PromoProductMockup s={s} />
-                )}
+                <PromoArtwork
+                  clone={clone}
+                  itemId={item.id}
+                  key={`${item.id}:${visual ?? 'placeholder'}`}
+                  s={s}
+                  uri={visual}
+                />
+                <View
+                  pointerEvents="none"
+                  style={s.promoCounter}
+                  testID={clone ? undefined : `promo-counter-${item.id}`}
+                >
+                  <SText variant="caption" style={s.promoCounterText}>
+                    {index + 1} | {promoItems.length}
+                  </SText>
+                </View>
               </View>
             </View>
             <View
@@ -432,11 +511,6 @@ function PromoBanner({
                 testID={clone ? undefined : 'promo-end-date'}
               >
                 마감일 {endDateLabel}
-              </SText>
-            </View>
-            <View style={s.promoCounter}>
-              <SText variant="caption" style={s.promoCounterText}>
-                {index + 1} | {promoItems.length}
               </SText>
             </View>
           </Pressable>
@@ -835,14 +909,13 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     promoCard: {
       backgroundColor: colors.promoBg,
-      borderColor: colors.border,
       borderRadius: 24,
-      borderWidth: 1,
-      minHeight: 270,
+      borderCurve: 'continuous',
+      minHeight: 240,
       overflow: 'hidden',
-      paddingBottom: 18,
+      paddingBottom: 16,
       paddingHorizontal: 20,
-      paddingTop: 22,
+      paddingTop: 18,
       position: 'relative',
     },
     promoCardCompact: {
@@ -891,23 +964,22 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     promoVisual: {
       alignSelf: 'center',
-      borderRadius: 14,
-      height: 146,
+      backgroundColor: colors.inverse,
+      borderCurve: 'continuous',
+      borderRadius: 18,
+      justifyContent: 'center',
       overflow: 'hidden',
-      width: 132,
-    },
-    promoVisualCompact: {
-      height: 132,
-      width: 112,
+      padding: 6,
+      position: 'relative',
     },
     promoDateRow: {
       alignItems: 'center',
-      borderTopColor: colors.border,
+      borderTopColor: colors.borderLight,
       borderTopWidth: StyleSheet.hairlineWidth,
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 8,
-      marginTop: 14,
+      marginTop: 12,
       minHeight: 32,
       paddingTop: 10,
     },
@@ -920,15 +992,17 @@ function makeStyles(colors: CommerceColorPalette) {
       lineHeight: 16,
     },
     promoDateDivider: { backgroundColor: colors.border, height: 12, width: 1 },
-    promoImage: { height: '100%', resizeMode: 'cover', width: '100%' },
+    promoImage: { height: '100%', width: '100%' },
+    promoImagePending: { opacity: 0, position: 'absolute' },
     promoMockupGrid: {
       alignItems: 'center',
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
+      gap: 8,
       height: '100%',
       justifyContent: 'center',
-      padding: 2,
+      paddingBottom: 24,
+      paddingHorizontal: 6,
+      paddingTop: 4,
       width: '100%',
     },
     promoMockupPack: {
@@ -936,9 +1010,9 @@ function makeStyles(colors: CommerceColorPalette) {
       borderColor: 'rgba(17, 24, 39, 0.08)',
       borderRadius: 4,
       borderWidth: 1,
-      height: 54,
+      height: 72,
       justifyContent: 'center',
-      width: 38,
+      width: 44,
     },
     promoMockupText: {
       color: '#FFFFFF',
@@ -947,7 +1021,6 @@ function makeStyles(colors: CommerceColorPalette) {
       letterSpacing: 0,
       lineHeight: 9,
     },
-    promoMockupTextDark: { color: '#2F5F3A' },
     promoMockupLeaf: {
       backgroundColor: 'rgba(56, 161, 105, 0.45)',
       borderRadius: 999,
@@ -957,15 +1030,15 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     promoCounter: {
       alignItems: 'center',
-      backgroundColor: 'rgba(96, 107, 122, 0.72)',
+      backgroundColor: colors.overlay,
       borderRadius: borderRadius.full,
+      bottom: 8,
       justifyContent: 'center',
-      minHeight: 30,
-      minWidth: 48,
-      paddingHorizontal: 9,
+      minHeight: 26,
+      minWidth: 42,
+      paddingHorizontal: 8,
       position: 'absolute',
-      right: 12,
-      top: 12,
+      right: 8,
     },
     promoCounterText: {
       color: colors.inverse,

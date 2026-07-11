@@ -170,23 +170,29 @@ function flattenStyle(style: unknown): Record<string, unknown> {
     : ((style as Record<string, unknown>) ?? {});
 }
 
+function createHomeContent(
+  props: Partial<React.ComponentProps<typeof HomeScreenContent>> = {},
+) {
+  return (
+    <HomeScreenContent
+      groupBuys={sampleGroupBuys}
+      isError={false}
+      isFetching={false}
+      onRefresh={vi.fn()}
+      onOpenSearch={vi.fn()}
+      onOpenCalendar={vi.fn()}
+      onPressDeal={vi.fn()}
+      {...props}
+    />
+  );
+}
+
 function renderHomeContent(
   props: Partial<React.ComponentProps<typeof HomeScreenContent>> = {},
 ) {
   let renderer: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(
-      <HomeScreenContent
-        groupBuys={sampleGroupBuys}
-        isError={false}
-        isFetching={false}
-        onRefresh={vi.fn()}
-        onOpenSearch={vi.fn()}
-        onOpenCalendar={vi.fn()}
-        onPressDeal={vi.fn()}
-        {...props}
-      />,
-    );
+    renderer = TestRenderer.create(createHomeContent(props));
   });
   return renderer!;
 }
@@ -251,6 +257,117 @@ describe('HomeScreenContent redesign', () => {
     expect(text).toMatch(/1\s+\|\s+2/);
   });
 
+  it('shows product artwork as a contained decorative image inside a clean visual panel', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          thumbnailUrl: 'https://example.com/product-thumbnail.jpg',
+          mediaItems: [
+            {
+              mediaType: 'IMAGE',
+              thumbnailUrl: 'https://example.com/product-thumbnail.jpg',
+              url: 'https://example.com/product-cutout.png',
+            },
+          ],
+        },
+      ],
+    });
+
+    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const bannerStyle = flattenStyle(banner!.props.style);
+    expect(bannerStyle.borderWidth ?? 0).toBe(0);
+    expect(bannerStyle.minHeight).toBeLessThanOrEqual(244);
+
+    const visual = renderer.root.findByProps({ testID: 'promo-visual-gb-1' });
+    expect(flattenStyle(visual.props.style).backgroundColor).toBe('#FFFFFF');
+
+    const image = renderer.root.findByProps({ testID: 'promo-image-gb-1' });
+    expect(image.props.source).toEqual({
+      uri: 'https://example.com/product-cutout.png',
+    });
+    const renderedImageUris = renderer.root
+      .findAll((node) => typeof node.props.source?.uri === 'string')
+      .map((node) => node.props.source.uri);
+    expect(renderedImageUris).toContain(
+      'https://example.com/product-thumbnail.jpg',
+    );
+    expect(image.props.resizeMode).toBe('contain');
+    expect(image.props.accessible).toBe(false);
+    expect(
+      renderer.root.findAllByProps({
+        testID: 'promo-artwork-placeholder-gb-1',
+      }),
+    ).not.toHaveLength(0);
+
+    act(() => image.props.onLoad());
+    expect(
+      renderer.root.findAllByProps({
+        testID: 'promo-artwork-placeholder-gb-1',
+      }),
+    ).toHaveLength(0);
+
+    act(() =>
+      renderer.root.findByProps({ testID: 'promo-image-gb-1' }).props.onError(),
+    );
+    expect(
+      renderer.root.findAllByProps({
+        testID: 'promo-artwork-placeholder-gb-1',
+      }),
+    ).not.toHaveLength(0);
+
+    const counter = renderer.root.findByProps({ testID: 'promo-counter-gb-1' });
+    expect(
+      visual.findAllByProps({ testID: 'promo-counter-gb-1' }),
+    ).not.toHaveLength(0);
+    expect(flattenStyle(counter.props.style).bottom).toBe(8);
+    expect(flattenStyle(counter.props.style).right).toBe(8);
+  });
+
+  it('resets promo artwork state when the image URI changes', () => {
+    const firstItem = {
+      ...sampleGroupBuys[0],
+      mediaItems: [],
+      thumbnailUrl: 'https://example.com/first-product.jpg',
+    };
+    const renderer = renderHomeContent({ groupBuys: [firstItem] });
+    const firstImage = renderer.root.findByProps({
+      testID: 'promo-image-gb-1',
+    });
+    const staleOnLoad = firstImage.props.onLoad;
+
+    act(() => staleOnLoad());
+    expect(
+      renderer.root.findAllByProps({
+        testID: 'promo-artwork-placeholder-gb-1',
+      }),
+    ).toHaveLength(0);
+
+    const nextItem = {
+      ...firstItem,
+      thumbnailUrl: 'https://example.com/next-product.jpg',
+    };
+    act(() => {
+      renderer.update(createHomeContent({ groupBuys: [nextItem] }));
+    });
+
+    expect(
+      renderer.root.findByProps({ testID: 'promo-image-gb-1' }).props.source,
+    ).toEqual({ uri: 'https://example.com/next-product.jpg' });
+    expect(
+      renderer.root.findAllByProps({
+        testID: 'promo-artwork-placeholder-gb-1',
+      }),
+    ).not.toHaveLength(0);
+
+    act(() => staleOnLoad());
+    expect(
+      renderer.root.findAllByProps({
+        testID: 'promo-artwork-placeholder-gb-1',
+      }),
+    ).not.toHaveLength(0);
+  });
+
   it('renders start and end dates in a non-overlapping promo footer', () => {
     const renderer = renderHomeContent({
       groupBuys: [
@@ -287,8 +404,8 @@ describe('HomeScreenContent redesign', () => {
 
     const visual = renderer.root.findByProps({ testID: 'promo-visual-gb-1' });
     const visualStyle = flattenStyle(visual.props.style);
-    expect(visualStyle.width).toBe(112);
-    expect(visualStyle.height).toBe(132);
+    expect(visualStyle.width).toBe(104);
+    expect(visualStyle.height).toBe(112);
   });
 
   it('shows a safe date fallback for missing and invalid promo dates', () => {
