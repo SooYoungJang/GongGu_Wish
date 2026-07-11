@@ -1,0 +1,46 @@
+appId: com.gonggu.wish
+name: Ranking sticky category filters
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "랭킹 탭"
+    timeout: 30000
+- tapOn: "랭킹 탭"
+- extendedWaitUntil:
+    visible: "카테고리 전체 선택"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "1위"
+    timeout: 30000
+- assertVisible: "이번 주"
+- assertVisible: "인기 공구"
+
+- swipe:
+    start: 50%, 78%
+    end: 50%, 28%
+    duration: 1200
+- waitForAnimationToEnd
+- assertVisible: "카테고리 전체 선택"
+- assertNotVisible: "이번 주"
+- assertNotVisible: "인기 공구"
+
+- swipe:
+    start: 50%, 74%
+    end: 50%, 38%
+    duration: 700
+- waitForAnimationToEnd
+- assertVisible: "카테고리 전체 선택"
+- assertNotVisible: "이번 주"
+
+- swipe:
+    start: 50%, 30%
+    end: 50%, 86%
+    duration: 1000
+- swipe:
+    start: 50%, 30%
+    end: 50%, 86%
+    duration: 1000
+- waitForAnimationToEnd
+- assertVisible: "이번 주"
+- assertVisible: "인기 공구"
+- assertVisible: "카테고리 전체 선택"
