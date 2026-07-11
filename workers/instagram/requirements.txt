@@ -1,5 +1,5 @@
 APScheduler==3.10.4
-instagrapi==2.1.5
+instagrapi==2.6.9
 Pillow>=8.1.1
 python-dotenv==1.0.1
 requests==2.32.3
