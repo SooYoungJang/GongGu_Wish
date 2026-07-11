@@ -337,7 +337,7 @@ const baseGroupBuy: GroupBuy = {
   productName: '퍼스트 바이크',
   brandName: '퍼스트',
   startDate: '2026-07-01',
-  endDate: '2026-07-10',
+  endDate: '2099-12-31',
   purchaseUrl: 'https://example.com/buy',
   discountInfo: '최대 20% 할인',
   summary: '대표 요약',

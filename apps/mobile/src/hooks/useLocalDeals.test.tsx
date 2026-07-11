@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { GroupBuy } from '../types';
-import { useNotifications } from './useLocalDeals';
+import { clearLocalUserData, useNotifications } from './useLocalDeals';
 
 const storage = vi.hoisted(() => ({
   values: new Map<string, string>(),
@@ -15,6 +15,9 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
     setItem: vi.fn(async (key: string, value: string) => {
       if (storage.writeGate) await storage.writeGate;
       storage.values.set(key, value);
+    }),
+    removeItem: vi.fn(async (key: string) => {
+      storage.values.delete(key);
     }),
   },
 }));
@@ -109,5 +112,19 @@ describe('useNotifications', () => {
     });
 
     expect(reels.result.current.isNotifying(GROUP_BUY.id)).toBe(true);
+  });
+
+  it('회원탈퇴 후 로컬 활동 데이터를 비운다', async () => {
+    storage.values.set('@gonggu/bookmarks/v1', JSON.stringify([GROUP_BUY]));
+    storage.values.set('@gonggu/recent-views/v1', JSON.stringify([GROUP_BUY]));
+    storage.values.set('@gonggu/notifications/v1', JSON.stringify([{ notificationId: null }]));
+    storage.values.set('@gonggu/wish-items/v1', JSON.stringify([{ id: 'wish-1' }]));
+
+    await clearLocalUserData();
+
+    expect(storage.values.has('@gonggu/bookmarks/v1')).toBe(false);
+    expect(storage.values.has('@gonggu/recent-views/v1')).toBe(false);
+    expect(storage.values.has('@gonggu/notifications/v1')).toBe(false);
+    expect(storage.values.has('@gonggu/wish-items/v1')).toBe(false);
   });
 });

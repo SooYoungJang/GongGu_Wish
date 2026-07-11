@@ -219,6 +219,9 @@ web3 = 30
 [functions.refresh-instagram-media]
 verify_jwt = false
 
+[functions.delete-account]
+verify_jwt = true
+
 [auth.email]
 # Allow/disallow new user signups via email to your project.
 enable_signup = true

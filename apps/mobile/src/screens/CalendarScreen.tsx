@@ -475,7 +475,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
                 <DealCard
                   key={item.id}
                   item={item}
-                  category={categoryForIndex(index)}
+                  category={item.category ?? categoryForIndex(index)}
                   onPress={() => navigation.navigate('Detail', { groupBuy: item })}
                 />
               ))}
