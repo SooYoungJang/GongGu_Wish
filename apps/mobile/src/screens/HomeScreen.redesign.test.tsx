@@ -203,9 +203,7 @@ function findPromoBanner(
 ) {
   return renderer.root
     .findAllByType('Pressable' as unknown as React.ElementType)
-    .find((node) =>
-      node.props.accessibilityLabel?.startsWith(`${productName} 특가 배너`),
-    );
+    .find((node) => node.props.accessibilityLabel?.startsWith(productName));
 }
 
 beforeEach(() => {
@@ -249,15 +247,20 @@ describe('HomeScreenContent redesign', () => {
     const renderer = renderHomeContent();
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
     expect(banner).toBeDefined();
-    expect(banner!.props.accessibilityLabel).toContain('시작일 확인 중');
-    expect(banner!.props.accessibilityLabel).toContain('마감일');
+    expect(banner!.props.accessibilityLabel).toContain('20% 할인');
+    expect(banner!.props.accessibilityLabel).not.toContain(
+      sampleGroupBuys[0].summary,
+    );
+    expect(banner!.props.accessibilityLabel).not.toContain('시작일');
+    expect(banner!.props.accessibilityLabel).not.toContain('마감일');
 
     const text = flattenText(renderer!.toJSON());
-    expect(text).toContain('1,500명 선착순');
-    expect(text).toMatch(/1\s+\|\s+2/);
+    expect(text).not.toContain('1,500명 선착순');
+    expect(text).not.toContain('오늘의 공구 특가');
+    expect(text).toMatch(/1\s+\/\s+2/);
   });
 
-  it('shows product artwork as a contained decorative image inside a clean visual panel', () => {
+  it('fills a uniform product frame without a boxed or fake-package panel', () => {
     const renderer = renderHomeContent({
       groupBuys: [
         {
@@ -277,14 +280,14 @@ describe('HomeScreenContent redesign', () => {
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
     const bannerStyle = flattenStyle(banner!.props.style);
     expect(bannerStyle.borderWidth ?? 0).toBe(0);
-    expect(bannerStyle.minHeight).toBeLessThanOrEqual(244);
+    expect(bannerStyle.minHeight).toBeLessThanOrEqual(204);
 
     const visual = renderer.root.findByProps({ testID: 'promo-visual-gb-1' });
-    expect(flattenStyle(visual.props.style).backgroundColor).toBe('#FFFFFF');
+    expect(flattenStyle(visual.props.style).backgroundColor).toBe('transparent');
 
     const image = renderer.root.findByProps({ testID: 'promo-image-gb-1' });
     expect(image.props.source).toEqual({
-      uri: 'https://example.com/product-cutout.png',
+      uri: 'https://example.com/product-thumbnail.jpg',
     });
     const renderedImageUris = renderer.root
       .findAll((node) => typeof node.props.source?.uri === 'string')
@@ -292,13 +295,17 @@ describe('HomeScreenContent redesign', () => {
     expect(renderedImageUris).toContain(
       'https://example.com/product-thumbnail.jpg',
     );
-    expect(image.props.resizeMode).toBe('contain');
+    expect(image.props.resizeMode).toBe('cover');
     expect(image.props.accessible).toBe(false);
     expect(
       renderer.root.findAllByProps({
         testID: 'promo-artwork-placeholder-gb-1',
       }),
     ).not.toHaveLength(0);
+    expect(flattenText(renderer.toJSON())).toContain('SA');
+    expect(flattenText(renderer.toJSON())).toContain('이미지 준비 중');
+    expect(flattenText(renderer.toJSON())).not.toContain('REAL');
+    expect(flattenText(renderer.toJSON())).not.toContain('FRESH');
 
     act(() => image.props.onLoad());
     expect(
@@ -320,8 +327,54 @@ describe('HomeScreenContent redesign', () => {
     expect(
       visual.findAllByProps({ testID: 'promo-counter-gb-1' }),
     ).not.toHaveLength(0);
-    expect(flattenStyle(counter.props.style).bottom).toBe(8);
-    expect(flattenStyle(counter.props.style).right).toBe(8);
+    expect(flattenStyle(counter.props.style).position).toBe('absolute');
+  });
+
+  it('uses honest fallback copy and never renders a bare influencer marker', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          brandName: null,
+          discountInfo: null,
+          rawPost: {
+            ...sampleGroupBuys[0].rawPost,
+            influencer: { instagramUsername: '' },
+          },
+        },
+      ],
+    });
+
+    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const bannerText = banner!
+      .findAllByType('Text' as unknown as React.ElementType)
+      .flatMap((node) => node.props.children ?? [])
+      .join(' ');
+    expect(bannerText).toContain('공동구매 추천');
+    expect(bannerText).toContain('이미지 준비 중');
+    expect(bannerText).not.toMatch(/(^|\s)@(\s|$)/);
+    expect(bannerText).not.toContain('혜택 확인');
+  });
+
+  it('keeps a long product name to two visual lines while reading it in full', () => {
+    const longProductName =
+      '거제 소노캄 오션뷰 객실과 워터파크를 함께 즐기는 여름 패키지 공동구매';
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          productName: longProductName,
+        },
+      ],
+    });
+
+    const title = renderer.root
+      .findAllByType('Text' as unknown as React.ElementType)
+      .find((node) => node.props.children === longProductName);
+    expect(title?.props.numberOfLines).toBe(2);
+
+    const banner = findPromoBanner(renderer, longProductName);
+    expect(banner?.props.accessibilityLabel).toContain(longProductName);
   });
 
   it('resets promo artwork state when the image URI changes', () => {
@@ -368,11 +421,13 @@ describe('HomeScreenContent redesign', () => {
     ).not.toHaveLength(0);
   });
 
-  it('renders start and end dates in a non-overlapping promo footer', () => {
+  it('uses a validated DB discount as a one-line purchase hook instead of duplicate dates', () => {
+    const purchaseHook = '30% 할인 + 무료배송';
     const renderer = renderHomeContent({
       groupBuys: [
         {
           ...sampleGroupBuys[0],
+          discountInfo: purchaseHook,
           startDate: '2026-07-01T00:00:00+09:00',
           endDate: '2026-07-10T23:59:59+09:00',
         },
@@ -380,19 +435,71 @@ describe('HomeScreenContent redesign', () => {
     });
 
     const text = flattenText(renderer.toJSON());
-    expect(text).toMatch(/시작일\s+7\.1/);
-    expect(text).toMatch(/마감일\s+7\.10/);
+    expect(text).toContain(purchaseHook);
+    expect(text).not.toContain('시작일 7.1');
+    expect(text).not.toContain('마감일 7.10');
 
-    const dateRow = renderer.root.findByProps({
-      testID: 'promo-date-row-gb-1',
+    const hook = renderer.root.findByProps({
+      testID: 'promo-purchase-hook-gb-1',
     });
-    const style = flattenStyle(dateRow.props.style);
+    const style = flattenStyle(hook.props.style);
     expect(style.position).not.toBe('absolute');
-    expect(style.flexWrap).toBe('wrap');
+    expect(style.flexShrink).toBe(1);
+    expect(style.borderTopWidth ?? 0).toBe(0);
+    const hookText = hook
+      .findAllByType('Text' as unknown as React.ElementType)
+      .find((node) => node.props.children === purchaseHook);
+    expect(hookText?.props.numberOfLines).toBe(1);
 
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
-    expect(banner!.props.accessibilityLabel).toContain('시작일 7.1');
-    expect(banner!.props.accessibilityLabel).toContain('마감일 7.10');
+    expect(banner!.props.accessibilityLabel).toContain(purchaseHook);
+    expect(banner!.props.accessibilityLabel).not.toContain('시작일');
+    expect(banner!.props.accessibilityLabel).not.toContain('마감일');
+  });
+
+  it('aligns the promo copy with the artwork top and keeps the purchase hook at the bottom', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          discountInfo: '부대시설 할인권 제공',
+        },
+      ],
+    });
+
+    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    expect(flattenStyle(banner!.props.style).justifyContent).toBe(
+      'space-between',
+    );
+
+    const main = renderer.root.findByProps({ testID: 'promo-main-gb-1' });
+    expect(flattenStyle(main.props.style).alignItems).toBe('flex-start');
+
+    const visual = renderer.root.findByProps({ testID: 'promo-visual-gb-1' });
+    expect(flattenStyle(visual.props.style).alignSelf).toBe('flex-start');
+  });
+
+  it('places the Instagram account directly beneath the promo image', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [sampleGroupBuys[0]],
+    });
+
+    const media = renderer.root.findByProps({ testID: 'promo-media-gb-1' });
+    const account = renderer.root.findByProps({
+      testID: 'promo-account-gb-1',
+    });
+    expect(account.props.children).toBe('@beauty_pick');
+    expect(
+      media.findAllByProps({ testID: 'promo-account-gb-1' }),
+    ).not.toHaveLength(0);
+
+    const copy = renderer.root.findByProps({ testID: 'promo-copy-gb-1' });
+    expect(
+      copy.findAllByProps({ testID: 'promo-account-gb-1' }),
+    ).toHaveLength(0);
+
+    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    expect(banner!.props.accessibilityLabel).toContain('@beauty_pick');
   });
 
   it('keeps the promo card inside a 320px viewport with compact media', () => {
@@ -404,28 +511,76 @@ describe('HomeScreenContent redesign', () => {
 
     const visual = renderer.root.findByProps({ testID: 'promo-visual-gb-1' });
     const visualStyle = flattenStyle(visual.props.style);
-    expect(visualStyle.width).toBe(104);
-    expect(visualStyle.height).toBe(112);
+    expect(visualStyle.width).toBeGreaterThanOrEqual(96);
+    expect(visualStyle.width).toBeLessThanOrEqual(112);
+    expect(visualStyle.height).toBe(visualStyle.width);
   });
 
-  it('shows a safe date fallback for missing and invalid promo dates', () => {
+  it('omits the purchase hook when the DB discount is missing', () => {
     const renderer = renderHomeContent({
       groupBuys: [
         {
           ...sampleGroupBuys[0],
-          startDate: null,
-          endDate: 'not-a-date',
+          discountInfo: null,
         },
       ],
     });
 
     const text = flattenText(renderer.toJSON());
-    expect(text).toMatch(/시작일\s+확인 중/);
-    expect(text).toMatch(/마감일\s+확인 중/);
+    expect(text).not.toContain('@beauty_pick 진행 공구');
+    expect(text).not.toContain('시작일');
+    expect(text).not.toContain('마감일');
+    expect(
+      renderer.root.findAllByProps({
+        testID: 'promo-purchase-hook-gb-1',
+      }),
+    ).toHaveLength(0);
 
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
-    expect(banner!.props.accessibilityLabel).toContain('시작일 확인 중');
-    expect(banner!.props.accessibilityLabel).toContain('마감일 확인 중');
+    expect(flattenStyle(banner!.props.style).justifyContent).toBe(
+      'space-between',
+    );
+  });
+
+  it('does not use a raw DB summary as the purchase hook', () => {
+    const rawSummary =
+      '민감한 피부에도 부담 없이 사용할 수 있는 데일리 선케어';
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          discountInfo: null,
+          summary: rawSummary,
+        },
+      ],
+    });
+
+    expect(
+      renderer.root.findAllByProps({
+        testID: 'promo-purchase-hook-gb-1',
+      }),
+    ).toHaveLength(0);
+  });
+
+  it('ignores unstructured discount copy that is not a commerce benefit', () => {
+    const noisyDiscount =
+      '⚠안장 및 다른 프레임들 설계 - 유리강화섬유가 30% 포함된 초경량 프레임';
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          discountInfo: noisyDiscount,
+        },
+      ],
+    });
+
+    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const bannerText = banner!
+      .findAllByType('Text' as unknown as React.ElementType)
+      .flatMap((node) => node.props.children ?? [])
+      .join(' ');
+    expect(bannerText).not.toContain(noisyDiscount);
+    expect(banner!.props.accessibilityLabel).not.toContain(noisyDiscount);
   });
 
   it('hides carousel clones from accessibility and omits their test IDs', () => {
@@ -443,10 +598,10 @@ describe('HomeScreenContent redesign', () => {
       expect(clone.props.importantForAccessibility).toBe('no-hide-descendants');
     }
 
-    const realDateRows = renderer.root
+    const realPurchaseHooks = renderer.root
       .findAllByType('View' as unknown as React.ElementType)
-      .filter((node) => node.props.testID?.startsWith('promo-date-row-'));
-    expect(realDateRows).toHaveLength(2);
+      .filter((node) => node.props.testID?.startsWith('promo-purchase-hook-'));
+    expect(realPurchaseHooks).toHaveLength(2);
   });
 
   it('snaps the hero promo rail one banner at a time', () => {
