@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { NotificationTriggerInput } from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
@@ -208,18 +208,21 @@ export function useRecentViews() {
 export function useNotifications() {
   const [notifications, setNotifications] = useState<NotificationEntry[]>(notificationSnapshot);
   const [ready, setReady] = useState(false);
+  const mountedRef = useRef(false);
 
   const refresh = useCallback(() => {
     readJSON<NotificationEntry[]>(NOTI_KEY, []).then((value) => {
       publishNotifications(value);
-      setReady(true);
+      if (mountedRef.current) setReady(true);
     });
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     notificationListeners.add(setNotifications);
     refresh();
     return () => {
+      mountedRef.current = false;
       notificationListeners.delete(setNotifications);
     };
   }, [refresh]);
