@@ -1,0 +1,28 @@
+appId: com.gonggu.wish
+tags:
+  - e2e
+  - evidence
+  - mobile
+  - rn-home-deal-card
+---
+# Regression evidence for the shared DealCard surface on the RN home screen.
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "상품 검색"
+    timeout: 15000
+- assertVisible: "상품 검색"
+- takeScreenshot: rn-home-deal-card-01-top
+- swipe:
+    start: 50%,80%
+    end: 50%,25%
+    duration: 400
+- waitForAnimationToEnd
+- takeScreenshot: rn-home-deal-card-02-weekly
+- swipe:
+    start: 50%,80%
+    end: 50%,25%
+    duration: 400
+- waitForAnimationToEnd
+- takeScreenshot: rn-home-deal-card-03-recommended

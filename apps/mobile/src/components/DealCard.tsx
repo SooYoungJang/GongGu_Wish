@@ -51,8 +51,14 @@ export function DealCard({ item, category, onPress }: DealCardProps) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const token = categoryColors[category];
-  const imageUrl = item.thumbnailUrl ?? item.mediaUrls?.[0] ?? null;
-  const categoryLabel = CATEGORY_LABELS[category];
+  const imageUrl =
+    item.thumbnailUrl ??
+    item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ??
+    item.mediaUrls?.[0] ??
+    null;
+  const fallbackLabel = CATEGORY_LABELS[category];
+  const username = item.rawPost.influencer.instagramUsername?.trim();
+  const brandLabel = item.brandName?.trim() || fallbackLabel;
 
   return (
     <Pressable
@@ -66,7 +72,7 @@ export function DealCard({ item, category, onPress }: DealCardProps) {
           <Image source={{ uri: imageUrl }} style={s.image} />
         ) : (
           <View style={[s.imageFallback, { backgroundColor: token.bg, borderColor: token.border }]}> 
-            <SText variant="cardTitle" style={[s.imageText, { color: token.text }]}>{categoryLabel.slice(0, 2)}</SText>
+            <SText variant="cardTitle" style={[s.imageText, { color: token.text }]}>{fallbackLabel.slice(0, 2)}</SText>
           </View>
         )}
         {item.discountInfo ? (
@@ -74,10 +80,14 @@ export function DealCard({ item, category, onPress }: DealCardProps) {
             <SText variant="caption" style={s.saleBadgeText}>{item.discountInfo}</SText>
           </View>
         ) : null}
+        <View style={s.deadlineBadge}>
+          <SText variant="caption" style={s.deadlineBadgeText}>{formatDeadline(item.endDate)}</SText>
+        </View>
       </View>
-      <SText variant="subtitle" numberOfLines={2} style={s.title}>{item.productName ?? '공동구매 상품'}</SText>
-      <SText variant="caption" numberOfLines={1} style={s.brand}>{categoryLabel} · @{item.rawPost.influencer.instagramUsername}</SText>
-      <SText variant="caption" style={s.deadline}>{formatDeadline(item.endDate)}</SText>
+      <SText variant="body" numberOfLines={1} style={s.brand}>
+        {username ? `${brandLabel} · @ ${username}` : brandLabel}
+      </SText>
+      <SText variant="caption" numberOfLines={2} style={s.title}>{item.productName ?? '공동구매 상품'}</SText>
     </Pressable>
   );
 }
@@ -92,7 +102,7 @@ function makeStyles(colors: CommerceColorPalette) {
     pressed: { opacity: 0.74 },
     imageWrap: {
       aspectRatio: 1,
-      backgroundColor: colors.panelBg,
+      backgroundColor: colors.softBg,
       borderRadius: commerceRadius.lg,
       overflow: 'hidden',
       position: 'relative',
@@ -128,26 +138,34 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     title: {
       color: colors.text,
-      fontSize: 13,
+      fontSize: 14,
       fontWeight: '800',
       letterSpacing: 0,
-      lineHeight: 18,
-      marginBottom: 0,
-      marginTop: spacing.sm,
+      lineHeight: 19,
     },
     brand: {
       color: colors.muted,
-      fontSize: 11,
-      fontWeight: '600',
-      lineHeight: 15,
-      marginTop: 2,
+      fontSize: 13,
+      fontWeight: '700',
+      lineHeight: 18,
+      marginBottom: 2,
+      marginTop: spacing.sm,
     },
-    deadline: {
-      color: colors.accent,
-      fontSize: 12,
+    deadlineBadge: {
+      backgroundColor: colors.overlay,
+      bottom: 0,
+      left: 0,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      position: 'absolute',
+      right: 0,
+    },
+    deadlineBadgeText: {
+      color: colors.inverse,
+      fontSize: 11,
       fontWeight: '900',
-      lineHeight: 16,
-      marginTop: 2,
+      letterSpacing: 0,
+      lineHeight: 15,
     },
   });
 }
