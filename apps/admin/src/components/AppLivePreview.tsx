@@ -1,6 +1,6 @@
 import { Component, type KeyboardEvent } from "react";
 
-type PreviewTab = "home" | "card" | "weekly" | "detail";
+type PreviewTab = "home" | "card" | "detail";
 
 export interface AppLivePreviewDeal {
   productName: string;
@@ -29,7 +29,6 @@ interface AppLivePreviewState {
 const previewTabs: Array<{ id: PreviewTab; label: string }> = [
   { id: "home", label: "홈 배너" },
   { id: "card", label: "공구 카드" },
-  { id: "weekly", label: "홈 주간 공구" },
   { id: "detail", label: "상세 화면" },
 ];
 
@@ -38,25 +37,6 @@ let previewInstanceCount = 0;
 
 function formatPrice(priceKrw: number | null) {
   return typeof priceKrw === "number" ? `${wonFormatter.format(priceKrw)}원` : "가격 미정";
-}
-
-function formatPreviewAccount(value: string) {
-  const account = value.trim();
-  if (!account) return "계정 미지정";
-  return account.startsWith("@") ? account : `@${account}`;
-}
-
-function formatDealDeadline(value: string, now = new Date()) {
-  if (!value || value === "미정") return "마감일 미정";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "마감일 확인 필요";
-
-  const days = Math.ceil((date.getTime() - now.getTime()) / 86_400_000);
-  if (days <= 0) return "오늘 마감";
-  if (days === 1) return "내일 마감";
-  if (days <= 7) return `${days}일 남음`;
-  return `${date.getMonth() + 1}월 ${date.getDate()}일 마감`;
 }
 
 function formatWeeklyDeadline(value: string, now = new Date()) {
@@ -275,7 +255,6 @@ export class AppLivePreview extends Component<AppLivePreviewProps, AppLivePrevie
             />
           ) : null}
           {activeTab === "card" ? <DealCardPreview deal={deal} /> : null}
-          {activeTab === "weekly" ? <WeeklyGroupBuyPreview deal={deal} /> : null}
           {activeTab === "detail" ? (
             <DetailScreenPreview
               deal={deal}
@@ -323,51 +302,28 @@ function HomeBannerPreview({
 }
 
 function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
-  const fallbackLabel = (deal.category || "공구").replace(/\s/g, "").slice(0, 2) || "공구";
-
-  return (
-    <div className="app-live-preview__deal-card-grid" aria-label="RN 공구 카드 그리드 미리보기">
-      <article className="app-live-preview__deal-card" aria-label="공구 카드 미리보기">
-        <div className="app-live-preview__deal-card-image-wrap">
-          <PreviewImage
-            deal={deal}
-            className="app-live-preview__deal-card-image"
-            fallbackLabel={fallbackLabel}
-          />
-          {deal.discountInfo ? (
-            <span className="app-live-preview__deal-card-sale-badge">{deal.discountInfo}</span>
-          ) : null}
-        </div>
-        <h3 className="app-live-preview__deal-card-title">{deal.productName}</h3>
-        <p className="app-live-preview__deal-card-brand">
-          {deal.category} · {formatPreviewAccount(deal.brandName)}
-        </p>
-        <p className="app-live-preview__deal-card-deadline">{formatDealDeadline(deal.endDate)}</p>
-      </article>
-    </div>
-  );
-}
-
-function WeeklyGroupBuyPreview({ deal }: { deal: AppLivePreviewDeal }) {
   const fallbackLabel = (deal.brandName || deal.productName || "공구").slice(0, 2);
 
   return (
-    <div className="app-live-preview__weekly-rail" aria-label="홈 주간 공구 카드 미리보기">
-      <article className="app-live-preview__weekly-card">
-        <div className="app-live-preview__weekly-image-wrap">
-          <PreviewImage
-            deal={deal}
-            className="app-live-preview__weekly-image"
-            fallbackLabel={fallbackLabel}
-          />
-          <span className="app-live-preview__weekly-deadline-badge">
-            {formatWeeklyDeadline(deal.endDate)}
-          </span>
-        </div>
-        <p className="app-live-preview__weekly-brand">{deal.brandName || "브랜드 미지정"}</p>
-        <h3 className="app-live-preview__weekly-title">{deal.productName}</h3>
-      </article>
-    </div>
+    <article className="app-live-preview__deal-card" aria-label="공구 카드 미리보기">
+      <div className="app-live-preview__deal-card-image-wrap">
+        <PreviewImage
+          deal={deal}
+          className="app-live-preview__deal-card-image"
+          fallbackLabel={fallbackLabel}
+        />
+        {deal.discountInfo ? (
+          <span className="app-live-preview__deal-card-sale-badge">{deal.discountInfo}</span>
+        ) : null}
+        <span className="app-live-preview__deal-card-deadline-badge">
+          {formatWeeklyDeadline(deal.endDate)}
+        </span>
+      </div>
+      <div className="app-live-preview__deal-card-content">
+        <p className="app-live-preview__deal-card-brand">{deal.brandName || "브랜드 미지정"}</p>
+        <h3 className="app-live-preview__deal-card-title">{deal.productName}</h3>
+      </div>
+    </article>
   );
 }
 
