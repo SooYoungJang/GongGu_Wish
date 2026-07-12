@@ -308,6 +308,29 @@ describe('ranking components', () => {
     expect(first.findAllByProps({ accessibilityLabel: '그래놀라 상세 보기' })).toHaveLength(0);
   });
 
+  it('keeps the first three visible rows as cards after filter reordering', () => {
+    const rankings = [7, 8, 9, 10].map((rank) => sampleRanking({ id: `filtered-rank-${rank}`, rank }));
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(withTheme(<SellerRankingList state={{ status: 'ready', data: rankings }} />));
+    });
+
+    for (const rank of [7, 8, 9]) {
+      const row = renderer!.root.findByProps({ testID: `ranking-row-${rank}` });
+      const style = flattenStyle(row.props.style);
+
+      expect(style.borderRadius).toBe(commerceRadius.sm);
+      expect(style.backgroundColor).toBe(commerceLightColors.panelBg);
+      expect(style.borderBottomWidth).toBeUndefined();
+    }
+
+    const fourth = renderer!.root.findByProps({ testID: 'ranking-row-10' });
+    const fourthStyle = flattenStyle(fourth.props.style);
+    expect(fourthStyle.borderRadius).toBeUndefined();
+    expect(fourthStyle.borderBottomWidth).toBe(1);
+  });
+
   it('renders ready ranking rows with list accessibility and compact Korean counts', () => {
     const rankings = [sampleRanking({ followerCount: 12300 })];
     let renderer: TestRenderer.ReactTestRenderer;
