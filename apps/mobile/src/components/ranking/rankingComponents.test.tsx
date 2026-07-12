@@ -283,7 +283,7 @@ describe('ranking components', () => {
     expect(text).not.toContain('공구 7개');
   });
 
-  it('uses soft low-elevation cards for the top three and flat rows from rank four', () => {
+  it('uses the same rounded card surface for every ranking row', () => {
     const rankings = [1, 2, 3, 4].map((rank) => sampleRanking({ id: `rank-${rank}`, rank }));
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -291,49 +291,54 @@ describe('ranking components', () => {
       renderer = TestRenderer.create(withTheme(<SellerRankingList state={{ status: 'ready', data: rankings }} />));
     });
 
-    const first = renderer!.root.findByProps({ testID: 'ranking-row-1' });
-    const fourth = renderer!.root.findByProps({ testID: 'ranking-row-4' });
-    const firstStyle = flattenStyle(first.props.style);
-    const fourthStyle = flattenStyle(fourth.props.style);
-
-    expect(firstStyle.borderRadius).toBe(commerceRadius.lg);
-    expect(firstStyle.backgroundColor).toBe(commerceLightColors.panelBg);
-    expect(firstStyle.borderWidth).toBe(1);
-    expect(firstStyle.borderColor).toBe(commerceLightColors.borderLight);
-    expect(firstStyle.overflow).toBeUndefined();
-    expect(firstStyle.shadowOpacity).toBeLessThanOrEqual(0.08);
-    expect(firstStyle.elevation).toBeLessThanOrEqual(1);
-    expect(firstStyle.marginBottom).toBe(spacing.sm);
-    expect(fourthStyle.borderRadius).toBeUndefined();
-    expect(fourthStyle.borderBottomWidth).toBe(1);
-    expect(firstStyle.paddingHorizontal).toBe(fourthStyle.paddingHorizontal);
-    expect(first.findAllByProps({ accessibilityLabel: '그래놀라 상세 보기' })).toHaveLength(0);
-  });
-
-  it('keeps the first three visible rows as cards after filter reordering', () => {
-    const rankings = [7, 8, 9, 10].map((rank) => sampleRanking({ id: `filtered-rank-${rank}`, rank }));
-    let renderer: TestRenderer.ReactTestRenderer;
-
-    act(() => {
-      renderer = TestRenderer.create(withTheme(<SellerRankingList state={{ status: 'ready', data: rankings }} />));
-    });
-
-    for (const rank of [7, 8, 9]) {
+    for (const rank of [1, 2, 3, 4]) {
       const row = renderer!.root.findByProps({ testID: `ranking-row-${rank}` });
       const style = flattenStyle(row.props.style);
 
       expect(style.borderRadius).toBe(commerceRadius.lg);
+      expect(style.borderCurve).toBe('continuous');
+      expect(style.backgroundColor).toBe(commerceLightColors.panelBg);
+      expect(style.borderWidth).toBe(1);
+      expect(style.borderColor).toBe(commerceLightColors.borderLight);
+      expect(style.borderBottomWidth).toBeUndefined();
+      expect(style.overflow).toBeUndefined();
+      expect(style.shadowOpacity).toBeLessThanOrEqual(0.08);
+      expect(style.elevation).toBeLessThanOrEqual(1);
+      expect(style.marginBottom).toBe(spacing.sm);
+    }
+  });
+
+  it('keeps every row rounded when a filter replaces the list data', () => {
+    const initialRankings = [1, 2, 3, 4].map((rank) => sampleRanking({ id: `initial-rank-${rank}`, rank }));
+    const filteredRankings = [7, 8, 9, 10].map((rank) =>
+      sampleRanking({ id: `filtered-rank-${rank}`, rank }),
+    );
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(<SellerRankingList state={{ status: 'ready', data: initialRankings }} />),
+      );
+    });
+
+    act(() => {
+      renderer!.update(
+        withTheme(<SellerRankingList state={{ status: 'ready', data: filteredRankings }} />),
+      );
+    });
+
+    for (const rank of [7, 8, 9, 10]) {
+      const row = renderer!.root.findByProps({ testID: `ranking-row-${rank}` });
+      const style = flattenStyle(row.props.style);
+
+      expect(style.borderRadius).toBe(commerceRadius.lg);
+      expect(style.borderCurve).toBe('continuous');
       expect(style.backgroundColor).toBe(commerceLightColors.panelBg);
       expect(style.borderWidth).toBe(1);
       expect(style.borderColor).toBe(commerceLightColors.borderLight);
       expect(style.overflow).toBeUndefined();
       expect(style.borderBottomWidth).toBeUndefined();
     }
-
-    const fourth = renderer!.root.findByProps({ testID: 'ranking-row-10' });
-    const fourthStyle = flattenStyle(fourth.props.style);
-    expect(fourthStyle.borderRadius).toBeUndefined();
-    expect(fourthStyle.borderBottomWidth).toBe(1);
   });
 
   it('renders ready ranking rows with list accessibility and compact Korean counts', () => {
