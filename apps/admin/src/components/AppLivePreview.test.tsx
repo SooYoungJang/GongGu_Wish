@@ -24,18 +24,18 @@ afterEach(() => {
 });
 
 describe("AppLivePreview", () => {
-  it("renders four accessible preview tabs with the home banner selected by default", () => {
+  it("renders three accessible preview tabs with the home banner selected by default", () => {
     render(<AppLivePreview deal={activeDeal} />);
 
     expect(screen.getByRole("tablist", { name: "앱 라이브 프리뷰" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "홈 배너", selected: true })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "공구 카드", selected: false })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "홈 주간 공구", selected: false })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "상세 화면", selected: false })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "홈 주간 공구" })).toBeNull();
     expect(screen.getByRole("tabpanel", { name: "홈 배너" })).toBeTruthy();
   });
 
-  it("matches RN DealCard and home weekly card surfaces", async () => {
+  it("uses the RN home weekly card surface for the unified deal card", async () => {
     const user = userEvent.setup();
     render(<AppLivePreview deal={activeDeal} />);
 
@@ -43,13 +43,9 @@ describe("AppLivePreview", () => {
     expect(screen.getByRole("tabpanel", { name: "공구 카드" })).toBeTruthy();
     expect(screen.getByText("첫 구매 20% 할인")).toBeTruthy();
     const dealCard = screen.getByRole("article", { name: "공구 카드 미리보기" });
-    expect(dealCard.querySelector(".app-live-preview__deal-card-brand")?.textContent).toBe("과일 · @귤밭상회");
-    expect(screen.getByText("12월 31일 마감")).toBeTruthy();
-
-    await user.click(screen.getByRole("tab", { name: "홈 주간 공구" }));
-    expect(screen.getByRole("tabpanel", { name: "홈 주간 공구" })).toBeTruthy();
-    expect(screen.getByText("귤밭상회")).toBeTruthy();
-    expect(screen.getByText("제주 감귤 3kg")).toBeTruthy();
+    expect(dealCard.querySelector(".app-live-preview__deal-card-brand")?.textContent).toBe("귤밭상회");
+    expect(dealCard.querySelector(".app-live-preview__deal-card-deadline-badge")?.textContent).toContain("일 남음");
+    expect(dealCard.querySelector(".app-live-preview__deal-card-title")?.textContent).toBe("제주 감귤 3kg");
 
     await user.click(screen.getByRole("tab", { name: "상세 화면" }));
     expect(screen.getByRole("tabpanel", { name: "상세 화면" })).toBeTruthy();

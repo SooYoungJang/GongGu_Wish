@@ -283,21 +283,22 @@ test("모킹된 관리자 로그인으로 라이브 프리뷰와 중앙 날짜 �
   await expect(preview.locator(".app-live-preview__home-banner-status strong")).toHaveCSS("color", "rgb(240, 68, 94)");
 
   await preview.getByRole("tab", { name: "공구 카드" }).click();
+  await expect(preview.locator(".app-live-preview__panel")).toHaveClass(/app-live-preview__panel--card/);
   await expect(preview.locator(".app-live-preview__deal-card-sale-badge")).toContainText("배송비 무료");
-  await expect(preview.locator(".app-live-preview__deal-card-brand")).toHaveText("생활용품 · @프리뷰 브랜드");
-  await expect(preview.locator(".app-live-preview__deal-card-deadline")).toHaveText("12월 31일 마감");
-  await preview.locator(".app-live-preview__deal-card-grid").screenshot({
+  await expect(preview.locator(".app-live-preview__deal-card-brand")).toHaveText("프리뷰 브랜드");
+  await expect(preview.locator(".app-live-preview__deal-card-deadline-badge")).toContainText("일 남음");
+  await expect(preview.getByRole("tab", { name: "홈 주간 공구" })).toHaveCount(0);
+  const [cardBox, panelBox] = await Promise.all([
+    preview.locator(".app-live-preview__deal-card").boundingBox(),
+    preview.locator(".app-live-preview__panel").boundingBox(),
+  ]);
+  expect(cardBox).not.toBeNull();
+  expect(panelBox).not.toBeNull();
+  if (cardBox && panelBox) {
+    expect(cardBox.width).toBeGreaterThanOrEqual(panelBox.width - 24);
+  }
+  await preview.locator(".app-live-preview__deal-card").screenshot({
     path: resolve(evidenceDir, `${evidencePrefix}-deal-card.png`),
-  });
-
-  await preview.getByRole("tab", { name: "홈 주간 공구" }).click();
-  await expect(preview.locator(".app-live-preview__panel")).toHaveClass(/app-live-preview__panel--weekly/);
-  await expect(preview.locator(".app-live-preview__weekly-rail")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  await expect(preview.locator(".app-live-preview__weekly-card")).toBeVisible();
-  await expect(preview.locator(".app-live-preview__weekly-brand")).toHaveText("프리뷰 브랜드");
-  await expect(preview.locator(".app-live-preview__weekly-deadline-badge")).toContainText("일 남음");
-  await preview.locator(".app-live-preview__weekly-rail").screenshot({
-    path: resolve(evidenceDir, `${evidencePrefix}-weekly-card-desktop.png`),
   });
 
   await preview.getByRole("tab", { name: "상세 화면" }).click();
@@ -341,10 +342,11 @@ test("모킹된 관리자 로그인으로 라이브 프리뷰와 중앙 날짜 �
 
   const groupBuyDetail = mobilePage.locator(".detail-panel");
   await expect(groupBuyDetail.locator(".app-live-preview")).toBeVisible();
-  await mobilePage.getByRole("tab", { name: "홈 주간 공구" }).click();
-  await expect(mobilePage.locator(".app-live-preview__weekly-card")).toBeVisible();
-  await mobilePage.locator(".app-live-preview__weekly-rail").screenshot({
-    path: resolve(evidenceDir, `${evidencePrefix}-weekly-card-mobile-320.png`),
+  await mobilePage.getByRole("tab", { name: "공구 카드" }).click();
+  await expect(mobilePage.locator(".app-live-preview__deal-card")).toBeVisible();
+  await expect(mobilePage.getByRole("tab", { name: "홈 주간 공구" })).toHaveCount(0);
+  await mobilePage.locator(".app-live-preview__deal-card").screenshot({
+    path: resolve(evidenceDir, `${evidencePrefix}-deal-card-mobile-320.png`),
   });
   await expect(mobilePage.getByRole("tab", { name: "상세 화면" })).toBeVisible();
   await expect(mobilePage.getByText("종일 공구", { exact: true })).toHaveCount(0);
