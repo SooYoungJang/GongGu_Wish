@@ -2,8 +2,10 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { SText } from '../ui/SText';
-import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
+import type { CommerceColorPalette } from '../../design/commerce';
 import { useCommerceTheme } from '../../design/useCommerceTheme';
+
+const RANK_BADGE_SIZE = 34;
 
 export interface RankBadgeProps {
   rank: number;
@@ -51,11 +53,11 @@ function makeStyles() {
   return StyleSheet.create({
     badge: {
       alignItems: 'center',
-      borderRadius: commerceRadius.full,
-      borderCurve: 'continuous',
+      borderRadius: RANK_BADGE_SIZE / 2,
+      borderCurve: 'circular',
       justifyContent: 'center',
-      height: 34,
-      width: 34,
+      height: RANK_BADGE_SIZE,
+      width: RANK_BADGE_SIZE,
     },
     plainBadge: {
       height: 28,

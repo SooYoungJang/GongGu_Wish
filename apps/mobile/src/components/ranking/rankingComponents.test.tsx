@@ -111,6 +111,32 @@ describe('ranking components', () => {
     expect(flattenText(renderer!.toJSON())).toBe('1');
   });
 
+  it('renders every top-three rank badge as a fixed circle', () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <>
+            <RankBadge rank={1} />
+            <RankBadge rank={2} />
+            <RankBadge rank={3} />
+          </>,
+        ),
+      );
+    });
+
+    for (const rank of [1, 2, 3]) {
+      const badge = renderer!.root.findByProps({ accessibilityLabel: `${rank}위` });
+      const style = flattenStyle(badge.props.style);
+
+      expect(style.width).toBe(34);
+      expect(style.height).toBe(34);
+      expect(style.borderRadius).toBe(17);
+      expect(style.borderCurve).toBe('circular');
+    }
+  });
+
   it('renders ranking trends as color-only directional text', () => {
     const cases: Array<{
       trend: SellerRanking['trend'];
