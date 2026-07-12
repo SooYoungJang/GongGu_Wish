@@ -274,9 +274,32 @@ describe('HomeScreenContent redesign', () => {
     expect(
       renderer.root.findAll((node) =>
         String(node.type) === 'KeyboardAwareScrollView' &&
-        String(node.props.stickyHeaderIndices) === '1',
+        String(node.props.stickyHeaderIndices) === '2',
       ),
     ).toHaveLength(1);
+  });
+
+  it('places the category filter between weekly deals and the deal grid', () => {
+    const renderer = renderHomeContent();
+    const scroll = renderer.root.findAll(
+      (node) => String(node.type) === 'KeyboardAwareScrollView',
+    )[0];
+    const directChildIds = scroll.children
+      .map((child) => {
+        if (typeof child === 'string') return undefined;
+        if (child.props?.testID) return child.props.testID;
+        return child.findAllByProps({ testID: 'home-category-filter' }).length > 0
+          ? 'home-category-filter'
+          : undefined;
+      })
+      .filter(Boolean);
+
+    expect(directChildIds).toEqual([
+      'home-top-content',
+      'home-weekly-content',
+      'home-category-filter',
+      'home-deal-grid-content',
+    ]);
   });
 
   it('filters home deal cards when a category is selected', () => {

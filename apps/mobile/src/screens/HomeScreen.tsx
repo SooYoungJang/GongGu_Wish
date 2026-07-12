@@ -916,10 +916,10 @@ export function HomeScreenContent({
               tintColor={colors.accent}
             />
           }
-          stickyHeaderIndices={[1]}
+          stickyHeaderIndices={[2]}
           contentContainerStyle={s.listContent}
         >
-          <View style={s.content}>
+          <View style={s.content} testID="home-top-content">
             <HomeTopBar colors={colors} onOpenSearch={onOpenSearch} s={s} />
             <ShoppingHomeHeading s={s} />
             <PromoBanner
@@ -930,12 +930,7 @@ export function HomeScreenContent({
               sidePadding={promoSidePadding}
             />
           </View>
-          <HomeCategoryFilter
-            onChange={setSelectedCategory}
-            s={s}
-            value={selectedCategory}
-          />
-          <View style={s.content}>
+          <View style={s.content} testID="home-weekly-content">
             <WeeklyGroupBuysSection
               groupBuys={filteredGroupBuys}
               onPressDeal={onPressDeal}
@@ -953,6 +948,13 @@ export function HomeScreenContent({
             {isFetching && groupBuys.length === 0 ? (
               <ActivityIndicator color={colors.accent} />
             ) : null}
+          </View>
+          <HomeCategoryFilter
+            onChange={setSelectedCategory}
+            s={s}
+            value={selectedCategory}
+          />
+          <View style={s.content} testID="home-deal-grid-content">
             <RecommendedProducts
               groupBuys={filteredGroupBuys}
               onPressDeal={onPressDeal}
