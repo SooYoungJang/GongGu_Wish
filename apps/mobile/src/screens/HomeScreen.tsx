@@ -886,13 +886,13 @@ export function HomeScreenContent({
   const { colors, isDark } = useCommerceTheme();
   const { width } = useWindowDimensions();
   const [selectedCategory, setSelectedCategory] = useState<HomeCategory>('all');
+  const displayGroupBuys = useMemo(() => getDisplayItems(groupBuys), [groupBuys]);
   const filteredGroupBuys = useMemo(() => {
-    const displayItems = getDisplayItems(groupBuys);
-    if (selectedCategory === 'all') return displayItems;
-    return displayItems.filter(
+    if (selectedCategory === 'all') return displayGroupBuys;
+    return displayGroupBuys.filter(
       (item) => normalizeHomeCategory(item.category) === selectedCategory,
     );
-  }, [groupBuys, selectedCategory]);
+  }, [displayGroupBuys, selectedCategory]);
   const promoCardWidth = Math.max(
     0,
     Math.min(width - HOME_SIDE_PADDING * 2, Math.max(260, width - 88)),
@@ -932,7 +932,7 @@ export function HomeScreenContent({
           </View>
           <View style={s.content} testID="home-weekly-content">
             <WeeklyGroupBuysSection
-              groupBuys={filteredGroupBuys}
+              groupBuys={displayGroupBuys}
               onPressDeal={onPressDeal}
               onOpenCalendar={onOpenCalendar}
               s={s}
