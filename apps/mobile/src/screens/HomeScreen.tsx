@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type SetStateAction,
 } from 'react';
 import {
   ActivityIndicator,
@@ -26,11 +27,13 @@ import { useQuery } from '@tanstack/react-query';
 import { SText } from '../components/ui/SText';
 import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { DealCard } from '../components/DealCard';
+import { CATEGORIES } from '../components/home/CategoryRow';
 import { categoryForGroupBuy } from '../components/home/DealCardGrid';
 import { WeeklyCalendarStrip } from '../components/home/WeeklyCalendarStrip';
 import { fallbackGroupBuys, fetchGroupBuys } from '../api';
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { borderRadius, spacing } from '../design/tokens';
+import type { CategoryColorName } from '../design/tokens';
 import { isGroupBuyActiveOnDate } from '../utils/groupBuyDates';
 import { formatPriceKrw, selectHomeBannerItems } from '../utils/homeBanner';
 import { useCommerceTheme } from '../design/useCommerceTheme';
@@ -40,6 +43,12 @@ import promoScrimSource from '../assets/promo-scrim.png';
 
 type HomeAction = () => void;
 type DealAction = Dispatch<GroupBuy>;
+type HomeCategory = 'all' | CategoryColorName;
+
+const HOME_CATEGORY_OPTIONS: Array<{ key: HomeCategory; label: string }> = [
+  { key: 'all', label: '전체' },
+  ...CATEGORIES.map(({ key, label }) => ({ key, label })),
+];
 
 type HomeScreenContentProps = {
   groupBuys: GroupBuy[];
@@ -99,6 +108,19 @@ function getPromoVisual(item: GroupBuy) {
 
 function getDisplayItems(groupBuys: GroupBuy[]) {
   return groupBuys.length > 0 ? groupBuys : fallbackGroupBuys;
+}
+
+function normalizeHomeCategory(
+  category: GroupBuy['category'],
+): CategoryColorName | null {
+  switch (category as string | null | undefined) {
+    case 'lifestyle':
+      return 'living';
+    case 'digital':
+      return 'electronics';
+    default:
+      return category ?? null;
+  }
 }
 
 function getPromoFallbackMark(item: GroupBuy) {
@@ -379,6 +401,52 @@ function ShoppingHomeHeading({ s }: { s: ReturnType<typeof makeStyles> }) {
           쇼핑 홈
         </SText>
       </View>
+    </View>
+  );
+}
+
+function HomeCategoryFilter({
+  value,
+  onChange,
+  s,
+}: {
+  value: HomeCategory;
+  onChange: Dispatch<SetStateAction<HomeCategory>>;
+  s: ReturnType<typeof makeStyles>;
+}) {
+  return (
+    <View
+      accessibilityRole="tablist"
+      style={s.categoryFilter}
+      testID="home-category-filter"
+    >
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.categoryFilterContent}
+        testID="home-category-filter-scroll"
+      >
+        {HOME_CATEGORY_OPTIONS.map(({ key, label }) => {
+          const selected = key === value;
+          return (
+            <Pressable
+              accessibilityLabel={`${label} 카테고리`}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              key={key}
+              onPress={() => onChange(key)}
+              style={[s.categoryChip, selected && s.selectedCategoryChip]}
+            >
+              <SText
+                variant="label"
+                style={[s.categoryChipText, selected && s.selectedCategoryChipText]}
+              >
+                {label}
+              </SText>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
@@ -724,7 +792,7 @@ function WeeklyGroupBuysSection({
 
   // Use the full groupBuys list (same source as CalendarScreen) so the
   // per-day results stay in sync with the full calendar view.
-  const weeklyItems = useMemo(() => getDisplayItems(groupBuys), [groupBuys]);
+  const weeklyItems = useMemo(() => groupBuys, [groupBuys]);
 
   // Show items whose deadline falls on the selected day, or all weekly items
   // when no specific day is picked yet.
@@ -780,15 +848,10 @@ function RecommendedProducts({
   onPressDeal: DealAction;
   s: ReturnType<typeof makeStyles>;
 }) {
-  const products = getDisplayItems(groupBuys).slice(0, 8);
+  const products = groupBuys.slice(0, 8);
 
   return (
     <View style={s.recommendSection}>
-      <View style={s.sectionTitleRow}>
-        <SText variant="cardTitle" style={s.sectionTitle}>
-          장수영님을 위한 추천 상품
-        </SText>
-      </View>
       {products.length > 0 ? (
         <View style={s.productGrid}>
           {products.map((item, index) => (
@@ -803,7 +866,7 @@ function RecommendedProducts({
       ) : (
         <View style={s.productEmpty}>
           <SText variant="body" style={s.productEmptyText}>
-            추천 상품을 준비 중입니다
+            선택한 카테고리에 공구가 없습니다
           </SText>
         </View>
       )}
@@ -822,6 +885,14 @@ export function HomeScreenContent({
 }: HomeScreenContentProps) {
   const { colors, isDark } = useCommerceTheme();
   const { width } = useWindowDimensions();
+  const [selectedCategory, setSelectedCategory] = useState<HomeCategory>('all');
+  const filteredGroupBuys = useMemo(() => {
+    const displayItems = getDisplayItems(groupBuys);
+    if (selectedCategory === 'all') return displayItems;
+    return displayItems.filter(
+      (item) => normalizeHomeCategory(item.category) === selectedCategory,
+    );
+  }, [groupBuys, selectedCategory]);
   const promoCardWidth = Math.max(
     0,
     Math.min(width - HOME_SIDE_PADDING * 2, Math.max(260, width - 88)),
@@ -845,6 +916,7 @@ export function HomeScreenContent({
               tintColor={colors.accent}
             />
           }
+          stickyHeaderIndices={[1]}
           contentContainerStyle={s.listContent}
         >
           <View style={s.content}>
@@ -857,8 +929,15 @@ export function HomeScreenContent({
               s={s}
               sidePadding={promoSidePadding}
             />
+          </View>
+          <HomeCategoryFilter
+            onChange={setSelectedCategory}
+            s={s}
+            value={selectedCategory}
+          />
+          <View style={s.content}>
             <WeeklyGroupBuysSection
-              groupBuys={groupBuys}
+              groupBuys={filteredGroupBuys}
               onPressDeal={onPressDeal}
               onOpenCalendar={onOpenCalendar}
               s={s}
@@ -875,7 +954,7 @@ export function HomeScreenContent({
               <ActivityIndicator color={colors.accent} />
             ) : null}
             <RecommendedProducts
-              groupBuys={groupBuys}
+              groupBuys={filteredGroupBuys}
               onPressDeal={onPressDeal}
               s={s}
             />
@@ -1375,6 +1454,36 @@ function makeStyles(colors: CommerceColorPalette) {
       minHeight: 140,
     },
     productEmptyText: { color: colors.muted, fontSize: 15, fontWeight: '700' },
+    categoryFilter: {
+      backgroundColor: colors.bg,
+      borderBottomColor: colors.divider,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      paddingVertical: spacing.sm,
+      zIndex: 2,
+    },
+    categoryFilterContent: {
+      gap: spacing.sm,
+      paddingHorizontal: HOME_SIDE_PADDING,
+    },
+    categoryChip: {
+      alignItems: 'center',
+      borderColor: colors.border,
+      borderRadius: borderRadius.full,
+      borderWidth: 1,
+      justifyContent: 'center',
+      minHeight: 44,
+      paddingHorizontal: spacing.lg,
+    },
+    selectedCategoryChip: {
+      backgroundColor: colors.text,
+      borderColor: colors.text,
+    },
+    categoryChipText: {
+      color: colors.text,
+      fontWeight: '800',
+      includeFontPadding: false,
+    },
+    selectedCategoryChipText: { color: colors.bg },
     notice: {
       backgroundColor: colors.warningSoft,
       borderRadius: borderRadius.md,

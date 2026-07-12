@@ -1,0 +1,30 @@
+appId: com.gonggu.wish
+tags:
+  - e2e
+  - evidence
+  - mobile
+  - rn-home-category-filter
+---
+# Regression evidence for the horizontal, sticky home category filter.
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "상품 검색"
+    timeout: 15000
+- assertVisible: "상품 검색"
+- assertVisible: "전체 카테고리"
+- assertVisible: "식품 카테고리"
+- assertVisible: "뷰티 카테고리"
+- assertNotVisible: "장수영님을 위한 추천 상품"
+- takeScreenshot: rn-home-category-filter-01-top
+- tapOn: "뷰티 카테고리"
+- waitForAnimationToEnd
+- takeScreenshot: rn-home-category-filter-02-beauty
+- swipe:
+    start: 50%,80%
+    end: 50%,25%
+    duration: 400
+- waitForAnimationToEnd
+- assertVisible: "뷰티 카테고리"
+- takeScreenshot: rn-home-category-filter-03-sticky
