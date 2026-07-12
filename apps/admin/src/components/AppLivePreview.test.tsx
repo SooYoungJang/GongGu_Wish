@@ -7,15 +7,15 @@ const activeDeal: AppLivePreviewDeal = {
   productName: "제주 감귤 3kg",
   brandName: "귤밭상회",
   category: "과일",
-  startDate: "2026-07-01",
-  endDate: "2026-07-31",
+  startDate: "2000-01-01",
+  endDate: "2099-12-31",
   discountInfo: "첫 구매 20% 할인",
   priceKrw: 25900,
   summary: "산지에서 바로 보내는 당도 높은 제철 감귤입니다.",
   imageUrl: "https://example.com/tangerine.jpg",
   mediaCount: 4,
   isHomeBanner: true,
-  homeBannerStartDate: "2026-01-01",
+  homeBannerStartDate: "2000-01-01",
   homeBannerEndDate: "2099-12-31",
 };
 
@@ -24,23 +24,32 @@ afterEach(() => {
 });
 
 describe("AppLivePreview", () => {
-  it("renders three accessible preview tabs with the home banner selected by default", () => {
+  it("renders four accessible preview tabs with the home banner selected by default", () => {
     render(<AppLivePreview deal={activeDeal} />);
 
     expect(screen.getByRole("tablist", { name: "앱 라이브 프리뷰" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "홈 배너", selected: true })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "공구 카드", selected: false })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "홈 주간 공구", selected: false })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "상세 화면", selected: false })).toBeTruthy();
     expect(screen.getByRole("tabpanel", { name: "홈 배너" })).toBeTruthy();
   });
 
-  it("switches between home, card, and detail previews", async () => {
+  it("matches RN DealCard and home weekly card surfaces", async () => {
     const user = userEvent.setup();
     render(<AppLivePreview deal={activeDeal} />);
 
     await user.click(screen.getByRole("tab", { name: "공구 카드" }));
     expect(screen.getByRole("tabpanel", { name: "공구 카드" })).toBeTruthy();
-    expect(screen.getByText("마감 2026-07-31")).toBeTruthy();
+    expect(screen.getByText("첫 구매 20% 할인")).toBeTruthy();
+    const dealCard = screen.getByRole("article", { name: "공구 카드 미리보기" });
+    expect(dealCard.querySelector(".app-live-preview__deal-card-brand")?.textContent).toBe("과일 · @귤밭상회");
+    expect(screen.getByText("12월 31일 마감")).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "홈 주간 공구" }));
+    expect(screen.getByRole("tabpanel", { name: "홈 주간 공구" })).toBeTruthy();
+    expect(screen.getByText("귤밭상회")).toBeTruthy();
+    expect(screen.getByText("제주 감귤 3kg")).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "상세 화면" }));
     expect(screen.getByRole("tabpanel", { name: "상세 화면" })).toBeTruthy();

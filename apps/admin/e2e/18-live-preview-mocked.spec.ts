@@ -283,6 +283,22 @@ test("모킹된 관리자 로그인으로 라이브 프리뷰와 중앙 날짜 �
   await expect(preview.locator(".app-live-preview__home-banner-status strong")).toHaveCSS("color", "rgb(240, 68, 94)");
 
   await preview.getByRole("tab", { name: "공구 카드" }).click();
+  await expect(preview.locator(".app-live-preview__deal-card-sale-badge")).toContainText("배송비 무료");
+  await expect(preview.locator(".app-live-preview__deal-card-brand")).toHaveText("생활용품 · @프리뷰 브랜드");
+  await expect(preview.locator(".app-live-preview__deal-card-deadline")).toHaveText("12월 31일 마감");
+  await preview.locator(".app-live-preview__deal-card-grid").screenshot({
+    path: resolve(evidenceDir, `${evidencePrefix}-deal-card.png`),
+  });
+
+  await preview.getByRole("tab", { name: "홈 주간 공구" }).click();
+  await expect(preview.locator(".app-live-preview__weekly-card")).toBeVisible();
+  await expect(preview.locator(".app-live-preview__weekly-brand")).toHaveText("프리뷰 브랜드");
+  await expect(preview.locator(".app-live-preview__weekly-deadline-badge")).toContainText("일 남음");
+  await preview.locator(".app-live-preview__weekly-rail").screenshot({
+    path: resolve(evidenceDir, `${evidencePrefix}-weekly-card-desktop.png`),
+  });
+
+  await preview.getByRole("tab", { name: "상세 화면" }).click();
   await expect(preview.getByRole("tabpanel")).toContainText("12,900원");
 
   await submissionDetail.getByLabel("가격 (원)").fill("15900");
@@ -292,7 +308,6 @@ test("모킹된 관리자 로그인으로 라이브 프리뷰와 중앙 날짜 �
   ], null, 2));
   await expect(preview.getByRole("tabpanel")).toContainText("15,900원");
 
-  await preview.getByRole("tab", { name: "상세 화면" }).click();
   await expect(preview.getByRole("tabpanel")).toContainText("미디어 2개");
   await submissionDetail.getByRole("button", { name: "저장" }).click();
   await expect(desktopPage.getByRole("status")).toContainText("위시 정보를 저장했습니다.");
@@ -324,6 +339,11 @@ test("모킹된 관리자 로그인으로 라이브 프리뷰와 중앙 날짜 �
 
   const groupBuyDetail = mobilePage.locator(".detail-panel");
   await expect(groupBuyDetail.locator(".app-live-preview")).toBeVisible();
+  await mobilePage.getByRole("tab", { name: "홈 주간 공구" }).click();
+  await expect(mobilePage.locator(".app-live-preview__weekly-card")).toBeVisible();
+  await mobilePage.locator(".app-live-preview__weekly-rail").screenshot({
+    path: resolve(evidenceDir, `${evidencePrefix}-weekly-card-mobile-320.png`),
+  });
   await expect(mobilePage.getByRole("tab", { name: "상세 화면" })).toBeVisible();
   await expect(mobilePage.getByText("종일 공구", { exact: true })).toHaveCount(0);
   await expect(mobilePage.getByText("이달의 공구", { exact: true })).toHaveCount(0);
