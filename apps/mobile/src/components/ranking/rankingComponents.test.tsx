@@ -300,7 +300,7 @@ describe('ranking components', () => {
     expect(firstStyle.backgroundColor).toBe(commerceLightColors.panelBg);
     expect(firstStyle.borderWidth).toBe(1);
     expect(firstStyle.borderColor).toBe(commerceLightColors.borderLight);
-    expect(firstStyle.overflow).toBe('hidden');
+    expect(firstStyle.overflow).toBeUndefined();
     expect(firstStyle.shadowOpacity).toBeLessThanOrEqual(0.08);
     expect(firstStyle.elevation).toBeLessThanOrEqual(1);
     expect(firstStyle.marginBottom).toBe(spacing.sm);
@@ -326,7 +326,7 @@ describe('ranking components', () => {
       expect(style.backgroundColor).toBe(commerceLightColors.panelBg);
       expect(style.borderWidth).toBe(1);
       expect(style.borderColor).toBe(commerceLightColors.borderLight);
-      expect(style.overflow).toBe('hidden');
+      expect(style.overflow).toBeUndefined();
       expect(style.borderBottomWidth).toBeUndefined();
     }
 
