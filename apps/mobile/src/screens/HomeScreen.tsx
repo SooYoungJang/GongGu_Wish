@@ -72,6 +72,16 @@ function getVisual(item: GroupBuy) {
 }
 
 function getPromoVisual(item: GroupBuy) {
+  const firstMedia = item.mediaItems?.[0];
+  const firstMediaVisual =
+    firstMedia?.mediaType === 'IMAGE'
+      ? firstMedia.url.trim() || firstMedia.thumbnailUrl?.trim()
+      : firstMedia?.thumbnailUrl?.trim();
+  if (firstMediaVisual) return firstMediaVisual;
+
+  const coverThumbnail = item.thumbnailUrl?.trim();
+  if (coverThumbnail) return coverThumbnail;
+
   const firstImage = item.mediaItems?.find(
     (media) => media.mediaType === 'IMAGE' && media.url.trim(),
   );
@@ -617,6 +627,11 @@ function PromoBanner({
                 uri={visual}
               />
             </View>
+            <View
+              pointerEvents="none"
+              style={s.promoShade}
+              testID={clone ? undefined : `promo-shade-${item.id}`}
+            />
             <Image
               accessible={false}
               resizeMode="stretch"
@@ -1133,6 +1148,10 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     promoScrim: {
       ...StyleSheet.absoluteFillObject,
+    },
+    promoShade: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0, 0, 0, 0.18)',
     },
     promoOverlay: {
       bottom: 0,
