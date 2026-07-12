@@ -261,7 +261,7 @@ export class AppLivePreview extends Component<AppLivePreviewProps, AppLivePrevie
 
         <div
           id={`${this.baseId}-${activeTab}-panel`}
-          className="app-live-preview__panel"
+          className={`app-live-preview__panel app-live-preview__panel--${activeTab}`}
           role="tabpanel"
           aria-labelledby={`${this.baseId}-${activeTab}-tab`}
         >

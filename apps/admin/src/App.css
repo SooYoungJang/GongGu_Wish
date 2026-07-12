@@ -401,6 +401,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
   background: var(--ink);
   box-shadow: var(--shadow);
 }
+.app-live-preview__panel--weekly {
+  background: var(--surface-2);
+}
 .app-live-preview__panel > article {
   overflow: hidden;
   border-radius: 16px;
@@ -577,11 +580,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .app-live-preview__weekly-rail {
   display: flex;
   gap: 12px;
-  min-height: 238px;
-  padding: 12px;
+  padding: 0 8px;
   overflow-x: auto;
-  border-radius: 16px;
-  background: var(--surface);
+  background: transparent;
   scrollbar-width: none;
 }
 .app-live-preview__weekly-rail::-webkit-scrollbar { display: none; }
