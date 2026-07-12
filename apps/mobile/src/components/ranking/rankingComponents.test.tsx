@@ -137,6 +137,22 @@ describe('ranking components', () => {
     }
   });
 
+  it('keeps filtered ranking positions circular beyond the top three', () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(withTheme(<RankBadge rank={5} />));
+    });
+
+    const badge = renderer!.root.findByProps({ accessibilityLabel: '5위' });
+    const style = flattenStyle(badge.props.style);
+
+    expect(style.width).toBe(34);
+    expect(style.height).toBe(34);
+    expect(style.borderRadius).toBe(17);
+    expect(style.borderCurve).toBe('circular');
+  });
+
   it('renders ranking trends as color-only directional text', () => {
     const cases: Array<{
       trend: SellerRanking['trend'];
