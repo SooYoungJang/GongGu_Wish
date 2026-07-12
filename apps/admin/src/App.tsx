@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { adminApi } from "@/lib/adminApi";
 import { StatCard } from "@/components/StatCard";
-import {
-  monthlyFeaturedRankInputValue,
-  normalizeMonthlyFeaturedRankInput,
-  parseMonthlyFeaturedRank,
-} from "@/lib/monthlyFeaturedRank";
+import { AppLivePreview, type AppLivePreviewDeal } from "@/components/AppLivePreview";
+import { DatePickerField } from "@/components/DatePickerField";
+import { inferHikerSuggestions } from "@/lib/hikerSuggestions";
+import { validateHomeBannerForm } from "@/lib/homeBannerForm";
+import { MAX_PRICE_KRW, parsePriceKrwInput } from "@/lib/priceKrw";
 import {
   getGroupBuyVisibility,
   groupBuyStatusForVisibility,
@@ -39,6 +39,7 @@ type SubmissionForm = {
   endDate: string;
   purchaseUrl: string;
   discountInfo: string;
+  priceKrw: string;
   instagramUrl: string;
   summary: string;
   adminMemo: string;
@@ -47,9 +48,9 @@ type SubmissionForm = {
   mediaUrlsText: string;
   mediaItemsText: string;
   mediaType: "" | "IMAGE" | "VIDEO";
-  isAllDay: boolean;
-  isMonthlyFeatured: boolean;
-  monthlyFeaturedRank: string;
+  isHomeBanner: boolean;
+  homeBannerStartDate: string;
+  homeBannerEndDate: string;
 };
 
 type GroupBuyForm = {
@@ -60,6 +61,7 @@ type GroupBuyForm = {
   endDate: string;
   purchaseUrl: string;
   discountInfo: string;
+  priceKrw: string;
   summary: string;
   thumbnailUrl: string;
   videoUrl: string;
@@ -67,9 +69,9 @@ type GroupBuyForm = {
   mediaItemsText: string;
   mediaType: "" | "IMAGE" | "VIDEO";
   status: GroupBuyStatus;
-  isAllDay: boolean;
-  isMonthlyFeatured: boolean;
-  monthlyFeaturedRank: string;
+  isHomeBanner: boolean;
+  homeBannerStartDate: string;
+  homeBannerEndDate: string;
 };
 
 type UserForm = {
@@ -98,6 +100,8 @@ const CATEGORY_OPTIONS = [
   { value: "books", label: "도서" },
   { value: "media", label: "음반-DVD" },
   { value: "travel", label: "여행" },
+  { value: "lifestyle", label: "라이프스타일 (기존)" },
+  { value: "digital", label: "디지털 (기존)" },
 ];
 
 const SUBMISSION_STATUS_OPTIONS: Array<{ value: "ALL" | SubmissionStatus; label: string }> = [
@@ -223,16 +227,58 @@ function firstVideoUrl(mediaItems: MediaAsset[]) {
   return mediaItems.find((item) => item.mediaType === "VIDEO")?.url ?? "";
 }
 
-function guessProductName(result: HikerLookupResult, currentValue: string) {
-  const current = currentValue.trim();
-  const shouldReplace = !current || current === "검수 대기 위시템";
-  if (!shouldReplace) return currentValue;
+function priceInputValue(value: number | null | undefined) {
+  return value === null || value === undefined ? "" : String(value);
+}
 
-  const line = result.caption
-    ?.split(/\r?\n/)
-    .map((item) => item.replace(/#[^\s#]+/g, "").trim())
-    .find((item) => item.length >= 2);
-  return line ? line.slice(0, 60) : currentValue;
+function inferFormMediaType(mediaItems: MediaAsset[], videoUrl: string, mediaUrls: string[]) {
+  return inferHikerSuggestions({ mediaItems, videoUrl, mediaUrls }).mediaType ?? "";
+}
+
+function mediaTypeLabel(mediaType: "" | "IMAGE" | "VIDEO") {
+  if (mediaType === "VIDEO") return "동영상";
+  if (mediaType === "IMAGE") return "이미지";
+  return "미디어 없음";
+}
+
+function previewMediaItems(value: string) {
+  try {
+    return parseMediaItems(value);
+  } catch {
+    return [];
+  }
+}
+
+function formToPreviewDeal(form: SubmissionForm | GroupBuyForm): AppLivePreviewDeal {
+  const mediaItems = previewMediaItems(form.mediaItemsText);
+  const mediaUrls = splitLines(form.mediaUrlsText);
+  const imageUrl = mediaItems.find((item) => item.mediaType === "IMAGE")?.url
+    || mediaItems.find((item) => item.thumbnailUrl)?.thumbnailUrl
+    || form.thumbnailUrl.trim()
+    || mediaUrls[0]
+    || "";
+  let priceKrw: number | null = null;
+  try {
+    priceKrw = parsePriceKrwInput(form.priceKrw);
+  } catch {
+    priceKrw = null;
+  }
+
+  return {
+    productName: form.productName.trim() || "상품명을 입력해주세요",
+    brandName: form.brandName.trim() || "브랜드/계정 미지정",
+    category: CATEGORY_OPTIONS.find((option) => option.value === form.category)?.label ?? "카테고리 미지정",
+    startDate: form.startDate || "미정",
+    endDate: form.endDate || "미정",
+    discountInfo: form.discountInfo.trim() || "혜택 정보 미입력",
+    priceKrw,
+    summary: form.summary.trim() || "요약을 입력하면 상세 화면에 표시됩니다.",
+    imageUrl,
+    mediaCount: Math.max(mediaItems.length, mediaUrls.length, imageUrl ? 1 : 0),
+    isHomeBanner: form.isHomeBanner,
+    homeBannerStartDate: form.homeBannerStartDate,
+    homeBannerEndDate: form.homeBannerEndDate,
+  };
 }
 
 function submissionToForm(item: GongguSubmission): SubmissionForm {
@@ -254,6 +300,7 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
     endDate: dateInput(item.endDate),
     purchaseUrl: text(item.purchaseUrl),
     discountInfo: text(item.discountInfo),
+    priceKrw: priceInputValue(item.priceKrw),
     instagramUrl: text(item.instagramUrl),
     summary: text(item.summary),
     adminMemo: text(item.adminMemo),
@@ -262,9 +309,9 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
     mediaUrlsText: mediaUrls.length > 0 ? mediaUrls.join("\n") : (item.imageUrls ?? []).join("\n"),
     mediaItemsText: stringifyMediaItems(mediaItems),
     mediaType,
-    isAllDay: false,
-    isMonthlyFeatured: false,
-    monthlyFeaturedRank: "",
+    isHomeBanner: Boolean(item.isHomeBanner),
+    homeBannerStartDate: dateInput(item.homeBannerStartDate),
+    homeBannerEndDate: dateInput(item.homeBannerEndDate),
   };
 }
 
@@ -277,6 +324,7 @@ function groupBuyToForm(item: GroupBuy): GroupBuyForm {
     endDate: dateInput(item.endDate),
     purchaseUrl: text(item.purchaseUrl),
     discountInfo: text(item.discountInfo),
+    priceKrw: priceInputValue(item.priceKrw),
     summary: text(item.summary),
     thumbnailUrl: text(item.thumbnailUrl),
     videoUrl: text(item.videoUrl),
@@ -284,13 +332,15 @@ function groupBuyToForm(item: GroupBuy): GroupBuyForm {
     mediaItemsText: stringifyMediaItems(item.mediaItems),
     mediaType: item.mediaType ?? "",
     status: item.status,
-    isAllDay: Boolean(item.isAllDay),
-    isMonthlyFeatured: Boolean(item.isMonthlyFeatured),
-    monthlyFeaturedRank: monthlyFeaturedRankInputValue(item.monthlyFeaturedRank),
+    isHomeBanner: Boolean(item.isHomeBanner),
+    homeBannerStartDate: dateInput(item.homeBannerStartDate),
+    homeBannerEndDate: dateInput(item.homeBannerEndDate),
   };
 }
 
 function submissionPayload(form: SubmissionForm) {
+  const bannerError = validateHomeBannerForm(form);
+  if (bannerError) throw new Error(bannerError);
   const mediaItems = parseMediaItems(form.mediaItemsText);
   const mediaUrls = splitLines(form.mediaUrlsText);
   return {
@@ -301,6 +351,7 @@ function submissionPayload(form: SubmissionForm) {
     endDate: form.endDate,
     purchaseUrl: form.purchaseUrl,
     discountInfo: form.discountInfo,
+    priceKrw: parsePriceKrwInput(form.priceKrw),
     instagramUrl: form.instagramUrl,
     summary: form.summary,
     adminMemo: form.adminMemo,
@@ -309,14 +360,18 @@ function submissionPayload(form: SubmissionForm) {
     videoUrl: form.videoUrl,
     mediaUrls,
     mediaItems,
-    mediaType: form.mediaType || null,
-    isAllDay: form.isAllDay,
-    isMonthlyFeatured: form.isMonthlyFeatured,
-    monthlyFeaturedRank: parseMonthlyFeaturedRank(form.monthlyFeaturedRank),
+    mediaType: inferFormMediaType(mediaItems, form.videoUrl, mediaUrls) || null,
+    isHomeBanner: form.isHomeBanner,
+    homeBannerStartDate: form.homeBannerStartDate,
+    homeBannerEndDate: form.homeBannerEndDate,
   };
 }
 
 function groupBuyPayload(form: GroupBuyForm) {
+  const bannerError = validateHomeBannerForm(form);
+  if (bannerError) throw new Error(bannerError);
+  const mediaUrls = splitLines(form.mediaUrlsText);
+  const mediaItems = parseMediaItems(form.mediaItemsText);
   return {
     productName: form.productName,
     brandName: form.brandName,
@@ -325,16 +380,17 @@ function groupBuyPayload(form: GroupBuyForm) {
     endDate: form.endDate,
     purchaseUrl: form.purchaseUrl,
     discountInfo: form.discountInfo,
+    priceKrw: parsePriceKrwInput(form.priceKrw),
     summary: form.summary,
     thumbnailUrl: form.thumbnailUrl,
     videoUrl: form.videoUrl,
-    mediaUrls: splitLines(form.mediaUrlsText),
-    mediaItems: parseMediaItems(form.mediaItemsText),
-    mediaType: form.mediaType || null,
+    mediaUrls,
+    mediaItems,
+    mediaType: inferFormMediaType(mediaItems, form.videoUrl, mediaUrls) || null,
     status: form.status,
-    isAllDay: form.isAllDay,
-    isMonthlyFeatured: form.isMonthlyFeatured,
-    monthlyFeaturedRank: parseMonthlyFeaturedRank(form.monthlyFeaturedRank),
+    isHomeBanner: form.isHomeBanner,
+    homeBannerStartDate: form.homeBannerStartDate,
+    homeBannerEndDate: form.homeBannerEndDate,
   };
 }
 
@@ -1171,19 +1227,19 @@ function AdminShell({ session }: { session: Session }) {
           <span>대시보드</span>
         </button>
         <button aria-current={tab === "submissions" ? "page" : undefined} className={tab === "submissions" ? "active" : ""} onClick={() => switchTab("submissions")} type="button">
-          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9l2 2 4-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0 2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9l2 2 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/></svg>
           <span>검수</span>
         </button>
         <button aria-current={tab === "groupBuys" ? "page" : undefined} className={tab === "groupBuys" ? "active" : ""} onClick={() => switchTab("groupBuys")} type="button">
-          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-14L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-14L4 7m8 4v10M4 7v10l8 4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/></svg>
           <span>공구</span>
         </button>
         <button aria-current={tab === "users" ? "page" : undefined} className={tab === "users" ? "active" : ""} onClick={() => switchTab("users")} type="button">
-          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-1.13a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm6 0a4 4 0 0 0 0-8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-1.13a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm6 0a4 4 0 0 0 0-8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/></svg>
           <span>사용자</span>
         </button>
         <button aria-current={tab === "cdnRefresh" ? "page" : undefined} className={tab === "cdnRefresh" ? "active" : ""} onClick={() => switchTab("cdnRefresh")} type="button">
-          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><path d="M21 3v5h-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/><path d="M21 3v5h-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/></svg>
           <span>CDN</span>
         </button>
       </nav>
@@ -1196,10 +1252,19 @@ function applyHikerResult(form: SubmissionForm, result: HikerLookupResult): Subm
   const mediaUrls = result.mediaUrls ?? [];
   const thumbnailUrl = result.thumbnailUrl ?? result.imageUrl ?? form.thumbnailUrl;
   const videoUrl = result.videoUrl ?? form.videoUrl;
+  const suggestions = inferHikerSuggestions({
+    caption: result.caption,
+    currentProductName: form.productName.trim() === "검수 대기 위시템" ? "" : form.productName,
+    currentCategory: form.category,
+    mediaItems,
+    videoUrl,
+    mediaUrls,
+  });
 
   return {
     ...form,
-    productName: guessProductName(result, form.productName),
+    productName: suggestions.productName || form.productName,
+    category: suggestions.category || form.category,
     brandName: form.brandName || result.username || "",
     purchaseUrl: form.purchaseUrl || form.instagramUrl,
     summary: result.caption ? result.caption.slice(0, 500) : form.summary,
@@ -1207,7 +1272,7 @@ function applyHikerResult(form: SubmissionForm, result: HikerLookupResult): Subm
     videoUrl,
     mediaUrlsText: mediaUrls.join("\n"),
     mediaItemsText: stringifyMediaItems(mediaItems),
-    mediaType: result.mediaType ?? form.mediaType,
+    mediaType: suggestions.mediaType ?? result.mediaType ?? form.mediaType,
   };
 }
 
@@ -1720,41 +1785,33 @@ function SubmissionEditor(props: {
         </button>
       </div>
 
+      <AppLivePreview deal={formToPreviewDeal(form)} />
+
       <div className="form-grid">
         <TextField label="제품명" value={form.productName} onChange={(value) => setField("productName", value)} required />
         <SelectField label="카테고리" value={form.category} options={CATEGORY_OPTIONS} onChange={(value) => setField("category", value)} />
         <TextField label="브랜드/계정" value={form.brandName} onChange={(value) => setField("brandName", value)} />
         <TextField label="구매 URL" value={form.purchaseUrl} onChange={(value) => setField("purchaseUrl", value)} />
-        <TextField label="시작일" value={form.startDate} onChange={(value) => setField("startDate", value)} type="date" />
-        <TextField label="마감일" value={form.endDate} onChange={(value) => setField("endDate", value)} type="date" />
+        <DatePickerField label="시작일" value={form.startDate} onChange={(value) => setField("startDate", value)} max={form.endDate || undefined} />
+        <DatePickerField label="마감일" value={form.endDate} onChange={(value) => setField("endDate", value)} min={form.startDate || undefined} />
         <TextField label="할인 정보" value={form.discountInfo} onChange={(value) => setField("discountInfo", value)} />
+        <TextField label="가격 (원)" value={form.priceKrw} onChange={(value) => setField("priceKrw", value)} type="number" min={0} max={MAX_PRICE_KRW} step={1} />
         <TextField label="썸네일 URL" value={form.thumbnailUrl} onChange={(value) => setField("thumbnailUrl", value)} />
         <TextField label="비디오 URL" value={form.videoUrl} onChange={(value) => setField("videoUrl", value)} />
-        <SelectField
-          label="미디어 타입"
-          value={form.mediaType}
-          options={[
-            { value: "", label: "미지정" },
-            { value: "IMAGE", label: "이미지" },
-            { value: "VIDEO", label: "비디오" },
-          ]}
-          onChange={(value) => setField("mediaType", value as SubmissionForm["mediaType"])}
-        />
-        <TextField
-          label="이달의 공구 노출 순서"
-          value={form.monthlyFeaturedRank}
-          onChange={(value) => {
-            const normalized = normalizeMonthlyFeaturedRankInput(value);
-            if (normalized !== null) setField("monthlyFeaturedRank", normalized);
-          }}
-          type="number"
-          min={1}
-          step={1}
-        />
+        <div className="auto-field">
+          <span>미디어 타입</span>
+          <strong>{mediaTypeLabel(inferFormMediaType(previewMediaItems(form.mediaItemsText), form.videoUrl, splitLines(form.mediaUrlsText)))}</strong>
+          <small>Hiker 미디어를 기준으로 자동 감지됩니다.</small>
+        </div>
       </div>
 
-      <CheckboxField label="종일 공구" checked={form.isAllDay} onChange={(value) => setField("isAllDay", value)} />
-      <CheckboxField label="이달의 공구 노출" checked={form.isMonthlyFeatured} onChange={(value) => setField("isMonthlyFeatured", value)} />
+      <CheckboxField label="홈 배너에 노출" checked={form.isHomeBanner} onChange={(value) => setField("isHomeBanner", value)} />
+      {form.isHomeBanner ? (
+        <div className="form-grid banner-schedule-fields">
+          <DatePickerField label="배너 노출 시작일" value={form.homeBannerStartDate} onChange={(value) => setField("homeBannerStartDate", value)} max={form.homeBannerEndDate || undefined} />
+          <DatePickerField label="배너 노출 종료일" value={form.homeBannerEndDate} onChange={(value) => setField("homeBannerEndDate", value)} min={form.homeBannerStartDate || undefined} />
+        </div>
+      ) : null}
       <TextareaField label="요약" value={form.summary} onChange={(value) => setField("summary", value)} rows={5} />
       <TextareaField label="미디어 URL 목록" value={form.mediaUrlsText} onChange={(value) => setField("mediaUrlsText", value)} rows={4} />
       <TextareaField label="미디어 JSON" value={form.mediaItemsText} onChange={(value) => setField("mediaItemsText", value)} rows={7} monospace />
@@ -1849,7 +1906,7 @@ function GroupBuyPanel(props: {
                   <th>상품</th>
                   <th>카테고리</th>
                   <th>마감</th>
-                  <th>이달의 공구 노출 순서</th>
+                  <th>홈 배너 노출</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -1863,7 +1920,11 @@ function GroupBuyPanel(props: {
                     <td>{item.productName}</td>
                     <td>{item.category ?? "-"}</td>
                     <td>{item.endDate ? dateInput(item.endDate) : "-"}</td>
-                    <td>{item.isMonthlyFeatured ? item.monthlyFeaturedRank ?? "노출" : "-"}</td>
+                    <td>
+                      {item.isHomeBanner && item.homeBannerStartDate && item.homeBannerEndDate
+                        ? `${dateInput(item.homeBannerStartDate)} ~ ${dateInput(item.homeBannerEndDate)}`
+                        : "-"}
+                    </td>
                     <td><StatusBadge status={item.status} /></td>
                   </tr>
                 ))}
@@ -1938,8 +1999,12 @@ function MobileGroupBuyCards({
           <div className="mobile-record-meta">
             <span>마감</span>
             <strong>{item.endDate ? dateInput(item.endDate) : "-"}</strong>
-            <span>이달 노출</span>
-            <strong>{item.isMonthlyFeatured ? item.monthlyFeaturedRank ?? "노출" : "-"}</strong>
+            <span>홈 배너</span>
+            <strong>
+              {item.isHomeBanner && item.homeBannerStartDate && item.homeBannerEndDate
+                ? `${dateInput(item.homeBannerStartDate)} ~ ${dateInput(item.homeBannerEndDate)}`
+                : "-"}
+            </strong>
           </div>
         </article>
       ))}
@@ -1982,37 +2047,39 @@ function GroupBuyEditor(props: {
         <button className="button button--primary" disabled={props.actionLoading || !visibility.canShow} onClick={() => props.onToggleVisibility(false)} type="button">다시 노출</button>
       </div>
 
+      <AppLivePreview deal={formToPreviewDeal(form)} />
+
       <div className="form-grid">
         <TextField label="제품명" value={form.productName} onChange={(value) => setField("productName", value)} required />
         <SelectField label="카테고리" value={form.category} options={CATEGORY_OPTIONS} onChange={(value) => setField("category", value)} />
         <TextField label="브랜드/계정" value={form.brandName} onChange={(value) => setField("brandName", value)} />
         <TextField label="구매 URL" value={form.purchaseUrl} onChange={(value) => setField("purchaseUrl", value)} />
-        <TextField label="시작일" value={form.startDate} onChange={(value) => setField("startDate", value)} type="date" />
-        <TextField label="마감일" value={form.endDate} onChange={(value) => setField("endDate", value)} type="date" />
+        <DatePickerField label="시작일" value={form.startDate} onChange={(value) => setField("startDate", value)} max={form.endDate || undefined} />
+        <DatePickerField label="마감일" value={form.endDate} onChange={(value) => setField("endDate", value)} min={form.startDate || undefined} />
         <TextField label="할인 정보" value={form.discountInfo} onChange={(value) => setField("discountInfo", value)} />
+        <TextField label="가격 (원)" value={form.priceKrw} onChange={(value) => setField("priceKrw", value)} type="number" min={0} max={MAX_PRICE_KRW} step={1} />
         <TextField label="썸네일 URL" value={form.thumbnailUrl} onChange={(value) => setField("thumbnailUrl", value)} />
         <TextField label="비디오 URL" value={form.videoUrl} onChange={(value) => setField("videoUrl", value)} />
+        <div className="auto-field">
+          <span>미디어 타입</span>
+          <strong>{mediaTypeLabel(inferFormMediaType(previewMediaItems(form.mediaItemsText), form.videoUrl, splitLines(form.mediaUrlsText)))}</strong>
+          <small>등록된 미디어를 기준으로 자동 감지됩니다.</small>
+        </div>
         <SelectField
           label="상태"
           value={form.status}
           options={GROUP_BUY_STATUS_OPTIONS.filter((item) => item.value !== "ALL")}
           onChange={(value) => setField("status", value as GroupBuyStatus)}
         />
-        <TextField
-          label="이달의 공구 노출 순서"
-          value={form.monthlyFeaturedRank}
-          onChange={(value) => {
-            const normalized = normalizeMonthlyFeaturedRankInput(value);
-            if (normalized !== null) setField("monthlyFeaturedRank", normalized);
-          }}
-          type="number"
-          min={1}
-          step={1}
-        />
       </div>
 
-      <CheckboxField label="종일 공구" checked={form.isAllDay} onChange={(value) => setField("isAllDay", value)} />
-      <CheckboxField label="이달의 공구 노출" checked={form.isMonthlyFeatured} onChange={(value) => setField("isMonthlyFeatured", value)} />
+      <CheckboxField label="홈 배너에 노출" checked={form.isHomeBanner} onChange={(value) => setField("isHomeBanner", value)} />
+      {form.isHomeBanner ? (
+        <div className="form-grid banner-schedule-fields">
+          <DatePickerField label="배너 노출 시작일" value={form.homeBannerStartDate} onChange={(value) => setField("homeBannerStartDate", value)} max={form.homeBannerEndDate || undefined} />
+          <DatePickerField label="배너 노출 종료일" value={form.homeBannerEndDate} onChange={(value) => setField("homeBannerEndDate", value)} min={form.homeBannerStartDate || undefined} />
+        </div>
+      ) : null}
       <TextareaField label="요약" value={form.summary} onChange={(value) => setField("summary", value)} rows={5} />
       <TextareaField label="미디어 URL 목록" value={form.mediaUrlsText} onChange={(value) => setField("mediaUrlsText", value)} rows={4} />
       <TextareaField label="미디어 JSON" value={form.mediaItemsText} onChange={(value) => setField("mediaItemsText", value)} rows={7} monospace />
@@ -2371,6 +2438,7 @@ function LoadingRows() {
 
 function TextField({
   label,
+  max,
   min,
   onChange,
   required,
@@ -2379,6 +2447,7 @@ function TextField({
   value,
 }: {
   label: string;
+  max?: number;
   min?: number;
   onChange: (value: string) => void;
   required?: boolean;
@@ -2389,7 +2458,7 @@ function TextField({
   return (
     <label className="field field--stack">
       <span>{label}{required ? " *" : ""}</span>
-      <input min={min} step={step} value={value} onChange={(event) => onChange(event.target.value)} type={type} />
+      <input max={max} min={min} step={step} value={value} onChange={(event) => onChange(event.target.value)} type={type} />
     </label>
   );
 }

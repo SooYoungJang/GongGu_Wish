@@ -5,11 +5,26 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CalendarQueryDto } from './dto/calendar-query.dto';
 import { ListGroupBuysDto } from './dto/list-group-buys.dto';
 
+function serializeHomeBannerDates<T extends {
+  homeBannerStartDate?: Date | null;
+  homeBannerEndDate?: Date | null;
+}>(groupBuy: T) {
+  return {
+    ...groupBuy,
+    ...(groupBuy.homeBannerStartDate instanceof Date
+      ? { homeBannerStartDate: groupBuy.homeBannerStartDate.toISOString().slice(0, 10) }
+      : {}),
+    ...(groupBuy.homeBannerEndDate instanceof Date
+      ? { homeBannerEndDate: groupBuy.homeBannerEndDate.toISOString().slice(0, 10) }
+      : {}),
+  };
+}
+
 @Injectable()
 export class GroupBuysService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(query: ListGroupBuysDto) {
+  async list(query: ListGroupBuysDto) {
     const where: Prisma.GroupBuyWhereInput = {
       status: query.status ?? GroupBuyStatus.APPROVED,
     };
@@ -22,12 +37,14 @@ export class GroupBuysService {
       ];
     }
 
-    return this.prisma.groupBuy.findMany({
+    const groupBuys = await this.prisma.groupBuy.findMany({
       where,
       include: { rawPost: { include: { influencer: true } } },
       orderBy: [{ endDate: 'asc' }, { createdAt: 'desc' }],
       take: query.limit,
     });
+
+    return groupBuys.map(serializeHomeBannerDates);
   }
 
   async getCalendarView(query: CalendarQueryDto) {
@@ -47,8 +64,9 @@ export class GroupBuysService {
       orderBy: [{ startDate: 'asc' }, { endDate: 'asc' }, { createdAt: 'desc' }],
     });
 
-    const grouped = new Map<string, typeof groupBuys>();
-    for (const groupBuy of groupBuys) {
+    const serializedGroupBuys = groupBuys.map(serializeHomeBannerDates);
+    const grouped = new Map<string, typeof serializedGroupBuys>();
+    for (const groupBuy of serializedGroupBuys) {
       const date = (groupBuy.startDate ?? groupBuy.endDate ?? monthStart).toISOString().slice(0, 10);
       const group = grouped.get(date) ?? [];
       group.push(groupBuy);
@@ -77,7 +95,7 @@ export class GroupBuysService {
       throw new NotFoundException('Group buy not found');
     }
 
-    return groupBuy;
+    return serializeHomeBannerDates(groupBuy);
   }
 
   async approve(id: string) {
@@ -94,7 +112,7 @@ export class GroupBuysService {
       throw new BadRequestException('승인하려면 시작일 또는 종료일 중 최소 1개가 필요합니다.');
     }
 
-    return this.prisma.groupBuy.update({
+    const approved = await this.prisma.groupBuy.update({
       where: { id },
       data: {
         status: GroupBuyStatus.APPROVED,
@@ -103,6 +121,8 @@ export class GroupBuysService {
       },
       include: { rawPost: { include: { influencer: true } } },
     });
+
+    return serializeHomeBannerDates(approved);
   }
 
   async reject(id: string, reason: string) {
@@ -111,7 +131,7 @@ export class GroupBuysService {
       throw new BadRequestException('반려 사유는 필수입니다.');
     }
 
-    return this.prisma.groupBuy.update({
+    const rejected = await this.prisma.groupBuy.update({
       where: { id },
       data: {
         status: GroupBuyStatus.REJECTED,
@@ -120,5 +140,7 @@ export class GroupBuysService {
       },
       include: { rawPost: { include: { influencer: true } } },
     });
+
+    return serializeHomeBannerDates(rejected);
   }
 }

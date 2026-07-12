@@ -25,6 +25,12 @@ function groupBuyToSellerRanking(
   const gb = popular.groupBuy;
   if (!gb) return null;
   const username = gb.rawPost.influencer.instagramUsername || 'unknown';
+  const category: RankingCategory =
+    gb.category === 'lifestyle'
+      ? 'living'
+      : gb.category === 'digital'
+        ? 'electronics'
+        : (gb.category ?? 'living');
   return {
     id: `pop-${popular.groupBuyId}`,
     sellerId: popular.groupBuyId,
@@ -34,7 +40,7 @@ function groupBuyToSellerRanking(
     displayName: gb.productName ?? gb.brandName ?? username,
     username,
     avatarUrl: null,
-    category: gb.category ?? 'living',
+    category,
     followerCount: popular.deepViews,
     activeDealCount: popular.bookmarks,
     endingSoonCount: popular.searchClicks,

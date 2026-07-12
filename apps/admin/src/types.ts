@@ -17,6 +17,7 @@ export type GongguSubmission = {
   endDate: string | null;
   purchaseUrl: string | null;
   discountInfo: string | null;
+  priceKrw: number | null;
   summary: string | null;
   instagramUrl: string | null;
   imageUrls: string[];
@@ -30,6 +31,9 @@ export type GongguSubmission = {
   reviewedAt: string | null;
   reviewedBy: string | null;
   groupBuyId: string | null;
+  isHomeBanner: boolean;
+  homeBannerStartDate: string | null;
+  homeBannerEndDate: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -43,6 +47,7 @@ export type GroupBuy = {
   endDate: string | null;
   purchaseUrl: string | null;
   discountInfo: string | null;
+  priceKrw: number | null;
   summary: string | null;
   thumbnailUrl: string | null;
   videoUrl: string | null;
@@ -55,6 +60,9 @@ export type GroupBuy = {
   isAllDay: boolean;
   isMonthlyFeatured: boolean;
   monthlyFeaturedRank: number | null;
+  isHomeBanner: boolean;
+  homeBannerStartDate: string | null;
+  homeBannerEndDate: string | null;
   createdAt: string;
   updatedAt: string;
 };
