@@ -104,7 +104,6 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
       elevation: 1,
       marginBottom: spacing.sm,
       minHeight: 122,
-      overflow: 'hidden',
       shadowColor: '#000000',
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: isDark ? 0.08 : 0.04,
