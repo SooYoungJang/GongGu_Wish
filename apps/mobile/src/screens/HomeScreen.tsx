@@ -1361,6 +1361,7 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingHorizontal: HOME_SIDE_PADDING,
     },
     productGrid: {
+      columnGap: spacing.md,
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'space-between',
