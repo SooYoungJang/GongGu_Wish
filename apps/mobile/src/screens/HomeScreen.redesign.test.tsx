@@ -302,7 +302,7 @@ describe('HomeScreenContent redesign', () => {
     ]);
   });
 
-  it('filters home deal cards when a category is selected', () => {
+  it('filters only the deal grid when a category is selected', () => {
     const renderer = renderHomeContent({
       groupBuys: [
         {
@@ -330,7 +330,7 @@ describe('HomeScreenContent redesign', () => {
 
     expect(
       renderer.root.findAllByType(DealCard).map((node) => node.props.item.id),
-    ).toEqual(['beauty-deal', 'beauty-deal']);
+    ).toEqual(['beauty-deal', 'food-deal', 'beauty-deal']);
     expect(beautyChip.props.accessibilityState).toEqual({ selected: true });
   });
 
