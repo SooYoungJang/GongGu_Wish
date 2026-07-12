@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HomeScreenContent } from './HomeScreen';
 import { DealCard } from '../components/DealCard';
+import { spacing } from '../design/tokens';
 import type { GroupBuy } from '../types';
 
 const mockWindowDimensions = vi.hoisted(() => ({ width: 393 }));
@@ -1190,6 +1191,17 @@ describe('HomeScreenContent redesign v2', () => {
 
     expect(dealCards.length).toBeGreaterThanOrEqual(2);
     expect(dealCards.some((card) => card.props.item.id === sampleGroupBuys[0].id)).toBe(true);
+  });
+
+  it('keeps visible spacing between recommendation cards', () => {
+    const renderer = renderHomeContent();
+    const grid = renderer.root.findAll((node) => {
+      const style = flattenStyle(node.props.style);
+      return String(node.type) === 'View' && style.flexWrap === 'wrap' && style.rowGap === 18;
+    })[0];
+
+    expect(grid).toBeDefined();
+    expect(flattenStyle(grid.props.style).columnGap).toBe(spacing.md);
   });
 });
 
