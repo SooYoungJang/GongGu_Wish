@@ -279,6 +279,16 @@ describe('HomeScreenContent redesign', () => {
     ).toHaveLength(1);
   });
 
+  it('keeps the sticky category filter above content for touch input', () => {
+    const renderer = renderHomeContent();
+    const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
+
+    expect(flattenStyle(filter.props.style)).toMatchObject({
+      elevation: expect.any(Number),
+      zIndex: expect.any(Number),
+    });
+  });
+
   it('places the category filter between weekly deals and the deal grid', () => {
     const renderer = renderHomeContent();
     const scroll = renderer.root.findAll(
