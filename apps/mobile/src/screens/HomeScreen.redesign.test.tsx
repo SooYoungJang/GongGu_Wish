@@ -238,13 +238,100 @@ describe('HomeScreenContent redesign', () => {
 
     expect(text).toContain('상품을 검색해보세요');
     expect(text).toContain('쇼핑 홈');
-    expect(text).toContain('장수영님을 위한 추천 상품');
+    expect(text).not.toContain('장수영님을 위한 추천 상품');
+    expect(text).toContain('전체');
+    expect(text).toContain('식품');
+    expect(text).toContain('뷰티');
     expect(text).not.toContain('AI');
     expect(text).not.toContain('광고');
     expect(text).toContain('비건 선크림 공구');
     expect(text).not.toContain('등록된 피드');
     expect(text).toContain('이번주 공구');
     expect(text).toContain('전체보기');
+  });
+
+  it('renders a horizontal category filter before the home deal cards', () => {
+    const renderer = renderHomeContent();
+    const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
+    const scroll = renderer.root.findByProps({
+      testID: 'home-category-filter-scroll',
+    });
+
+    expect(filter.props.accessibilityRole).toBe('tablist');
+    expect(scroll.props.horizontal).toBe(true);
+    expect(scroll.props.showsHorizontalScrollIndicator).toBe(false);
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '전체 카테고리' }),
+    ).toBeDefined();
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '뷰티 카테고리' }),
+    ).toBeDefined();
+  });
+
+  it('keeps the category filter at the scroll header index', () => {
+    const renderer = renderHomeContent();
+
+    expect(
+      renderer.root.findAll((node) =>
+        String(node.type) === 'KeyboardAwareScrollView' &&
+        String(node.props.stickyHeaderIndices) === '1',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('filters home deal cards when a category is selected', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          id: 'beauty-deal',
+          productName: '뷰티 카테고리 상품',
+          category: 'beauty',
+        },
+        {
+          ...sampleGroupBuys[1],
+          id: 'food-deal',
+          productName: '식품 카테고리 상품',
+          category: 'food',
+        },
+      ],
+    });
+
+    const beautyChip = renderer.root.findByProps({
+      accessibilityLabel: '뷰티 카테고리',
+    });
+
+    act(() => {
+      beautyChip.props.onPress();
+    });
+
+    expect(
+      renderer.root.findAllByType(DealCard).map((node) => node.props.item.id),
+    ).toEqual(['beauty-deal', 'beauty-deal']);
+    expect(beautyChip.props.accessibilityState).toEqual({ selected: true });
+  });
+
+  it('maps legacy category values to the canonical home filter', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          id: 'legacy-living-deal',
+          category: 'lifestyle',
+        },
+      ],
+    });
+    const livingChip = renderer.root.findByProps({
+      accessibilityLabel: '생활용품 카테고리',
+    });
+
+    act(() => {
+      livingChip.props.onPress();
+    });
+
+    expect(
+      renderer.root.findAllByType(DealCard).map((node) => node.props.item.id),
+    ).toEqual(['legacy-living-deal', 'legacy-living-deal']);
   });
 
   it('uses the shared deal card for weekly and recommended products', () => {
