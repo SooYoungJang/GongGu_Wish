@@ -54,6 +54,7 @@ function makeStyles() {
       borderCurve: 'circular',
       justifyContent: 'center',
       height: RANK_BADGE_SIZE,
+      overflow: 'hidden',
       width: RANK_BADGE_SIZE,
     },
     text: {
