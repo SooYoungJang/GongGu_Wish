@@ -14,15 +14,19 @@ import { ThumbnailStrip } from './ThumbnailStrip';
 
 export interface SellerRankingRowProps {
   item: SellerRanking;
+  listIndex?: number;
   onPress: (item: SellerRanking) => void;
   onToggleFollow: (item: SellerRanking) => void;
 }
 
-export function SellerRankingRow({ item, onPress, onToggleFollow }: SellerRankingRowProps) {
+export function SellerRankingRow({ item, listIndex, onPress, onToggleFollow }: SellerRankingRowProps) {
   const { colors, isDark } = useCommerceTheme();
   const { width } = useWindowDimensions();
   const s = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
-  const featured = item.rank <= 3;
+  // Filtered lists can keep the server rank on an item while changing its
+  // visible position. Card treatment follows the current list position so
+  // the first three visible cards always share the same shape.
+  const featured = listIndex == null ? item.rank <= 3 : listIndex < 3;
   const compact = width <= 360;
   const thumbnailSize = compact ? 64 : 72;
   const viewCount = item.followerCount == null ? '-' : formatCompactCount(item.followerCount);

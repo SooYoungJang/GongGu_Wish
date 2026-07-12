@@ -44,8 +44,13 @@ export function SellerRankingList({
     [s.content, topInset],
   );
   const renderItem: ListRenderItem<SellerRanking> = useCallback(
-    ({ item }) => (
-      <SellerRankingRow item={item} onPress={onPressItem ?? NOOP} onToggleFollow={onToggleFollow ?? NOOP} />
+    ({ item, index }) => (
+      <SellerRankingRow
+        item={item}
+        listIndex={index}
+        onPress={onPressItem ?? NOOP}
+        onToggleFollow={onToggleFollow ?? NOOP}
+      />
     ),
     [onPressItem, onToggleFollow],
   );
