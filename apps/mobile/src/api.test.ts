@@ -24,6 +24,25 @@ describe('public data fetch diagnostics', () => {
     expect(console.log).toHaveBeenCalledWith('[GroupBuys] fetch failed:', 'Network request failed');
   });
 
+  it('preserves the legacy home-banner fallback when the backend omits the flag', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [
+        {
+          id: 'legacy-group-buy',
+          product_name: '레거시 공구',
+          raw_post_id: null,
+        },
+      ],
+    }) as unknown as typeof fetch;
+
+    const [item] = await fetchGroupBuys();
+
+    expect(item.isHomeBanner).toBeUndefined();
+  });
+
   it('looks up Instagram metadata through the Supabase hiker function', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,

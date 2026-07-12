@@ -10,11 +10,23 @@ export const groupBuyStatusSchema = z.enum([
 export type GroupBuyStatus = z.infer<typeof groupBuyStatusSchema>;
 
 export const groupBuyCategorySchema = z.enum([
+  "food",
+  "living",
   "beauty",
   "fashion",
-  "food",
-  "lifestyle",
+  "home",
+  "kitchen",
+  "electronics",
+  "pet",
+  "auto",
+  "hobby",
   "baby",
+  "sports",
+  "stationery",
+  "books",
+  "media",
+  "travel",
+  "lifestyle",
   "digital",
 ]);
 
@@ -30,6 +42,7 @@ export const groupBuySchema = z.object({
   endDate: z.string().datetime().nullable(),
   purchaseUrl: z.string().url().nullable(),
   discountInfo: z.string().max(200).nullable(),
+  priceKrw: z.number().int().nonnegative().max(2_147_483_647).nullable().default(null),
   summary: z.string().nullable(),
   confidence: z.number().min(0).max(1),
   status: groupBuyStatusSchema,
@@ -40,6 +53,9 @@ export const groupBuySchema = z.object({
   isAllDay: z.boolean(),
   isMonthlyFeatured: z.boolean().default(false),
   monthlyFeaturedRank: z.number().int().nullable().default(null),
+  isHomeBanner: z.boolean().default(false),
+  homeBannerStartDate: z.string().date().nullable().default(null),
+  homeBannerEndDate: z.string().date().nullable().default(null),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

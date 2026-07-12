@@ -39,7 +39,10 @@ export type GroupBuyCategory =
   | 'stationery'
   | 'books'
   | 'media'
-  | 'travel';
+  | 'travel'
+  // Legacy API values retained until existing records are canonicalized.
+  | 'lifestyle'
+  | 'digital';
 
 export type MediaAsset = {
   url: string;
@@ -56,6 +59,7 @@ export type GroupBuy = {
   endDate: string | null;
   purchaseUrl: string | null;
   discountInfo: string | null;
+  priceKrw?: number | null;
   summary: string | null;
   confidence: number;
   thumbnailUrl: string | null;
@@ -65,6 +69,9 @@ export type GroupBuy = {
   mediaType: 'IMAGE' | 'VIDEO' | null;
   isMonthlyFeatured?: boolean;
   monthlyFeaturedRank?: number | null;
+  isHomeBanner?: boolean;
+  homeBannerStartDate?: string | null;
+  homeBannerEndDate?: string | null;
   createdAt?: string;
   rawPost: {
     postUrl: string;

@@ -211,36 +211,51 @@ export async function fetchGroupBuys(): Promise<GroupBuy[]> {
  * Map raw PostgREST group_buy rows into the app's GroupBuy type.
  */
 function mapGroupBuyRows(rows: any[]): GroupBuy[] {
-  return (rows || []).map((item) => ({
-    id: item.id,
-    productName: item.productName ?? item.product_name ?? null,
-    brandName: item.brandName ?? item.brand_name ?? null,
-    category: item.category ?? null,
-    startDate: item.startDate ?? item.start_date ?? null,
-    endDate: item.endDate ?? item.end_date ?? null,
-    purchaseUrl: item.purchaseUrl ?? item.purchase_url ?? null,
-    discountInfo: item.discountInfo ?? item.discount_info ?? null,
-    summary: item.summary ?? null,
-    confidence: item.confidence ?? 0,
-    thumbnailUrl: item.thumbnailUrl ?? item.thumbnail_url ?? null,
-    videoUrl: item.videoUrl ?? item.video_url ?? null,
-    mediaUrls: item.mediaUrls ?? item.media_urls ?? [],
-    mediaItems: item.mediaItems ?? item.media_items ?? [],
-    mediaType: item.mediaType ?? item.media_type ?? null,
-    ...(item.isMonthlyFeatured !== undefined ? { isMonthlyFeatured: item.isMonthlyFeatured } : {}),
-    ...(item.monthlyFeaturedRank !== undefined ? { monthlyFeaturedRank: item.monthlyFeaturedRank } : {}),
-    createdAt: item.createdAt ?? item.created_at ?? undefined,
-    rawPost: {
-      postUrl: item.rawPostId?.postUrl ?? item.raw_post_id?.postUrl ?? item.raw_post_id?.post_url ?? '',
-      influencer: {
-        instagramUsername:
-          item.rawPostId?.influencerId?.instagramUsername ??
-          item.raw_post_id?.influencer_id?.instagramUsername ??
-          item.raw_post_id?.influencer_id?.instagram_username ??
-          '',
+  return (rows || []).map((item) => {
+    const priceKrw = item.priceKrw !== undefined ? item.priceKrw : item.price_krw;
+    const isHomeBanner = item.isHomeBanner !== undefined ? item.isHomeBanner : item.is_home_banner;
+    const homeBannerStartDate = item.homeBannerStartDate !== undefined
+      ? item.homeBannerStartDate
+      : item.home_banner_start_date;
+    const homeBannerEndDate = item.homeBannerEndDate !== undefined
+      ? item.homeBannerEndDate
+      : item.home_banner_end_date;
+
+    return {
+      id: item.id,
+      productName: item.productName ?? item.product_name ?? null,
+      brandName: item.brandName ?? item.brand_name ?? null,
+      category: item.category ?? null,
+      startDate: item.startDate ?? item.start_date ?? null,
+      endDate: item.endDate ?? item.end_date ?? null,
+      purchaseUrl: item.purchaseUrl ?? item.purchase_url ?? null,
+      discountInfo: item.discountInfo ?? item.discount_info ?? null,
+      ...(priceKrw !== undefined ? { priceKrw } : {}),
+      summary: item.summary ?? null,
+      confidence: item.confidence ?? 0,
+      thumbnailUrl: item.thumbnailUrl ?? item.thumbnail_url ?? null,
+      videoUrl: item.videoUrl ?? item.video_url ?? null,
+      mediaUrls: item.mediaUrls ?? item.media_urls ?? [],
+      mediaItems: item.mediaItems ?? item.media_items ?? [],
+      mediaType: item.mediaType ?? item.media_type ?? null,
+      ...(item.isMonthlyFeatured !== undefined ? { isMonthlyFeatured: item.isMonthlyFeatured } : {}),
+      ...(item.monthlyFeaturedRank !== undefined ? { monthlyFeaturedRank: item.monthlyFeaturedRank } : {}),
+      ...(isHomeBanner !== undefined ? { isHomeBanner } : {}),
+      ...(homeBannerStartDate !== undefined ? { homeBannerStartDate } : {}),
+      ...(homeBannerEndDate !== undefined ? { homeBannerEndDate } : {}),
+      createdAt: item.createdAt ?? item.created_at ?? undefined,
+      rawPost: {
+        postUrl: item.rawPostId?.postUrl ?? item.raw_post_id?.postUrl ?? item.raw_post_id?.post_url ?? '',
+        influencer: {
+          instagramUsername:
+            item.rawPostId?.influencerId?.instagramUsername ??
+            item.raw_post_id?.influencer_id?.instagramUsername ??
+            item.raw_post_id?.influencer_id?.instagram_username ??
+            '',
+        },
       },
-    },
-  })) as GroupBuy[];
+    };
+  }) as GroupBuy[];
 }
 
 /**

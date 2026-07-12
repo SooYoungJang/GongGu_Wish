@@ -245,6 +245,19 @@ describe('HomeScreenContent redesign', () => {
     expect(text).toContain('전체보기');
   });
 
+  it('renders legacy lifestyle and digital categories without crashing', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        { ...sampleGroupBuys[0], id: 'legacy-lifestyle', category: 'lifestyle' },
+        { ...sampleGroupBuys[1], id: 'legacy-digital', category: 'digital' },
+      ],
+    });
+
+    const text = flattenText(renderer.toJSON());
+    expect(text).toContain('비건 선크림 공구');
+    expect(text).toContain('프리미엄 그래놀라 세트');
+  });
+
   it('shows shopping home as a static heading without tab semantics', () => {
     const renderer = renderHomeContent();
     const heading = renderer.root.findByProps({ testID: 'home-shop-heading' });
@@ -276,6 +289,149 @@ describe('HomeScreenContent redesign', () => {
     expect(text).not.toContain('1,500명 선착순');
     expect(text).not.toContain('오늘의 공구 특가');
     expect(text).toMatch(/1\s+\/\s+2/);
+  });
+
+  it('filters the hero promo rail to active home-banner contract items', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 13, 12, 0, 0));
+
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    try {
+      const contractItem = (
+        id: string,
+        productName: string,
+        overrides: Partial<GroupBuy>,
+      ): GroupBuy => ({
+        ...sampleGroupBuys[0],
+        id,
+        productName,
+        startDate: '2026-07-10T00:00:00.000Z',
+        endDate: '2026-07-20T23:59:59.000Z',
+        discountInfo: null,
+        isHomeBanner: true,
+        homeBannerStartDate: '2026-07-10',
+        homeBannerEndDate: '2026-07-15',
+        ...overrides,
+      });
+
+      renderer = renderHomeContent({
+        groupBuys: [
+          contractItem('banner-active', '활성 홈 배너', {}),
+          contractItem('banner-active-2', '두 번째 활성 홈 배너', {
+            homeBannerStartDate: '2026-07-13',
+            homeBannerEndDate: '2026-07-14',
+          }),
+          contractItem('banner-ending-today', '오늘 종료 홈 배너', {
+            homeBannerEndDate: '2026-07-13',
+          }),
+          contractItem('banner-disabled', '비활성 홈 배너', {
+            isHomeBanner: false,
+          }),
+          contractItem('banner-future', '기간 전 홈 배너', {
+            homeBannerStartDate: '2026-07-14',
+            homeBannerEndDate: '2026-07-20',
+          }),
+          contractItem('banner-expired', '기간 후 홈 배너', {
+            homeBannerStartDate: '2026-07-01',
+            homeBannerEndDate: '2026-07-12',
+          }),
+        ],
+      });
+
+      expect(
+        renderer.root.findAllByProps({ testID: 'promo-overlay-banner-active' }),
+      ).not.toHaveLength(0);
+      expect(
+        renderer.root.findAllByProps({
+          testID: 'promo-overlay-banner-active-2',
+        }),
+      ).not.toHaveLength(0);
+      expect(
+        renderer.root.findAllByProps({
+          testID: 'promo-overlay-banner-ending-today',
+        }),
+      ).not.toHaveLength(0);
+      expect(
+        renderer.root.findAllByProps({ testID: 'promo-overlay-banner-disabled' }),
+      ).toHaveLength(0);
+      expect(
+        renderer.root.findAllByProps({ testID: 'promo-overlay-banner-future' }),
+      ).toHaveLength(0);
+      expect(
+        renderer.root.findAllByProps({ testID: 'promo-overlay-banner-expired' }),
+      ).toHaveLength(0);
+
+      act(() => {
+        vi.advanceTimersByTime(12 * 60 * 60 * 1000);
+      });
+
+      expect(
+        renderer.root.findAllByProps({ testID: 'promo-overlay-banner-future' }),
+      ).not.toHaveLength(0);
+      expect(
+        renderer.root.findAllByProps({
+          testID: 'promo-overlay-banner-ending-today',
+        }),
+      ).toHaveLength(0);
+    } finally {
+      renderer?.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps an upcoming migrated deal visible from today until commerce starts', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 13, 12, 0, 0));
+
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    try {
+      renderer = renderHomeContent({
+        groupBuys: [
+          {
+            ...sampleGroupBuys[0],
+            productName: '곧 시작하는 홈 배너',
+            startDate: '2026-07-17',
+            endDate: '2026-07-20',
+            isHomeBanner: true,
+            homeBannerStartDate: '2026-07-13',
+            homeBannerEndDate: '2026-07-20',
+          },
+        ],
+      });
+
+      const banner = findPromoBanner(renderer, '곧 시작하는 홈 배너');
+      expect(banner).toBeDefined();
+      expect(banner!.props.accessibilityLabel).toContain('4일 후 시작');
+      expect(flattenText(renderer.toJSON())).toContain('D+4');
+    } finally {
+      renderer?.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it('prefers an explicit priceKrw over a legacy discountInfo price', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          priceKrw: 129000,
+          startDate: isoFromNow(-2),
+          endDate: isoFromNow(4),
+          discountInfo: '공구가 179,000원 + 무료배송',
+        },
+      ],
+    });
+
+    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const bannerText = banner!
+      .findAllByType('Text' as unknown as React.ElementType)
+      .flatMap((node) => node.props.children ?? [])
+      .join(' ');
+
+    expect(bannerText).toContain('129,000원');
+    expect(bannerText).not.toContain('179,000원');
+    expect(banner!.props.accessibilityLabel).toContain('129,000원');
+    expect(banner!.props.accessibilityLabel).not.toContain('179,000원');
   });
 
   it("uses the first media card's representative visual as the banner background", () => {

@@ -85,6 +85,7 @@ model GroupBuy {
   endDate      DateTime?      @map("end_date")
   purchaseUrl  String?        @map("purchase_url")
   discountInfo String?        @map("discount_info")
+  priceKrw     Int?           @map("price_krw")
   summary      String?
   confidence   Float
   status       GroupBuyStatus @default(REVIEW_REQUIRED)
@@ -100,6 +101,9 @@ model GroupBuy {
   // 운영자가 유료 광고/추천 슬롯처럼 지정하는 이달의 공구
   isMonthlyFeatured Boolean   @default(false) @map("is_monthly_featured")
   monthlyFeaturedRank Int?    @map("monthly_featured_rank")
+  isHomeBanner Boolean        @default(false) @map("is_home_banner")
+  homeBannerStartDate DateTime? @db.Date @map("home_banner_start_date")
+  homeBannerEndDate DateTime? @db.Date @map("home_banner_end_date")
   mediaItems   Json           @default("[]") @map("media_items")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
@@ -108,6 +112,7 @@ model GroupBuy {
   @@index([endDate])
   @@index([category])
   @@index([isMonthlyFeatured, monthlyFeaturedRank, endDate])
+  @@index([isHomeBanner, homeBannerStartDate, homeBannerEndDate])
   @@index([sourceType])
   @@map("group_buys")
 }
@@ -146,10 +151,14 @@ model GongguSubmission {
   endDate         DateTime?         @map("end_date")
   purchaseUrl     String?           @map("purchase_url")
   discountInfo    String?           @map("discount_info")
+  priceKrw        Int?              @map("price_krw")
   summary         String?           @map("summary")
   instagramUrl    String?           @map("instagram_url")
   imageUrls       String[]          @default([]) @map("image_urls")
   mediaItems      Json              @default("[]") @map("media_items")
+  isHomeBanner    Boolean           @default(false) @map("is_home_banner")
+  homeBannerStartDate DateTime?     @db.Date @map("home_banner_start_date")
+  homeBannerEndDate DateTime?       @db.Date @map("home_banner_end_date")
 
   // 제보자 정보
   reporterName    String?           @map("reporter_name")

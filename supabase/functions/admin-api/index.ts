@@ -7,6 +7,12 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import {
+  mergeHomeBannerSchedule,
+  normalizeHomeBannerBoolean,
+  normalizeHomeBannerDate,
+  normalizePriceKrw,
+} from './commerceFields.ts';
 import { normalizeMonthlyFeaturedRank } from './monthlyFeaturedRank.ts';
 
 type AdminMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -42,6 +48,7 @@ const SUBMISSION_SELECT = `
   end_date,
   purchase_url,
   discount_info,
+  price_krw,
   summary,
   instagram_url,
   image_urls,
@@ -55,9 +62,11 @@ const SUBMISSION_SELECT = `
   reviewed_at,
   reviewed_by,
   group_buy_id,
+  is_home_banner,
+  home_banner_start_date,
+  home_banner_end_date,
   created_at,
-  updated_at,
-  status
+  updated_at
 `;
 
 const GROUP_BUY_SELECT = `
@@ -69,6 +78,7 @@ const GROUP_BUY_SELECT = `
   end_date,
   purchase_url,
   discount_info,
+  price_krw,
   summary,
   thumbnail_url,
   video_url,
@@ -82,9 +92,11 @@ const GROUP_BUY_SELECT = `
   is_all_day,
   is_monthly_featured,
   monthly_featured_rank,
+  is_home_banner,
+  home_banner_start_date,
+  home_banner_end_date,
   created_at,
-  updated_at,
-  status
+  updated_at
 `;
 
 const USER_SELECT = `
@@ -199,7 +211,45 @@ function normalizeMediaUrls(value: unknown): string[] {
     : [];
 }
 
-function normalizeSubmissionPatch(body: Record<string, unknown>) {
+function normalizeCommercePatch(
+  body: Record<string, unknown>,
+  existing: Record<string, unknown>,
+) {
+  const patch: Record<string, unknown> = {};
+  if (hasOwn(body, 'priceKrw')) patch.price_krw = normalizePriceKrw(body.priceKrw);
+
+  const scheduleTouched = ['isHomeBanner', 'homeBannerStartDate', 'homeBannerEndDate']
+    .some((key) => hasOwn(body, key));
+  if (scheduleTouched) {
+    const merged = mergeHomeBannerSchedule(compact({
+      isHomeBanner: hasOwn(body, 'isHomeBanner')
+        ? normalizeHomeBannerBoolean(body.isHomeBanner)
+        : undefined,
+      startDate: hasOwn(body, 'homeBannerStartDate')
+        ? normalizeHomeBannerDate(body.homeBannerStartDate, 'homeBannerStartDate')
+        : undefined,
+      endDate: hasOwn(body, 'homeBannerEndDate')
+        ? normalizeHomeBannerDate(body.homeBannerEndDate, 'homeBannerEndDate')
+        : undefined,
+    }), {
+      isHomeBanner: bool(existing.is_home_banner),
+      startDate: typeof existing.home_banner_start_date === 'string'
+        ? existing.home_banner_start_date
+        : null,
+      endDate: typeof existing.home_banner_end_date === 'string'
+        ? existing.home_banner_end_date
+        : null,
+    });
+
+    if (hasOwn(body, 'isHomeBanner')) patch.is_home_banner = merged.isHomeBanner;
+    if (hasOwn(body, 'homeBannerStartDate')) patch.home_banner_start_date = merged.startDate;
+    if (hasOwn(body, 'homeBannerEndDate')) patch.home_banner_end_date = merged.endDate;
+  }
+
+  return patch;
+}
+
+function normalizeSubmissionPatch(body: Record<string, unknown>, existing: Record<string, unknown>) {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (hasOwn(body, 'productName')) patch.product_name = str(body.productName);
@@ -214,11 +264,12 @@ function normalizeSubmissionPatch(body: Record<string, unknown>) {
   if (hasOwn(body, 'imageUrls')) patch.image_urls = normalizeMediaUrls(body.imageUrls);
   if (hasOwn(body, 'mediaItems')) patch.media_items = normalizeMediaItems(body.mediaItems);
   if (hasOwn(body, 'adminMemo')) patch.admin_memo = str(body.adminMemo);
+  Object.assign(patch, normalizeCommercePatch(body, existing));
 
   return patch;
 }
 
-function normalizeGroupBuyPatch(body: Record<string, unknown>) {
+function normalizeGroupBuyPatch(body: Record<string, unknown>, existing: Record<string, unknown>) {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (hasOwn(body, 'productName')) patch.product_name = str(body.productName);
@@ -241,6 +292,7 @@ function normalizeGroupBuyPatch(body: Record<string, unknown>) {
   if (hasOwn(body, 'monthlyFeaturedRank')) {
     patch.monthly_featured_rank = normalizeMonthlyFeaturedRank(body.monthlyFeaturedRank);
   }
+  Object.assign(patch, normalizeCommercePatch(body, existing));
 
   return patch;
 }
@@ -261,6 +313,7 @@ function mapSubmission(row: Record<string, unknown>) {
     endDate: row.end_date,
     purchaseUrl: row.purchase_url,
     discountInfo: row.discount_info,
+    priceKrw: row.price_krw,
     summary: row.summary,
     instagramUrl: row.instagram_url,
     imageUrls: row.image_urls ?? [],
@@ -274,6 +327,9 @@ function mapSubmission(row: Record<string, unknown>) {
     reviewedAt: row.reviewed_at,
     reviewedBy: row.reviewed_by,
     groupBuyId: row.group_buy_id,
+    isHomeBanner: row.is_home_banner,
+    homeBannerStartDate: row.home_banner_start_date,
+    homeBannerEndDate: row.home_banner_end_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -289,6 +345,7 @@ function mapGroupBuy(row: Record<string, unknown>) {
     endDate: row.end_date,
     purchaseUrl: row.purchase_url,
     discountInfo: row.discount_info,
+    priceKrw: row.price_krw,
     summary: row.summary,
     thumbnailUrl: row.thumbnail_url,
     videoUrl: row.video_url,
@@ -302,6 +359,9 @@ function mapGroupBuy(row: Record<string, unknown>) {
     isAllDay: row.is_all_day,
     isMonthlyFeatured: row.is_monthly_featured,
     monthlyFeaturedRank: row.monthly_featured_rank,
+    isHomeBanner: row.is_home_banner,
+    homeBannerStartDate: row.home_banner_start_date,
+    homeBannerEndDate: row.home_banner_end_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -434,9 +494,16 @@ async function dashboard(supabase: AdminClient) {
 }
 
 async function updateSubmission(supabase: AdminClient, id: string, body: Record<string, unknown>) {
+  const { data: existing, error: findError } = await supabase
+    .from('gonggu_submissions')
+    .select('is_home_banner, home_banner_start_date, home_banner_end_date')
+    .eq('id', id)
+    .single();
+  if (findError) throw new Error(findError.message);
+
   const { data, error } = await supabase
     .from('gonggu_submissions')
-    .update(compact(normalizeSubmissionPatch(body)))
+    .update(compact(normalizeSubmissionPatch(body, existing)))
     .eq('id', id)
     .select(SUBMISSION_SELECT)
     .single();
@@ -463,7 +530,7 @@ async function approveSubmission(
     throw new Error(`이미 ${existing.status} 처리된 제보입니다.`);
   }
 
-  const patch = compact(normalizeSubmissionPatch(body));
+  const patch = compact(normalizeSubmissionPatch(body, existing));
   const productName = str(body.productName) ?? str(existing.product_name);
   if (!productName || productName.length < 2) {
     throw new Error('제품명을 입력해주세요.');
@@ -477,6 +544,7 @@ async function approveSubmission(
     end_date: hasOwn(body, 'endDate') ? str(body.endDate) : existing.end_date,
     purchase_url: hasOwn(body, 'purchaseUrl') ? str(body.purchaseUrl) : existing.purchase_url,
     discount_info: hasOwn(body, 'discountInfo') ? str(body.discountInfo) : existing.discount_info,
+    price_krw: hasOwn(body, 'priceKrw') ? patch.price_krw : existing.price_krw,
     summary: hasOwn(body, 'summary') ? str(body.summary) : existing.summary,
     thumbnail_url: str(body.thumbnailUrl),
     video_url: str(body.videoUrl),
@@ -488,6 +556,13 @@ async function approveSubmission(
     monthly_featured_rank: hasOwn(body, 'monthlyFeaturedRank')
       ? normalizeMonthlyFeaturedRank(body.monthlyFeaturedRank)
       : null,
+    is_home_banner: hasOwn(body, 'isHomeBanner') ? patch.is_home_banner : existing.is_home_banner,
+    home_banner_start_date: hasOwn(body, 'homeBannerStartDate')
+      ? patch.home_banner_start_date
+      : existing.home_banner_start_date,
+    home_banner_end_date: hasOwn(body, 'homeBannerEndDate')
+      ? patch.home_banner_end_date
+      : existing.home_banner_end_date,
     source_type: 'SUBMISSION',
     submission_id: id,
     status: 'APPROVED',
@@ -784,9 +859,16 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   }
   if (path.startsWith('/admin/group-buys/') && method === 'PATCH') {
     const id = path.replace('/admin/group-buys/', '');
+    const { data: existing, error: findError } = await supabase
+      .from('group_buys')
+      .select('is_home_banner, home_banner_start_date, home_banner_end_date')
+      .eq('id', id)
+      .single();
+    if (findError) throw new Error(findError.message);
+
     const { data, error } = await supabase
       .from('group_buys')
-      .update(compact(normalizeGroupBuyPatch(body)))
+      .update(compact(normalizeGroupBuyPatch(body, existing)))
       .eq('id', id)
       .select(GROUP_BUY_SELECT)
       .single();

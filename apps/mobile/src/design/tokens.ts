@@ -212,6 +212,12 @@ export const categoryColors = {
     text: colors.categoryLifestyleText,
     border: colors.categoryLifestyleBorder,
   },
+  // Legacy API category kept render-safe while records migrate to `living`.
+  lifestyle: {
+    bg: colors.categoryLifestyleBg,
+    text: colors.categoryLifestyleText,
+    border: colors.categoryLifestyleBorder,
+  },
   home: {
     bg: colors.categoryHomeBg,
     text: colors.categoryHomeText,
@@ -226,6 +232,12 @@ export const categoryColors = {
     bg: colors.categoryElectronicsBg,
     text: colors.categoryElectronicsText,
     border: colors.categoryElectronicsBorder,
+  },
+  // Legacy API category kept render-safe while records migrate to `electronics`.
+  digital: {
+    bg: colors.categoryDigitalBg,
+    text: colors.categoryDigitalText,
+    border: colors.categoryDigitalBorder,
   },
   pet: {
     bg: colors.categoryPetBg,

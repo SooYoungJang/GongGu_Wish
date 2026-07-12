@@ -90,6 +90,21 @@ describe('GroupBuysService', () => {
         expect.objectContaining({ take: 5 })
       );
     });
+
+    it('serializes Prisma home banner dates as date-only strings', async () => {
+      prisma.groupBuy.findMany.mockResolvedValue([{
+        id: 'gb-1',
+        homeBannerStartDate: new Date('2026-07-12T00:00:00.000Z'),
+        homeBannerEndDate: new Date('2026-07-19T00:00:00.000Z'),
+      }]);
+
+      const result = await service.list({ limit: 50 });
+
+      expect(result).toEqual([expect.objectContaining({
+        homeBannerStartDate: '2026-07-12',
+        homeBannerEndDate: '2026-07-19',
+      })]);
+    });
   });
 
   describe('getCalendarView', () => {
@@ -129,6 +144,23 @@ describe('GroupBuysService', () => {
         ],
         meta: { total: 1, month: '2026-06' },
       });
+    });
+
+    it('serializes nullable Prisma home banner dates in calendar items', async () => {
+      prisma.groupBuy.findMany.mockResolvedValue([{
+        id: 'gb-1',
+        startDate: new Date('2026-06-10T00:00:00.000Z'),
+        endDate: new Date('2026-06-15T00:00:00.000Z'),
+        homeBannerStartDate: new Date('2026-06-01T00:00:00.000Z'),
+        homeBannerEndDate: null,
+      }]);
+
+      const result = await service.getCalendarView({ year: 2026, month: 6 });
+
+      expect(result.items[0]?.groupBuys[0]).toEqual(expect.objectContaining({
+        homeBannerStartDate: '2026-06-01',
+        homeBannerEndDate: null,
+      }));
     });
 
     it('groups overlapping group buys by UTC start date', async () => {

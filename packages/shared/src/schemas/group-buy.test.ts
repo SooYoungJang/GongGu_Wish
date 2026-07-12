@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   groupBuySchema,
+  groupBuyCategorySchema,
   groupBuyStatusSchema,
   groupBuysResponseSchema,
   groupBuyAdminSchema,
@@ -12,6 +13,14 @@ import {
 } from "./group-buy";
 
 describe("group-buy schemas", () => {
+  describe("groupBuyCategorySchema", () => {
+    it("keeps legacy categories compatible while accepting inferred categories", () => {
+      for (const category of ["lifestyle", "digital", "living", "electronics"]) {
+        expect(groupBuyCategorySchema.safeParse(category).success).toBe(true);
+      }
+    });
+  });
+
   describe("groupBuyStatusSchema", () => {
     it("validates all allowed status values", () => {
       const validStatuses = ["APPROVED", "REVIEW_REQUIRED", "REJECTED", "EXPIRED"] as const;
@@ -38,6 +47,7 @@ describe("group-buy schemas", () => {
       endDate: "2026-06-27T23:59:59.000Z",
       purchaseUrl: "https://example.com/buy",
       discountInfo: "20% 할인",
+      priceKrw: null,
       summary: "공구 요약",
       confidence: 0.85,
       status: "APPROVED",
@@ -48,6 +58,11 @@ describe("group-buy schemas", () => {
       submissionId: null,
       submission: null,
       isAllDay: false,
+      isMonthlyFeatured: false,
+      monthlyFeaturedRank: null,
+      isHomeBanner: false,
+      homeBannerStartDate: null,
+      homeBannerEndDate: null,
       createdAt: "2026-06-15T09:00:00.000Z",
       updatedAt: "2026-06-15T10:00:00.000Z",
       ...overrides,
@@ -57,6 +72,43 @@ describe("group-buy schemas", () => {
       const gb = createValidGroupBuy();
       const result = groupBuySchema.safeParse(gb);
       expect(result.success).toBe(true);
+    });
+
+    it("validates explicit price and home banner schedule fields", () => {
+      const result = groupBuySchema.safeParse({
+        ...createValidGroupBuy(),
+        priceKrw: 39000,
+        isHomeBanner: true,
+        homeBannerStartDate: "2026-07-12",
+        homeBannerEndDate: "2026-07-19",
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.priceKrw).toBe(39000);
+        expect(result.data.isHomeBanner).toBe(true);
+        expect(result.data.homeBannerEndDate).toBe("2026-07-19");
+      }
+    });
+
+    it("rejects negative or fractional KRW prices", () => {
+      for (const priceKrw of [-1, 1.5, 2_147_483_648]) {
+        expect(groupBuySchema.safeParse({ ...createValidGroupBuy(), priceKrw }).success).toBe(false);
+      }
+    });
+
+    it("accepts the largest PostgreSQL INTEGER price", () => {
+      expect(groupBuySchema.safeParse({
+        ...createValidGroupBuy(),
+        priceKrw: 2_147_483_647,
+      }).success).toBe(true);
+    });
+
+    it("rejects impossible home banner calendar dates", () => {
+      expect(groupBuySchema.safeParse({
+        ...createValidGroupBuy(),
+        homeBannerStartDate: "2026-02-30",
+      }).success).toBe(false);
     });
 
     it("validates with submission source type", () => {

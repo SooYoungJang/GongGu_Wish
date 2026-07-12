@@ -31,6 +31,7 @@ import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
 import { borderRadius, categoryColors, spacing } from '../design/tokens';
 import { getDaysRemaining } from '../utils';
 import { isGroupBuyActiveOnDate } from '../utils/groupBuyDates';
+import { formatPriceKrw, selectHomeBannerItems } from '../utils/homeBanner';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { CommerceColorPalette } from '../design/commerce';
 import type { GroupBuy, HomeScreenProps } from '../types';
@@ -233,7 +234,7 @@ function getPromoStatusCopy(item: GroupBuy, now = new Date()): PromoStatusCopy {
     };
   }
 
-  const price = getPromoPrice(item.discountInfo);
+  const price = formatPriceKrw(item.priceKrw) ?? getPromoPrice(item.discountInfo);
   const discountPercent = getPromoDiscountPercent(item.discountInfo);
 
   if (startDate && startDate.getTime() > now.getTime()) {
@@ -417,9 +418,37 @@ function PromoBanner({
   cardWidth: number;
   sidePadding: number;
 }) {
+  const [homeBannerDateTick, setHomeBannerDateTick] = useState(0);
+
+  useEffect(() => {
+    let midnightTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleNextMidnight = () => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setHours(24, 0, 0, 0);
+      const delay = Math.max(1, nextMidnight.getTime() - now.getTime());
+
+      midnightTimer = setTimeout(() => {
+        setHomeBannerDateTick((tick) => tick + 1);
+        scheduleNextMidnight();
+      }, delay);
+    };
+
+    scheduleNextMidnight();
+
+    return () => {
+      if (midnightTimer) clearTimeout(midnightTimer);
+    };
+  }, []);
+
   const promoItems = useMemo(
-    () => getDisplayItems(groupBuys).slice(0, 6),
-    [groupBuys],
+    () => {
+      const displayItems = getDisplayItems(groupBuys);
+      const hasBannerContract = displayItems.some((item) => item.isHomeBanner !== undefined);
+      return (hasBannerContract ? selectHomeBannerItems(displayItems) : displayItems).slice(0, 6);
+    },
+    [groupBuys, homeBannerDateTick],
   );
   const scrollRef = useRef<ScrollView | null>(null);
   const currentPositionRef = useRef(promoItems.length > 1 ? 1 : 0);

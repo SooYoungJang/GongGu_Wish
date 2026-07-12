@@ -102,4 +102,27 @@ describe('usePopularGroupBuys', () => {
       expect(state.updatedAt).toBe(1_720_000_000_000);
     }
   });
+
+  it.each([
+    ['lifestyle', 'living'],
+    ['digital', 'electronics'],
+  ] as const)('maps the legacy %s category to %s for ranking filters', (legacy, canonical) => {
+    queryMock.current.data = [
+      {
+        groupBuyId: legacy,
+        deepViews: 1,
+        bookmarks: 0,
+        searchClicks: 0,
+        score: 1,
+        groupBuy: { ...groupBuy(legacy), category: legacy },
+      },
+    ];
+
+    const state = renderRanking('popular');
+
+    expect(state.status).toBe('ready');
+    if (state.status === 'ready') {
+      expect(state.data[0].category).toBe(canonical);
+    }
+  });
 });
