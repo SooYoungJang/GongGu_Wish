@@ -3,6 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HomeScreenContent } from './HomeScreen';
+import { DealCard } from '../components/DealCard';
 import type { GroupBuy } from '../types';
 
 const mockWindowDimensions = vi.hoisted(() => ({ width: 393 }));
@@ -243,6 +244,15 @@ describe('HomeScreenContent redesign', () => {
     expect(text).not.toContain('등록된 피드');
     expect(text).toContain('이번주 공구');
     expect(text).toContain('전체보기');
+  });
+
+  it('uses the shared deal card for weekly and recommended products', () => {
+    const renderer = renderHomeContent();
+    const text = flattenText(renderer.toJSON());
+
+    expect(renderer.root.findAllByType(DealCard).length).toBeGreaterThanOrEqual(2);
+    expect(text).not.toContain('역대급특가');
+    expect(text).not.toContain('25% 특가');
   });
 
   it('renders legacy lifestyle and digital categories without crashing', () => {
@@ -1174,21 +1184,12 @@ describe('HomeScreenContent redesign v2', () => {
     expect(text).not.toContain('오늘 열려있는 공구');
   });
 
-  it('renders two-column recommendation cards', () => {
+  it('renders shared deal cards in the two-column recommendation grid', () => {
     const renderer = renderHomeContent();
-    // The same deal may render in multiple sections; pick the recommendation card
-    // which uses a percentage width in a wrapping two-column grid.
-    const cards = renderer.root.findAllByProps({
-      accessibilityLabel: '비건 선크림 공구 상세 보기',
-    });
-    const gridCard = cards.find((card) => {
-      const style = flattenStyle(card.props.style);
-      return typeof style.width === 'string' && style.width.endsWith('%');
-    });
-    expect(gridCard).toBeDefined();
-    const style = flattenStyle(gridCard!.props.style);
-    expect(style.width).toBe('48.4%');
-    expect(style.minHeight).toBeGreaterThanOrEqual(200);
+    const dealCards = renderer.root.findAllByType(DealCard);
+
+    expect(dealCards.length).toBeGreaterThanOrEqual(2);
+    expect(dealCards.some((card) => card.props.item.id === sampleGroupBuys[0].id)).toBe(true);
   });
 });
 

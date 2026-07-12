@@ -25,11 +25,12 @@ import { useQuery } from '@tanstack/react-query';
 
 import { SText } from '../components/ui/SText';
 import { SearchGlyph } from '../components/ui/LineGlyphs';
+import { DealCard } from '../components/DealCard';
+import { categoryForGroupBuy } from '../components/home/DealCardGrid';
 import { WeeklyCalendarStrip } from '../components/home/WeeklyCalendarStrip';
 import { fallbackGroupBuys, fetchGroupBuys } from '../api';
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
-import { borderRadius, categoryColors, spacing } from '../design/tokens';
-import { getDaysRemaining } from '../utils';
+import { borderRadius, spacing } from '../design/tokens';
 import { isGroupBuyActiveOnDate } from '../utils/groupBuyDates';
 import { formatPriceKrw, selectHomeBannerItems } from '../utils/homeBanner';
 import { useCommerceTheme } from '../design/useCommerceTheme';
@@ -62,15 +63,6 @@ type PromoStatusCopy = {
   detailLabel?: string;
   secondaryLabel?: string;
 };
-
-function getVisual(item: GroupBuy) {
-  return (
-    item.thumbnailUrl ??
-    item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ??
-    item.mediaUrls?.[0] ??
-    null
-  );
-}
 
 function getPromoVisual(item: GroupBuy) {
   const firstMedia = item.mediaItems?.[0];
@@ -107,20 +99,6 @@ function getPromoVisual(item: GroupBuy) {
 
 function getDisplayItems(groupBuys: GroupBuy[]) {
   return groupBuys.length > 0 ? groupBuys : fallbackGroupBuys;
-}
-
-function formatDeadlineLabel(endDate: string | null) {
-  if (!endDate) return '마감일 확인 중';
-
-  const date = new Date(endDate);
-  if (Number.isNaN(date.getTime())) return '마감일 확인 중';
-
-  const days = Math.ceil((date.getTime() - Date.now()) / 86_400_000);
-  if (days < 0) return '마감';
-  if (days === 0) return '오늘 마감';
-  if (days === 1) return '내일 마감';
-  if (days <= 7) return `${days}일 남음`;
-  return `${date.getMonth() + 1}/${date.getDate()} 마감`;
 }
 
 function getPromoFallbackMark(item: GroupBuy) {
@@ -772,65 +750,15 @@ function WeeklyGroupBuysSection({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.weeklyList}
         >
-          {dayItems.map((item) => {
-            const visual = getVisual(item);
-            const days = getDaysRemaining(item.endDate);
-            const categoryToken = categoryColors[item.category ?? 'beauty'];
-            return (
-              <Pressable
-                accessibilityLabel={`${item.productName ?? '공구'} 상세 보기`}
-                accessibilityRole="button"
-                key={item.id}
+          {dayItems.map((item, index) => (
+            <View key={item.id} style={s.weeklyCard}>
+              <DealCard
+                item={item}
+                category={categoryForGroupBuy(item, index)}
                 onPress={() => onPressDeal(item)}
-                style={({ pressed }) => [
-                  s.weeklyCard,
-                  pressed && s.weeklyCardPressed,
-                ]}
-              >
-                <View style={s.weeklyImageWrap}>
-                  {visual ? (
-                    <Image source={{ uri: visual }} style={s.weeklyImage} />
-                  ) : (
-                    <View
-                      style={[
-                        s.weeklyFallback,
-                        { backgroundColor: categoryToken.bg },
-                      ]}
-                    >
-                      <SText
-                        variant="cardTitle"
-                        style={[
-                          s.weeklyFallbackText,
-                          { color: categoryToken.text },
-                        ]}
-                      >
-                        {(item.brandName ?? item.productName ?? '공구').slice(
-                          0,
-                          2,
-                        )}
-                      </SText>
-                    </View>
-                  )}
-                  <View style={s.weeklyDeadlineBadge}>
-                    <SText variant="caption" style={s.weeklyDeadlineText}>
-                      {days === 0 ? '오늘 마감' : `${days}일 남음`}
-                    </SText>
-                  </View>
-                </View>
-                <SText variant="body" numberOfLines={1} style={s.weeklyBrand}>
-                  {item.brandName ??
-                    `@${item.rawPost.influencer.instagramUsername}`}
-                </SText>
-                <SText
-                  variant="caption"
-                  numberOfLines={2}
-                  style={s.weeklyTitle}
-                >
-                  {item.productName ?? '공동구매 상품'}
-                </SText>
-              </Pressable>
-            );
-          })}
+              />
+            </View>
+          ))}
         </ScrollView>
       ) : (
         <View style={s.weeklyEmpty}>
@@ -864,12 +792,11 @@ function RecommendedProducts({
       {products.length > 0 ? (
         <View style={s.productGrid}>
           {products.map((item, index) => (
-            <RecommendedProductCard
+            <DealCard
               item={item}
               key={item.id}
-              label={index % 2 === 0 ? '역대급특가' : '25% 특가'}
               onPress={() => onPressDeal(item)}
-              s={s}
+              category={categoryForGroupBuy(item, index)}
             />
           ))}
         </View>
@@ -881,61 +808,6 @@ function RecommendedProducts({
         </View>
       )}
     </View>
-  );
-}
-
-function RecommendedProductCard({
-  item,
-  label,
-  onPress,
-  s,
-}: {
-  item: GroupBuy;
-  label: string;
-  onPress: HomeAction;
-  s: ReturnType<typeof makeStyles>;
-}) {
-  const visual = getVisual(item);
-  const categoryToken = categoryColors[item.category ?? 'beauty'];
-
-  return (
-    <Pressable
-      accessibilityLabel={`${item.productName ?? '공구'} 상세 보기`}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={s.productCard}
-    >
-      <View style={s.productImageWrap}>
-        {visual ? (
-          <Image source={{ uri: visual }} style={s.productImage} />
-        ) : (
-          <View
-            style={[s.productFallback, { backgroundColor: categoryToken.bg }]}
-          >
-            <SText
-              variant="cardTitle"
-              style={[s.productFallbackText, { color: categoryToken.text }]}
-            >
-              {(item.brandName ?? item.productName ?? '공구').slice(0, 2)}
-            </SText>
-          </View>
-        )}
-        <View style={s.productBadge}>
-          <SText variant="label" style={s.productBadgeText}>
-            {label}
-          </SText>
-        </View>
-      </View>
-      <SText variant="subtitle" numberOfLines={2} style={s.productTitle}>
-        {item.productName ?? '공동구매 상품'}
-      </SText>
-      <SText variant="caption" numberOfLines={1} style={s.productMeta}>
-        {item.brandName ?? `@${item.rawPost.influencer.instagramUsername}`}
-      </SText>
-      <SText variant="cardBrand" numberOfLines={1} style={s.productDeal}>
-        {item.discountInfo ?? formatDeadlineLabel(item.endDate)}
-      </SText>
-    </Pressable>
   );
 }
 
@@ -1289,56 +1161,6 @@ function makeStyles(colors: CommerceColorPalette) {
     weeklyCard: {
       width: 148,
     },
-    weeklyCardPressed: { opacity: 0.8 },
-    weeklyImageWrap: {
-      backgroundColor: colors.softBg,
-      borderRadius: borderRadius.lg,
-      height: 148,
-      marginBottom: 8,
-      overflow: 'hidden',
-      position: 'relative',
-      width: 148,
-    },
-    weeklyImage: { height: '100%', resizeMode: 'cover', width: '100%' },
-    weeklyFallback: {
-      alignItems: 'center',
-      flex: 1,
-      justifyContent: 'center',
-    },
-    weeklyFallbackText: { fontSize: 22, fontWeight: '900' },
-    weeklyDeadlineBadge: {
-      backgroundColor: colors.overlay,
-      borderBottomLeftRadius: borderRadius.lg,
-      borderBottomRightRadius: borderRadius.lg,
-      bottom: 0,
-      left: 0,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      position: 'absolute',
-      right: 0,
-    },
-    weeklyDeadlineText: {
-      color: colors.inverse,
-      fontSize: 11,
-      fontWeight: '900',
-      letterSpacing: 0,
-      lineHeight: 15,
-    },
-    weeklyBrand: {
-      color: colors.muted,
-      fontSize: 13,
-      fontWeight: '700',
-      letterSpacing: 0,
-      lineHeight: 18,
-      marginBottom: 2,
-    },
-    weeklyTitle: {
-      color: colors.text,
-      fontSize: 14,
-      fontWeight: '800',
-      letterSpacing: 0,
-      lineHeight: 19,
-    },
     weeklyEmpty: {
       alignItems: 'center',
       minHeight: 120,
@@ -1543,65 +1365,6 @@ function makeStyles(colors: CommerceColorPalette) {
       flexWrap: 'wrap',
       justifyContent: 'space-between',
       rowGap: 18,
-    },
-    productCard: {
-      minHeight: 206,
-      width: '48.4%',
-    },
-    productImageWrap: {
-      aspectRatio: 1,
-      backgroundColor: colors.panelBg,
-      borderRadius: 16,
-      overflow: 'hidden',
-      position: 'relative',
-      width: '100%',
-    },
-    productImage: { height: '100%', resizeMode: 'cover', width: '100%' },
-    productFallback: {
-      alignItems: 'center',
-      flex: 1,
-      justifyContent: 'center',
-    },
-    productFallbackText: { fontSize: 18, fontWeight: '900' },
-    productBadge: {
-      backgroundColor: colors.accent,
-      borderRadius: 6,
-      left: 7,
-      paddingHorizontal: 7,
-      paddingVertical: 4,
-      position: 'absolute',
-      top: 7,
-    },
-    productBadgeText: {
-      color: colors.inverse,
-      fontSize: 12,
-      fontWeight: '900',
-      letterSpacing: 0,
-      lineHeight: 16,
-    },
-    productTitle: {
-      color: colors.text,
-      fontSize: 13,
-      fontWeight: '800',
-      letterSpacing: 0,
-      lineHeight: 18,
-      marginTop: 8,
-    },
-    productMeta: {
-      color: colors.muted,
-      fontSize: 11,
-      fontWeight: '600',
-      letterSpacing: 0,
-      lineHeight: 15,
-      marginTop: 2,
-    },
-    productDeal: {
-      color: colors.accent,
-      fontSize: 12,
-      fontWeight: '900',
-      letterSpacing: 0,
-      lineHeight: 16,
-      marginTop: 2,
     },
     productEmpty: {
       alignItems: 'center',
