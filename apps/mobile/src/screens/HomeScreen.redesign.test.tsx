@@ -278,7 +278,7 @@ describe('HomeScreenContent redesign', () => {
     expect(text).toMatch(/1\s+\/\s+2/);
   });
 
-  it('uses the first DB image as a full-bleed banner background', () => {
+  it("uses the first media card's representative visual as the banner background", () => {
     const renderer = renderHomeContent({
       groupBuys: [
         {
@@ -308,7 +308,7 @@ describe('HomeScreenContent redesign', () => {
 
     const image = renderer.root.findByProps({ testID: 'promo-image-gb-1' });
     expect(image.props.source).toEqual({
-      uri: 'https://example.com/first-product.jpg',
+      uri: 'https://example.com/video-poster.jpg',
     });
     expect(image.props.resizeMode).toBe('cover');
     expect(flattenStyle(image.props.style).position).toBe('absolute');
@@ -327,6 +327,33 @@ describe('HomeScreenContent redesign', () => {
     const scrim = renderer.root.findByProps({ testID: 'promo-scrim-gb-1' });
     expect(scrim.props.resizeMode).toBe('stretch');
     expect(scrim.props.source).toBeTruthy();
+  });
+
+  it('adds a subtle full-card shade behind the promo overlay text', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          mediaItems: [
+            {
+              mediaType: 'IMAGE',
+              thumbnailUrl: 'https://example.com/bright-product.jpg',
+              url: 'https://example.com/bright-product.jpg',
+            },
+          ],
+        },
+      ],
+    });
+
+    const shade = renderer.root.findByProps({ testID: 'promo-shade-gb-1' });
+    const shadeStyle = flattenStyle(shade.props.style);
+
+    expect(shadeStyle.position).toBe('absolute');
+    expect(shadeStyle.top).toBe(0);
+    expect(shadeStyle.right).toBe(0);
+    expect(shadeStyle.bottom).toBe(0);
+    expect(shadeStyle.left).toBe(0);
+    expect(shadeStyle.backgroundColor).toBe('rgba(0, 0, 0, 0.18)');
   });
 
   it('shows the start timing and price-release fallback for an upcoming deal', () => {
