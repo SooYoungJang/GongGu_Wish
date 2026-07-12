@@ -329,6 +329,55 @@ describe('HomeScreenContent redesign', () => {
     expect(scrim.props.source).toBeTruthy();
   });
 
+  it('prefers the first image card original over its thumbnail and cover', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          thumbnailUrl: 'https://example.com/cover.jpg',
+          mediaItems: [
+            {
+              mediaType: 'IMAGE',
+              thumbnailUrl: 'https://example.com/first-image-thumb.jpg',
+              url: 'https://example.com/first-image-original.jpg',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      renderer.root.findByProps({ testID: 'promo-image-gb-1' }).props.source,
+    ).toEqual({ uri: 'https://example.com/first-image-original.jpg' });
+  });
+
+  it('uses the group-buy cover when the first video card has no poster', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          thumbnailUrl: 'https://example.com/video-cover-fallback.jpg',
+          mediaItems: [
+            {
+              mediaType: 'VIDEO',
+              thumbnailUrl: null,
+              url: 'https://example.com/intro.mp4',
+            },
+            {
+              mediaType: 'IMAGE',
+              thumbnailUrl: 'https://example.com/later-image-thumb.jpg',
+              url: 'https://example.com/later-image.jpg',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      renderer.root.findByProps({ testID: 'promo-image-gb-1' }).props.source,
+    ).toEqual({ uri: 'https://example.com/video-cover-fallback.jpg' });
+  });
+
   it('adds a subtle full-card shade behind the promo overlay text', () => {
     const renderer = renderHomeContent({
       groupBuys: [
