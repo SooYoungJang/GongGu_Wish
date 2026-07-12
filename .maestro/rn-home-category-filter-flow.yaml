@@ -36,3 +36,6 @@ tags:
 - waitForAnimationToEnd
 - assertVisible: "전체 카테고리"
 - takeScreenshot: rn-home-category-filter-03-sticky
+- tapOn: "뷰티 카테고리"
+- waitForAnimationToEnd
+- takeScreenshot: rn-home-category-filter-04-sticky-beauty

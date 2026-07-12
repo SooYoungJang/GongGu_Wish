@@ -1460,6 +1460,7 @@ function makeStyles(colors: CommerceColorPalette) {
       backgroundColor: colors.bg,
       borderBottomColor: colors.divider,
       borderBottomWidth: StyleSheet.hairlineWidth,
+      elevation: 4,
       paddingVertical: spacing.sm,
       zIndex: 2,
     },
