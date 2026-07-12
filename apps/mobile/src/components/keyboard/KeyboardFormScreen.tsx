@@ -20,6 +20,8 @@ type KeyboardFormScreenProps = {
   contentContainerStyle?: StyleProp<ViewStyle>;
   style?: StyleProp<ViewStyle>;
   keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
+  onScroll?: ScrollViewProps['onScroll'];
+  scrollEventThrottle?: ScrollViewProps['scrollEventThrottle'];
   refreshControl?: ScrollViewProps['refreshControl'];
   stickyHeaderIndices?: ScrollViewProps['stickyHeaderIndices'];
   bottomOffset?: number;
@@ -33,6 +35,8 @@ export function KeyboardFormScreen({
   contentContainerStyle,
   style,
   keyboardShouldPersistTaps = 'handled',
+  onScroll,
+  scrollEventThrottle,
   refreshControl,
   stickyHeaderIndices,
   bottomOffset = 16,
@@ -76,6 +80,8 @@ export function KeyboardFormScreen({
       <KeyboardAwareScrollView
         bottomOffset={footerHeight + bottomOffset}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        onScroll={onScroll}
+        scrollEventThrottle={scrollEventThrottle}
         refreshControl={refreshControl}
         stickyHeaderIndices={stickyHeaderIndices}
         showsVerticalScrollIndicator={false}

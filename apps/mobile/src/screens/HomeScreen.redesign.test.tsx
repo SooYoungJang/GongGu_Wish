@@ -268,15 +268,14 @@ describe('HomeScreenContent redesign', () => {
     ).toBeDefined();
   });
 
-  it('keeps the category filter at the scroll header index', () => {
+  it('wires home scrolling for the custom sticky category layer', () => {
     const renderer = renderHomeContent();
+    const scroll = renderer.root.findAll(
+      (node) => String(node.type) === 'KeyboardAwareScrollView',
+    )[0];
 
-    expect(
-      renderer.root.findAll((node) =>
-        String(node.type) === 'KeyboardAwareScrollView' &&
-        String(node.props.stickyHeaderIndices) === '2',
-      ),
-    ).toHaveLength(1);
+    expect(scroll.props.stickyHeaderIndices).toBeUndefined();
+    expect(scroll.props.onScroll).toEqual(expect.any(Function));
   });
 
   it('keeps the sticky category filter above content for touch input', () => {
@@ -285,6 +284,28 @@ describe('HomeScreenContent redesign', () => {
 
     expect(flattenStyle(filter.props.style)).toMatchObject({
       elevation: expect.any(Number),
+      zIndex: expect.any(Number),
+    });
+  });
+
+  it('renders a separate touch layer when the category filter reaches the top', () => {
+    const renderer = renderHomeContent();
+    const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
+    const scroll = renderer.root.findAll(
+      (node) => String(node.type) === 'KeyboardAwareScrollView',
+    )[0];
+
+    act(() => {
+      filter.props.onLayout({ nativeEvent: { layout: { y: 100 } } });
+      scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 120 } } });
+    });
+
+    const stickyFilter = renderer.root.findByProps({
+      testID: 'home-category-filter-sticky-layer',
+    });
+    expect(flattenStyle(stickyFilter.props.style)).toMatchObject({
+      elevation: expect.any(Number),
+      position: 'absolute',
       zIndex: expect.any(Number),
     });
   });

@@ -36,6 +36,9 @@ tags:
 - waitForAnimationToEnd
 - assertVisible: "전체 카테고리"
 - takeScreenshot: rn-home-category-filter-03-sticky
-- tapOn: "뷰티 카테고리"
+# The chip row is physically pinned at y≈140 on the 1080×1920
+# Android evidence device. Tap its visible position, not the off-screen source.
+- tapOn:
+    point: "720,140"
 - waitForAnimationToEnd
 - takeScreenshot: rn-home-category-filter-04-sticky-beauty

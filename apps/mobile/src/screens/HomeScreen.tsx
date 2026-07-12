@@ -17,6 +17,8 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
+  type LayoutChangeEvent,
+  type ViewProps,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -408,17 +410,22 @@ function ShoppingHomeHeading({ s }: { s: ReturnType<typeof makeStyles> }) {
 function HomeCategoryFilter({
   value,
   onChange,
+  onLayout,
   s,
+  testID = 'home-category-filter',
 }: {
   value: HomeCategory;
   onChange: Dispatch<SetStateAction<HomeCategory>>;
+  onLayout?: ViewProps['onLayout'];
   s: ReturnType<typeof makeStyles>;
+  testID?: string;
 }) {
   return (
     <View
       accessibilityRole="tablist"
+      onLayout={onLayout}
       style={s.categoryFilter}
-      testID="home-category-filter"
+      testID={testID}
     >
       <ScrollView
         horizontal
@@ -886,6 +893,9 @@ export function HomeScreenContent({
   const { colors, isDark } = useCommerceTheme();
   const { width } = useWindowDimensions();
   const [selectedCategory, setSelectedCategory] = useState<HomeCategory>('all');
+  const categoryFilterTopRef = useRef<number | null>(null);
+  const scrollOffsetRef = useRef(0);
+  const [isCategoryFilterSticky, setIsCategoryFilterSticky] = useState(false);
   const displayGroupBuys = useMemo(() => getDisplayItems(groupBuys), [groupBuys]);
   const filteredGroupBuys = useMemo(() => {
     if (selectedCategory === 'all') return displayGroupBuys;
@@ -903,12 +913,34 @@ export function HomeScreenContent({
   );
   const s = useMemo(() => makeStyles(colors), [colors]);
 
+  const handleCategoryFilterLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextTop = event.nativeEvent.layout.y;
+    categoryFilterTopRef.current = nextTop;
+    setIsCategoryFilterSticky(scrollOffsetRef.current >= nextTop);
+  }, []);
+
+  const handleHomeScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const nextOffset = event.nativeEvent.contentOffset.y;
+      scrollOffsetRef.current = nextOffset;
+      const filterTop = categoryFilterTopRef.current;
+      if (filterTop == null) return;
+      setIsCategoryFilterSticky((current) => {
+        const nextSticky = nextOffset >= filterTop;
+        return current === nextSticky ? current : nextSticky;
+      });
+    },
+    [],
+  );
+
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <View style={s.container}>
         <KeyboardFormScreen
           keyboardShouldPersistTaps="always"
+          onScroll={handleHomeScroll}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={isFetching}
@@ -916,7 +948,6 @@ export function HomeScreenContent({
               tintColor={colors.accent}
             />
           }
-          stickyHeaderIndices={[2]}
           contentContainerStyle={s.listContent}
         >
           <View style={s.content} testID="home-top-content">
@@ -951,6 +982,7 @@ export function HomeScreenContent({
           </View>
           <HomeCategoryFilter
             onChange={setSelectedCategory}
+            onLayout={handleCategoryFilterLayout}
             s={s}
             value={selectedCategory}
           />
@@ -962,6 +994,20 @@ export function HomeScreenContent({
             />
           </View>
         </KeyboardFormScreen>
+        {isCategoryFilterSticky ? (
+          <View
+            pointerEvents="box-none"
+            style={s.categoryFilterOverlay}
+            testID="home-category-filter-sticky-layer"
+          >
+            <HomeCategoryFilter
+              onChange={setSelectedCategory}
+              s={s}
+              testID="home-category-filter-sticky"
+              value={selectedCategory}
+            />
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -1463,6 +1509,14 @@ function makeStyles(colors: CommerceColorPalette) {
       elevation: 4,
       paddingVertical: spacing.sm,
       zIndex: 2,
+    },
+    categoryFilterOverlay: {
+      elevation: 12,
+      left: 0,
+      position: 'absolute',
+      right: 0,
+      top: 0,
+      zIndex: 20,
     },
     categoryFilterContent: {
       gap: spacing.sm,
