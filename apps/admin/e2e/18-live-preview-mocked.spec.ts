@@ -77,7 +77,14 @@ function createMockState() {
     updatedAt: "2035-07-01T09:30:00.000Z",
   };
 
-  return { groupBuy, submission, updates: [] as Array<{ path: string; method: string; body: Record<string, unknown> }> };
+  return {
+    groupBuy,
+    submission,
+    hikerDelayMs: 0,
+    hikerLookups: 0,
+    hikerResolutions: 0,
+    updates: [] as Array<{ path: string; method: string; body: Record<string, unknown> }>,
+  };
 }
 
 function dashboard(state: MockState) {
@@ -166,6 +173,35 @@ async function installMocks(page: Page, state: MockState) {
         Object.assign(state.submission, body, { updatedAt: "2035-07-02T09:00:00.000Z" });
         data = state.submission;
         break;
+      case `/admin/submissions/${state.submission.id}/approve`:
+        expect(payload.method).toBe("POST");
+        state.updates.push({ path: payload.path, method: payload.method, body });
+        Object.assign(state.submission, body, {
+          status: "APPROVED",
+          groupBuyId: state.groupBuy.id,
+          updatedAt: "2035-07-02T09:15:00.000Z",
+        });
+        Object.assign(state.groupBuy, body, {
+          productName: body.productName,
+          priceKrw: body.priceKrw,
+          updatedAt: "2035-07-02T09:15:00.000Z",
+        });
+        data = { submission: state.submission, groupBuy: state.groupBuy };
+        break;
+      case "/admin/hiker-lookup":
+        state.hikerLookups += 1;
+        if (state.hikerDelayMs > 0) {
+          await new Promise((resolvePromise) => setTimeout(resolvePromise, state.hikerDelayMs));
+        }
+        state.hikerResolutions += 1;
+        data = {
+          caption: "늦게 도착한 Hiker 요약",
+          username: "late_hiker",
+          mediaItems: [],
+          mediaUrls: [],
+          mediaType: "IMAGE",
+        };
+        break;
       case `/admin/group-buys/${state.groupBuy.id}`:
         expect(payload.method).toBe("PATCH");
         state.updates.push({ path: payload.path, method: payload.method, body });
@@ -186,6 +222,10 @@ async function login(page: Page) {
   await page.getByLabel("비밀번호").fill("not-a-real-password");
   await page.getByRole("button", { name: "로그인" }).click();
   await expect(page.getByRole("heading", { name: "대시보드" })).toBeVisible();
+}
+
+async function openSubmissions(page: Page) {
+  await page.getByRole("button", { name: /검수/ }).first().click();
 }
 
 async function expectCenteredDialog(page: Page, name: RegExp) {
@@ -296,4 +336,64 @@ test("모킹된 관리자 로그인으로 라이브 프리뷰와 중앙 날짜 �
   await mobilePage.screenshot({ path: resolve(evidenceDir, `${evidencePrefix}-mobile-320.png`), fullPage: true });
   expect(mobileConsoleErrors).toEqual([]);
   await mobileContext.close();
+});
+
+test("공구 등록은 갱신 뒤에도 현재 입력값만 전송하고 Hiker를 다시 호출하지 않는다", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "공유 React 상태 흐름은 Chromium에서 한 번만 검증합니다.");
+  const state = createMockState();
+  await installMocks(page, state);
+
+  await login(page);
+  await openSubmissions(page);
+  await page.getByRole("row", { name: /대기중 라이브 프리뷰 위시/ }).click();
+
+  const detail = page.locator(".detail-panel");
+  await detail.getByLabel("제품명").fill("스트라이더");
+  await detail.getByLabel("가격 (원)").fill("159000");
+
+  await page.getByRole("button", { name: "새로고침", exact: true }).click({ force: true });
+  await expect(page.getByRole("button", { name: "새로고침", exact: true })).toBeEnabled();
+  await expect(detail.getByLabel("제품명")).toHaveValue("스트라이더");
+  await expect(detail.getByLabel("가격 (원)")).toHaveValue("159000");
+
+  await detail.getByRole("button", { name: "공구 등록" }).click();
+  await expect(page.getByRole("status")).toContainText("위시를 공구로 등록했습니다.");
+
+  expect(state.hikerLookups).toBe(0);
+  expect(state.updates).toContainEqual(expect.objectContaining({
+    path: "/admin/submissions/submission-live-preview/approve",
+    method: "POST",
+    body: expect.objectContaining({ productName: "스트라이더", priceKrw: 159000 }),
+  }));
+});
+
+test("닫은 상세의 늦은 Hiker 응답은 다시 연 폼을 덮어쓰지 않는다", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "공유 React 상태 흐름은 Chromium에서 한 번만 검증합니다.");
+  const state = createMockState();
+  state.hikerDelayMs = 500;
+  await installMocks(page, state);
+
+  await login(page);
+  await openSubmissions(page);
+  await page.getByRole("row", { name: /대기중 라이브 프리뷰 위시/ }).click();
+
+  const hikerResponse = page.waitForResponse((response) => {
+    const payload = response.request().postDataJSON() as { path?: string } | null;
+    return payload?.path === "/admin/hiker-lookup";
+  });
+  await page.locator(".detail-panel").getByRole("button", { name: "Hiker 조회" }).click();
+  await page.locator(".detail-panel").getByRole("button", { name: /목록으로/ }).click();
+
+  await page.getByRole("row", { name: /대기중 라이브 프리뷰 위시/ }).click();
+  const reopenedDetail = page.locator(".detail-panel");
+  await reopenedDetail.getByLabel("요약").fill("관리자가 다시 입력한 요약");
+
+  await hikerResponse;
+  await page.evaluate(() => new Promise<void>((resolveFrame) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()));
+  }));
+  expect(state.hikerResolutions).toBe(1);
+  await expect(page.getByRole("status").filter({ hasText: "Hiker 데이터로 승인 폼을 채웠습니다." })).toHaveCount(0);
+  await expect(reopenedDetail.getByLabel("요약")).toHaveValue("관리자가 다시 입력한 요약");
+  await expect(reopenedDetail.getByRole("button", { name: "공구 등록" })).toBeEnabled();
 });

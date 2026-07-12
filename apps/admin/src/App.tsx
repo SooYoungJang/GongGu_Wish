@@ -544,15 +544,26 @@ function AdminShell({ session }: { session: Session }) {
   const [detailType, setDetailType] = useState<"submission" | "groupBuy" | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const submissionRequestIdRef = useRef(0);
+  const hikerLookupRequestIdRef = useRef(0);
+  const hikerLookupInFlightRef = useRef(false);
   const groupBuyRequestIdRef = useRef(0);
   const userRequestIdRef = useRef(0);
+  const selectedSubmissionIdRef = useRef<string | null>(null);
   const submissionQueryRef = useRef(submissionQuery);
   const groupBuyQueryRef = useRef(groupBuyQuery);
   const userQueryRef = useRef(userQuery);
   submissionQueryRef.current = submissionQuery;
   groupBuyQueryRef.current = groupBuyQuery;
   userQueryRef.current = userQuery;
+  selectedSubmissionIdRef.current = selectedSubmission?.id ?? null;
+  const invalidateHikerLookup = useCallback((releaseLoading: boolean) => {
+    hikerLookupRequestIdRef.current += 1;
+    if (!hikerLookupInFlightRef.current) return;
+    hikerLookupInFlightRef.current = false;
+    if (releaseLoading) setSubmissionActionLoading(false);
+  }, []);
   const switchTab = useCallback((next: TabKey) => {
+    invalidateHikerLookup(true);
     setDetailType(null);
     setSelectedSubmission(null);
     setSubmissionForm(null);
@@ -562,15 +573,16 @@ function AdminShell({ session }: { session: Session }) {
     setSelectedUser(null);
     setUserForm(null);
     setTab(next);
-  }, []);
+  }, [invalidateHikerLookup]);
 
   const selectSubmission = useCallback((item: GongguSubmission | null, addHistory = true) => {
+    invalidateHikerLookup(true);
     setSelectedSubmission(item);
     setSubmissionForm(item ? submissionToForm(item) : null);
     setRejectReason(item?.adminMemo ?? "");
     setDetailType(item ? "submission" : null);
     if (item && addHistory) window.history.pushState({ detail: "submission", id: item.id }, "");
-  }, []);
+  }, [invalidateHikerLookup]);
 
   const selectGroupBuy = useCallback((item: GroupBuy | null, addHistory = true) => {
     setSelectedGroupBuy(item);
@@ -617,8 +629,10 @@ function AdminShell({ session }: { session: Session }) {
       });
       setSelectedSubmission((current) => {
         const next = current ? data.items.find((item) => item.id === current.id) ?? null : null;
-        setSubmissionForm(next ? submissionToForm(next) : null);
-        setRejectReason(next?.adminMemo ?? "");
+        if (!next) {
+          setSubmissionForm(null);
+          setRejectReason("");
+        }
         return next;
       });
     } catch (error) {
@@ -782,7 +796,10 @@ function AdminShell({ session }: { session: Session }) {
     }
     setSubmissionActionLoading(true);
     try {
-      await adminApi.approveSubmission(selectedSubmission.id, submissionPayload(submissionForm));
+      const submissionId = selectedSubmission.id;
+      const approvalPayload = submissionPayload(submissionForm);
+      invalidateHikerLookup(false);
+      await adminApi.approveSubmission(submissionId, approvalPayload);
       setNotice({ tone: "success", message: "위시를 공구로 등록했습니다." });
       closeDetail();
       await loadSubmissions();
@@ -871,22 +888,33 @@ function AdminShell({ session }: { session: Session }) {
   }
 
   async function lookupHiker() {
-    if (!submissionForm) return;
+    if (!selectedSubmission || !submissionForm) return;
+    const submissionId = selectedSubmission.id;
     const url = submissionForm.instagramUrl.trim();
     if (!url) {
       setNotice({ tone: "error", message: "인스타그램 URL이 없습니다." });
       return;
     }
 
+    const requestId = ++hikerLookupRequestIdRef.current;
+    hikerLookupInFlightRef.current = true;
     setSubmissionActionLoading(true);
     try {
       const result = await adminApi.lookupHiker(url);
+      if (
+        requestId !== hikerLookupRequestIdRef.current
+        || selectedSubmissionIdRef.current !== submissionId
+      ) return;
       setSubmissionForm((current) => current ? applyHikerResult(current, result) : current);
       setNotice({ tone: "success", message: "Hiker 데이터로 승인 폼을 채웠습니다." });
     } catch (error) {
+      if (requestId !== hikerLookupRequestIdRef.current) return;
       setNotice({ tone: "error", message: error instanceof Error ? error.message : "Hiker 조회 실패" });
     } finally {
-      setSubmissionActionLoading(false);
+      if (requestId === hikerLookupRequestIdRef.current) {
+        hikerLookupInFlightRef.current = false;
+        setSubmissionActionLoading(false);
+      }
     }
   }
 
@@ -915,6 +943,7 @@ function AdminShell({ session }: { session: Session }) {
   const userTotalPages = Math.max(1, Math.ceil(usersTotal / PAGE_SIZE));
 
   function closeDetail() {
+    invalidateHikerLookup(true);
     setDetailType(null);
     setSelectedSubmission(null);
     setSubmissionForm(null);
@@ -925,6 +954,7 @@ function AdminShell({ session }: { session: Session }) {
 
   useEffect(() => {
     function handlePopState() {
+      invalidateHikerLookup(true);
       setDetailType(null);
       setSelectedSubmission(null);
       setSubmissionForm(null);
@@ -933,7 +963,7 @@ function AdminShell({ session }: { session: Session }) {
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [invalidateHikerLookup]);
 
   async function toggleGroupBuyVisibility(hide: boolean) {
     if (!selectedGroupBuy) return;
