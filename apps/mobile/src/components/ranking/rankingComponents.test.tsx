@@ -296,9 +296,11 @@ describe('ranking components', () => {
     const firstStyle = flattenStyle(first.props.style);
     const fourthStyle = flattenStyle(fourth.props.style);
 
-    expect(firstStyle.borderRadius).toBe(commerceRadius.sm);
+    expect(firstStyle.borderRadius).toBe(commerceRadius.lg);
     expect(firstStyle.backgroundColor).toBe(commerceLightColors.panelBg);
-    expect(firstStyle.borderWidth).toBeUndefined();
+    expect(firstStyle.borderWidth).toBe(1);
+    expect(firstStyle.borderColor).toBe(commerceLightColors.borderLight);
+    expect(firstStyle.overflow).toBe('hidden');
     expect(firstStyle.shadowOpacity).toBeLessThanOrEqual(0.08);
     expect(firstStyle.elevation).toBeLessThanOrEqual(1);
     expect(firstStyle.marginBottom).toBe(spacing.sm);
@@ -320,8 +322,11 @@ describe('ranking components', () => {
       const row = renderer!.root.findByProps({ testID: `ranking-row-${rank}` });
       const style = flattenStyle(row.props.style);
 
-      expect(style.borderRadius).toBe(commerceRadius.sm);
+      expect(style.borderRadius).toBe(commerceRadius.lg);
       expect(style.backgroundColor).toBe(commerceLightColors.panelBg);
+      expect(style.borderWidth).toBe(1);
+      expect(style.borderColor).toBe(commerceLightColors.borderLight);
+      expect(style.overflow).toBe('hidden');
       expect(style.borderBottomWidth).toBeUndefined();
     }
 
