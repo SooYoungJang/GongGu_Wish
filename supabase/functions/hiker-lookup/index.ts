@@ -294,7 +294,7 @@ async function inferSuggestionsViaLlm(caption: string | null): Promise<HikerLlmS
     return null;
   }
 
-  const model = Deno.env.get('UMANS_MODEL') ?? 'umans/umans-glm-5.2';
+  const model = Deno.env.get('UMANS_MODEL') ?? 'umans-flash';
   const endpoint = Deno.env.get('UMANS_API_BASE') ?? 'https://api.code.umans.ai/v1/chat/completions';
 
   const systemPrompt = [
