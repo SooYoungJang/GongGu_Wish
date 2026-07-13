@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CalendarScreen, filterGroupBuysByActivity } from '../CalendarScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
+import { spacing } from '../../design/tokens';
 import type { GroupBuy } from '../../types';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
@@ -402,6 +403,22 @@ describe('CalendarScreen', () => {
       isFetching: false,
       isError: false,
     };
+  });
+
+  it('keeps the calendar grid compact above the selected deals', () => {
+    const renderer = renderCalendar();
+    const calendarGrid = renderer!.root.findByProps({
+      testID: 'calendar-grid',
+    });
+    const firstDayCell = renderer!.root.findAll(
+      (node) => node.props.accessibilityLabel === '1일',
+    )[0];
+
+    expect(calendarGrid.props.style).toMatchObject({
+      marginBottom: spacing.sm,
+      paddingVertical: spacing.xs,
+    });
+    expect(firstDayCell.props.style[0]).toMatchObject({ minHeight: 40 });
   });
 
   it('shows empty state when no group buys on selected date', () => {
