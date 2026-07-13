@@ -52,6 +52,7 @@ vi.mock('react-native', () => {
         top: 0,
       },
       create: (styles: unknown) => styles,
+      hairlineWidth: 1,
     },
     Text: ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement('Text', props, children),
@@ -294,6 +295,8 @@ describe('HomeScreenContent redesign', () => {
     const chip = filter.findByProps({ accessibilityLabel: '전체 카테고리' });
 
     expect(flattenStyle(filter.props.style)).toMatchObject({
+      borderTopColor: expect.any(String),
+      borderTopWidth: 1,
       borderBottomWidth: 0,
       elevation: 0,
       paddingVertical: spacing.xs + spacing.xxs,
@@ -329,6 +332,8 @@ describe('HomeScreenContent redesign', () => {
     });
 
     expect(flattenStyle(stickyFilterView.props.style)).toMatchObject({
+      borderTopColor: expect.any(String),
+      borderTopWidth: 1,
       borderBottomWidth: 0,
       elevation: 0,
       paddingVertical: spacing.xs + spacing.xxs,
@@ -340,6 +345,13 @@ describe('HomeScreenContent redesign', () => {
     expect(stickyChip.props.hitSlop).toMatchObject({
       bottom: spacing.xs,
       top: spacing.xs,
+    });
+
+    const weeklySection = renderer.root.findByProps({
+      testID: 'home-weekly-section',
+    });
+    expect(flattenStyle(weeklySection.props.style)).toMatchObject({
+      marginBottom: spacing.lg,
     });
   });
 
