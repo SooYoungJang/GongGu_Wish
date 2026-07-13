@@ -1,5 +1,7 @@
 const videoMock = vi.hoisted(() => ({
   players: [] as any[],
+  deferReplaceAsync: false,
+  replaceAsyncResolvers: [] as Array<() => void>,
 }));
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
@@ -27,8 +29,17 @@ vi.mock('expo-video', () => ({
       play: vi.fn(),
       pause: vi.fn(),
       replace: vi.fn(),
-      replaceAsync: vi.fn(async (nextSource: any) => {
+      replaceAsync: vi.fn((nextSource: any) => {
+        if (videoMock.deferReplaceAsync) {
+          return new Promise<void>((resolve) => {
+            videoMock.replaceAsyncResolvers.push(() => {
+              player.source = nextSource;
+              resolve();
+            });
+          });
+        }
         player.source = nextSource;
+        return Promise.resolve();
       }),
       loop: false,
       muted: true,
@@ -364,6 +375,8 @@ const baseGroupBuy: GroupBuy = {
 beforeEach(() => {
   (globalThis as any).__mockKeyboardHeight = 0;
   videoMock.players = [];
+  videoMock.deferReplaceAsync = false;
+  videoMock.replaceAsyncResolvers = [];
   queryMock.groupBuys = undefined;
   flashListMock.scrollToOffset.mockClear();
   pagerViewMock.setPage.mockClear();
@@ -1296,6 +1309,36 @@ describe('DetailScreen', () => {
       useCaching: true,
     });
     expect(preloadedPlayer?.play).not.toHaveBeenCalled();
+  });
+
+  it('does not pause a released preloader player when a pending preload resolves after unmount', async () => {
+    videoMock.deferReplaceAsync = true;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ReelVideoPreloader
+          items={[baseGroupBuy, { ...baseGroupBuy, id: 'group-buy-middle' }, baseGroupBuy]}
+          activeIndex={0}
+          enabled
+        />,
+      );
+    });
+
+    const preloadedPlayer = videoMock.players[0];
+    expect(videoMock.replaceAsyncResolvers).toHaveLength(1);
+
+    act(() => {
+      renderer!.unmount();
+    });
+    expect(preloadedPlayer.pause).not.toHaveBeenCalled();
+
+    await act(async () => {
+      videoMock.replaceAsyncResolvers[0]?.();
+      await Promise.resolve();
+    });
+
+    expect(preloadedPlayer.pause).not.toHaveBeenCalled();
   });
 });
 

@@ -161,7 +161,10 @@ export function ReelVideoPreloader({
     });
 
     return () => {
-      player.pause();
+      // useVideoPlayer disposes the native player on unmount. Invalidate the
+      // pending request so its completion handler cannot call pause() after
+      // that disposal has happened.
+      preloadRequestRef.current += 1;
     };
   }, [player, preloadSource]);
 
