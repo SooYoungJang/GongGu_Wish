@@ -814,7 +814,7 @@ function WeeklyGroupBuysSection({
   }, [weeklyItems, selectedDate]);
 
   return (
-    <View style={s.weeklySection}>
+    <View style={s.weeklySection} testID="home-weekly-section">
       <WeeklyCalendarStrip
         onPressCalendar={onOpenCalendar}
         selectedDate={selectedDate}
@@ -1268,7 +1268,7 @@ function makeStyles(colors: CommerceColorPalette) {
       lineHeight: 27,
     },
     weeklySection: {
-      marginBottom: 36,
+      marginBottom: spacing.lg,
       paddingHorizontal: HOME_SIDE_PADDING,
     },
     seeAllButton: {
@@ -1505,6 +1505,8 @@ function makeStyles(colors: CommerceColorPalette) {
     productEmptyText: { color: colors.muted, fontSize: 15, fontWeight: '700' },
     categoryFilter: {
       backgroundColor: colors.bg,
+      borderTopColor: colors.divider,
+      borderTopWidth: StyleSheet.hairlineWidth,
       borderBottomWidth: 0,
       elevation: 0,
       paddingVertical: spacing.xs + spacing.xxs,
