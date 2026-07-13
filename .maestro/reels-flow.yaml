@@ -7,15 +7,15 @@ appId: com.gonggu.wish
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
-      id: "공구 검색"
-    timeout: 15000
+      text: "쇼핑 홈"
+    timeout: 60000
 # Enter Reels tab
 - tapOn:
-    id: "tab-Reels"
+    text: "릴스 탭"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
-      id: "tab-Reels"
+      text: "릴스 탭"
     timeout: 10000
 - takeScreenshot: reels-01-opened
 # Swipe up to next reel
@@ -41,8 +41,8 @@ appId: com.gonggu.wish
 - takeScreenshot: reels-04-prev
 # Back to home
 - tapOn:
-    id: "tab-Home"
+    text: "홈 탭"
 - waitForAnimationToEnd
 - assertVisible:
-    id: "공구 검색"
+    text: "쇼핑 홈"
 - takeScreenshot: reels-05-back-home
