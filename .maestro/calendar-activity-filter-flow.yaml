@@ -89,7 +89,7 @@ tags:
 
 # Return to the home screen using the in-screen back control.
 - tapOn:
-    text: '캘린더 닫기'
+    text: '뒤로가기'
 - waitForAnimationToEnd
 - assertVisible:
     text: '쇼핑 홈'

@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 
 import { fallbackGroupBuys, fetchGroupBuys } from '../api';
+import { BackButton } from '../components/BackButton';
 import { DealCard } from '../components/DealCard';
 import { SText } from '../components/ui/SText';
 import { spacing } from '../design/tokens';
@@ -29,7 +30,7 @@ import { useBookmarks, useNotifications } from '../hooks/useLocalDeals';
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
-const DAY_CELL_SIZE = 40;
+const DAY_CELL_SIZE = 36;
 const DOT_SIZE = 5;
 const SWIPE_THRESHOLD = 50;
 
@@ -299,24 +300,12 @@ function CalendarHeader({
   return (
     <View style={s.header} testID="calendar-header">
       <View style={s.titleRow}>
-        <Pressable
-          accessibilityLabel="캘린더 닫기"
-          accessibilityRole="button"
+        <BackButton
+          accessibilityLabel="뒤로가기"
           onPress={onGoBack}
           style={s.backButton}
           testID="calendar-back-button"
-        >
-          <SText
-            variant="body"
-            style={{
-              color: colors.textPrimary,
-              fontSize: 24,
-              fontWeight: '600',
-            }}
-          >
-            ←
-          </SText>
-        </Pressable>
+        />
         <SText variant="cardTitle" style={s.screenTitle}>
           공구 캘린더
         </SText>
@@ -740,12 +729,8 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: spacing.sm,
     },
     backButton: {
-      alignItems: 'center',
-      backgroundColor: colors.softBg,
-      borderRadius: commerceRadius.full,
-      height: 40,
-      justifyContent: 'center',
-      width: 40,
+      height: 44,
+      width: 44,
     },
     screenTitle: {
       color: colors.textPrimary,
@@ -755,7 +740,7 @@ function makeStyles(colors: ColorPalette) {
       textAlign: 'center',
     },
     titleSpacer: {
-      width: 40,
+      width: 44,
     },
     monthRow: {
       alignItems: 'center',
@@ -821,17 +806,17 @@ function makeStyles(colors: ColorPalette) {
       flexShrink: 0,
       marginBottom: spacing.sm,
       paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
+      paddingVertical: spacing.xxs,
     },
     weekdayRow: {
       flexDirection: 'row',
-      marginBottom: spacing.xs,
+      marginBottom: spacing.xxs,
     },
     weekdayCell: {
       alignItems: 'center',
       flex: 1,
       justifyContent: 'center',
-      minHeight: 28,
+      minHeight: 24,
     },
     gridContainer: {
       gap: spacing.xxs,
@@ -889,8 +874,8 @@ function makeStyles(colors: ColorPalette) {
       borderTopWidth: 1,
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: spacing.md,
-      paddingTop: spacing.md,
+      marginBottom: spacing.sm,
+      paddingTop: spacing.sm,
     },
     dealsGrid: {
       paddingBottom: spacing['2xl'],

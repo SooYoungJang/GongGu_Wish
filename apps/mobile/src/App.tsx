@@ -16,6 +16,7 @@ import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
 import { requestNotificationPermissions } from './services/notifications';
+import { BackButton } from './components/BackButton';
 import { getCommerceColors } from './design/commerce';
 
 // Initialize PostgREST client with the Supabase anon key
@@ -320,7 +321,16 @@ function ThemedStackNavigator() {
       <Stack.Screen name="InfluencerGroupBuys" component={InfluencerGroupBuysScreen} />
       <Stack.Screen name="SearchScreen" component={SearchScreen} />
       <Stack.Screen name="Admin" component={AdminScreen} />
-      <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: true, title: '설정', headerBackTitle: '뒤로' }} />
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          headerShown: true,
+          title: '설정',
+          headerBackVisible: false,
+          headerLeft: () => <BackButton />,
+        }}
+      />
     </Stack.Navigator>
   );
 }

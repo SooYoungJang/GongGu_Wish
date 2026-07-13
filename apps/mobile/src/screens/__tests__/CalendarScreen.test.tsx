@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CalendarScreen, filterGroupBuysByActivity } from '../CalendarScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
+import { Pressable } from 'react-native';
 import { spacing } from '../../design/tokens';
 import type { GroupBuy } from '../../types';
 
@@ -416,9 +417,20 @@ describe('CalendarScreen', () => {
 
     expect(calendarGrid.props.style).toMatchObject({
       marginBottom: spacing.sm,
-      paddingVertical: spacing.xs,
+      paddingVertical: spacing.xxs,
     });
-    expect(firstDayCell.props.style[0]).toMatchObject({ minHeight: 40 });
+    expect(firstDayCell.props.style[0]).toMatchObject({ minHeight: 36 });
+  });
+
+  it('uses the shared back button contract', () => {
+    const renderer = renderCalendar();
+    const backButton = renderer!.root.findAllByType(Pressable).find(
+      (node) => node.props.testID === 'calendar-back-button',
+    );
+
+    expect(backButton).toBeDefined();
+    expect(backButton!.props.accessibilityLabel).toBe('뒤로가기');
+    expect(backButton!.props.accessibilityRole).toBe('button');
   });
 
   it('shows empty state when no group buys on selected date', () => {

@@ -33,7 +33,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EMAIL_CODE_TTL_SECONDS, useAuth } from '../context/AuthContext';
-import { GoBackHeader } from '../components/GoBackHeader';
+import { BackButton } from '../components/BackButton';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import {
@@ -53,6 +53,7 @@ import {
   type SocialAuthProvider,
 } from '../utils/authHelpers';
 import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
+import { spacing } from '../design/tokens';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -100,6 +101,10 @@ const makeStyles = (colors: CommerceColorPalette) =>
     },
     flex: {
       flex: 1,
+    },
+    backButton: {
+      position: 'absolute',
+      zIndex: 10,
     },
     authScrollContent: {
       paddingHorizontal: 24,
@@ -524,7 +529,9 @@ export function AuthScreen(_props: AuthScreenProps) {
       accessibilityLabel="공구위시 로그인 화면"
       testID={`auth-screen-${authRuntimeMarker}`}
     >
-      <GoBackHeader />
+      <BackButton
+        style={[styles.backButton, { left: spacing.xs, top: insets.top + spacing.xs }]}
+      />
       <View style={[styles.flex, { paddingTop: insets.top }]}>
         <KeyboardFormScreen
           footer={stickyFooter}
