@@ -217,7 +217,7 @@ web3 = 30
 # secret = ""
 
 [functions.refresh-instagram-media]
-[[functions.hiker-lookup]]
+[functions.hiker-lookup]
 # UMANS_API_KEY: umans.ai API key for LLM-based product-name inference.
 # Set via: supabase secrets set UMANS_API_KEY=sk-...
 # Optional UMANS_MODEL (default: umans-flash) and UMANS_API_BASE
