@@ -442,6 +442,7 @@ function HomeCategoryFilter({
               accessibilityState={{ selected }}
               key={key}
               onPress={() => onChange(key)}
+              hitSlop={{ bottom: spacing.xs, top: spacing.xs }}
               style={[s.categoryChip, selected && s.selectedCategoryChip]}
             >
               <SText
@@ -1507,7 +1508,7 @@ function makeStyles(colors: CommerceColorPalette) {
       borderBottomColor: colors.divider,
       borderBottomWidth: StyleSheet.hairlineWidth,
       elevation: 4,
-      paddingVertical: spacing.xs,
+      paddingVertical: 0,
       zIndex: 2,
     },
     categoryFilterOverlay: {
@@ -1527,8 +1528,8 @@ function makeStyles(colors: CommerceColorPalette) {
       borderColor: colors.border,
       borderRadius: borderRadius.full,
       borderWidth: 1,
+      height: spacing['3xl'] + spacing.xs,
       justifyContent: 'center',
-      minHeight: 44,
       paddingHorizontal: spacing.lg,
     },
     selectedCategoryChip: {

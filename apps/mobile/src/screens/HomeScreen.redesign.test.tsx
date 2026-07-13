@@ -294,9 +294,15 @@ describe('HomeScreenContent redesign', () => {
     const chip = filter.findByProps({ accessibilityLabel: '전체 카테고리' });
 
     expect(flattenStyle(filter.props.style)).toMatchObject({
-      paddingVertical: spacing.xs,
+      paddingVertical: 0,
     });
-    expect(flattenStyle(chip.props.style)).toMatchObject({ minHeight: 44 });
+    expect(flattenStyle(chip.props.style)).toMatchObject({
+      height: spacing['3xl'] + spacing.xs,
+    });
+    expect(chip.props.hitSlop).toMatchObject({
+      bottom: spacing.xs,
+      top: spacing.xs,
+    });
 
     const scroll = renderer.root.findAll(
       (node) => String(node.type) === 'KeyboardAwareScrollView',
@@ -318,10 +324,14 @@ describe('HomeScreenContent redesign', () => {
     });
 
     expect(flattenStyle(stickyFilterView.props.style)).toMatchObject({
-      paddingVertical: spacing.xs,
+      paddingVertical: 0,
     });
     expect(flattenStyle(stickyChip.props.style)).toMatchObject({
-      minHeight: 44,
+      height: spacing['3xl'] + spacing.xs,
+    });
+    expect(stickyChip.props.hitSlop).toMatchObject({
+      bottom: spacing.xs,
+      top: spacing.xs,
     });
   });
 
