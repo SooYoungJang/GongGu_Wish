@@ -1292,12 +1292,20 @@ function applyHikerResult(form: SubmissionForm, result: HikerLookupResult): Subm
     suggestions: result.suggestions ?? null,
   });
 
+  // When suggestions came from the LLM, every populated field overwrites the
+  // existing form value (per product request: Hiker 조회 refreshes the form).
+  // Rule-based suggestions only fill empty fields.
+  const isLlm = suggestions.source === "llm";
+
   return {
     ...form,
     productName: suggestions.productName || form.productName,
     category: suggestions.category || form.category,
-    brandName: form.brandName || suggestions.brandName || result.username || "",
-    discountInfo: form.discountInfo || suggestions.discountInfo || "",
+    brandName: isLlm && suggestions.brandName ? suggestions.brandName : (form.brandName || result.username || ""),
+    discountInfo: isLlm && suggestions.discountInfo ? suggestions.discountInfo : (form.discountInfo || ""),
+    startDate: isLlm && suggestions.startDate ? suggestions.startDate : form.startDate,
+    endDate: isLlm && suggestions.endDate ? suggestions.endDate : form.endDate,
+    priceKrw: isLlm && suggestions.priceKrw ? suggestions.priceKrw : form.priceKrw,
     purchaseUrl: form.purchaseUrl || form.instagramUrl,
     summary: result.caption ? result.caption.slice(0, 500) : form.summary,
     thumbnailUrl,
@@ -1306,7 +1314,6 @@ function applyHikerResult(form: SubmissionForm, result: HikerLookupResult): Subm
     mediaItemsText: stringifyMediaItems(mediaItems),
     mediaType: suggestions.mediaType ?? result.mediaType ?? form.mediaType,
   };
-
 }
 function tabTitle(tab: TabKey) {
   if (tab === "submissions") return "위시 검수";
