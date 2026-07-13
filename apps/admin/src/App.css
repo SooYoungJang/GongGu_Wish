@@ -251,8 +251,24 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .list-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
 
 /* ===== Detail panel ===== */
-.detail-panel { display: grid; gap: 14px; padding: 16px; }
-.detail-back-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.detail-panel { position: relative; display: grid; gap: 14px; padding: 16px; }
+.hiker-lookup-overlay {
+  position: absolute; inset: 0; z-index: 10; display: grid; place-items: center;
+  padding: 24px; border-radius: inherit; background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(2px);
+}
+.hiker-lookup-overlay__content {
+  display: grid; justify-items: center; gap: 8px; padding: 18px 22px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface);
+  box-shadow: var(--shadow-sm); text-align: center;
+}
+.hiker-lookup-overlay__content strong { color: var(--ink); font-size: 14px; font-weight: 700; }
+.hiker-lookup-overlay__content > span:last-child { color: var(--muted); font-size: 12px; }
+.hiker-lookup-spinner {
+  width: 24px; height: 24px; border: 3px solid var(--surface-3); border-top-color: var(--accent);
+  border-radius: 50%; animation: hiker-lookup-spin 800ms linear infinite;
+}
+.detail-back-bar { position: relative; z-index: 11; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .detail-back { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer; }
 .detail-back:hover { background: var(--surface-2); }
 .detail-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
@@ -713,6 +729,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .loading-rows { display: grid; gap: 8px; padding: 4px 0; }
 .loading-rows span { height: 38px; border-radius: var(--radius-sm); background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 48%, var(--surface-2) 100%); background-size: 200% 100%; animation: sheen 1200ms ease-in-out infinite; }
 @keyframes sheen { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+@keyframes hiker-lookup-spin { to { transform: rotate(360deg); } }
 
 /* ===== Status badge ===== */
 .status-badge { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--surface-3); color: var(--ink-2); font-size: 11px; font-weight: 700; white-space: nowrap; }
@@ -752,6 +769,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 
 @media (prefers-reduced-motion: reduce) {
   .button, .loading-rows span { animation: none; transition: none; }
+  .hiker-lookup-spinner { animation: none; }
   .button:active:not(:disabled) { transform: none; }
 }
 

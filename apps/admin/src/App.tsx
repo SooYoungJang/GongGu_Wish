@@ -249,14 +249,11 @@ function previewMediaItems(value: string) {
   }
 }
 
-function formToPreviewDeal(form: SubmissionForm | GroupBuyForm): AppLivePreviewDeal {
+// oxlint-disable-next-line react/only-export-components -- keep the pure preview mapping covered by a regression test
+export function formToPreviewDeal(form: SubmissionForm | GroupBuyForm): AppLivePreviewDeal {
   const mediaItems = previewMediaItems(form.mediaItemsText);
   const mediaUrls = splitLines(form.mediaUrlsText);
-  const imageUrl = mediaItems.find((item) => item.mediaType === "IMAGE")?.url
-    || mediaItems.find((item) => item.thumbnailUrl)?.thumbnailUrl
-    || form.thumbnailUrl.trim()
-    || mediaUrls[0]
-    || "";
+  const imageUrl = form.thumbnailUrl.trim();
   let priceKrw: number | null = null;
   try {
     priceKrw = parsePriceKrwInput(form.priceKrw);
@@ -516,6 +513,7 @@ function AdminShell({ session }: { session: Session }) {
   const [rejectReason, setRejectReason] = useState("");
   const [bulkRejectReason, setBulkRejectReason] = useState("");
   const [submissionActionLoading, setSubmissionActionLoading] = useState(false);
+  const [hikerLookupLoading, setHikerLookupLoading] = useState(false);
 
   const [groupBuyStatus, setGroupBuyStatus] = useState<"ALL" | GroupBuyStatus>("APPROVED");
   const [groupBuyQuery, setGroupBuyQuery] = useState("");
@@ -560,7 +558,10 @@ function AdminShell({ session }: { session: Session }) {
     hikerLookupRequestIdRef.current += 1;
     if (!hikerLookupInFlightRef.current) return;
     hikerLookupInFlightRef.current = false;
-    if (releaseLoading) setSubmissionActionLoading(false);
+    setHikerLookupLoading(false);
+    if (releaseLoading) {
+      setSubmissionActionLoading(false);
+    }
   }, []);
   const switchTab = useCallback((next: TabKey) => {
     invalidateHikerLookup(true);
@@ -899,6 +900,7 @@ function AdminShell({ session }: { session: Session }) {
     const requestId = ++hikerLookupRequestIdRef.current;
     hikerLookupInFlightRef.current = true;
     setSubmissionActionLoading(true);
+    setHikerLookupLoading(true);
     try {
       const result = await adminApi.lookupHiker(url);
       if (
@@ -914,6 +916,7 @@ function AdminShell({ session }: { session: Session }) {
       if (requestId === hikerLookupRequestIdRef.current) {
         hikerLookupInFlightRef.current = false;
         setSubmissionActionLoading(false);
+        setHikerLookupLoading(false);
       }
     }
   }
@@ -1113,6 +1116,7 @@ function AdminShell({ session }: { session: Session }) {
           <SubmissionEditor
             actionLoading={submissionActionLoading}
             form={submissionForm}
+            hikerLookupLoading={hikerLookupLoading}
             onApprove={() => void approveSubmission()}
             onChange={setSubmissionForm}
             onClose={closeDetail}
@@ -1152,6 +1156,7 @@ function AdminShell({ session }: { session: Session }) {
             actionLoading={submissionActionLoading}
             bulkRejectReason={bulkRejectReason}
             form={submissionForm}
+            hikerLookupLoading={hikerLookupLoading}
             items={submissions}
             loading={submissionsLoading}
             onApprove={() => void approveSubmission()}
@@ -1529,6 +1534,7 @@ function SubmissionPanel(props: {
   actionLoading: boolean;
   bulkRejectReason: string;
   form: SubmissionForm | null;
+  hikerLookupLoading: boolean;
   items: GongguSubmission[];
   loading: boolean;
   onApprove: () => void;
@@ -1678,6 +1684,7 @@ function SubmissionPanel(props: {
         <SubmissionEditor
           actionLoading={props.actionLoading}
           form={props.form}
+          hikerLookupLoading={props.hikerLookupLoading}
           onApprove={props.onApprove}
           onChange={props.onFormChange}
           onLookupHiker={props.onLookupHiker}
@@ -1768,6 +1775,7 @@ function MobileSubmissionCards({
 function SubmissionEditor(props: {
   actionLoading: boolean;
   form: SubmissionForm | null;
+  hikerLookupLoading: boolean;
   onApprove: () => void;
   onChange: (form: SubmissionForm | null) => void;
   onLookupHiker: () => void;
@@ -1790,6 +1798,15 @@ function SubmissionEditor(props: {
   const canApprove = props.selected.status === "PENDING";
   return (
     <aside className="detail-panel">
+      {props.hikerLookupLoading ? (
+        <div aria-busy="true" aria-live="polite" className="hiker-lookup-overlay" role="status">
+          <div className="hiker-lookup-overlay__content">
+            <span aria-hidden="true" className="hiker-lookup-spinner" />
+            <strong>Hiker 데이터 조회 중</strong>
+            <span>잠시만 기다려주세요.</span>
+          </div>
+        </div>
+      ) : null}
       <div className="detail-back-bar">
         <button className="detail-back" onClick={props.onClose} type="button">← 목록으로</button>
       </div>
