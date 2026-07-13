@@ -1,3 +1,5 @@
+import type { HikerLlmSuggestions } from "@/types";
+
 export type HikerSuggestionCategory =
   | "food"
   | "living"
@@ -31,14 +33,23 @@ export type InferHikerSuggestionsInput = {
   mediaItems?: HikerSuggestionMediaItem[] | null;
   videoUrl?: string | null;
   mediaUrls?: Array<string | null | undefined> | null;
+  /** LLM-derived suggestions from the edge function. When present and
+   *  non-empty, these take precedence over the rule-based inference below. */
+  suggestions?: HikerLlmSuggestions | null;
 };
 
 export type HikerSuggestions = {
   productName: string;
   category: HikerSuggestionCategory | "";
   mediaType: HikerSuggestionMediaType;
+  /** Populated only when LLM suggestions were used. */
+  brandName?: string;
+  discountInfo?: string;
+  confidence?: number | null;
+  reasoning?: string;
+  /** "llm" when the result came from the model, "rules" when rule-based. */
+  source?: "llm" | "rules";
 };
-
 const MAX_PRODUCT_NAME_LENGTH = 80;
 
 const CATEGORY_KEYWORDS: Record<HikerSuggestionCategory, string[]> = {
@@ -114,17 +125,51 @@ const VIDEO_EXTENSIONS = [".mp4", ".mov", ".m4v", ".webm", ".avi", ".mkv", ".mpe
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif", ".avif"];
 
 export function inferHikerSuggestions(input: InferHikerSuggestionsInput): HikerSuggestions {
+  const llm = input.suggestions ?? null;
+  const llmHasProduct = hasValue(llm?.productName);
+
+  // 1) Admin-entered product name always wins.
+  // 2) Otherwise prefer LLM output when the model returned one.
+  // 3) Fall back to rule-based caption parsing.
+  const productName = hasValue(input.currentProductName)
+    ? input.currentProductName
+    : llmHasProduct
+      ? llm!.productName
+      : inferProductName(input.caption);
+
+  // Category: same precedence. LLM category is validated against the
+  // HikerSuggestionCategory union; an out-of-set value collapses to "".
+  const llmCategory = llmHasProduct ? normalizeCategory(llm!.category) : "";
+  const category = hasValue(input.currentCategory)
+    ? (input.currentCategory as HikerSuggestionCategory)
+    : llmHasProduct && llmCategory
+      ? llmCategory
+      : inferCategory(input.caption);
+
+  const usedLlm = llmHasProduct && (!hasValue(input.currentProductName) || !hasValue(input.currentCategory));
+
   return {
-    productName: hasValue(input.currentProductName)
-      ? input.currentProductName
-      : inferProductName(input.caption),
-    category: hasValue(input.currentCategory)
-      ? (input.currentCategory as HikerSuggestionCategory)
-      : inferCategory(input.caption),
+    productName,
+    category,
     mediaType: inferMediaType(input),
+    // LLM-only enrichment fields — undefined when rule-based path was used.
+    brandName: usedLlm && llm ? llm.brandName || undefined : undefined,
+    discountInfo: usedLlm && llm ? llm.discountInfo || undefined : undefined,
+    confidence: usedLlm && llm ? llm.confidence : undefined,
+    reasoning: usedLlm && llm ? llm.reasoning || undefined : undefined,
+    source: usedLlm ? "llm" : "rules",
   };
 }
 
+function normalizeCategory(value: string | undefined): HikerSuggestionCategory | "" {
+  if (!value) return "";
+  const lowered = value.trim().toLowerCase() as HikerSuggestionCategory;
+  const valid: ReadonlySet<string> = new Set([
+    "food","living","beauty","fashion","home","kitchen","electronics",
+    "pet","auto","hobby","baby","sports","stationery","books","media","travel",
+  ]);
+  return valid.has(lowered) ? lowered : "";
+}
 function hasValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }

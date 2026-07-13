@@ -38,7 +38,28 @@ interface InstagramMediaInfo {
   likeCount: number | null;
   username: string | null;
   takenAt: string | null;
+  /** LLM-inferred product metadata. Present when UMANS_API_KEY is configured;
+   *  absent when LLM enrichment is disabled or fails (callers fall back to
+   *  rule-based inference on the client). */
+  suggestions?: HikerLlmSuggestions;
 }
+
+interface HikerLlmSuggestions {
+  productName: string;
+  brandName: string;
+  category: string;
+  discountInfo: string;
+  /** Model confidence 0..1; null when the model did not emit one. */
+  confidence: number | null;
+  /** Why this product name was chosen, in Korean — surfaced for admin review. */
+  reasoning: string;
+}
+
+// Valid category set kept in sync with apps/admin/src/lib/hikerSuggestions.ts
+const VALID_CATEGORIES = [
+  'food', 'living', 'beauty', 'fashion', 'home', 'kitchen', 'electronics',
+  'pet', 'auto', 'hobby', 'baby', 'sports', 'stationery', 'books', 'media', 'travel',
+] as const;
 
 interface ErrorResponse {
   error: string;
@@ -242,6 +263,140 @@ export async function lookupViaHikerAPI(url: string, apiKey: string): Promise<In
   };
 }
 
+
+// ─── LLM Enrichment (umans.ai — OpenAI-compatible) ──────────────────────────
+
+interface UmansChatResponse {
+  choices?: Array<{ message?: { content?: string } }>;
+}
+
+interface LlmParsedSuggestion {
+  productName?: string;
+  brandName?: string;
+  category?: string;
+  discountInfo?: string;
+  confidence?: number;
+  reasoning?: string;
+}
+
+/**
+ * Calls umans.ai (OpenAI-compatible Chat Completions) to extract structured
+ * product metadata from an Instagram caption. Returns null when the API key
+ * is missing, the call fails, or the model emits nothing usable — callers
+ * then fall back to the rule-based client inference in hikerSuggestions.ts.
+ */
+async function inferSuggestionsViaLlm(caption: string | null): Promise<HikerLlmSuggestions | null> {
+  const apiKey = Deno.env.get('UMANS_API_KEY') ?? '';
+  if (!apiKey || !caption || caption.trim().length === 0) {
+    return null;
+  }
+
+  const model = Deno.env.get('UMANS_MODEL') ?? 'umans-flash';
+  const endpoint = Deno.env.get('UMANS_API_BASE') ?? 'https://api.code.umans.ai/v1/chat/completions';
+
+  const systemPrompt = [
+    '너는 한국어 인스타그램 공동구매 게시글에서 상품 메타데이터를 추출하는 전문 어시스턴트다.',
+    '주어진 캡션(해시태그 포함)에서 아래 필드를 JSON으로만 응답하라. 한국어 외 텍스트는 금지.',
+    '- productName: 실제 판매 상품명. 홍보문구/날짜/가격/해시태그/URL은 제외. 최대 80자.',
+    '- brandName: 브랜드명. 없거나 불명확하면 빈 문자열.',
+    '- category: 반드시 다음 중 하나: food, living, beauty, fashion, home, kitchen, electronics, pet, auto, hobby, baby, sports, stationery, books, media, travel. 판단 불가하면 빈 문자열.',
+    '- discountInfo: 할인/가격 정보 요약(예: "정가 29,900원 → 공구가 19,900원"). 없으면 빈 문자열.',
+    '- confidence: productName 추출 신뢰도 0~1 사이 소수.',
+    '- reasoning: productName을 이렇게 정한 이유를 한국어 한 줄로.',
+    '반드시 {"productName":...,"brandName":...,"category":...,"discountInfo":...,"confidence":...,"reasoning":...} 형태의 JSON만 출력하라.'
+  ].join('\n');
+
+  const userPrompt = '캡션:\n' + caption;
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[hiker-lookup] umans.ai request failed:', msg);
+    return null;
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    console.error(`[hiker-lookup] umans.ai returned ${response.status}: ${body.slice(0, 200)}`);
+    return null;
+  }
+
+  let payload: UmansChatResponse;
+  try {
+    payload = await response.json() as UmansChatResponse;
+  } catch {
+    console.error('[hiker-lookup] umans.ai returned invalid JSON');
+    return null;
+  }
+
+  const content = payload.choices?.[0]?.message?.content ?? '';
+  if (!content) {
+    return null;
+  }
+
+  const parsed = parseLlmJson(content);
+  if (!parsed || typeof parsed !== 'object') {
+    console.error('[hiker-lookup] umans.ai content was not parseable JSON');
+    return null;
+  }
+
+  return normalizeLlmSuggestions(parsed as LlmParsedSuggestion);
+}
+
+/** Tolerant JSON extraction — strips code fences and trailing prose. */
+function parseLlmJson(content: string): LlmParsedSuggestion | null {
+  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1] : content;
+  const start = candidate.search(/\{/);
+  const end = candidate.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) return null;
+  try {
+    return JSON.parse(candidate.slice(start, end + 1)) as LlmParsedSuggestion;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeLlmSuggestions(raw: LlmParsedSuggestion): HikerLlmSuggestions {
+  const productName = trimTo(raw.productName, 80);
+  const categoryRaw = (raw.category ?? '').trim().toLowerCase();
+  const category = (VALID_CATEGORIES as readonly string[]).includes(categoryRaw) ? categoryRaw : '';
+  const confidence = typeof raw.confidence === 'number' && raw.confidence >= 0 && raw.confidence <= 1
+    ? raw.confidence
+    : null;
+  return {
+    productName,
+    brandName: trimTo(raw.brandName, 60),
+    category,
+    discountInfo: trimTo(raw.discountInfo, 200),
+    confidence,
+    reasoning: trimTo(raw.reasoning, 300),
+  };
+}
+
+function trimTo(value: string | undefined, max: number): string {
+  if (typeof value !== 'string') return '';
+  const cleaned = value.replace(/\s+/g, ' ').trim();
+  return cleaned.slice(0, max);
+}
 // ─── CORS Headers ────────────────────────────────────────────────────────────
 
 const CORS_HEADERS = {
@@ -300,6 +455,19 @@ async function handler(req: Request) {
     }
 
     const result = await lookupViaHikerAPI(body.url, hikerApiKey);
+
+    // LLM enrichment is optional — a missing key or a failed call simply
+    // yields suggestions === null and the client falls back to rule-based
+    // inference. Never let LLM failure fail the whole lookup.
+    try {
+      const suggestions = await inferSuggestionsViaLlm(result.caption);
+      if (suggestions) {
+        result.suggestions = suggestions;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[hiker-lookup] LLM enrichment skipped:', msg);
+    }
 
     return new Response(JSON.stringify(result), {
       status: 200,
