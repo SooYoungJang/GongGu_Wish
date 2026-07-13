@@ -152,6 +152,8 @@ export function ReelVideoPreloader({
 
   useEffect(() => {
     const requestId = ++preloadRequestRef.current;
+    if (!preloadSource) return;
+
     void player.replaceAsync(preloadSource).then(() => {
       if (requestId !== preloadRequestRef.current) return;
       player.pause();
