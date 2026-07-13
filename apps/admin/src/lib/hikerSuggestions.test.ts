@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { inferHikerSuggestions } from "./hikerSuggestions";
 
 describe("inferHikerSuggestions", () => {
-  it("preserves existing non-empty product name and category", () => {
+  it("preserves existing non-empty product name and category in rule-based fallback", () => {
     expect(
       inferHikerSuggestions({
         caption: "제주 감귤 3kg 특가",
@@ -14,6 +14,7 @@ describe("inferHikerSuggestions", () => {
       productName: "관리자가 입력한 상품",
       category: "living",
       mediaType: "IMAGE",
+      source: "rules",
     });
   });
 
@@ -32,6 +33,7 @@ describe("inferHikerSuggestions", () => {
       productName: "국산 저당 복숭아 2kg 산지직송 단단복숭아",
       category: "food",
       mediaType: null,
+      source: "rules",
     });
   });
 
@@ -96,17 +98,20 @@ describe("inferHikerSuggestions", () => {
     ).toBe("IMAGE");
   });
 
-  it("prefers LLM suggestions over rule-based inference when no admin override is set", () => {
+  it("LLM overrides admin-entered product name (Hiker 조회 refreshes the form)", () => {
     expect(
       inferHikerSuggestions({
         caption: "모호한 캡션 #공구",
+        currentProductName: "관리자가 입력한 상품",
+        currentCategory: "living",
         suggestions: {
           productName: "LLM이 추론한 상품명",
           brandName: "브랜드",
           category: "beauty",
           discountInfo: "정가 29,900원 → 공구가 19,900원",
-          confidence: 0.92,
-          reasoning: "캡션 첫 줄이 상품명으로 보임",
+          startDate: "2026-07-15",
+          endDate: "2026-07-20",
+          priceKrw: "19900",
         },
       }),
     ).toMatchObject({
@@ -114,8 +119,9 @@ describe("inferHikerSuggestions", () => {
       brandName: "브랜드",
       category: "beauty",
       discountInfo: "정가 29,900원 → 공구가 19,900원",
-      confidence: 0.92,
-      reasoning: "캡션 첫 줄이 상품명으로 보임",
+      startDate: "2026-07-15",
+      endDate: "2026-07-20",
+      priceKrw: "19900",
       source: "llm",
     });
   });
@@ -129,16 +135,34 @@ describe("inferHikerSuggestions", () => {
           brandName: "",
           category: "totally-bogus",
           discountInfo: "",
-          confidence: null,
-          reasoning: "",
+          startDate: "",
+          endDate: "",
+          priceKrw: "",
         },
       }).category,
     ).toBe("");
   });
 
-  it("falls back to rule-based inference and sets source=rules when suggestions are absent", () => {
+  it("falls back to rule-based inference when suggestions are absent", () => {
     expect(
       inferHikerSuggestions({ caption: "제주 감귤 3kg #food" }).source,
+    ).toBe("rules");
+  });
+
+  it("falls back to rule-based inference when LLM productName is empty", () => {
+    expect(
+      inferHikerSuggestions({
+        caption: "제주 감귤 3kg #food",
+        suggestions: {
+          productName: "",
+          brandName: "",
+          category: "food",
+          discountInfo: "",
+          startDate: "",
+          endDate: "",
+          priceKrw: "",
+        },
+      }).source,
     ).toBe("rules");
   });
 });

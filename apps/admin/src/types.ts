@@ -117,8 +117,9 @@ export type HikerLlmSuggestions = {
   brandName: string;
   category: string;
   discountInfo: string;
-  confidence: number | null;
-  reasoning: string;
+  startDate: string;
+  endDate: string;
+  priceKrw: string;
 };
 
 export type CdnRefreshStatus = "expired" | "expiring" | "healthy" | "unknown" | "no_cdn";

@@ -49,13 +49,16 @@ interface HikerLlmSuggestions {
   brandName: string;
   category: string;
   discountInfo: string;
-  /** Model confidence 0..1; null when the model did not emit one. */
-  confidence: number | null;
-  /** Why this product name was chosen, in Korean — surfaced for admin review. */
-  reasoning: string;
+  /** Group-buy start date as YYYY-MM-DD, empty when unknown. */
+  startDate: string;
+  /** Group-buy end date as YYYY-MM-DD, empty when unknown. */
+  endDate: string;
+  /** Korean-won price as a string (e.g. "19900"). Empty when unknown. */
+  priceKrw: string;
 }
 
 // Valid category set kept in sync with apps/admin/src/lib/hikerSuggestions.ts
+
 const VALID_CATEGORIES = [
   'food', 'living', 'beauty', 'fashion', 'home', 'kitchen', 'electronics',
   'pet', 'auto', 'hobby', 'baby', 'sports', 'stationery', 'books', 'media', 'travel',
@@ -275,10 +278,10 @@ interface LlmParsedSuggestion {
   brandName?: string;
   category?: string;
   discountInfo?: string;
-  confidence?: number;
-  reasoning?: string;
+  startDate?: string;
+  endDate?: string;
+  priceKrw?: string;
 }
-
 /**
  * Calls umans.ai (OpenAI-compatible Chat Completions) to extract structured
  * product metadata from an Instagram caption. Returns null when the API key
@@ -301,11 +304,11 @@ async function inferSuggestionsViaLlm(caption: string | null): Promise<HikerLlmS
     '- brandName: 브랜드명. 없거나 불명확하면 빈 문자열.',
     '- category: 반드시 다음 중 하나: food, living, beauty, fashion, home, kitchen, electronics, pet, auto, hobby, baby, sports, stationery, books, media, travel. 판단 불가하면 빈 문자열.',
     '- discountInfo: 할인/가격 정보 요약(예: "정가 29,900원 → 공구가 19,900원"). 없으면 빈 문자열.',
-    '- confidence: productName 추출 신뢰도 0~1 사이 소수.',
-    '- reasoning: productName을 이렇게 정한 이유를 한국어 한 줄로.',
-    '반드시 {"productName":...,"brandName":...,"category":...,"discountInfo":...,"confidence":...,"reasoning":...} 형태의 JSON만 출력하라.'
+    '- startDate: 공구 시작일. YYYY-MM-DD 형식. 캡션에 명시된 시작일/오픈일만. 없으면 빈 문자열.',
+    '- endDate: 공구 마감일. YYYY-MM-DD 형식. 캡션에 명시된 마감일/종료일만. 없으면 빈 문자열.',
+    '- priceKrw: 판매 가격(원). 숫자만(쉼표/원/공구가 등 단위 제외, 예: "19900"). 여러 가격이 있으면 공구가 우선. 없으면 빈 문자열.',
+    '반드시 {"productName":...,"brandName":...,"category":...,"discountInfo":...,"startDate":...,"endDate":...,"priceKrw":...} 형태의 JSON만 출력하라.'
   ].join('\n');
-
   const userPrompt = '캡션:\n' + caption;
 
   let response: Response;
@@ -376,22 +379,63 @@ function parseLlmJson(content: string): LlmParsedSuggestion | null {
 }
 
 function normalizeLlmSuggestions(raw: LlmParsedSuggestion): HikerLlmSuggestions {
-  const productName = trimTo(raw.productName, 80);
   const categoryRaw = (raw.category ?? '').trim().toLowerCase();
   const category = (VALID_CATEGORIES as readonly string[]).includes(categoryRaw) ? categoryRaw : '';
-  const confidence = typeof raw.confidence === 'number' && raw.confidence >= 0 && raw.confidence <= 1
-    ? raw.confidence
-    : null;
   return {
-    productName,
+    productName: trimTo(raw.productName, 80),
     brandName: trimTo(raw.brandName, 60),
     category,
     discountInfo: trimTo(raw.discountInfo, 200),
-    confidence,
-    reasoning: trimTo(raw.reasoning, 300),
+    startDate: normalizeDate(raw.startDate),
+    endDate: normalizeDate(raw.endDate),
+    priceKrw: normalizePrice(raw.priceKrw),
   };
 }
 
+/** Coerces a date-ish string into YYYY-MM-DD. Returns "" when unparseable.
+ *  Tolerates Korean month/day tokens ("7월 13일") and missing years. */
+function normalizeDate(value: string | undefined): string {
+  if (typeof value !== 'string') return '';
+  const text = value.trim();
+  if (!text) return '';
+
+  // Already YYYY-MM-DD
+  let m = text.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/);
+  if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+
+  // YYYY-MM-DD with trailing time or noise
+  m = text.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})\b/);
+  if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+
+  // Korean: 7월 13일 (year defaults to current)
+  m = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일?/);
+  if (m) {
+    const year = new Date().getFullYear();
+    return `${year}-${pad(m[1])}-${pad(m[2])}`;
+  }
+
+  // MM/DD or MM-DD (year defaults to current)
+  m = text.match(/^(\d{1,2})[-./](\d{1,2})$/);
+  if (m) {
+    const year = new Date().getFullYear();
+    return `${year}-${pad(m[1])}-${pad(m[2])}`;
+  }
+
+  return '';
+}
+
+function pad(n: string | number): string {
+  return String(n).padStart(2, '0');
+}
+
+/** Strips currency/separator noise and returns a numeric string. "" if not a number. */
+function normalizePrice(value: string | undefined): string {
+  if (typeof value !== 'string') return '';
+  const digits = value.replace(/[^\d]/g, '');
+  if (!digits) return '';
+  const num = Number(digits);
+  return Number.isFinite(num) && num > 0 ? String(num) : '';
+}
 function trimTo(value: string | undefined, max: number): string {
   if (typeof value !== 'string') return '';
   const cleaned = value.replace(/\s+/g, ' ').trim();

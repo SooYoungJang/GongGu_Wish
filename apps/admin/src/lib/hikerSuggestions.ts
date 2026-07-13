@@ -45,11 +45,13 @@ export type HikerSuggestions = {
   /** Populated only when LLM suggestions were used. */
   brandName?: string;
   discountInfo?: string;
-  confidence?: number | null;
-  reasoning?: string;
+  startDate?: string;
+  endDate?: string;
+  priceKrw?: string;
   /** "llm" when the result came from the model, "rules" when rule-based. */
   source?: "llm" | "rules";
 };
+
 const MAX_PRODUCT_NAME_LENGTH = 80;
 
 const CATEGORY_KEYWORDS: Record<HikerSuggestionCategory, string[]> = {
@@ -126,38 +128,35 @@ const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".h
 
 export function inferHikerSuggestions(input: InferHikerSuggestionsInput): HikerSuggestions {
   const llm = input.suggestions ?? null;
-  const llmHasProduct = hasValue(llm?.productName);
 
-  // 1) Admin-entered product name always wins.
-  // 2) Otherwise prefer LLM output when the model returned one.
-  // 3) Fall back to rule-based caption parsing.
-  const productName = hasValue(input.currentProductName)
-    ? input.currentProductName
-    : llmHasProduct
-      ? llm!.productName
-      : inferProductName(input.caption);
+  // When the LLM returned a product name, it OVERRIDES any admin-entered
+  // value — the whole point of the Hiker 조회 button is to refresh the form
+  // with freshly inferred metadata. Rule-based parsing is only a fallback
+  // when the LLM is unavailable or returned nothing.
+  if (llm && hasValue(llm.productName)) {
+    return {
+      productName: llm.productName,
+      category: normalizeCategory(llm.category),
+      mediaType: inferMediaType(input),
+      brandName: llm.brandName || undefined,
+      discountInfo: llm.discountInfo || undefined,
+      startDate: llm.startDate || undefined,
+      endDate: llm.endDate || undefined,
+      priceKrw: llm.priceKrw || undefined,
+      source: "llm",
+    };
+  }
 
-  // Category: same precedence. LLM category is validated against the
-  // HikerSuggestionCategory union; an out-of-set value collapses to "".
-  const llmCategory = llmHasProduct ? normalizeCategory(llm!.category) : "";
-  const category = hasValue(input.currentCategory)
-    ? (input.currentCategory as HikerSuggestionCategory)
-    : llmHasProduct && llmCategory
-      ? llmCategory
-      : inferCategory(input.caption);
-
-  const usedLlm = llmHasProduct && (!hasValue(input.currentProductName) || !hasValue(input.currentCategory));
-
+  // Fallback: rule-based inference, preserves any admin-entered values.
   return {
-    productName,
-    category,
+    productName: hasValue(input.currentProductName)
+      ? input.currentProductName
+      : inferProductName(input.caption),
+    category: hasValue(input.currentCategory)
+      ? (input.currentCategory as HikerSuggestionCategory)
+      : inferCategory(input.caption),
     mediaType: inferMediaType(input),
-    // LLM-only enrichment fields — undefined when rule-based path was used.
-    brandName: usedLlm && llm ? llm.brandName || undefined : undefined,
-    discountInfo: usedLlm && llm ? llm.discountInfo || undefined : undefined,
-    confidence: usedLlm && llm ? llm.confidence : undefined,
-    reasoning: usedLlm && llm ? llm.reasoning || undefined : undefined,
-    source: usedLlm ? "llm" : "rules",
+    source: "rules",
   };
 }
 
