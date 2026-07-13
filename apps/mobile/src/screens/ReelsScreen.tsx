@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StatusBar, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useQuery } from '@tanstack/react-query';
 import PagerView from 'react-native-pager-view';
 
 import { fetchGroupBuys, fallbackGroupBuys } from '../api';
 import { logDeepView } from '../api';
 import { useRecentViews } from '../hooks/useLocalDeals';
+import { useTabReselect } from '../hooks/useTabReselect';
 import { useTheme } from '../context/ThemeContext';
-import type { GroupBuy } from '../types';
+import type { GroupBuy, MainTabParamList } from '../types';
+import { getRandomReelIndex } from './reelNavigation';
 import { ProductReelPage, ReelVideoPreloader, makeStyles } from './DetailScreen';
 
 const REELS_TAB_BAR_OVERLAY_OFFSET = 40;
@@ -36,8 +39,10 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const pagerRef = useRef<PagerView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [replayKey, setReplayKey] = useState(0);
   const [reelDirection, setReelDirection] = useState<1 | -1>(1);
   const [summarySheetGate, setSummarySheetGate] = useState({ isOpen: false, canSwipeReel: true });
   const [isTabFocused, setTabFocused] = useState(true);
@@ -83,6 +88,18 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
     batchCounter.current += 1;
     setReelItems((prev) => [...prev, ...shuffle(baseBatch)]);
   }, [baseBatch]);
+
+  const handleReelsTabReselect = useCallback(() => {
+    if (reelItems.length === 0) return;
+
+    const nextIndex = getRandomReelIndex(reelItems.length, activeIndex);
+    setReelDirection(nextIndex >= activeIndex ? 1 : -1);
+    setActiveIndex(nextIndex);
+    setReplayKey((key) => key + 1);
+    pagerRef.current?.setPageWithoutAnimation?.(nextIndex);
+  }, [activeIndex, reelItems.length]);
+
+  useTabReselect(navigation, handleReelsTabReselect);
 
   // When the active index nears the end, append another batch.
   useEffect(() => {
@@ -140,6 +157,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
         key={item.id}
         groupBuy={item}
         isActive={isTabFocused && index === activeIndex}
+        replayKey={replayKey}
         shouldPreloadVideo={Math.abs(index - activeIndex) <= 1}
         bottomChromeOffset={REELS_TAB_BAR_OVERLAY_OFFSET}
         pageHeight={screenHeight}
@@ -152,7 +170,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
         s={s}
       />
     ),
-    [isTabFocused, activeIndex, handleSummarySheetStateChange, insets.bottom, insets.top, s, screenHeight, screenWidth],
+    [isTabFocused, activeIndex, handleSummarySheetStateChange, insets.bottom, insets.top, replayKey, s, screenHeight, screenWidth],
   );
 
   if (reelItems.length === 0) {

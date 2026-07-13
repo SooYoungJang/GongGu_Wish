@@ -27,6 +27,8 @@ const ranking: SellerRanking = {
   representativeGroupBuyId: 'group-1',
 };
 
+const refreshRanking = vi.hoisted(() => vi.fn());
+
 vi.mock('react-native', () => {
   const ReactMock = require('react');
   const passthrough =
@@ -117,6 +119,7 @@ vi.mock('../features/ranking/usePopularGroupBuys', () => ({
     data: [ranking],
     refreshing: false,
     updatedAt: Date.now(),
+    refresh: refreshRanking,
   }),
 }));
 
@@ -150,6 +153,19 @@ function getTranslateY(style: unknown): { __getValue: () => number } {
   return transform[0].translateY;
 }
 
+function createNavigation() {
+  let tabPressListener: (() => void) | undefined;
+  return {
+    navigate: vi.fn(),
+    addListener: vi.fn((_eventName: string, listener: () => void) => {
+      tabPressListener = listener;
+      return vi.fn();
+    }),
+    isFocused: vi.fn(() => true),
+    emitTabPress: () => tabPressListener?.(),
+  };
+}
+
 describe('StoreScreen ranking redesign', () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -157,7 +173,7 @@ describe('StoreScreen ranking redesign', () => {
   });
 
   it('shows the clean ranking header and removes the non-functional global alert action', () => {
-    const navigation = { navigate: vi.fn() };
+    const navigation = createNavigation();
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -180,7 +196,7 @@ describe('StoreScreen ranking redesign', () => {
 
   it('scrolls period and sort filters away while keeping the category filter pinned', () => {
     vi.useFakeTimers();
-    const navigation = { navigate: vi.fn() };
+    const navigation = createNavigation();
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -236,7 +252,7 @@ describe('StoreScreen ranking redesign', () => {
   });
 
   it('keeps the list inset stable while the two filter layers move', () => {
-    const navigation = { navigate: vi.fn() };
+    const navigation = createNavigation();
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -263,5 +279,25 @@ describe('StoreScreen ranking redesign', () => {
     act(() => initialList.props.onScroll({ nativeEvent: { contentOffset: { y: 120 } } }));
     const hiddenList = renderer!.root.findByType('FlatList' as unknown as React.ElementType);
     expect(flattenStyle(hiddenList.props.contentContainerStyle).paddingTop).toBe(initialTopInset);
+  });
+
+  it('refreshes the ranking when its active GNB tab is pressed again', () => {
+    const navigation = createNavigation();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <StoreScreen navigation={navigation as never} route={{ key: 'Store-test', name: 'Store' } as never} />
+        </ThemeProvider>,
+      );
+    });
+
+    const flatList = renderer!.root.findByType('FlatList' as unknown as React.ElementType);
+    expect(flatList.props.onRefresh).toBe(refreshRanking);
+
+    act(() => navigation.emitTabPress());
+
+    expect(refreshRanking).toHaveBeenCalledTimes(1);
   });
 });
