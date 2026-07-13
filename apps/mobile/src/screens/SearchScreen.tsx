@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
+import { BackButton } from '../components/BackButton';
 import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 import { SearchResultsPanel } from '../components/home/SearchResultsPanel';
 import { SearchGlyph } from '../components/ui/LineGlyphs';
@@ -267,16 +268,11 @@ export function SearchScreen() {
       <View style={[s.header, { paddingTop: insets.top + 10 }]}>
         <SText variant="caption" style={[s.headerPoints, { top: Math.max(insets.top - 12, 8) }]}>59</SText>
         {canGoBack ? (
-          <Pressable
-            accessible
-            accessibilityRole="button"
+          <BackButton
             accessibilityLabel="뒤로가기"
-            hitSlop={8}
             onPress={handleBack}
             style={s.backBtn}
-          >
-            <SText variant="body" style={s.backIcon}>←</SText>
-          </Pressable>
+          />
         ) : null}
         <View style={s.inputWrap}>
           <SearchGlyph color={colors.weak} size={20} />
@@ -419,7 +415,6 @@ function makeStyles(colors: CommerceColorPalette) {
       right: 25,
     },
     backBtn: { width: 28, height: 48, alignItems: 'flex-start', justifyContent: 'center' },
-    backIcon: { fontSize: 30, color: colors.text, fontWeight: '500', lineHeight: 36 },
     inputWrap: {
       flex: 1,
       flexDirection: 'row',

@@ -14,7 +14,6 @@ import {
   Share,
   StatusBar,
   StyleSheet,
-  Text,
   TextInput,
   View,
   useWindowDimensions,
@@ -40,6 +39,7 @@ import Reanimated, {
 
 import { fetchGroupBuys, logDeepView } from '../api';
 import { Ionicons } from '@expo/vector-icons';
+import { BackButton } from '../components/BackButton';
 import { useBookmarks, useNotifications, useRecentViews } from '../hooks/useLocalDeals';
 import { SText } from '../components/ui/SText';
 import { borderRadius, spacing } from '../design/tokens';
@@ -1267,15 +1267,12 @@ export function ProductReelPage({
         style={[s.topBar, { paddingTop: topInset + spacing.sm }, reelChromeStyle]}
       >
         {showBackButton ? (
-          <Pressable
-            accessibilityLabel="뒤로가기"
-            accessibilityRole="button"
-            hitSlop={12}
+          <BackButton
+            color="#FFFFFF"
             onPress={onBack}
-            style={({ pressed }) => [s.topIconButton, pressed && s.pressed]}
-          >
-            <Text style={s.topIcon}>‹</Text>
-          </Pressable>
+            style={s.topIconButton}
+            testID="detail-back-button"
+          />
         ) : (
           <View style={s.topIconButton} />
         )}
@@ -1969,12 +1966,6 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       height: 44,
       justifyContent: 'center',
       width: 44,
-    },
-    topIcon: {
-      color: '#FFFFFF',
-      fontSize: 42,
-      fontWeight: '300',
-      lineHeight: 44,
     },
     reelsTitleRow: {
       alignItems: 'center',
