@@ -311,36 +311,47 @@ async function inferSuggestionsViaLlm(caption: string | null): Promise<HikerLlmS
   ].join('\n');
   const userPrompt = '캡션:\n' + caption;
 
-  let response: Response;
-  try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey,
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-      }),
-      signal: AbortSignal.timeout(60_000),
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[hiker-lookup] umans.ai request failed:', msg);
-    return null;
+  let response: Response | null = null;
+  const retryableStatuses = new Set([429, 500, 502, 503, 504]);
+  const retryDelaysMs = [1_000, 3_000];
+  for (let attempt = 1; attempt <= retryDelaysMs.length + 1; attempt += 1) {
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + apiKey,
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        }),
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[hiker-lookup] umans.ai request failed:', msg);
+      return null;
+    }
+
+    if (response.ok) break;
+
+    const body = await response.text().catch(() => '');
+    if (!retryableStatuses.has(response.status) || attempt > retryDelaysMs.length) {
+      console.error(`[hiker-lookup] umans.ai returned ${response.status}: ${body.slice(0, 200)}`);
+      return null;
+    }
+
+    console.warn(`[hiker-lookup] umans.ai returned ${response.status}; retrying (${attempt}/${retryDelaysMs.length})`);
+    await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt - 1]));
   }
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    console.error(`[hiker-lookup] umans.ai returned ${response.status}: ${body.slice(0, 200)}`);
-    return null;
-  }
+  if (!response?.ok) return null;
 
   let payload: UmansChatResponse;
   try {
