@@ -29,7 +29,7 @@ import { useBookmarks, useNotifications } from '../hooks/useLocalDeals';
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
-const DAY_CELL_SIZE = 44;
+const DAY_CELL_SIZE = 40;
 const DOT_SIZE = 5;
 const SWIPE_THRESHOLD = 50;
 
@@ -426,6 +426,7 @@ function DayCell({
     <Pressable
       accessibilityLabel={`${day}일${isTodayDate ? ' (오늘)' : ''}`}
       accessibilityRole="button"
+      hitSlop={{ top: 2, bottom: 2 }}
       onPress={() => onSelect(date)}
       style={[
         s.dayCell,
@@ -621,7 +622,11 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         />
 
         {/* Middle: Calendar grid with swipe */}
-        <View {...panResponder.panHandlers} style={s.calendarWrapper}>
+        <View
+          {...panResponder.panHandlers}
+          style={s.calendarWrapper}
+          testID="calendar-grid"
+        >
           <WeekdayHeader colors={colors} />
           <View style={s.gridContainer}>
             {grid.map((week, wi) => (
@@ -725,14 +730,14 @@ function makeStyles(colors: ColorPalette) {
     // Header stays outside the deals ScrollView so calendar controls remain visible.
     header: {
       flexShrink: 0,
-      marginBottom: spacing.md,
+      marginBottom: spacing.sm,
       marginTop: spacing.sm,
     },
     titleRow: {
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: spacing.md,
+      marginBottom: spacing.sm,
     },
     backButton: {
       alignItems: 'center',
@@ -756,7 +761,7 @@ function makeStyles(colors: ColorPalette) {
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: spacing.sm,
+      marginBottom: spacing.xs,
     },
     headerNavGroup: {
       alignItems: 'center',
@@ -814,8 +819,9 @@ function makeStyles(colors: ColorPalette) {
       borderRadius: commerceRadius.xxl,
       borderWidth: 1,
       flexShrink: 0,
-      marginBottom: spacing.md,
-      padding: spacing.sm,
+      marginBottom: spacing.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
     },
     weekdayRow: {
       flexDirection: 'row',
@@ -825,7 +831,7 @@ function makeStyles(colors: ColorPalette) {
       alignItems: 'center',
       flex: 1,
       justifyContent: 'center',
-      minHeight: 32,
+      minHeight: 28,
     },
     gridContainer: {
       gap: spacing.xxs,
