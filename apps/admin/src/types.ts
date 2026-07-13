@@ -109,6 +109,16 @@ export type HikerLookupResult = {
   likeCount: number | null;
   username: string | null;
   takenAt: string | null;
+  suggestions?: HikerLlmSuggestions;
+};
+
+export type HikerLlmSuggestions = {
+  productName: string;
+  brandName: string;
+  category: string;
+  discountInfo: string;
+  confidence: number | null;
+  reasoning: string;
 };
 
 export type CdnRefreshStatus = "expired" | "expiring" | "healthy" | "unknown" | "no_cdn";

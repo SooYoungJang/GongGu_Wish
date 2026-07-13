@@ -1289,13 +1289,15 @@ function applyHikerResult(form: SubmissionForm, result: HikerLookupResult): Subm
     mediaItems,
     videoUrl,
     mediaUrls,
+    suggestions: result.suggestions ?? null,
   });
 
   return {
     ...form,
     productName: suggestions.productName || form.productName,
     category: suggestions.category || form.category,
-    brandName: form.brandName || result.username || "",
+    brandName: form.brandName || suggestions.brandName || result.username || "",
+    discountInfo: form.discountInfo || suggestions.discountInfo || "",
     purchaseUrl: form.purchaseUrl || form.instagramUrl,
     summary: result.caption ? result.caption.slice(0, 500) : form.summary,
     thumbnailUrl,
@@ -1304,8 +1306,8 @@ function applyHikerResult(form: SubmissionForm, result: HikerLookupResult): Subm
     mediaItemsText: stringifyMediaItems(mediaItems),
     mediaType: suggestions.mediaType ?? result.mediaType ?? form.mediaType,
   };
-}
 
+}
 function tabTitle(tab: TabKey) {
   if (tab === "submissions") return "위시 검수";
   if (tab === "groupBuys") return "공구 관리";

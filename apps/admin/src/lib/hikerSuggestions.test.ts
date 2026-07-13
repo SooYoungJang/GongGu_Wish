@@ -10,7 +10,7 @@ describe("inferHikerSuggestions", () => {
         currentCategory: "living",
         mediaUrls: ["https://example.com/photo.jpg"],
       }),
-    ).toEqual({
+    ).toMatchObject({
       productName: "관리자가 입력한 상품",
       category: "living",
       mediaType: "IMAGE",
@@ -28,7 +28,7 @@ describe("inferHikerSuggestions", () => {
           "#공구 #과일 #food",
         ].join("\n"),
       }),
-    ).toEqual({
+    ).toMatchObject({
       productName: "국산 저당 복숭아 2kg 산지직송 단단복숭아",
       category: "food",
       mediaType: null,
@@ -94,5 +94,51 @@ describe("inferHikerSuggestions", () => {
         mediaItems: [{ thumbnailUrl: "https://example.com/thumb.webp" }],
       }).mediaType,
     ).toBe("IMAGE");
+  });
+
+  it("prefers LLM suggestions over rule-based inference when no admin override is set", () => {
+    expect(
+      inferHikerSuggestions({
+        caption: "모호한 캡션 #공구",
+        suggestions: {
+          productName: "LLM이 추론한 상품명",
+          brandName: "브랜드",
+          category: "beauty",
+          discountInfo: "정가 29,900원 → 공구가 19,900원",
+          confidence: 0.92,
+          reasoning: "캡션 첫 줄이 상품명으로 보임",
+        },
+      }),
+    ).toMatchObject({
+      productName: "LLM이 추론한 상품명",
+      brandName: "브랜드",
+      category: "beauty",
+      discountInfo: "정가 29,900원 → 공구가 19,900원",
+      confidence: 0.92,
+      reasoning: "캡션 첫 줄이 상품명으로 보임",
+      source: "llm",
+    });
+  });
+
+  it("collapses an out-of-set LLM category to empty string", () => {
+    expect(
+      inferHikerSuggestions({
+        caption: "x",
+        suggestions: {
+          productName: "상품",
+          brandName: "",
+          category: "totally-bogus",
+          discountInfo: "",
+          confidence: null,
+          reasoning: "",
+        },
+      }).category,
+    ).toBe("");
+  });
+
+  it("falls back to rule-based inference and sets source=rules when suggestions are absent", () => {
+    expect(
+      inferHikerSuggestions({ caption: "제주 감귤 3kg #food" }).source,
+    ).toBe("rules");
   });
 });
