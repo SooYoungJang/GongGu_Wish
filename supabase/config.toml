@@ -224,7 +224,6 @@ web3 = 30
 # override the model and endpoint. When UMANS_API_KEY is absent, the
 # function silently falls back to client-side rule-based inference.
 verify_jwt = false
-verify_jwt = false
 
 [functions.naver-auth]
 verify_jwt = false
