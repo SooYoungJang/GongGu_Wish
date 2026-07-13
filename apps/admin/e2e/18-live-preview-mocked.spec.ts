@@ -408,6 +408,8 @@ test("닫은 상세의 늦은 Hiker 응답은 다시 연 폼을 덮어쓰지 않
     return payload?.path === "/admin/hiker-lookup";
   });
   await page.locator(".detail-panel").getByRole("button", { name: "Hiker 조회" }).click();
+  await expect(page.locator(".hiker-lookup-overlay")).toBeVisible();
+  await expect(page.locator(".hiker-lookup-overlay")).toContainText("Hiker 데이터 조회 중");
   await page.locator(".detail-panel").getByRole("button", { name: /목록으로/ }).click();
 
   await page.getByRole("row", { name: /대기중 라이브 프리뷰 위시/ }).click();

@@ -220,7 +220,7 @@ web3 = 30
 [functions.hiker-lookup]
 # UMANS_API_KEY: umans.ai API key for LLM-based product-name inference.
 # Set via: supabase secrets set UMANS_API_KEY=sk-...
-# Optional UMANS_MODEL (default: umans-flash) and UMANS_API_BASE
+# Optional UMANS_MODEL (default: umans/umans-glm-5.2) and UMANS_API_BASE
 # override the model and endpoint. When UMANS_API_KEY is absent, the
 # function silently falls back to client-side rule-based inference.
 verify_jwt = false
