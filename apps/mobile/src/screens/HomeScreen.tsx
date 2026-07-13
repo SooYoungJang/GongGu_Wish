@@ -1505,14 +1505,13 @@ function makeStyles(colors: CommerceColorPalette) {
     productEmptyText: { color: colors.muted, fontSize: 15, fontWeight: '700' },
     categoryFilter: {
       backgroundColor: colors.bg,
-      borderBottomColor: colors.divider,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      elevation: 4,
-      paddingVertical: 0,
+      borderBottomWidth: 0,
+      elevation: 0,
+      paddingVertical: spacing.xs + spacing.xxs,
       zIndex: 2,
     },
     categoryFilterOverlay: {
-      elevation: 12,
+      elevation: 0,
       left: 0,
       position: 'absolute',
       right: 0,
