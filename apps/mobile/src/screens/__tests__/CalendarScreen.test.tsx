@@ -265,7 +265,8 @@ describe('CalendarScreen', () => {
     expect(text).toContain('전체 보기');
     expect(text).toContain('북마크만 보기');
     expect(text).toContain('알림만 보기');
-    expect(text).toContain('둘 다 보기');
+    expect(text).not.toContain('둘 다 보기');
+    expect(text).not.toContain('✓');
     expect(text).not.toContain('팔로잉');
   });
 
@@ -276,7 +277,7 @@ describe('CalendarScreen', () => {
     expect(
       filterGroupBuysByActivity(
         sampleGroupBuys,
-        'all',
+        { bookmarked: false, notified: false },
         bookmarkedIds,
         notifiedIds,
       ).map((item) => item.id),
@@ -284,7 +285,7 @@ describe('CalendarScreen', () => {
     expect(
       filterGroupBuysByActivity(
         sampleGroupBuys,
-        'bookmarked',
+        { bookmarked: true, notified: false },
         bookmarkedIds,
         notifiedIds,
       ).map((item) => item.id),
@@ -292,7 +293,7 @@ describe('CalendarScreen', () => {
     expect(
       filterGroupBuysByActivity(
         sampleGroupBuys,
-        'notified',
+        { bookmarked: false, notified: true },
         bookmarkedIds,
         notifiedIds,
       ).map((item) => item.id),
@@ -300,7 +301,7 @@ describe('CalendarScreen', () => {
     expect(
       filterGroupBuysByActivity(
         sampleGroupBuys,
-        'bookmarked-and-notified',
+        { bookmarked: true, notified: true },
         bookmarkedIds,
         notifiedIds,
       ).map((item) => item.id),
@@ -320,22 +321,29 @@ describe('CalendarScreen', () => {
     const bookmarkDeal = {
       ...sampleGroupBuys[0],
       id: 'gb-filter-bookmark',
-      productName: '북마크 공구',
+      productName: '북마크 전용 공구',
       endDate: todayEnd,
     };
     const notificationDeal = {
       ...sampleGroupBuys[1],
       id: 'gb-filter-notification',
-      productName: '알림 공구',
+      productName: '알림 전용 공구',
+      endDate: todayEnd,
+    };
+    const bothDeal = {
+      ...sampleGroupBuys[2],
+      id: 'gb-filter-both',
+      productName: '공통 공구',
       endDate: todayEnd,
     };
     mockQueryResult = {
-      data: [bookmarkDeal, notificationDeal],
+      data: [bookmarkDeal, notificationDeal, bothDeal],
       isFetching: false,
       isError: false,
     };
-    activityMock.bookmarks = [{ id: bookmarkDeal.id }];
+    activityMock.bookmarks = [{ id: bookmarkDeal.id }, { id: bothDeal.id }];
     activityMock.notifications = [{ groupBuyId: notificationDeal.id }];
+    activityMock.notifications.push({ groupBuyId: bothDeal.id });
 
     const renderer = renderCalendar();
     const bookmarkFilter = renderer!.root.findByProps({
@@ -344,12 +352,19 @@ describe('CalendarScreen', () => {
     act(() => bookmarkFilter.props.onPress());
     const text = flattenText(renderer!.toJSON());
 
-    expect(text).toContain('북마크 공구');
-    expect(text).not.toContain('알림 공구');
+    expect(text).toContain('북마크 전용 공구');
+    expect(text).toContain('공통 공구');
+    expect(text).not.toContain('알림 전용 공구');
 
-    activityMock.bookmarks = [];
-    activityMock.notifications = [];
-    mockQueryResult = { data: null, isFetching: false, isError: false };
+    const notificationFilter = renderer!.root.findByProps({
+      testID: 'calendar-filter-notified',
+    });
+    act(() => notificationFilter.props.onPress());
+    const bothText = flattenText(renderer!.toJSON());
+
+    expect(bothText).toContain('공통 공구');
+    expect(bothText).not.toContain('북마크 전용 공구');
+    expect(bothText).not.toContain('알림 전용 공구');
   });
 
   it('keeps the calendar header fixed while the selected deals scroll', () => {

@@ -33,19 +33,18 @@ const DAY_CELL_SIZE = 44;
 const DOT_SIZE = 5;
 const SWIPE_THRESHOLD = 50;
 
-export type CalendarFilter =
-  | 'all'
-  | 'bookmarked'
-  | 'notified'
-  | 'bookmarked-and-notified';
+export type CalendarActivityFilter = 'bookmarked' | 'notified';
+export type CalendarFilter = Record<CalendarActivityFilter, boolean>;
 
-const CALENDAR_FILTER_OPTIONS: Array<{ value: CalendarFilter; label: string }> =
-  [
-    { value: 'all', label: '전체 보기' },
-    { value: 'bookmarked', label: '북마크만 보기' },
-    { value: 'notified', label: '알림만 보기' },
-    { value: 'bookmarked-and-notified', label: '둘 다 보기' },
-  ];
+const CALENDAR_FILTER_OPTIONS: Array<{
+  value: CalendarActivityFilter;
+  label: string;
+  summaryLabel: string;
+}> = [
+  { value: 'bookmarked', label: '북마크만 보기', summaryLabel: '북마크' },
+  { value: 'notified', label: '알림만 보기', summaryLabel: '알림' },
+];
+const CALENDAR_ALL_FILTER_LABEL = '전체 보기';
 
 export function filterGroupBuysByActivity(
   groupBuys: GroupBuy[],
@@ -53,15 +52,22 @@ export function filterGroupBuysByActivity(
   bookmarkedIds: ReadonlySet<string>,
   notifiedIds: ReadonlySet<string>,
 ): GroupBuy[] {
-  if (filter === 'all') return groupBuys;
+  if (!filter.bookmarked && !filter.notified) return groupBuys;
 
   return groupBuys.filter((groupBuy) => {
-    const isBookmarked = bookmarkedIds.has(groupBuy.id);
-    const isNotified = notifiedIds.has(groupBuy.id);
-    if (filter === 'bookmarked') return isBookmarked;
-    if (filter === 'notified') return isNotified;
-    return isBookmarked && isNotified;
+    const matchesBookmark =
+      !filter.bookmarked || bookmarkedIds.has(groupBuy.id);
+    const matchesNotification =
+      !filter.notified || notifiedIds.has(groupBuy.id);
+    return matchesBookmark && matchesNotification;
   });
+}
+
+function getCalendarFilterLabel(filter: CalendarFilter): string | null {
+  const labels = CALENDAR_FILTER_OPTIONS.filter(
+    (option) => filter[option.value],
+  ).map((option) => option.summaryLabel);
+  return labels.length > 0 ? labels.join(' · ') : null;
 }
 
 // ─── Date utilities ──────────────────────────────────────────────────────────
@@ -188,13 +194,16 @@ function categoryForIndex(index: number): CategoryColorName {
 function CalendarFilterBar({
   colors,
   filter,
-  onChange,
+  onClear,
+  onToggle,
 }: {
   colors: ColorPalette;
   filter: CalendarFilter;
-  onChange: (filter: CalendarFilter) => void;
+  onClear: () => void;
+  onToggle: (filter: CalendarActivityFilter) => void;
 }) {
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const isAllSelected = !filter.bookmarked && !filter.notified;
 
   return (
     <View style={s.filterSection} testID="calendar-filter-bar">
@@ -206,15 +215,38 @@ function CalendarFilterBar({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.filterBar}
       >
+        <Pressable
+          accessibilityLabel={`${CALENDAR_ALL_FILTER_LABEL} ${isAllSelected ? '선택됨' : '선택 안 됨'}`}
+          accessibilityRole="button"
+          onPress={onClear}
+          style={[
+            s.filterChip,
+            {
+              backgroundColor: isAllSelected ? colors.primary : colors.panelBg,
+              borderColor: isAllSelected ? colors.primary : colors.border,
+            },
+          ]}
+          testID="calendar-filter-all"
+        >
+          <SText
+            variant="caption"
+            style={{
+              color: isAllSelected ? colors.textInverse : colors.textSecondary,
+              fontWeight: '800',
+            }}
+          >
+            {CALENDAR_ALL_FILTER_LABEL}
+          </SText>
+        </Pressable>
         {CALENDAR_FILTER_OPTIONS.map((option) => {
-          const selected = filter === option.value;
+          const selected = filter[option.value];
           return (
             <Pressable
               key={option.value}
               accessibilityLabel={`${option.label} ${selected ? '선택됨' : '선택 안 됨'}`}
-              accessibilityRole="radio"
-              accessibilityState={{ selected }}
-              onPress={() => onChange(option.value)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: selected }}
+              onPress={() => onToggle(option.value)}
               style={[
                 s.filterChip,
                 {
@@ -231,7 +263,7 @@ function CalendarFilterBar({
                   fontWeight: '800',
                 }}
               >
-                {selected ? `✓ ${option.label}` : option.label}
+                {option.label}
               </SText>
             </Pressable>
           );
@@ -246,7 +278,8 @@ function CalendarHeader({
   month,
   colors,
   filter,
-  onFilterChange,
+  onClearFilter,
+  onToggleFilter,
   onPrevMonth,
   onNextMonth,
   onToday,
@@ -256,7 +289,8 @@ function CalendarHeader({
   month: number;
   colors: ColorPalette;
   filter: CalendarFilter;
-  onFilterChange: (filter: CalendarFilter) => void;
+  onClearFilter: () => void;
+  onToggleFilter: (filter: CalendarActivityFilter) => void;
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onToday: () => void;
@@ -340,7 +374,8 @@ function CalendarHeader({
       <CalendarFilterBar
         colors={colors}
         filter={filter}
-        onChange={onFilterChange}
+        onClear={onClearFilter}
+        onToggle={onToggleFilter}
       />
     </View>
   );
@@ -434,7 +469,10 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   const [currentYear, setCurrentYear] = useState(initialDate.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(initialDate.getMonth());
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
-  const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>('all');
+  const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>({
+    bookmarked: false,
+    notified: false,
+  });
   const { bookmarks } = useBookmarks();
   const { notifications } = useNotifications();
 
@@ -487,15 +525,29 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     () => groupBuysByDate.get(selectedDateKey) ?? [],
     [groupBuysByDate, selectedDateKey],
   );
+  const calendarFilterLabel = useMemo(
+    () => getCalendarFilterLabel(calendarFilter),
+    [calendarFilter],
+  );
   const grid = useMemo(
     () => getMonthGrid(currentYear, currentMonth),
     [currentYear, currentMonth],
   );
 
+  const clearCalendarFilter = useCallback(() => {
+    setCalendarFilter({ bookmarked: false, notified: false });
+  }, []);
+  const toggleCalendarFilter = useCallback((filter: CalendarActivityFilter) => {
+    setCalendarFilter((current) => ({
+      ...current,
+      [filter]: !current[filter],
+    }));
+  }, []);
+
   // Reset filter state on screen re-entry
   useEffect(() => {
-    setCalendarFilter('all');
-  }, [route.key]);
+    clearCalendarFilter();
+  }, [clearCalendarFilter, route.key]);
 
   // Navigation helpers
   const goToPrevMonth = useCallback(() => {
@@ -565,7 +617,8 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
           onNextMonth={goToNextMonth}
           onToday={goToToday}
           filter={calendarFilter}
-          onFilterChange={setCalendarFilter}
+          onClearFilter={clearCalendarFilter}
+          onToggleFilter={toggleCalendarFilter}
           onGoBack={navigation.goBack}
         />
 
@@ -606,9 +659,9 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
               : `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 공구`}
           </SText>
           <SText variant="label">
-            {calendarFilter === 'all'
-              ? `${selectedDateGroupBuys.length}개`
-              : `${selectedDateGroupBuys.length}개 · ${CALENDAR_FILTER_OPTIONS.find((option) => option.value === calendarFilter)?.label}`}
+            {calendarFilterLabel
+              ? `${selectedDateGroupBuys.length}개 · ${calendarFilterLabel}`
+              : `${selectedDateGroupBuys.length}개`}
           </SText>
         </View>
 
@@ -644,14 +697,14 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
                 marginBottom: spacing.xs,
               }}
             >
-              {calendarFilter === 'all'
-                ? '이 날짜의 공구가 없어요'
-                : '선택한 필터의 공구가 없어요'}
+              {calendarFilterLabel
+                ? '선택한 필터의 공구가 없어요'
+                : '이 날짜의 공구가 없어요'}
             </SText>
             <SText variant="caption" style={{ fontSize: 13 }}>
-              {calendarFilter === 'all'
-                ? '아직 등록된 공동구매가 없습니다.'
-                : '필터를 바꾸거나 다른 날짜를 선택해보세요.'}
+              {calendarFilterLabel
+                ? '필터를 바꾸거나 다른 날짜를 선택해보세요.'
+                : '아직 등록된 공동구매가 없습니다.'}
             </SText>
           </View>
         )}
