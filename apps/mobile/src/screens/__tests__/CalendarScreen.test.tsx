@@ -207,6 +207,11 @@ function renderCalendar(params: Record<string, unknown> = {}) {
   return renderer!;
 }
 
+function expandCalendar(renderer: TestRenderer.ReactTestRenderer) {
+  const toggle = renderer.root.findByProps({ testID: 'calendar-month-toggle' });
+  act(() => toggle.props.onPress());
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('CalendarScreen', () => {
@@ -228,8 +233,24 @@ describe('CalendarScreen', () => {
     expect(text).toContain('오늘');
   });
 
+  it('keeps the calendar collapsed by default and expands from the month button', () => {
+    const renderer = renderCalendar();
+    expect(renderer.root.findAllByProps({ testID: 'calendar-grid' })).toHaveLength(0);
+
+    const toggle = renderer.root.findByProps({ testID: 'calendar-month-toggle' });
+    expect(toggle.props.accessibilityLabel).toContain('달력 펼치기');
+
+    act(() => toggle.props.onPress());
+
+    expect(renderer.root.findByProps({ testID: 'calendar-grid' })).toBeDefined();
+    expect(
+      renderer.root.findByProps({ testID: 'calendar-month-toggle' }).props.accessibilityLabel,
+    ).toContain('달력 접기');
+  });
+
   it('renders weekday labels in order (월~일)', () => {
     const renderer = renderCalendar();
+    expandCalendar(renderer);
     const text = flattenText(renderer!.toJSON());
     expect(text).toContain('월');
     expect(text).toContain('화');
@@ -242,6 +263,7 @@ describe('CalendarScreen', () => {
 
   it("renders today's date and marks it in the grid", () => {
     const renderer = renderCalendar();
+    expandCalendar(renderer);
     const today = new Date();
     const text = flattenText(renderer!.toJSON());
     expect(text).toContain(String(today.getDate()));
@@ -249,6 +271,7 @@ describe('CalendarScreen', () => {
 
   it('renders navigation arrows and today button', () => {
     const renderer = renderCalendar();
+    expandCalendar(renderer);
     const pressables = renderer!.root.findAllByType(
       'Pressable' as unknown as React.ElementType,
     );
@@ -371,7 +394,7 @@ describe('CalendarScreen', () => {
     expect(bothText).toContain('공통 공구');
   });
 
-  it('keeps the calendar header fixed while the selected deals scroll', () => {
+  it('keeps the calendar header fixed while the calendar and selected deals share one scroll', () => {
     const today = new Date();
     mockQueryResult = {
       data: [
@@ -393,12 +416,13 @@ describe('CalendarScreen', () => {
     };
     const renderer = renderCalendar();
     const header = renderer!.root.findByProps({ testID: 'calendar-header' });
-    const dealsScroll = renderer!.root.findByProps({
-      testID: 'calendar-deals-scroll',
+    const contentScroll = renderer!.root.findByProps({
+      testID: 'calendar-content-scroll',
     });
 
     expect(header.props.style).toMatchObject({ flexShrink: 0 });
-    expect(dealsScroll.props.style).toMatchObject({ flex: 1 });
+    expect(contentScroll.props.style).toMatchObject({ flex: 1 });
+    expect(renderer!.root.findAllByProps({ testID: 'calendar-deals-scroll' })).toHaveLength(0);
     mockQueryResult = {
       data: null,
       isFetching: false,
@@ -408,6 +432,7 @@ describe('CalendarScreen', () => {
 
   it('keeps the calendar grid compact above the selected deals', () => {
     const renderer = renderCalendar();
+    expandCalendar(renderer);
     const calendarGrid = renderer!.root.findByProps({
       testID: 'calendar-grid',
     });
@@ -420,6 +445,18 @@ describe('CalendarScreen', () => {
       paddingVertical: spacing.xxs,
     });
     expect(firstDayCell.props.style[0]).toMatchObject({ minHeight: 36 });
+  });
+
+  it('collapses the calendar after selecting a date', () => {
+    const renderer = renderCalendar();
+    expandCalendar(renderer);
+    const dayCell = renderer.root.findAll(
+      (node) => node.props.accessibilityLabel === '1일',
+    )[0];
+
+    act(() => dayCell.props.onPress());
+
+    expect(renderer.root.findAllByProps({ testID: 'calendar-grid' })).toHaveLength(0);
   });
 
   it('uses the shared back button contract', () => {

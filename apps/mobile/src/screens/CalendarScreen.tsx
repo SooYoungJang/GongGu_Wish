@@ -283,6 +283,8 @@ function CalendarHeader({
   onNextMonth,
   onToday,
   onGoBack,
+  isCalendarExpanded,
+  onToggleCalendar,
 }: {
   year: number;
   month: number;
@@ -294,6 +296,8 @@ function CalendarHeader({
   onNextMonth: () => void;
   onToday: () => void;
   onGoBack: () => void;
+  isCalendarExpanded: boolean;
+  onToggleCalendar: () => void;
 }) {
   const label = `${year}년 ${month + 1}월`;
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -312,49 +316,66 @@ function CalendarHeader({
         <View style={s.titleSpacer} />
       </View>
 
-      <View style={s.monthRow}>
-        <Pressable
-          accessibilityLabel="오늘로 이동"
-          accessibilityRole="button"
-          onPress={onToday}
-          style={s.todayButton}
-        >
-          <SText
-            variant="body"
-            style={{
-              color: colors.textInverse,
-              fontSize: 14,
-              fontWeight: '800',
-            }}
+      <View style={[s.monthRow, !isCalendarExpanded && s.monthRowCollapsed]}>
+        {isCalendarExpanded ? (
+          <Pressable
+            accessibilityLabel="오늘로 이동"
+            accessibilityRole="button"
+            onPress={onToday}
+            style={s.todayButton}
           >
-            오늘
-          </SText>
-        </Pressable>
-
+            <SText
+              variant="body"
+              style={{
+                color: colors.textInverse,
+                fontSize: 14,
+                fontWeight: '800',
+              }}
+            >
+              오늘
+            </SText>
+          </Pressable>
+        ) : null}
         <View style={s.headerNavGroup}>
+          {isCalendarExpanded ? (
+            <Pressable
+              accessibilityLabel="이전 달"
+              accessibilityRole="button"
+              onPress={onPrevMonth}
+              style={s.navArrow}
+            >
+              <SText variant="body" style={{ fontSize: 16 }}>
+                ◀
+              </SText>
+            </Pressable>
+          ) : null}
           <Pressable
-            accessibilityLabel="이전 달"
+            accessibilityLabel={`${label} 달력 ${isCalendarExpanded ? '접기' : '펼치기'}`}
             accessibilityRole="button"
-            onPress={onPrevMonth}
-            style={s.navArrow}
+            accessibilityState={{ expanded: isCalendarExpanded }}
+            onPress={onToggleCalendar}
+            style={s.monthToggle}
+            testID="calendar-month-toggle"
           >
-            <SText variant="body" style={{ fontSize: 16 }}>
-              ◀
+            <SText variant="cardTitle" style={s.monthTitle}>
+              {label}
+            </SText>
+            <SText variant="body" style={s.calendarToggleIcon}>
+              {isCalendarExpanded ? '▲' : '▼'}
             </SText>
           </Pressable>
-          <SText variant="cardTitle" style={s.monthTitle}>
-            {label}
-          </SText>
-          <Pressable
-            accessibilityLabel="다음 달"
-            accessibilityRole="button"
-            onPress={onNextMonth}
-            style={s.navArrow}
-          >
-            <SText variant="body" style={{ fontSize: 16 }}>
-              ▶
-            </SText>
-          </Pressable>
+          {isCalendarExpanded ? (
+            <Pressable
+              accessibilityLabel="다음 달"
+              accessibilityRole="button"
+              onPress={onNextMonth}
+              style={s.navArrow}
+            >
+              <SText variant="body" style={{ fontSize: 16 }}>
+                ▶
+              </SText>
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -457,10 +478,12 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   const [currentYear, setCurrentYear] = useState(initialDate.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(initialDate.getMonth());
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
+  const [isCalendarExpanded, setIsCalendarExpanded] = useState(false);
   const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>({
     bookmarked: false,
     notified: false,
   });
+  const contentScrollRef = useRef<ScrollView | null>(null);
   const { bookmarks } = useBookmarks();
   const { notifications } = useNotifications();
 
@@ -531,10 +554,15 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
       [filter]: !current[filter],
     }));
   }, []);
+  const toggleCalendar = useCallback(() => {
+    contentScrollRef.current?.scrollTo({ y: 0, animated: true });
+    setIsCalendarExpanded((expanded) => !expanded);
+  }, []);
 
   // Reset filter state on screen re-entry
   useEffect(() => {
     clearCalendarFilter();
+    setIsCalendarExpanded(false);
   }, [clearCalendarFilter, route.key]);
 
   // Navigation helpers
@@ -561,6 +589,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     setCurrentYear(now.getFullYear());
     setCurrentMonth(now.getMonth());
     setSelectedDate(now);
+    setIsCalendarExpanded(false);
   }, []);
 
   const handleSelectDate = useCallback(
@@ -574,6 +603,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         setCurrentYear(date.getFullYear());
         setCurrentMonth(date.getMonth());
       }
+      setIsCalendarExpanded(false);
     },
     [currentMonth, currentYear],
   );
@@ -608,98 +638,103 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
           onClearFilter={clearCalendarFilter}
           onToggleFilter={toggleCalendarFilter}
           onGoBack={navigation.goBack}
+          isCalendarExpanded={isCalendarExpanded}
+          onToggleCalendar={toggleCalendar}
         />
 
-        {/* Middle: Calendar grid with swipe */}
-        <View
-          {...panResponder.panHandlers}
-          style={s.calendarWrapper}
-          testID="calendar-grid"
+        <ScrollView
+          ref={contentScrollRef}
+          style={s.contentScroll}
+          contentContainerStyle={s.contentScrollContent}
+          showsVerticalScrollIndicator={false}
+          testID="calendar-content-scroll"
         >
-          <WeekdayHeader colors={colors} />
-          <View style={s.gridContainer}>
-            {grid.map((week, wi) => (
-              <View key={wi} style={s.weekRow}>
-                {week.map((cell) => (
-                  <DayCell
-                    key={formatDateKey(cell.date)}
-                    day={cell.day}
-                    isCurrentMonth={cell.isCurrentMonth}
-                    date={cell.date}
-                    colors={colors}
-                    hasGroupBuys={dateKeysWithBuys.has(
-                      formatDateKey(cell.date),
-                    )}
-                    isSelected={isSameDay(cell.date, selectedDate)}
-                    isTodayDate={isToday(cell.date)}
-                    onSelect={handleSelectDate}
+          {isCalendarExpanded ? (
+            <View
+              {...panResponder.panHandlers}
+              style={s.calendarWrapper}
+              testID="calendar-grid"
+            >
+              <WeekdayHeader colors={colors} />
+              <View style={s.gridContainer}>
+                {grid.map((week, wi) => (
+                  <View key={wi} style={s.weekRow}>
+                    {week.map((cell) => (
+                      <DayCell
+                        key={formatDateKey(cell.date)}
+                        day={cell.day}
+                        isCurrentMonth={cell.isCurrentMonth}
+                        date={cell.date}
+                        colors={colors}
+                        hasGroupBuys={dateKeysWithBuys.has(
+                          formatDateKey(cell.date),
+                        )}
+                        isSelected={isSameDay(cell.date, selectedDate)}
+                        isTodayDate={isToday(cell.date)}
+                        onSelect={handleSelectDate}
+                      />
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          <View style={s.dealsHeader}>
+            <SText
+              variant="cardTitle"
+              style={{ fontSize: 17, fontWeight: '800' }}
+            >
+              {selectedDateKey === formatDateKey(today)
+                ? '오늘의 공구'
+                : `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 공구`}
+            </SText>
+            <SText variant="label">
+              {calendarFilterLabel
+                ? `${selectedDateGroupBuys.length}개 · ${calendarFilterLabel}`
+                : `${selectedDateGroupBuys.length}개`}
+            </SText>
+          </View>
+
+          {isFetching && groupBuys.length === 0 ? (
+            <ActivityIndicator color={colors.primary} style={s.loading} />
+          ) : selectedDateGroupBuys.length > 0 ? (
+            <View style={s.dealsGrid}>
+              <View style={s.dealsGridInner}>
+                {selectedDateGroupBuys.map((item, index) => (
+                  <DealCard
+                    key={item.id}
+                    item={item}
+                    category={item.category ?? categoryForIndex(index)}
+                    onPress={() =>
+                      navigation.navigate('Detail', { groupBuy: item })
+                    }
                   />
                 ))}
               </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Bottom: Selected date's group buys */}
-        <View style={s.dealsHeader}>
-          <SText
-            variant="cardTitle"
-            style={{ fontSize: 17, fontWeight: '800' }}
-          >
-            {selectedDateKey === formatDateKey(today)
-              ? '오늘의 공구'
-              : `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 공구`}
-          </SText>
-          <SText variant="label">
-            {calendarFilterLabel
-              ? `${selectedDateGroupBuys.length}개 · ${calendarFilterLabel}`
-              : `${selectedDateGroupBuys.length}개`}
-          </SText>
-        </View>
-
-        {isFetching && groupBuys.length === 0 ? (
-          <ActivityIndicator color={colors.primary} style={s.loading} />
-        ) : selectedDateGroupBuys.length > 0 ? (
-          <ScrollView
-            style={s.dealsScroll}
-            contentContainerStyle={s.dealsGrid}
-            showsVerticalScrollIndicator={false}
-            testID="calendar-deals-scroll"
-          >
-            <View style={s.dealsGridInner}>
-              {selectedDateGroupBuys.map((item, index) => (
-                <DealCard
-                  key={item.id}
-                  item={item}
-                  category={item.category ?? categoryForIndex(index)}
-                  onPress={() =>
-                    navigation.navigate('Detail', { groupBuy: item })
-                  }
-                />
-              ))}
             </View>
-          </ScrollView>
-        ) : (
-          <View style={s.emptyDeals}>
-            <SText
-              variant="subtitle"
-              style={{
-                color: colors.textPrimary,
-                fontWeight: '700',
-                marginBottom: spacing.xs,
-              }}
-            >
-              {calendarFilterLabel
-                ? '선택한 필터의 공구가 없어요'
-                : '이 날짜의 공구가 없어요'}
-            </SText>
-            <SText variant="caption" style={{ fontSize: 13 }}>
-              {calendarFilterLabel
-                ? '필터를 바꾸거나 다른 날짜를 선택해보세요.'
-                : '아직 등록된 공동구매가 없습니다.'}
-            </SText>
-          </View>
-        )}
+          ) : (
+            <View style={s.emptyDeals}>
+              <SText
+                variant="subtitle"
+                style={{
+                  color: colors.textPrimary,
+                  fontWeight: '700',
+                  marginBottom: spacing.xs,
+                }}
+              >
+                {calendarFilterLabel
+                  ? '선택한 필터의 공구가 없어요'
+                  : '이 날짜의 공구가 없어요'}
+              </SText>
+              <SText variant="caption" style={{ fontSize: 13 }}>
+                {calendarFilterLabel
+                  ? '필터를 바꾸거나 다른 날짜를 선택해보세요.'
+                  : '아직 등록된 공동구매가 없습니다.'}
+              </SText>
+            </View>
+          )}
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -716,7 +751,7 @@ function makeStyles(colors: ColorPalette) {
       backgroundColor: colors.bg,
     },
 
-    // Header stays outside the deals ScrollView so calendar controls remain visible.
+    // Header stays fixed while the calendar and product list share one scroll.
     header: {
       flexShrink: 0,
       marginBottom: spacing.sm,
@@ -748,6 +783,9 @@ function makeStyles(colors: ColorPalette) {
       justifyContent: 'space-between',
       marginBottom: spacing.xs,
     },
+    monthRowCollapsed: {
+      justifyContent: 'center',
+    },
     headerNavGroup: {
       alignItems: 'center',
       flexDirection: 'row',
@@ -760,6 +798,21 @@ function makeStyles(colors: ColorPalette) {
       fontWeight: '800',
       minWidth: 110,
       textAlign: 'center',
+    },
+    monthToggle: {
+      alignItems: 'center',
+      backgroundColor: colors.softBg,
+      borderRadius: commerceRadius.full,
+      flexDirection: 'row',
+      gap: spacing.xxs,
+      justifyContent: 'center',
+      minHeight: 40,
+      paddingHorizontal: spacing.md,
+    },
+    calendarToggleIcon: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '800',
     },
     navArrow: {
       alignItems: 'center',
@@ -798,6 +851,13 @@ function makeStyles(colors: ColorPalette) {
       paddingHorizontal: spacing.md,
     },
     // Calendar grid
+    contentScroll: {
+      flex: 1,
+      minHeight: 0,
+    },
+    contentScrollContent: {
+      paddingBottom: spacing['2xl'],
+    },
     calendarWrapper: {
       backgroundColor: colors.panelBg,
       borderColor: colors.border,
@@ -864,10 +924,6 @@ function makeStyles(colors: ColorPalette) {
     },
 
     // Deals section
-    dealsScroll: {
-      flex: 1,
-      minHeight: 0,
-    },
     dealsHeader: {
       alignItems: 'center',
       borderTopColor: colors.borderLight,
@@ -878,7 +934,7 @@ function makeStyles(colors: ColorPalette) {
       paddingTop: spacing.sm,
     },
     dealsGrid: {
-      paddingBottom: spacing['2xl'],
+      paddingBottom: spacing.sm,
     },
     dealsGridInner: {
       flexDirection: 'row',

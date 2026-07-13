@@ -4,7 +4,7 @@ tags:
   - calendar
   - activity-filter
 ---
-# Calendar E2E -- fixed header and bookmark/notification activity filters.
+# Calendar E2E -- collapsed month picker, full-page deals scroll, and activity filters.
 - launchApp:
     clearState: true
 - waitForAnimationToEnd
@@ -14,10 +14,10 @@ tags:
     timeout: 60000
 - extendedWaitUntil:
     visible:
-      text: '전체 캘린더 보기'
+      id: home-calendar-open
     timeout: 15000
 - tapOn:
-    text: '전체 캘린더 보기'
+    id: home-calendar-open
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
@@ -34,6 +34,19 @@ tags:
 - assertVisible:
     text: '공구 필터'
 - takeScreenshot: calendar-01-header-filters
+
+# Expand and collapse the month picker without changing the selected deals list.
+- tapOn:
+    id: calendar-month-toggle
+- waitForAnimationToEnd
+- assertVisible:
+    id: calendar-grid
+- takeScreenshot: calendar-02-calendar-expanded
+- tapOn:
+    id: calendar-month-toggle
+- waitForAnimationToEnd
+- assertNotVisible:
+    id: calendar-grid
 
 # Bookmark-only filter
 - tapOn:
