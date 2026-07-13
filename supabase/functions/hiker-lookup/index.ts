@@ -328,7 +328,7 @@ async function inferSuggestionsViaLlm(caption: string | null): Promise<HikerLlmS
           { role: 'user', content: userPrompt },
         ],
       }),
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(60_000),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
