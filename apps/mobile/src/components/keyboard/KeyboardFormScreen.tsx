@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useState, type Ref } from 'react';
 import {
   Keyboard,
   type LayoutChangeEvent,
@@ -12,6 +12,7 @@ import {
   KeyboardAwareScrollView,
   KeyboardStickyView,
 } from 'react-native-keyboard-controller';
+import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 
 type KeyboardFormScreenProps = {
   children: ReactNode;
@@ -24,6 +25,7 @@ type KeyboardFormScreenProps = {
   scrollEventThrottle?: ScrollViewProps['scrollEventThrottle'];
   refreshControl?: ScrollViewProps['refreshControl'];
   stickyHeaderIndices?: ScrollViewProps['stickyHeaderIndices'];
+  scrollRef?: Ref<KeyboardAwareScrollViewRef>;
   bottomOffset?: number;
   testID?: string;
 };
@@ -39,6 +41,7 @@ export function KeyboardFormScreen({
   scrollEventThrottle,
   refreshControl,
   stickyHeaderIndices,
+  scrollRef,
   bottomOffset = 16,
   testID,
 }: KeyboardFormScreenProps) {
@@ -81,6 +84,7 @@ export function KeyboardFormScreen({
         bottomOffset={footerHeight + bottomOffset}
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
         onScroll={onScroll}
+        ref={scrollRef}
         scrollEventThrottle={scrollEventThrottle}
         refreshControl={refreshControl}
         stickyHeaderIndices={stickyHeaderIndices}

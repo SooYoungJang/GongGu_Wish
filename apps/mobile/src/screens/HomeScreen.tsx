@@ -34,6 +34,7 @@ import { categoryForGroupBuy } from '../components/home/DealCardGrid';
 import { WeeklyCalendarStrip } from '../components/home/WeeklyCalendarStrip';
 import { fallbackGroupBuys, fetchGroupBuys } from '../api';
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
+import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 import { borderRadius, spacing } from '../design/tokens';
 import type { CategoryColorName } from '../design/tokens';
 import { isGroupBuyActiveOnDate } from '../utils/groupBuyDates';
@@ -41,6 +42,7 @@ import { formatPriceKrw, selectHomeBannerItems } from '../utils/homeBanner';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { CommerceColorPalette } from '../design/commerce';
 import type { GroupBuy, HomeScreenProps } from '../types';
+import { useTabReselect } from '../hooks/useTabReselect';
 import promoScrimSource from '../assets/promo-scrim.png';
 
 type HomeAction = () => void;
@@ -60,6 +62,7 @@ type HomeScreenContentProps = {
   onOpenSearch: HomeAction;
   onOpenCalendar: HomeAction;
   onPressDeal: DealAction;
+  scrollToTopRequest?: number | null;
 };
 
 const HOME_SIDE_PADDING = 16;
@@ -890,12 +893,14 @@ export function HomeScreenContent({
   onOpenSearch,
   onOpenCalendar,
   onPressDeal,
+  scrollToTopRequest = null,
 }: HomeScreenContentProps) {
   const { colors, isDark } = useCommerceTheme();
   const { width } = useWindowDimensions();
   const [selectedCategory, setSelectedCategory] = useState<HomeCategory>('all');
   const categoryFilterTopRef = useRef<number | null>(null);
   const scrollOffsetRef = useRef(0);
+  const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const [isCategoryFilterSticky, setIsCategoryFilterSticky] = useState(false);
   const displayGroupBuys = useMemo(() => getDisplayItems(groupBuys), [groupBuys]);
   const filteredGroupBuys = useMemo(() => {
@@ -913,6 +918,11 @@ export function HomeScreenContent({
     Math.round((width - promoCardWidth) / 2),
   );
   const s = useMemo(() => makeStyles(colors), [colors]);
+
+  useEffect(() => {
+    if (scrollToTopRequest == null) return;
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [scrollToTopRequest]);
 
   const handleCategoryFilterLayout = useCallback((event: LayoutChangeEvent) => {
     const nextTop = event.nativeEvent.layout.y;
@@ -941,6 +951,7 @@ export function HomeScreenContent({
         <KeyboardFormScreen
           keyboardShouldPersistTaps="always"
           onScroll={handleHomeScroll}
+          scrollRef={scrollRef}
           scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
@@ -1016,6 +1027,7 @@ export function HomeScreenContent({
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [scrollToTopRequest, setScrollToTopRequest] = useState<number | null>(null);
   const { data, isError, refetch } = useQuery({
     queryKey: ['group-buys'],
     queryFn: fetchGroupBuys,
@@ -1031,6 +1043,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     }
   }, [refetch]);
 
+  const handleHomeTabReselect = useCallback(() => {
+    setScrollToTopRequest((request) => (request ?? 0) + 1);
+    void handleManualRefresh();
+  }, [handleManualRefresh]);
+
+  useTabReselect(navigation, handleHomeTabReselect);
+
   const groupBuys = data?.length ? data : fallbackGroupBuys;
 
   useFocusEffect(
@@ -1045,6 +1064,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       isError={isError}
       isFetching={isManualRefreshing}
       onRefresh={handleManualRefresh}
+      scrollToTopRequest={scrollToTopRequest}
       onOpenSearch={() => navigation.navigate('SearchScreen')}
       onOpenCalendar={() =>
         navigation.navigate('CalendarScreen', {

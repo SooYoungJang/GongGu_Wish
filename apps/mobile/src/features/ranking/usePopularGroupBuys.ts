@@ -84,7 +84,7 @@ export function usePopularGroupBuys(
 
   return useMemo((): RankingLoadState => {
     if (query.isLoading) {
-      return { status: 'loading', data: undefined };
+      return { status: 'loading', data: undefined, refresh: query.refetch };
     }
 
     if (query.isError) {
@@ -93,6 +93,7 @@ export function usePopularGroupBuys(
         data: undefined,
         message: '인기 공구 랭킹 데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.',
         retry: query.refetch,
+        refresh: query.refetch,
       };
     }
 
@@ -132,6 +133,7 @@ export function usePopularGroupBuys(
         status: 'empty',
         message: '이 기간에 인기 공구가 없습니다.',
         updatedAt: query.dataUpdatedAt || undefined,
+        refresh: query.refetch,
       };
     }
 
@@ -140,6 +142,7 @@ export function usePopularGroupBuys(
       data,
       refreshing: query.isFetching && !query.isLoading,
       updatedAt: query.dataUpdatedAt || undefined,
+      refresh: query.refetch,
     };
   }, [period, category, sort, query.data, query.isError, query.isFetching, query.isLoading, query.refetch]);
 }

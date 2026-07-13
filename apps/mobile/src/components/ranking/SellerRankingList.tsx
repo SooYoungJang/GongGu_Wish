@@ -6,8 +6,10 @@ import {
   StyleSheet,
   View,
   type FlatListProps,
+  type FlatList,
   type ListRenderItem,
 } from 'react-native';
+import type { Ref } from 'react';
 
 import { SText } from '../ui/SText';
 import { spacing } from '../../design/tokens';
@@ -24,6 +26,7 @@ export interface SellerRankingListProps {
   onToggleFollow?: (item: SellerRanking) => void;
   topInset?: number;
   onScroll?: FlatListProps<SellerRanking>['onScroll'];
+  listRef?: Ref<FlatList<SellerRanking>>;
 }
 
 const NOOP = () => undefined;
@@ -35,6 +38,7 @@ export function SellerRankingList({
   onPressItem,
   onToggleFollow,
   onScroll,
+  listRef,
   topInset = spacing.sm,
 }: SellerRankingListProps) {
   const { colors } = useCommerceTheme();
@@ -114,6 +118,7 @@ export function SellerRankingList({
       data={state.data}
       keyExtractor={(item) => item.id}
       ListFooterComponent={<View style={{ height: bottomPadding }} />}
+      ref={listRef}
       onScroll={onScroll}
       onRefresh={onRefresh}
       progressViewOffset={spacing.lg}

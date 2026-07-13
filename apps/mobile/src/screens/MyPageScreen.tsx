@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,9 +13,10 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { SText } from '../components/ui/SText';
 import { useAuth } from '../context/AuthContext';
 import { useCommerceTheme } from '../design/useCommerceTheme';
+import { useTabReselect } from '../hooks/useTabReselect';
 import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
 import { spacing } from '../design/tokens';
-import type { GroupBuy, RootStackParamList } from '../types';
+import type { GroupBuy, MainTabParamList, RootStackParamList } from '../types';
 
 type PublicWishSubmissionResponse = {
   alreadyRegistered?: boolean;
@@ -154,7 +156,9 @@ export function MyPageScreen() {
   const { colors } = useCommerceTheme();
   const { user, isLoading: authLoading, signOut } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const scrollRef = useRef<ScrollView>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const { bookmarks: bookmarkedDeals, removeBookmark, refresh: refreshBookmarks } = useBookmarks();
   const { recentViews: viewedToday, refresh: refreshRecent } = useRecentViews();
@@ -165,14 +169,25 @@ export function MyPageScreen() {
   const [wishFeedback, setWishFeedback] = useState<string | null>(null);
   const [wishSubmitting, setWishSubmitting] = useState(false);
 
+  const refreshMyPage = useCallback(() => {
+    refreshBookmarks();
+    refreshRecent();
+    refreshNotifications();
+    refreshWishItems();
+  }, [refreshBookmarks, refreshRecent, refreshNotifications, refreshWishItems]);
+
   useFocusEffect(
     useCallback(() => {
-      refreshBookmarks();
-      refreshRecent();
-      refreshNotifications();
-      refreshWishItems();
-    }, [refreshBookmarks, refreshRecent, refreshNotifications, refreshWishItems]),
+      refreshMyPage();
+    }, [refreshMyPage]),
   );
+
+  const handleMyPageTabReselect = useCallback(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    refreshMyPage();
+  }, [refreshMyPage]);
+
+  useTabReselect(tabNavigation, handleMyPageTabReselect);
 
   const handleLoginPress = useCallback(() => {
     navigation.navigate('Login');
@@ -319,7 +334,7 @@ export function MyPageScreen() {
           </View>
         </View>
       </Modal>
-      <ScrollView contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
         <ScreenHeader
           title="마이페이지"
           right={(

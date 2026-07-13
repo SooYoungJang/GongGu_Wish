@@ -241,10 +241,11 @@ type VideoSlideProps = {
   url: string;
   isActive: boolean;
   thumbnailUrl?: string | null;
+  replayKey?: number;
   s: ReturnType<typeof makeStyles>;
 };
 
-const VideoSlide = memo(function VideoSlide({ url, isActive, thumbnailUrl, s }: VideoSlideProps) {
+const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnailUrl, s }: VideoSlideProps) {
   const [shouldPlay, setShouldPlay] = useState(true);
   const [isMuted, setMuted] = useState(false);
   const [areControlsVisible, setControlsVisible] = useState(false);
@@ -286,6 +287,20 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, thumbnailUrl, s }: 
       if (!isActive) player.currentTime = 0;
     }
   }, [isActive, isMuted, player, shouldPlay]);
+
+  const replayKeyRef = useRef(replayKey);
+  const isActiveRef = useRef(isActive);
+  useEffect(() => {
+    const wasActive = isActiveRef.current;
+    isActiveRef.current = isActive;
+    if (replayKeyRef.current === replayKey) return;
+    replayKeyRef.current = replayKey;
+    if (!isActive || !wasActive) return;
+
+    setShouldPlay(true);
+    player.currentTime = 0;
+    player.play();
+  }, [isActive, player, replayKey]);
 
   useEffect(() => {
     setHasFirstFrame(false);
@@ -610,6 +625,7 @@ function DetailSearchSheet({
 export type ProductReelPageProps = {
   groupBuy: GroupBuy;
   isActive: boolean;
+  replayKey?: number;
   isSearchSheetVisible?: boolean;
   searchSheetMetrics?: {
     height: number;
@@ -633,6 +649,7 @@ export type ProductReelPageProps = {
 export function ProductReelPage({
   groupBuy,
   isActive,
+  replayKey,
   isSearchSheetVisible = false,
   searchSheetMetrics = null,
   shouldPreloadVideo = false,
@@ -1172,6 +1189,7 @@ export function ProductReelPage({
                 key={item.url}
                 url={item.url}
                 isActive={mediaActive}
+                replayKey={replayKey}
                 thumbnailUrl={thumbnailUrl}
                 s={s}
               />
@@ -1196,6 +1214,7 @@ export function ProductReelPage({
       pageHeight,
       s,
       shouldPreloadVideo,
+      replayKey,
     ],
   );
 

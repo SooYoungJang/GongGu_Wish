@@ -63,24 +63,27 @@ export type SellerRankingQuery = {
 };
 
 export type RankingLoadState =
-  | { status: 'loading'; data?: SellerRanking[] }
+  | { status: 'loading'; data?: SellerRanking[]; refresh?: () => Promise<unknown> }
   | {
       status: 'error';
       data?: SellerRanking[];
       message: string;
       retry?: () => void;
+      refresh?: () => Promise<unknown>;
     }
   | {
       status: 'empty';
       message: string;
       action?: { label: string; onPress: () => void };
       updatedAt?: number;
+      refresh?: () => Promise<unknown>;
     }
   | {
       status: 'ready';
       data: SellerRanking[];
       refreshing?: boolean;
       updatedAt?: number;
+      refresh?: () => Promise<unknown>;
     };
 
 export function getRankingTrend(rank: number, previousRank: number | null): RankingTrend {

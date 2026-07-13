@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Animated, Pressable, StyleSheet, View, type FlatList, type LayoutChangeEvent } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RankingCategoryChips, SellerRankingList } from '../components/ranking';
@@ -20,6 +20,7 @@ import {
 import { usePopularGroupBuys } from '../features/ranking/usePopularGroupBuys';
 import { syncNotification } from '../api';
 import { useNotifications } from '../hooks/useLocalDeals';
+import { useTabReselect } from '../hooks/useTabReselect';
 import type { StoreScreenProps, GroupBuy } from '../types';
 
 // Space reserved for the floating absolute-positioned tab bar:
@@ -66,6 +67,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const [categoryFilterHeight, setCategoryFilterHeight] = useState(DEFAULT_CATEGORY_FILTER_HEIGHT);
   const measuredCategoryFilterHeightRef = useRef(DEFAULT_CATEGORY_FILTER_HEIGHT);
   const scrollY = useRef(new Animated.Value(0)).current;
+  const rankingListRef = useRef<FlatList<SellerRanking>>(null);
 
   const rankingState = usePopularGroupBuys(period, selectedCategory, sort);
   const { isNotifying, toggleNotification } = useNotifications();
@@ -90,6 +92,13 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       }),
     [scrollY],
   );
+
+  const handleRankingTabReselect = useCallback(() => {
+    rankingListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    void rankingState.refresh?.();
+  }, [rankingState.refresh]);
+
+  useTabReselect(navigation, handleRankingTabReselect);
 
   const collapsibleFilterTranslateY = scrollY.interpolate({
     inputRange: [0, collapsibleFilterHeight],
@@ -165,7 +174,9 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
           <SellerRankingList
             state={patchedRankingState}
             bottomPadding={bottomPadding}
+            listRef={rankingListRef}
             onScroll={handleRankingScroll}
+            onRefresh={rankingState.refresh}
             onPressItem={handlePressSeller}
             onToggleFollow={handleToggleNotification}
             topInset={collapsibleFilterHeight + categoryFilterHeight + spacing.sm}

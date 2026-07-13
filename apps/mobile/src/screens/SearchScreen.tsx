@@ -1,11 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionManager, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
+import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 import { SearchResultsPanel } from '../components/home/SearchResultsPanel';
 import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { SText } from '../components/ui/SText';
@@ -13,8 +15,9 @@ import { fallbackGroupBuys, fetchGroupBuys, fetchInfluencers, fetchPopularSearch
 import { normalizeForSearch, pushRecentTerm } from '../utils/search';
 import { spacing } from '../design/tokens';
 import { useCommerceTheme } from '../design/useCommerceTheme';
+import { useTabReselect } from '../hooks/useTabReselect';
 import type { CommerceColorPalette } from '../design/commerce';
-import type { GroupBuy, Influencer, RootStackParamList } from '../types';
+import type { GroupBuy, Influencer, MainTabParamList, RootStackParamList } from '../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 function getFallbackInfluencers(groupBuys: GroupBuy[]): Influencer[] {
@@ -93,7 +96,9 @@ const DealSearchResultRow = memo(function DealSearchResultRow({ item, onSelect, 
 export function SearchScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'SearchScreen'>>();
+  const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const inputRef = useRef<TextInput>(null);
+  const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const { colors, isDark } = useCommerceTheme();
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
@@ -105,15 +110,26 @@ export function SearchScreen() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const { data: groupBuysData } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys, retry: false });
-  const { data: influencersData } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers, retry: false });
-  const { data: popularTerms } = useQuery({
+  const { data: groupBuysData, refetch: refetchGroupBuys } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys, retry: false });
+  const { data: influencersData, refetch: refetchInfluencers } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers, retry: false });
+  const { data: popularTerms, refetch: refetchPopularTerms } = useQuery({
     queryKey: ['popular-search-terms'],
     // Rolling 24-hour window keeps the ranking populated even right after midnight.
     queryFn: () => fetchPopularSearchTerms(10, 24),
     retry: false,
     staleTime: 60_000,
   });
+
+  const handleSearchTabReselect = useCallback(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    void Promise.all([
+      refetchGroupBuys(),
+      refetchInfluencers(),
+      refetchPopularTerms(),
+    ]);
+  }, [refetchGroupBuys, refetchInfluencers, refetchPopularTerms]);
+
+  useTabReselect(tabNavigation, handleSearchTabReselect);
 
   useEffect(() => {
     AsyncStorage.getItem(RECENT_KEY).then((raw) => {
@@ -294,6 +310,7 @@ export function SearchScreen() {
 
       <KeyboardFormScreen
         keyboardShouldPersistTaps="handled"
+        scrollRef={scrollRef}
         contentContainerStyle={s.scrollContent}
       >
         {hasQuery ? (
