@@ -1311,6 +1311,27 @@ describe('DetailScreen', () => {
     expect(preloadedPlayer?.play).not.toHaveBeenCalled();
   });
 
+  it('does not replace the preloader when there is no preload source', () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ReelVideoPreloader
+          items={[baseGroupBuy]}
+          activeIndex={0}
+          enabled
+        />,
+      );
+    });
+
+    expect(videoMock.players).toHaveLength(1);
+    expect(videoMock.players[0]?.replaceAsync).not.toHaveBeenCalled();
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
   it('does not pause a released preloader player when a pending preload resolves after unmount', async () => {
     videoMock.deferReplaceAsync = true;
     let renderer: TestRenderer.ReactTestRenderer;
@@ -1318,7 +1339,17 @@ describe('DetailScreen', () => {
     act(() => {
       renderer = TestRenderer.create(
         <ReelVideoPreloader
-          items={[baseGroupBuy, { ...baseGroupBuy, id: 'group-buy-middle' }, baseGroupBuy]}
+          items={[
+            baseGroupBuy,
+            { ...baseGroupBuy, id: 'group-buy-middle' },
+            {
+              ...baseGroupBuy,
+              id: 'group-buy-pending-video',
+              videoUrl: 'https://example.com/pending-video.mp4',
+              mediaUrls: ['https://example.com/pending-video.mp4'],
+              mediaType: 'VIDEO',
+            },
+          ]}
           activeIndex={0}
           enabled
         />,
