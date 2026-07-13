@@ -294,7 +294,9 @@ describe('HomeScreenContent redesign', () => {
     const chip = filter.findByProps({ accessibilityLabel: '전체 카테고리' });
 
     expect(flattenStyle(filter.props.style)).toMatchObject({
-      paddingVertical: 0,
+      borderBottomWidth: 0,
+      elevation: 0,
+      paddingVertical: spacing.xs + spacing.xxs,
     });
     expect(flattenStyle(chip.props.style)).toMatchObject({
       height: spacing['3xl'] + spacing.xs,
@@ -319,13 +321,19 @@ describe('HomeScreenContent redesign', () => {
     const stickyFilterView = stickyFilter.findByProps({
       accessibilityRole: 'tablist',
     });
+    const stickyLayer = renderer.root.findByProps({
+      testID: 'home-category-filter-sticky-layer',
+    });
     const stickyChip = stickyFilterView.findByProps({
       accessibilityLabel: '전체 카테고리',
     });
 
     expect(flattenStyle(stickyFilterView.props.style)).toMatchObject({
-      paddingVertical: 0,
+      borderBottomWidth: 0,
+      elevation: 0,
+      paddingVertical: spacing.xs + spacing.xxs,
     });
+    expect(flattenStyle(stickyLayer.props.style)).toMatchObject({ elevation: 0 });
     expect(flattenStyle(stickyChip.props.style)).toMatchObject({
       height: spacing['3xl'] + spacing.xs,
     });
