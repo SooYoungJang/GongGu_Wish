@@ -1,0 +1,78 @@
+appId: com.gonggu.wish
+tags:
+  - e2e
+  - calendar
+  - activity-filter
+---
+# Calendar E2E -- fixed header and bookmark/notification activity filters.
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: '쇼핑 홈'
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      text: '전체 캘린더 보기'
+    timeout: 15000
+- tapOn:
+    text: '전체 캘린더 보기'
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: '공구 캘린더'
+    timeout: 15000
+- assertVisible:
+    text: '✓ 전체 보기'
+- assertVisible:
+    text: '북마크만 보기'
+- assertVisible:
+    text: '알림만 보기'
+- assertVisible:
+    text: '둘 다 보기'
+- takeScreenshot: calendar-01-header-filters
+
+# Bookmark-only filter
+- tapOn:
+    text: '북마크만 보기'
+- waitForAnimationToEnd
+- assertVisible:
+    text: '✓ 북마크만 보기'
+- takeScreenshot: calendar-02-bookmarked
+
+# Notification-only filter
+- tapOn:
+    text: '알림만 보기'
+- waitForAnimationToEnd
+- assertVisible:
+    text: '✓ 알림만 보기'
+- takeScreenshot: calendar-03-notified
+
+# Both bookmark and notification filter
+- tapOn:
+    text: '둘 다 보기'
+- waitForAnimationToEnd
+- assertVisible:
+    text: '✓ 둘 다 보기'
+- takeScreenshot: calendar-04-both
+
+# The header remains visible after the deals area is swiped.
+- swipe:
+    start: 50%,85%
+    end: 50%,45%
+    duration: 500
+- waitForAnimationToEnd
+- assertVisible:
+    text: '공구 캘린더'
+- assertVisible:
+    text: '✓ 둘 다 보기'
+- takeScreenshot: calendar-05-header-after-scroll
+
+# Return to the home screen using the in-screen back control.
+- tapOn:
+    text: '캘린더 닫기'
+- waitForAnimationToEnd
+- assertVisible:
+    text: '쇼핑 홈'
+- takeScreenshot: calendar-06-back-home

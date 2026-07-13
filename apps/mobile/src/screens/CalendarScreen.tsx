@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  FlatList,
   PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
-  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 
 import { fallbackGroupBuys, fetchGroupBuys } from '../api';
@@ -20,9 +17,14 @@ import { spacing } from '../design/tokens';
 import { commerceRadius } from '../design/commerce';
 import type { CategoryColorName } from '../design/tokens';
 import type { CalendarScreenProps, GroupBuy } from '../types';
-import { formatDateKey, getGroupBuyDateRange, parseDateKey } from '../utils/groupBuyDates';
+import {
+  formatDateKey,
+  getGroupBuyDateRange,
+  parseDateKey,
+} from '../utils/groupBuyDates';
 import { useTheme } from '../context/ThemeContext';
 import type { ColorPalette } from '../context/ThemeContext';
+import { useBookmarks, useNotifications } from '../hooks/useLocalDeals';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -31,8 +33,36 @@ const DAY_CELL_SIZE = 44;
 const DOT_SIZE = 5;
 const SWIPE_THRESHOLD = 50;
 
-// Temp followed usernames — replace with real following state hook when available
-const FOLLOWED_USERNAMES = new Set(['sample_influencer', 'mom_blogger', 'fitness_influencer']);
+export type CalendarFilter =
+  | 'all'
+  | 'bookmarked'
+  | 'notified'
+  | 'bookmarked-and-notified';
+
+const CALENDAR_FILTER_OPTIONS: Array<{ value: CalendarFilter; label: string }> =
+  [
+    { value: 'all', label: '전체 보기' },
+    { value: 'bookmarked', label: '북마크만 보기' },
+    { value: 'notified', label: '알림만 보기' },
+    { value: 'bookmarked-and-notified', label: '둘 다 보기' },
+  ];
+
+export function filterGroupBuysByActivity(
+  groupBuys: GroupBuy[],
+  filter: CalendarFilter,
+  bookmarkedIds: ReadonlySet<string>,
+  notifiedIds: ReadonlySet<string>,
+): GroupBuy[] {
+  if (filter === 'all') return groupBuys;
+
+  return groupBuys.filter((groupBuy) => {
+    const isBookmarked = bookmarkedIds.has(groupBuy.id);
+    const isNotified = notifiedIds.has(groupBuy.id);
+    if (filter === 'bookmarked') return isBookmarked;
+    if (filter === 'notified') return isNotified;
+    return isBookmarked && isNotified;
+  });
+}
 
 // ─── Date utilities ──────────────────────────────────────────────────────────
 
@@ -52,14 +82,17 @@ function getMonthGrid(
   year: number,
   month: number,
 ): Array<Array<{ day: number; isCurrentMonth: boolean; date: Date }>> {
-  const weeks: Array<Array<{ day: number; isCurrentMonth: boolean; date: Date }>> = [];
+  const weeks: Array<
+    Array<{ day: number; isCurrentMonth: boolean; date: Date }>
+  > = [];
   const firstDay = new Date(year, month, 1);
   // getDay(): 0=Sun → convert to Mon=0-based
   const startOffset = (firstDay.getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-  let currentWeek: Array<{ day: number; isCurrentMonth: boolean; date: Date }> = [];
+  let currentWeek: Array<{ day: number; isCurrentMonth: boolean; date: Date }> =
+    [];
 
   // Trailing days from previous month
   for (let i = 0; i < startOffset; i++) {
@@ -129,106 +162,186 @@ function groupGroupBuysByDate(items: GroupBuy[]): Map<string, GroupBuy[]> {
 }
 
 function categoryForIndex(index: number): CategoryColorName {
-  const keys: CategoryColorName[] = ['food', 'living', 'beauty', 'fashion', 'home', 'kitchen', 'electronics', 'pet', 'auto', 'hobby', 'baby', 'sports', 'stationery', 'books', 'media', 'travel'];
+  const keys: CategoryColorName[] = [
+    'food',
+    'living',
+    'beauty',
+    'fashion',
+    'home',
+    'kitchen',
+    'electronics',
+    'pet',
+    'auto',
+    'hobby',
+    'baby',
+    'sports',
+    'stationery',
+    'books',
+    'media',
+    'travel',
+  ];
   return keys[index % keys.length];
 }
 
 // ─── Calendar Grid Sub-components ───────────────────────────────────────────
 
+function CalendarFilterBar({
+  colors,
+  filter,
+  onChange,
+}: {
+  colors: ColorPalette;
+  filter: CalendarFilter;
+  onChange: (filter: CalendarFilter) => void;
+}) {
+  const s = useMemo(() => makeStyles(colors), [colors]);
+
+  return (
+    <View style={s.filterSection} testID="calendar-filter-bar">
+      <SText variant="caption" style={s.filterLabel}>
+        공구 필터
+      </SText>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.filterBar}
+      >
+        {CALENDAR_FILTER_OPTIONS.map((option) => {
+          const selected = filter === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityLabel={`${option.label} ${selected ? '선택됨' : '선택 안 됨'}`}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              onPress={() => onChange(option.value)}
+              style={[
+                s.filterChip,
+                {
+                  backgroundColor: selected ? colors.primary : colors.panelBg,
+                  borderColor: selected ? colors.primary : colors.border,
+                },
+              ]}
+              testID={`calendar-filter-${option.value}`}
+            >
+              <SText
+                variant="caption"
+                style={{
+                  color: selected ? colors.textInverse : colors.textSecondary,
+                  fontWeight: '800',
+                }}
+              >
+                {selected ? `✓ ${option.label}` : option.label}
+              </SText>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
 function CalendarHeader({
   year,
   month,
   colors,
+  filter,
+  onFilterChange,
   onPrevMonth,
   onNextMonth,
   onToday,
-  showFollowedOnly,
-  onToggleFilter,
-  onOpenAlert,
+  onGoBack,
 }: {
   year: number;
   month: number;
   colors: ColorPalette;
+  filter: CalendarFilter;
+  onFilterChange: (filter: CalendarFilter) => void;
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onToday: () => void;
-  showFollowedOnly: boolean;
-  onToggleFilter: () => void;
-  onOpenAlert: () => void;
+  onGoBack: () => void;
 }) {
   const label = `${year}년 ${month + 1}월`;
   const s = useMemo(() => makeStyles(colors), [colors]);
   return (
-    <View style={s.headerRow}>
-      {/* Left: 오늘 button */}
-      <Pressable
-        accessibilityLabel="오늘로 이동"
-        accessibilityRole="button"
-        onPress={onToday}
-        style={s.todayButton}
-      >
-        <SText variant="body" style={{ color: colors.textInverse, fontSize: 14, fontWeight: '800' }}>
-          오늘
-        </SText>
-      </Pressable>
-
-      {/* Center: navigation arrows + title */}
-      <View style={s.headerNavGroup}>
+    <View style={s.header} testID="calendar-header">
+      <View style={s.titleRow}>
         <Pressable
-          accessibilityLabel="이전 달"
+          accessibilityLabel="캘린더 닫기"
           accessibilityRole="button"
-          onPress={onPrevMonth}
-          style={s.navArrow}
+          onPress={onGoBack}
+          style={s.backButton}
+          testID="calendar-back-button"
         >
-          <SText variant="body" style={{ fontSize: 16 }}>◀</SText>
+          <SText
+            variant="body"
+            style={{
+              color: colors.textPrimary,
+              fontSize: 24,
+              fontWeight: '600',
+            }}
+          >
+            ←
+          </SText>
         </Pressable>
-        <SText variant="cardTitle" style={{ fontSize: 20, fontWeight: '800', minWidth: 110, textAlign: 'center' }}>
-          {label}
+        <SText variant="cardTitle" style={s.screenTitle}>
+          공구 캘린더
         </SText>
-        <Pressable
-          accessibilityLabel="다음 달"
-          accessibilityRole="button"
-          onPress={onNextMonth}
-          style={s.navArrow}
-        >
-          <SText variant="body" style={{ fontSize: 16 }}>▶</SText>
-        </Pressable>
+        <View style={s.titleSpacer} />
       </View>
 
-      {/* Right: filter chip integrated into headerRow */}
-      <Pressable
-        accessibilityLabel={`팔로잉만 보기 ${showFollowedOnly ? '활성화' : '비활성화'}`}
-        accessibilityRole="switch"
-        accessibilityState={{ checked: showFollowedOnly }}
-        onPress={onToggleFilter}
-        style={[
-          s.filterChip,
-          {
-            backgroundColor: showFollowedOnly ? colors.primary : 'transparent',
-            borderColor: showFollowedOnly ? colors.primary : colors.border,
-          },
-        ]}
-      >
-        <SText
-          variant="cardBrand"
-          style={[
-            { fontWeight: '700' },
-            { color: showFollowedOnly ? colors.textInverse : colors.textSecondary },
-          ]}
+      <View style={s.monthRow}>
+        <Pressable
+          accessibilityLabel="오늘로 이동"
+          accessibilityRole="button"
+          onPress={onToday}
+          style={s.todayButton}
         >
-          {showFollowedOnly ? '✓ 팔로잉' : '팔로잉만 보기'}
-        </SText>
-      </Pressable>
+          <SText
+            variant="body"
+            style={{
+              color: colors.textInverse,
+              fontSize: 14,
+              fontWeight: '800',
+            }}
+          >
+            오늘
+          </SText>
+        </Pressable>
 
-      <Pressable
-        accessibilityLabel="알림 설정"
-        accessibilityRole="button"
-        hitSlop={8}
-        onPress={onOpenAlert}
-        style={s.alertButton}
-      >
-        <SText variant="body" style={{ fontSize: 18 }}>🔔</SText>
-      </Pressable>
+        <View style={s.headerNavGroup}>
+          <Pressable
+            accessibilityLabel="이전 달"
+            accessibilityRole="button"
+            onPress={onPrevMonth}
+            style={s.navArrow}
+          >
+            <SText variant="body" style={{ fontSize: 16 }}>
+              ◀
+            </SText>
+          </Pressable>
+          <SText variant="cardTitle" style={s.monthTitle}>
+            {label}
+          </SText>
+          <Pressable
+            accessibilityLabel="다음 달"
+            accessibilityRole="button"
+            onPress={onNextMonth}
+            style={s.navArrow}
+          >
+            <SText variant="body" style={{ fontSize: 16 }}>
+              ▶
+            </SText>
+          </Pressable>
+        </View>
+      </View>
+
+      <CalendarFilterBar
+        colors={colors}
+        filter={filter}
+        onChange={onFilterChange}
+      />
     </View>
   );
 }
@@ -239,7 +352,15 @@ function WeekdayHeader({ colors }: { colors: ColorPalette }) {
     <View style={s.weekdayRow}>
       {WEEKDAY_LABELS.map((label) => (
         <View key={label} style={s.weekdayCell}>
-          <SText variant="caption" style={[{ fontWeight: '700' }, label === '토' || label === '일' ? { color: colors.textSecondary } : undefined]}>
+          <SText
+            variant="caption"
+            style={[
+              { fontWeight: '700' },
+              label === '토' || label === '일'
+                ? { color: colors.textSecondary }
+                : undefined,
+            ]}
+          >
             {label}
           </SText>
         </View>
@@ -292,12 +413,7 @@ function DayCell({
         {day}
       </SText>
       {hasGroupBuys ? (
-        <View
-          style={[
-            s.dot,
-            isSelected && s.dotSelected,
-          ]}
-        />
+        <View style={[s.dot, isSelected && s.dotSelected]} />
       ) : (
         <View style={s.dotSpacer} />
       )}
@@ -308,23 +424,24 @@ function DayCell({
 // ─── Main CalendarScreen ────────────────────────────────────────────────────
 
 export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
-  const { width: screenWidth } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const initialParam = route.params?.initialDate;
-  const initialDate = (initialParam ? parseDateKey(initialParam) : null) ?? new Date();
+  const initialDate =
+    (initialParam ? parseDateKey(initialParam) : null) ?? new Date();
 
   const [currentYear, setCurrentYear] = useState(initialDate.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(initialDate.getMonth());
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate);
-  const [showFollowedOnly, setShowFollowedOnly] = useState(false);
+  const [calendarFilter, setCalendarFilter] = useState<CalendarFilter>('all');
+  const { bookmarks } = useBookmarks();
+  const { notifications } = useNotifications();
 
   const today = useMemo(() => new Date(), []);
 
   // Data fetching
-  const { data, isFetching, isError } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: ['group-buys'],
     queryFn: fetchGroupBuys,
     retry: false,
@@ -332,33 +449,52 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
 
   const groupBuys = data?.length ? data : fallbackGroupBuys;
 
-  // All group buys by date — for dot indicators (unaffected by filter)
-  const allGroupBuysByDate = useMemo(() => groupGroupBuysByDate(groupBuys), [groupBuys]);
-  const allDateKeysWithBuys = useMemo(() => {
+  const bookmarkedIds = useMemo(
+    () => new Set(bookmarks.map((item) => item.id)),
+    [bookmarks],
+  );
+  const notifiedIds = useMemo(
+    () => new Set(notifications.map((item) => item.groupBuyId)),
+    [notifications],
+  );
+
+  const filteredGroupBuys = useMemo(
+    () =>
+      filterGroupBuysByActivity(
+        groupBuys,
+        calendarFilter,
+        bookmarkedIds,
+        notifiedIds,
+      ),
+    [bookmarkedIds, calendarFilter, groupBuys, notifiedIds],
+  );
+  const groupBuysByDate = useMemo(
+    () => groupGroupBuysByDate(filteredGroupBuys),
+    [filteredGroupBuys],
+  );
+  const dateKeysWithBuys = useMemo(() => {
     const set = new Set<string>();
-    for (const [key] of allGroupBuysByDate) {
+    for (const [key] of groupBuysByDate) {
       set.add(key);
     }
     return set;
-  }, [allGroupBuysByDate]);
-
-  // Filter by followed influencers when toggle is ON
-  const filteredGroupBuys = useMemo(
-    () => (showFollowedOnly ? groupBuys.filter((gb) => FOLLOWED_USERNAMES.has(gb.rawPost.influencer.instagramUsername)) : groupBuys),
-    [groupBuys, showFollowedOnly],
+  }, [groupBuysByDate]);
+  const selectedDateKey = useMemo(
+    () => formatDateKey(selectedDate),
+    [selectedDate],
   );
-
-  const groupBuysByDate = useMemo(() => groupGroupBuysByDate(filteredGroupBuys), [filteredGroupBuys]);
-  const selectedDateKey = useMemo(() => formatDateKey(selectedDate), [selectedDate]);
   const selectedDateGroupBuys = useMemo(
     () => groupBuysByDate.get(selectedDateKey) ?? [],
     [groupBuysByDate, selectedDateKey],
   );
-  const grid = useMemo(() => getMonthGrid(currentYear, currentMonth), [currentYear, currentMonth]);
+  const grid = useMemo(
+    () => getMonthGrid(currentYear, currentMonth),
+    [currentYear, currentMonth],
+  );
 
   // Reset filter state on screen re-entry
   useEffect(() => {
-    setShowFollowedOnly(false);
+    setCalendarFilter('all');
   }, [route.key]);
 
   // Navigation helpers
@@ -387,14 +523,20 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     setSelectedDate(now);
   }, []);
 
-  const handleSelectDate = useCallback((date: Date) => {
-    setSelectedDate(date);
-    // If the selected date is in a different month, navigate to that month
-    if (date.getMonth() !== currentMonth || date.getFullYear() !== currentYear) {
-      setCurrentYear(date.getFullYear());
-      setCurrentMonth(date.getMonth());
-    }
-  }, [currentMonth, currentYear]);
+  const handleSelectDate = useCallback(
+    (date: Date) => {
+      setSelectedDate(date);
+      // If the selected date is in a different month, navigate to that month
+      if (
+        date.getMonth() !== currentMonth ||
+        date.getFullYear() !== currentYear
+      ) {
+        setCurrentYear(date.getFullYear());
+        setCurrentMonth(date.getMonth());
+      }
+    },
+    [currentMonth, currentYear],
+  );
 
   // Swipe gesture for month navigation
   const panResponder = useRef(
@@ -422,9 +564,9 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
           onPrevMonth={goToPrevMonth}
           onNextMonth={goToNextMonth}
           onToday={goToToday}
-          showFollowedOnly={showFollowedOnly}
-          onToggleFilter={() => setShowFollowedOnly((v) => !v)}
-          onOpenAlert={() => Alert.alert('준비 중', '캘린더 알림 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.')}
+          filter={calendarFilter}
+          onFilterChange={setCalendarFilter}
+          onGoBack={navigation.goBack}
         />
 
         {/* Middle: Calendar grid with swipe */}
@@ -440,7 +582,9 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
                     isCurrentMonth={cell.isCurrentMonth}
                     date={cell.date}
                     colors={colors}
-                    hasGroupBuys={allDateKeysWithBuys.has(formatDateKey(cell.date))}
+                    hasGroupBuys={dateKeysWithBuys.has(
+                      formatDateKey(cell.date),
+                    )}
                     isSelected={isSameDay(cell.date, selectedDate)}
                     isTodayDate={isToday(cell.date)}
                     onSelect={handleSelectDate}
@@ -453,13 +597,18 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
 
         {/* Bottom: Selected date's group buys */}
         <View style={s.dealsHeader}>
-          <SText variant="cardTitle" style={{ fontSize: 17, fontWeight: '800' }}>
+          <SText
+            variant="cardTitle"
+            style={{ fontSize: 17, fontWeight: '800' }}
+          >
             {selectedDateKey === formatDateKey(today)
               ? '오늘의 공구'
               : `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 공구`}
           </SText>
           <SText variant="label">
-            {showFollowedOnly ? `${selectedDateGroupBuys.length}개 (팔로잉)` : `${selectedDateGroupBuys.length}개`}
+            {calendarFilter === 'all'
+              ? `${selectedDateGroupBuys.length}개`
+              : `${selectedDateGroupBuys.length}개 · ${CALENDAR_FILTER_OPTIONS.find((option) => option.value === calendarFilter)?.label}`}
           </SText>
         </View>
 
@@ -467,8 +616,10 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
           <ActivityIndicator color={colors.primary} style={s.loading} />
         ) : selectedDateGroupBuys.length > 0 ? (
           <ScrollView
+            style={s.dealsScroll}
             contentContainerStyle={s.dealsGrid}
             showsVerticalScrollIndicator={false}
+            testID="calendar-deals-scroll"
           >
             <View style={s.dealsGridInner}>
               {selectedDateGroupBuys.map((item, index) => (
@@ -476,20 +627,31 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
                   key={item.id}
                   item={item}
                   category={item.category ?? categoryForIndex(index)}
-                  onPress={() => navigation.navigate('Detail', { groupBuy: item })}
+                  onPress={() =>
+                    navigation.navigate('Detail', { groupBuy: item })
+                  }
                 />
               ))}
             </View>
           </ScrollView>
         ) : (
           <View style={s.emptyDeals}>
-            <SText variant="subtitle" style={{ color: colors.textPrimary, fontWeight: '700', marginBottom: spacing.xs }}>
-              {showFollowedOnly ? '팔로잉 중인 인플루언서의 공구가 없어요' : '이 날짜의 공구가 없어요'}
+            <SText
+              variant="subtitle"
+              style={{
+                color: colors.textPrimary,
+                fontWeight: '700',
+                marginBottom: spacing.xs,
+              }}
+            >
+              {calendarFilter === 'all'
+                ? '이 날짜의 공구가 없어요'
+                : '선택한 필터의 공구가 없어요'}
             </SText>
             <SText variant="caption" style={{ fontSize: 13 }}>
-              {showFollowedOnly
-                ? '필터를 해제하거나 다른 날짜를 선택해보세요.'
-                : '아직 등록된 공동구매가 없습니다.'}
+              {calendarFilter === 'all'
+                ? '아직 등록된 공동구매가 없습니다.'
+                : '필터를 바꾸거나 다른 날짜를 선택해보세요.'}
             </SText>
           </View>
         )}
@@ -503,20 +665,60 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
 function makeStyles(colors: ColorPalette) {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.bg },
-    container: { flex: 1, paddingHorizontal: spacing.lg, backgroundColor: colors.bg },
+    container: {
+      flex: 1,
+      paddingHorizontal: spacing.lg,
+      backgroundColor: colors.bg,
+    },
 
-    // Header
-    headerRow: {
+    // Header stays outside the deals ScrollView so calendar controls remain visible.
+    header: {
+      flexShrink: 0,
+      marginBottom: spacing.md,
+      marginTop: spacing.sm,
+    },
+    titleRow: {
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'space-between',
       marginBottom: spacing.md,
-      marginTop: spacing.sm,
+    },
+    backButton: {
+      alignItems: 'center',
+      backgroundColor: colors.softBg,
+      borderRadius: commerceRadius.full,
+      height: 40,
+      justifyContent: 'center',
+      width: 40,
+    },
+    screenTitle: {
+      color: colors.textPrimary,
+      flex: 1,
+      fontSize: 22,
+      fontWeight: '900',
+      textAlign: 'center',
+    },
+    titleSpacer: {
+      width: 40,
+    },
+    monthRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: spacing.sm,
     },
     headerNavGroup: {
       alignItems: 'center',
       flexDirection: 'row',
       gap: spacing.sm,
+      flexShrink: 0,
+    },
+    monthTitle: {
+      color: colors.textPrimary,
+      fontSize: 20,
+      fontWeight: '800',
+      minWidth: 110,
+      textAlign: 'center',
     },
     navArrow: {
       alignItems: 'center',
@@ -534,7 +736,18 @@ function makeStyles(colors: ColorPalette) {
       minHeight: 36,
       paddingHorizontal: spacing.lg,
     },
-    // Filter chip (integrated into headerRow)
+    filterSection: {
+      marginTop: spacing.xs,
+    },
+    filterLabel: {
+      color: colors.textSecondary,
+      fontWeight: '800',
+      marginBottom: spacing.xs,
+    },
+    filterBar: {
+      gap: spacing.xs,
+      paddingRight: spacing.lg,
+    },
     filterChip: {
       alignItems: 'center',
       borderRadius: commerceRadius.full,
@@ -543,20 +756,13 @@ function makeStyles(colors: ColorPalette) {
       minHeight: 34,
       paddingHorizontal: spacing.md,
     },
-    alertButton: {
-      alignItems: 'center',
-      backgroundColor: colors.softBg,
-      borderRadius: commerceRadius.full,
-      justifyContent: 'center',
-      minHeight: 36,
-      minWidth: 36,
-    },
     // Calendar grid
     calendarWrapper: {
       backgroundColor: colors.panelBg,
       borderColor: colors.border,
       borderRadius: commerceRadius.xxl,
       borderWidth: 1,
+      flexShrink: 0,
       marginBottom: spacing.md,
       padding: spacing.sm,
     },
@@ -616,6 +822,10 @@ function makeStyles(colors: ColorPalette) {
     },
 
     // Deals section
+    dealsScroll: {
+      flex: 1,
+      minHeight: 0,
+    },
     dealsHeader: {
       alignItems: 'center',
       borderTopColor: colors.borderLight,
