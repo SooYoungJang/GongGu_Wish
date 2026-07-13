@@ -1507,7 +1507,7 @@ function makeStyles(colors: CommerceColorPalette) {
       borderBottomColor: colors.divider,
       borderBottomWidth: StyleSheet.hairlineWidth,
       elevation: 4,
-      paddingVertical: spacing.sm,
+      paddingVertical: spacing.xs,
       zIndex: 2,
     },
     categoryFilterOverlay: {
