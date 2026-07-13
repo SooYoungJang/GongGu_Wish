@@ -41,8 +41,8 @@ const CALENDAR_FILTER_OPTIONS: Array<{
   label: string;
   summaryLabel: string;
 }> = [
-  { value: 'bookmarked', label: '북마크만 보기', summaryLabel: '북마크' },
-  { value: 'notified', label: '알림만 보기', summaryLabel: '알림' },
+  { value: 'bookmarked', label: '북마크', summaryLabel: '북마크' },
+  { value: 'notified', label: '알림', summaryLabel: '알림' },
 ];
 const CALENDAR_ALL_FILTER_LABEL = '전체 보기';
 
@@ -55,11 +55,9 @@ export function filterGroupBuysByActivity(
   if (!filter.bookmarked && !filter.notified) return groupBuys;
 
   return groupBuys.filter((groupBuy) => {
-    const matchesBookmark =
-      !filter.bookmarked || bookmarkedIds.has(groupBuy.id);
-    const matchesNotification =
-      !filter.notified || notifiedIds.has(groupBuy.id);
-    return matchesBookmark && matchesNotification;
+    const matchesBookmark = filter.bookmarked && bookmarkedIds.has(groupBuy.id);
+    const matchesNotification = filter.notified && notifiedIds.has(groupBuy.id);
+    return matchesBookmark || matchesNotification;
   });
 }
 

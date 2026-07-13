@@ -26,9 +26,9 @@ tags:
 - assertVisible:
     text: '전체 보기 선택됨'
 - assertVisible:
-    text: '북마크만 보기 선택 안 됨'
+    text: '북마크 선택 안 됨'
 - assertVisible:
-    text: '알림만 보기 선택 안 됨'
+    text: '알림 선택 안 됨'
 - assertNotVisible:
     text: '둘 다 보기'
 - assertVisible:
@@ -37,32 +37,32 @@ tags:
 
 # Bookmark-only filter
 - tapOn:
-    text: '북마크만 보기'
+    text: '북마크'
 - waitForAnimationToEnd
 - assertVisible:
-    text: '북마크만 보기 선택됨'
+    text: '북마크 선택됨'
 - assertVisible:
-    text: '알림만 보기 선택 안 됨'
+    text: '알림 선택 안 됨'
 - takeScreenshot: calendar-02-bookmarked
 
 # Notification-only filter
 - tapOn:
-    text: '알림만 보기'
+    text: '알림'
 - waitForAnimationToEnd
 - assertVisible:
-    text: '북마크만 보기 선택됨'
+    text: '북마크 선택됨'
 - assertVisible:
-    text: '알림만 보기 선택됨'
+    text: '알림 선택됨'
 - takeScreenshot: calendar-03-notified
 
 # Turn bookmark off while keeping notification selected.
 - tapOn:
-    text: '북마크만 보기'
+    text: '북마크'
 - waitForAnimationToEnd
 - assertVisible:
-    text: '북마크만 보기 선택 안 됨'
+    text: '북마크 선택 안 됨'
 - assertVisible:
-    text: '알림만 보기 선택됨'
+    text: '알림 선택됨'
 - takeScreenshot: calendar-04-notified-only
 
 # The header remains visible after the deals area is swiped.
@@ -74,9 +74,9 @@ tags:
 - assertVisible:
     text: '공구 캘린더'
 - assertVisible:
-    text: '북마크만 보기 선택 안 됨'
+    text: '북마크 선택 안 됨'
 - assertVisible:
-    text: '알림만 보기 선택됨'
+    text: '알림 선택됨'
 - takeScreenshot: calendar-05-header-after-scroll
 
 # Clear activity filters.

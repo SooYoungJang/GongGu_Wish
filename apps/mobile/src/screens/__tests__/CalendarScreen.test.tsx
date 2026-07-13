@@ -263,8 +263,10 @@ describe('CalendarScreen', () => {
     const text = flattenText(renderer!.toJSON());
 
     expect(text).toContain('전체 보기');
-    expect(text).toContain('북마크만 보기');
-    expect(text).toContain('알림만 보기');
+    expect(text).toContain('북마크');
+    expect(text).toContain('알림');
+    expect(text).not.toContain('북마크만 보기');
+    expect(text).not.toContain('알림만 보기');
     expect(text).not.toContain('둘 다 보기');
     expect(text).not.toContain('✓');
     expect(text).not.toContain('팔로잉');
@@ -305,7 +307,7 @@ describe('CalendarScreen', () => {
         bookmarkedIds,
         notifiedIds,
       ).map((item) => item.id),
-    ).toEqual(['gb-cal-3']);
+    ).toEqual(['gb-cal-1', 'gb-cal-2', 'gb-cal-3']);
   });
 
   it('applies the selected activity filter to the calendar deals', () => {
@@ -362,9 +364,9 @@ describe('CalendarScreen', () => {
     act(() => notificationFilter.props.onPress());
     const bothText = flattenText(renderer!.toJSON());
 
+    expect(bothText).toContain('북마크 전용 공구');
+    expect(bothText).toContain('알림 전용 공구');
     expect(bothText).toContain('공통 공구');
-    expect(bothText).not.toContain('북마크 전용 공구');
-    expect(bothText).not.toContain('알림 전용 공구');
   });
 
   it('keeps the calendar header fixed while the selected deals scroll', () => {
