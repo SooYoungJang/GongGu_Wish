@@ -109,6 +109,65 @@ function getDisplayMedia(groupBuy: GroupBuy): MediaItem[] {
   }));
 }
 
+const REEL_VIDEO_PRELOAD_DISTANCE = 2;
+
+function createVideoSource(url: string) {
+  return {
+    uri: url,
+    contentType: 'auto' as const,
+    useCaching: true,
+  };
+}
+
+function getFirstVideoUrl(groupBuy?: GroupBuy): string | null {
+  if (!groupBuy) return null;
+  return getDisplayMedia(groupBuy).find((item) => item.isVideo)?.url ?? null;
+}
+
+export function ReelVideoPreloader({
+  items,
+  activeIndex,
+  direction = 1,
+  enabled = true,
+}: {
+  items: GroupBuy[];
+  activeIndex: number;
+  direction?: -1 | 1;
+  enabled?: boolean;
+}) {
+  const player = useVideoPlayer(null, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.volume = 0;
+  });
+  const targetIndex = enabled
+    ? activeIndex + direction * REEL_VIDEO_PRELOAD_DISTANCE
+    : -1;
+  const preloadUrl = getFirstVideoUrl(items[targetIndex]);
+  const preloadSource = useMemo(
+    () => (preloadUrl ? createVideoSource(preloadUrl) : null),
+    [preloadUrl],
+  );
+  const preloadRequestRef = useRef(0);
+
+  useEffect(() => {
+    const requestId = ++preloadRequestRef.current;
+    void player.replaceAsync(preloadSource).then(() => {
+      if (requestId !== preloadRequestRef.current) return;
+      player.pause();
+      player.currentTime = 0;
+    }).catch(() => {
+      // Preloading is opportunistic; playback will retry when the page becomes active.
+    });
+
+    return () => {
+      player.pause();
+    };
+  }, [player, preloadSource]);
+
+  return null;
+}
+
 function getReelItems(current: GroupBuy, fetched?: GroupBuy[]) {
   if (!fetched?.length) return [current];
 
@@ -189,10 +248,7 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, thumbnailUrl, s }: 
   const [hasFirstFrame, setHasFirstFrame] = useState(false);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const source = useMemo(
-    () => ({
-      uri: url,
-      contentType: 'auto' as const,
-    }),
+    () => createVideoSource(url),
     [url],
   );
 
