@@ -288,6 +288,43 @@ describe('HomeScreenContent redesign', () => {
     });
   });
 
+  it('keeps the category filter compact in normal and sticky states', () => {
+    const renderer = renderHomeContent();
+    const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
+    const chip = filter.findByProps({ accessibilityLabel: '전체 카테고리' });
+
+    expect(flattenStyle(filter.props.style)).toMatchObject({
+      paddingVertical: spacing.xs,
+    });
+    expect(flattenStyle(chip.props.style)).toMatchObject({ minHeight: 44 });
+
+    const scroll = renderer.root.findAll(
+      (node) => String(node.type) === 'KeyboardAwareScrollView',
+    )[0];
+
+    act(() => {
+      filter.props.onLayout({ nativeEvent: { layout: { y: 100 } } });
+      scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 120 } } });
+    });
+
+    const stickyFilter = renderer.root.findByProps({
+      testID: 'home-category-filter-sticky',
+    });
+    const stickyFilterView = stickyFilter.findByProps({
+      accessibilityRole: 'tablist',
+    });
+    const stickyChip = stickyFilterView.findByProps({
+      accessibilityLabel: '전체 카테고리',
+    });
+
+    expect(flattenStyle(stickyFilterView.props.style)).toMatchObject({
+      paddingVertical: spacing.xs,
+    });
+    expect(flattenStyle(stickyChip.props.style)).toMatchObject({
+      minHeight: 44,
+    });
+  });
+
   it('renders a separate touch layer when the category filter reaches the top', () => {
     const renderer = renderHomeContent();
     const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
