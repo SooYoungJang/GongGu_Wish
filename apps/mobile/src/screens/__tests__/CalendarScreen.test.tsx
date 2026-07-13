@@ -2,7 +2,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CalendarScreen } from '../CalendarScreen';
+import { CalendarScreen, filterGroupBuysByActivity } from '../CalendarScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
 import type { GroupBuy } from '../../types';
 
@@ -11,6 +11,19 @@ import type { GroupBuy } from '../../types';
 vi.mock('../../api', () => ({
   fallbackGroupBuys: [],
   fetchGroupBuys: vi.fn(),
+}));
+
+const activityMock = vi.hoisted(() => ({
+  bookmarks: [] as Array<{ id: string }>,
+  notifications: [] as Array<{ groupBuyId: string }>,
+}));
+
+vi.mock('../../hooks/useLocalDeals', () => ({
+  useBookmarks: () => ({ bookmarks: activityMock.bookmarks, ready: true }),
+  useNotifications: () => ({
+    notifications: activityMock.notifications,
+    ready: true,
+  }),
 }));
 
 vi.mock('expo-secure-store', () => ({
@@ -22,7 +35,11 @@ vi.mock('expo-secure-store', () => ({
 }));
 
 // Shared mutable query mock for tests that need custom return data
-let mockQueryResult: { data: GroupBuy[] | null; isFetching: boolean; isError: boolean } = {
+let mockQueryResult: {
+  data: GroupBuy[] | null;
+  isFetching: boolean;
+  isError: boolean;
+} = {
   data: null,
   isFetching: false,
   isError: false,
@@ -34,8 +51,10 @@ vi.mock('@tanstack/react-query', () => ({
 
 vi.mock('react-native', () => {
   const ReactMock = require('react');
-  const passthrough = (type: string) =>
-    ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement(type, props, children);
+  const passthrough =
+    (type: string) =>
+    ({ children, ...props }: { children?: React.ReactNode }) =>
+      ReactMock.createElement(type, props, children);
 
   return {
     ActivityIndicator: passthrough('ActivityIndicator'),
@@ -47,12 +66,26 @@ vi.mock('react-native', () => {
     Platform: {
       select: (obj: Record<string, unknown>) => obj.default,
     },
-    Pressable: ({ children, onPress, style, testID, accessibilityLabel, accessibilityRole }: any) =>
-      ReactMock.createElement('Pressable', { onPress, style, testID, accessibilityLabel, accessibilityRole }, children),
-    ScrollView: ({ children, ...props }: any) => ReactMock.createElement('ScrollView', props, children),
+    Pressable: ({
+      children,
+      onPress,
+      style,
+      testID,
+      accessibilityLabel,
+      accessibilityRole,
+    }: any) =>
+      ReactMock.createElement(
+        'Pressable',
+        { onPress, style, testID, accessibilityLabel, accessibilityRole },
+        children,
+      ),
+    ScrollView: ({ children, ...props }: any) =>
+      ReactMock.createElement('ScrollView', props, children),
     StyleSheet: { create: (styles: unknown) => styles },
-    Text: ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement('Text', props, children),
-    View: ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement('View', props, children),
+    Text: ({ children, ...props }: { children?: React.ReactNode }) =>
+      ReactMock.createElement('Text', props, children),
+    View: ({ children, ...props }: { children?: React.ReactNode }) =>
+      ReactMock.createElement('View', props, children),
     useColorScheme: () => 'light',
     useWindowDimensions: () => ({ width: 390, height: 844 }),
   };
@@ -74,7 +107,10 @@ const sampleGroupBuys: GroupBuy[] = [
     id: 'gb-cal-1',
     productName: '비건 선크림',
     brandName: 'Sample Beauty',
-    endDate: new Date(new Date().getFullYear(), new Date().getMonth(), 15).toISOString().slice(0, 10) + 'T23:59:59+09:00',
+    endDate:
+      new Date(new Date().getFullYear(), new Date().getMonth(), 15)
+        .toISOString()
+        .slice(0, 10) + 'T23:59:59+09:00',
     purchaseUrl: 'https://example.com',
     discountInfo: '20% 할인',
     summary: '민감 피부용 선크림',
@@ -84,13 +120,19 @@ const sampleGroupBuys: GroupBuy[] = [
     videoUrl: null,
     mediaUrls: [],
     mediaType: null,
-    rawPost: { postUrl: 'https://instagram.com/p/c1', influencer: { instagramUsername: 'beauty_pick' } },
+    rawPost: {
+      postUrl: 'https://instagram.com/p/c1',
+      influencer: { instagramUsername: 'beauty_pick' },
+    },
   },
   {
     id: 'gb-cal-2',
     productName: '그래놀라 세트',
     brandName: 'Morning Table',
-    endDate: new Date(new Date().getFullYear(), new Date().getMonth(), 15).toISOString().slice(0, 10) + 'T23:59:59+09:00',
+    endDate:
+      new Date(new Date().getFullYear(), new Date().getMonth(), 15)
+        .toISOString()
+        .slice(0, 10) + 'T23:59:59+09:00',
     purchaseUrl: 'https://example.com/granola',
     discountInfo: '1+1',
     summary: '아침 식사용 그래놀라',
@@ -100,13 +142,19 @@ const sampleGroupBuys: GroupBuy[] = [
     videoUrl: null,
     mediaUrls: [],
     mediaType: null,
-    rawPost: { postUrl: 'https://instagram.com/p/c2', influencer: { instagramUsername: 'food_mate' } },
+    rawPost: {
+      postUrl: 'https://instagram.com/p/c2',
+      influencer: { instagramUsername: 'food_mate' },
+    },
   },
   {
     id: 'gb-cal-3',
     productName: '프리미엄 홈트 키트',
     brandName: '핏스타그램',
-    endDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 5).toISOString().slice(0, 10) + 'T23:59:59+09:00',
+    endDate:
+      new Date(new Date().getFullYear(), new Date().getMonth() + 1, 5)
+        .toISOString()
+        .slice(0, 10) + 'T23:59:59+09:00',
     purchaseUrl: 'https://example.com/fitness',
     discountInfo: '25% 할인',
     summary: '홈트레이닝 풀세트',
@@ -116,16 +164,28 @@ const sampleGroupBuys: GroupBuy[] = [
     videoUrl: null,
     mediaUrls: [],
     mediaType: null,
-    rawPost: { postUrl: 'https://instagram.com/p/c3', influencer: { instagramUsername: 'fitness_guru' } },
+    rawPost: {
+      postUrl: 'https://instagram.com/p/c3',
+      influencer: { instagramUsername: 'fitness_guru' },
+    },
   },
 ];
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
-function flattenText(node: TestRenderer.ReactTestRendererJSON | TestRenderer.ReactTestRendererJSON[] | null): string {
+function flattenText(
+  node:
+    | TestRenderer.ReactTestRendererJSON
+    | TestRenderer.ReactTestRendererJSON[]
+    | null,
+): string {
   if (!node) return '';
   if (Array.isArray(node)) return node.map(flattenText).join(' ');
-  return node.children?.map((child) => (typeof child === 'string' ? child : flattenText(child))).join(' ') ?? '';
+  return (
+    node.children
+      ?.map((child) => (typeof child === 'string' ? child : flattenText(child)))
+      .join(' ') ?? ''
+  );
 }
 
 function renderCalendar(params: Record<string, unknown> = {}) {
@@ -135,7 +195,9 @@ function renderCalendar(params: Record<string, unknown> = {}) {
       <ThemeProvider>
         <CalendarScreen
           navigation={{ navigate: vi.fn(), goBack: vi.fn() } as any}
-          route={{ params, key: 'CalendarScreen', name: 'CalendarScreen' } as any}
+          route={
+            { params, key: 'CalendarScreen', name: 'CalendarScreen' } as any
+          }
         />
       </ThemeProvider>,
     );
@@ -143,26 +205,12 @@ function renderCalendar(params: Record<string, unknown> = {}) {
   return renderer!;
 }
 
-function renderCalendarWithData(groupBuys: GroupBuy[]) {
-  vi.mocked(require('@tanstack/react-query').useQuery).mockReturnValue({
-    data: groupBuys,
-    isFetching: false,
-    isError: false,
-  });
-  const renderer = renderCalendar();
-  // Reset mock for other tests
-  vi.mocked(require('@tanstack/react-query').useQuery).mockReturnValue({
-    data: null,
-    isFetching: false,
-    isError: false,
-  });
-  return renderer;
-}
-
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('CalendarScreen', () => {
   beforeEach(() => {
+    activityMock.bookmarks = [];
+    activityMock.notifications = [];
     mockQueryResult = {
       data: null,
       isFetching: false,
@@ -190,7 +238,7 @@ describe('CalendarScreen', () => {
     expect(text).toContain('일');
   });
 
-  it('renders today\'s date and marks it in the grid', () => {
+  it("renders today's date and marks it in the grid", () => {
     const renderer = renderCalendar();
     const today = new Date();
     const text = flattenText(renderer!.toJSON());
@@ -199,11 +247,144 @@ describe('CalendarScreen', () => {
 
   it('renders navigation arrows and today button', () => {
     const renderer = renderCalendar();
-    const pressables = renderer!.root.findAllByType('Pressable' as unknown as React.ElementType);
-    const labels = pressables.map((p) => p.props.accessibilityLabel).filter(Boolean);
+    const pressables = renderer!.root.findAllByType(
+      'Pressable' as unknown as React.ElementType,
+    );
+    const labels = pressables
+      .map((p) => p.props.accessibilityLabel)
+      .filter(Boolean);
     expect(labels).toContain('이전 달');
     expect(labels).toContain('다음 달');
     expect(labels).toContain('오늘로 이동');
+  });
+
+  it('renders activity filters instead of the unavailable following filter', () => {
+    const renderer = renderCalendar();
+    const text = flattenText(renderer!.toJSON());
+
+    expect(text).toContain('전체 보기');
+    expect(text).toContain('북마크만 보기');
+    expect(text).toContain('알림만 보기');
+    expect(text).toContain('둘 다 보기');
+    expect(text).not.toContain('팔로잉');
+  });
+
+  it('filters group buys by bookmark and notification combinations', () => {
+    const bookmarkedIds = new Set(['gb-cal-1', 'gb-cal-3']);
+    const notifiedIds = new Set(['gb-cal-2', 'gb-cal-3']);
+
+    expect(
+      filterGroupBuysByActivity(
+        sampleGroupBuys,
+        'all',
+        bookmarkedIds,
+        notifiedIds,
+      ).map((item) => item.id),
+    ).toEqual(['gb-cal-1', 'gb-cal-2', 'gb-cal-3']);
+    expect(
+      filterGroupBuysByActivity(
+        sampleGroupBuys,
+        'bookmarked',
+        bookmarkedIds,
+        notifiedIds,
+      ).map((item) => item.id),
+    ).toEqual(['gb-cal-1', 'gb-cal-3']);
+    expect(
+      filterGroupBuysByActivity(
+        sampleGroupBuys,
+        'notified',
+        bookmarkedIds,
+        notifiedIds,
+      ).map((item) => item.id),
+    ).toEqual(['gb-cal-2', 'gb-cal-3']);
+    expect(
+      filterGroupBuysByActivity(
+        sampleGroupBuys,
+        'bookmarked-and-notified',
+        bookmarkedIds,
+        notifiedIds,
+      ).map((item) => item.id),
+    ).toEqual(['gb-cal-3']);
+  });
+
+  it('applies the selected activity filter to the calendar deals', () => {
+    const today = new Date();
+    const todayEnd = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+      23,
+      59,
+      59,
+    ).toISOString();
+    const bookmarkDeal = {
+      ...sampleGroupBuys[0],
+      id: 'gb-filter-bookmark',
+      productName: '북마크 공구',
+      endDate: todayEnd,
+    };
+    const notificationDeal = {
+      ...sampleGroupBuys[1],
+      id: 'gb-filter-notification',
+      productName: '알림 공구',
+      endDate: todayEnd,
+    };
+    mockQueryResult = {
+      data: [bookmarkDeal, notificationDeal],
+      isFetching: false,
+      isError: false,
+    };
+    activityMock.bookmarks = [{ id: bookmarkDeal.id }];
+    activityMock.notifications = [{ groupBuyId: notificationDeal.id }];
+
+    const renderer = renderCalendar();
+    const bookmarkFilter = renderer!.root.findByProps({
+      testID: 'calendar-filter-bookmarked',
+    });
+    act(() => bookmarkFilter.props.onPress());
+    const text = flattenText(renderer!.toJSON());
+
+    expect(text).toContain('북마크 공구');
+    expect(text).not.toContain('알림 공구');
+
+    activityMock.bookmarks = [];
+    activityMock.notifications = [];
+    mockQueryResult = { data: null, isFetching: false, isError: false };
+  });
+
+  it('keeps the calendar header fixed while the selected deals scroll', () => {
+    const today = new Date();
+    mockQueryResult = {
+      data: [
+        {
+          ...sampleGroupBuys[0],
+          id: 'gb-scroll-test',
+          endDate: new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate(),
+            23,
+            59,
+            59,
+          ).toISOString(),
+        },
+      ],
+      isFetching: false,
+      isError: false,
+    };
+    const renderer = renderCalendar();
+    const header = renderer!.root.findByProps({ testID: 'calendar-header' });
+    const dealsScroll = renderer!.root.findByProps({
+      testID: 'calendar-deals-scroll',
+    });
+
+    expect(header.props.style).toMatchObject({ flexShrink: 0 });
+    expect(dealsScroll.props.style).toMatchObject({ flex: 1 });
+    mockQueryResult = {
+      data: null,
+      isFetching: false,
+      isError: false,
+    };
   });
 
   it('shows empty state when no group buys on selected date', () => {
@@ -233,7 +414,10 @@ describe('CalendarScreen', () => {
         videoUrl: null,
         mediaUrls: [],
         mediaType: null,
-        rawPost: { postUrl: 'https://instagram.com/p/t1', influencer: { instagramUsername: 'daily_deal' } },
+        rawPost: {
+          postUrl: 'https://instagram.com/p/t1',
+          influencer: { instagramUsername: 'daily_deal' },
+        },
       },
     ];
 
@@ -280,7 +464,10 @@ describe('CalendarScreen', () => {
           videoUrl: null,
           mediaUrls: [],
           mediaType: null,
-          rawPost: { postUrl: 'https://instagram.com/p/media', influencer: { instagramUsername: 'media_test' } },
+          rawPost: {
+            postUrl: 'https://instagram.com/p/media',
+            influencer: { instagramUsername: 'media_test' },
+          },
         },
       ],
       isFetching: false,
