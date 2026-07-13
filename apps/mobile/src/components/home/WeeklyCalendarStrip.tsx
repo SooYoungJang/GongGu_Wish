@@ -42,6 +42,7 @@ export function WeeklyCalendarStrip({ onPressCalendar, selectedDate, onSelectDat
           accessibilityRole="button"
           onPress={onPressCalendar}
           style={s.calendarViewAll}
+          testID="home-calendar-open"
         >
           <SText variant="cardBrand">전체보기</SText>
         </Pressable>
