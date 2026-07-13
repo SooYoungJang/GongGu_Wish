@@ -27,6 +27,9 @@ vi.mock('expo-video', () => ({
       play: vi.fn(),
       pause: vi.fn(),
       replace: vi.fn(),
+      replaceAsync: vi.fn(async (nextSource: any) => {
+        player.source = nextSource;
+      }),
       loop: false,
       muted: true,
       volume: 0,
@@ -96,7 +99,7 @@ import { Alert, Animated, Linking } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DetailScreen } from './DetailScreen';
+import { DetailScreen, ReelVideoPreloader } from './DetailScreen';
 import { spacing } from '../design/tokens';
 import type { GroupBuy } from '../types';
 
@@ -439,6 +442,7 @@ describe('DetailScreen', () => {
     expect(videoMock.players[0]?.source).toEqual({
       uri: 'https://cdn.example.com/slide-2-video.mp4',
       contentType: 'auto',
+      useCaching: true,
     });
   });
 
@@ -1247,10 +1251,51 @@ describe('DetailScreen', () => {
     expect(nextVideoPlayers[0]?.source).toEqual({
       uri: 'https://example.com/next-video.mp4',
       contentType: 'auto',
+      useCaching: true,
     });
     expect(nextVideoPlayers.some((player) => player.pause.mock.calls.length > 0)).toBe(true);
     expect(nextVideoPlayers.every((player) => player.play.mock.calls.length === 0)).toBe(true);
     expect(nextVideoPlayers.every((player) => player.currentTime === 0)).toBe(true);
+  });
+
+  it('preloads the second-next video without mounting another visible video or changing quality', async () => {
+    const farVideoGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: 'group-buy-video-far',
+      productName: '두 칸 뒤 영상 공구',
+      thumbnailUrl: 'https://example.com/far-thumb.jpg',
+      videoUrl: 'https://example.com/far-video.mp4',
+      mediaUrls: ['https://example.com/far-video.mp4'],
+      mediaType: 'VIDEO',
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <ReelVideoPreloader
+          items={[baseGroupBuy, { ...baseGroupBuy, id: 'group-buy-middle' }, farVideoGroupBuy]}
+          activeIndex={0}
+          enabled
+        />,
+      );
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const preloadedPlayer = videoMock.players.find(
+      (player) => player.source?.uri === farVideoGroupBuy.videoUrl,
+    );
+
+    expect(renderer!.root.findAll((node) => String(node.type) === 'VideoView')).toHaveLength(0);
+    expect(videoMock.players).toHaveLength(1);
+    expect(preloadedPlayer?.source).toEqual({
+      uri: farVideoGroupBuy.videoUrl,
+      contentType: 'auto',
+      useCaching: true,
+    });
+    expect(preloadedPlayer?.play).not.toHaveBeenCalled();
   });
 });
 
@@ -1283,6 +1328,7 @@ describe('DetailScreen video playback', () => {
     expect(videoMock.players[0]?.source).toEqual({
       uri: 'https://cdn.example.com/media-test?id=abc123',
       contentType: 'auto',
+      useCaching: true,
     });
     expect(videoMock.players[0]?.muted).toBe(false);
     expect(videoMock.players[0]?.volume).toBe(1);

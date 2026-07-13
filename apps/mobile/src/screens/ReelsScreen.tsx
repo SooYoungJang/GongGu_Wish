@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StatusBar, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Platform, StatusBar, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { logDeepView } from '../api';
 import { useRecentViews } from '../hooks/useLocalDeals';
 import { useTheme } from '../context/ThemeContext';
 import type { GroupBuy } from '../types';
-import { ProductReelPage, makeStyles } from './DetailScreen';
+import { ProductReelPage, ReelVideoPreloader, makeStyles } from './DetailScreen';
 
 const REELS_TAB_BAR_OVERLAY_OFFSET = 40;
 const REEL_PAGE_RENDER_RADIUS = 1;
@@ -38,6 +38,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const pagerRef = useRef<PagerView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [reelDirection, setReelDirection] = useState<1 | -1>(1);
   const [summarySheetGate, setSummarySheetGate] = useState({ isOpen: false, canSwipeReel: true });
   const [isTabFocused, setTabFocused] = useState(true);
   const { recordView } = useRecentViews();
@@ -75,6 +76,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
     batchCounter.current = 0;
     setReelItems([...baseBatch]);
     setActiveIndex(0);
+    setReelDirection(1);
   }, [baseBatch]);
 
   const appendBatch = useCallback(() => {
@@ -170,7 +172,10 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
         offscreenPageLimit={1}
         onPageSelected={(event) => {
           const next = event.nativeEvent.position;
-          if (next !== activeIndex) setActiveIndex(next);
+          if (next !== activeIndex) {
+            setReelDirection(next > activeIndex ? 1 : -1);
+            setActiveIndex(next);
+          }
         }}
         orientation="vertical"
         overdrag
@@ -191,6 +196,14 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
           );
         })}
       </PagerView>
+      {Platform.OS !== 'web' && isTabFocused ? (
+        <ReelVideoPreloader
+          items={reelItems}
+          activeIndex={activeIndex}
+          direction={reelDirection}
+          enabled={!summarySheetGate.isOpen}
+        />
+      ) : null}
     </View>
   );
 }
