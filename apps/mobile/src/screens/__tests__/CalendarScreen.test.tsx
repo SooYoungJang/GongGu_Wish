@@ -20,6 +20,16 @@ const activityMock = vi.hoisted(() => ({
   notifications: [] as Array<{ groupBuyId: string }>,
 }));
 
+const navigationMock = vi.hoisted(() => ({
+  goBack: vi.fn(),
+  navigate: vi.fn(),
+}));
+
+const listMock = vi.hoisted(() => ({
+  scrollToIndex: vi.fn(),
+  scrollToOffset: vi.fn(),
+}));
+
 vi.mock('../../hooks/useLocalDeals', () => ({
   useBookmarks: () => ({ bookmarks: activityMock.bookmarks, ready: true }),
   useNotifications: () => ({
@@ -60,11 +70,36 @@ vi.mock('react-native', () => {
 
   return {
     ActivityIndicator: passthrough('ActivityIndicator'),
-    PanResponder: {
-      create: () => ({
-        panHandlers: {},
-      }),
-    },
+    FlatList: ReactMock.forwardRef(
+      (
+        {
+          data = [],
+          keyExtractor,
+          renderItem,
+          ListEmptyComponent,
+          ...props
+        }: any,
+        ref: React.Ref<unknown>,
+      ) => {
+        ReactMock.useImperativeHandle(ref, () => ({
+          scrollToIndex: listMock.scrollToIndex,
+          scrollToOffset: listMock.scrollToOffset,
+        }));
+        const children =
+          data.length > 0
+            ? data.map((item: unknown, index: number) =>
+                ReactMock.cloneElement(renderItem({ item, index }), {
+                  key: keyExtractor?.(item, index) ?? index,
+                }),
+              )
+            : typeof ListEmptyComponent === 'function'
+              ? ReactMock.createElement(ListEmptyComponent)
+              : ListEmptyComponent;
+        return ReactMock.createElement('FlatList', props, children);
+      },
+    ),
+    Modal: ({ children, visible, ...props }: any) =>
+      visible ? ReactMock.createElement('Modal', props, children) : null,
     Platform: {
       select: (obj: Record<string, unknown>) => obj.default,
     },
@@ -75,10 +110,18 @@ vi.mock('react-native', () => {
       testID,
       accessibilityLabel,
       accessibilityRole,
+      accessibilityState,
     }: any) =>
       ReactMock.createElement(
         'Pressable',
-        { onPress, style, testID, accessibilityLabel, accessibilityRole },
+        {
+          onPress,
+          style,
+          testID,
+          accessibilityLabel,
+          accessibilityRole,
+          accessibilityState,
+        },
         children,
       ),
     ScrollView: ({ children, ...props }: any) =>
@@ -196,7 +239,7 @@ function renderCalendar(params: Record<string, unknown> = {}) {
     renderer = TestRenderer.create(
       <ThemeProvider>
         <CalendarScreen
-          navigation={{ navigate: vi.fn(), goBack: vi.fn() } as any}
+          navigation={navigationMock as any}
           route={
             { params, key: 'CalendarScreen', name: 'CalendarScreen' } as any
           }
@@ -207,7 +250,7 @@ function renderCalendar(params: Record<string, unknown> = {}) {
   return renderer!;
 }
 
-function expandCalendar(renderer: TestRenderer.ReactTestRenderer) {
+function openCalendarPicker(renderer: TestRenderer.ReactTestRenderer) {
   const toggle = renderer.root.findByProps({ testID: 'calendar-month-toggle' });
   act(() => toggle.props.onPress());
 }
@@ -218,6 +261,10 @@ describe('CalendarScreen', () => {
   beforeEach(() => {
     activityMock.bookmarks = [];
     activityMock.notifications = [];
+    listMock.scrollToIndex.mockClear();
+    listMock.scrollToOffset.mockClear();
+    navigationMock.goBack.mockClear();
+    navigationMock.navigate.mockClear();
     mockQueryResult = {
       data: null,
       isFetching: false,
@@ -233,24 +280,34 @@ describe('CalendarScreen', () => {
     expect(text).toContain('오늘');
   });
 
-  it('keeps the calendar collapsed by default and expands from the month button', () => {
+  it('keeps the calendar picker closed by default and opens it from the year-month button', () => {
     const renderer = renderCalendar();
-    expect(renderer.root.findAllByProps({ testID: 'calendar-grid' })).toHaveLength(0);
+    expect(
+      renderer.root.findAllByProps({ testID: 'calendar-picker-modal' }),
+    ).toHaveLength(0);
 
-    const toggle = renderer.root.findByProps({ testID: 'calendar-month-toggle' });
-    expect(toggle.props.accessibilityLabel).toContain('달력 펼치기');
+    const toggle = renderer.root.findByProps({
+      testID: 'calendar-month-toggle',
+    });
+    expect(toggle.props.accessibilityLabel).toContain('달력 열기');
 
     act(() => toggle.props.onPress());
 
-    expect(renderer.root.findByProps({ testID: 'calendar-grid' })).toBeDefined();
     expect(
-      renderer.root.findByProps({ testID: 'calendar-month-toggle' }).props.accessibilityLabel,
-    ).toContain('달력 접기');
+      renderer.root.findByProps({ testID: 'calendar-picker-modal' }),
+    ).toBeDefined();
+    expect(
+      renderer.root.findByProps({ testID: 'calendar-grid' }),
+    ).toBeDefined();
+    expect(
+      renderer.root.findByProps({ testID: 'calendar-month-toggle' }).props
+        .accessibilityLabel,
+    ).toContain('달력 닫기');
   });
 
   it('renders weekday labels in order (월~일)', () => {
     const renderer = renderCalendar();
-    expandCalendar(renderer);
+    openCalendarPicker(renderer);
     const text = flattenText(renderer!.toJSON());
     expect(text).toContain('월');
     expect(text).toContain('화');
@@ -263,7 +320,7 @@ describe('CalendarScreen', () => {
 
   it("renders today's date and marks it in the grid", () => {
     const renderer = renderCalendar();
-    expandCalendar(renderer);
+    openCalendarPicker(renderer);
     const today = new Date();
     const text = flattenText(renderer!.toJSON());
     expect(text).toContain(String(today.getDate()));
@@ -271,7 +328,7 @@ describe('CalendarScreen', () => {
 
   it('renders navigation arrows and today button', () => {
     const renderer = renderCalendar();
-    expandCalendar(renderer);
+    openCalendarPicker(renderer);
     const pressables = renderer!.root.findAllByType(
       'Pressable' as unknown as React.ElementType,
     );
@@ -394,7 +451,7 @@ describe('CalendarScreen', () => {
     expect(bothText).toContain('공통 공구');
   });
 
-  it('keeps the calendar header fixed while the calendar and selected deals share one scroll', () => {
+  it('keeps the header fixed above a virtualized date timeline', () => {
     const today = new Date();
     mockQueryResult = {
       data: [
@@ -416,13 +473,14 @@ describe('CalendarScreen', () => {
     };
     const renderer = renderCalendar();
     const header = renderer!.root.findByProps({ testID: 'calendar-header' });
-    const contentScroll = renderer!.root.findByProps({
-      testID: 'calendar-content-scroll',
-    });
+    const dateList = renderer!.root.find(
+      (node) =>
+        String(node.type) === 'FlatList' &&
+        node.props.testID === 'calendar-date-list',
+    );
 
     expect(header.props.style).toMatchObject({ flexShrink: 0 });
-    expect(contentScroll.props.style).toMatchObject({ flex: 1 });
-    expect(renderer!.root.findAllByProps({ testID: 'calendar-deals-scroll' })).toHaveLength(0);
+    expect(dateList.props.style).toMatchObject({ flex: 1 });
     mockQueryResult = {
       data: null,
       isFetching: false,
@@ -430,9 +488,9 @@ describe('CalendarScreen', () => {
     };
   });
 
-  it('keeps the calendar grid compact above the selected deals', () => {
+  it('keeps the calendar grid compact inside the picker modal', () => {
     const renderer = renderCalendar();
-    expandCalendar(renderer);
+    openCalendarPicker(renderer);
     const calendarGrid = renderer!.root.findByProps({
       testID: 'calendar-grid',
     });
@@ -447,23 +505,30 @@ describe('CalendarScreen', () => {
     expect(firstDayCell.props.style[0]).toMatchObject({ minHeight: 36 });
   });
 
-  it('collapses the calendar after selecting a date', () => {
+  it('closes the picker and scrolls the timeline after selecting a date', () => {
     const renderer = renderCalendar();
-    expandCalendar(renderer);
+    openCalendarPicker(renderer);
     const dayCell = renderer.root.findAll(
       (node) => node.props.accessibilityLabel === '1일',
     )[0];
 
     act(() => dayCell.props.onPress());
 
-    expect(renderer.root.findAllByProps({ testID: 'calendar-grid' })).toHaveLength(0);
+    expect(
+      renderer.root.findAllByProps({ testID: 'calendar-picker-modal' }),
+    ).toHaveLength(0);
+    expect(listMock.scrollToIndex).toHaveBeenCalledWith({
+      animated: true,
+      index: expect.any(Number),
+      viewPosition: 0,
+    });
   });
 
   it('uses the shared back button contract', () => {
     const renderer = renderCalendar();
-    const backButton = renderer!.root.findAllByType(Pressable).find(
-      (node) => node.props.testID === 'calendar-back-button',
-    );
+    const backButton = renderer!.root
+      .findAllByType(Pressable)
+      .find((node) => node.props.testID === 'calendar-back-button');
 
     expect(backButton).toBeDefined();
     expect(backButton!.props.accessibilityLabel).toBe('뒤로가기');
@@ -513,13 +578,28 @@ describe('CalendarScreen', () => {
 
     const renderer = renderCalendar();
     const text = flattenText(renderer!.toJSON());
+    const dateRow = renderer.root.findByProps({
+      testID: `calendar-date-row-${todayStr}`,
+    });
+    const carousel = renderer.root.findByProps({
+      testID: `calendar-deals-carousel-${todayStr}`,
+    });
 
-    // Should show the deal
+    expect(dateRow).toBeDefined();
+    expect(carousel.props.horizontal).toBe(true);
     expect(text).toContain('오늘의 딜');
     expect(text).toContain('뷰티');
     expect(text).toContain('@ daily_deal');
     expect(text).toContain('30% 할인');
-    expect(text).toContain('오늘의 공구');
+
+    const dealButton = renderer.root.find(
+      (node) => node.props.accessibilityLabel === '오늘의 딜 상세 보기',
+    );
+    act(() => dealButton.props.onPress());
+
+    expect(navigationMock.navigate).toHaveBeenCalledWith('Detail', {
+      groupBuy: buysForToday[0],
+    });
 
     // Reset
     mockQueryResult = {
@@ -560,7 +640,9 @@ describe('CalendarScreen', () => {
     const renderer = renderCalendar({ initialDate: '2026-07-02' });
     const text = flattenText(renderer!.toJSON());
 
-    expect(text).toContain('7월 2일 공구');
+    expect(
+      renderer.root.findByProps({ testID: 'calendar-date-row-2026-07-02' }),
+    ).toBeDefined();
     expect(text).toContain('미디어테스트 20260702T163723Z');
 
     mockQueryResult = {
