@@ -336,7 +336,7 @@ export async function postgrestDelete<T = void>(
 export async function callEdgeFunction<T>(
   functionName: string,
   body: unknown,
-  options: { method?: string; signal?: AbortSignal } = {},
+  options: { method?: string; signal?: AbortSignal; authToken?: string | null } = {},
 ): Promise<T> {
   const url = `${SUPABASE_URL}/functions/v1/${functionName}`;
   const headers: Record<string, string> = {
@@ -344,7 +344,7 @@ export async function callEdgeFunction<T>(
     apikey: _anonKey,
   };
 
-  const token = await getAuthToken();
+  const token = options.authToken ?? await getAuthToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }

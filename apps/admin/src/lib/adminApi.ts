@@ -8,6 +8,8 @@ import type {
   GroupBuy,
   HikerLookupResult,
   ListResponse,
+  PushNotificationInput,
+  PushNotificationResult,
 } from "@/types";
 
 type AdminMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -140,6 +142,12 @@ export const adminApi = {
 
   updateUser(id: string, body: Record<string, unknown>) {
     return requestAdmin<AppUser>(`/admin/users/${id}`, "PATCH", { body });
+  },
+
+  sendPushNotification(input: PushNotificationInput) {
+    return requestAdmin<PushNotificationResult>("/admin/notifications", "POST", {
+      body: { ...input },
+    });
   },
 
   cdnRefreshStatus(params: {

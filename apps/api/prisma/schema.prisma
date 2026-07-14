@@ -122,6 +122,8 @@ model User {
   email     String     @unique
   nickname  String?
   fcmToken  String?    @map("fcm_token")
+  pushToken String?    @map("push_token")
+  pushProvider String? @map("push_provider")
   favorites Favorite[]
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")

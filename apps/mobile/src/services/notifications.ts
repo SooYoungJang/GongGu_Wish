@@ -2,6 +2,9 @@ import type { NotificationTriggerInput } from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
+import { callEdgeFunction } from '../lib/postgrest-client';
+import { isExpoPushToken } from './pushToken';
+
 // Expo Go does not fully support expo-notifications native modules.
 // Lazy-load to avoid importing the module at app startup in Expo Go.
 export const IS_EXPO_GO = Constants.appOwnership === 'expo';
@@ -55,6 +58,31 @@ export async function requestNotificationPermissions(): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+export function getEasProjectId(): string | null {
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+  return typeof projectId === 'string' && projectId.trim() ? projectId.trim() : null;
+}
+
+export async function registerForPushNotifications(authToken?: string): Promise<string | null> {
+  if (IS_EXPO_GO) return null;
+
+  try {
+    const projectId = getEasProjectId();
+    if (!projectId || !(await requestNotificationPermissions())) return null;
+
+    const Notifications = await getNotifications();
+    if (!Notifications) return null;
+
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    if (!isExpoPushToken(token)) return null;
+
+    await callEdgeFunction('register-push-token', { token, provider: 'expo' }, { authToken });
+    return token;
+  } catch {
+    return null;
   }
 }
 

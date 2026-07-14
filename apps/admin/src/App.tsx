@@ -4,6 +4,7 @@ import { adminApi } from "@/lib/adminApi";
 import { StatCard } from "@/components/StatCard";
 import { AppLivePreview, type AppLivePreviewDeal } from "@/components/AppLivePreview";
 import { DatePickerField } from "@/components/DatePickerField";
+import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import { inferHikerSuggestions } from "@/lib/hikerSuggestions";
 import { validateHomeBannerForm } from "@/lib/homeBannerForm";
 import { MAX_PRICE_KRW, parsePriceKrwInput } from "@/lib/priceKrw";
@@ -29,7 +30,7 @@ import "./App.css";
 
 type Notice = { tone: "success" | "error" | "info"; message: string } | null;
 
-type TabKey = "dashboard" | "submissions" | "groupBuys" | "users" | "cdnRefresh";
+type TabKey = "dashboard" | "submissions" | "groupBuys" | "users" | "notifications" | "cdnRefresh";
 
 type SubmissionForm = {
   productName: string;
@@ -1080,6 +1081,10 @@ function AdminShell({ session }: { session: Session }) {
             <span>Audience</span>
             <strong>가입자 관리</strong>
           </button>
+          <button aria-current={tab === "notifications" ? "page" : undefined} className={tab === "notifications" ? "active" : ""} onClick={() => switchTab("notifications")} type="button">
+            <span>Messaging</span>
+            <strong>푸시 발송</strong>
+          </button>
           <button aria-current={tab === "cdnRefresh" ? "page" : undefined} className={tab === "cdnRefresh" ? "active" : ""} onClick={() => switchTab("cdnRefresh")} type="button">
             <span>Media cache</span>
             <strong>CDN 갱신</strong>
@@ -1241,6 +1246,9 @@ function AdminShell({ session }: { session: Session }) {
             expandedUserId={expandedUserId}
           />
       ) : null}
+        {tab === "notifications" ? (
+          <PushNotificationPanel onSend={(input) => adminApi.sendPushNotification(input)} />
+        ) : null}
         {tab === "cdnRefresh" ? (
           <CdnRefreshPanel
             loading={cdnLoading}
@@ -1272,6 +1280,10 @@ function AdminShell({ session }: { session: Session }) {
         <button aria-current={tab === "users" ? "page" : undefined} className={tab === "users" ? "active" : ""} onClick={() => switchTab("users")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-1.13a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm6 0a4 4 0 0 0 0-8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/></svg>
           <span>사용자</span>
+        </button>
+        <button aria-current={tab === "notifications" ? "page" : undefined} className={tab === "notifications" ? "active" : ""} onClick={() => switchTab("notifications")} type="button">
+          <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/></svg>
+          <span>푸시</span>
         </button>
         <button aria-current={tab === "cdnRefresh" ? "page" : undefined} className={tab === "cdnRefresh" ? "active" : ""} onClick={() => switchTab("cdnRefresh")} type="button">
           <svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/><path d="M21 3v5h-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/></svg>
@@ -1324,6 +1336,7 @@ function tabTitle(tab: TabKey) {
   if (tab === "submissions") return "위시 검수";
   if (tab === "groupBuys") return "공구 관리";
   if (tab === "users") return "가입자 관리";
+  if (tab === "notifications") return "푸시 발송";
   if (tab === "cdnRefresh") return "CDN 갱신";
   return "대시보드";
 }

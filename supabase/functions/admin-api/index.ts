@@ -14,6 +14,7 @@ import {
   normalizePriceKrw,
 } from './commerceFields.ts';
 import { normalizeMonthlyFeaturedRank } from './monthlyFeaturedRank.ts';
+import { sendPushNotification } from './pushNotifications.ts';
 
 type AdminMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DUPLICATE' | 'CANCELLED';
@@ -856,6 +857,9 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   }
   if (path.startsWith('/admin/users/') && method === 'PATCH') {
     return updateUser(supabase, path.replace('/admin/users/', ''), body);
+  }
+  if (path === '/admin/notifications' && method === 'POST') {
+    return sendPushNotification(supabase, body);
   }
   if (path.startsWith('/admin/group-buys/') && method === 'PATCH') {
     const id = path.replace('/admin/group-buys/', '');
