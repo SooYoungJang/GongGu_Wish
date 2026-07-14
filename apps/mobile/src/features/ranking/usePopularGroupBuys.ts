@@ -65,6 +65,7 @@ function groupBuyToSellerRanking(
     representativeGroupBuyId: popular.groupBuyId,
     startDate: gb.startDate,
     endDate: gb.endDate,
+    priceKrw: gb.priceKrw,
   };
 }
 

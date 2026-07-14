@@ -46,6 +46,7 @@ describe("AppLivePreview", () => {
     expect(dealCard.querySelector(".app-live-preview__deal-card-brand")?.textContent).toBe("귤밭상회");
     expect(dealCard.querySelector(".app-live-preview__deal-card-deadline-badge")?.textContent).toContain("일 남음");
     expect(dealCard.querySelector(".app-live-preview__deal-card-title")?.textContent).toBe("제주 감귤 3kg");
+    expect(dealCard.querySelector(".app-live-preview__deal-card-price")?.textContent).toBe("25,900원");
 
     await user.click(screen.getByRole("tab", { name: "상세 화면" }));
     expect(screen.getByRole("tabpanel", { name: "상세 화면" })).toBeTruthy();

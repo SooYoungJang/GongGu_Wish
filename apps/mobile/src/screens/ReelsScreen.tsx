@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StatusBar, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AppState, Platform, StatusBar, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -46,7 +46,18 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
   const [reelDirection, setReelDirection] = useState<1 | -1>(1);
   const [summarySheetGate, setSummarySheetGate] = useState({ isOpen: false, canSwipeReel: true });
   const [isTabFocused, setTabFocused] = useState(true);
+  const [isAppActive, setAppActive] = useState(AppState.currentState === 'active');
   const { recordView } = useRecentViews();
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      setAppActive(nextState === 'active');
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  const isPlaybackActive = isTabFocused && isAppActive;
 
   useEffect(() => {
     onSheetVisibilityChange?.(summarySheetGate.isOpen);
@@ -112,13 +123,13 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
   const activeReelItem = reelItems[activeIndex];
   const lastRecordedIdRef = useRef<string | null>(null);
   useEffect(() => {
-    const item = isTabFocused ? activeReelItem : undefined;
+    const item = isPlaybackActive ? activeReelItem : undefined;
     if (item && item.id !== lastRecordedIdRef.current) {
       lastRecordedIdRef.current = item.id;
       recordView(item);
     }
-    if (!isTabFocused) lastRecordedIdRef.current = null;
-  }, [isTabFocused, activeReelItem, recordView]);
+    if (!isPlaybackActive) lastRecordedIdRef.current = null;
+  }, [isPlaybackActive, activeReelItem, recordView]);
 
   // ── Deep view tracking: count a view only after 10s of continuous watch ──
   const DEEP_VIEW_THRESHOLD_MS = 10_000;
@@ -129,7 +140,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
       deepViewTimerRef.current = null;
     }
     // Only track while the tab is focused and no overlay sheet is open.
-    if (isTabFocused && !summarySheetGate.isOpen && activeReelItem) {
+    if (isPlaybackActive && !summarySheetGate.isOpen && activeReelItem) {
       const id = activeReelItem.id;
       deepViewTimerRef.current = setTimeout(() => {
         void logDeepView(id);
@@ -141,7 +152,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
         deepViewTimerRef.current = null;
       }
     };
-  }, [isTabFocused, summarySheetGate.isOpen, activeReelItem]);
+  }, [isPlaybackActive, summarySheetGate.isOpen, activeReelItem]);
 
   const handleSummarySheetStateChange = useCallback((isOpen: boolean, canSwipeReel: boolean) => {
     setSummarySheetGate((current) => (
@@ -156,7 +167,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
       <ProductReelPage
         key={item.id}
         groupBuy={item}
-        isActive={isTabFocused && index === activeIndex}
+        isActive={isPlaybackActive && index === activeIndex}
         replayKey={replayKey}
         shouldPreloadVideo={Math.abs(index - activeIndex) <= 1}
         bottomChromeOffset={REELS_TAB_BAR_OVERLAY_OFFSET}
@@ -170,7 +181,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
         s={s}
       />
     ),
-    [isTabFocused, activeIndex, handleSummarySheetStateChange, insets.bottom, insets.top, replayKey, s, screenHeight, screenWidth],
+    [isPlaybackActive, activeIndex, handleSummarySheetStateChange, insets.bottom, insets.top, replayKey, s, screenHeight, screenWidth],
   );
 
   if (reelItems.length === 0) {
@@ -214,7 +225,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
           );
         })}
       </PagerView>
-      {Platform.OS !== 'web' && isTabFocused ? (
+      {Platform.OS !== 'web' && isPlaybackActive ? (
         <ReelVideoPreloader
           items={reelItems}
           activeIndex={activeIndex}

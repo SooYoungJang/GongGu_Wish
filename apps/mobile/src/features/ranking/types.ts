@@ -54,6 +54,7 @@ export type SellerRanking = {
   representativeGroupBuyId?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  priceKrw?: number | null;
 };
 
 export type SellerRankingQuery = {

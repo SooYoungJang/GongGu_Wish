@@ -11,6 +11,7 @@ import { FollowButton } from './FollowButton';
 import { RankBadge } from './RankBadge';
 import { RankingTrendBadge } from './RankingTrendBadge';
 import { ThumbnailStrip } from './ThumbnailStrip';
+import { formatPriceKrw } from '../../utils/price';
 
 export interface SellerRankingRowProps {
   item: SellerRanking;
@@ -27,6 +28,7 @@ export function SellerRankingRow({ item, onPress, onToggleFollow }: SellerRankin
   const viewCount = item.followerCount == null ? '-' : formatCompactCount(item.followerCount);
   const savedCount = formatCompactCount(item.activeDealCount);
   const popularityScore = item.trustScore == null ? null : Math.round(item.trustScore);
+  const price = formatPriceKrw(item.priceKrw) ?? '가격 미정';
   const accessibilityLabel = `${item.rank}위 ${item.displayName}, 조회 ${viewCount}, 저장 ${savedCount}`;
 
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
@@ -59,6 +61,10 @@ export function SellerRankingRow({ item, onPress, onToggleFollow }: SellerRankin
         <View style={s.infoColumn}>
           <SText variant="body" style={s.sellerName} numberOfLines={2}>
             {item.displayName}
+          </SText>
+
+          <SText variant="caption" style={s.price} numberOfLines={1}>
+            {price}
           </SText>
 
           <SText variant="caption" style={s.username} numberOfLines={1}>
@@ -128,6 +134,12 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
       fontSize: 11,
       fontWeight: '900',
       lineHeight: 16,
+    },
+    price: {
+      color: colors.accent,
+      fontSize: 12,
+      fontWeight: '900',
+      lineHeight: 17,
     },
     pressed: {
       opacity: 0.72,

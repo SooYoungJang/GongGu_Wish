@@ -4,6 +4,8 @@ export type HomeBannerCandidate = {
   homeBannerEndDate?: string | null;
 };
 
+export { formatPriceKrw } from './price';
+
 type DateKey = {
   value: number;
 };
@@ -59,10 +61,3 @@ export function selectHomeBannerItems<T extends HomeBannerCandidate>(items: read
   return items.filter((item) => isHomeBannerActive(item, now));
 }
 
-export function formatPriceKrw(value: unknown): string | null {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    return null;
-  }
-
-  return `${new Intl.NumberFormat('ko-KR').format(value)}원`;
-}

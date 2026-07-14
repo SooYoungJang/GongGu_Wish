@@ -322,6 +322,7 @@ function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
       <div className="app-live-preview__deal-card-content">
         <p className="app-live-preview__deal-card-brand">{deal.brandName || "브랜드 미지정"}</p>
         <h3 className="app-live-preview__deal-card-title">{deal.productName}</h3>
+        <p className="app-live-preview__deal-card-price">{formatPrice(deal.priceKrw)}</p>
       </div>
     </article>
   );
