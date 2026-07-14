@@ -7,6 +7,7 @@ import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { CategoryColorName } from '../design/tokens';
 import type { GroupBuy } from '../types';
+import { formatPriceKrw } from '../utils/price';
 
 type DealCardProps = {
   item: GroupBuy;
@@ -59,6 +60,7 @@ export function DealCard({ item, category, onPress }: DealCardProps) {
   const fallbackLabel = CATEGORY_LABELS[category];
   const username = item.rawPost.influencer.instagramUsername?.trim();
   const brandLabel = item.brandName?.trim() || fallbackLabel;
+  const price = formatPriceKrw(item.priceKrw) ?? '가격 미정';
 
   return (
     <Pressable
@@ -88,6 +90,7 @@ export function DealCard({ item, category, onPress }: DealCardProps) {
         {username ? `${brandLabel} · @ ${username}` : brandLabel}
       </SText>
       <SText variant="caption" numberOfLines={2} style={s.title}>{item.productName ?? '공동구매 상품'}</SText>
+      <SText variant="caption" numberOfLines={1} style={s.price}>{price}</SText>
     </Pressable>
   );
 }
@@ -142,6 +145,13 @@ function makeStyles(colors: CommerceColorPalette) {
       fontWeight: '800',
       letterSpacing: 0,
       lineHeight: 19,
+    },
+    price: {
+      color: colors.accent,
+      fontSize: 13,
+      fontWeight: '900',
+      lineHeight: 18,
+      marginTop: 2,
     },
     brand: {
       color: colors.muted,

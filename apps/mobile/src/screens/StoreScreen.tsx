@@ -43,6 +43,7 @@ function rankingToGroupBuy(item: SellerRanking): GroupBuy {
     category: item.category,
     startDate: item.startDate ?? null,
     endDate: item.endDate ?? null,
+    priceKrw: item.priceKrw ?? null,
     purchaseUrl: null,
     discountInfo: null,
     summary: null,

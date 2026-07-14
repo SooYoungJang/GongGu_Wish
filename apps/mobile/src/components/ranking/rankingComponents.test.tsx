@@ -82,6 +82,7 @@ function sampleRanking(overrides: Partial<SellerRanking> = {}): SellerRanking {
       },
     ],
     representativeGroupBuyId: 'group-1',
+    priceKrw: null,
     ...overrides,
   };
 }
@@ -267,6 +268,7 @@ describe('ranking components', () => {
       followerCount: 12300,
       activeDealCount: 7,
       trustScore: 96,
+      priceKrw: 25900,
     });
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -280,6 +282,7 @@ describe('ranking components', () => {
     expect(text).toContain('조회 1.2만');
     expect(text).toContain('저장 7');
     expect(text).toContain('인기지수 96');
+    expect(text).toContain('25,900원');
     expect(text).not.toContain('공구 7개');
   });
 

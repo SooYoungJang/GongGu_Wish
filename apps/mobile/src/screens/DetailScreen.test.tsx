@@ -1,6 +1,7 @@
 const videoMock = vi.hoisted(() => ({
   players: [] as any[],
   deferReplaceAsync: false,
+  throwReplaceAsync: false,
   replaceAsyncResolvers: [] as Array<() => void>,
 }));
 const queryMock = vi.hoisted(() => ({
@@ -30,6 +31,9 @@ vi.mock('expo-video', () => ({
       pause: vi.fn(),
       replace: vi.fn(),
       replaceAsync: vi.fn((nextSource: any) => {
+        if (videoMock.throwReplaceAsync) {
+          throw new TypeError("Cannot read property 'reload' of undefined");
+        }
         if (videoMock.deferReplaceAsync) {
           return new Promise<void>((resolve) => {
             videoMock.replaceAsyncResolvers.push(() => {
@@ -354,6 +358,7 @@ const baseGroupBuy: GroupBuy = {
   endDate: '2099-12-31',
   purchaseUrl: 'https://example.com/buy',
   discountInfo: '최대 20% 할인',
+  priceKrw: 12900,
   summary: '대표 요약',
   confidence: 0.95,
   thumbnailUrl: 'https://example.com/thumb.jpg',
@@ -376,6 +381,7 @@ beforeEach(() => {
   (globalThis as any).__mockKeyboardHeight = 0;
   videoMock.players = [];
   videoMock.deferReplaceAsync = false;
+  videoMock.throwReplaceAsync = false;
   videoMock.replaceAsyncResolvers = [];
   queryMock.groupBuys = undefined;
   flashListMock.scrollToOffset.mockClear();
@@ -511,6 +517,7 @@ describe('DetailScreen', () => {
 
     expect(verticalPager).toBeDefined();
     expect(text).toContain('퍼스트 바이크');
+    expect(text).toContain('12,900원');
     expect(text).toContain('다음 공구');
   });
 
@@ -1311,6 +1318,41 @@ describe('DetailScreen', () => {
     expect(preloadedPlayer?.play).not.toHaveBeenCalled();
   });
 
+  it('swallows a native preload failure when the player is released during a transition', async () => {
+    videoMock.throwReplaceAsync = true;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ReelVideoPreloader
+          items={[
+            baseGroupBuy,
+            { ...baseGroupBuy, id: 'group-buy-middle' },
+            {
+              ...baseGroupBuy,
+              id: 'group-buy-released-video',
+              videoUrl: 'https://example.com/released-video.mp4',
+              mediaUrls: ['https://example.com/released-video.mp4'],
+              mediaType: 'VIDEO',
+            },
+          ]}
+          activeIndex={0}
+          enabled
+        />,
+      );
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(videoMock.players[0]?.replaceAsync).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
   it('does not replace the preloader when there is no preload source', () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -1357,6 +1399,10 @@ describe('DetailScreen', () => {
     });
 
     const preloadedPlayer = videoMock.players[0];
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(videoMock.replaceAsyncResolvers).toHaveLength(1);
 
     act(() => {

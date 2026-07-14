@@ -47,6 +47,7 @@ import { useTheme } from '../context/ThemeContext';
 import type { ColorPalette } from '../context/ThemeContext';
 import type { DetailScreenProps, GroupBuy } from '../types';
 import { formatEndDate, getDaysRemaining } from '../utils';
+import { formatPriceKrw } from '../utils/price';
 import { normalizeForSearch } from '../utils/search';
 
 const MAX_VISIBLE_DOTS = 5;
@@ -119,6 +120,18 @@ function createVideoSource(url: string) {
   };
 }
 
+function safelyCallVideoPlayer(action: () => unknown) {
+  try {
+    const result = action();
+    if (result && typeof (result as { then?: unknown }).then === 'function') {
+      void Promise.resolve(result).catch(() => undefined);
+    }
+  } catch {
+    // A native player can be released between a React effect and its command.
+    // Playback is best-effort, so a stale command must not surface globally.
+  }
+}
+
 function getFirstVideoUrl(groupBuy?: GroupBuy): string | null {
   if (!groupBuy) return null;
   return getDisplayMedia(groupBuy).find((item) => item.isVideo)?.url ?? null;
@@ -154,13 +167,23 @@ export function ReelVideoPreloader({
     const requestId = ++preloadRequestRef.current;
     if (!preloadSource) return;
 
-    void player.replaceAsync(preloadSource).then(() => {
-      if (requestId !== preloadRequestRef.current) return;
-      player.pause();
-      player.currentTime = 0;
-    }).catch(() => {
-      // Preloading is opportunistic; playback will retry when the page becomes active.
-    });
+    // Start on a microtask so an immediate screen/background transition can
+    // invalidate the request before touching a player that is being released.
+    void Promise.resolve()
+      .then(() => {
+        if (requestId !== preloadRequestRef.current) return undefined;
+        return player.replaceAsync(preloadSource);
+      })
+      .then(() => {
+        if (requestId !== preloadRequestRef.current) return;
+        safelyCallVideoPlayer(() => {
+          player.pause();
+          player.currentTime = 0;
+        });
+      })
+      .catch(() => {
+        // Preloading is opportunistic; playback will retry when the page becomes active.
+      });
 
     return () => {
       // useVideoPlayer disposes the native player on unmount. Invalidate the
@@ -278,16 +301,18 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnai
   }, []);
 
   useEffect(() => {
-    player.muted = isMuted;
-    player.volume = 1;
-    player.audioMixingMode = 'doNotMix';
+    safelyCallVideoPlayer(() => {
+      player.muted = isMuted;
+      player.volume = 1;
+      player.audioMixingMode = 'doNotMix';
 
-    if (isActive && shouldPlay) {
-      player.play();
-    } else {
-      player.pause();
-      if (!isActive) player.currentTime = 0;
-    }
+      if (isActive && shouldPlay) {
+        player.play();
+      } else {
+        player.pause();
+        if (!isActive) player.currentTime = 0;
+      }
+    });
   }, [isActive, isMuted, player, shouldPlay]);
 
   const replayKeyRef = useRef(replayKey);
@@ -300,8 +325,10 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnai
     if (!isActive || !wasActive) return;
 
     setShouldPlay(true);
-    player.currentTime = 0;
-    player.play();
+    safelyCallVideoPlayer(() => {
+      player.currentTime = 0;
+      player.play();
+    });
   }, [isActive, player, replayKey]);
 
   useEffect(() => {
@@ -320,15 +347,17 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnai
     showControlsTemporarily();
     setShouldPlay((current) => {
       const next = !current;
-      player.muted = isMuted;
-      player.volume = 1;
-      player.audioMixingMode = 'doNotMix';
+      safelyCallVideoPlayer(() => {
+        player.muted = isMuted;
+        player.volume = 1;
+        player.audioMixingMode = 'doNotMix';
 
-      if (next && isActive) {
-        player.play();
-      } else {
-        player.pause();
-      }
+        if (next && isActive) {
+          player.play();
+        } else {
+          player.pause();
+        }
+      });
       return next;
     });
   }, [isActive, isMuted, player, showControlsTemporarily]);
@@ -337,9 +366,11 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnai
     showControlsTemporarily();
     setMuted((current) => {
       const next = !current;
-      player.muted = next;
-      player.volume = 1;
-      player.audioMixingMode = 'doNotMix';
+      safelyCallVideoPlayer(() => {
+        player.muted = next;
+        player.volume = 1;
+        player.audioMixingMode = 'doNotMix';
+      });
       return next;
     });
   }, [player, showControlsTemporarily]);
@@ -355,10 +386,12 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnai
         surfaceType={Platform.OS === 'android' ? 'textureView' : undefined}
         onFirstFrameRender={() => {
           setHasFirstFrame(true);
-          player.muted = isMuted;
-          player.volume = 1;
-          player.audioMixingMode = 'doNotMix';
-          if (isActive && shouldPlay) player.play();
+          safelyCallVideoPlayer(() => {
+            player.muted = isMuted;
+            player.volume = 1;
+            player.audioMixingMode = 'doNotMix';
+            if (isActive && shouldPlay) player.play();
+          });
         }}
       />
       {thumbnailUrl && !hasFirstFrame ? (
@@ -690,6 +723,7 @@ export function ProductReelPage({
   const isUrgent = daysRemaining >= 0 && daysRemaining <= 3;
   const sellerName = groupBuy.rawPost.influencer.instagramUsername.replace(/^@/, '');
   const summary = groupBuy.summary ?? groupBuy.discountInfo ?? '';
+  const priceText = formatPriceKrw(groupBuy.priceKrw) ?? '가격 미정';
   const summarySheetMaxHeight = Math.max(
     280,
     Math.min(pageHeight - topInset - spacing.xl, pageHeight * SUMMARY_SHEET_MAX_HEIGHT_RATIO),
@@ -1331,6 +1365,9 @@ export function ProductReelPage({
             <SText variant="cardTitle" style={s.productName} numberOfLines={2}>
               {groupBuy.productName ?? '제품명 미확인'}
             </SText>
+            <SText variant="caption" style={s.productPrice} numberOfLines={1}>
+              {priceText}
+            </SText>
 
             {summary ? (
               <Pressable
@@ -1397,6 +1434,9 @@ export function ProductReelPage({
                       </SText>
                       <SText variant="caption" style={s.summarySheetProductName} numberOfLines={1}>
                         {groupBuy.productName ?? '제품명 미확인'}
+                      </SText>
+                      <SText variant="caption" style={s.summarySheetProductPrice} numberOfLines={1}>
+                        {priceText}
                       </SText>
                     </View>
                   </View>
@@ -2152,6 +2192,16 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
+    productPrice: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '900',
+      lineHeight: 18,
+      marginBottom: spacing.xs,
+      textShadowColor: 'rgba(0,0,0,0.45)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 4,
+    },
     summaryPreview: {
       alignSelf: 'stretch',
       marginBottom: spacing.xs,
@@ -2265,6 +2315,12 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       color: 'rgba(255,255,255,0.66)',
       fontSize: 13,
       fontWeight: '500',
+      marginTop: 2,
+    },
+    summarySheetProductPrice: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: '800',
       marginTop: 2,
     },
     summarySheetBuyButton: {

@@ -593,6 +593,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+.app-live-preview__deal-card-price {
+  margin: 2px 0 0;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 18px;
+}
 .app-live-preview__detail-media { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
 .app-live-preview__detail-body { display: grid; gap: 10px; padding: 18px 16px 16px; }
 .app-live-preview__detail-price { color: var(--accent); font-size: 19px; font-weight: 800; }
