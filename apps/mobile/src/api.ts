@@ -10,29 +10,62 @@
  * All existing function signatures are preserved for consumer compatibility.
  */
 
-import { Platform } from 'react-native';
+import { Platform } from "react-native";
 
-import type { FeedPost, FeedPostListResponse, GroupBuy, Influencer, InstagramMediaInfo, Submission } from './types';
-export { searchInfluencers, normalizeForSearch, pushRecentTerm } from './utils/search';
+import type {
+  FeedPost,
+  FeedPostListResponse,
+  GroupBuy,
+  Influencer,
+  InstagramMediaInfo,
+  Submission,
+} from "./types";
+export {
+  searchInfluencers,
+  normalizeForSearch,
+  pushRecentTerm,
+} from "./utils/search";
 
-import { postgrestGet, postgrestPost, postgrestFetch, callEdgeFunction } from './lib/postgrest-client';
-import { ApiError, type ApiValidationError } from './lib/api-types';
+import {
+  postgrestGet,
+  postgrestPost,
+  postgrestFetch,
+  callEdgeFunction,
+} from "./lib/postgrest-client";
+import { ApiError, type ApiValidationError } from "./lib/api-types";
+import { normalizePriceKrw } from "./utils/price";
 
 // ─── Re-export ApiError for consumers that import it ─────────────────────────
-export type { ApiValidationError } from './lib/api-types';
-export { ApiError } from './lib/api-types';
+export type { ApiValidationError } from "./lib/api-types";
+export { ApiError } from "./lib/api-types";
 
 // ─── Ranking types (mobile-specific) ─────────────────────────────────────────
 
 export type RankingCategory =
-  | 'all' | 'food' | 'living' | 'beauty' | 'fashion' | 'home' | 'kitchen' | 'electronics' | 'pet' | 'auto' | 'hobby' | 'baby' | 'sports' | 'stationery' | 'books' | 'media' | 'travel';
-export type RankingPeriod = 'today' | 'weekly' | 'monthly';
-export type RankingSort = 'popular' | 'rising' | 'deadlineSoon' | 'newDeal';
+  | "all"
+  | "food"
+  | "living"
+  | "beauty"
+  | "fashion"
+  | "home"
+  | "kitchen"
+  | "electronics"
+  | "pet"
+  | "auto"
+  | "hobby"
+  | "baby"
+  | "sports"
+  | "stationery"
+  | "books"
+  | "media"
+  | "travel";
+export type RankingPeriod = "today" | "weekly" | "monthly";
+export type RankingSort = "popular" | "rising" | "deadlineSoon" | "newDeal";
 export type RankingTrend =
-  | { kind: 'up'; delta: number }
-  | { kind: 'down'; delta: number }
-  | { kind: 'same' }
-  | { kind: 'new' };
+  | { kind: "up"; delta: number }
+  | { kind: "down"; delta: number }
+  | { kind: "same" }
+  | { kind: "new" };
 export type RankingThumbnail = {
   id: string;
   imageUrl: string | null;
@@ -48,7 +81,7 @@ export type SellerRanking = {
   displayName: string;
   username: string;
   avatarUrl: string | null;
-  category: Exclude<RankingCategory, 'all'>;
+  category: Exclude<RankingCategory, "all">;
   followerCount?: number | null;
   activeDealCount: number;
   endingSoonCount?: number | null;
@@ -67,23 +100,23 @@ export type SellerRankingQuery = {
 // ─── NestJS URL (kept for postPublicJson) ────────────────────────────────────
 
 export const API_BASE_URL = Platform.select({
-  android: 'http://10.0.2.2:3003/api/v1',
-  ios: 'http://localhost:3003/api/v1',
-  default: 'http://192.168.219.122:3003/api/v1',
+  android: "http://10.0.2.2:3003/api/v1",
+  ios: "http://localhost:3003/api/v1",
+  default: "http://192.168.219.122:3003/api/v1",
 }) as string;
 
 // ─── Sample Data ─────────────────────────────────────────────────────────────
 
 export const fallbackGroupBuys: GroupBuy[] = [
   {
-    id: 'sample-1',
-    productName: '비건 선크림 공구',
-    brandName: 'Sample Beauty',
-    category: 'beauty',
-    endDate: '2026-06-15T23:59:59+09:00',
-    purchaseUrl: 'https://example.com',
-    discountInfo: '20% 할인',
-    summary: '인플루언서 게시물에서 감지된 공동구매 후보입니다.',
+    id: "sample-1",
+    productName: "비건 선크림 공구",
+    brandName: "Sample Beauty",
+    category: "beauty",
+    endDate: "2026-06-15T23:59:59+09:00",
+    purchaseUrl: "https://example.com",
+    discountInfo: "20% 할인",
+    summary: "인플루언서 게시물에서 감지된 공동구매 후보입니다.",
     confidence: 0.82,
     startDate: null,
     thumbnailUrl: null,
@@ -91,21 +124,21 @@ export const fallbackGroupBuys: GroupBuy[] = [
     mediaUrls: [],
     mediaType: null,
     rawPost: {
-      postUrl: 'https://www.instagram.com/',
+      postUrl: "https://www.instagram.com/",
       influencer: {
-        instagramUsername: 'sample_influencer',
+        instagramUsername: "sample_influencer",
       },
     },
   },
   {
-    id: 'sample-2',
-    productName: '프리미엄 유아용품 세트',
-    brandName: '맘편한세상',
-    category: 'baby',
-    endDate: '2026-07-01T23:59:59+09:00',
-    purchaseUrl: 'https://example.com/baby',
-    discountInfo: '35% 할인',
-    summary: '신생아부터 돌까지 필요한 유아용품을 한 번에.',
+    id: "sample-2",
+    productName: "프리미엄 유아용품 세트",
+    brandName: "맘편한세상",
+    category: "baby",
+    endDate: "2026-07-01T23:59:59+09:00",
+    purchaseUrl: "https://example.com/baby",
+    discountInfo: "35% 할인",
+    summary: "신생아부터 돌까지 필요한 유아용품을 한 번에.",
     confidence: 0.91,
     startDate: null,
     thumbnailUrl: null,
@@ -113,21 +146,21 @@ export const fallbackGroupBuys: GroupBuy[] = [
     mediaUrls: [],
     mediaType: null,
     rawPost: {
-      postUrl: 'https://www.instagram.com/',
+      postUrl: "https://www.instagram.com/",
       influencer: {
-        instagramUsername: 'mom_blogger',
+        instagramUsername: "mom_blogger",
       },
     },
   },
   {
-    id: 'sample-3',
-    productName: '올인원 홈트레이닝 키트',
-    brandName: '핏스타그램',
-    category: 'living',
-    endDate: '2026-06-28T23:59:59+09:00',
-    purchaseUrl: 'https://example.com/fitness',
-    discountInfo: '25% 할인',
-    summary: '홈트레이닝에 필요한 모든 도구를 세트로.',
+    id: "sample-3",
+    productName: "올인원 홈트레이닝 키트",
+    brandName: "핏스타그램",
+    category: "living",
+    endDate: "2026-06-28T23:59:59+09:00",
+    purchaseUrl: "https://example.com/fitness",
+    discountInfo: "25% 할인",
+    summary: "홈트레이닝에 필요한 모든 도구를 세트로.",
     confidence: 0.78,
     startDate: null,
     thumbnailUrl: null,
@@ -135,21 +168,21 @@ export const fallbackGroupBuys: GroupBuy[] = [
     mediaUrls: [],
     mediaType: null,
     rawPost: {
-      postUrl: 'https://www.instagram.com/',
+      postUrl: "https://www.instagram.com/",
       influencer: {
-        instagramUsername: 'fitness_influencer',
+        instagramUsername: "fitness_influencer",
       },
     },
   },
   {
-    id: 'sample-4',
-    productName: '스마트 홈 카메라',
-    brandName: '테크스토어',
-    category: 'electronics',
-    endDate: '2026-06-20T23:59:59+09:00',
-    purchaseUrl: 'https://example.com/camera',
-    discountInfo: '15% 할인',
-    summary: '반려동물, 아이 모니터링에 최적화된 스마트 카메라.',
+    id: "sample-4",
+    productName: "스마트 홈 카메라",
+    brandName: "테크스토어",
+    category: "electronics",
+    endDate: "2026-06-20T23:59:59+09:00",
+    purchaseUrl: "https://example.com/camera",
+    discountInfo: "15% 할인",
+    summary: "반려동물, 아이 모니터링에 최적화된 스마트 카메라.",
     confidence: 0.85,
     startDate: null,
     thumbnailUrl: null,
@@ -157,21 +190,21 @@ export const fallbackGroupBuys: GroupBuy[] = [
     mediaUrls: [],
     mediaType: null,
     rawPost: {
-      postUrl: 'https://www.instagram.com/',
+      postUrl: "https://www.instagram.com/",
       influencer: {
-        instagramUsername: 'tech_reviewer',
+        instagramUsername: "tech_reviewer",
       },
     },
   },
   {
-    id: 'sample-5',
-    productName: '자연유래 클렌징 3종 세트',
-    brandName: '글로우스킨',
-    category: 'beauty',
-    endDate: '2026-07-10T23:59:59+09:00',
-    purchaseUrl: 'https://example.com/skincare',
-    discountInfo: '30% 할인',
-    summary: '민감성 피부를 위한 저자극 클렌징 라인.',
+    id: "sample-5",
+    productName: "자연유래 클렌징 3종 세트",
+    brandName: "글로우스킨",
+    category: "beauty",
+    endDate: "2026-07-10T23:59:59+09:00",
+    purchaseUrl: "https://example.com/skincare",
+    discountInfo: "30% 할인",
+    summary: "민감성 피부를 위한 저자극 클렌징 라인.",
     confidence: 0.88,
     startDate: null,
     thumbnailUrl: null,
@@ -179,9 +212,9 @@ export const fallbackGroupBuys: GroupBuy[] = [
     mediaUrls: [],
     mediaType: null,
     rawPost: {
-      postUrl: 'https://www.instagram.com/',
+      postUrl: "https://www.instagram.com/",
       influencer: {
-        instagramUsername: 'skincare_expert',
+        instagramUsername: "skincare_expert",
       },
     },
   },
@@ -198,11 +231,14 @@ export const fallbackGroupBuys: GroupBuy[] = [
 export async function fetchGroupBuys(): Promise<GroupBuy[]> {
   try {
     const { data } = await postgrestGet<any[]>(
-      'group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&order=created_at.desc',
+      "group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&order=created_at.desc",
     );
     return mapGroupBuyRows(data || []);
   } catch (error) {
-    console.log('[GroupBuys] fetch failed:', error instanceof Error ? error.message : String(error));
+    console.log(
+      "[GroupBuys] fetch failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     throw error;
   }
 }
@@ -212,14 +248,19 @@ export async function fetchGroupBuys(): Promise<GroupBuy[]> {
  */
 function mapGroupBuyRows(rows: any[]): GroupBuy[] {
   return (rows || []).map((item) => {
-    const priceKrw = item.priceKrw !== undefined ? item.priceKrw : item.price_krw;
-    const isHomeBanner = item.isHomeBanner !== undefined ? item.isHomeBanner : item.is_home_banner;
-    const homeBannerStartDate = item.homeBannerStartDate !== undefined
-      ? item.homeBannerStartDate
-      : item.home_banner_start_date;
-    const homeBannerEndDate = item.homeBannerEndDate !== undefined
-      ? item.homeBannerEndDate
-      : item.home_banner_end_date;
+    const rawPriceKrw =
+      item.priceKrw !== undefined ? item.priceKrw : item.price_krw;
+    const priceKrw = normalizePriceKrw(rawPriceKrw);
+    const isHomeBanner =
+      item.isHomeBanner !== undefined ? item.isHomeBanner : item.is_home_banner;
+    const homeBannerStartDate =
+      item.homeBannerStartDate !== undefined
+        ? item.homeBannerStartDate
+        : item.home_banner_start_date;
+    const homeBannerEndDate =
+      item.homeBannerEndDate !== undefined
+        ? item.homeBannerEndDate
+        : item.home_banner_end_date;
 
     return {
       id: item.id,
@@ -238,20 +279,28 @@ function mapGroupBuyRows(rows: any[]): GroupBuy[] {
       mediaUrls: item.mediaUrls ?? item.media_urls ?? [],
       mediaItems: item.mediaItems ?? item.media_items ?? [],
       mediaType: item.mediaType ?? item.media_type ?? null,
-      ...(item.isMonthlyFeatured !== undefined ? { isMonthlyFeatured: item.isMonthlyFeatured } : {}),
-      ...(item.monthlyFeaturedRank !== undefined ? { monthlyFeaturedRank: item.monthlyFeaturedRank } : {}),
+      ...(item.isMonthlyFeatured !== undefined
+        ? { isMonthlyFeatured: item.isMonthlyFeatured }
+        : {}),
+      ...(item.monthlyFeaturedRank !== undefined
+        ? { monthlyFeaturedRank: item.monthlyFeaturedRank }
+        : {}),
       ...(isHomeBanner !== undefined ? { isHomeBanner } : {}),
       ...(homeBannerStartDate !== undefined ? { homeBannerStartDate } : {}),
       ...(homeBannerEndDate !== undefined ? { homeBannerEndDate } : {}),
       createdAt: item.createdAt ?? item.created_at ?? undefined,
       rawPost: {
-        postUrl: item.rawPostId?.postUrl ?? item.raw_post_id?.postUrl ?? item.raw_post_id?.post_url ?? '',
+        postUrl:
+          item.rawPostId?.postUrl ??
+          item.raw_post_id?.postUrl ??
+          item.raw_post_id?.post_url ??
+          "",
         influencer: {
           instagramUsername:
             item.rawPostId?.influencerId?.instagramUsername ??
             item.raw_post_id?.influencer_id?.instagramUsername ??
             item.raw_post_id?.influencer_id?.instagram_username ??
-            '',
+            "",
         },
       },
     };
@@ -264,10 +313,13 @@ function mapGroupBuyRows(rows: any[]): GroupBuy[] {
  */
 function mapGroupBuyToFeedPost(item: GroupBuy): FeedPost {
   const now = new Date().toISOString();
-  const thumbnailUrl = item.thumbnailUrl ?? (item.mediaType === 'IMAGE' ? item.mediaUrls[0] ?? null : null);
-  const mediaUrl = item.mediaType === 'VIDEO'
-    ? item.videoUrl ?? item.mediaUrls[0] ?? thumbnailUrl
-    : item.mediaUrls[0] ?? thumbnailUrl;
+  const thumbnailUrl =
+    item.thumbnailUrl ??
+    (item.mediaType === "IMAGE" ? (item.mediaUrls[0] ?? null) : null);
+  const mediaUrl =
+    item.mediaType === "VIDEO"
+      ? (item.videoUrl ?? item.mediaUrls[0] ?? thumbnailUrl)
+      : (item.mediaUrls[0] ?? thumbnailUrl);
 
   return {
     id: item.id,
@@ -294,10 +346,13 @@ function mapGroupBuyToFeedPost(item: GroupBuy): FeedPost {
  * Fetch paginated feed posts.
  * GET /rest/v1/feed_posts + Range header + count=exact
  */
-export async function fetchFeeds(page = 1, limit = 20): Promise<FeedPostListResponse> {
+export async function fetchFeeds(
+  page = 1,
+  limit = 20,
+): Promise<FeedPostListResponse> {
   try {
     const { data, meta } = await postgrestGet<any[]>(
-      'group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&order=created_at.desc',
+      "group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&order=created_at.desc",
       {
         pagination: { page, limit },
       },
@@ -308,7 +363,10 @@ export async function fetchFeeds(page = 1, limit = 20): Promise<FeedPostListResp
       meta: meta ?? { total: 0, page, limit, totalPages: 0 },
     };
   } catch (error) {
-    console.log('[Feed] fetch failed:', error instanceof Error ? error.message : String(error));
+    console.log(
+      "[Feed] fetch failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     throw error;
   }
 }
@@ -324,7 +382,7 @@ export async function fetchFeedPost(id: string): Promise<FeedPost> {
   const rows = data || [];
   const groupBuy = rows[0] ? mapGroupBuyRows([rows[0]])[0] : undefined;
   if (!groupBuy) {
-    throw new ApiError(404, 'Feed post not found');
+    throw new ApiError(404, "Feed post not found");
   }
   return mapGroupBuyToFeedPost(groupBuy);
 }
@@ -336,7 +394,7 @@ export async function fetchGroupBuyById(id: string): Promise<GroupBuy> {
   const rows = data || [];
   const groupBuy = rows[0] ? mapGroupBuyRows([rows[0]])[0] : undefined;
   if (!groupBuy) {
-    throw new ApiError(404, 'Group buy not found');
+    throw new ApiError(404, "Group buy not found");
   }
   return groupBuy;
 }
@@ -346,7 +404,7 @@ export async function fetchGroupBuyById(id: string): Promise<GroupBuy> {
  * GET /rest/v1/influencers
  */
 export async function fetchInfluencers(): Promise<Influencer[]> {
-  const { data } = await postgrestGet<Influencer[]>('influencers');
+  const { data } = await postgrestGet<Influencer[]>("influencers");
   return data;
 }
 
@@ -363,18 +421,27 @@ export type PopularSearchTerm = {
  * Fire-and-forget: failures are swallowed so they never block the search UX.
  * POST /rest/v1/search_logs
  */
-export async function logSearchTerm(keyword: string, groupBuyId?: string): Promise<void> {
+export async function logSearchTerm(
+  keyword: string,
+  groupBuyId?: string,
+): Promise<void> {
   const trimmed = keyword.trim();
   if (!trimmed) return;
   try {
     // return=minimal avoids needing SELECT privileges on search_logs (anon only has INSERT).
-    await postgrestFetch('search_logs', {
-      method: 'POST',
-      body: { keyword: trimmed, ...(groupBuyId ? { group_buy_id: groupBuyId } : {}) },
-      prefer: 'return=minimal',
+    await postgrestFetch("search_logs", {
+      method: "POST",
+      body: {
+        keyword: trimmed,
+        ...(groupBuyId ? { group_buy_id: groupBuyId } : {}),
+      },
+      prefer: "return=minimal",
     });
   } catch (error) {
-    console.log('[SearchLogs] log failed:', error instanceof Error ? error.message : String(error));
+    console.log(
+      "[SearchLogs] log failed:",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -382,15 +449,24 @@ export async function logSearchTerm(keyword: string, groupBuyId?: string): Promi
  * Fetch the top-N popular search terms ranked by daily search volume.
  * RPC: get_popular_search_terms(limit_count, hours_window) — args passed in POST body.
  */
-export async function fetchPopularSearchTerms(limit = 10, hours = 24): Promise<PopularSearchTerm[]> {
+export async function fetchPopularSearchTerms(
+  limit = 10,
+  hours = 24,
+): Promise<PopularSearchTerm[]> {
   try {
-    const data = await postgrestPost<PopularSearchTerm[]>('rpc/get_popular_search_terms', {
-      limit_count: limit,
-      hours_window: hours,
-    });
+    const data = await postgrestPost<PopularSearchTerm[]>(
+      "rpc/get_popular_search_terms",
+      {
+        limit_count: limit,
+        hours_window: hours,
+      },
+    );
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.log('[SearchLogs] fetch popular failed:', error instanceof Error ? error.message : String(error));
+    console.log(
+      "[SearchLogs] fetch popular failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     return [];
   }
 }
@@ -412,16 +488,23 @@ export type PopularGroupBuy = {
  * POST /rest/v1/group_buy_views
  */
 export async function logDeepView(groupBuyId: string): Promise<void> {
-  const { getSessionId } = await import('./utils/session');
+  const { getSessionId } = await import("./utils/session");
   const sessionId = await getSessionId();
   try {
-    await postgrestFetch('group_buy_views', {
-      method: 'POST',
-      body: { group_buy_id: groupBuyId, view_type: 'deep', session_id: sessionId },
-      prefer: 'return=minimal',
+    await postgrestFetch("group_buy_views", {
+      method: "POST",
+      body: {
+        group_buy_id: groupBuyId,
+        view_type: "deep",
+        session_id: sessionId,
+      },
+      prefer: "return=minimal",
     });
   } catch (error) {
-    console.log('[Popularity] log deep view failed:', error instanceof Error ? error.message : String(error));
+    console.log(
+      "[Popularity] log deep view failed:",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -429,24 +512,30 @@ export async function logDeepView(groupBuyId: string): Promise<void> {
  * Mirror a bookmark action to the server for popularity aggregation.
  * bookmark=true inserts, bookmark=false deletes by (group_buy_id, session_id).
  */
-export async function syncBookmark(groupBuyId: string, bookmark: boolean): Promise<void> {
-  const { getSessionId } = await import('./utils/session');
+export async function syncBookmark(
+  groupBuyId: string,
+  bookmark: boolean,
+): Promise<void> {
+  const { getSessionId } = await import("./utils/session");
   const sessionId = await getSessionId();
   try {
     if (bookmark) {
-      await postgrestFetch('group_buy_bookmarks', {
-        method: 'POST',
+      await postgrestFetch("group_buy_bookmarks", {
+        method: "POST",
         body: { group_buy_id: groupBuyId, session_id: sessionId },
-        prefer: 'return=minimal',
+        prefer: "return=minimal",
       });
     } else {
       await postgrestFetch(
         `group_buy_bookmarks?group_buy_id=eq.${encodeURIComponent(groupBuyId)}&session_id=eq.${encodeURIComponent(sessionId)}`,
-        { method: 'DELETE' },
+        { method: "DELETE" },
       );
     }
   } catch (error) {
-    console.log('[Popularity] sync bookmark failed:', error instanceof Error ? error.message : String(error));
+    console.log(
+      "[Popularity] sync bookmark failed:",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -454,24 +543,30 @@ export async function syncBookmark(groupBuyId: string, bookmark: boolean): Promi
  * Mirror a notification opt-in to the server for popularity aggregation.
  * enabled=true inserts, enabled=false deletes by (group_buy_id, session_id).
  */
-export async function syncNotification(groupBuyId: string, enabled: boolean): Promise<void> {
-  const { getSessionId } = await import('./utils/session');
+export async function syncNotification(
+  groupBuyId: string,
+  enabled: boolean,
+): Promise<void> {
+  const { getSessionId } = await import("./utils/session");
   const sessionId = await getSessionId();
   try {
     if (enabled) {
-      await postgrestFetch('group_buy_notifications', {
-        method: 'POST',
+      await postgrestFetch("group_buy_notifications", {
+        method: "POST",
         body: { group_buy_id: groupBuyId, session_id: sessionId },
-        prefer: 'return=minimal',
+        prefer: "return=minimal",
       });
     } else {
       await postgrestFetch(
         `group_buy_notifications?group_buy_id=eq.${encodeURIComponent(groupBuyId)}&session_id=eq.${encodeURIComponent(sessionId)}`,
-        { method: 'DELETE' },
+        { method: "DELETE" },
       );
     }
   } catch (error) {
-    console.log('[Popularity] sync notification failed:', error instanceof Error ? error.message : String(error));
+    console.log(
+      "[Popularity] sync notification failed:",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -479,15 +574,24 @@ export async function syncNotification(groupBuyId: string, enabled: boolean): Pr
  * Fetch group buys ranked by popularity (deep views + bookmarks).
  * RPC: get_popular_group_buys(limit, hours)
  */
-export async function fetchPopularGroupBuys(limit = 20, hours = 168): Promise<PopularGroupBuy[]> {
+export async function fetchPopularGroupBuys(
+  limit = 20,
+  hours = 168,
+): Promise<PopularGroupBuy[]> {
   try {
-    const data = await postgrestPost<PopularGroupBuy[]>('rpc/get_popular_group_buys', {
-      limit_count: limit,
-      hours_window: hours,
-    });
+    const data = await postgrestPost<PopularGroupBuy[]>(
+      "rpc/get_popular_group_buys",
+      {
+        limit_count: limit,
+        hours_window: hours,
+      },
+    );
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.log('[Popularity] fetch popular group buys failed:', error instanceof Error ? error.message : String(error));
+    console.log(
+      "[Popularity] fetch popular group buys failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     return [];
   }
 }
@@ -496,7 +600,10 @@ export async function fetchPopularGroupBuys(limit = 20, hours = 168): Promise<Po
  * Period-to-hours mapping for popular group buys.
  * today = 24h, weekly = 7d (168h), monthly = 30d (720h)
  */
-export const POPULAR_PERIOD_HOURS: Record<'today' | 'weekly' | 'monthly', number> = {
+export const POPULAR_PERIOD_HOURS: Record<
+  "today" | "weekly" | "monthly",
+  number
+> = {
   today: 24,
   weekly: 168,
   monthly: 720,
@@ -509,11 +616,14 @@ export async function fetchGroupBuysByIds(ids: string[]): Promise<GroupBuy[]> {
   if (ids.length === 0) return [];
   try {
     const { data } = await postgrestGet<any[]>(
-      `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=in.(${encodeURIComponent(ids.join(','))})&status=eq.APPROVED`,
+      `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=in.(${encodeURIComponent(ids.join(","))})&status=eq.APPROVED`,
     );
     return mapGroupBuyRows(data || []);
   } catch (error) {
-    console.log('[GroupBuys] fetch by ids failed:', error instanceof Error ? error.message : String(error));
+    console.log(
+      "[GroupBuys] fetch by ids failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     return [];
   }
 }
@@ -537,8 +647,10 @@ export async function fetchPopularGroupBuysWithDetail(
  * Fetch group buys filtered by influencer username.
  * Uses PostgREST with embedded filter on raw_post -> influencer.
  */
-export async function fetchGroupBuysByInfluencer(instagramUsername: string): Promise<GroupBuy[]> {
-  const normalizedUsername = instagramUsername.replace(/^@/, '').toLowerCase();
+export async function fetchGroupBuysByInfluencer(
+  instagramUsername: string,
+): Promise<GroupBuy[]> {
+  const normalizedUsername = instagramUsername.replace(/^@/, "").toLowerCase();
   const { data } = await postgrestGet<any[]>(
     `group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&raw_post_id.influencer_id.instagram_username=eq.${encodeURIComponent(normalizedUsername)}&order=created_at.desc`,
   );
@@ -553,8 +665,13 @@ export async function fetchGroupBuysByInfluencer(instagramUsername: string): Pro
  * Fetch seller rankings.
  * POST /functions/v1/seller-rankings
  */
-export async function fetchSellerRankings(query: SellerRankingQuery): Promise<SellerRanking[]> {
-  const body = await callEdgeFunction<{ data: SellerRanking[] }>('seller-rankings', query);
+export async function fetchSellerRankings(
+  query: SellerRankingQuery,
+): Promise<SellerRanking[]> {
+  const body = await callEdgeFunction<{ data: SellerRanking[] }>(
+    "seller-rankings",
+    query,
+  );
   return body.data;
 }
 
@@ -562,16 +679,26 @@ export async function fetchSellerRankings(query: SellerRankingQuery): Promise<Se
  * Look up Instagram post metadata via HikerAPI Edge Function.
  * POST /functions/v1/hiker-lookup
  */
-export async function lookupInstagramUrl(url: string): Promise<InstagramMediaInfo> {
-  return callEdgeFunction<InstagramMediaInfo>('hiker-lookup', { url });
+export async function lookupInstagramUrl(
+  url: string,
+): Promise<InstagramMediaInfo> {
+  return callEdgeFunction<InstagramMediaInfo>("hiker-lookup", { url });
 }
 
 export type RefreshedInstagramMedia = {
   groupBuyId: string;
   refreshed: boolean;
-  source: 'cache' | 'hiker' | 'skipped';
+  source: "cache" | "hiker" | "skipped";
   instagramUrl: string | null;
-  media: Pick<InstagramMediaInfo, 'imageUrl' | 'thumbnailUrl' | 'videoUrl' | 'mediaUrls' | 'mediaItems' | 'mediaType'>;
+  media: Pick<
+    InstagramMediaInfo,
+    | "imageUrl"
+    | "thumbnailUrl"
+    | "videoUrl"
+    | "mediaUrls"
+    | "mediaItems"
+    | "mediaType"
+  >;
   error?: string;
 };
 
@@ -579,15 +706,22 @@ export type RefreshedInstagramMedia = {
  * Refresh an expiring Instagram CDN media URL through a server-side cache.
  * The Edge Function decides whether HikerAPI is needed and persists fresh URLs.
  */
-export async function refreshGroupBuyMedia(groupBuyId: string): Promise<RefreshedInstagramMedia> {
-  return callEdgeFunction<RefreshedInstagramMedia>('refresh-instagram-media', { groupBuyId });
+export async function refreshGroupBuyMedia(
+  groupBuyId: string,
+): Promise<RefreshedInstagramMedia> {
+  return callEdgeFunction<RefreshedInstagramMedia>("refresh-instagram-media", {
+    groupBuyId,
+  });
 }
 
 /** Permanently delete the authenticated user's account and server-side profile. */
 export async function deleteAccount(): Promise<void> {
-  const result = await callEdgeFunction<{ deleted?: boolean }>('delete-account', {});
+  const result = await callEdgeFunction<{ deleted?: boolean }>(
+    "delete-account",
+    {},
+  );
   if (!result.deleted) {
-    throw new ApiError(502, '회원탈퇴 처리 결과를 확인할 수 없습니다.');
+    throw new ApiError(502, "회원탈퇴 처리 결과를 확인할 수 없습니다.");
   }
 }
 
@@ -599,8 +733,12 @@ export async function deleteAccount(): Promise<void> {
  * Fetch admin JSON data via admin-api Edge Function.
  * POST /functions/v1/admin-api
  */
-async function adminFetch<T>(path: string, method: string = 'GET', body?: unknown): Promise<T> {
-  return callEdgeFunction<T>('admin-api', { path, method, body });
+async function adminFetch<T>(
+  path: string,
+  method: string = "GET",
+  body?: unknown,
+): Promise<T> {
+  return callEdgeFunction<T>("admin-api", { path, method, body });
 }
 
 export async function fetchAdminJson<T>(path: string) {
@@ -608,25 +746,31 @@ export async function fetchAdminJson<T>(path: string) {
 }
 
 export async function fetchAdminSubmissions() {
-  const statuses: Submission['status'][] = ['REVIEW_REQUIRED', 'APPROVED', 'REJECTED'];
+  const statuses: Submission["status"][] = [
+    "REVIEW_REQUIRED",
+    "APPROVED",
+    "REJECTED",
+  ];
   const groups: Submission[][] = [];
   for (const status of statuses) {
-    const result = await adminFetch<Submission[]>(`/submissions?status=${status}&limit=50`);
+    const result = await adminFetch<Submission[]>(
+      `/submissions?status=${status}&limit=50`,
+    );
     groups.push(result);
   }
   return groups.flat();
 }
 
 export async function patchAdminJson<T>(path: string, payload: unknown) {
-  return adminFetch<T>(path, 'PATCH', payload);
+  return adminFetch<T>(path, "PATCH", payload);
 }
 
 export async function deleteAdminJson<T>(path: string) {
-  return adminFetch<T>(path, 'DELETE');
+  return adminFetch<T>(path, "DELETE");
 }
 
 export async function postAdminJson<T>(path: string, payload?: unknown) {
-  return adminFetch<T>(path, 'POST', payload);
+  return adminFetch<T>(path, "POST", payload);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -637,25 +781,33 @@ const PUBLIC_SUBMISSION_TIMEOUT_MS = 15_000;
 
 async function postPublicSubmission<T>(body: unknown): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), PUBLIC_SUBMISSION_TIMEOUT_MS);
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    PUBLIC_SUBMISSION_TIMEOUT_MS,
+  );
 
   try {
-    return await callEdgeFunction<T>('public-submission', body, { signal: controller.signal });
+    return await callEdgeFunction<T>("public-submission", body, {
+      signal: controller.signal,
+    });
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
     }
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError(408, '요청 시간이 초과됐습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new ApiError(
+        408,
+        "요청 시간이 초과됐습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.",
+      );
     }
-    throw new ApiError(0, '네트워크 연결을 확인해주세요.');
+    throw new ApiError(0, "네트워크 연결을 확인해주세요.");
   } finally {
     clearTimeout(timeoutId);
   }
 }
 
 export async function postPublicJson<T>(path: string, body: unknown) {
-  if (path === '/submissions') {
+  if (path === "/submissions") {
     return postPublicSubmission<T>(body);
   }
 
@@ -663,16 +815,16 @@ export async function postPublicJson<T>(path: string, body: unknown) {
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
   } catch {
-    throw new ApiError(0, '네트워크 연결을 확인해주세요.');
+    throw new ApiError(0, "네트워크 연결을 확인해주세요.");
   }
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
+    const errorText = await response.text().catch(() => "");
 
     if (response.status === 400) {
       try {
@@ -681,7 +833,11 @@ export async function postPublicJson<T>(path: string, body: unknown) {
           errors?: ApiValidationError[];
         };
         if (parsed.errors) {
-          throw new ApiError(400, parsed.message || '입력값을 확인해주세요.', parsed.errors);
+          throw new ApiError(
+            400,
+            parsed.message || "입력값을 확인해주세요.",
+            parsed.errors,
+          );
         }
       } catch {
         // fall through
@@ -690,7 +846,7 @@ export async function postPublicJson<T>(path: string, body: unknown) {
 
     const displayMessage =
       response.status === 429
-        ? '잠시 후 다시 시도해주세요.'
+        ? "잠시 후 다시 시도해주세요."
         : errorText || `Public API failed: ${response.status}`;
 
     throw new ApiError(response.status, displayMessage);

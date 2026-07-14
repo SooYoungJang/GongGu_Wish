@@ -36,7 +36,9 @@ const wonFormatter = new Intl.NumberFormat("ko-KR");
 let previewInstanceCount = 0;
 
 function formatPrice(priceKrw: number | null) {
-  return typeof priceKrw === "number" ? `${wonFormatter.format(priceKrw)}원` : "가격 미정";
+  return typeof priceKrw === "number"
+    ? `${wonFormatter.format(priceKrw)}원`
+    : "가격 미정";
 }
 
 function formatWeeklyDeadline(value: string, now = new Date()) {
@@ -53,6 +55,8 @@ type HomeBannerCopy = {
   accentLabel: string;
   detailLabel?: string;
   secondaryLabel?: string;
+  priceKrw: number | null;
+  pricePlacement?: "detail" | "secondary";
 };
 
 function parsePreviewDate(value: string, endOfDay = false) {
@@ -65,34 +69,52 @@ function parsePreviewDate(value: string, endOfDay = false) {
     Number(match[3]),
     endOfDay ? 23 : 0,
     endOfDay ? 59 : 0,
-    endOfDay ? 59 : 0
+    endOfDay ? 59 : 0,
   );
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function getLegacyPrice(discountInfo: string) {
-  return discountInfo.match(/(?:\d{1,3}(?:,\d{3})+|\d{4,})\s*원/)?.[0].replace(/\s+/g, "") ?? null;
+function getLegacyPriceKrw(discountInfo: string) {
+  const raw = discountInfo.match(/(?:\d{1,3}(?:,\d{3})+|\d{4,})\s*원/)?.[0];
+  if (!raw) return null;
+
+  const parsed = Number(raw.replace(/[^0-9]/g, ""));
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
-function getHomeBannerCopy(deal: AppLivePreviewDeal, now = new Date()): HomeBannerCopy {
+function getHomeBannerCopy(
+  deal: AppLivePreviewDeal,
+  now = new Date(),
+): HomeBannerCopy {
   const startDate = parsePreviewDate(deal.startDate);
   const endDate = parsePreviewDate(deal.endDate, true);
 
   if (endDate && endDate.getTime() < now.getTime()) {
-    return { accentLabel: "공구 종료" };
+    return { accentLabel: "공구 종료", priceKrw: null };
   }
 
-  const price = deal.priceKrw === null ? getLegacyPrice(deal.discountInfo) : formatPrice(deal.priceKrw);
-  const discountPercent = deal.discountInfo.match(/(?:^|\D)(\d{1,3})\s*%/)?.[1] ?? null;
+  const priceKrw = deal.priceKrw ?? getLegacyPriceKrw(deal.discountInfo);
+  const price = formatPrice(priceKrw);
+  const discountPercent =
+    deal.discountInfo.match(/(?:^|\D)(\d{1,3})\s*%/)?.[1] ?? null;
 
   if (startDate && startDate.getTime() > now.getTime()) {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-    const daysUntilStart = Math.max(0, Math.round((startDay.getTime() - today.getTime()) / 86_400_000));
+    const startDay = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+    );
+    const daysUntilStart = Math.max(
+      0,
+      Math.round((startDay.getTime() - today.getTime()) / 86_400_000),
+    );
     return {
       accentLabel: daysUntilStart === 0 ? "오늘" : `D+${daysUntilStart}`,
       detailLabel: `${startDate.getMonth() + 1}/${startDate.getDate()} 시작`,
       secondaryLabel: price ?? "가격 공개 예정",
+      priceKrw,
+      pricePlacement: priceKrw !== null ? "secondary" : undefined,
     };
   }
 
@@ -100,13 +122,41 @@ function getHomeBannerCopy(deal: AppLivePreviewDeal, now = new Date()): HomeBann
     return {
       accentLabel: `${discountPercent}%`,
       detailLabel: price ?? "상세에서 가격 확인",
+      priceKrw,
+      pricePlacement: priceKrw !== null ? "detail" : undefined,
     };
   }
 
   return {
     accentLabel: "공구 진행 중",
     detailLabel: price ?? "상세에서 가격 확인",
+    priceKrw,
+    pricePlacement: priceKrw !== null ? "detail" : undefined,
   };
+}
+
+function PreviewPriceText({
+  className,
+  priceKrw,
+}: {
+  className: string;
+  priceKrw: number | null;
+}) {
+  const formatted = formatPrice(priceKrw);
+  const semanticClassName = className.endsWith("-content")
+    ? className.slice(0, -"-content".length)
+    : className;
+
+  return (
+    <span className={className}>
+      <span className={`${semanticClassName}-label`}>가격</span>{" "}
+      {formatted ? (
+        <strong className={`${semanticClassName}-value`}>{formatted}</strong>
+      ) : (
+        <span className={`${semanticClassName}-value`}>미정</span>
+      )}
+    </span>
+  );
 }
 
 function getBannerPeriodStatus(deal: AppLivePreviewDeal) {
@@ -144,16 +194,28 @@ function PreviewImage({
 }) {
   if (!deal.imageUrl) {
     return (
-      <div className={`${className} app-live-preview__image-placeholder`} aria-label="이미지 미리보기 없음">
+      <div
+        className={`${className} app-live-preview__image-placeholder`}
+        aria-label="이미지 미리보기 없음"
+      >
         {fallbackLabel}
       </div>
     );
   }
 
-  return <img className={className} src={deal.imageUrl} alt={`${deal.productName} 미리보기`} />;
+  return (
+    <img
+      className={className}
+      src={deal.imageUrl}
+      alt={`${deal.productName} 미리보기`}
+    />
+  );
 }
 
-export class AppLivePreview extends Component<AppLivePreviewProps, AppLivePreviewState> {
+export class AppLivePreview extends Component<
+  AppLivePreviewProps,
+  AppLivePreviewState
+> {
   private readonly baseId = `app-live-preview-${++previewInstanceCount}`;
 
   state: AppLivePreviewState = {
@@ -166,7 +228,10 @@ export class AppLivePreview extends Component<AppLivePreviewProps, AppLivePrevie
     });
   };
 
-  private handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, currentTab: PreviewTab) => {
+  private handleTabKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentTab: PreviewTab,
+  ) => {
     const currentIndex = previewTabs.findIndex((tab) => tab.id === currentTab);
     const lastIndex = previewTabs.length - 1;
     let nextIndex: number | null = null;
@@ -192,11 +257,14 @@ export class AppLivePreview extends Component<AppLivePreviewProps, AppLivePrevie
   render() {
     const { deal } = this.props;
     const { activeTab } = this.state;
-    const priceText = formatPrice(deal.priceKrw);
-    const bannerExposure = deal.isHomeBanner ? "홈 배너 노출" : "홈 배너 미노출";
+    const bannerExposure = deal.isHomeBanner
+      ? "홈 배너 노출"
+      : "홈 배너 미노출";
     const bannerPeriodStatus = getBannerPeriodStatus(deal);
     const homeBannerCopy = getHomeBannerCopy(deal);
-    const activeTabLabel = previewTabs.find((tab) => tab.id === activeTab)?.label ?? "홈 배너";
+    const priceText = formatPrice(homeBannerCopy.priceKrw) ?? "가격 공개 예정";
+    const activeTabLabel =
+      previewTabs.find((tab) => tab.id === activeTab)?.label ?? "홈 배너";
 
     return (
       <section className="app-live-preview" aria-label="앱 라이브 프리뷰">
@@ -205,7 +273,10 @@ export class AppLivePreview extends Component<AppLivePreviewProps, AppLivePrevie
             <p className="app-live-preview__eyebrow">실시간 앱 화면</p>
             <h2 className="app-live-preview__title">앱 라이브 프리뷰</h2>
           </div>
-          <div className="app-live-preview__status-group" aria-label="홈 배너 상태">
+          <div
+            className="app-live-preview__status-group"
+            aria-label="홈 배너 상태"
+          >
             <span className="app-live-preview__status">{bannerExposure}</span>
             <span className="app-live-preview__status app-live-preview__status--period">
               {bannerPeriodStatus}
@@ -213,7 +284,11 @@ export class AppLivePreview extends Component<AppLivePreviewProps, AppLivePrevie
           </div>
         </div>
 
-        <div className="app-live-preview__tabs" role="tablist" aria-label="앱 라이브 프리뷰">
+        <div
+          className="app-live-preview__tabs"
+          role="tablist"
+          aria-label="앱 라이브 프리뷰"
+        >
           {previewTabs.map((tab) => {
             const selected = activeTab === tab.id;
             return (
@@ -256,11 +331,7 @@ export class AppLivePreview extends Component<AppLivePreviewProps, AppLivePrevie
           ) : null}
           {activeTab === "card" ? <DealCardPreview deal={deal} /> : null}
           {activeTab === "detail" ? (
-            <DetailScreenPreview
-              deal={deal}
-              priceText={priceText}
-              activeTabLabel={activeTabLabel}
-            />
+            <DetailScreenPreview deal={deal} activeTabLabel={activeTabLabel} />
           ) : null}
         </div>
       </section>
@@ -282,30 +353,67 @@ function HomeBannerPreview({
   copy: HomeBannerCopy;
 }) {
   return (
-    <article className="app-live-preview__home-banner" aria-label="홈 배너 미리보기">
-      <PreviewImage deal={deal} className="app-live-preview__home-banner-image" />
-      <div className="app-live-preview__home-banner-overlay" aria-hidden="true" />
+    <article
+      className="app-live-preview__home-banner"
+      aria-label="홈 배너 미리보기"
+    >
+      <PreviewImage
+        deal={deal}
+        className="app-live-preview__home-banner-image"
+      />
+      <div
+        className="app-live-preview__home-banner-overlay"
+        aria-hidden="true"
+      />
       <span className="app-live-preview__home-banner-counter">1 / 1</span>
       <div className="app-live-preview__home-banner-content">
-        <h3 className="app-live-preview__home-banner-title">{deal.productName}</h3>
+        <h3 className="app-live-preview__home-banner-title">
+          {deal.productName}
+        </h3>
         <div className="app-live-preview__home-banner-status">
           <strong>{copy.accentLabel}</strong>
-          {copy.detailLabel ? <span>{copy.detailLabel}</span> : null}
+          {copy.detailLabel ? (
+            copy.pricePlacement === "detail" && copy.priceKrw !== null ? (
+              <PreviewPriceText
+                className="app-live-preview__home-banner-price"
+                priceKrw={copy.priceKrw}
+              />
+            ) : (
+              <span>{copy.detailLabel}</span>
+            )
+          ) : null}
         </div>
         {copy.secondaryLabel ? (
-          <p className="app-live-preview__home-banner-secondary">{copy.secondaryLabel}</p>
+          <p className="app-live-preview__home-banner-secondary">
+            {copy.pricePlacement === "secondary" && copy.priceKrw !== null ? (
+              <PreviewPriceText
+                className="app-live-preview__home-banner-price"
+                priceKrw={copy.priceKrw}
+              />
+            ) : (
+              copy.secondaryLabel
+            )}
+          </p>
         ) : null}
-        <span className="app-live-preview__sr-only">{bannerExposure} · {bannerPeriodStatus} · {priceText}</span>
+        <span className="app-live-preview__sr-only">
+          {bannerExposure} · {bannerPeriodStatus} · {priceText}
+        </span>
       </div>
     </article>
   );
 }
 
 function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
-  const fallbackLabel = (deal.brandName || deal.productName || "공구").slice(0, 2);
+  const fallbackLabel = (deal.brandName || deal.productName || "공구").slice(
+    0,
+    2,
+  );
 
   return (
-    <article className="app-live-preview__deal-card" aria-label="공구 카드 미리보기">
+    <article
+      className="app-live-preview__deal-card"
+      aria-label="공구 카드 미리보기"
+    >
       <div className="app-live-preview__deal-card-image-wrap">
         <PreviewImage
           deal={deal}
@@ -313,16 +421,27 @@ function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
           fallbackLabel={fallbackLabel}
         />
         {deal.discountInfo ? (
-          <span className="app-live-preview__deal-card-sale-badge">{deal.discountInfo}</span>
+          <span className="app-live-preview__deal-card-sale-badge">
+            {deal.discountInfo}
+          </span>
         ) : null}
         <span className="app-live-preview__deal-card-deadline-badge">
           {formatWeeklyDeadline(deal.endDate)}
         </span>
       </div>
       <div className="app-live-preview__deal-card-content">
-        <p className="app-live-preview__deal-card-brand">{deal.brandName || "브랜드 미지정"}</p>
-        <h3 className="app-live-preview__deal-card-title">{deal.productName}</h3>
-        <p className="app-live-preview__deal-card-price">{formatPrice(deal.priceKrw)}</p>
+        <p className="app-live-preview__deal-card-brand">
+          {deal.brandName || "브랜드 미지정"}
+        </p>
+        <h3 className="app-live-preview__deal-card-title">
+          {deal.productName}
+        </h3>
+        <p className="app-live-preview__deal-card-price">
+          <PreviewPriceText
+            className="app-live-preview__deal-card-price-content"
+            priceKrw={deal.priceKrw}
+          />
+        </p>
       </div>
     </article>
   );
@@ -330,15 +449,16 @@ function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
 
 function DetailScreenPreview({
   deal,
-  priceText,
   activeTabLabel,
 }: {
   deal: AppLivePreviewDeal;
-  priceText: string;
   activeTabLabel: string;
 }) {
   return (
-    <article className="app-live-preview__detail" aria-label={`${activeTabLabel} 미리보기`}>
+    <article
+      className="app-live-preview__detail"
+      aria-label={`${activeTabLabel} 미리보기`}
+    >
       <PreviewImage deal={deal} className="app-live-preview__detail-media" />
       <div className="app-live-preview__detail-body">
         <div className="app-live-preview__detail-meta">
@@ -347,7 +467,12 @@ function DetailScreenPreview({
           <span>미디어 {deal.mediaCount}개</span>
         </div>
         <h3 className="app-live-preview__detail-title">{deal.productName}</h3>
-        <p className="app-live-preview__detail-price">{priceText}</p>
+        <p className="app-live-preview__detail-price">
+          <PreviewPriceText
+            className="app-live-preview__detail-price-content"
+            priceKrw={deal.priceKrw}
+          />
+        </p>
         <p className="app-live-preview__detail-summary">{deal.summary}</p>
         <div className="app-live-preview__detail-schedule">
           <span>시작 {deal.startDate}</span>

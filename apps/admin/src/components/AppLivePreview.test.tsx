@@ -27,10 +27,18 @@ describe("AppLivePreview", () => {
   it("renders three accessible preview tabs with the home banner selected by default", () => {
     render(<AppLivePreview deal={activeDeal} />);
 
-    expect(screen.getByRole("tablist", { name: "앱 라이브 프리뷰" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "홈 배너", selected: true })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "공구 카드", selected: false })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "상세 화면", selected: false })).toBeTruthy();
+    expect(
+      screen.getByRole("tablist", { name: "앱 라이브 프리뷰" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("tab", { name: "홈 배너", selected: true }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("tab", { name: "공구 카드", selected: false }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("tab", { name: "상세 화면", selected: false }),
+    ).toBeTruthy();
     expect(screen.queryByRole("tab", { name: "홈 주간 공구" })).toBeNull();
     expect(screen.getByRole("tabpanel", { name: "홈 배너" })).toBeTruthy();
   });
@@ -42,11 +50,26 @@ describe("AppLivePreview", () => {
     await user.click(screen.getByRole("tab", { name: "공구 카드" }));
     expect(screen.getByRole("tabpanel", { name: "공구 카드" })).toBeTruthy();
     expect(screen.getByText("첫 구매 20% 할인")).toBeTruthy();
-    const dealCard = screen.getByRole("article", { name: "공구 카드 미리보기" });
-    expect(dealCard.querySelector(".app-live-preview__deal-card-brand")?.textContent).toBe("귤밭상회");
-    expect(dealCard.querySelector(".app-live-preview__deal-card-deadline-badge")?.textContent).toContain("일 남음");
-    expect(dealCard.querySelector(".app-live-preview__deal-card-title")?.textContent).toBe("제주 감귤 3kg");
-    expect(dealCard.querySelector(".app-live-preview__deal-card-price")?.textContent).toBe("25,900원");
+    const dealCard = screen.getByRole("article", {
+      name: "공구 카드 미리보기",
+    });
+    expect(
+      dealCard.querySelector(".app-live-preview__deal-card-brand")?.textContent,
+    ).toBe("귤밭상회");
+    expect(
+      dealCard.querySelector(".app-live-preview__deal-card-deadline-badge")
+        ?.textContent,
+    ).toContain("일 남음");
+    expect(
+      dealCard.querySelector(".app-live-preview__deal-card-title")?.textContent,
+    ).toBe("제주 감귤 3kg");
+    expect(
+      dealCard.querySelector(".app-live-preview__deal-card-price")?.textContent,
+    ).toBe("가격 25,900원");
+    expect(
+      dealCard.querySelector(".app-live-preview__deal-card-price-value")
+        ?.textContent,
+    ).toBe("25,900원");
 
     await user.click(screen.getByRole("tab", { name: "상세 화면" }));
     expect(screen.getByRole("tabpanel", { name: "상세 화면" })).toBeTruthy();
@@ -61,7 +84,9 @@ describe("AppLivePreview", () => {
     await user.tab();
     await user.keyboard("{ArrowRight}");
 
-    expect(screen.getByRole("tab", { name: "공구 카드", selected: true })).toBeTruthy();
+    expect(
+      screen.getByRole("tab", { name: "공구 카드", selected: true }),
+    ).toBeTruthy();
     expect(screen.getByRole("tabpanel", { name: "공구 카드" })).toBeTruthy();
   });
 
@@ -78,7 +103,7 @@ describe("AppLivePreview", () => {
           productName: "강릉 초당두부 세트",
           priceKrw: 13800,
         }}
-      />
+      />,
     );
 
     expect(screen.getByText("강릉 초당두부 세트")).toBeTruthy();
@@ -102,7 +127,7 @@ describe("AppLivePreview", () => {
           homeBannerStartDate: "2020-01-01",
           homeBannerEndDate: "2020-01-31",
         }}
-      />
+      />,
     );
 
     expect(screen.getAllByText("홈 배너 미노출").length).toBeGreaterThan(0);

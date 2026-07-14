@@ -1,20 +1,40 @@
 export function normalizePriceKrw(value: unknown): number | null {
-  if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) {
+  if (
+    value === null ||
+    value === undefined ||
+    (typeof value === "string" && value.trim() === "")
+  ) {
     return null;
   }
 
-  const normalized = typeof value === "string" ? value.replace(/,/g, "").trim() : value;
-  const parsed = typeof normalized === "number"
-    ? normalized
-    : typeof normalized === "string" && /^\d+$/.test(normalized)
-      ? Number(normalized)
-      : Number.NaN;
+  const normalized =
+    typeof value === "string" ? value.replace(/,/g, "").trim() : value;
+  const parsed =
+    typeof normalized === "number"
+      ? normalized
+      : typeof normalized === "string" && /^\d+$/.test(normalized)
+        ? Number(normalized)
+        : Number.NaN;
 
   if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > 2_147_483_647) {
     throw new Error("priceKrw must be a non-negative PostgreSQL INTEGER.");
   }
 
   return parsed;
+}
+
+export function normalizePricePatch(
+  body: Record<string, unknown>,
+): Record<string, unknown> {
+  const hasCamelPrice = Object.prototype.hasOwnProperty.call(body, "priceKrw");
+  const hasSnakePrice = Object.prototype.hasOwnProperty.call(body, "price_krw");
+  if (!hasCamelPrice && !hasSnakePrice) return {};
+
+  return {
+    price_krw: normalizePriceKrw(
+      hasCamelPrice ? body.priceKrw : body.price_krw,
+    ),
+  };
 }
 
 export function normalizeHomeBannerBoolean(value: unknown): boolean {
@@ -25,8 +45,15 @@ export function normalizeHomeBannerBoolean(value: unknown): boolean {
   return value;
 }
 
-export function normalizeHomeBannerDate(value: unknown, fieldName: string): string | null {
-  if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) {
+export function normalizeHomeBannerDate(
+  value: unknown,
+  fieldName: string,
+): string | null {
+  if (
+    value === null ||
+    value === undefined ||
+    (typeof value === "string" && value.trim() === "")
+  ) {
     return null;
   }
   if (typeof value !== "string") {
@@ -61,9 +88,15 @@ export function validateHomeBannerSchedule(schedule: {
   endDate: string | null;
 }) {
   if (schedule.isHomeBanner && (!schedule.startDate || !schedule.endDate)) {
-    throw new Error("Home banner start and end dates are required when enabled.");
+    throw new Error(
+      "Home banner start and end dates are required when enabled.",
+    );
   }
-  if (schedule.startDate && schedule.endDate && schedule.startDate > schedule.endDate) {
+  if (
+    schedule.startDate &&
+    schedule.endDate &&
+    schedule.startDate > schedule.endDate
+  ) {
     throw new Error("Home banner end date must be on or after its start date.");
   }
 }

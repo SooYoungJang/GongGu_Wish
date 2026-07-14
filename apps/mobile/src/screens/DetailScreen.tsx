@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Alert,
   BackHandler,
@@ -17,14 +25,18 @@ import {
   TextInput,
   View,
   useWindowDimensions,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
-import { FlashList } from '@shopify/flash-list';
-import { VideoView, useVideoPlayer } from 'expo-video';
-import PagerView from 'react-native-pager-view';
-import { Gesture, GestureDetector, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
-import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQuery } from "@tanstack/react-query";
+import { FlashList } from "@shopify/flash-list";
+import { VideoView, useVideoPlayer } from "expo-video";
+import PagerView from "react-native-pager-view";
+import {
+  Gesture,
+  GestureDetector,
+  ScrollView as GestureScrollView,
+} from "react-native-gesture-handler";
+import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
 import Reanimated, {
   cancelAnimation,
   Easing,
@@ -35,28 +47,41 @@ import Reanimated, {
   useSharedValue,
   withTiming,
   type SharedValue,
-} from 'react-native-reanimated';
+} from "react-native-reanimated";
 
-import { fetchGroupBuys, logDeepView } from '../api';
-import { Ionicons } from '@expo/vector-icons';
-import { BackButton } from '../components/BackButton';
-import { useBookmarks, useNotifications, useRecentViews } from '../hooks/useLocalDeals';
-import { SText } from '../components/ui/SText';
-import { borderRadius, spacing } from '../design/tokens';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
-import type { DetailScreenProps, GroupBuy } from '../types';
-import { formatEndDate, getDaysRemaining } from '../utils';
-import { formatPriceKrw } from '../utils/price';
-import { normalizeForSearch } from '../utils/search';
+import { fetchGroupBuys, logDeepView } from "../api";
+import { Ionicons } from "@expo/vector-icons";
+import { BackButton } from "../components/BackButton";
+import { PriceText } from "../components/ui/PriceText";
+import {
+  useBookmarks,
+  useNotifications,
+  useRecentViews,
+} from "../hooks/useLocalDeals";
+import { SText } from "../components/ui/SText";
+import { borderRadius, spacing } from "../design/tokens";
+import { useTheme } from "../context/ThemeContext";
+import type { ColorPalette } from "../context/ThemeContext";
+import type { DetailScreenProps, GroupBuy } from "../types";
+import { formatEndDate, getDaysRemaining } from "../utils";
+import { normalizeForSearch } from "../utils/search";
 
 const MAX_VISIBLE_DOTS = 5;
-const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.m3u8', '.mkv', '.avi', '.ts'];
+const VIDEO_EXTENSIONS = [
+  ".mp4",
+  ".mov",
+  ".m4v",
+  ".webm",
+  ".m3u8",
+  ".mkv",
+  ".avi",
+  ".ts",
+];
 const SUMMARY_EDGE_DISMISS_DISTANCE = 56;
 const SUMMARY_SCROLL_TOP_EPSILON = 2;
 const DETAIL_SEARCH_CHROME_OFFSET = 72;
 const SUMMARY_SHEET_MAX_HEIGHT_RATIO = 0.58;
-const SEARCH_SHEET_MAX_HEIGHT_RATIO = 0.70;
+const SEARCH_SHEET_MAX_HEIGHT_RATIO = 0.7;
 const BOTTOM_SHEET_ANIMATION_MS = 220;
 
 // When the summary sheet is open the media stage shrinks to a centered card
@@ -82,13 +107,14 @@ function isVideoUrl(url: string): boolean {
 }
 
 function getDisplayMedia(groupBuy: GroupBuy): MediaItem[] {
-  const typedMediaItems = groupBuy.mediaItems
-    ?.filter((item) => item?.url)
-    .map((item) => ({
-      url: item.url,
-      isVideo: item.mediaType === 'VIDEO' || isVideoUrl(item.url),
-      thumbnailUrl: item.thumbnailUrl ?? null,
-    })) ?? [];
+  const typedMediaItems =
+    groupBuy.mediaItems
+      ?.filter((item) => item?.url)
+      .map((item) => ({
+        url: item.url,
+        isVideo: item.mediaType === "VIDEO" || isVideoUrl(item.url),
+        thumbnailUrl: item.thumbnailUrl ?? null,
+      })) ?? [];
 
   if (typedMediaItems.length > 0) {
     return typedMediaItems;
@@ -99,9 +125,10 @@ function getDisplayMedia(groupBuy: GroupBuy): MediaItem[] {
     : groupBuy.thumbnailUrl
       ? [groupBuy.thumbnailUrl]
       : [];
-  const urls = groupBuy.videoUrl && !rawUrls.includes(groupBuy.videoUrl)
-    ? [groupBuy.videoUrl, ...rawUrls]
-    : rawUrls;
+  const urls =
+    groupBuy.videoUrl && !rawUrls.includes(groupBuy.videoUrl)
+      ? [groupBuy.videoUrl, ...rawUrls]
+      : rawUrls;
 
   return urls.map((url) => ({
     url,
@@ -115,7 +142,7 @@ const REEL_VIDEO_PRELOAD_DISTANCE = 2;
 function createVideoSource(url: string) {
   return {
     uri: url,
-    contentType: 'auto' as const,
+    contentType: "auto" as const,
     useCaching: true,
   };
 }
@@ -123,7 +150,7 @@ function createVideoSource(url: string) {
 function safelyCallVideoPlayer(action: () => unknown) {
   try {
     const result = action();
-    if (result && typeof (result as { then?: unknown }).then === 'function') {
+    if (result && typeof (result as { then?: unknown }).then === "function") {
       void Promise.resolve(result).catch(() => undefined);
     }
   } catch {
@@ -223,11 +250,15 @@ function getInitialReelIndex(current: GroupBuy, reelItems: GroupBuy[]) {
 }
 
 function getGroupBuyThumb(item: GroupBuy) {
-  return item.thumbnailUrl
-    ?? item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl
-    ?? item.mediaItems?.find((media) => !media.mediaType || media.mediaType === 'IMAGE')?.url
-    ?? item.mediaUrls?.[0]
-    ?? null;
+  return (
+    item.thumbnailUrl ??
+    item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ??
+    item.mediaItems?.find(
+      (media) => !media.mediaType || media.mediaType === "IMAGE",
+    )?.url ??
+    item.mediaUrls?.[0] ??
+    null
+  );
 }
 
 function getSearchText(item: GroupBuy) {
@@ -241,7 +272,7 @@ function getSearchText(item: GroupBuy) {
   ]
     .filter(Boolean)
     .map((part) => normalizeForSearch(part))
-    .join(' ');
+    .join(" ");
 }
 
 function getVisibleDotIndexes(total: number, activeIndex: number) {
@@ -270,22 +301,25 @@ type VideoSlideProps = {
   s: ReturnType<typeof makeStyles>;
 };
 
-const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnailUrl, s }: VideoSlideProps) {
+const VideoSlide = memo(function VideoSlide({
+  url,
+  isActive,
+  replayKey,
+  thumbnailUrl,
+  s,
+}: VideoSlideProps) {
   const [shouldPlay, setShouldPlay] = useState(true);
   const [isMuted, setMuted] = useState(false);
   const [areControlsVisible, setControlsVisible] = useState(false);
   const [hasFirstFrame, setHasFirstFrame] = useState(false);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const source = useMemo(
-    () => createVideoSource(url),
-    [url],
-  );
+  const source = useMemo(() => createVideoSource(url), [url]);
 
   const player = useVideoPlayer(source, (p) => {
     p.loop = true;
     p.muted = false;
     p.volume = 1;
-    p.audioMixingMode = 'doNotMix';
+    p.audioMixingMode = "doNotMix";
     p.allowsExternalPlayback = false;
   });
 
@@ -304,7 +338,7 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnai
     safelyCallVideoPlayer(() => {
       player.muted = isMuted;
       player.volume = 1;
-      player.audioMixingMode = 'doNotMix';
+      player.audioMixingMode = "doNotMix";
 
       if (isActive && shouldPlay) {
         player.play();
@@ -350,7 +384,7 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnai
       safelyCallVideoPlayer(() => {
         player.muted = isMuted;
         player.volume = 1;
-        player.audioMixingMode = 'doNotMix';
+        player.audioMixingMode = "doNotMix";
 
         if (next && isActive) {
           player.play();
@@ -369,7 +403,7 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnai
       safelyCallVideoPlayer(() => {
         player.muted = next;
         player.volume = 1;
-        player.audioMixingMode = 'doNotMix';
+        player.audioMixingMode = "doNotMix";
       });
       return next;
     });
@@ -383,19 +417,23 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnai
         contentFit="contain"
         nativeControls={false}
         pointerEvents="none"
-        surfaceType={Platform.OS === 'android' ? 'textureView' : undefined}
+        surfaceType={Platform.OS === "android" ? "textureView" : undefined}
         onFirstFrameRender={() => {
           setHasFirstFrame(true);
           safelyCallVideoPlayer(() => {
             player.muted = isMuted;
             player.volume = 1;
-            player.audioMixingMode = 'doNotMix';
+            player.audioMixingMode = "doNotMix";
             if (isActive && shouldPlay) player.play();
           });
         }}
       />
       {thumbnailUrl && !hasFirstFrame ? (
-        <Image source={{ uri: thumbnailUrl }} style={s.videoPoster} resizeMode="contain" />
+        <Image
+          source={{ uri: thumbnailUrl }}
+          style={s.videoPoster}
+          resizeMode="contain"
+        />
       ) : null}
       <Pressable
         accessibilityLabel="동영상 컨트롤 표시"
@@ -407,20 +445,28 @@ const VideoSlide = memo(function VideoSlide({ url, isActive, replayKey, thumbnai
       {areControlsVisible || !shouldPlay ? (
         <View style={s.videoControlsOverlay} pointerEvents="box-none">
           <Pressable
-            accessibilityLabel={isMuted ? '음소거 해제' : '음소거'}
+            accessibilityLabel={isMuted ? "음소거 해제" : "음소거"}
             accessibilityRole="button"
             onPress={toggleMuted}
             style={({ pressed }) => [s.muteOverlayButton, pressed && s.pressed]}
           >
-            <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={20} color="#FFFFFF" />
+            <Ionicons
+              name={isMuted ? "volume-mute" : "volume-high"}
+              size={20}
+              color="#FFFFFF"
+            />
           </Pressable>
           <Pressable
-            accessibilityLabel={shouldPlay ? '동영상 일시정지' : '동영상 재생'}
+            accessibilityLabel={shouldPlay ? "동영상 일시정지" : "동영상 재생"}
             accessibilityRole="button"
             onPress={togglePlayback}
             style={({ pressed }) => [s.playOverlayButton, pressed && s.pressed]}
           >
-            <Ionicons name={shouldPlay ? 'pause' : 'play'} size={28} color="#FFFFFF" />
+            <Ionicons
+              name={shouldPlay ? "pause" : "play"}
+              size={28}
+              color="#FFFFFF"
+            />
           </Pressable>
         </View>
       ) : null}
@@ -444,7 +490,9 @@ function ReelAction({ icon, label, onPress, s }: ReelActionProps) {
       style={({ pressed }) => [s.railButton, pressed && s.pressed]}
     >
       <View style={s.railIconBox}>{icon}</View>
-      <SText variant="caption" style={s.railLabel}>{label}</SText>
+      <SText variant="caption" style={s.railLabel}>
+        {label}
+      </SText>
     </Pressable>
   );
 }
@@ -459,7 +507,10 @@ function PurchaseGlyph({ s }: { s: ReturnType<typeof makeStyles> }) {
   );
 }
 
-function ReelPurchaseAction({ onPress, s }: Pick<ReelActionProps, 'onPress' | 's'>) {
+function ReelPurchaseAction({
+  onPress,
+  s,
+}: Pick<ReelActionProps, "onPress" | "s">) {
   return (
     <Pressable
       accessibilityLabel="구매 링크"
@@ -468,7 +519,9 @@ function ReelPurchaseAction({ onPress, s }: Pick<ReelActionProps, 'onPress' | 's
       style={({ pressed }) => [s.purchaseRailButton, pressed && s.pressed]}
     >
       <PurchaseGlyph s={s} />
-      <SText variant="caption" style={s.purchaseRailLabel}>구매 링크</SText>
+      <SText variant="caption" style={s.purchaseRailLabel}>
+        구매 링크
+      </SText>
     </Pressable>
   );
 }
@@ -481,7 +534,10 @@ type DetailSearchDockProps = {
 
 function DetailSearchDock({ bottomInset, onPress, s }: DetailSearchDockProps) {
   return (
-    <View pointerEvents="box-none" style={[s.detailSearchDock, { paddingBottom: bottomInset + spacing.sm }]}>
+    <View
+      pointerEvents="box-none"
+      style={[s.detailSearchDock, { paddingBottom: bottomInset + spacing.sm }]}
+    >
       <Pressable
         accessibilityLabel="상품 검색"
         accessibilityRole="button"
@@ -489,7 +545,9 @@ function DetailSearchDock({ bottomInset, onPress, s }: DetailSearchDockProps) {
         style={({ pressed }) => [s.detailSearchButton, pressed && s.pressed]}
       >
         <Ionicons name="search" size={18} color="rgba(255,255,255,0.82)" />
-        <SText variant="body" style={s.detailSearchButtonText}>상품을 검색해보세요</SText>
+        <SText variant="body" style={s.detailSearchButtonText}>
+          상품을 검색해보세요
+        </SText>
       </Pressable>
     </View>
   );
@@ -535,34 +593,39 @@ function DetailSearchSheet({
     return () => clearTimeout(timer);
   }, []);
 
-  const searchSheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: sheetTranslate.value + keyboardHeight.value }],
-  }), [keyboardHeight, sheetTranslate]);
+  const searchSheetStyle = useAnimatedStyle(
+    () => ({
+      transform: [{ translateY: sheetTranslate.value + keyboardHeight.value }],
+    }),
+    [keyboardHeight, sheetTranslate],
+  );
 
   const dismissGesture = useMemo(
-    () => Gesture.Pan()
-      .activeOffsetY(6)
-      .failOffsetX([-24, 24])
-      .onBegin(() => {
-        sheetDragStartY.value = sheetTranslate.value;
-      })
-      .onUpdate((event) => {
-        const next = sheetDragStartY.value + event.translationY;
-        sheetTranslate.value = Math.min(Math.max(next, 0), maxHeight);
-      })
-      .onEnd((event) => {
-        const draggedDown = event.translationY > 12;
-        const pastThreshold = event.translationY > Math.max(72, maxHeight * 0.28);
-        const flickedDown = event.velocityY > 650;
-        if (draggedDown && (pastThreshold || flickedDown)) {
-          runOnJS(onClose)();
-          return;
-        }
-        sheetTranslate.value = withTiming(0, {
-          duration: BOTTOM_SHEET_ANIMATION_MS,
-          easing: Easing.out(Easing.cubic),
-        });
-      }),
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(6)
+        .failOffsetX([-24, 24])
+        .onBegin(() => {
+          sheetDragStartY.value = sheetTranslate.value;
+        })
+        .onUpdate((event) => {
+          const next = sheetDragStartY.value + event.translationY;
+          sheetTranslate.value = Math.min(Math.max(next, 0), maxHeight);
+        })
+        .onEnd((event) => {
+          const draggedDown = event.translationY > 12;
+          const pastThreshold =
+            event.translationY > Math.max(72, maxHeight * 0.28);
+          const flickedDown = event.velocityY > 650;
+          if (draggedDown && (pastThreshold || flickedDown)) {
+            runOnJS(onClose)();
+            return;
+          }
+          sheetTranslate.value = withTiming(0, {
+            duration: BOTTOM_SHEET_ANIMATION_MS,
+            easing: Easing.out(Easing.cubic),
+          });
+        }),
     [maxHeight, onClose, sheetDragStartY, sheetTranslate],
   );
 
@@ -589,10 +652,16 @@ function DetailSearchSheet({
           >
             <View style={s.detailSearchHandle} />
             <View style={s.detailSearchHeader}>
-              <SText variant="cardTitle" style={s.detailSearchTitle}>상품 검색</SText>
+              <SText variant="cardTitle" style={s.detailSearchTitle}>
+                상품 검색
+              </SText>
             </View>
             <View style={s.detailSearchInputWrap}>
-              <Ionicons name="search" size={18} color="rgba(255,255,255,0.58)" />
+              <Ionicons
+                name="search"
+                size={18}
+                color="rgba(255,255,255,0.58)"
+              />
               <TextInput
                 ref={inputRef}
                 autoCorrect={false}
@@ -611,42 +680,69 @@ function DetailSearchSheet({
               keyboardDismissMode="on-drag"
               keyboardShouldPersistTaps="handled"
               keyExtractor={(item) => item.id}
-              ListEmptyComponent={(
+              ListEmptyComponent={
                 <View style={s.detailSearchEmpty}>
-                  <SText variant="body" style={s.detailSearchEmptyText}>검색 결과가 없어요</SText>
+                  <SText variant="body" style={s.detailSearchEmptyText}>
+                    검색 결과가 없어요
+                  </SText>
                 </View>
-              )}
+              }
               renderItem={({ item }) => {
                 const thumb = getGroupBuyThumb(item);
-                const sellerName = item.rawPost.influencer.instagramUsername.replace(/^@/, '');
+                const sellerName =
+                  item.rawPost.influencer.instagramUsername.replace(/^@/, "");
                 return (
                   <Pressable
-                    accessibilityLabel={`${item.productName ?? '상품'} 보기`}
+                    accessibilityLabel={`${item.productName ?? "상품"} 보기`}
                     accessibilityRole="button"
                     onPress={() => onSelect(item)}
-                    style={({ pressed }) => [s.detailSearchResult, pressed && s.pressed]}
+                    style={({ pressed }) => [
+                      s.detailSearchResult,
+                      pressed && s.pressed,
+                    ]}
                   >
                     {thumb ? (
-                      <Image source={{ uri: thumb }} style={s.detailSearchThumb} resizeMode="cover" />
+                      <Image
+                        source={{ uri: thumb }}
+                        style={s.detailSearchThumb}
+                        resizeMode="cover"
+                      />
                     ) : (
                       <View style={s.detailSearchThumbFallback}>
-                        <Ionicons name="cube-outline" size={20} color="rgba(255,255,255,0.7)" />
+                        <Ionicons
+                          name="cube-outline"
+                          size={20}
+                          color="rgba(255,255,255,0.7)"
+                        />
                       </View>
                     )}
                     <View style={s.detailSearchResultBody}>
-                      <SText variant="cardTitle" style={s.detailSearchResultTitle} numberOfLines={1}>
-                        {item.productName ?? '제품명 미확인'}
+                      <SText
+                        variant="cardTitle"
+                        style={s.detailSearchResultTitle}
+                        numberOfLines={1}
+                      >
+                        {item.productName ?? "제품명 미확인"}
                       </SText>
-                      <SText variant="caption" style={s.detailSearchResultMeta} numberOfLines={1}>
-                        {item.brandName ?? `@${sellerName}`} · {formatEndDate(item.endDate)}
+                      <SText
+                        variant="caption"
+                        style={s.detailSearchResultMeta}
+                        numberOfLines={1}
+                      >
+                        {item.brandName ?? `@${sellerName}`} ·{" "}
+                        {formatEndDate(item.endDate)}
                       </SText>
                     </View>
-                    <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.42)" />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="rgba(255,255,255,0.42)"
+                    />
                   </Pressable>
                 );
               }}
               maxToRenderPerBatch={8}
-              removeClippedSubviews={Platform.OS === 'android'}
+              removeClippedSubviews={Platform.OS === "android"}
               style={s.detailSearchList}
               windowSize={5}
             />
@@ -702,8 +798,10 @@ export function ProductReelPage({
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
   const { colors } = useTheme();
-  const [summaryScrollContentHeight, setSummaryScrollContentHeight] = useState(0);
-  const [summaryScrollViewportHeight, setSummaryScrollViewportHeight] = useState(0);
+  const [summaryScrollContentHeight, setSummaryScrollContentHeight] =
+    useState(0);
+  const [summaryScrollViewportHeight, setSummaryScrollViewportHeight] =
+    useState(0);
   const [isSummaryScrollAtTop, setSummaryScrollAtTop] = useState(true);
   const [isSummaryScrollAtBottom, setSummaryScrollAtBottom] = useState(false);
   const summaryScrollOffsetRef = useRef(0);
@@ -713,7 +811,8 @@ export function ProductReelPage({
   const summaryScrollAtBottomRef = useRef(false);
   const summaryScrollGestureStartedAtTopRef = useRef(true);
   const [isSummaryVisible, setSummaryVisible] = useState(false);
-  const [summarySheetMeasuredHeight, setSummarySheetMeasuredHeight] = useState(0);
+  const [summarySheetMeasuredHeight, setSummarySheetMeasuredHeight] =
+    useState(0);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const { isNotifying, toggleNotification } = useNotifications();
@@ -721,58 +820,96 @@ export function ProductReelPage({
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
   const isUrgent = daysRemaining >= 0 && daysRemaining <= 3;
-  const sellerName = groupBuy.rawPost.influencer.instagramUsername.replace(/^@/, '');
-  const summary = groupBuy.summary ?? groupBuy.discountInfo ?? '';
-  const priceText = formatPriceKrw(groupBuy.priceKrw) ?? '가격 미정';
+  const sellerName = groupBuy.rawPost.influencer.instagramUsername.replace(
+    /^@/,
+    "",
+  );
+  const summary = groupBuy.summary ?? groupBuy.discountInfo ?? "";
   const summarySheetMaxHeight = Math.max(
     280,
-    Math.min(pageHeight - topInset - spacing.xl, pageHeight * SUMMARY_SHEET_MAX_HEIGHT_RATIO),
+    Math.min(
+      pageHeight - topInset - spacing.xl,
+      pageHeight * SUMMARY_SHEET_MAX_HEIGHT_RATIO,
+    ),
   );
   const summarySheetTranslate = useSharedValue(summarySheetMaxHeight);
   const summarySheetDragStartY = useSharedValue(0);
   const summaryCanPullFromScroll = useSharedValue(1);
   const summarySheetHeightForMedia = Math.max(
     1,
-    Math.min(summarySheetMeasuredHeight || summarySheetMaxHeight, summarySheetMaxHeight),
+    Math.min(
+      summarySheetMeasuredHeight || summarySheetMaxHeight,
+      summarySheetMaxHeight,
+    ),
   );
-  const activeSheetMediaTranslate = isSearchSheetVisible && searchSheetMetrics
-    ? searchSheetMetrics.translateY
-    : summarySheetTranslate;
-  const activeSheetBaseHeightForMedia = isSearchSheetVisible && searchSheetMetrics
-    ? Math.max(1, searchSheetMetrics.height)
-    : summarySheetHeightForMedia;
-  const activeKeyboardHeightForMedia = isSearchSheetVisible && searchSheetMetrics
-    ? searchSheetMetrics.keyboardHeight
-    : null;
+  const activeSheetMediaTranslate =
+    isSearchSheetVisible && searchSheetMetrics
+      ? searchSheetMetrics.translateY
+      : summarySheetTranslate;
+  const activeSheetBaseHeightForMedia =
+    isSearchSheetVisible && searchSheetMetrics
+      ? Math.max(1, searchSheetMetrics.height)
+      : summarySheetHeightForMedia;
+  const activeKeyboardHeightForMedia =
+    isSearchSheetVisible && searchSheetMetrics
+      ? searchSheetMetrics.keyboardHeight
+      : null;
   const mediaStageOpenTop = topInset + spacing.sm;
   const minMediaStageHeight = Math.min(
     Math.max(MEDIA_STAGE_MIN_HEIGHT, pageHeight * MEDIA_STAGE_MIN_HEIGHT_RATIO),
     Math.max(1, pageHeight - mediaStageOpenTop - MEDIA_STAGE_MIN_SHEET_SPACE),
   );
-  const maxCoveredSheetHeightForMedia = Math.max(1, pageHeight - mediaStageOpenTop);
-  const maxCappedSheetHeightForMedia = Math.max(1, pageHeight - mediaStageOpenTop - minMediaStageHeight);
+  const maxCoveredSheetHeightForMedia = Math.max(
+    1,
+    pageHeight - mediaStageOpenTop,
+  );
+  const maxCappedSheetHeightForMedia = Math.max(
+    1,
+    pageHeight - mediaStageOpenTop - minMediaStageHeight,
+  );
   const cappedSheetHeightForMedia = Math.min(
     activeSheetBaseHeightForMedia,
     maxCappedSheetHeightForMedia,
   );
   // Media stage interpolations: 0 (open) -> compact clipped frame, 1 (closed) -> full screen.
   const mediaStageFrameStyle = useAnimatedStyle(() => {
-    const keyboardExtra = Math.max(0, -(activeKeyboardHeightForMedia?.value ?? 0));
+    const keyboardExtra = Math.max(
+      0,
+      -(activeKeyboardHeightForMedia?.value ?? 0),
+    );
     const dynamicSheetHeight = Math.min(
       activeSheetBaseHeightForMedia + keyboardExtra,
       maxCoveredSheetHeightForMedia,
     );
-    const dynamicCappedSheetHeight = Math.min(dynamicSheetHeight, maxCappedSheetHeightForMedia);
+    const dynamicCappedSheetHeight = Math.min(
+      dynamicSheetHeight,
+      maxCappedSheetHeightForMedia,
+    );
     const progress = interpolate(
       activeSheetMediaTranslate.value,
       [0, dynamicCappedSheetHeight],
       [0, 1],
       Extrapolation.CLAMP,
     );
-    const frameLeft = interpolate(progress, [0, 1], [MEDIA_STAGE_SIDE_INSET, 0], Extrapolation.CLAMP);
+    const frameLeft = interpolate(
+      progress,
+      [0, 1],
+      [MEDIA_STAGE_SIDE_INSET, 0],
+      Extrapolation.CLAMP,
+    );
     const frameRight = frameLeft;
-    const frameTop = interpolate(progress, [0, 1], [mediaStageOpenTop, 0], Extrapolation.CLAMP);
-    const frameBottom = interpolate(progress, [0, 1], [dynamicCappedSheetHeight, 0], Extrapolation.CLAMP);
+    const frameTop = interpolate(
+      progress,
+      [0, 1],
+      [mediaStageOpenTop, 0],
+      Extrapolation.CLAMP,
+    );
+    const frameBottom = interpolate(
+      progress,
+      [0, 1],
+      [dynamicCappedSheetHeight, 0],
+      Extrapolation.CLAMP,
+    );
     const frameWidth = Math.max(1, mediaWidth - frameLeft - frameRight);
     const frameHeight = Math.max(1, pageHeight - frameTop - frameBottom);
 
@@ -794,22 +931,43 @@ export function ProductReelPage({
     pageHeight,
   ]);
   const mediaStageContentStyle = useAnimatedStyle(() => {
-    const keyboardExtra = Math.max(0, -(activeKeyboardHeightForMedia?.value ?? 0));
+    const keyboardExtra = Math.max(
+      0,
+      -(activeKeyboardHeightForMedia?.value ?? 0),
+    );
     const dynamicSheetHeight = Math.min(
       activeSheetBaseHeightForMedia + keyboardExtra,
       maxCoveredSheetHeightForMedia,
     );
-    const dynamicCappedSheetHeight = Math.min(dynamicSheetHeight, maxCappedSheetHeightForMedia);
+    const dynamicCappedSheetHeight = Math.min(
+      dynamicSheetHeight,
+      maxCappedSheetHeightForMedia,
+    );
     const progress = interpolate(
       activeSheetMediaTranslate.value,
       [0, dynamicCappedSheetHeight],
       [0, 1],
       Extrapolation.CLAMP,
     );
-    const frameLeft = interpolate(progress, [0, 1], [MEDIA_STAGE_SIDE_INSET, 0], Extrapolation.CLAMP);
+    const frameLeft = interpolate(
+      progress,
+      [0, 1],
+      [MEDIA_STAGE_SIDE_INSET, 0],
+      Extrapolation.CLAMP,
+    );
     const frameRight = frameLeft;
-    const frameTop = interpolate(progress, [0, 1], [mediaStageOpenTop, 0], Extrapolation.CLAMP);
-    const frameBottom = interpolate(progress, [0, 1], [dynamicCappedSheetHeight, 0], Extrapolation.CLAMP);
+    const frameTop = interpolate(
+      progress,
+      [0, 1],
+      [mediaStageOpenTop, 0],
+      Extrapolation.CLAMP,
+    );
+    const frameBottom = interpolate(
+      progress,
+      [0, 1],
+      [dynamicCappedSheetHeight, 0],
+      Extrapolation.CLAMP,
+    );
     const frameWidth = Math.max(1, mediaWidth - frameLeft - frameRight);
     const frameHeight = Math.max(1, pageHeight - frameTop - frameBottom);
     const contentScale = Math.min(
@@ -847,9 +1005,12 @@ export function ProductReelPage({
     mediaWidth,
     pageHeight,
   ]);
-  const summarySheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: summarySheetTranslate.value }],
-  }), [summarySheetTranslate]);
+  const summarySheetStyle = useAnimatedStyle(
+    () => ({
+      transform: [{ translateY: summarySheetTranslate.value }],
+    }),
+    [summarySheetTranslate],
+  );
   const reelChromeStyle = useAnimatedStyle(() => {
     if (isSearchSheetVisible) {
       return { opacity: 0 };
@@ -899,14 +1060,18 @@ export function ProductReelPage({
         setSummaryVisible(true);
         snapSummarySheetOpen();
       } else {
-        summarySheetTranslate.value = withTiming(summarySheetMaxHeight, {
-          duration: BOTTOM_SHEET_ANIMATION_MS,
-          easing: Easing.out(Easing.cubic),
-        }, (finished) => {
-          if (finished) {
-            runOnJS(resetSummarySheetState)();
-          }
-        });
+        summarySheetTranslate.value = withTiming(
+          summarySheetMaxHeight,
+          {
+            duration: BOTTOM_SHEET_ANIMATION_MS,
+            easing: Easing.out(Easing.cubic),
+          },
+          (finished) => {
+            if (finished) {
+              runOnJS(resetSummarySheetState)();
+            }
+          },
+        );
       }
       onSummarySheetStateChange(isOpen, false);
     },
@@ -920,31 +1085,40 @@ export function ProductReelPage({
   );
 
   const summarySheetPanGesture = useMemo(
-    () => Gesture.Pan()
-      .enabled(isSummaryVisible)
-      .activeOffsetY(6)
-      .failOffsetX([-24, 24])
-      .onBegin(() => {
-        summarySheetDragStartY.value = summarySheetTranslate.value;
-      })
-      .onUpdate((event) => {
-        const next = summarySheetDragStartY.value + Math.max(0, event.translationY);
-        summarySheetTranslate.value = Math.min(next, summarySheetMaxHeight);
-      })
-      .onEnd((event) => {
-        const draggedDown = event.translationY > 12;
-        const pastThreshold = event.translationY > Math.max(72, summarySheetMaxHeight * 0.28);
-        const flickedDown = event.velocityY > 650;
-        if (draggedDown && (pastThreshold || flickedDown)) {
-          runOnJS(setSummaryOpen)(false);
-          return;
-        }
-        summarySheetTranslate.value = withTiming(0, {
-          duration: BOTTOM_SHEET_ANIMATION_MS,
-          easing: Easing.out(Easing.cubic),
-        });
-      }),
-    [isSummaryVisible, setSummaryOpen, summarySheetDragStartY, summarySheetMaxHeight, summarySheetTranslate],
+    () =>
+      Gesture.Pan()
+        .enabled(isSummaryVisible)
+        .activeOffsetY(6)
+        .failOffsetX([-24, 24])
+        .onBegin(() => {
+          summarySheetDragStartY.value = summarySheetTranslate.value;
+        })
+        .onUpdate((event) => {
+          const next =
+            summarySheetDragStartY.value + Math.max(0, event.translationY);
+          summarySheetTranslate.value = Math.min(next, summarySheetMaxHeight);
+        })
+        .onEnd((event) => {
+          const draggedDown = event.translationY > 12;
+          const pastThreshold =
+            event.translationY > Math.max(72, summarySheetMaxHeight * 0.28);
+          const flickedDown = event.velocityY > 650;
+          if (draggedDown && (pastThreshold || flickedDown)) {
+            runOnJS(setSummaryOpen)(false);
+            return;
+          }
+          summarySheetTranslate.value = withTiming(0, {
+            duration: BOTTOM_SHEET_ANIMATION_MS,
+            easing: Easing.out(Easing.cubic),
+          });
+        }),
+    [
+      isSummaryVisible,
+      setSummaryOpen,
+      summarySheetDragStartY,
+      summarySheetMaxHeight,
+      summarySheetTranslate,
+    ],
   );
 
   useEffect(() => {
@@ -963,19 +1137,28 @@ export function ProductReelPage({
   // 안드로이드 물리 뒤로가기: 바텀시트가 열려 있으면 시트를 닫고, 아니면 기본 동작.
   useEffect(() => {
     if (!isActive) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isSearchSheetVisible) {
-        onCloseSearchSheet?.();
-        return true;
-      }
-      if (isSummaryVisible) {
-        setSummaryOpen(false);
-        return true;
-      }
-      return false;
-    });
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (isSearchSheetVisible) {
+          onCloseSearchSheet?.();
+          return true;
+        }
+        if (isSummaryVisible) {
+          setSummaryOpen(false);
+          return true;
+        }
+        return false;
+      },
+    );
     return () => subscription.remove();
-  }, [isActive, isSearchSheetVisible, isSummaryVisible, onCloseSearchSheet, setSummaryOpen]);
+  }, [
+    isActive,
+    isSearchSheetVisible,
+    isSummaryVisible,
+    onCloseSearchSheet,
+    setSummaryOpen,
+  ]);
 
   useEffect(() => {
     setActiveMediaIndex(0);
@@ -998,10 +1181,12 @@ export function ProductReelPage({
     [],
   );
 
-  const summaryContentFitsViewport = summaryScrollContentHeight > 0
-    && summaryScrollContentHeight <= summaryScrollViewportHeight + 2;
+  const summaryContentFitsViewport =
+    summaryScrollContentHeight > 0 &&
+    summaryScrollContentHeight <= summaryScrollViewportHeight + 2;
 
-  const canPullSummarySheetFromScroll = isSummaryScrollAtTop || summaryContentFitsViewport;
+  const canPullSummarySheetFromScroll =
+    isSummaryScrollAtTop || summaryContentFitsViewport;
 
   const summaryScrollPullGesture = useMemo(
     () =>
@@ -1028,7 +1213,8 @@ export function ProductReelPage({
           }
 
           const draggedDown = event.translationY > 12;
-          const pastThreshold = event.translationY > SUMMARY_EDGE_DISMISS_DISTANCE;
+          const pastThreshold =
+            event.translationY > SUMMARY_EDGE_DISMISS_DISTANCE;
           const flickedDown = event.velocityY > 650;
           if (draggedDown && (pastThreshold || flickedDown)) {
             runOnJS(setSummaryOpen)(false);
@@ -1054,8 +1240,10 @@ export function ProductReelPage({
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       if (!isSummaryExpanded) return;
       const nextOffset = event.nativeEvent.contentOffset.y;
-      const isPullingPastTop = nextOffset < 0
-        && (summaryScrollGestureStartedAtTopRef.current || summaryContentFitsViewport);
+      const isPullingPastTop =
+        nextOffset < 0 &&
+        (summaryScrollGestureStartedAtTopRef.current ||
+          summaryContentFitsViewport);
       const canSwipeReel = canSwipeReelFromSummaryOffset(nextOffset);
       const nextAtTop = nextOffset <= SUMMARY_SCROLL_TOP_EPSILON;
       const nextCanPull = nextAtTop || summaryContentFitsViewport;
@@ -1103,10 +1291,15 @@ export function ProductReelPage({
       summaryScrollViewportHeightRef.current = nextHeight;
       setSummaryScrollViewportHeight(nextHeight);
       if (isSummaryExpanded) {
-        const canSwipeReel = canSwipeReelFromSummaryOffset(summaryScrollOffsetRef.current, nextHeight);
-        const nextContentFitsViewport = summaryScrollContentHeightRef.current > 0
-          && summaryScrollContentHeightRef.current <= nextHeight + 2;
-        const nextCanPull = summaryScrollAtTopRef.current || nextContentFitsViewport;
+        const canSwipeReel = canSwipeReelFromSummaryOffset(
+          summaryScrollOffsetRef.current,
+          nextHeight,
+        );
+        const nextContentFitsViewport =
+          summaryScrollContentHeightRef.current > 0 &&
+          summaryScrollContentHeightRef.current <= nextHeight + 2;
+        const nextCanPull =
+          summaryScrollAtTopRef.current || nextContentFitsViewport;
         summaryCanPullFromScroll.value = nextCanPull ? 1 : 0;
         summaryScrollAtBottomRef.current = canSwipeReel;
         setSummaryScrollAtBottom(canSwipeReel);
@@ -1123,10 +1316,13 @@ export function ProductReelPage({
 
   const handleSummarySheetLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      const nextHeight = Math.min(event.nativeEvent.layout.height, summarySheetMaxHeight);
-      setSummarySheetMeasuredHeight((current) => (
-        Math.abs(current - nextHeight) < 1 ? current : nextHeight
-      ));
+      const nextHeight = Math.min(
+        event.nativeEvent.layout.height,
+        summarySheetMaxHeight,
+      );
+      setSummarySheetMeasuredHeight((current) =>
+        Math.abs(current - nextHeight) < 1 ? current : nextHeight,
+      );
     },
     [summarySheetMaxHeight],
   );
@@ -1136,47 +1332,59 @@ export function ProductReelPage({
       summaryScrollContentHeightRef.current = height;
       setSummaryScrollContentHeight(height);
       if (isSummaryExpanded) {
-        const canSwipeReel = canSwipeReelFromSummaryOffset(summaryScrollOffsetRef.current, undefined, height);
-        const nextContentFitsViewport = height <= summaryScrollViewportHeightRef.current + 2;
-        const nextCanPull = summaryScrollAtTopRef.current || nextContentFitsViewport;
+        const canSwipeReel = canSwipeReelFromSummaryOffset(
+          summaryScrollOffsetRef.current,
+          undefined,
+          height,
+        );
+        const nextContentFitsViewport =
+          height <= summaryScrollViewportHeightRef.current + 2;
+        const nextCanPull =
+          summaryScrollAtTopRef.current || nextContentFitsViewport;
         summaryCanPullFromScroll.value = nextCanPull ? 1 : 0;
         summaryScrollAtBottomRef.current = canSwipeReel;
         setSummaryScrollAtBottom(canSwipeReel);
         onSummarySheetStateChange(true, canSwipeReel);
       }
     },
-    [canSwipeReelFromSummaryOffset, isSummaryExpanded, onSummarySheetStateChange, summaryCanPullFromScroll],
+    [
+      canSwipeReelFromSummaryOffset,
+      isSummaryExpanded,
+      onSummarySheetStateChange,
+      summaryCanPullFromScroll,
+    ],
   );
 
   // Keep edge bounces enabled so the touch can hand off at both scroll ends.
-  const summaryBounces = isSummaryExpanded
-    && (isSummaryScrollAtTop || isSummaryScrollAtBottom || summaryContentFitsViewport);
+  const summaryBounces =
+    isSummaryExpanded &&
+    (isSummaryScrollAtTop ||
+      isSummaryScrollAtBottom ||
+      summaryContentFitsViewport);
 
   const handleSummaryScrollEndDrag = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       if (!isSummaryExpanded) return;
       const { y } = event.nativeEvent.contentOffset;
-      const draggedPastTop = y <= -SUMMARY_EDGE_DISMISS_DISTANCE
-        && (summaryScrollGestureStartedAtTopRef.current || summaryContentFitsViewport);
+      const draggedPastTop =
+        y <= -SUMMARY_EDGE_DISMISS_DISTANCE &&
+        (summaryScrollGestureStartedAtTopRef.current ||
+          summaryContentFitsViewport);
       if (draggedPastTop) {
         setSummaryOpen(false);
       }
     },
-    [
-      isSummaryExpanded,
-      setSummaryOpen,
-      summaryContentFitsViewport,
-    ],
+    [isSummaryExpanded, setSummaryOpen, summaryContentFitsViewport],
   );
 
   const handleShare = async () => {
-    const productName = groupBuy.productName ?? '공동구매';
+    const productName = groupBuy.productName ?? "공동구매";
     try {
       await Share.share({
         message: `${productName} (@${sellerName})\n${groupBuy.purchaseUrl ?? groupBuy.rawPost.postUrl}`,
       });
     } catch {
-      Alert.alert('오류', '공유에 실패했습니다.');
+      Alert.alert("오류", "공유에 실패했습니다.");
     }
   };
 
@@ -1190,20 +1398,20 @@ export function ProductReelPage({
     const openUrl = trimmedUrl
       ? /^https?:\/\//i.test(trimmedUrl)
         ? trimmedUrl
-        : `https://${trimmedUrl.replace(/^\/+/, '')}`
+        : `https://${trimmedUrl.replace(/^\/+/, "")}`
       : null;
 
     if (!openUrl) {
-      Alert.alert('링크 없음', '열 수 있는 구매 링크가 없습니다.');
+      Alert.alert("링크 없음", "열 수 있는 구매 링크가 없습니다.");
       return;
     }
 
     try {
       void Linking.openURL(openUrl).catch(() => {
-        Alert.alert('오류', '구매 링크를 열 수 없습니다.');
+        Alert.alert("오류", "구매 링크를 열 수 없습니다.");
       });
     } catch {
-      Alert.alert('오류', '구매 링크를 열 수 없습니다.');
+      Alert.alert("오류", "구매 링크를 열 수 없습니다.");
     }
   };
 
@@ -1212,9 +1420,10 @@ export function ProductReelPage({
   const renderMediaItem = useCallback(
     ({ item, index }: { item: MediaItem; index: number }) => {
       const mediaActive = isActive && index === activeMediaIndex;
-      const shouldMountVideo = mediaActive
-        || (shouldPreloadVideo && index === activeMediaIndex)
-        || (isActive && Math.abs(index - activeMediaIndex) <= 1);
+      const shouldMountVideo =
+        mediaActive ||
+        (shouldPreloadVideo && index === activeMediaIndex) ||
+        (isActive && Math.abs(index - activeMediaIndex) <= 1);
       const thumbnailUrl = item.thumbnailUrl ?? groupBuy.thumbnailUrl ?? null;
 
       return (
@@ -1230,14 +1439,24 @@ export function ProductReelPage({
                 s={s}
               />
             ) : thumbnailUrl ? (
-              <Image source={{ uri: thumbnailUrl }} style={s.mediaFill} resizeMode="contain" />
+              <Image
+                source={{ uri: thumbnailUrl }}
+                style={s.mediaFill}
+                resizeMode="contain"
+              />
             ) : (
               <View style={s.videoPlaceholder}>
-                <SText variant="body" style={s.videoPlaceholderText}>동영상</SText>
+                <SText variant="body" style={s.videoPlaceholderText}>
+                  동영상
+                </SText>
               </View>
             )
           ) : (
-            <Image source={{ uri: item.url }} style={s.mediaFill} resizeMode="contain" />
+            <Image
+              source={{ uri: item.url }}
+              style={s.mediaFill}
+              resizeMode="contain"
+            />
           )}
         </View>
       );
@@ -1256,12 +1475,7 @@ export function ProductReelPage({
 
   return (
     <View style={[s.reelPage, { height: pageHeight }]}>
-      <Reanimated.View
-        style={[
-          s.mediaStage,
-          mediaStageFrameStyle,
-        ]}
-      >
+      <Reanimated.View style={[s.mediaStage, mediaStageFrameStyle]}>
         <Reanimated.View style={[s.mediaStageContent, mediaStageContentStyle]}>
           {mediaItems.length > 0 ? (
             <View style={s.mediaViewport}>
@@ -1281,8 +1495,14 @@ export function ProductReelPage({
                 maxItemsInRecyclePool={2}
                 maintainVisibleContentPosition={{ disabled: true }}
                 onMomentumScrollEnd={(event) => {
-                  const nextIndex = Math.round(event.nativeEvent.contentOffset.x / mediaWidth);
-                  if (nextIndex !== activeMediaIndex && nextIndex >= 0 && nextIndex < mediaItems.length) {
+                  const nextIndex = Math.round(
+                    event.nativeEvent.contentOffset.x / mediaWidth,
+                  );
+                  if (
+                    nextIndex !== activeMediaIndex &&
+                    nextIndex >= 0 &&
+                    nextIndex < mediaItems.length
+                  ) {
                     setActiveMediaIndex(nextIndex);
                   }
                 }}
@@ -1290,15 +1510,23 @@ export function ProductReelPage({
             </View>
           ) : (
             <View style={s.emptyMedia}>
-              <SText variant="body" style={s.emptyMediaText}>미디어 없음</SText>
+              <SText variant="body" style={s.emptyMediaText}>
+                미디어 없음
+              </SText>
             </View>
           )}
         </Reanimated.View>
       </Reanimated.View>
 
       <Reanimated.View
-        pointerEvents={isSummaryExpanded || isSearchSheetVisible ? 'none' : 'auto'}
-        style={[s.topBar, { paddingTop: topInset + spacing.sm }, reelChromeStyle]}
+        pointerEvents={
+          isSummaryExpanded || isSearchSheetVisible ? "none" : "auto"
+        }
+        style={[
+          s.topBar,
+          { paddingTop: topInset + spacing.sm },
+          reelChromeStyle,
+        ]}
       >
         {showBackButton ? (
           <BackButton
@@ -1311,21 +1539,31 @@ export function ProductReelPage({
           <View style={s.topIconButton} />
         )}
         <View style={s.reelsTitleRow}>
-          <SText variant="cardTitle" style={s.reelsTitle}>릴스</SText>
+          <SText variant="cardTitle" style={s.reelsTitle}>
+            릴스
+          </SText>
         </View>
         <View style={s.topIconButton} />
       </Reanimated.View>
 
       {mediaItems.length > 1 ? (
-        <Reanimated.View style={[s.mediaDots, { top: topInset + 62 }, reelChromeStyle]}>
+        <Reanimated.View
+          style={[s.mediaDots, { top: topInset + 62 }, reelChromeStyle]}
+        >
           {visibleDots.map((index) => (
             <View
               key={index}
               style={[
                 s.mediaDot,
                 index === activeMediaIndex && s.mediaDotActive,
-                mediaItems.length > MAX_VISIBLE_DOTS && index === visibleDots[0] && activeMediaIndex > 2 && s.mediaDotFaded,
-                mediaItems.length > MAX_VISIBLE_DOTS && index === visibleDots[visibleDots.length - 1] && activeMediaIndex < mediaItems.length - 3 && s.mediaDotFaded,
+                mediaItems.length > MAX_VISIBLE_DOTS &&
+                  index === visibleDots[0] &&
+                  activeMediaIndex > 2 &&
+                  s.mediaDotFaded,
+                mediaItems.length > MAX_VISIBLE_DOTS &&
+                  index === visibleDots[visibleDots.length - 1] &&
+                  activeMediaIndex < mediaItems.length - 3 &&
+                  s.mediaDotFaded,
               ]}
             />
           ))}
@@ -1333,70 +1571,131 @@ export function ProductReelPage({
       ) : null}
 
       <>
-          <Reanimated.View pointerEvents={isSummaryExpanded || isSearchSheetVisible ? 'none' : 'auto'} style={[s.rightRail, { bottom: bottomInset + bottomChromeOffset + 104 }, reelChromeStyle]}>
-            <ReelAction
-              icon={<Ionicons name={isBookmarked(groupBuy.id) ? 'bookmark' : 'bookmark-outline'} size={26} color={isBookmarked(groupBuy.id) ? colors.accent : '#FFFFFF'} />}
-              label={isBookmarked(groupBuy.id) ? '북마크됨' : '북마크'}
-              onPress={() => toggleBookmark(groupBuy)}
-              s={s}
-            />
-            <ReelAction icon={<Ionicons name="link-outline" size={26} color="#FFFFFF" />} label="링크" onPress={handleOpenLink} s={s} />
-            <ReelAction icon={<Ionicons name="share-social-outline" size={26} color="#FFFFFF" />} label="공유" onPress={handleShare} s={s} />
-            <ReelAction
-              icon={<Ionicons name={isNotifying(groupBuy.id) ? 'notifications' : 'notifications-outline'} size={26} color={isNotifying(groupBuy.id) ? colors.accent : '#FFFFFF'} />}
-              label={isNotifying(groupBuy.id) ? '알림설정됨' : '알림'}
-              onPress={() => toggleNotification(groupBuy)}
-              s={s}
-            />
-            <ReelPurchaseAction onPress={handleOpenLink} s={s} />
-          </Reanimated.View>
+        <Reanimated.View
+          pointerEvents={
+            isSummaryExpanded || isSearchSheetVisible ? "none" : "auto"
+          }
+          style={[
+            s.rightRail,
+            { bottom: bottomInset + bottomChromeOffset + 104 },
+            reelChromeStyle,
+          ]}
+        >
+          <ReelAction
+            icon={
+              <Ionicons
+                name={
+                  isBookmarked(groupBuy.id) ? "bookmark" : "bookmark-outline"
+                }
+                size={26}
+                color={isBookmarked(groupBuy.id) ? colors.accent : "#FFFFFF"}
+              />
+            }
+            label={isBookmarked(groupBuy.id) ? "북마크됨" : "북마크"}
+            onPress={() => toggleBookmark(groupBuy)}
+            s={s}
+          />
+          <ReelAction
+            icon={<Ionicons name="link-outline" size={26} color="#FFFFFF" />}
+            label="링크"
+            onPress={handleOpenLink}
+            s={s}
+          />
+          <ReelAction
+            icon={
+              <Ionicons name="share-social-outline" size={26} color="#FFFFFF" />
+            }
+            label="공유"
+            onPress={handleShare}
+            s={s}
+          />
+          <ReelAction
+            icon={
+              <Ionicons
+                name={
+                  isNotifying(groupBuy.id)
+                    ? "notifications"
+                    : "notifications-outline"
+                }
+                size={26}
+                color={isNotifying(groupBuy.id) ? colors.accent : "#FFFFFF"}
+              />
+            }
+            label={isNotifying(groupBuy.id) ? "알림설정됨" : "알림"}
+            onPress={() => toggleNotification(groupBuy)}
+            s={s}
+          />
+          <ReelPurchaseAction onPress={handleOpenLink} s={s} />
+        </Reanimated.View>
 
-          <Reanimated.View pointerEvents={isSummaryExpanded || isSearchSheetVisible ? 'none' : 'auto'} style={[s.bottomInfo, { paddingBottom: bottomInset + bottomChromeOffset + spacing.lg }, reelChromeStyle]}>
-            <View style={s.bottomInfoScrim} pointerEvents="none" />
-            <View style={s.sellerRow}>
-              <View style={s.avatar}>
-                <SText variant="caption" style={s.avatarText}>{sellerName.slice(0, 1).toUpperCase()}</SText>
-              </View>
-              <SText variant="cardTitle" style={s.sellerName} numberOfLines={1}>
-                {sellerName}
+        <Reanimated.View
+          pointerEvents={
+            isSummaryExpanded || isSearchSheetVisible ? "none" : "auto"
+          }
+          style={[
+            s.bottomInfo,
+            { paddingBottom: bottomInset + bottomChromeOffset + spacing.lg },
+            reelChromeStyle,
+          ]}
+        >
+          <View style={s.bottomInfoScrim} pointerEvents="none" />
+          <View style={s.sellerRow}>
+            <View style={s.avatar}>
+              <SText variant="caption" style={s.avatarText}>
+                {sellerName.slice(0, 1).toUpperCase()}
               </SText>
             </View>
-
-            <SText variant="cardTitle" style={s.productName} numberOfLines={2}>
-              {groupBuy.productName ?? '제품명 미확인'}
+            <SText variant="cardTitle" style={s.sellerName} numberOfLines={1}>
+              {sellerName}
             </SText>
-            <SText variant="caption" style={s.productPrice} numberOfLines={1}>
-              {priceText}
-            </SText>
+          </View>
 
-            {summary ? (
-              <Pressable
-                accessibilityLabel="요약 자세히 보기"
-                accessibilityRole="button"
-                onPress={() => setSummaryOpen(true)}
-                style={({ pressed }) => [s.summaryPreview, pressed && s.pressed]}
-              >
-                <SText variant="body" style={s.summary} numberOfLines={1}>
-                  {summary}
-                </SText>
-                <SText variant="caption" style={s.summaryMore}>더 보기</SText>
-              </Pressable>
-            ) : null}
+          <SText variant="cardTitle" style={s.productName} numberOfLines={2}>
+            {groupBuy.productName ?? "제품명 미확인"}
+          </SText>
+          <PriceText
+            color="#FFFFFF"
+            priceKrw={groupBuy.priceKrw}
+            style={s.productPrice}
+          />
 
-            <View style={s.metaRow}>
-              <View style={[s.metaPill, isUrgent && !isExpired && s.metaPillUrgent, isExpired && s.metaPillExpired]}>
+          {summary ? (
+            <Pressable
+              accessibilityLabel="요약 자세히 보기"
+              accessibilityRole="button"
+              onPress={() => setSummaryOpen(true)}
+              style={({ pressed }) => [s.summaryPreview, pressed && s.pressed]}
+            >
+              <SText variant="body" style={s.summary} numberOfLines={1}>
+                {summary}
+              </SText>
+              <SText variant="caption" style={s.summaryMore}>
+                더 보기
+              </SText>
+            </Pressable>
+          ) : null}
+
+          <View style={s.metaRow}>
+            <View
+              style={[
+                s.metaPill,
+                isUrgent && !isExpired && s.metaPillUrgent,
+                isExpired && s.metaPillExpired,
+              ]}
+            >
+              <SText variant="caption" style={s.metaPillText}>
+                {isExpired ? "마감" : isUrgent ? "마감 임박" : deadlineLabel}
+              </SText>
+            </View>
+            {groupBuy.category ? (
+              <View style={s.metaPill}>
                 <SText variant="caption" style={s.metaPillText}>
-                  {isExpired ? '마감' : isUrgent ? '마감 임박' : deadlineLabel}
+                  {groupBuy.category}
                 </SText>
               </View>
-              {groupBuy.category ? (
-                <View style={s.metaPill}>
-                  <SText variant="caption" style={s.metaPillText}>{groupBuy.category}</SText>
-                </View>
-              ) : null}
-            </View>
-
-          </Reanimated.View>
+            ) : null}
+          </View>
+        </Reanimated.View>
       </>
 
       {summary && isSummaryVisible ? (
@@ -1426,23 +1725,35 @@ export function ProductReelPage({
                 <View style={s.summarySheetHeader}>
                   <View style={s.summarySheetSeller}>
                     <View style={s.summarySheetAvatar}>
-                      <SText variant="caption" style={s.avatarText}>{sellerName.slice(0, 1).toUpperCase()}</SText>
+                      <SText variant="caption" style={s.avatarText}>
+                        {sellerName.slice(0, 1).toUpperCase()}
+                      </SText>
                     </View>
                     <View style={s.summarySheetTitleBlock}>
-                      <SText variant="cardTitle" style={s.summarySheetSellerName} numberOfLines={1}>
+                      <SText
+                        variant="cardTitle"
+                        style={s.summarySheetSellerName}
+                        numberOfLines={1}
+                      >
                         {sellerName}
                       </SText>
-                      <SText variant="caption" style={s.summarySheetProductName} numberOfLines={1}>
-                        {groupBuy.productName ?? '제품명 미확인'}
+                      <SText
+                        variant="caption"
+                        style={s.summarySheetProductName}
+                        numberOfLines={1}
+                      >
+                        {groupBuy.productName ?? "제품명 미확인"}
                       </SText>
-                      <SText variant="caption" style={s.summarySheetProductPrice} numberOfLines={1}>
-                        {priceText}
-                      </SText>
+                      <PriceText
+                        color="#FFFFFF"
+                        priceKrw={groupBuy.priceKrw}
+                        style={s.summarySheetProductPrice}
+                      />
                     </View>
                   </View>
                 </View>
                 <Pressable
-                  accessibilityLabel={isExpired ? '마감된 공구' : '구매 링크'}
+                  accessibilityLabel={isExpired ? "마감된 공구" : "구매 링크"}
                   accessibilityRole="button"
                   onPress={handleOpenLink}
                   style={({ pressed }) => [
@@ -1452,7 +1763,7 @@ export function ProductReelPage({
                   ]}
                 >
                   <SText variant="caption" style={s.summarySheetBuyButtonText}>
-                    {isExpired ? '마감' : '구매 링크'}
+                    {isExpired ? "마감" : "구매 링크"}
                   </SText>
                 </Pressable>
               </View>
@@ -1492,11 +1803,14 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const verticalPagerRef = useRef<PagerView>(null);
-  const [summarySheetGate, setSummarySheetGate] = useState({ isOpen: false, canSwipeReel: true });
+  const [summarySheetGate, setSummarySheetGate] = useState({
+    isOpen: false,
+    canSwipeReel: true,
+  });
   const [isScreenFocused, setScreenFocused] = useState(true);
   const [isSearchSheetVisible, setSearchSheetVisible] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 200);
     return () => clearTimeout(timer);
@@ -1505,7 +1819,10 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
   const searchSheetMaxHeight = Math.max(
     280,
-    Math.min(screenHeight - insets.top - spacing.xl, screenHeight * SEARCH_SHEET_MAX_HEIGHT_RATIO),
+    Math.min(
+      screenHeight - insets.top - spacing.xl,
+      screenHeight * SEARCH_SHEET_MAX_HEIGHT_RATIO,
+    ),
   );
   const searchSheetTranslate = useSharedValue(searchSheetMaxHeight);
   const searchSheetHeightForMedia = Math.max(
@@ -1516,17 +1833,29 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     ),
   );
   const searchSheetMetrics = useMemo(
-    () => (isSearchSheetVisible ? {
-      height: searchSheetHeightForMedia,
+    () =>
+      isSearchSheetVisible
+        ? {
+            height: searchSheetHeightForMedia,
+            keyboardHeight,
+            translateY: searchSheetTranslate,
+          }
+        : null,
+    [
+      isSearchSheetVisible,
       keyboardHeight,
-      translateY: searchSheetTranslate,
-    } : null),
-    [isSearchSheetVisible, keyboardHeight, searchSheetHeightForMedia, searchSheetTranslate],
+      searchSheetHeightForMedia,
+      searchSheetTranslate,
+    ],
   );
 
   useEffect(() => {
-    const unsubFocus = navigation.addListener('focus', () => setScreenFocused(true));
-    const unsubBlur = navigation.addListener('blur', () => setScreenFocused(false));
+    const unsubFocus = navigation.addListener("focus", () =>
+      setScreenFocused(true),
+    );
+    const unsubBlur = navigation.addListener("blur", () =>
+      setScreenFocused(false),
+    );
     return () => {
       unsubFocus();
       unsubBlur();
@@ -1534,14 +1863,21 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   }, [navigation]);
 
   const { data: groupBuys } = useQuery({
-    queryKey: ['group-buys'],
+    queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
     retry: false,
   });
 
-  const reelItems = useMemo(() => getReelItems(groupBuy, groupBuys), [groupBuy, groupBuys]);
-  const initialReelIndex = useMemo(() => getInitialReelIndex(groupBuy, reelItems), [groupBuy.id, reelItems]);
-  const [activeProductIndex, setActiveProductIndex] = useState(initialReelIndex);
+  const reelItems = useMemo(
+    () => getReelItems(groupBuy, groupBuys),
+    [groupBuy, groupBuys],
+  );
+  const initialReelIndex = useMemo(
+    () => getInitialReelIndex(groupBuy, reelItems),
+    [groupBuy.id, reelItems],
+  );
+  const [activeProductIndex, setActiveProductIndex] =
+    useState(initialReelIndex);
   const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
   const searchItems = useMemo(() => {
     const seen = new Set<string>();
@@ -1556,7 +1892,9 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     const normalized = normalizeForSearch(debouncedQuery);
     const source = searchItems.length ? searchItems : [groupBuy];
     if (!normalized) return source.slice(0, 20);
-    return source.filter((item) => getSearchText(item).includes(normalized)).slice(0, 30);
+    return source
+      .filter((item) => getSearchText(item).includes(normalized))
+      .slice(0, 30);
   }, [groupBuy, searchItems, debouncedQuery]);
   useEffect(() => {
     recordView(activeGroupBuy);
@@ -1564,27 +1902,30 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   // ── Deep view tracking: count a view only after 30s of continuous watch ──
   const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-     if (deepViewTimerRef.current) {
-       clearTimeout(deepViewTimerRef.current);
-       deepViewTimerRef.current = null;
-     }
-     const overlayOpen = summarySheetGate.isOpen || isSearchSheetVisible;
-     if (!overlayOpen && activeGroupBuy) {
-       const id = activeGroupBuy.id;
-       deepViewTimerRef.current = setTimeout(() => {
-         void logDeepView(id);
-       }, 30_000);
-     }
-     return () => {
-       if (deepViewTimerRef.current) {
-         clearTimeout(deepViewTimerRef.current);
-         deepViewTimerRef.current = null;
-       }
-     };
+    if (deepViewTimerRef.current) {
+      clearTimeout(deepViewTimerRef.current);
+      deepViewTimerRef.current = null;
+    }
+    const overlayOpen = summarySheetGate.isOpen || isSearchSheetVisible;
+    if (!overlayOpen && activeGroupBuy) {
+      const id = activeGroupBuy.id;
+      deepViewTimerRef.current = setTimeout(() => {
+        void logDeepView(id);
+      }, 30_000);
+    }
+    return () => {
+      if (deepViewTimerRef.current) {
+        clearTimeout(deepViewTimerRef.current);
+        deepViewTimerRef.current = null;
+      }
+    };
   }, [activeGroupBuy, summarySheetGate.isOpen, isSearchSheetVisible]);
-  const handleSummarySheetStateChange = useCallback((isOpen: boolean, canSwipeReel: boolean) => {
-    setSummarySheetGate({ isOpen, canSwipeReel });
-  }, []);
+  const handleSummarySheetStateChange = useCallback(
+    (isOpen: boolean, canSwipeReel: boolean) => {
+      setSummarySheetGate({ isOpen, canSwipeReel });
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!isSearchSheetVisible) {
@@ -1604,14 +1945,18 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
 
   const closeSearchSheet = useCallback(() => {
     Keyboard.dismiss();
-    searchSheetTranslate.value = withTiming(searchSheetMaxHeight, {
-      duration: BOTTOM_SHEET_ANIMATION_MS,
-      easing: Easing.out(Easing.cubic),
-    }, (finished) => {
-      if (finished) {
-        runOnJS(setSearchSheetVisible)(false);
-      }
-    });
+    searchSheetTranslate.value = withTiming(
+      searchSheetMaxHeight,
+      {
+        duration: BOTTOM_SHEET_ANIMATION_MS,
+        easing: Easing.out(Easing.cubic),
+      },
+      (finished) => {
+        if (finished) {
+          runOnJS(setSearchSheetVisible)(false);
+        }
+      },
+    );
   }, [searchSheetMaxHeight, searchSheetTranslate]);
 
   const resetSearchSheetClosed = useCallback(() => {
@@ -1623,10 +1968,13 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
 
   const handleSearchSheetLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      const nextHeight = Math.min(event.nativeEvent.layout.height, searchSheetMaxHeight);
-      setSearchSheetMeasuredHeight((current) => (
-        Math.abs(current - nextHeight) < 1 ? current : nextHeight
-      ));
+      const nextHeight = Math.min(
+        event.nativeEvent.layout.height,
+        searchSheetMaxHeight,
+      );
+      setSearchSheetMeasuredHeight((current) =>
+        Math.abs(current - nextHeight) < 1 ? current : nextHeight,
+      );
     },
     [searchSheetMaxHeight],
   );
@@ -1640,18 +1988,21 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     verticalPagerRef.current?.setPageWithoutAnimation?.(initialReelIndex);
   }, [initialReelIndex, reelItems.length, groupBuy.id]);
 
-  const handleSelectSearchResult = useCallback((item: GroupBuy) => {
-    const nextIndex = reelItems.findIndex((entry) => entry.id === item.id);
-    resetSearchSheetClosed();
-    setSearchQuery('');
-    setSummarySheetGate({ isOpen: false, canSwipeReel: true });
-    if (nextIndex >= 0) {
-      setActiveProductIndex(nextIndex);
-      verticalPagerRef.current?.setPage?.(nextIndex);
-      return;
-    }
-    navigation.push('Detail', { groupBuy: item });
-  }, [navigation, reelItems, resetSearchSheetClosed]);
+  const handleSelectSearchResult = useCallback(
+    (item: GroupBuy) => {
+      const nextIndex = reelItems.findIndex((entry) => entry.id === item.id);
+      resetSearchSheetClosed();
+      setSearchQuery("");
+      setSummarySheetGate({ isOpen: false, canSwipeReel: true });
+      if (nextIndex >= 0) {
+        setActiveProductIndex(nextIndex);
+        verticalPagerRef.current?.setPage?.(nextIndex);
+        return;
+      }
+      navigation.push("Detail", { groupBuy: item });
+    },
+    [navigation, reelItems, resetSearchSheetClosed],
+  );
 
   const renderReelItem = useCallback(
     ({ item, index }: { item: GroupBuy; index: number }) => (
@@ -1697,13 +2048,22 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         offscreenPageLimit={1}
         onPageSelected={(event) => {
           const nextIndex = event.nativeEvent.position;
-          if (nextIndex !== activeProductIndex && nextIndex >= 0 && nextIndex < reelItems.length) {
+          if (
+            nextIndex !== activeProductIndex &&
+            nextIndex >= 0 &&
+            nextIndex < reelItems.length
+          ) {
             setActiveProductIndex(nextIndex);
           }
         }}
         orientation="vertical"
         overdrag
-        scrollEnabled={screenHeight > 0 && reelItems.length > 1 && !summarySheetGate.isOpen && !isSearchSheetVisible}
+        scrollEnabled={
+          screenHeight > 0 &&
+          reelItems.length > 1 &&
+          !summarySheetGate.isOpen &&
+          !isSearchSheetVisible
+        }
         style={s.verticalPager}
       >
         {reelItems.map((item, index) => (
@@ -1747,132 +2107,135 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   );
 }
 
-export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', any>) {
+export function makeStyles(
+  colors: ColorPalette,
+  shadows: Record<"sm" | "md" | "lg", any>,
+) {
   return StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#05070A' },
+    safeArea: { flex: 1, backgroundColor: "#05070A" },
     verticalPager: {
-      backgroundColor: '#05070A',
+      backgroundColor: "#05070A",
       flex: 1,
-      overflow: 'hidden',
+      overflow: "hidden",
     },
     verticalPagerPage: {
-      backgroundColor: '#05070A',
-      width: '100%',
+      backgroundColor: "#05070A",
+      width: "100%",
     },
     detailSearchDock: {
       bottom: 0,
       left: 0,
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.sm,
-      position: 'absolute',
+      position: "absolute",
       right: 0,
       zIndex: 20,
     },
     detailSearchButton: {
-      alignItems: 'center',
-      backgroundColor: 'rgba(24,27,33,0.92)',
-      borderColor: 'rgba(255,255,255,0.10)',
+      alignItems: "center",
+      backgroundColor: "rgba(24,27,33,0.92)",
+      borderColor: "rgba(255,255,255,0.10)",
       borderRadius: 28,
       borderWidth: 1,
-      flexDirection: 'row',
+      flexDirection: "row",
       gap: spacing.sm,
       height: 54,
       paddingHorizontal: spacing.lg,
-      shadowColor: '#000000',
+      shadowColor: "#000000",
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.28,
       shadowRadius: 18,
       ...shadows.md,
     },
     detailSearchButtonText: {
-      color: 'rgba(255,255,255,0.72)',
+      color: "rgba(255,255,255,0.72)",
       flex: 1,
       fontSize: 15,
-      fontWeight: '700',
+      fontWeight: "700",
     },
     detailSearchOverlay: {
       ...StyleSheet.absoluteFillObject,
-      justifyContent: 'flex-end',
+      justifyContent: "flex-end",
       zIndex: 40,
     },
     detailSearchBackdrop: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'transparent',
+      backgroundColor: "transparent",
     },
     detailSearchKeyboard: {
-      justifyContent: 'flex-end',
+      justifyContent: "flex-end",
     },
     detailSearchSheet: {
-      backgroundColor: '#1F2229',
+      backgroundColor: "#1F2229",
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
-      maxHeight: '70%',
+      maxHeight: "70%",
       minHeight: 360,
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.sm,
     },
     detailSearchHandle: {
-      alignSelf: 'center',
-      backgroundColor: 'rgba(255,255,255,0.42)',
+      alignSelf: "center",
+      backgroundColor: "rgba(255,255,255,0.42)",
       borderRadius: 999,
       height: 4,
       marginBottom: spacing.lg,
       width: 52,
     },
     detailSearchHeader: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'flex-start',
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "flex-start",
       marginBottom: spacing.md,
     },
     detailSearchTitle: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 18,
-      fontWeight: '900',
+      fontWeight: "900",
     },
     detailSearchInputWrap: {
-      alignItems: 'center',
-      backgroundColor: 'rgba(255,255,255,0.08)',
-      borderColor: 'rgba(255,255,255,0.12)',
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.08)",
+      borderColor: "rgba(255,255,255,0.12)",
       borderRadius: 22,
       borderWidth: 1,
-      flexDirection: 'row',
+      flexDirection: "row",
       gap: spacing.sm,
       height: 48,
       marginBottom: spacing.md,
       paddingHorizontal: spacing.md,
     },
     detailSearchInput: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       flex: 1,
       fontSize: 15,
-      fontWeight: '700',
+      fontWeight: "700",
       padding: 0,
     },
     detailSearchList: {
       flexGrow: 0,
     },
     detailSearchResult: {
-      alignItems: 'center',
-      borderBottomColor: 'rgba(255,255,255,0.08)',
+      alignItems: "center",
+      borderBottomColor: "rgba(255,255,255,0.08)",
       borderBottomWidth: StyleSheet.hairlineWidth,
-      flexDirection: 'row',
+      flexDirection: "row",
       gap: spacing.md,
       minHeight: 70,
       paddingVertical: spacing.sm,
     },
     detailSearchThumb: {
-      backgroundColor: 'rgba(255,255,255,0.08)',
+      backgroundColor: "rgba(255,255,255,0.08)",
       borderRadius: 12,
       height: 52,
       width: 52,
     },
     detailSearchThumbFallback: {
-      alignItems: 'center',
-      backgroundColor: 'rgba(255,255,255,0.08)',
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.08)",
       borderRadius: 12,
       height: 52,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 52,
     },
     detailSearchResultBody: {
@@ -1880,65 +2243,65 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       minWidth: 0,
     },
     detailSearchResultTitle: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 15,
-      fontWeight: '900',
+      fontWeight: "900",
       marginBottom: 3,
     },
     detailSearchResultMeta: {
-      color: 'rgba(255,255,255,0.56)',
+      color: "rgba(255,255,255,0.56)",
       fontSize: 12,
-      fontWeight: '700',
+      fontWeight: "700",
     },
     detailSearchEmpty: {
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       minHeight: 150,
     },
     detailSearchEmptyText: {
-      color: 'rgba(255,255,255,0.58)',
-      fontWeight: '700',
+      color: "rgba(255,255,255,0.58)",
+      fontWeight: "700",
     },
     reelPage: {
-      backgroundColor: '#05070A',
-      overflow: 'hidden',
-      position: 'relative',
-      width: '100%',
+      backgroundColor: "#05070A",
+      overflow: "hidden",
+      position: "relative",
+      width: "100%",
     },
     mediaStage: {
-      backgroundColor: '#05070A',
-      overflow: 'hidden',
-      position: 'absolute',
+      backgroundColor: "#05070A",
+      overflow: "hidden",
+      position: "absolute",
     },
     mediaStageContent: {
-      backgroundColor: '#05070A',
+      backgroundColor: "#05070A",
       left: 0,
-      position: 'absolute',
+      position: "absolute",
       top: 0,
     },
     mediaStageWithSheet: {
       borderRadius: 22,
       left: MEDIA_STAGE_SIDE_INSET,
-      overflow: 'hidden',
+      overflow: "hidden",
       right: MEDIA_STAGE_SIDE_INSET,
     },
     mediaScroller: { flex: 1 },
     mediaViewport: {
       flex: 1,
-      overflow: 'hidden',
+      overflow: "hidden",
     },
     mediaPane: {
-      backgroundColor: '#05070A',
-      height: '100%',
+      backgroundColor: "#05070A",
+      height: "100%",
     },
     mediaFill: {
-      height: '100%',
-      width: '100%',
+      height: "100%",
+      width: "100%",
     },
     videoSlide: {
-      height: '100%',
-      position: 'relative',
-      width: '100%',
+      height: "100%",
+      position: "relative",
+      width: "100%",
     },
     videoPoster: {
       ...StyleSheet.absoluteFillObject,
@@ -1950,115 +2313,115 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
     },
     videoControlsOverlay: {
       ...StyleSheet.absoluteFillObject,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       zIndex: 3,
     },
     muteOverlayButton: {
-      alignItems: 'center',
-      backgroundColor: 'rgba(0,0,0,0.5)',
+      alignItems: "center",
+      backgroundColor: "rgba(0,0,0,0.5)",
       borderRadius: 20,
       height: 40,
-      justifyContent: 'center',
+      justifyContent: "center",
       marginBottom: spacing.sm,
       width: 40,
     },
     playOverlayButton: {
-      alignItems: 'center',
-      backgroundColor: 'rgba(0,0,0,0.46)',
-      borderColor: 'rgba(255,255,255,0.12)',
+      alignItems: "center",
+      backgroundColor: "rgba(0,0,0,0.46)",
+      borderColor: "rgba(255,255,255,0.12)",
       borderRadius: 38,
       borderWidth: 1,
       height: 76,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 76,
     },
     emptyMedia: {
-      alignItems: 'center',
+      alignItems: "center",
       flex: 1,
-      justifyContent: 'center',
+      justifyContent: "center",
     },
-    emptyMediaText: { color: 'rgba(255,255,255,0.72)' },
+    emptyMediaText: { color: "rgba(255,255,255,0.72)" },
     videoPlaceholder: {
-      alignItems: 'center',
-      backgroundColor: '#05070A',
-      height: '100%',
-      justifyContent: 'center',
-      width: '100%',
+      alignItems: "center",
+      backgroundColor: "#05070A",
+      height: "100%",
+      justifyContent: "center",
+      width: "100%",
     },
     videoPlaceholderText: {
-      color: 'rgba(255,255,255,0.78)',
+      color: "rgba(255,255,255,0.78)",
       fontSize: 14,
-      fontWeight: '800',
+      fontWeight: "800",
     },
     topBar: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
       left: 0,
       paddingHorizontal: spacing.lg,
-      position: 'absolute',
+      position: "absolute",
       right: 0,
       top: 0,
     },
     topIconButton: {
-      alignItems: 'center',
+      alignItems: "center",
       height: 44,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 44,
     },
     reelsTitleRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
+      alignItems: "center",
+      flexDirection: "row",
       gap: spacing.xl,
     },
     reelsTitle: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 20,
-      fontWeight: '800',
-      textShadowColor: 'rgba(0,0,0,0.36)',
+      fontWeight: "800",
+      textShadowColor: "rgba(0,0,0,0.36)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
     mediaDots: {
-      alignItems: 'center',
-      flexDirection: 'row',
+      alignItems: "center",
+      flexDirection: "row",
       gap: 6,
-      justifyContent: 'center',
+      justifyContent: "center",
       left: spacing.xl,
-      position: 'absolute',
+      position: "absolute",
       right: spacing.xl,
     },
     mediaDot: {
-      backgroundColor: 'rgba(255,255,255,0.42)',
+      backgroundColor: "rgba(255,255,255,0.42)",
       borderRadius: 2,
       height: 3,
       width: 28,
     },
-    mediaDotActive: { backgroundColor: '#FFFFFF' },
+    mediaDotActive: { backgroundColor: "#FFFFFF" },
     mediaDotFaded: { opacity: 0.46, width: 16 },
     rightRail: {
-      alignItems: 'center',
+      alignItems: "center",
       gap: spacing.sm,
-      position: 'absolute',
+      position: "absolute",
       right: spacing.md,
       width: 58,
     },
     railButton: {
-      alignItems: 'center',
+      alignItems: "center",
       minHeight: 44,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 52,
     },
     purchaseRailButton: {
-      alignItems: 'center',
-      backgroundColor: 'rgba(255,255,255,0.18)',
-      borderColor: 'rgba(255,255,255,0.48)',
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.18)",
+      borderColor: "rgba(255,255,255,0.48)",
       borderRadius: 16,
       borderWidth: 1,
-      justifyContent: 'center',
+      justifyContent: "center",
       minHeight: 54,
-      shadowColor: '#000000',
+      shadowColor: "#000000",
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.22,
       shadowRadius: 10,
@@ -2066,35 +2429,35 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       ...shadows.sm,
     },
     railIcon: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 34,
-      fontWeight: '500',
+      fontWeight: "500",
       lineHeight: 38,
-      textAlign: 'center',
-      textShadowColor: 'rgba(0,0,0,0.44)',
+      textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.44)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
     railIconBox: {
-      alignItems: 'center',
+      alignItems: "center",
       height: 34,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 52,
     },
     purchaseGlyph: {
       height: 22,
-      position: 'relative',
+      position: "relative",
       width: 22,
     },
     purchaseLinkRingA: {
-      borderColor: '#FFFFFF',
+      borderColor: "#FFFFFF",
       borderRadius: 6,
       borderWidth: 2,
       height: 9,
       left: 2,
-      position: 'absolute',
+      position: "absolute",
       top: 8,
-      transform: [{ rotate: '-32deg' }],
+      transform: [{ rotate: "-32deg" }],
       width: 13,
     },
     purchaseLinkRingB: {
@@ -2102,40 +2465,40 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       borderRadius: 6,
       borderWidth: 2,
       height: 9,
-      position: 'absolute',
+      position: "absolute",
       right: 2,
       top: 5,
-      transform: [{ rotate: '-32deg' }],
+      transform: [{ rotate: "-32deg" }],
       width: 13,
     },
     purchaseLinkBridge: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: "#FFFFFF",
       borderRadius: 999,
       height: 2,
       left: 8,
-      position: 'absolute',
+      position: "absolute",
       top: 11,
-      transform: [{ rotate: '-32deg' }],
+      transform: [{ rotate: "-32deg" }],
       width: 7,
     },
     purchaseRailLabel: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 10,
-      fontWeight: '900',
+      fontWeight: "900",
       lineHeight: 12,
       marginTop: 1,
-      textAlign: 'center',
-      textShadowColor: 'rgba(0,0,0,0.18)',
+      textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.18)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
     },
     railLabel: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 11,
-      fontWeight: '800',
+      fontWeight: "800",
       marginTop: 2,
-      textAlign: 'center',
-      textShadowColor: 'rgba(0,0,0,0.44)',
+      textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.44)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
@@ -2144,162 +2507,168 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       left: 0,
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.md,
-      position: 'absolute',
+      position: "absolute",
       right: 76,
     },
     bottomInfoScrim: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'transparent',
+      backgroundColor: "transparent",
       borderTopRightRadius: 18,
     },
     sellerRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
+      alignItems: "center",
+      flexDirection: "row",
       gap: spacing.sm,
       marginBottom: spacing.sm,
     },
     avatar: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.primary,
-      borderColor: 'rgba(255,255,255,0.92)',
+      borderColor: "rgba(255,255,255,0.92)",
       borderRadius: borderRadius.full,
       borderWidth: 2,
       height: 38,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 38,
     },
     avatarText: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 14,
-      fontWeight: '900',
+      fontWeight: "900",
     },
     sellerName: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       flexShrink: 1,
       fontSize: 16,
-      fontWeight: '800',
-      textShadowColor: 'rgba(0,0,0,0.42)',
+      fontWeight: "800",
+      textShadowColor: "rgba(0,0,0,0.42)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
     productName: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 16,
-      fontWeight: '800',
+      fontWeight: "800",
       lineHeight: 20,
       marginBottom: 4,
-      textShadowColor: 'rgba(0,0,0,0.45)',
+      textShadowColor: "rgba(0,0,0,0.45)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
     productPrice: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 14,
-      fontWeight: '900',
+      fontWeight: "900",
       lineHeight: 18,
       marginBottom: spacing.xs,
-      textShadowColor: 'rgba(0,0,0,0.45)',
+      textShadowColor: "rgba(0,0,0,0.45)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
     summaryPreview: {
-      alignSelf: 'stretch',
+      alignSelf: "stretch",
       marginBottom: spacing.xs,
     },
     summary: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 13,
-      fontWeight: '500',
+      fontWeight: "500",
       lineHeight: 18,
-      textShadowColor: 'rgba(0,0,0,0.45)',
+      textShadowColor: "rgba(0,0,0,0.45)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
     summaryMore: {
-      alignSelf: 'flex-start',
-      color: 'rgba(255,255,255,0.74)',
+      alignSelf: "flex-start",
+      color: "rgba(255,255,255,0.74)",
       fontSize: 13,
-      fontWeight: '800',
+      fontWeight: "800",
       marginTop: 0,
-      textShadowColor: 'rgba(0,0,0,0.45)',
+      textShadowColor: "rgba(0,0,0,0.45)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
     metaRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexDirection: "row",
+      flexWrap: "wrap",
       gap: spacing.xs,
       marginBottom: 0,
     },
     metaPill: {
-      backgroundColor: 'rgba(255,255,255,0.18)',
-      borderColor: 'rgba(255,255,255,0.22)',
+      backgroundColor: "rgba(255,255,255,0.18)",
+      borderColor: "rgba(255,255,255,0.22)",
       borderRadius: borderRadius.full,
       borderWidth: 1,
       paddingHorizontal: spacing.sm,
       paddingVertical: 5,
     },
-    metaPillUrgent: { backgroundColor: 'rgba(255,59,48,0.72)', borderColor: 'rgba(255,255,255,0.24)' },
-    metaPillExpired: { backgroundColor: 'rgba(142,142,147,0.64)', borderColor: 'rgba(255,255,255,0.18)' },
+    metaPillUrgent: {
+      backgroundColor: "rgba(255,59,48,0.72)",
+      borderColor: "rgba(255,255,255,0.24)",
+    },
+    metaPillExpired: {
+      backgroundColor: "rgba(142,142,147,0.64)",
+      borderColor: "rgba(255,255,255,0.18)",
+    },
     metaPillText: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 11,
-      fontWeight: '800',
+      fontWeight: "800",
     },
     summaryOverlay: {
       ...StyleSheet.absoluteFillObject,
-      justifyContent: 'flex-end',
+      justifyContent: "flex-end",
       zIndex: 30,
     },
     summaryBackdrop: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'transparent',
+      backgroundColor: "transparent",
     },
     summaryDragArea: {
       flexShrink: 0,
     },
     summarySheet: {
-      backgroundColor: '#111417',
+      backgroundColor: "#111417",
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
       paddingHorizontal: spacing.xl,
       paddingTop: spacing.sm,
     },
     summaryHandle: {
-      alignItems: 'center',
+      alignItems: "center",
       // Generous touch target so the sheet is easy to grab and drag down.
       height: 28,
-      justifyContent: 'center',
+      justifyContent: "center",
       marginBottom: spacing.sm,
     },
     summaryHandleBar: {
-      alignSelf: 'center',
-      backgroundColor: 'rgba(255,255,255,0.62)',
+      alignSelf: "center",
+      backgroundColor: "rgba(255,255,255,0.62)",
       borderRadius: 2,
       height: 5,
       width: 58,
     },
     summarySheetHeader: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
       marginBottom: spacing.md,
     },
     summarySheetSeller: {
-      alignItems: 'center',
+      alignItems: "center",
       flex: 1,
-      flexDirection: 'row',
+      flexDirection: "row",
       gap: spacing.md,
       minWidth: 0,
     },
     summarySheetAvatar: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.primary,
-      borderColor: 'rgba(255,255,255,0.92)',
+      borderColor: "rgba(255,255,255,0.92)",
       borderRadius: borderRadius.full,
       borderWidth: 2,
       height: 48,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 48,
     },
     summarySheetTitleBlock: {
@@ -2307,48 +2676,48 @@ export function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | '
       minWidth: 0,
     },
     summarySheetSellerName: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 15,
-      fontWeight: '700',
+      fontWeight: "700",
     },
     summarySheetProductName: {
-      color: 'rgba(255,255,255,0.66)',
+      color: "rgba(255,255,255,0.66)",
       fontSize: 13,
-      fontWeight: '500',
+      fontWeight: "500",
       marginTop: 2,
     },
     summarySheetProductPrice: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 13,
-      fontWeight: '800',
+      fontWeight: "800",
       marginTop: 2,
     },
     summarySheetBuyButton: {
-      alignItems: 'center',
-      alignSelf: 'flex-start',
-      backgroundColor: '#FFFFFF',
+      alignItems: "center",
+      alignSelf: "flex-start",
+      backgroundColor: "#FFFFFF",
       borderRadius: borderRadius.full,
       height: 32,
-      justifyContent: 'center',
+      justifyContent: "center",
       marginBottom: spacing.lg,
       minWidth: 88,
       paddingHorizontal: spacing.md,
     },
     summarySheetBuyButtonExpired: {
-      backgroundColor: 'rgba(255,255,255,0.36)',
+      backgroundColor: "rgba(255,255,255,0.36)",
     },
     summarySheetBuyButtonText: {
-      color: '#111318',
+      color: "#111318",
       fontSize: 12,
-      fontWeight: '700',
+      fontWeight: "700",
     },
     summaryScroll: {
       flexGrow: 0,
     },
     summarySheetText: {
-      color: '#FFFFFF',
+      color: "#FFFFFF",
       fontSize: 15,
-      fontWeight: '500',
+      fontWeight: "500",
       lineHeight: 22,
       paddingBottom: spacing.xl,
     },

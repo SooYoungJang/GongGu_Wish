@@ -5,7 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -13,39 +13,39 @@ import {
   ScrollView,
   StyleSheet,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useQuery } from "@tanstack/react-query";
 
-import { fallbackGroupBuys, fetchGroupBuys } from '../api';
-import { BackButton } from '../components/BackButton';
+import { fallbackGroupBuys, fetchGroupBuys } from "../api";
+import { BackButton } from "../components/BackButton";
 import {
   CALENDAR_DATE_SECTION_HEIGHT,
   CalendarDateRow,
   calendarDateGroupKey,
   getCalendarDateGroupLayout,
   type CalendarDateGroup,
-} from '../components/calendar/CalendarDateRow';
+} from "../components/calendar/CalendarDateRow";
 import {
   CalendarPickerModal,
   type CalendarGrid,
-} from '../components/calendar/CalendarPickerModal';
-import { SText } from '../components/ui/SText';
-import { spacing } from '../design/tokens';
-import { commerceRadius } from '../design/commerce';
-import type { CalendarScreenProps, GroupBuy } from '../types';
+} from "../components/calendar/CalendarPickerModal";
+import { SText } from "../components/ui/SText";
+import { spacing } from "../design/tokens";
+import { commerceRadius } from "../design/commerce";
+import type { CalendarScreenProps, GroupBuy } from "../types";
 import {
   formatDateKey,
   getGroupBuyDateRange,
   parseDateKey,
-} from '../utils/groupBuyDates';
-import { useTheme } from '../context/ThemeContext';
-import type { ColorPalette } from '../context/ThemeContext';
-import { useBookmarks, useNotifications } from '../hooks/useLocalDeals';
+} from "../utils/groupBuyDates";
+import { useTheme } from "../context/ThemeContext";
+import type { ColorPalette } from "../context/ThemeContext";
+import { useBookmarks, useNotifications } from "../hooks/useLocalDeals";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-export type CalendarActivityFilter = 'bookmarked' | 'notified';
+export type CalendarActivityFilter = "bookmarked" | "notified";
 export type CalendarFilter = Record<CalendarActivityFilter, boolean>;
 
 const CALENDAR_FILTER_OPTIONS: Array<{
@@ -53,10 +53,10 @@ const CALENDAR_FILTER_OPTIONS: Array<{
   label: string;
   summaryLabel: string;
 }> = [
-  { value: 'bookmarked', label: '북마크', summaryLabel: '북마크' },
-  { value: 'notified', label: '알림', summaryLabel: '알림' },
+  { value: "bookmarked", label: "북마크", summaryLabel: "북마크" },
+  { value: "notified", label: "알림", summaryLabel: "알림" },
 ];
-const CALENDAR_ALL_FILTER_LABEL = '전체 보기';
+const CALENDAR_ALL_FILTER_LABEL = "전체 보기";
 
 export function filterGroupBuysByActivity(
   groupBuys: GroupBuy[],
@@ -77,7 +77,7 @@ function getCalendarFilterLabel(filter: CalendarFilter): string | null {
   const labels = CALENDAR_FILTER_OPTIONS.filter(
     (option) => filter[option.value],
   ).map((option) => option.summaryLabel);
-  return labels.length > 0 ? labels.join(' · ') : null;
+  return labels.length > 0 ? labels.join(" · ") : null;
 }
 
 // ─── Date utilities ──────────────────────────────────────────────────────────
@@ -168,11 +168,13 @@ function CalendarFilterBar({
   colors,
   filter,
   onClear,
+  onToday,
   onToggle,
 }: {
   colors: ColorPalette;
   filter: CalendarFilter;
   onClear: () => void;
+  onToday: () => void;
   onToggle: Dispatch<CalendarActivityFilter>;
 }) {
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -180,16 +182,29 @@ function CalendarFilterBar({
 
   return (
     <View style={s.filterSection} testID="calendar-filter-bar">
-      <SText variant="caption" style={s.filterLabel}>
-        공구 필터
-      </SText>
+      <View style={s.filterHeader} testID="calendar-filter-actions">
+        <SText variant="caption" style={s.filterLabel}>
+          공구 필터
+        </SText>
+        <Pressable
+          accessibilityLabel="오늘로 이동"
+          accessibilityRole="button"
+          onPress={onToday}
+          style={s.todayButton}
+          testID="calendar-today-button"
+        >
+          <SText variant="caption" style={s.todayButtonText}>
+            오늘
+          </SText>
+        </Pressable>
+      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.filterBar}
       >
         <Pressable
-          accessibilityLabel={`${CALENDAR_ALL_FILTER_LABEL} ${isAllSelected ? '선택됨' : '선택 안 됨'}`}
+          accessibilityLabel={`${CALENDAR_ALL_FILTER_LABEL} ${isAllSelected ? "선택됨" : "선택 안 됨"}`}
           accessibilityRole="button"
           onPress={onClear}
           style={[
@@ -205,7 +220,7 @@ function CalendarFilterBar({
             variant="caption"
             style={{
               color: isAllSelected ? colors.textInverse : colors.textSecondary,
-              fontWeight: '800',
+              fontWeight: "800",
             }}
           >
             {CALENDAR_ALL_FILTER_LABEL}
@@ -216,7 +231,7 @@ function CalendarFilterBar({
           return (
             <Pressable
               key={option.value}
-              accessibilityLabel={`${option.label} ${selected ? '선택됨' : '선택 안 됨'}`}
+              accessibilityLabel={`${option.label} ${selected ? "선택됨" : "선택 안 됨"}`}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: selected }}
               onPress={() => onToggle(option.value)}
@@ -233,7 +248,7 @@ function CalendarFilterBar({
                 variant="caption"
                 style={{
                   color: selected ? colors.textInverse : colors.textSecondary,
-                  fontWeight: '800',
+                  fontWeight: "800",
                 }}
               >
                 {option.label}
@@ -286,9 +301,9 @@ function CalendarHeader({
         <View style={s.titleSpacer} />
       </View>
 
-      <View style={s.monthRow}>
+      <View style={s.monthRow} testID="calendar-month-row">
         <Pressable
-          accessibilityLabel={`${label} 달력 ${isCalendarPickerVisible ? '닫기' : '열기'}`}
+          accessibilityLabel={`${label} 달력 ${isCalendarPickerVisible ? "닫기" : "열기"}`}
           accessibilityRole="button"
           accessibilityState={{ expanded: isCalendarPickerVisible }}
           onPress={onToggleCalendar}
@@ -299,18 +314,7 @@ function CalendarHeader({
             {label}
           </SText>
           <SText variant="body" style={s.calendarToggleIcon}>
-            {isCalendarPickerVisible ? '▲' : '▼'}
-          </SText>
-        </Pressable>
-        <Pressable
-          accessibilityLabel="오늘로 이동"
-          accessibilityRole="button"
-          onPress={onToday}
-          style={s.todayButton}
-          testID="calendar-today-button"
-        >
-          <SText variant="caption" style={s.todayButtonText}>
-            오늘
+            {isCalendarPickerVisible ? "▲" : "▼"}
           </SText>
         </Pressable>
       </View>
@@ -319,6 +323,7 @@ function CalendarHeader({
         colors={colors}
         filter={filter}
         onClear={onClearFilter}
+        onToday={onToday}
         onToggle={onToggleFilter}
       />
     </View>
@@ -350,7 +355,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
 
   // Data fetching
   const { data, isFetching } = useQuery({
-    queryKey: ['group-buys'],
+    queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
     retry: false,
   });
@@ -520,7 +525,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   }, [dateGroups]);
 
   const openDealDetail = useCallback(
-    (item: GroupBuy) => navigation.navigate('Detail', { groupBuy: item }),
+    (item: GroupBuy) => navigation.navigate("Detail", { groupBuy: item }),
     [navigation],
   );
   const renderDateGroup = useCallback(
@@ -551,13 +556,13 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         <View style={s.emptyDeals}>
           <SText variant="subtitle" style={s.emptyDateTitle}>
             {calendarFilterLabel
-              ? '선택한 필터의 공구가 없어요'
-              : '이 달의 공구가 없어요'}
+              ? "선택한 필터의 공구가 없어요"
+              : "이 달의 공구가 없어요"}
           </SText>
           <SText variant="caption">
             {calendarFilterLabel
-              ? '필터를 바꾸거나 다른 달을 선택해보세요.'
-              : '상단 달력에서 다른 달을 선택해보세요.'}
+              ? "필터를 바꾸거나 다른 달을 선택해보세요."
+              : "상단 달력에서 다른 달을 선택해보세요."}
           </SText>
         </View>
       ),
@@ -573,7 +578,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   );
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
+    <SafeAreaView edges={["top", "bottom"]} style={s.safeArea}>
       <View style={s.container}>
         {/* Top: Header with navigation + filter integrated */}
         <CalendarHeader
@@ -648,9 +653,9 @@ function makeStyles(colors: ColorPalette) {
       marginTop: spacing.sm,
     },
     titleRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
       marginBottom: spacing.sm,
     },
     backButton: {
@@ -661,69 +666,77 @@ function makeStyles(colors: ColorPalette) {
       color: colors.textPrimary,
       flex: 1,
       fontSize: 22,
-      fontWeight: '900',
-      textAlign: 'center',
+      fontWeight: "900",
+      textAlign: "center",
     },
     titleSpacer: {
       width: 44,
     },
     monthRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'center',
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "center",
       marginBottom: spacing.xs,
     },
     monthTitle: {
       color: colors.textPrimary,
       fontSize: 20,
-      fontWeight: '800',
+      fontWeight: "800",
       minWidth: 110,
-      textAlign: 'center',
+      textAlign: "center",
     },
     monthToggle: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.softBg,
       borderRadius: commerceRadius.full,
-      flexDirection: 'row',
+      flexDirection: "row",
       gap: spacing.xxs,
-      justifyContent: 'center',
+      justifyContent: "center",
       minHeight: 40,
       paddingHorizontal: spacing.md,
     },
     todayButton: {
-      alignItems: 'center',
-      backgroundColor: colors.primary,
+      alignItems: "center",
+      backgroundColor: colors.primaryBg,
+      borderColor: colors.primary,
       borderRadius: commerceRadius.full,
-      justifyContent: 'center',
-      minHeight: 40,
+      borderWidth: 1,
+      justifyContent: "center",
+      minHeight: 34,
       paddingHorizontal: spacing.md,
     },
     todayButtonText: {
-      color: colors.textInverse,
-      fontWeight: '800',
+      color: colors.primary,
+      fontWeight: "800",
     },
     calendarToggleIcon: {
       color: colors.textSecondary,
       fontSize: 12,
-      fontWeight: '800',
+      fontWeight: "800",
+    },
+    filterHeader: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      minHeight: 34,
     },
     filterSection: {
       marginTop: spacing.xs,
     },
     filterLabel: {
       color: colors.textSecondary,
-      fontWeight: '800',
-      marginBottom: spacing.xs,
+      fontWeight: "800",
     },
     filterBar: {
       gap: spacing.xs,
+      paddingTop: spacing.xs,
       paddingRight: spacing.lg,
     },
     filterChip: {
-      alignItems: 'center',
+      alignItems: "center",
       borderRadius: commerceRadius.full,
       borderWidth: 1,
-      justifyContent: 'center',
+      justifyContent: "center",
       minHeight: 34,
       paddingHorizontal: spacing.md,
     },
@@ -732,28 +745,28 @@ function makeStyles(colors: ColorPalette) {
       minHeight: 0,
     },
     dateListContent: {
-      paddingBottom: spacing['2xl'],
+      paddingBottom: spacing["2xl"],
     },
     emptyDateTitle: {
       color: colors.textPrimary,
-      fontWeight: '700',
+      fontWeight: "700",
       marginBottom: spacing.xs,
     },
 
     // Loading
     loading: {
-      marginTop: spacing['3xl'],
+      marginTop: spacing["3xl"],
     },
 
     // Empty state
     emptyDeals: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.panelBg,
       borderColor: colors.border,
       borderRadius: commerceRadius.xl,
       borderWidth: 1,
       marginTop: spacing.md,
-      padding: spacing['2xl'],
+      padding: spacing["2xl"],
     },
   });
 }

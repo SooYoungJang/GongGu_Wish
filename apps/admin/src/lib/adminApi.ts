@@ -11,6 +11,7 @@ import type {
   PushNotificationInput,
   PushNotificationResult,
 } from "@/types";
+import { normalizePriceKrwValue } from "./priceKrw";
 
 type AdminMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -35,7 +36,9 @@ export class AdminApiError extends Error {
 }
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as
+  | string
+  | undefined;
 
 async function getAccessToken() {
   const { data, error } = await supabase.auth.getSession();
@@ -54,7 +57,10 @@ async function requestAdmin<T>(
   } = {},
 ): Promise<T> {
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new AdminApiError("Vercel 환경 변수 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY가 필요합니다.", 500);
+    throw new AdminApiError(
+      "Vercel 환경 변수 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY가 필요합니다.",
+      500,
+    );
   }
 
   const token = await getAccessToken();
@@ -62,8 +68,8 @@ async function requestAdmin<T>(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
-      "apikey": supabaseAnonKey,
+      Authorization: `Bearer ${token}`,
+      apikey: supabaseAnonKey,
     },
     body: JSON.stringify({
       path,
@@ -73,12 +79,26 @@ async function requestAdmin<T>(
     }),
   });
 
-  const payload = (await response.json().catch(() => null)) as AdminEnvelope<T> | null;
+  const payload = (await response
+    .json()
+    .catch(() => null)) as AdminEnvelope<T> | null;
   if (!response.ok || !payload || "error" in payload) {
-    throw new AdminApiError(payload?.error ?? `관리자 API 요청에 실패했습니다. (${response.status})`, response.status);
+    throw new AdminApiError(
+      payload?.error ?? `관리자 API 요청에 실패했습니다. (${response.status})`,
+      response.status,
+    );
   }
 
   return payload.data;
+}
+
+function normalizeGroupBuyPrice(groupBuy: GroupBuy): GroupBuy {
+  const raw = groupBuy as GroupBuy & { price_krw?: unknown };
+  const rawPrice = raw.priceKrw !== undefined ? raw.priceKrw : raw.price_krw;
+  return {
+    ...groupBuy,
+    priceKrw: normalizePriceKrwValue(rawPrice),
+  };
 }
 
 export const adminApi = {
@@ -92,11 +112,17 @@ export const adminApi = {
     status?: string;
     q?: string;
   }) {
-    return requestAdmin<ListResponse<GongguSubmission>>("/admin/submissions", "GET", { params });
+    return requestAdmin<ListResponse<GongguSubmission>>(
+      "/admin/submissions",
+      "GET",
+      { params },
+    );
   },
 
   updateSubmission(id: string, body: Record<string, unknown>) {
-    return requestAdmin<GongguSubmission>(`/admin/submissions/${id}`, "PATCH", { body });
+    return requestAdmin<GongguSubmission>(`/admin/submissions/${id}`, "PATCH", {
+      body,
+    });
   },
 
   approveSubmission(id: string, body: Record<string, unknown>) {
@@ -104,13 +130,20 @@ export const adminApi = {
       `/admin/submissions/${id}/approve`,
       "POST",
       { body },
-    );
+    ).then((result) => ({
+      ...result,
+      groupBuy: normalizeGroupBuyPrice(result.groupBuy),
+    }));
   },
 
   rejectSubmission(id: string, reason: string) {
-    return requestAdmin<GongguSubmission>(`/admin/submissions/${id}/reject`, "POST", {
-      body: { reason },
-    });
+    return requestAdmin<GongguSubmission>(
+      `/admin/submissions/${id}/reject`,
+      "POST",
+      {
+        body: { reason },
+      },
+    );
   },
 
   listGroupBuys(params: {
@@ -119,11 +152,18 @@ export const adminApi = {
     status?: string;
     q?: string;
   }) {
-    return requestAdmin<ListResponse<GroupBuy>>("/admin/group-buys", "GET", { params });
+    return requestAdmin<ListResponse<GroupBuy>>("/admin/group-buys", "GET", {
+      params,
+    }).then((result) => ({
+      ...result,
+      items: result.items.map(normalizeGroupBuyPrice),
+    }));
   },
 
   updateGroupBuy(id: string, body: Record<string, unknown>) {
-    return requestAdmin<GroupBuy>(`/admin/group-buys/${id}`, "PATCH", { body });
+    return requestAdmin<GroupBuy>(`/admin/group-buys/${id}`, "PATCH", {
+      body,
+    }).then(normalizeGroupBuyPrice);
   },
 
   lookupHiker(url: string) {
@@ -132,12 +172,10 @@ export const adminApi = {
     });
   },
 
-  listUsers(params: {
-    page?: number;
-    limit?: number;
-    q?: string;
-  }) {
-    return requestAdmin<ListResponse<AppUser>>("/admin/users", "GET", { params });
+  listUsers(params: { page?: number; limit?: number; q?: string }) {
+    return requestAdmin<ListResponse<AppUser>>("/admin/users", "GET", {
+      params,
+    });
   },
 
   updateUser(id: string, body: Record<string, unknown>) {
@@ -145,9 +183,13 @@ export const adminApi = {
   },
 
   sendPushNotification(input: PushNotificationInput) {
-    return requestAdmin<PushNotificationResult>("/admin/notifications", "POST", {
-      body: { ...input },
-    });
+    return requestAdmin<PushNotificationResult>(
+      "/admin/notifications",
+      "POST",
+      {
+        body: { ...input },
+      },
+    );
   },
 
   cdnRefreshStatus(params: {
@@ -155,7 +197,9 @@ export const adminApi = {
     status?: string | null;
     refreshWindowHours?: number;
   }) {
-    return requestAdmin<CdnRefreshStatusResponse>("/admin/cdn-refresh", "GET", { params });
+    return requestAdmin<CdnRefreshStatusResponse>("/admin/cdn-refresh", "GET", {
+      params,
+    });
   },
 
   refreshSingleCdn(groupBuyId: string, force = false) {
@@ -165,8 +209,12 @@ export const adminApi = {
   },
 
   refreshBatchCdn(limit = 20, refreshWindowHours = 1) {
-    return requestAdmin<{ results: CdnRefreshResult[] }>("/admin/cdn-refresh", "POST", {
-      body: { mode: "batch", limit, refreshWindowHours },
-    });
+    return requestAdmin<{ results: CdnRefreshResult[] }>(
+      "/admin/cdn-refresh",
+      "POST",
+      {
+        body: { mode: "batch", limit, refreshWindowHours },
+      },
+    );
   },
 };

@@ -1,53 +1,47 @@
 appId: com.gonggu.wish
 ---
-# Calendar screen E2E -- navigate to calendar, verify dates, tap a day.
+# Calendar screen E2E -- navigate to calendar, verify today's action and date-grouped deals.
 # Run: maestro test .maestro/calendar-flow.yaml
 - launchApp:
     clearState: false
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
-      id: "공구 검색"
-    timeout: 15000
+      text: "상품을 검색해보세요"
+    timeout: 60000
 # Open calendar from home weekly strip
 - extendedWaitUntil:
     visible:
-      id: "전체 캘린더 보기"
-    timeout: 10000
+      id: "home-calendar-open"
+    timeout: 30000
 - tapOn:
-    id: "전체 캘린더 보기"
+    id: "home-calendar-open"
 - waitForAnimationToEnd
-# Calendar header shows year/month and weekday labels
+# Calendar header, today's action, and date-grouped deal list
 - assertVisible:
-    text: "월"
+    text: "공구 캘린더"
 - assertVisible:
-    text: "일"
+    text: "오늘의 공구"
 - assertVisible:
-    id: "이전 달"
+    id: "calendar-today-button"
+- tapOn:
+    id: "calendar-today-button"
+- waitForAnimationToEnd
 - assertVisible:
-    id: "다음 달"
-- takeScreenshot: cal-01-grid
-# Swipe to next month
+    text: "오늘의 공구"
+- takeScreenshot: cal-01-today
+# Scroll through the date-grouped list
 - swipe:
-    start: 20%,50%
-    end: 80%,50%
+    start: 50%,80%
+    end: 50%,30%
     duration: 400
 - waitForAnimationToEnd
-- takeScreenshot: cal-02-next-month
-# Swipe back
-- swipe:
-    start: 80%,50%
-    end: 20%,50%
-    duration: 400
-- waitForAnimationToEnd
-- takeScreenshot: cal-03-prev-month
-# Tap a weekday header to verify it does not crash
-- tapOn:
-    text: "수"
-    optional: true
-- waitForAnimationToEnd
+- takeScreenshot: cal-02-list-scroll
+# Back returns to home without crashing
 - back
 - waitForAnimationToEnd
-- assertVisible:
-    id: "공구 검색"
+- extendedWaitUntil:
+    visible:
+      text: "상품을 검색해보세요"
+    timeout: 30000
 - takeScreenshot: cal-04-back-home
