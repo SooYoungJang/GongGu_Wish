@@ -225,12 +225,13 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
           );
         })}
       </PagerView>
-      {Platform.OS !== 'web' && isPlaybackActive ? (
+      {/* Keep the native player mounted so backgrounding cannot race release against replaceAsync. */}
+      {Platform.OS !== 'web' && isTabFocused ? (
         <ReelVideoPreloader
           items={reelItems}
           activeIndex={activeIndex}
           direction={reelDirection}
-          enabled={!summarySheetGate.isOpen}
+          enabled={isPlaybackActive && !summarySheetGate.isOpen}
         />
       ) : null}
     </View>
