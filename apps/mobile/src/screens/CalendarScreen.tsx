@@ -253,6 +253,7 @@ function CalendarHeader({
   filter,
   onClearFilter,
   onToggleFilter,
+  onToday,
   onGoBack,
   isCalendarPickerVisible,
   onToggleCalendar,
@@ -263,6 +264,7 @@ function CalendarHeader({
   filter: CalendarFilter;
   onClearFilter: () => void;
   onToggleFilter: Dispatch<CalendarActivityFilter>;
+  onToday: () => void;
   onGoBack: () => void;
   isCalendarPickerVisible: boolean;
   onToggleCalendar: () => void;
@@ -298,6 +300,17 @@ function CalendarHeader({
           </SText>
           <SText variant="body" style={s.calendarToggleIcon}>
             {isCalendarPickerVisible ? '▲' : '▼'}
+          </SText>
+        </Pressable>
+        <Pressable
+          accessibilityLabel="오늘로 이동"
+          accessibilityRole="button"
+          onPress={onToday}
+          style={s.todayButton}
+          testID="calendar-today-button"
+        >
+          <SText variant="caption" style={s.todayButtonText}>
+            오늘
           </SText>
         </Pressable>
       </View>
@@ -570,6 +583,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
           filter={calendarFilter}
           onClearFilter={clearCalendarFilter}
           onToggleFilter={toggleCalendarFilter}
+          onToday={goToToday}
           onGoBack={navigation.goBack}
           isCalendarPickerVisible={isCalendarExpanded}
           onToggleCalendar={toggleCalendar}
@@ -590,6 +604,11 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
           year={currentYear}
         />
 
+        {/*
+          One visible month has at most 31 fixed-height date rows. FlatList is
+          intentional here: getItemLayout keeps date jumps deterministic while
+          FlashList remains reserved for the unbounded media feed.
+        */}
         <FlatList
           contentContainerStyle={s.dateListContent}
           data={dateGroups}
@@ -670,6 +689,18 @@ function makeStyles(colors: ColorPalette) {
       justifyContent: 'center',
       minHeight: 40,
       paddingHorizontal: spacing.md,
+    },
+    todayButton: {
+      alignItems: 'center',
+      backgroundColor: colors.primary,
+      borderRadius: commerceRadius.full,
+      justifyContent: 'center',
+      minHeight: 40,
+      paddingHorizontal: spacing.md,
+    },
+    todayButtonText: {
+      color: colors.textInverse,
+      fontWeight: '800',
     },
     calendarToggleIcon: {
       color: colors.textSecondary,

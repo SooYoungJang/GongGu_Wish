@@ -3,6 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CalendarScreen, filterGroupBuysByActivity } from '../CalendarScreen';
+import { CALENDAR_CARD_HEIGHT } from '../../components/calendar/CalendarDateRow';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { Pressable } from 'react-native';
 import { spacing } from '../../design/tokens';
@@ -278,6 +279,25 @@ describe('CalendarScreen', () => {
     const now = new Date();
     expect(text).toContain(`${now.getFullYear()}년 ${now.getMonth() + 1}월`);
     expect(text).toContain('오늘');
+  });
+
+  it('renders a top today button and scrolls to the current date row', () => {
+    const renderer = renderCalendar({
+      initialDate: '2026-01-15',
+    });
+    const todayButton = renderer.root.findByProps({
+      testID: 'calendar-today-button',
+    });
+
+    listMock.scrollToIndex.mockClear();
+    act(() => todayButton.props.onPress());
+
+    expect(todayButton.props.accessibilityLabel).toBe('오늘로 이동');
+    expect(listMock.scrollToIndex).toHaveBeenCalledWith({
+      animated: true,
+      index: expect.any(Number),
+      viewPosition: 0,
+    });
   });
 
   it('keeps the calendar picker closed by default and opens it from the year-month button', () => {
@@ -587,6 +607,9 @@ describe('CalendarScreen', () => {
 
     expect(dateRow).toBeDefined();
     expect(carousel.props.horizontal).toBe(true);
+    expect(carousel.props.style).toMatchObject({
+      height: CALENDAR_CARD_HEIGHT,
+    });
     expect(text).toContain('오늘의 딜');
     expect(text).toContain('뷰티');
     expect(text).toContain('@ daily_deal');
