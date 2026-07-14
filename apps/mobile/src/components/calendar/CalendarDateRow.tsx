@@ -12,8 +12,9 @@ import { SText } from '../ui/SText';
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 const CALENDAR_CARD_WIDTH = 156;
+export const CALENDAR_CARD_HEIGHT = 256;
 
-export const CALENDAR_DATE_SECTION_HEIGHT = 280;
+export const CALENDAR_DATE_SECTION_HEIGHT = 312;
 
 export type CalendarDateGroup = {
   date: Date;
@@ -247,15 +248,15 @@ function makeStyles(colors: ColorPalette) {
     },
     dealsCarousel: {
       flexGrow: 0,
-      height: 230,
+      height: CALENDAR_CARD_HEIGHT,
     },
     dealsCarouselContent: {
       paddingRight: spacing.lg,
     },
     calendarDealCard: {
-      width: CALENDAR_CARD_WIDTH,
-      height: 230,
+      height: CALENDAR_CARD_HEIGHT,
       marginRight: spacing.md,
+      width: CALENDAR_CARD_WIDTH,
     },
     emptyDateSection: {
       alignItems: 'center',
@@ -264,7 +265,7 @@ function makeStyles(colors: ColorPalette) {
       borderCurve: 'continuous',
       borderRadius: commerceRadius.lg,
       borderWidth: 1,
-      height: 220,
+      height: CALENDAR_CARD_HEIGHT,
       justifyContent: 'center',
       padding: spacing.lg,
     },

@@ -1,0 +1,33 @@
+appId: com.gonggu.wish
+---
+# Calendar regression flow for the fixed header, Today jump, and card viewport.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: 'home-calendar-open'
+    timeout: 60000
+- tapOn:
+    id: 'home-calendar-open'
+- waitForAnimationToEnd
+- assertVisible:
+    id: 'calendar-today-button'
+- takeScreenshot: calendar-today-initial
+- tapOn:
+    id: 'calendar-today-button'
+- waitForAnimationToEnd
+- assertVisible:
+    id: 'calendar-today-button'
+- takeScreenshot: calendar-today-after-jump
+- tapOn:
+    id: 'calendar-month-toggle'
+- waitForAnimationToEnd
+- assertVisible:
+    id: 'calendar-picker-modal'
+- takeScreenshot: calendar-picker-open
+- tapOn:
+    text: '닫기'
+- waitForAnimationToEnd
+- assertNotVisible:
+    id: 'calendar-picker-modal'

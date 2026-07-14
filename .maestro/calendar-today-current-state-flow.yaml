@@ -1,0 +1,22 @@
+appId: com.gonggu.wish
+---
+# Run while CalendarScreen is already open; avoids dev-client relaunch latency.
+- assertVisible:
+    id: 'calendar-today-button'
+- takeScreenshot: calendar-current-today-before
+- tapOn:
+    id: 'calendar-today-button'
+- waitForAnimationToEnd
+- assertVisible:
+    id: 'calendar-today-button'
+- tapOn:
+    id: 'calendar-month-toggle'
+- waitForAnimationToEnd
+- assertVisible:
+    id: 'calendar-picker-modal'
+- takeScreenshot: calendar-current-picker
+- tapOn:
+    text: '닫기'
+- waitForAnimationToEnd
+- assertNotVisible:
+    id: 'calendar-picker-modal'
