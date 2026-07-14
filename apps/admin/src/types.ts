@@ -93,6 +93,21 @@ export type AppUser = {
   status: string;
 };
 
+export type PushNotificationInput = {
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+  userIds?: string[];
+};
+
+export type PushNotificationResult = {
+  provider: "expo";
+  targeted: number;
+  sent: number;
+  failed: number;
+  invalidTokensRemoved: number;
+};
+
 export type ListResponse<T> = {
   items: T[];
   total: number;

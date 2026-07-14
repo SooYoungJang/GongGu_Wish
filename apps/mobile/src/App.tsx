@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
-import { requestNotificationPermissions } from './services/notifications';
+import { registerForPushNotifications, requestNotificationPermissions } from './services/notifications';
 import { BackButton } from './components/BackButton';
 import { getCommerceColors } from './design/commerce';
 
@@ -38,7 +38,7 @@ import { SearchScreen } from './screens/SearchScreen';
 import { ReelsScreen } from './screens/ReelsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 type RootStackWithTabs = RootStackParamList & {
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
@@ -255,6 +255,9 @@ LogBox.ignoreLogs(['Text strings must be rendered within a <Text> component']);
  */
 function ThemedNavigationContainer({ children }: { children: React.ReactNode }) {
   const { colors, isDark } = useTheme();
+  const { user, session, isLoading: authLoading } = useAuth();
+  const userId = user?.id;
+  const accessToken = session?.access_token;
   const bg = colors.bg;
 
   useEffect(() => {
@@ -266,6 +269,13 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
       // permission request is best-effort; user can enable later in settings
     });
   }, []);
+
+  useEffect(() => {
+    if (authLoading || !userId || !accessToken) return;
+    registerForPushNotifications(accessToken).catch(() => {
+      // push registration is best-effort; delivery can be enabled again on next launch
+    });
+  }, [accessToken, authLoading, userId]);
 
   const navTheme = React.useMemo(() => {
     const base = isDark ? DarkTheme : DefaultTheme;

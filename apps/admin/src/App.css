@@ -311,6 +311,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .search-input { width: 240px; }
 .checkbox-field { display: inline-flex; align-items: center; gap: 8px; }
 .monospace { font-family: var(--mono); font-size: 12px; }
+.push-notification-panel { max-width: 760px; }
+.push-notification-panel__data { margin-top: 12px; }
+.push-notification-panel__hint { margin: 10px 0 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.push-notification-panel__hint code { font-family: var(--mono); color: var(--ink-2); }
+.push-notification-panel__result { margin: 12px 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--green-soft); color: var(--green); font-size: 13px; font-weight: 600; line-height: 1.5; }
+.push-notification-panel__actions { justify-content: flex-end; }
 .auto-field {
   display: grid;
   align-content: center;
