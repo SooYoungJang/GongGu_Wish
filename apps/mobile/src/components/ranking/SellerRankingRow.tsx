@@ -1,17 +1,20 @@
-import { useCallback, useMemo } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useCallback, useMemo } from "react";
+import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 
-import { SText } from '../ui/SText';
-import { spacing } from '../../design/tokens';
-import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
-import { useCommerceTheme } from '../../design/useCommerceTheme';
-import type { SellerRanking } from '../../features/ranking/types';
-import { formatCompactCount } from '../../features/ranking/types';
-import { FollowButton } from './FollowButton';
-import { RankBadge } from './RankBadge';
-import { RankingTrendBadge } from './RankingTrendBadge';
-import { ThumbnailStrip } from './ThumbnailStrip';
-import { formatPriceKrw } from '../../utils/price';
+import { SText } from "../ui/SText";
+import { PriceText } from "../ui/PriceText";
+import { spacing } from "../../design/tokens";
+import {
+  commerceRadius,
+  type CommerceColorPalette,
+} from "../../design/commerce";
+import { useCommerceTheme } from "../../design/useCommerceTheme";
+import type { SellerRanking } from "../../features/ranking/types";
+import { formatCompactCount } from "../../features/ranking/types";
+import { FollowButton } from "./FollowButton";
+import { RankBadge } from "./RankBadge";
+import { RankingTrendBadge } from "./RankingTrendBadge";
+import { ThumbnailStrip } from "./ThumbnailStrip";
 
 export interface SellerRankingRowProps {
   item: SellerRanking;
@@ -19,20 +22,28 @@ export interface SellerRankingRowProps {
   onToggleFollow: (item: SellerRanking) => void;
 }
 
-export function SellerRankingRow({ item, onPress, onToggleFollow }: SellerRankingRowProps) {
+export function SellerRankingRow({
+  item,
+  onPress,
+  onToggleFollow,
+}: SellerRankingRowProps) {
   const { colors, isDark } = useCommerceTheme();
   const { width } = useWindowDimensions();
   const s = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
   const compact = width <= 360;
   const thumbnailSize = compact ? 64 : 72;
-  const viewCount = item.followerCount == null ? '-' : formatCompactCount(item.followerCount);
+  const viewCount =
+    item.followerCount == null ? "-" : formatCompactCount(item.followerCount);
   const savedCount = formatCompactCount(item.activeDealCount);
-  const popularityScore = item.trustScore == null ? null : Math.round(item.trustScore);
-  const price = formatPriceKrw(item.priceKrw) ?? '가격 미정';
+  const popularityScore =
+    item.trustScore == null ? null : Math.round(item.trustScore);
   const accessibilityLabel = `${item.rank}위 ${item.displayName}, 조회 ${viewCount}, 저장 ${savedCount}`;
 
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
-  const handleToggleFollow = useCallback(() => onToggleFollow(item), [item, onToggleFollow]);
+  const handleToggleFollow = useCallback(
+    () => onToggleFollow(item),
+    [item, onToggleFollow],
+  );
 
   return (
     <View testID={`ranking-row-${item.rank}`} style={[s.row, s.cardRow]}>
@@ -49,9 +60,18 @@ export function SellerRankingRow({ item, onPress, onToggleFollow }: SellerRankin
         </View>
 
         {item.thumbnails.length > 0 ? (
-          <ThumbnailStrip maxVisible={1} size={thumbnailSize} thumbnails={item.thumbnails} />
+          <ThumbnailStrip
+            maxVisible={1}
+            size={thumbnailSize}
+            thumbnails={item.thumbnails}
+          />
         ) : (
-          <View style={[s.thumbnailFallback, { height: thumbnailSize, width: thumbnailSize }]}>
+          <View
+            style={[
+              s.thumbnailFallback,
+              { height: thumbnailSize, width: thumbnailSize },
+            ]}
+          >
             <SText variant="caption" style={s.thumbnailFallbackText}>
               {item.displayName.charAt(0)}
             </SText>
@@ -63,9 +83,7 @@ export function SellerRankingRow({ item, onPress, onToggleFollow }: SellerRankin
             {item.displayName}
           </SText>
 
-          <SText variant="caption" style={s.price} numberOfLines={1}>
-            {price}
-          </SText>
+          <PriceText priceKrw={item.priceKrw} style={s.price} />
 
           <SText variant="caption" style={s.username} numberOfLines={1}>
             @{item.username}
@@ -84,7 +102,11 @@ export function SellerRankingRow({ item, onPress, onToggleFollow }: SellerRankin
       </Pressable>
 
       <View style={s.actionColumn}>
-        <FollowButton isFollowing={item.isFollowing} sellerName={item.displayName} onFollow={handleToggleFollow} />
+        <FollowButton
+          isFollowing={item.isFollowing}
+          sellerName={item.displayName}
+          onFollow={handleToggleFollow}
+        />
       </View>
     </View>
   );
@@ -93,19 +115,19 @@ export function SellerRankingRow({ item, onPress, onToggleFollow }: SellerRankin
 function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
   return StyleSheet.create({
     actionColumn: {
-      alignItems: 'flex-end',
-      justifyContent: 'center',
+      alignItems: "flex-end",
+      justifyContent: "center",
     },
     cardRow: {
       backgroundColor: colors.panelBg,
-      borderCurve: 'continuous',
+      borderCurve: "continuous",
       borderColor: colors.borderLight,
       borderRadius: commerceRadius.lg,
       borderWidth: 1,
       elevation: 1,
       marginBottom: spacing.sm,
       minHeight: 122,
-      shadowColor: '#000000',
+      shadowColor: "#000000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: isDark ? 0.08 : 0.04,
       shadowRadius: 8,
@@ -113,45 +135,43 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
     infoColumn: {
       flex: 1,
       gap: spacing.xxs,
-      justifyContent: 'center',
+      justifyContent: "center",
       minWidth: 0,
     },
     mainAction: {
-      alignItems: 'center',
+      alignItems: "center",
       flex: 1,
-      flexDirection: 'row',
+      flexDirection: "row",
       gap: spacing.sm,
       minWidth: 0,
     },
     metricText: {
       color: colors.muted,
       fontSize: 11,
-      fontWeight: '700',
+      fontWeight: "700",
       lineHeight: 16,
     },
     popularityText: {
       color: colors.accent,
       fontSize: 11,
-      fontWeight: '900',
+      fontWeight: "900",
       lineHeight: 16,
     },
     price: {
-      color: colors.accent,
       fontSize: 12,
-      fontWeight: '900',
       lineHeight: 17,
     },
     pressed: {
       opacity: 0.72,
     },
     rankColumn: {
-      alignItems: 'center',
+      alignItems: "center",
       gap: spacing.xs,
       width: 34,
     },
     row: {
-      alignItems: 'center',
-      flexDirection: 'row',
+      alignItems: "center",
+      flexDirection: "row",
       gap: spacing.sm,
       paddingHorizontal: spacing.sm,
       paddingVertical: spacing.md,
@@ -159,28 +179,28 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
     sellerName: {
       color: colors.text,
       fontSize: 15,
-      fontWeight: '900',
+      fontWeight: "900",
       lineHeight: 20,
       minWidth: 0,
     },
     thumbnailFallback: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.softBg,
       borderColor: colors.borderLight,
-      borderCurve: 'continuous',
+      borderCurve: "continuous",
       borderRadius: commerceRadius.sm,
       borderWidth: 1,
-      justifyContent: 'center',
+      justifyContent: "center",
     },
     thumbnailFallbackText: {
       color: colors.muted,
       fontSize: 18,
-      fontWeight: '900',
+      fontWeight: "900",
     },
     username: {
       color: colors.weak,
       fontSize: 11,
-      fontWeight: '700',
+      fontWeight: "700",
       lineHeight: 16,
     },
   });

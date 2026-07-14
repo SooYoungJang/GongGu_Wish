@@ -3,12 +3,15 @@ import {
   normalizeHomeBannerBoolean,
   normalizeHomeBannerDate,
   normalizePriceKrw,
+  normalizePricePatch,
   validateHomeBannerSchedule,
 } from "./commerceFields.ts";
 
 function assertEquals(actual: unknown, expected: unknown) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(`Expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}.`);
+    throw new Error(
+      `Expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}.`,
+    );
   }
 }
 
@@ -16,7 +19,10 @@ function assertThrows(callback: () => unknown, message?: string) {
   try {
     callback();
   } catch (error) {
-    if (message && (!(error instanceof Error) || !error.message.includes(message))) {
+    if (
+      message &&
+      (!(error instanceof Error) || !error.message.includes(message))
+    ) {
       throw new Error(`Expected error containing ${JSON.stringify(message)}.`);
     }
     return;
@@ -43,8 +49,27 @@ Deno.test("normalizes optional KRW prices", () => {
   assertEquals(normalizePriceKrw(null), null);
 });
 
+Deno.test(
+  "accepts both admin and database price field names for a patch",
+  () => {
+    assertEquals(normalizePricePatch({ priceKrw: "39,000" }), {
+      price_krw: 39000,
+    });
+    assertEquals(normalizePricePatch({ price_krw: 25900 }), {
+      price_krw: 25900,
+    });
+    assertEquals(normalizePricePatch({ summary: "unchanged" }), {});
+  },
+);
+
 Deno.test("rejects invalid KRW prices", () => {
-  for (const value of [-1, 1.5, 2_147_483_648, Number.MAX_SAFE_INTEGER + 1, "가격 미정"]) {
+  for (const value of [
+    -1,
+    1.5,
+    2_147_483_648,
+    Number.MAX_SAFE_INTEGER + 1,
+    "가격 미정",
+  ]) {
     assertThrows(() => normalizePriceKrw(value));
   }
 });
@@ -65,37 +90,45 @@ Deno.test("normalizes strict date-only banner values", () => {
   }
 });
 
-Deno.test("requires an inclusive valid range when home banner is enabled", () => {
-  validateHomeBannerSchedule({
-    isHomeBanner: true,
-    startDate: "2026-07-12",
-    endDate: "2026-07-12",
-  });
-
-  for (const schedule of [
-    { isHomeBanner: true, startDate: null, endDate: "2026-07-12" },
-    { isHomeBanner: true, startDate: "2026-07-12", endDate: null },
-    { isHomeBanner: true, startDate: "2026-07-13", endDate: "2026-07-12" },
-  ]) {
-    assertThrows(() => validateHomeBannerSchedule(schedule));
-  }
-});
-
-Deno.test("merges a partial banner patch with the existing schedule before validation", () => {
-  assertEquals(
-    mergeHomeBannerSchedule(
-      { endDate: "2026-07-20" },
-      { isHomeBanner: true, startDate: "2026-07-12", endDate: "2026-07-19" },
-    ),
-    {
+Deno.test(
+  "requires an inclusive valid range when home banner is enabled",
+  () => {
+    validateHomeBannerSchedule({
       isHomeBanner: true,
       startDate: "2026-07-12",
-      endDate: "2026-07-20",
-    },
-  );
+      endDate: "2026-07-12",
+    });
 
-  assertThrows(() => mergeHomeBannerSchedule(
-    { startDate: "2026-07-21" },
-    { isHomeBanner: true, startDate: "2026-07-12", endDate: "2026-07-19" },
-  ));
-});
+    for (const schedule of [
+      { isHomeBanner: true, startDate: null, endDate: "2026-07-12" },
+      { isHomeBanner: true, startDate: "2026-07-12", endDate: null },
+      { isHomeBanner: true, startDate: "2026-07-13", endDate: "2026-07-12" },
+    ]) {
+      assertThrows(() => validateHomeBannerSchedule(schedule));
+    }
+  },
+);
+
+Deno.test(
+  "merges a partial banner patch with the existing schedule before validation",
+  () => {
+    assertEquals(
+      mergeHomeBannerSchedule(
+        { endDate: "2026-07-20" },
+        { isHomeBanner: true, startDate: "2026-07-12", endDate: "2026-07-19" },
+      ),
+      {
+        isHomeBanner: true,
+        startDate: "2026-07-12",
+        endDate: "2026-07-20",
+      },
+    );
+
+    assertThrows(() =>
+      mergeHomeBannerSchedule(
+        { startDate: "2026-07-21" },
+        { isHomeBanner: true, startDate: "2026-07-12", endDate: "2026-07-19" },
+      ),
+    );
+  },
+);

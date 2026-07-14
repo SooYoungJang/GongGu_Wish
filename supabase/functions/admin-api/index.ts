@@ -5,23 +5,29 @@
 // Invoke: POST /functions/v1/admin-api  { path, method, body?, params? }
 // ============================================================================
 
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import {
   mergeHomeBannerSchedule,
   normalizeHomeBannerBoolean,
   normalizeHomeBannerDate,
   normalizePriceKrw,
-} from './commerceFields.ts';
-import { normalizeMonthlyFeaturedRank } from './monthlyFeaturedRank.ts';
-import { sendPushNotification } from './pushNotifications.ts';
+  normalizePricePatch,
+} from "./commerceFields.ts";
+import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
+import { sendPushNotification } from "./pushNotifications.ts";
 
-type AdminMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
-type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DUPLICATE' | 'CANCELLED';
-type GroupBuyStatus = 'APPROVED' | 'REVIEW_REQUIRED' | 'REJECTED' | 'EXPIRED';
+type AdminMethod = "GET" | "POST" | "PATCH" | "DELETE";
+type SubmissionStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "DUPLICATE"
+  | "CANCELLED";
+type GroupBuyStatus = "APPROVED" | "REVIEW_REQUIRED" | "REJECTED" | "EXPIRED";
 type MediaAsset = {
   url: string;
-  mediaType: 'IMAGE' | 'VIDEO';
+  mediaType: "IMAGE" | "VIDEO";
   thumbnailUrl?: string | null;
 };
 
@@ -35,9 +41,9 @@ interface AdminRequest {
 type AdminClient = ReturnType<typeof createAdminClient>;
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey",
 };
 
 const SUBMISSION_SELECT = `
@@ -113,16 +119,16 @@ const USER_SELECT = `
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });
 }
 
 function getSupabaseEnv() {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
   if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
+    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set");
   }
 
   return { supabaseUrl, serviceRoleKey };
@@ -137,46 +143,58 @@ function createAdminClient() {
 }
 
 async function requireAdmin(req: Request, supabase: AdminClient) {
-  const authHeader = req.headers.get('Authorization') ?? '';
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token) {
-    return { error: json({ error: '관리자 로그인이 필요합니다.' }, 401) };
+    return { error: json({ error: "관리자 로그인이 필요합니다." }, 401) };
   }
 
   const { data, error } = await supabase.auth.getUser(token);
   const user = data.user;
   if (error || !user) {
-    return { error: json({ error: '세션이 만료되었습니다. 다시 로그인해주세요.' }, 401) };
+    return {
+      error: json(
+        { error: "세션이 만료되었습니다. 다시 로그인해주세요." },
+        401,
+      ),
+    };
   }
 
   const role = user.app_metadata?.role;
   const roles = user.app_metadata?.roles;
-  const isAdmin = role === 'admin' || (Array.isArray(roles) && roles.includes('admin'));
+  const isAdmin =
+    role === "admin" || (Array.isArray(roles) && roles.includes("admin"));
   if (!isAdmin) {
-    return { error: json({ error: '관리자 권한이 없습니다.' }, 403) };
+    return { error: json({ error: "관리자 권한이 없습니다." }, 403) };
   }
 
   return { user };
 }
 
 function str(value: unknown) {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
 }
 
 function bool(value: unknown, fallback = false) {
-  return typeof value === 'boolean' ? value : fallback;
+  return typeof value === "boolean" ? value : fallback;
 }
 
 function num(value: unknown, fallback: number | null = null) {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim()) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   }
   return fallback;
 }
 
-function listParam(params: AdminRequest['params'], key: string, fallback: number) {
+function listParam(
+  params: AdminRequest["params"],
+  key: string,
+  fallback: number,
+) {
   const value = Number(params?.[key] ?? fallback);
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
@@ -186,7 +204,12 @@ function hasOwn(body: Record<string, unknown>, key: string) {
 }
 
 function sanitizeSearch(value: string | null) {
-  return value?.replace(/[%,()]/g, ' ').replace(/\s+/g, ' ').trim() ?? null;
+  return (
+    value
+      ?.replace(/[%,()]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim() ?? null
+  );
 }
 
 function normalizeMediaItems(value: unknown): MediaAsset[] {
@@ -194,10 +217,15 @@ function normalizeMediaItems(value: unknown): MediaAsset[] {
 
   const items: MediaAsset[] = [];
   for (const item of value) {
-    if (!item || typeof item !== 'object') continue;
+    if (!item || typeof item !== "object") continue;
     const record = item as Record<string, unknown>;
     const url = str(record.url);
-    const mediaType = record.mediaType === 'VIDEO' ? 'VIDEO' : record.mediaType === 'IMAGE' ? 'IMAGE' : null;
+    const mediaType =
+      record.mediaType === "VIDEO"
+        ? "VIDEO"
+        : record.mediaType === "IMAGE"
+          ? "IMAGE"
+          : null;
     const thumbnailUrl = str(record.thumbnailUrl);
     if (!url || !mediaType) continue;
     items.push({ url, mediaType, thumbnailUrl });
@@ -208,7 +236,12 @@ function normalizeMediaItems(value: unknown): MediaAsset[] {
 
 function normalizeMediaUrls(value: unknown): string[] {
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 20)
+    ? value
+        .filter(
+          (item): item is string =>
+            typeof item === "string" && item.trim().length > 0,
+        )
+        .slice(0, 20)
     : [];
 }
 
@@ -216,82 +249,116 @@ function normalizeCommercePatch(
   body: Record<string, unknown>,
   existing: Record<string, unknown>,
 ) {
-  const patch: Record<string, unknown> = {};
-  if (hasOwn(body, 'priceKrw')) patch.price_krw = normalizePriceKrw(body.priceKrw);
+  const patch: Record<string, unknown> = normalizePricePatch(body);
 
-  const scheduleTouched = ['isHomeBanner', 'homeBannerStartDate', 'homeBannerEndDate']
-    .some((key) => hasOwn(body, key));
+  const scheduleTouched = [
+    "isHomeBanner",
+    "homeBannerStartDate",
+    "homeBannerEndDate",
+  ].some((key) => hasOwn(body, key));
   if (scheduleTouched) {
-    const merged = mergeHomeBannerSchedule(compact({
-      isHomeBanner: hasOwn(body, 'isHomeBanner')
-        ? normalizeHomeBannerBoolean(body.isHomeBanner)
-        : undefined,
-      startDate: hasOwn(body, 'homeBannerStartDate')
-        ? normalizeHomeBannerDate(body.homeBannerStartDate, 'homeBannerStartDate')
-        : undefined,
-      endDate: hasOwn(body, 'homeBannerEndDate')
-        ? normalizeHomeBannerDate(body.homeBannerEndDate, 'homeBannerEndDate')
-        : undefined,
-    }), {
-      isHomeBanner: bool(existing.is_home_banner),
-      startDate: typeof existing.home_banner_start_date === 'string'
-        ? existing.home_banner_start_date
-        : null,
-      endDate: typeof existing.home_banner_end_date === 'string'
-        ? existing.home_banner_end_date
-        : null,
-    });
+    const merged = mergeHomeBannerSchedule(
+      compact({
+        isHomeBanner: hasOwn(body, "isHomeBanner")
+          ? normalizeHomeBannerBoolean(body.isHomeBanner)
+          : undefined,
+        startDate: hasOwn(body, "homeBannerStartDate")
+          ? normalizeHomeBannerDate(
+              body.homeBannerStartDate,
+              "homeBannerStartDate",
+            )
+          : undefined,
+        endDate: hasOwn(body, "homeBannerEndDate")
+          ? normalizeHomeBannerDate(body.homeBannerEndDate, "homeBannerEndDate")
+          : undefined,
+      }),
+      {
+        isHomeBanner: bool(existing.is_home_banner),
+        startDate:
+          typeof existing.home_banner_start_date === "string"
+            ? existing.home_banner_start_date
+            : null,
+        endDate:
+          typeof existing.home_banner_end_date === "string"
+            ? existing.home_banner_end_date
+            : null,
+      },
+    );
 
-    if (hasOwn(body, 'isHomeBanner')) patch.is_home_banner = merged.isHomeBanner;
-    if (hasOwn(body, 'homeBannerStartDate')) patch.home_banner_start_date = merged.startDate;
-    if (hasOwn(body, 'homeBannerEndDate')) patch.home_banner_end_date = merged.endDate;
+    if (hasOwn(body, "isHomeBanner"))
+      patch.is_home_banner = merged.isHomeBanner;
+    if (hasOwn(body, "homeBannerStartDate"))
+      patch.home_banner_start_date = merged.startDate;
+    if (hasOwn(body, "homeBannerEndDate"))
+      patch.home_banner_end_date = merged.endDate;
   }
 
   return patch;
 }
 
-function normalizeSubmissionPatch(body: Record<string, unknown>, existing: Record<string, unknown>) {
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+function normalizeSubmissionPatch(
+  body: Record<string, unknown>,
+  existing: Record<string, unknown>,
+) {
+  const patch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
 
-  if (hasOwn(body, 'productName')) patch.product_name = str(body.productName);
-  if (hasOwn(body, 'brandName')) patch.brand_name = str(body.brandName);
-  if (hasOwn(body, 'category')) patch.category = str(body.category);
-  if (hasOwn(body, 'startDate')) patch.start_date = str(body.startDate);
-  if (hasOwn(body, 'endDate')) patch.end_date = str(body.endDate);
-  if (hasOwn(body, 'purchaseUrl')) patch.purchase_url = str(body.purchaseUrl);
-  if (hasOwn(body, 'discountInfo')) patch.discount_info = str(body.discountInfo);
-  if (hasOwn(body, 'summary')) patch.summary = str(body.summary);
-  if (hasOwn(body, 'instagramUrl')) patch.instagram_url = str(body.instagramUrl);
-  if (hasOwn(body, 'imageUrls')) patch.image_urls = normalizeMediaUrls(body.imageUrls);
-  if (hasOwn(body, 'mediaItems')) patch.media_items = normalizeMediaItems(body.mediaItems);
-  if (hasOwn(body, 'adminMemo')) patch.admin_memo = str(body.adminMemo);
+  if (hasOwn(body, "productName")) patch.product_name = str(body.productName);
+  if (hasOwn(body, "brandName")) patch.brand_name = str(body.brandName);
+  if (hasOwn(body, "category")) patch.category = str(body.category);
+  if (hasOwn(body, "startDate")) patch.start_date = str(body.startDate);
+  if (hasOwn(body, "endDate")) patch.end_date = str(body.endDate);
+  if (hasOwn(body, "purchaseUrl")) patch.purchase_url = str(body.purchaseUrl);
+  if (hasOwn(body, "discountInfo"))
+    patch.discount_info = str(body.discountInfo);
+  if (hasOwn(body, "summary")) patch.summary = str(body.summary);
+  if (hasOwn(body, "instagramUrl"))
+    patch.instagram_url = str(body.instagramUrl);
+  if (hasOwn(body, "imageUrls"))
+    patch.image_urls = normalizeMediaUrls(body.imageUrls);
+  if (hasOwn(body, "mediaItems"))
+    patch.media_items = normalizeMediaItems(body.mediaItems);
+  if (hasOwn(body, "adminMemo")) patch.admin_memo = str(body.adminMemo);
   Object.assign(patch, normalizeCommercePatch(body, existing));
 
   return patch;
 }
 
-function normalizeGroupBuyPatch(body: Record<string, unknown>, existing: Record<string, unknown>) {
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+function normalizeGroupBuyPatch(
+  body: Record<string, unknown>,
+  existing: Record<string, unknown>,
+) {
+  const patch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
 
-  if (hasOwn(body, 'productName')) patch.product_name = str(body.productName);
-  if (hasOwn(body, 'brandName')) patch.brand_name = str(body.brandName);
-  if (hasOwn(body, 'category')) patch.category = str(body.category);
-  if (hasOwn(body, 'startDate')) patch.start_date = str(body.startDate);
-  if (hasOwn(body, 'endDate')) patch.end_date = str(body.endDate);
-  if (hasOwn(body, 'purchaseUrl')) patch.purchase_url = str(body.purchaseUrl);
-  if (hasOwn(body, 'discountInfo')) patch.discount_info = str(body.discountInfo);
-  if (hasOwn(body, 'summary')) patch.summary = str(body.summary);
-  if (hasOwn(body, 'thumbnailUrl')) patch.thumbnail_url = str(body.thumbnailUrl);
-  if (hasOwn(body, 'videoUrl')) patch.video_url = str(body.videoUrl);
-  if (hasOwn(body, 'mediaUrls')) patch.media_urls = normalizeMediaUrls(body.mediaUrls);
-  if (hasOwn(body, 'mediaItems')) patch.media_items = normalizeMediaItems(body.mediaItems);
-  if (hasOwn(body, 'mediaType')) patch.media_type = str(body.mediaType);
-  if (hasOwn(body, 'confidence')) patch.confidence = num(body.confidence, 0.9);
-  if (hasOwn(body, 'status')) patch.status = str(body.status) as GroupBuyStatus;
-  if (hasOwn(body, 'isAllDay')) patch.is_all_day = bool(body.isAllDay);
-  if (hasOwn(body, 'isMonthlyFeatured')) patch.is_monthly_featured = bool(body.isMonthlyFeatured);
-  if (hasOwn(body, 'monthlyFeaturedRank')) {
-    patch.monthly_featured_rank = normalizeMonthlyFeaturedRank(body.monthlyFeaturedRank);
+  if (hasOwn(body, "productName")) patch.product_name = str(body.productName);
+  if (hasOwn(body, "brandName")) patch.brand_name = str(body.brandName);
+  if (hasOwn(body, "category")) patch.category = str(body.category);
+  if (hasOwn(body, "startDate")) patch.start_date = str(body.startDate);
+  if (hasOwn(body, "endDate")) patch.end_date = str(body.endDate);
+  if (hasOwn(body, "purchaseUrl")) patch.purchase_url = str(body.purchaseUrl);
+  if (hasOwn(body, "discountInfo"))
+    patch.discount_info = str(body.discountInfo);
+  if (hasOwn(body, "summary")) patch.summary = str(body.summary);
+  if (hasOwn(body, "thumbnailUrl"))
+    patch.thumbnail_url = str(body.thumbnailUrl);
+  if (hasOwn(body, "videoUrl")) patch.video_url = str(body.videoUrl);
+  if (hasOwn(body, "mediaUrls"))
+    patch.media_urls = normalizeMediaUrls(body.mediaUrls);
+  if (hasOwn(body, "mediaItems"))
+    patch.media_items = normalizeMediaItems(body.mediaItems);
+  if (hasOwn(body, "mediaType")) patch.media_type = str(body.mediaType);
+  if (hasOwn(body, "confidence")) patch.confidence = num(body.confidence, 0.9);
+  if (hasOwn(body, "status")) patch.status = str(body.status) as GroupBuyStatus;
+  if (hasOwn(body, "isAllDay")) patch.is_all_day = bool(body.isAllDay);
+  if (hasOwn(body, "isMonthlyFeatured"))
+    patch.is_monthly_featured = bool(body.isMonthlyFeatured);
+  if (hasOwn(body, "monthlyFeaturedRank")) {
+    patch.monthly_featured_rank = normalizeMonthlyFeaturedRank(
+      body.monthlyFeaturedRank,
+    );
   }
   Object.assign(patch, normalizeCommercePatch(body, existing));
 
@@ -314,7 +381,7 @@ function mapSubmission(row: Record<string, unknown>) {
     endDate: row.end_date,
     purchaseUrl: row.purchase_url,
     discountInfo: row.discount_info,
-    priceKrw: row.price_krw,
+    priceKrw: normalizePriceKrw(row.price_krw),
     summary: row.summary,
     instagramUrl: row.instagram_url,
     imageUrls: row.image_urls ?? [],
@@ -346,7 +413,7 @@ function mapGroupBuy(row: Record<string, unknown>) {
     endDate: row.end_date,
     purchaseUrl: row.purchase_url,
     discountInfo: row.discount_info,
-    priceKrw: row.price_krw,
+    priceKrw: normalizePriceKrw(row.price_krw),
     summary: row.summary,
     thumbnailUrl: row.thumbnail_url,
     videoUrl: row.video_url,
@@ -376,52 +443,66 @@ function mapUser(row: Record<string, unknown>) {
     fcmToken: row.fcm_token,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    status: row.status ?? 'ACTIVE',
+    status: row.status ?? "ACTIVE",
   };
 }
 
-async function listSubmissions(supabase: AdminClient, params: AdminRequest['params']) {
-  const page = listParam(params, 'page', 1);
-  const limit = Math.min(listParam(params, 'limit', 30), 100);
+async function listSubmissions(
+  supabase: AdminClient,
+  params: AdminRequest["params"],
+) {
+  const page = listParam(params, "page", 1);
+  const limit = Math.min(listParam(params, "limit", 30), 100);
   const start = (page - 1) * limit;
   const status = str(params?.status);
   const q = sanitizeSearch(str(params?.q));
 
   let query = supabase
-    .from('gonggu_submissions')
-    .select(SUBMISSION_SELECT, { count: 'exact' })
-    .order('created_at', { ascending: false })
+    .from("gonggu_submissions")
+    .select(SUBMISSION_SELECT, { count: "exact" })
+    .order("created_at", { ascending: false })
     .range(start, start + limit - 1);
 
-  if (status && status !== 'ALL') query = query.eq('status', status);
+  if (status && status !== "ALL") query = query.eq("status", status);
   if (q) {
-    query = query.or(`product_name.ilike.%${q}%,brand_name.ilike.%${q}%,instagram_url.ilike.%${q}%`);
+    query = query.or(
+      `product_name.ilike.%${q}%,brand_name.ilike.%${q}%,instagram_url.ilike.%${q}%`,
+    );
   }
 
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
-  return { items: (data ?? []).map((row) => mapSubmission(row)), total: count ?? 0 };
+  return {
+    items: (data ?? []).map((row) => mapSubmission(row)),
+    total: count ?? 0,
+  };
 }
 
-async function listGroupBuys(supabase: AdminClient, params: AdminRequest['params']) {
-  const page = listParam(params, 'page', 1);
-  const limit = Math.min(listParam(params, 'limit', 30), 100);
+async function listGroupBuys(
+  supabase: AdminClient,
+  params: AdminRequest["params"],
+) {
+  const page = listParam(params, "page", 1);
+  const limit = Math.min(listParam(params, "limit", 30), 100);
   const start = (page - 1) * limit;
   const status = str(params?.status);
   const q = sanitizeSearch(str(params?.q));
 
   let query = supabase
-    .from('group_buys')
-    .select(GROUP_BUY_SELECT, { count: 'exact' })
-    .order('created_at', { ascending: false })
+    .from("group_buys")
+    .select(GROUP_BUY_SELECT, { count: "exact" })
+    .order("created_at", { ascending: false })
     .range(start, start + limit - 1);
 
-  if (status && status !== 'ALL') query = query.eq('status', status);
+  if (status && status !== "ALL") query = query.eq("status", status);
   if (q) query = query.or(`product_name.ilike.%${q}%,brand_name.ilike.%${q}%`);
 
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
-  return { items: (data ?? []).map((row) => mapGroupBuy(row)), total: count ?? 0 };
+  return {
+    items: (data ?? []).map((row) => mapGroupBuy(row)),
+    total: count ?? 0,
+  };
 }
 
 async function dashboard(supabase: AdminClient) {
@@ -434,37 +515,57 @@ async function dashboard(supabase: AdminClient) {
     activeGroupBuys,
     users,
   ] = await Promise.all([
-    supabase.from('gonggu_submissions').select('id', { count: 'exact', head: true }),
-    supabase.from('gonggu_submissions').select('id', { count: 'exact', head: true }).eq('status', 'PENDING'),
-    supabase.from('gonggu_submissions').select('id', { count: 'exact', head: true }).eq('status', 'APPROVED'),
-    supabase.from('gonggu_submissions').select('id', { count: 'exact', head: true }).eq('status', 'REJECTED'),
-    supabase.from('group_buys').select('id', { count: 'exact', head: true }),
-    supabase.from('group_buys').select('id', { count: 'exact', head: true }).eq('status', 'APPROVED'),
-    supabase.from('users').select('id', { count: 'exact', head: true }),
+    supabase
+      .from("gonggu_submissions")
+      .select("id", { count: "exact", head: true }),
+    supabase
+      .from("gonggu_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "PENDING"),
+    supabase
+      .from("gonggu_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "APPROVED"),
+    supabase
+      .from("gonggu_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "REJECTED"),
+    supabase.from("group_buys").select("id", { count: "exact", head: true }),
+    supabase
+      .from("group_buys")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "APPROVED"),
+    supabase.from("users").select("id", { count: "exact", head: true }),
   ]);
 
-  for (const result of [submissions, pending, approved, rejected, groupBuys, activeGroupBuys, users]) {
+  for (const result of [
+    submissions,
+    pending,
+    approved,
+    rejected,
+    groupBuys,
+    activeGroupBuys,
+    users,
+  ]) {
     if (result.error) throw new Error(result.error.message);
   }
 
-  const [recentPending, recentUsers, recentGroupBuys, categoryDist] = await Promise.all([
-    listSubmissions(supabase, { page: 1, limit: 6, status: 'PENDING' }),
-    supabase
-      .from('users')
-      .select(USER_SELECT)
-      .order('created_at', { ascending: false })
-      .range(0, 4),
-    supabase
-      .from('group_buys')
-      .select(GROUP_BUY_SELECT)
-      .eq('status', 'APPROVED')
-      .order('created_at', { ascending: false })
-      .range(0, 4),
-    supabase
-      .from('group_buys')
-      .select('category')
-      .eq('status', 'APPROVED'),
-  ]);
+  const [recentPending, recentUsers, recentGroupBuys, categoryDist] =
+    await Promise.all([
+      listSubmissions(supabase, { page: 1, limit: 6, status: "PENDING" }),
+      supabase
+        .from("users")
+        .select(USER_SELECT)
+        .order("created_at", { ascending: false })
+        .range(0, 4),
+      supabase
+        .from("group_buys")
+        .select(GROUP_BUY_SELECT)
+        .eq("status", "APPROVED")
+        .order("created_at", { ascending: false })
+        .range(0, 4),
+      supabase.from("group_buys").select("category").eq("status", "APPROVED"),
+    ]);
 
   if (recentUsers.error) throw new Error(recentUsers.error.message);
   if (recentGroupBuys.error) throw new Error(recentGroupBuys.error.message);
@@ -473,7 +574,7 @@ async function dashboard(supabase: AdminClient) {
   const categoryCounts: Record<string, number> = {};
   for (const row of categoryDist.data ?? []) {
     const cat = (row as Record<string, unknown>).category as string | null;
-    const key = cat ?? '미지정';
+    const key = cat ?? "미지정";
     categoryCounts[key] = (categoryCounts[key] ?? 0) + 1;
   }
 
@@ -489,23 +590,29 @@ async function dashboard(supabase: AdminClient) {
     },
     pendingQueue: recentPending.items,
     recentUsers: (recentUsers.data ?? []).map((row) => mapUser(row)),
-    recentGroupBuys: (recentGroupBuys.data ?? []).map((row) => mapGroupBuy(row)),
+    recentGroupBuys: (recentGroupBuys.data ?? []).map((row) =>
+      mapGroupBuy(row),
+    ),
     categoryDistribution: categoryCounts,
   };
 }
 
-async function updateSubmission(supabase: AdminClient, id: string, body: Record<string, unknown>) {
+async function updateSubmission(
+  supabase: AdminClient,
+  id: string,
+  body: Record<string, unknown>,
+) {
   const { data: existing, error: findError } = await supabase
-    .from('gonggu_submissions')
-    .select('is_home_banner, home_banner_start_date, home_banner_end_date')
-    .eq('id', id)
+    .from("gonggu_submissions")
+    .select("is_home_banner, home_banner_start_date, home_banner_end_date")
+    .eq("id", id)
     .single();
   if (findError) throw new Error(findError.message);
 
   const { data, error } = await supabase
-    .from('gonggu_submissions')
+    .from("gonggu_submissions")
     .update(compact(normalizeSubmissionPatch(body, existing)))
-    .eq('id', id)
+    .eq("id", id)
     .select(SUBMISSION_SELECT)
     .single();
 
@@ -520,59 +627,76 @@ async function approveSubmission(
   adminId: string,
 ) {
   const { data: existing, error: findError } = await supabase
-    .from('gonggu_submissions')
+    .from("gonggu_submissions")
     .select(SUBMISSION_SELECT)
-    .eq('id', id)
+    .eq("id", id)
     .single();
 
   if (findError) throw new Error(findError.message);
-  if (!existing) throw new Error('제보를 찾을 수 없습니다.');
-  if (existing.status !== 'PENDING') {
+  if (!existing) throw new Error("제보를 찾을 수 없습니다.");
+  if (existing.status !== "PENDING") {
     throw new Error(`이미 ${existing.status} 처리된 제보입니다.`);
   }
 
   const patch = compact(normalizeSubmissionPatch(body, existing));
+  const priceTouched = hasOwn(body, "priceKrw") || hasOwn(body, "price_krw");
   const productName = str(body.productName) ?? str(existing.product_name);
   if (!productName || productName.length < 2) {
-    throw new Error('제품명을 입력해주세요.');
+    throw new Error("제품명을 입력해주세요.");
   }
 
   const groupBuyPayload = compact({
     product_name: productName,
-    brand_name: hasOwn(body, 'brandName') ? str(body.brandName) : existing.brand_name,
-    category: hasOwn(body, 'category') ? str(body.category) : existing.category,
-    start_date: hasOwn(body, 'startDate') ? str(body.startDate) : existing.start_date,
-    end_date: hasOwn(body, 'endDate') ? str(body.endDate) : existing.end_date,
-    purchase_url: hasOwn(body, 'purchaseUrl') ? str(body.purchaseUrl) : existing.purchase_url,
-    discount_info: hasOwn(body, 'discountInfo') ? str(body.discountInfo) : existing.discount_info,
-    price_krw: hasOwn(body, 'priceKrw') ? patch.price_krw : existing.price_krw,
-    summary: hasOwn(body, 'summary') ? str(body.summary) : existing.summary,
+    brand_name: hasOwn(body, "brandName")
+      ? str(body.brandName)
+      : existing.brand_name,
+    category: hasOwn(body, "category") ? str(body.category) : existing.category,
+    start_date: hasOwn(body, "startDate")
+      ? str(body.startDate)
+      : existing.start_date,
+    end_date: hasOwn(body, "endDate") ? str(body.endDate) : existing.end_date,
+    purchase_url: hasOwn(body, "purchaseUrl")
+      ? str(body.purchaseUrl)
+      : existing.purchase_url,
+    discount_info: hasOwn(body, "discountInfo")
+      ? str(body.discountInfo)
+      : existing.discount_info,
+    price_krw: priceTouched ? patch.price_krw : existing.price_krw,
+    summary: hasOwn(body, "summary") ? str(body.summary) : existing.summary,
     thumbnail_url: str(body.thumbnailUrl),
     video_url: str(body.videoUrl),
-    media_urls: hasOwn(body, 'mediaUrls') ? normalizeMediaUrls(body.mediaUrls) : [],
-    media_items: hasOwn(body, 'mediaItems') ? normalizeMediaItems(body.mediaItems) : existing.media_items,
+    media_urls: hasOwn(body, "mediaUrls")
+      ? normalizeMediaUrls(body.mediaUrls)
+      : [],
+    media_items: hasOwn(body, "mediaItems")
+      ? normalizeMediaItems(body.mediaItems)
+      : existing.media_items,
     media_type: str(body.mediaType),
-    is_all_day: hasOwn(body, 'isAllDay') ? bool(body.isAllDay) : false,
-    is_monthly_featured: hasOwn(body, 'isMonthlyFeatured') ? bool(body.isMonthlyFeatured) : false,
-    monthly_featured_rank: hasOwn(body, 'monthlyFeaturedRank')
+    is_all_day: hasOwn(body, "isAllDay") ? bool(body.isAllDay) : false,
+    is_monthly_featured: hasOwn(body, "isMonthlyFeatured")
+      ? bool(body.isMonthlyFeatured)
+      : false,
+    monthly_featured_rank: hasOwn(body, "monthlyFeaturedRank")
       ? normalizeMonthlyFeaturedRank(body.monthlyFeaturedRank)
       : null,
-    is_home_banner: hasOwn(body, 'isHomeBanner') ? patch.is_home_banner : existing.is_home_banner,
-    home_banner_start_date: hasOwn(body, 'homeBannerStartDate')
+    is_home_banner: hasOwn(body, "isHomeBanner")
+      ? patch.is_home_banner
+      : existing.is_home_banner,
+    home_banner_start_date: hasOwn(body, "homeBannerStartDate")
       ? patch.home_banner_start_date
       : existing.home_banner_start_date,
-    home_banner_end_date: hasOwn(body, 'homeBannerEndDate')
+    home_banner_end_date: hasOwn(body, "homeBannerEndDate")
       ? patch.home_banner_end_date
       : existing.home_banner_end_date,
-    source_type: 'SUBMISSION',
+    source_type: "SUBMISSION",
     submission_id: id,
-    status: 'APPROVED',
-    confidence: hasOwn(body, 'confidence') ? num(body.confidence, 0.9) : 0.9,
+    status: "APPROVED",
+    confidence: hasOwn(body, "confidence") ? num(body.confidence, 0.9) : 0.9,
     updated_at: new Date().toISOString(),
   });
 
   const { data: groupBuy, error: groupBuyError } = await supabase
-    .from('group_buys')
+    .from("group_buys")
     .insert({
       id: crypto.randomUUID(),
       ...groupBuyPayload,
@@ -584,25 +708,28 @@ async function approveSubmission(
   if (groupBuyError) throw new Error(groupBuyError.message);
 
   const { data: submission, error: submissionError } = await supabase
-    .from('gonggu_submissions')
+    .from("gonggu_submissions")
     .update({
       ...patch,
-      status: 'APPROVED',
+      status: "APPROVED",
       group_buy_id: groupBuy.id,
       reviewed_at: new Date().toISOString(),
       reviewed_by: adminId,
       admin_memo: str(body.adminMemo),
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id)
+    .eq("id", id)
     .select(SUBMISSION_SELECT)
     .single();
 
   if (submissionError) {
-    await supabase.from('group_buys').delete().eq('id', groupBuy.id);
+    await supabase.from("group_buys").delete().eq("id", groupBuy.id);
     throw new Error(submissionError.message);
   }
-  return { submission: mapSubmission(submission), groupBuy: mapGroupBuy(groupBuy) };
+  return {
+    submission: mapSubmission(submission),
+    groupBuy: mapGroupBuy(groupBuy),
+  };
 }
 
 async function rejectSubmission(
@@ -611,18 +738,18 @@ async function rejectSubmission(
   body: Record<string, unknown>,
   adminId: string,
 ) {
-  const reason = str(body.reason) ?? '관리자 반려';
+  const reason = str(body.reason) ?? "관리자 반려";
   const { data, error } = await supabase
-    .from('gonggu_submissions')
+    .from("gonggu_submissions")
     .update({
-      status: 'REJECTED',
+      status: "REJECTED",
       admin_memo: reason,
       reviewed_at: new Date().toISOString(),
       reviewed_by: adminId,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id)
-    .eq('status', 'PENDING')
+    .eq("id", id)
+    .eq("status", "PENDING")
     .select(SUBMISSION_SELECT)
     .single();
 
@@ -630,16 +757,19 @@ async function rejectSubmission(
   return mapSubmission(data);
 }
 
-async function listUsers(supabase: AdminClient, params: AdminRequest['params']) {
-  const page = listParam(params, 'page', 1);
-  const limit = Math.min(listParam(params, 'limit', 30), 100);
+async function listUsers(
+  supabase: AdminClient,
+  params: AdminRequest["params"],
+) {
+  const page = listParam(params, "page", 1);
+  const limit = Math.min(listParam(params, "limit", 30), 100);
   const start = (page - 1) * limit;
   const q = sanitizeSearch(str(params?.q));
 
   let query = supabase
-    .from('users')
-    .select(USER_SELECT, { count: 'exact' })
-    .order('created_at', { ascending: false })
+    .from("users")
+    .select(USER_SELECT, { count: "exact" })
+    .order("created_at", { ascending: false })
     .range(start, start + limit - 1);
 
   if (q) query = query.or(`email.ilike.%${q}%,nickname.ilike.%${q}%`);
@@ -649,22 +779,28 @@ async function listUsers(supabase: AdminClient, params: AdminRequest['params']) 
   return { items: (data ?? []).map((row) => mapUser(row)), total: count ?? 0 };
 }
 
-async function updateUser(supabase: AdminClient, id: string, body: Record<string, unknown>) {
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (hasOwn(body, 'nickname')) patch.nickname = str(body.nickname);
-  if (hasOwn(body, 'fcmToken')) patch.fcm_token = str(body.fcmToken);
-  if (hasOwn(body, 'status')) {
+async function updateUser(
+  supabase: AdminClient,
+  id: string,
+  body: Record<string, unknown>,
+) {
+  const patch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (hasOwn(body, "nickname")) patch.nickname = str(body.nickname);
+  if (hasOwn(body, "fcmToken")) patch.fcm_token = str(body.fcmToken);
+  if (hasOwn(body, "status")) {
     const status = str(body.status);
-    if (status && !['ACTIVE', 'SUSPENDED', 'BANNED'].includes(status)) {
-      throw new Error('유효하지 않은 상태입니다.');
+    if (status && !["ACTIVE", "SUSPENDED", "BANNED"].includes(status)) {
+      throw new Error("유효하지 않은 상태입니다.");
     }
-    patch.status = status ?? 'ACTIVE';
+    patch.status = status ?? "ACTIVE";
   }
 
   const { data, error } = await supabase
-    .from('users')
+    .from("users")
     .update(compact(patch))
-    .eq('id', id)
+    .eq("id", id)
     .select(USER_SELECT)
     .single();
 
@@ -716,16 +852,22 @@ function mapCdnRow(row: Record<string, unknown>): CdnRefreshStatusRow {
   };
 }
 
-async function listCdnRefreshStatus(supabase: AdminClient, params: AdminRequest["params"]) {
+async function listCdnRefreshStatus(
+  supabase: AdminClient,
+  params: AdminRequest["params"],
+) {
   const limitCount = listParam(params, "limit", 50);
   const refreshWindowHours = num(params?.refreshWindowHours, 1) ?? 1;
   const statusFilter = str(params?.status) ?? null;
 
-  const { data, error } = await supabase.rpc("get_instagram_cdn_refresh_status", {
-    limit_count: limitCount,
-    refresh_window_hours: refreshWindowHours,
-    status_filter: statusFilter,
-  });
+  const { data, error } = await supabase.rpc(
+    "get_instagram_cdn_refresh_status",
+    {
+      limit_count: limitCount,
+      refresh_window_hours: refreshWindowHours,
+      status_filter: statusFilter,
+    },
+  );
   if (error) throw new Error(error.message);
 
   const rows = (data ?? []) as Record<string, unknown>[];
@@ -771,28 +913,36 @@ async function triggerCdnRefresh(body: Record<string, unknown>) {
 
   const requestPayload: Record<string, unknown> =
     mode === "batch"
-      ? { mode: "batch", limit: num(body.limit, 20), refreshWindowHours: num(body.refreshWindowHours, 1) }
+      ? {
+          mode: "batch",
+          limit: num(body.limit, 20),
+          refreshWindowHours: num(body.refreshWindowHours, 1),
+        }
       : { groupBuyId, force: bool(body.force, false) };
 
   if (mode === "single" && !groupBuyId) {
     throw new Error("groupBuyId is required for single refresh.");
   }
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/refresh-instagram-media`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${serviceRoleKey}`,
-      "apikey": serviceRoleKey,
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/refresh-instagram-media`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: serviceRoleKey,
+      },
+      body: JSON.stringify(requestPayload),
     },
-    body: JSON.stringify(requestPayload),
-  });
+  );
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const message = payload && typeof payload === "object" && "error" in payload
-      ? String((payload as { error: unknown }).error)
-      : `CDN refresh failed: ${response.status}`;
+    const message =
+      payload && typeof payload === "object" && "error" in payload
+        ? String((payload as { error: unknown }).error)
+        : `CDN refresh failed: ${response.status}`;
     throw new Error(message);
   }
 
@@ -802,25 +952,26 @@ async function triggerCdnRefresh(body: Record<string, unknown>) {
 async function lookupHiker(body: Record<string, unknown>) {
   const url = str(body.url);
   if (!url) {
-    throw new Error('인스타그램 URL을 입력해주세요.');
+    throw new Error("인스타그램 URL을 입력해주세요.");
   }
 
   const { supabaseUrl, serviceRoleKey } = getSupabaseEnv();
   const response = await fetch(`${supabaseUrl}/functions/v1/hiker-lookup`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${serviceRoleKey}`,
-      'apikey': serviceRoleKey,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceRoleKey}`,
+      apikey: serviceRoleKey,
     },
     body: JSON.stringify({ url }),
   });
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const message = payload && typeof payload === 'object' && 'error' in payload
-      ? String((payload as { error: unknown }).error)
-      : `Hiker lookup failed: ${response.status}`;
+    const message =
+      payload && typeof payload === "object" && "error" in payload
+        ? String((payload as { error: unknown }).error)
+        : `Hiker lookup failed: ${response.status}`;
     throw new Error(message);
   }
 
@@ -831,49 +982,61 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   const supabase = createAdminClient();
   const { path, method, body = {}, params } = req;
 
-  if (path === '/admin/dashboard' && method === 'GET') {
+  if (path === "/admin/dashboard" && method === "GET") {
     return dashboard(supabase);
   }
-  if (path === '/admin/hiker-lookup' && method === 'POST') {
+  if (path === "/admin/hiker-lookup" && method === "POST") {
     return lookupHiker(body);
   }
-  if (path === '/admin/submissions' && method === 'GET') {
+  if (path === "/admin/submissions" && method === "GET") {
     return listSubmissions(supabase, params);
   }
-  if (path.startsWith('/admin/submissions/') && path.endsWith('/approve') && method === 'POST') {
-    return approveSubmission(supabase, path.split('/')[3], body, adminId);
+  if (
+    path.startsWith("/admin/submissions/") &&
+    path.endsWith("/approve") &&
+    method === "POST"
+  ) {
+    return approveSubmission(supabase, path.split("/")[3], body, adminId);
   }
-  if (path.startsWith('/admin/submissions/') && path.endsWith('/reject') && method === 'POST') {
-    return rejectSubmission(supabase, path.split('/')[3], body, adminId);
+  if (
+    path.startsWith("/admin/submissions/") &&
+    path.endsWith("/reject") &&
+    method === "POST"
+  ) {
+    return rejectSubmission(supabase, path.split("/")[3], body, adminId);
   }
-  if (path.startsWith('/admin/submissions/') && method === 'PATCH') {
-    return updateSubmission(supabase, path.replace('/admin/submissions/', ''), body);
+  if (path.startsWith("/admin/submissions/") && method === "PATCH") {
+    return updateSubmission(
+      supabase,
+      path.replace("/admin/submissions/", ""),
+      body,
+    );
   }
-  if (path === '/admin/group-buys' && method === 'GET') {
+  if (path === "/admin/group-buys" && method === "GET") {
     return listGroupBuys(supabase, params);
   }
-  if (path === '/admin/users' && method === 'GET') {
+  if (path === "/admin/users" && method === "GET") {
     return listUsers(supabase, params);
   }
-  if (path.startsWith('/admin/users/') && method === 'PATCH') {
-    return updateUser(supabase, path.replace('/admin/users/', ''), body);
+  if (path.startsWith("/admin/users/") && method === "PATCH") {
+    return updateUser(supabase, path.replace("/admin/users/", ""), body);
   }
-  if (path === '/admin/notifications' && method === 'POST') {
+  if (path === "/admin/notifications" && method === "POST") {
     return sendPushNotification(supabase, body);
   }
-  if (path.startsWith('/admin/group-buys/') && method === 'PATCH') {
-    const id = path.replace('/admin/group-buys/', '');
+  if (path.startsWith("/admin/group-buys/") && method === "PATCH") {
+    const id = path.replace("/admin/group-buys/", "");
     const { data: existing, error: findError } = await supabase
-      .from('group_buys')
-      .select('is_home_banner, home_banner_start_date, home_banner_end_date')
-      .eq('id', id)
+      .from("group_buys")
+      .select("is_home_banner, home_banner_start_date, home_banner_end_date")
+      .eq("id", id)
       .single();
     if (findError) throw new Error(findError.message);
 
     const { data, error } = await supabase
-      .from('group_buys')
+      .from("group_buys")
       .update(compact(normalizeGroupBuyPatch(body, existing)))
-      .eq('id', id)
+      .eq("id", id)
       .select(GROUP_BUY_SELECT)
       .single();
     if (error) throw new Error(error.message);
@@ -890,35 +1053,36 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
 }
 
 serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
   }
 
-  if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405);
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
   }
 
   let adminReq: AdminRequest;
   try {
-    adminReq = await req.json() as AdminRequest;
+    adminReq = (await req.json()) as AdminRequest;
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400);
+    return json({ error: "Invalid JSON body" }, 400);
   }
 
   if (!adminReq.path || !adminReq.method) {
-    return json({ error: 'path and method are required' }, 400);
+    return json({ error: "path and method are required" }, 400);
   }
 
   try {
     const supabase = createAdminClient();
     const admin = await requireAdmin(req, supabase);
-    if ('error' in admin) return admin.error;
+    if ("error" in admin) return admin.error;
 
     const data = await handleAdminRequest(adminReq, admin.user.id);
     return json({ data });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    console.error('[admin-api] Error:', message);
+    const message =
+      err instanceof Error ? err.message : "Internal server error";
+    console.error("[admin-api] Error:", message);
     return json({ error: message }, 500);
   }
 });

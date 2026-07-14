@@ -6,7 +6,7 @@ import {
   useState,
   type Dispatch,
   type SetStateAction,
-} from 'react';
+} from "react";
 import {
   ActivityIndicator,
   Image,
@@ -21,36 +21,37 @@ import {
   type ViewProps,
   useWindowDimensions,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
 
-import { SText } from '../components/ui/SText';
-import { SearchGlyph } from '../components/ui/LineGlyphs';
-import { DealCard } from '../components/DealCard';
-import { CATEGORIES } from '../components/home/CategoryRow';
-import { categoryForGroupBuy } from '../components/home/DealCardGrid';
-import { WeeklyCalendarStrip } from '../components/home/WeeklyCalendarStrip';
-import { fallbackGroupBuys, fetchGroupBuys } from '../api';
-import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
-import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
-import { borderRadius, spacing } from '../design/tokens';
-import type { CategoryColorName } from '../design/tokens';
-import { isGroupBuyActiveOnDate } from '../utils/groupBuyDates';
-import { formatPriceKrw, selectHomeBannerItems } from '../utils/homeBanner';
-import { useCommerceTheme } from '../design/useCommerceTheme';
-import type { CommerceColorPalette } from '../design/commerce';
-import type { GroupBuy, HomeScreenProps } from '../types';
-import { useTabReselect } from '../hooks/useTabReselect';
-import promoScrimSource from '../assets/promo-scrim.png';
+import { SText } from "../components/ui/SText";
+import { PriceText } from "../components/ui/PriceText";
+import { SearchGlyph } from "../components/ui/LineGlyphs";
+import { DealCard } from "../components/DealCard";
+import { CATEGORIES } from "../components/home/CategoryRow";
+import { categoryForGroupBuy } from "../components/home/DealCardGrid";
+import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
+import { fallbackGroupBuys, fetchGroupBuys } from "../api";
+import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
+import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
+import { borderRadius, spacing } from "../design/tokens";
+import type { CategoryColorName } from "../design/tokens";
+import { isGroupBuyActiveOnDate } from "../utils/groupBuyDates";
+import { formatPriceKrw, selectHomeBannerItems } from "../utils/homeBanner";
+import { useCommerceTheme } from "../design/useCommerceTheme";
+import type { CommerceColorPalette } from "../design/commerce";
+import type { GroupBuy, HomeScreenProps } from "../types";
+import { useTabReselect } from "../hooks/useTabReselect";
+import promoScrimSource from "../assets/promo-scrim.png";
 
 type HomeAction = () => void;
 type DealAction = Dispatch<GroupBuy>;
-type HomeCategory = 'all' | CategoryColorName;
+type HomeCategory = "all" | CategoryColorName;
 
 const HOME_CATEGORY_OPTIONS: Array<{ key: HomeCategory; label: string }> = [
-  { key: 'all', label: '전체' },
+  { key: "all", label: "전체" },
   ...CATEGORIES.map(({ key, label }) => ({ key, label })),
 ];
 
@@ -76,12 +77,14 @@ type PromoStatusCopy = {
   accessibilityLabel: string;
   detailLabel?: string;
   secondaryLabel?: string;
+  priceKrw?: number | null;
+  pricePlacement?: "detail" | "secondary";
 };
 
 function getPromoVisual(item: GroupBuy) {
   const firstMedia = item.mediaItems?.[0];
   const firstMediaVisual =
-    firstMedia?.mediaType === 'IMAGE'
+    firstMedia?.mediaType === "IMAGE"
       ? firstMedia.url.trim() || firstMedia.thumbnailUrl?.trim()
       : firstMedia?.thumbnailUrl?.trim();
   if (firstMediaVisual) return firstMediaVisual;
@@ -90,7 +93,7 @@ function getPromoVisual(item: GroupBuy) {
   if (coverThumbnail) return coverThumbnail;
 
   const firstImage = item.mediaItems?.find(
-    (media) => media.mediaType === 'IMAGE' && media.url.trim(),
+    (media) => media.mediaType === "IMAGE" && media.url.trim(),
   );
   if (firstImage) return firstImage.url.trim();
 
@@ -105,7 +108,7 @@ function getPromoVisual(item: GroupBuy) {
 
   return (
     firstPoster?.trim() ??
-    (item.mediaType === 'IMAGE' ? item.mediaUrls[0] : null) ??
+    (item.mediaType === "IMAGE" ? item.mediaUrls[0] : null) ??
     item.thumbnailUrl?.trim() ??
     null
   );
@@ -116,13 +119,13 @@ function getDisplayItems(groupBuys: GroupBuy[]) {
 }
 
 function normalizeHomeCategory(
-  category: GroupBuy['category'],
+  category: GroupBuy["category"],
 ): CategoryColorName | null {
   switch (category as string | null | undefined) {
-    case 'lifestyle':
-      return 'living';
-    case 'digital':
-      return 'electronics';
+    case "lifestyle":
+      return "living";
+    case "digital":
+      return "electronics";
     default:
       return category ?? null;
   }
@@ -130,8 +133,8 @@ function normalizeHomeCategory(
 
 function getPromoFallbackMark(item: GroupBuy) {
   const source =
-    item.brandName?.trim() || item.productName?.trim() || '공동구매';
-  return source.replace(/\s/g, '').slice(0, 2).toUpperCase();
+    item.brandName?.trim() || item.productName?.trim() || "공동구매";
+  return source.replace(/\s/g, "").slice(0, 2).toUpperCase();
 }
 
 function parsePromoDate(value: string | null, endOfDay = false) {
@@ -165,14 +168,14 @@ function parsePromoDate(value: string | null, endOfDay = false) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function formatPromoPrice(rawPrice: string | undefined) {
+function parsePromoPrice(rawPrice: string | undefined) {
   if (!rawPrice) return null;
-  const numericPrice = Number(rawPrice.replace(/,/g, ''));
+  const numericPrice = Number(rawPrice.replace(/,/g, ""));
   if (!Number.isSafeInteger(numericPrice) || numericPrice <= 0) return null;
-  return `${numericPrice.toLocaleString('ko-KR')}원`;
+  return numericPrice;
 }
 
-function getPromoPrice(discountInfo: string | null) {
+function getPromoPriceKrw(discountInfo: string | null) {
   if (!discountInfo) return null;
 
   const labeledPrices = Array.from(
@@ -181,7 +184,7 @@ function getPromoPrice(discountInfo: string | null) {
     ),
   );
   const labeledPrice = labeledPrices.at(-1)?.[1];
-  if (labeledPrice) return formatPromoPrice(labeledPrice);
+  if (labeledPrice) return parsePromoPrice(labeledPrice);
 
   const candidates = [
     ...Array.from(
@@ -204,7 +207,7 @@ function getPromoPrice(discountInfo: string | null) {
     .sort((left, right) => left.index - right.index);
 
   return candidates.length === 1
-    ? formatPromoPrice(candidates[0].rawPrice)
+    ? parsePromoPrice(candidates[0].rawPrice)
     : null;
 }
 
@@ -234,12 +237,16 @@ function getPromoStatusCopy(item: GroupBuy, now = new Date()): PromoStatusCopy {
 
   if (endDate && endDate.getTime() < now.getTime()) {
     return {
-      accentLabel: '공구 종료',
-      accessibilityLabel: '공구 종료',
+      accentLabel: "공구 종료",
+      accessibilityLabel: "공구 종료",
     };
   }
 
-  const price = formatPriceKrw(item.priceKrw) ?? getPromoPrice(item.discountInfo);
+  const directPriceKrw =
+    typeof item.priceKrw === "number" ? item.priceKrw : null;
+  const priceKrw = directPriceKrw ?? getPromoPriceKrw(item.discountInfo);
+  const price = formatPriceKrw(priceKrw);
+  const priceDescription = price ? `가격 ${price}` : "가격 공개 예정";
   const discountPercent = getPromoDiscountPercent(item.discountInfo);
 
   if (startDate && startDate.getTime() > now.getTime()) {
@@ -253,25 +260,29 @@ function getPromoStatusCopy(item: GroupBuy, now = new Date()): PromoStatusCopy {
       0,
       Math.round((startDay.getTime() - today.getTime()) / DAY_IN_MS),
     );
-    const timingLabel = daysUntilStart === 0 ? '오늘' : `D+${daysUntilStart}`;
+    const timingLabel = daysUntilStart === 0 ? "오늘" : `D+${daysUntilStart}`;
     const spokenTiming =
-      daysUntilStart === 0 ? '오늘 시작' : `${daysUntilStart}일 후 시작`;
+      daysUntilStart === 0 ? "오늘 시작" : `${daysUntilStart}일 후 시작`;
     const dateLabel = `${startDate.getMonth() + 1}/${startDate.getDate()} 시작`;
-    const priceLabel = price ?? '가격 공개 예정';
+    const priceLabel = price ?? "가격 공개 예정";
 
     return {
       accentLabel: timingLabel,
-      accessibilityLabel: `${spokenTiming}, ${dateLabel}, ${priceLabel}`,
+      accessibilityLabel: `${spokenTiming}, ${dateLabel}, ${priceDescription}`,
       detailLabel: dateLabel,
       secondaryLabel: priceLabel,
+      priceKrw,
+      pricePlacement: priceKrw != null ? "secondary" : undefined,
     };
   }
 
   if (discountPercent && price) {
     return {
       accentLabel: `${discountPercent}%`,
-      accessibilityLabel: `${discountPercent}% 할인, ${price}`,
+      accessibilityLabel: `${discountPercent}% 할인, ${priceDescription}`,
       detailLabel: price,
+      priceKrw,
+      pricePlacement: priceKrw != null ? "detail" : undefined,
     };
   }
 
@@ -279,22 +290,24 @@ function getPromoStatusCopy(item: GroupBuy, now = new Date()): PromoStatusCopy {
     return {
       accentLabel: `${discountPercent}%`,
       accessibilityLabel: `${discountPercent}% 할인, 상세에서 가격 확인`,
-      detailLabel: '상세에서 가격 확인',
+      detailLabel: "상세에서 가격 확인",
     };
   }
 
   if (price) {
     return {
-      accentLabel: '공구 진행 중',
-      accessibilityLabel: `공구 진행 중, ${price}`,
+      accentLabel: "공구 진행 중",
+      accessibilityLabel: `공구 진행 중, ${priceDescription}`,
       detailLabel: price,
+      priceKrw,
+      pricePlacement: priceKrw != null ? "detail" : undefined,
     };
   }
 
   return {
-    accentLabel: '공구 진행 중',
-    accessibilityLabel: '공구 진행 중, 상세에서 가격 확인',
-    detailLabel: '상세에서 가격 확인',
+    accentLabel: "공구 진행 중",
+    accessibilityLabel: "공구 진행 중, 상세에서 가격 확인",
+    detailLabel: "상세에서 가격 확인",
   };
 }
 
@@ -415,11 +428,11 @@ function HomeCategoryFilter({
   onChange,
   onLayout,
   s,
-  testID = 'home-category-filter',
+  testID = "home-category-filter",
 }: {
   value: HomeCategory;
   onChange: Dispatch<SetStateAction<HomeCategory>>;
-  onLayout?: ViewProps['onLayout'];
+  onLayout?: ViewProps["onLayout"];
   s: ReturnType<typeof makeStyles>;
   testID?: string;
 }) {
@@ -450,7 +463,10 @@ function HomeCategoryFilter({
             >
               <SText
                 variant="label"
-                style={[s.categoryChipText, selected && s.selectedCategoryChipText]}
+                style={[
+                  s.categoryChipText,
+                  selected && s.selectedCategoryChipText,
+                ]}
               >
                 {label}
               </SText>
@@ -499,14 +515,15 @@ function PromoBanner({
     };
   }, []);
 
-  const promoItems = useMemo(
-    () => {
-      const displayItems = getDisplayItems(groupBuys);
-      const hasBannerContract = displayItems.some((item) => item.isHomeBanner !== undefined);
-      return (hasBannerContract ? selectHomeBannerItems(displayItems) : displayItems).slice(0, 6);
-    },
-    [groupBuys, homeBannerDateTick],
-  );
+  const promoItems = useMemo(() => {
+    const displayItems = getDisplayItems(groupBuys);
+    const hasBannerContract = displayItems.some(
+      (item) => item.isHomeBanner !== undefined,
+    );
+    return (
+      hasBannerContract ? selectHomeBannerItems(displayItems) : displayItems
+    ).slice(0, 6);
+  }, [groupBuys, homeBannerDateTick]);
   const scrollRef = useRef<ScrollView | null>(null);
   const currentPositionRef = useRef(promoItems.length > 1 ? 1 : 0);
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -514,10 +531,7 @@ function PromoBanner({
   const scheduleAutoPlayRef = useRef<() => void>(() => {});
   const snapInterval = cardWidth + PROMO_CARD_GAP;
   const canAutoPlay = promoItems.length > 1;
-  const cardHeight = Math.min(
-    260,
-    Math.max(224, Math.round(cardWidth / 1.16)),
-  );
+  const cardHeight = Math.min(260, Math.max(224, Math.round(cardWidth / 1.16)));
   const loopingPromoItems = useMemo(() => {
     if (promoItems.length <= 1)
       return promoItems.map((item, index) => ({ item, index, clone: false }));
@@ -666,10 +680,7 @@ function PromoBanner({
       ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={[
-        s.promoRail,
-        { paddingHorizontal: sidePadding },
-      ]}
+      contentContainerStyle={[s.promoRail, { paddingHorizontal: sidePadding }]}
       contentOffset={canAutoPlay ? { x: snapInterval, y: 0 } : undefined}
       decelerationRate="fast"
       disableIntervalMomentum
@@ -682,20 +693,20 @@ function PromoBanner({
     >
       {loopingPromoItems.map(({ item, index, clone }, renderIndex) => {
         const visual = getPromoVisual(item);
-        const productName = item.productName?.trim() || '공동구매 상품';
+        const productName = item.productName?.trim() || "공동구매 상품";
         const statusCopy = getPromoStatusCopy(item);
         const accessibilityLabel = [
           productName,
           statusCopy.accessibilityLabel,
-          '상세 열기',
-        ].join(', ');
+          "상세 열기",
+        ].join(", ");
         return (
           <Pressable
             accessibilityElementsHidden={clone}
             accessibilityLabel={clone ? undefined : accessibilityLabel}
             accessibilityRole="button"
-            importantForAccessibility={clone ? 'no-hide-descendants' : 'auto'}
-            key={`${item.id}-${renderIndex}-${clone ? 'clone' : 'real'}`}
+            importantForAccessibility={clone ? "no-hide-descendants" : "auto"}
+            key={`${item.id}-${renderIndex}-${clone ? "clone" : "real"}`}
             onPress={() => onPressDeal(item)}
             style={[s.promoCard, { height: cardHeight, width: cardWidth }]}
           >
@@ -708,7 +719,7 @@ function PromoBanner({
                 clone={clone}
                 fallbackMark={getPromoFallbackMark(item)}
                 itemId={item.id}
-                key={`${item.id}:${visual ?? 'placeholder'}`}
+                key={`${item.id}:${visual ?? "placeholder"}`}
                 s={s}
                 uri={visual}
               />
@@ -739,11 +750,7 @@ function PromoBanner({
               style={s.promoOverlay}
               testID={clone ? undefined : `promo-overlay-${item.id}`}
             >
-              <SText
-                variant="cardTitle"
-                numberOfLines={2}
-                style={s.promoTitle}
-              >
+              <SText variant="cardTitle" numberOfLines={2} style={s.promoTitle}>
                 {productName}
               </SText>
               <View
@@ -758,23 +765,43 @@ function PromoBanner({
                   {statusCopy.accentLabel}
                 </SText>
                 {statusCopy.detailLabel ? (
-                  <SText
-                    variant="label"
-                    numberOfLines={1}
-                    style={s.promoStatusDetail}
-                  >
-                    {statusCopy.detailLabel}
-                  </SText>
+                  statusCopy.pricePlacement === "detail" &&
+                  statusCopy.priceKrw != null ? (
+                    <PriceText
+                      color="#FFFFFF"
+                      priceKrw={statusCopy.priceKrw}
+                      style={s.promoStatusDetail}
+                      variant="label"
+                    />
+                  ) : (
+                    <SText
+                      variant="label"
+                      numberOfLines={1}
+                      style={s.promoStatusDetail}
+                    >
+                      {statusCopy.detailLabel}
+                    </SText>
+                  )
                 ) : null}
               </View>
               {statusCopy.secondaryLabel ? (
-                <SText
-                  variant="body"
-                  numberOfLines={1}
-                  style={s.promoSecondary}
-                >
-                  {statusCopy.secondaryLabel}
-                </SText>
+                statusCopy.pricePlacement === "secondary" &&
+                statusCopy.priceKrw != null ? (
+                  <PriceText
+                    color="#FFFFFF"
+                    priceKrw={statusCopy.priceKrw}
+                    style={s.promoSecondary}
+                    variant="body"
+                  />
+                ) : (
+                  <SText
+                    variant="body"
+                    numberOfLines={1}
+                    style={s.promoSecondary}
+                  >
+                    {statusCopy.secondaryLabel}
+                  </SText>
+                )
               ) : null}
             </View>
           </Pressable>
@@ -897,14 +924,17 @@ export function HomeScreenContent({
 }: HomeScreenContentProps) {
   const { colors, isDark } = useCommerceTheme();
   const { width } = useWindowDimensions();
-  const [selectedCategory, setSelectedCategory] = useState<HomeCategory>('all');
+  const [selectedCategory, setSelectedCategory] = useState<HomeCategory>("all");
   const categoryFilterTopRef = useRef<number | null>(null);
   const scrollOffsetRef = useRef(0);
   const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const [isCategoryFilterSticky, setIsCategoryFilterSticky] = useState(false);
-  const displayGroupBuys = useMemo(() => getDisplayItems(groupBuys), [groupBuys]);
+  const displayGroupBuys = useMemo(
+    () => getDisplayItems(groupBuys),
+    [groupBuys],
+  );
   const filteredGroupBuys = useMemo(() => {
-    if (selectedCategory === 'all') return displayGroupBuys;
+    if (selectedCategory === "all") return displayGroupBuys;
     return displayGroupBuys.filter(
       (item) => normalizeHomeCategory(item.category) === selectedCategory,
     );
@@ -945,8 +975,8 @@ export function HomeScreenContent({
   );
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+    <SafeAreaView edges={["top", "bottom"]} style={s.safeArea}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <View style={s.container}>
         <KeyboardFormScreen
           keyboardShouldPersistTaps="always"
@@ -1027,9 +1057,11 @@ export function HomeScreenContent({
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
-  const [scrollToTopRequest, setScrollToTopRequest] = useState<number | null>(null);
+  const [scrollToTopRequest, setScrollToTopRequest] = useState<number | null>(
+    null,
+  );
   const { data, isError, refetch } = useQuery({
-    queryKey: ['group-buys'],
+    queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
     retry: false,
   });
@@ -1065,13 +1097,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       isFetching={isManualRefreshing}
       onRefresh={handleManualRefresh}
       scrollToTopRequest={scrollToTopRequest}
-      onOpenSearch={() => navigation.navigate('SearchScreen')}
+      onOpenSearch={() => navigation.navigate("SearchScreen")}
       onOpenCalendar={() =>
-        navigation.navigate('CalendarScreen', {
+        navigation.navigate("CalendarScreen", {
           initialDate: new Date().toISOString(),
         })
       }
-      onPressDeal={(groupBuy) => navigation.navigate('Detail', { groupBuy })}
+      onPressDeal={(groupBuy) => navigation.navigate("Detail", { groupBuy })}
     />
   );
 }
@@ -1092,17 +1124,17 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingTop: 0,
     },
     topBar: {
-      alignItems: 'center',
-      flexDirection: 'row',
+      alignItems: "center",
+      flexDirection: "row",
       paddingHorizontal: HOME_SIDE_PADDING,
       paddingTop: 8,
     },
     searchBox: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.softBg,
       borderRadius: 16,
       flex: 1,
-      flexDirection: 'row',
+      flexDirection: "row",
       gap: 10,
       minHeight: 42,
       paddingHorizontal: 14,
@@ -1111,7 +1143,7 @@ function makeStyles(colors: CommerceColorPalette) {
       color: colors.weak,
       flex: 1,
       fontSize: 16,
-      fontWeight: '700',
+      fontWeight: "700",
       letterSpacing: 0,
       lineHeight: 21,
     },
@@ -1121,18 +1153,18 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingBottom: 11,
     },
     shopHeading: {
-      alignItems: 'center',
-      alignSelf: 'flex-start',
+      alignItems: "center",
+      alignSelf: "flex-start",
       backgroundColor: colors.softBg,
       borderRadius: 12,
-      justifyContent: 'center',
+      justifyContent: "center",
       minHeight: 44,
       paddingHorizontal: 8,
     },
     shopHeadingText: {
       color: colors.text,
       fontSize: 16,
-      fontWeight: '900',
+      fontWeight: "900",
       letterSpacing: 0,
       lineHeight: 21,
     },
@@ -1144,22 +1176,22 @@ function makeStyles(colors: CommerceColorPalette) {
     promoCard: {
       backgroundColor: colors.promoBg,
       borderRadius: 24,
-      borderCurve: 'continuous',
-      overflow: 'hidden',
-      position: 'relative',
+      borderCurve: "continuous",
+      overflow: "hidden",
+      position: "relative",
     },
     promoBackground: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: colors.promoBg,
-      overflow: 'hidden',
+      overflow: "hidden",
     },
     promoTitle: {
       color: colors.inverse,
       fontSize: 20,
-      fontWeight: '900',
+      fontWeight: "900",
       letterSpacing: -0.3,
       lineHeight: 26,
-      textShadowColor: 'rgba(0, 0, 0, 0.38)',
+      textShadowColor: "rgba(0, 0, 0, 0.38)",
       textShadowOffset: { height: 1, width: 0 },
       textShadowRadius: 4,
     },
@@ -1167,31 +1199,31 @@ function makeStyles(colors: CommerceColorPalette) {
     promoImagePending: { opacity: 0 },
     promoArtworkFallback: {
       ...StyleSheet.absoluteFillObject,
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.promoBg,
       gap: 6,
-      justifyContent: 'center',
+      justifyContent: "center",
     },
     promoArtworkMark: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.softBg,
-      borderCurve: 'continuous',
+      borderCurve: "continuous",
       borderRadius: borderRadius.full,
       height: 64,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 64,
     },
     promoArtworkMarkText: {
       color: colors.promoText,
       fontSize: 18,
-      fontWeight: '900',
+      fontWeight: "900",
       letterSpacing: 0,
       lineHeight: 24,
     },
     promoArtworkFallbackText: {
       color: colors.promoMuted,
       fontSize: 10,
-      fontWeight: '700',
+      fontWeight: "700",
       letterSpacing: 0,
       lineHeight: 14,
     },
@@ -1200,7 +1232,7 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     promoShade: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0, 0, 0, 0.18)',
+      backgroundColor: "rgba(0, 0, 0, 0.18)",
     },
     promoOverlay: {
       bottom: 0,
@@ -1208,12 +1240,12 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingBottom: 18,
       paddingHorizontal: 18,
       paddingTop: 38,
-      position: 'absolute',
+      position: "absolute",
       right: 0,
     },
     promoStatusRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
+      alignItems: "center",
+      flexDirection: "row",
       gap: 7,
       marginTop: 7,
       minWidth: 0,
@@ -1222,7 +1254,7 @@ function makeStyles(colors: CommerceColorPalette) {
       color: colors.accent,
       flexShrink: 0,
       fontSize: 14,
-      fontWeight: '900',
+      fontWeight: "900",
       includeFontPadding: false,
       letterSpacing: 0,
       lineHeight: 19,
@@ -1231,59 +1263,59 @@ function makeStyles(colors: CommerceColorPalette) {
       color: colors.inverse,
       flexShrink: 1,
       fontSize: 14,
-      fontWeight: '800',
+      fontWeight: "800",
       includeFontPadding: false,
       letterSpacing: 0,
       lineHeight: 19,
     },
     promoSecondary: {
-      color: 'rgba(255, 255, 255, 0.94)',
+      color: "rgba(255, 255, 255, 0.94)",
       fontSize: 13,
-      fontWeight: '700',
+      fontWeight: "700",
       letterSpacing: 0,
       lineHeight: 18,
       marginTop: 2,
     },
     promoCounter: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.overlay,
       borderRadius: borderRadius.full,
-      borderCurve: 'continuous',
-      justifyContent: 'center',
+      borderCurve: "continuous",
+      justifyContent: "center",
       minHeight: 22,
       minWidth: 36,
       paddingHorizontal: 7,
-      position: 'absolute',
+      position: "absolute",
       right: 12,
       top: 12,
     },
     promoCounterText: {
       color: colors.inverse,
       fontSize: 11,
-      fontWeight: '800',
+      fontWeight: "800",
       letterSpacing: 0,
       lineHeight: 15,
     },
     promoEmpty: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.panelBg,
       borderRadius: borderRadius.xl,
-      justifyContent: 'center',
+      justifyContent: "center",
       marginHorizontal: spacing.lg,
       minHeight: 160,
     },
-    promoEmptyText: { color: colors.muted, fontSize: 15, fontWeight: '700' },
+    promoEmptyText: { color: colors.muted, fontSize: 15, fontWeight: "700" },
     sectionTitleRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
       marginBottom: 14,
     },
     sectionTitle: {
       color: colors.text,
       flexShrink: 1,
       fontSize: 20,
-      fontWeight: '900',
+      fontWeight: "900",
       letterSpacing: 0,
       lineHeight: 27,
     },
@@ -1298,7 +1330,7 @@ function makeStyles(colors: CommerceColorPalette) {
     seeAllText: {
       color: colors.muted,
       fontSize: 13,
-      fontWeight: '800',
+      fontWeight: "800",
       letterSpacing: 0,
       lineHeight: 18,
     },
@@ -1310,174 +1342,174 @@ function makeStyles(colors: CommerceColorPalette) {
       width: 148,
     },
     weeklyEmpty: {
-      alignItems: 'center',
+      alignItems: "center",
       minHeight: 120,
-      justifyContent: 'center',
+      justifyContent: "center",
     },
-    weeklyEmptyText: { color: colors.muted, fontSize: 15, fontWeight: '700' },
+    weeklyEmptyText: { color: colors.muted, fontSize: 15, fontWeight: "700" },
     attendanceArt: {
-      alignItems: 'center',
-      backgroundColor: '#EDF2F7',
+      alignItems: "center",
+      backgroundColor: "#EDF2F7",
       borderRadius: 9,
       height: 34,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 34,
     },
     attendanceArtText: {
-      color: '#4A9AF5',
+      color: "#4A9AF5",
       fontSize: 20,
-      fontWeight: '900',
+      fontWeight: "900",
       lineHeight: 24,
       marginBottom: 0,
     },
     scrollArt: {
       height: 36,
-      position: 'relative',
+      position: "relative",
       width: 36,
     },
     scrollPalm: {
-      backgroundColor: '#FFC64D',
+      backgroundColor: "#FFC64D",
       borderBottomLeftRadius: 14,
       borderBottomRightRadius: 14,
       borderTopLeftRadius: 8,
       bottom: 5,
       height: 20,
       left: 6,
-      position: 'absolute',
-      transform: [{ rotate: '33deg' }],
+      position: "absolute",
+      transform: [{ rotate: "33deg" }],
       width: 18,
     },
     scrollFinger: {
-      backgroundColor: '#FFC64D',
+      backgroundColor: "#FFC64D",
       borderRadius: 999,
       height: 30,
       left: 18,
-      position: 'absolute',
+      position: "absolute",
       top: 1,
-      transform: [{ rotate: '34deg' }],
+      transform: [{ rotate: "34deg" }],
       width: 9,
     },
     feedArt: {
-      alignItems: 'center',
-      backgroundColor: '#63D3CB',
+      alignItems: "center",
+      backgroundColor: "#63D3CB",
       borderRadius: 7,
       height: 34,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 28,
     },
     feedLineLong: {
-      backgroundColor: '#1D6D68',
+      backgroundColor: "#1D6D68",
       borderRadius: 999,
       height: 4,
       marginBottom: 6,
       width: 14,
     },
     feedLineShort: {
-      backgroundColor: '#1D6D68',
+      backgroundColor: "#1D6D68",
       borderRadius: 999,
       height: 4,
       opacity: 0.72,
       width: 10,
     },
-    catArt: { height: 38, position: 'relative', width: 38 },
+    catArt: { height: 38, position: "relative", width: 38 },
     catEarLeft: {
-      backgroundColor: '#64748B',
+      backgroundColor: "#64748B",
       borderRadius: 4,
       height: 13,
       left: 7,
-      position: 'absolute',
+      position: "absolute",
       top: 5,
-      transform: [{ rotate: '-35deg' }],
+      transform: [{ rotate: "-35deg" }],
       width: 13,
     },
     catEarRight: {
-      backgroundColor: '#64748B',
+      backgroundColor: "#64748B",
       borderRadius: 4,
       height: 13,
-      position: 'absolute',
+      position: "absolute",
       right: 7,
       top: 5,
-      transform: [{ rotate: '35deg' }],
+      transform: [{ rotate: "35deg" }],
       width: 13,
     },
     catFace: {
-      alignItems: 'center',
-      backgroundColor: '#64748B',
+      alignItems: "center",
+      backgroundColor: "#64748B",
       borderRadius: 14,
       height: 27,
-      justifyContent: 'center',
+      justifyContent: "center",
       left: 5,
-      position: 'absolute',
+      position: "absolute",
       top: 9,
       width: 28,
     },
-    catEyeRow: { flexDirection: 'row', gap: 8, marginBottom: 5 },
+    catEyeRow: { flexDirection: "row", gap: 8, marginBottom: 5 },
     catEye: {
-      backgroundColor: '#111827',
+      backgroundColor: "#111827",
       borderRadius: 999,
       height: 3,
       width: 3,
     },
     catMouth: {
-      backgroundColor: '#F3A6AD',
+      backgroundColor: "#F3A6AD",
       borderRadius: 999,
       height: 5,
       width: 9,
     },
-    lookArt: { height: 38, position: 'relative', width: 38 },
+    lookArt: { height: 38, position: "relative", width: 38 },
     lookBagHandle: {
-      borderColor: '#4B5563',
+      borderColor: "#4B5563",
       borderTopLeftRadius: 8,
       borderTopRightRadius: 8,
       borderWidth: 2,
       borderBottomWidth: 0,
       height: 11,
       left: 11,
-      position: 'absolute',
+      position: "absolute",
       top: 3,
       width: 17,
     },
     lookBagBody: {
-      backgroundColor: '#FB7185',
+      backgroundColor: "#FB7185",
       borderRadius: 6,
       height: 22,
       left: 7,
-      position: 'absolute',
+      position: "absolute",
       top: 12,
       width: 24,
     },
     lookLens: {
-      borderColor: '#4B5563',
+      borderColor: "#4B5563",
       borderRadius: 999,
       borderWidth: 3,
       bottom: 2,
       height: 14,
-      position: 'absolute',
+      position: "absolute",
       right: 0,
       width: 14,
     },
     lookHandle: {
-      backgroundColor: '#4B5563',
+      backgroundColor: "#4B5563",
       borderRadius: 999,
       bottom: 0,
       height: 3,
-      position: 'absolute',
+      position: "absolute",
       right: -2,
-      transform: [{ rotate: '45deg' }],
+      transform: [{ rotate: "45deg" }],
       width: 10,
     },
     drawCoin: {
-      alignItems: 'center',
-      backgroundColor: '#FDBA2D',
+      alignItems: "center",
+      backgroundColor: "#FDBA2D",
       borderRadius: 999,
       height: 32,
-      justifyContent: 'center',
+      justifyContent: "center",
       width: 32,
     },
     drawCoinText: {
-      color: '#B9770E',
+      color: "#B9770E",
       fontSize: 12,
-      fontWeight: '900',
+      fontWeight: "900",
       lineHeight: 15,
     },
     benefitMiniBadge: {
@@ -1485,44 +1517,44 @@ function makeStyles(colors: CommerceColorPalette) {
       borderRadius: borderRadius.full,
       paddingHorizontal: 6,
       paddingVertical: 2,
-      position: 'absolute',
+      position: "absolute",
       right: -8,
       top: -7,
     },
     benefitMiniBadgeText: {
       color: colors.inverse,
       fontSize: 10,
-      fontWeight: '900',
+      fontWeight: "900",
       letterSpacing: 0,
       lineHeight: 13,
     },
     benefitLabel: {
       color: colors.muted,
       fontSize: 13,
-      fontWeight: '800',
+      fontWeight: "800",
       letterSpacing: 0,
       lineHeight: 18,
       maxWidth: 64,
-      textAlign: 'center',
+      textAlign: "center",
     },
     recommendSection: {
       paddingHorizontal: HOME_SIDE_PADDING,
     },
     productGrid: {
       columnGap: spacing.md,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
       rowGap: 18,
     },
     productEmpty: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.panelBg,
       borderRadius: borderRadius.lg,
-      justifyContent: 'center',
+      justifyContent: "center",
       minHeight: 140,
     },
-    productEmptyText: { color: colors.muted, fontSize: 15, fontWeight: '700' },
+    productEmptyText: { color: colors.muted, fontSize: 15, fontWeight: "700" },
     categoryFilter: {
       backgroundColor: colors.bg,
       borderTopColor: colors.divider,
@@ -1535,7 +1567,7 @@ function makeStyles(colors: CommerceColorPalette) {
     categoryFilterOverlay: {
       elevation: 0,
       left: 0,
-      position: 'absolute',
+      position: "absolute",
       right: 0,
       top: 0,
       zIndex: 20,
@@ -1545,12 +1577,12 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingHorizontal: HOME_SIDE_PADDING,
     },
     categoryChip: {
-      alignItems: 'center',
+      alignItems: "center",
       borderColor: colors.border,
       borderRadius: borderRadius.full,
       borderWidth: 1,
-      height: spacing['3xl'] + spacing.xs,
-      justifyContent: 'center',
+      height: spacing["3xl"] + spacing.xs,
+      justifyContent: "center",
       paddingHorizontal: spacing.lg,
     },
     selectedCategoryChip: {
@@ -1559,7 +1591,7 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     categoryChipText: {
       color: colors.text,
-      fontWeight: '800',
+      fontWeight: "800",
       includeFontPadding: false,
     },
     selectedCategoryChipText: { color: colors.bg },
@@ -1569,6 +1601,6 @@ function makeStyles(colors: CommerceColorPalette) {
       marginBottom: spacing.md,
       padding: spacing.md,
     },
-    noticeText: { color: colors.warning, fontSize: 12, textAlign: 'center' },
+    noticeText: { color: colors.warning, fontSize: 12, textAlign: "center" },
   });
 }
