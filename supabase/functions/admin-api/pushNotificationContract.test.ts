@@ -24,6 +24,17 @@ Deno.test("accepts a broadcast with trimmed text and JSON data", () => {
   );
 });
 
+Deno.test("normalizes selected user IDs for targeted delivery", () => {
+  assertEquals(
+    validatePushNotificationInput({
+      title: "개별 안내",
+      body: "선택 사용자에게만 보냅니다.",
+      userIds: [" user-1 ", "user-1", "user-2"],
+    }).userIds,
+    ["user-1", "user-2"],
+  );
+});
+
 Deno.test("rejects missing or oversized notification fields", () => {
   assertThrows(() =>
     validatePushNotificationInput({ title: "", body: "본문" }),

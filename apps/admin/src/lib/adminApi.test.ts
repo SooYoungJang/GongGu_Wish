@@ -15,13 +15,46 @@ vi.mock("@/supabase/client", () => ({
 
 import { adminApi } from "./adminApi";
 
-describe("adminApi.updateGroupBuy", () => {
+describe("adminApi", () => {
   beforeEach(() => {
     getSession.mockResolvedValue({
       data: { session: { access_token: "admin-token" } },
       error: null,
     });
     vi.restoreAllMocks();
+  });
+
+  it("forwards selected user IDs to the push notification endpoint", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          provider: "expo",
+          targeted: 1,
+          sent: 1,
+          failed: 0,
+          invalidTokensRemoved: 0,
+        },
+      }),
+    } as Response);
+
+    await adminApi.sendPushNotification({
+      title: "개별 안내",
+      body: "선택 사용자 본문",
+      userIds: ["user-1"],
+    });
+
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
+      path: string;
+      body: { title: string; body: string; userIds: string[] };
+    };
+    expect(request.path).toBe("/admin/notifications");
+    expect(request.body).toEqual({
+      title: "개별 안내",
+      body: "선택 사용자 본문",
+      userIds: ["user-1"],
+    });
   });
 
   it("sends priceKrw and normalizes the persisted commerce response before the UI consumes it", async () => {

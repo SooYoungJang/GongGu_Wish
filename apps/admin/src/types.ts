@@ -88,6 +88,7 @@ export type AppUser = {
   email: string | null;
   nickname: string | null;
   fcmToken: string | null;
+  hasPushToken: boolean;
   createdAt: string;
   updatedAt: string;
   status: string;
