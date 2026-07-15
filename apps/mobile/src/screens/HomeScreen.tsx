@@ -36,10 +36,11 @@ import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
 import { fallbackGroupBuys, fetchGroupBuys } from "../api";
 import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
+import { getHomeBannerStatusCopy } from "@gonggu/shared/utils/homeBannerPresentation";
 import { borderRadius, spacing } from "../design/tokens";
 import type { CategoryColorName } from "../design/tokens";
 import { isGroupBuyActiveOnDate } from "../utils/groupBuyDates";
-import { formatPriceKrw, selectHomeBannerItems } from "../utils/homeBanner";
+import { selectHomeBannerItems } from "../utils/homeBanner";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import type { CommerceColorPalette } from "../design/commerce";
 import type { GroupBuy, HomeScreenProps } from "../types";
@@ -70,17 +71,6 @@ const HOME_SIDE_PADDING = 16;
 const PROMO_CARD_GAP = 12;
 const PROMO_AUTO_PLAY_MS = 3000;
 const PROMO_WRAP_SETTLE_MS = 450;
-const DAY_IN_MS = 86_400_000;
-
-type PromoStatusCopy = {
-  accentLabel: string;
-  accessibilityLabel: string;
-  detailLabel?: string;
-  secondaryLabel?: string;
-  priceKrw?: number | null;
-  pricePlacement?: "detail" | "secondary";
-};
-
 function getPromoVisual(item: GroupBuy) {
   const firstMedia = item.mediaItems?.[0];
   const firstMediaVisual =
@@ -135,180 +125,6 @@ function getPromoFallbackMark(item: GroupBuy) {
   const source =
     item.brandName?.trim() || item.productName?.trim() || "공동구매";
   return source.replace(/\s/g, "").slice(0, 2).toUpperCase();
-}
-
-function parsePromoDate(value: string | null, endOfDay = false) {
-  if (!value) return null;
-
-  const trimmedValue = value.trim();
-  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmedValue);
-  if (dateOnlyMatch) {
-    const [, yearValue, monthValue, dayValue] = dateOnlyMatch;
-    const year = Number(yearValue);
-    const month = Number(monthValue) - 1;
-    const day = Number(dayValue);
-    const date = new Date(
-      year,
-      month,
-      day,
-      endOfDay ? 23 : 0,
-      endOfDay ? 59 : 0,
-      endOfDay ? 59 : 0,
-      endOfDay ? 999 : 0,
-    );
-
-    return date.getFullYear() === year &&
-      date.getMonth() === month &&
-      date.getDate() === day
-      ? date
-      : null;
-  }
-
-  const date = new Date(trimmedValue);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function parsePromoPrice(rawPrice: string | undefined) {
-  if (!rawPrice) return null;
-  const numericPrice = Number(rawPrice.replace(/,/g, ""));
-  if (!Number.isSafeInteger(numericPrice) || numericPrice <= 0) return null;
-  return numericPrice;
-}
-
-function getPromoPriceKrw(discountInfo: string | null) {
-  if (!discountInfo) return null;
-
-  const labeledPrices = Array.from(
-    discountInfo.matchAll(
-      /(?:공구가|판매가|할인가|최종가|특가|가격)\s*[:：]?\s*(?:₩\s*)?([0-9][0-9,]*)(?:\s*원|\b(?!\s*%))/gi,
-    ),
-  );
-  const labeledPrice = labeledPrices.at(-1)?.[1];
-  if (labeledPrice) return parsePromoPrice(labeledPrice);
-
-  const candidates = [
-    ...Array.from(
-      discountInfo.matchAll(
-        /([0-9][0-9,]*)\s*원(?!\s*(?:할인|쿠폰|적립|혜택|지원))/g,
-      ),
-      (match) => ({ index: match.index, rawPrice: match[1] }),
-    ),
-    ...Array.from(discountInfo.matchAll(/₩\s*([0-9][0-9,]*)/g), (match) => ({
-      index: match.index,
-      rawPrice: match[1],
-    })),
-  ]
-    .filter(({ index }) => {
-      const precedingCopy = discountInfo.slice(Math.max(0, index - 16), index);
-      return !/(?:배송비|배송료|택배비|운임|수수료|보증금|예약금|쿠폰|적립금?|지원금?|혜택)\s*[:：]?\s*$/i.test(
-        precedingCopy,
-      );
-    })
-    .sort((left, right) => left.index - right.index);
-
-  return candidates.length === 1
-    ? parsePromoPrice(candidates[0].rawPrice)
-    : null;
-}
-
-function getPromoDiscountPercent(discountInfo: string | null) {
-  if (!discountInfo) return null;
-
-  const patterns = [
-    /(?:할인율|할인|특가|OFF)\s*[:：]?\s*([0-9]{1,3})\s*%/i,
-    /([0-9]{1,3})\s*%\s*(?:할인|특가|OFF)/i,
-    /^\s*([0-9]{1,2})\s*%(?=\s+(?:₩|[0-9][0-9,]*\s*원))/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = discountInfo.match(pattern);
-    const percent = match ? Number(match[1]) : Number.NaN;
-    if (Number.isInteger(percent) && percent > 0 && percent <= 100) {
-      return percent;
-    }
-  }
-
-  return null;
-}
-
-function getPromoStatusCopy(item: GroupBuy, now = new Date()): PromoStatusCopy {
-  const startDate = parsePromoDate(item.startDate);
-  const endDate = parsePromoDate(item.endDate, true);
-
-  if (endDate && endDate.getTime() < now.getTime()) {
-    return {
-      accentLabel: "공구 종료",
-      accessibilityLabel: "공구 종료",
-    };
-  }
-
-  const directPriceKrw =
-    typeof item.priceKrw === "number" ? item.priceKrw : null;
-  const priceKrw = directPriceKrw ?? getPromoPriceKrw(item.discountInfo);
-  const price = formatPriceKrw(priceKrw);
-  const priceDescription = price ? `가격 ${price}` : "가격 공개 예정";
-  const discountPercent = getPromoDiscountPercent(item.discountInfo);
-
-  if (startDate && startDate.getTime() > now.getTime()) {
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startDay = new Date(
-      startDate.getFullYear(),
-      startDate.getMonth(),
-      startDate.getDate(),
-    );
-    const daysUntilStart = Math.max(
-      0,
-      Math.round((startDay.getTime() - today.getTime()) / DAY_IN_MS),
-    );
-    const timingLabel = daysUntilStart === 0 ? "오늘" : `D+${daysUntilStart}`;
-    const spokenTiming =
-      daysUntilStart === 0 ? "오늘 시작" : `${daysUntilStart}일 후 시작`;
-    const dateLabel = `${startDate.getMonth() + 1}/${startDate.getDate()} 시작`;
-    const priceLabel = price ?? "가격 공개 예정";
-
-    return {
-      accentLabel: timingLabel,
-      accessibilityLabel: `${spokenTiming}, ${dateLabel}, ${priceDescription}`,
-      detailLabel: dateLabel,
-      secondaryLabel: priceLabel,
-      priceKrw,
-      pricePlacement: priceKrw != null ? "secondary" : undefined,
-    };
-  }
-
-  if (discountPercent && price) {
-    return {
-      accentLabel: `${discountPercent}%`,
-      accessibilityLabel: `${discountPercent}% 할인, ${priceDescription}`,
-      detailLabel: price,
-      priceKrw,
-      pricePlacement: priceKrw != null ? "detail" : undefined,
-    };
-  }
-
-  if (discountPercent) {
-    return {
-      accentLabel: `${discountPercent}%`,
-      accessibilityLabel: `${discountPercent}% 할인, 상세에서 가격 확인`,
-      detailLabel: "상세에서 가격 확인",
-    };
-  }
-
-  if (price) {
-    return {
-      accentLabel: "공구 진행 중",
-      accessibilityLabel: `공구 진행 중, ${priceDescription}`,
-      detailLabel: price,
-      priceKrw,
-      pricePlacement: priceKrw != null ? "detail" : undefined,
-    };
-  }
-
-  return {
-    accentLabel: "공구 진행 중",
-    accessibilityLabel: "공구 진행 중, 상세에서 가격 확인",
-    detailLabel: "상세에서 가격 확인",
-  };
 }
 
 function HomeTopBar({
@@ -691,7 +507,7 @@ function PromoBanner({
       {loopingPromoItems.map(({ item, index, clone }, renderIndex) => {
         const visual = getPromoVisual(item);
         const productName = item.productName?.trim() || "공동구매 상품";
-        const statusCopy = getPromoStatusCopy(item);
+        const statusCopy = getHomeBannerStatusCopy(item);
         const accessibilityLabel = [
           productName,
           statusCopy.accessibilityLabel,

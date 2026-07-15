@@ -1028,6 +1028,9 @@ textarea:focus {
 .app-live-preview__panel--card {
   background: var(--surface-2);
 }
+.app-live-preview__panel--home > article {
+  border-radius: 24px;
+}
 .app-live-preview__panel > article {
   overflow: hidden;
   border-radius: 16px;
@@ -1045,7 +1048,7 @@ textarea:focus {
   position: relative;
   display: flex;
   align-items: flex-end;
-  min-height: 330px;
+  height: 260px;
   isolation: isolate;
   background: var(--ink);
 }
@@ -1069,9 +1072,11 @@ textarea:focus {
 }
 .app-live-preview__home-banner-counter {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  padding: 4px 9px;
+  top: 12px;
+  right: 12px;
+  min-width: 36px;
+  min-height: 22px;
+  padding: 0 7px;
   border-radius: var(--radius-pill);
   background: rgba(24, 24, 27, 0.58);
   color: #fff;
@@ -1081,7 +1086,7 @@ textarea:focus {
 }
 .app-live-preview__home-banner-content {
   width: 100%;
-  padding: 20px;
+  padding: 38px 18px 18px;
   color: #fff;
 }
 .app-live-preview__card-meta,
@@ -1094,9 +1099,9 @@ textarea:focus {
 .app-live-preview__home-banner-title {
   max-width: 86%;
   color: #fff;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 26px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 .app-live-preview__home-banner-status {
@@ -1126,14 +1131,16 @@ textarea:focus {
 .app-live-preview__home-banner-price-label {
   font-weight: 500;
 }
-.app-live-preview__home-banner-price-value {
+.app-live-preview__home-banner-status .app-live-preview__home-banner-price-value {
+  color: #fff;
   font-weight: 900;
 }
 .app-live-preview__home-banner-secondary {
   margin-top: 5px;
   color: rgba(255, 255, 255, 0.84);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
+  line-height: 18px;
 }
 .app-live-preview__sr-only {
   position: absolute;
