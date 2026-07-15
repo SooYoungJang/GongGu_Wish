@@ -218,8 +218,10 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-      # Run migrations against the remote database
-      - run: supabase db push
+      # The repository also restores legacy migrations that were omitted from
+      # the Supabase folder while their schema already existed remotely. Allow
+      # Supabase CLI to apply those historical files before newer remote rows.
+      - run: supabase db push --include-all
         if: steps.credentials.outputs.deployment_enabled == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
