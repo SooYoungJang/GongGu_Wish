@@ -246,13 +246,17 @@ export async function fetchGroupBuys(): Promise<GroupBuy[]> {
 /**
  * Map raw PostgREST group_buy rows into the app's GroupBuy type.
  */
-function mapGroupBuyRows(rows: any[]): GroupBuy[] {
+export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
   return (rows || []).map((item) => {
     const rawPriceKrw =
       item.priceKrw !== undefined ? item.priceKrw : item.price_krw;
     const priceKrw = normalizePriceKrw(rawPriceKrw);
+    // Home banners are opt-in. A missing field must not be treated as enabled
+    // while an older API/schema is being rolled out.
     const isHomeBanner =
-      item.isHomeBanner !== undefined ? item.isHomeBanner : item.is_home_banner;
+      item.isHomeBanner !== undefined
+        ? item.isHomeBanner === true
+        : item.is_home_banner === true;
     const homeBannerStartDate =
       item.homeBannerStartDate !== undefined
         ? item.homeBannerStartDate
@@ -285,7 +289,7 @@ function mapGroupBuyRows(rows: any[]): GroupBuy[] {
       ...(item.monthlyFeaturedRank !== undefined
         ? { monthlyFeaturedRank: item.monthlyFeaturedRank }
         : {}),
-      ...(isHomeBanner !== undefined ? { isHomeBanner } : {}),
+      isHomeBanner,
       ...(homeBannerStartDate !== undefined ? { homeBannerStartDate } : {}),
       ...(homeBannerEndDate !== undefined ? { homeBannerEndDate } : {}),
       createdAt: item.createdAt ?? item.created_at ?? undefined,

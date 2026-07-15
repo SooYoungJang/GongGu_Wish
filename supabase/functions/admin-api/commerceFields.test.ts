@@ -2,6 +2,7 @@ import {
   mergeHomeBannerSchedule,
   normalizeHomeBannerBoolean,
   normalizeHomeBannerDate,
+  normalizeCommercePatch,
   normalizePriceKrw,
   normalizePricePatch,
   validateHomeBannerSchedule,
@@ -59,6 +60,33 @@ Deno.test(
       price_krw: 25900,
     });
     assertEquals(normalizePricePatch({ summary: "unchanged" }), {});
+  },
+);
+
+Deno.test(
+  "persists the admin price and explicit home-banner opt-out together",
+  () => {
+    assertEquals(
+      normalizeCommercePatch(
+        {
+          priceKrw: "200,000",
+          isHomeBanner: false,
+          homeBannerStartDate: "",
+          homeBannerEndDate: "",
+        },
+        {
+          is_home_banner: true,
+          home_banner_start_date: "2026-07-01",
+          home_banner_end_date: "2026-07-31",
+        },
+      ),
+      {
+        price_krw: 200000,
+        is_home_banner: false,
+        home_banner_start_date: null,
+        home_banner_end_date: null,
+      },
+    );
   },
 );
 

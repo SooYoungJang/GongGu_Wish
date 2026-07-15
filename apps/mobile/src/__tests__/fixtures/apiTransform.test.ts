@@ -15,7 +15,12 @@ vi.mock("../../lib/postgrest-client", () => ({
 }));
 
 import { postgrestGet } from "../../lib/postgrest-client";
-import { fetchGroupBuys, fetchInfluencers, fallbackGroupBuys } from "../../api";
+import {
+  fetchGroupBuys,
+  fetchInfluencers,
+  fallbackGroupBuys,
+  mapGroupBuyRows,
+} from "../../api";
 import { rawInfluencersResponse, expectedInfluencers } from "./realApiData";
 
 // mapPostgrestToApp를 거친 변환 후 데이터 (실제 postgrestGet 반환값 시뮬레이션)
@@ -73,6 +78,25 @@ describe("API 변환 로직 — 실제 PostgREST 응답 기반", () => {
       const result = await fetchGroupBuys();
 
       expect(result[0].priceKrw).toBe(25900);
+    });
+
+    it("가격과 홈 배너 해제 상태를 재조회 데이터에 보존한다", () => {
+      const [result] = mapGroupBuyRows([
+        {
+          ...mappedGroupBuys[0],
+          price_krw: "200000",
+          is_home_banner: false,
+        },
+      ]);
+
+      expect(result.priceKrw).toBe(200000);
+      expect(result.isHomeBanner).toBe(false);
+    });
+
+    it("홈 배너 필드가 없는 레거시 응답도 기본적으로 노출하지 않는다", () => {
+      const [result] = mapGroupBuyRows([{ ...mappedGroupBuys[0] }]);
+
+      expect(result.isHomeBanner).toBe(false);
     });
 
     it("중첩된 rawPostId.influencerId에서 username을 추출한다", async () => {

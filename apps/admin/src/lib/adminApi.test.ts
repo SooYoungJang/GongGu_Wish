@@ -24,27 +24,55 @@ describe("adminApi.updateGroupBuy", () => {
     vi.restoreAllMocks();
   });
 
-  it("sends priceKrw and normalizes the persisted response before the UI consumes it", async () => {
+  it("sends priceKrw and normalizes the persisted commerce response before the UI consumes it", async () => {
     const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({
         data: {
           id: "group-buy-1",
-          priceKrw: "25900",
+          price_krw: "200000",
+          is_home_banner: false,
           status: "APPROVED",
         },
       }),
     } as Response);
 
     const result = await adminApi.updateGroupBuy("group-buy-1", {
-      priceKrw: 25900,
+      priceKrw: 200000,
+      isHomeBanner: false,
     });
 
     const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
-      body: { priceKrw: number };
+      body: { priceKrw: number; isHomeBanner: boolean };
     };
-    expect(request.body.priceKrw).toBe(25900);
-    expect(result.priceKrw).toBe(25900);
+    expect(request.body.priceKrw).toBe(200000);
+    expect(request.body.isHomeBanner).toBe(false);
+    expect(result.priceKrw).toBe(200000);
+    expect(result.isHomeBanner).toBe(false);
+  });
+
+  it("normalizes price and banner state returned by the refresh list", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          items: [
+            {
+              id: "group-buy-1",
+              price_krw: "200000",
+              is_home_banner: false,
+            },
+          ],
+          total: 1,
+        },
+      }),
+    } as Response);
+
+    const result = await adminApi.listGroupBuys({ page: 1, limit: 25 });
+
+    expect(result.items[0].priceKrw).toBe(200000);
+    expect(result.items[0].isHomeBanner).toBe(false);
   });
 });

@@ -92,12 +92,30 @@ async function requestAdmin<T>(
   return payload.data;
 }
 
-function normalizeGroupBuyPrice(groupBuy: GroupBuy): GroupBuy {
-  const raw = groupBuy as GroupBuy & { price_krw?: unknown };
+function normalizeGroupBuyResponse(groupBuy: GroupBuy): GroupBuy {
+  const raw = groupBuy as GroupBuy & {
+    price_krw?: unknown;
+    is_home_banner?: unknown;
+    home_banner_start_date?: unknown;
+    home_banner_end_date?: unknown;
+  };
   const rawPrice = raw.priceKrw !== undefined ? raw.priceKrw : raw.price_krw;
+  const rawIsHomeBanner =
+    raw.isHomeBanner !== undefined ? raw.isHomeBanner : raw.is_home_banner;
+  const rawStartDate =
+    raw.homeBannerStartDate !== undefined
+      ? raw.homeBannerStartDate
+      : raw.home_banner_start_date;
+  const rawEndDate =
+    raw.homeBannerEndDate !== undefined
+      ? raw.homeBannerEndDate
+      : raw.home_banner_end_date;
   return {
     ...groupBuy,
     priceKrw: normalizePriceKrwValue(rawPrice),
+    isHomeBanner: rawIsHomeBanner === true,
+    homeBannerStartDate: typeof rawStartDate === "string" ? rawStartDate : null,
+    homeBannerEndDate: typeof rawEndDate === "string" ? rawEndDate : null,
   };
 }
 
@@ -132,7 +150,7 @@ export const adminApi = {
       { body },
     ).then((result) => ({
       ...result,
-      groupBuy: normalizeGroupBuyPrice(result.groupBuy),
+      groupBuy: normalizeGroupBuyResponse(result.groupBuy),
     }));
   },
 
@@ -156,14 +174,14 @@ export const adminApi = {
       params,
     }).then((result) => ({
       ...result,
-      items: result.items.map(normalizeGroupBuyPrice),
+      items: result.items.map(normalizeGroupBuyResponse),
     }));
   },
 
   updateGroupBuy(id: string, body: Record<string, unknown>) {
     return requestAdmin<GroupBuy>(`/admin/group-buys/${id}`, "PATCH", {
       body,
-    }).then(normalizeGroupBuyPrice);
+    }).then(normalizeGroupBuyResponse);
   },
 
   lookupHiker(url: string) {

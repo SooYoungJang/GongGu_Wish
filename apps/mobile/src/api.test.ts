@@ -24,7 +24,7 @@ describe('public data fetch diagnostics', () => {
     expect(console.log).toHaveBeenCalledWith('[GroupBuys] fetch failed:', 'Network request failed');
   });
 
-  it('preserves the legacy home-banner fallback when the backend omits the flag', async () => {
+  it('does not enable a home banner when the backend omits the flag', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -40,7 +40,7 @@ describe('public data fetch diagnostics', () => {
 
     const [item] = await fetchGroupBuys();
 
-    expect(item.isHomeBanner).toBeUndefined();
+    expect(item.isHomeBanner).toBe(false);
   });
 
   it('looks up Instagram metadata through the Supabase hiker function', async () => {

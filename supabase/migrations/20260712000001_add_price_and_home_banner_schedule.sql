@@ -11,18 +11,9 @@ ALTER TABLE public.group_buys
   ADD COLUMN IF NOT EXISTS home_banner_start_date DATE,
   ADD COLUMN IF NOT EXISTS home_banner_end_date DATE;
 
--- Preserve today's home experience for approved, non-expired rows. Upcoming
--- deals already visible on Home must remain visible before their commerce start.
--- New rows remain opt-in.
-UPDATE public.group_buys
-SET
-  is_home_banner = TRUE,
-  home_banner_start_date = LEAST(COALESCE(start_date::DATE, CURRENT_DATE), CURRENT_DATE),
-  -- A null commerce end date historically meant no automatic expiry.
-  home_banner_end_date = COALESCE(end_date::DATE, DATE '9999-12-31')
-WHERE status = 'APPROVED'
-  AND (end_date IS NULL OR end_date::DATE >= CURRENT_DATE)
-  AND is_home_banner = FALSE;
+-- Existing and new rows remain opt-in. Only an explicit admin checkbox can
+-- enable a home banner; an approved group buy must not become a banner merely
+-- because this column was added.
 
 DO $$
 BEGIN
