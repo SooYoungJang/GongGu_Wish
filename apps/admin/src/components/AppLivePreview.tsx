@@ -1,4 +1,8 @@
 import { Component, type KeyboardEvent } from "react";
+import {
+  getHomeBannerStatusCopy,
+  type HomeBannerStatusCopy,
+} from "@gonggu/shared/utils/homeBannerPresentation";
 
 type PreviewTab = "home" | "card" | "detail";
 
@@ -38,7 +42,7 @@ let previewInstanceCount = 0;
 function formatPrice(priceKrw: number | null) {
   return typeof priceKrw === "number"
     ? `${wonFormatter.format(priceKrw)}원`
-    : "가격 미정";
+    : null;
 }
 
 function formatWeeklyDeadline(value: string, now = new Date()) {
@@ -49,90 +53,6 @@ function formatWeeklyDeadline(value: string, now = new Date()) {
 
   const days = Math.ceil((date.getTime() - now.getTime()) / 86_400_000);
   return days === 0 ? "오늘 마감" : `${days}일 남음`;
-}
-
-type HomeBannerCopy = {
-  accentLabel: string;
-  detailLabel?: string;
-  secondaryLabel?: string;
-  priceKrw: number | null;
-  pricePlacement?: "detail" | "secondary";
-};
-
-function parsePreviewDate(value: string, endOfDay = false) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return null;
-
-  const date = new Date(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3]),
-    endOfDay ? 23 : 0,
-    endOfDay ? 59 : 0,
-    endOfDay ? 59 : 0,
-  );
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function getLegacyPriceKrw(discountInfo: string) {
-  const raw = discountInfo.match(/(?:\d{1,3}(?:,\d{3})+|\d{4,})\s*원/)?.[0];
-  if (!raw) return null;
-
-  const parsed = Number(raw.replace(/[^0-9]/g, ""));
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function getHomeBannerCopy(
-  deal: AppLivePreviewDeal,
-  now = new Date(),
-): HomeBannerCopy {
-  const startDate = parsePreviewDate(deal.startDate);
-  const endDate = parsePreviewDate(deal.endDate, true);
-
-  if (endDate && endDate.getTime() < now.getTime()) {
-    return { accentLabel: "공구 종료", priceKrw: null };
-  }
-
-  const priceKrw = deal.priceKrw ?? getLegacyPriceKrw(deal.discountInfo);
-  const price = formatPrice(priceKrw);
-  const discountPercent =
-    deal.discountInfo.match(/(?:^|\D)(\d{1,3})\s*%/)?.[1] ?? null;
-
-  if (startDate && startDate.getTime() > now.getTime()) {
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startDay = new Date(
-      startDate.getFullYear(),
-      startDate.getMonth(),
-      startDate.getDate(),
-    );
-    const daysUntilStart = Math.max(
-      0,
-      Math.round((startDay.getTime() - today.getTime()) / 86_400_000),
-    );
-    return {
-      accentLabel: daysUntilStart === 0 ? "오늘" : `D+${daysUntilStart}`,
-      detailLabel: `${startDate.getMonth() + 1}/${startDate.getDate()} 시작`,
-      secondaryLabel: price ?? "가격 공개 예정",
-      priceKrw,
-      pricePlacement: priceKrw !== null ? "secondary" : undefined,
-    };
-  }
-
-  if (discountPercent) {
-    return {
-      accentLabel: `${discountPercent}%`,
-      detailLabel: price ?? "상세에서 가격 확인",
-      priceKrw,
-      pricePlacement: priceKrw !== null ? "detail" : undefined,
-    };
-  }
-
-  return {
-    accentLabel: "공구 진행 중",
-    detailLabel: price ?? "상세에서 가격 확인",
-    priceKrw,
-    pricePlacement: priceKrw !== null ? "detail" : undefined,
-  };
 }
 
 function PreviewPriceText({
@@ -261,7 +181,7 @@ export class AppLivePreview extends Component<
       ? "홈 배너 노출"
       : "홈 배너 미노출";
     const bannerPeriodStatus = getBannerPeriodStatus(deal);
-    const homeBannerCopy = getHomeBannerCopy(deal);
+    const homeBannerCopy = getHomeBannerStatusCopy(deal);
     const priceText = formatPrice(homeBannerCopy.priceKrw) ?? "가격 공개 예정";
     const activeTabLabel =
       previewTabs.find((tab) => tab.id === activeTab)?.label ?? "홈 배너";
@@ -350,7 +270,7 @@ function HomeBannerPreview({
   priceText: string;
   bannerExposure: string;
   bannerPeriodStatus: string;
-  copy: HomeBannerCopy;
+  copy: HomeBannerStatusCopy;
 }) {
   return (
     <article

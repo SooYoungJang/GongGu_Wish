@@ -118,6 +118,24 @@ describe("AppLivePreview", () => {
     expect(screen.getByText("25,900원")).toBeTruthy();
   });
 
+  it("uses the RN discount rule instead of treating product composition as a sale", () => {
+    render(
+      <AppLivePreview
+        deal={{
+          ...activeDeal,
+          discountInfo: "100% 천연 원료 · 공구가 39,000원",
+        }}
+      />,
+    );
+
+    const homeBanner = screen.getByRole("article", {
+      name: "홈 배너 미리보기",
+    });
+    expect(homeBanner.textContent).not.toContain("100%");
+    expect(homeBanner.textContent).toContain("공구 진행 중");
+    expect(homeBanner.textContent).toContain("25,900원");
+  });
+
   it("clearly marks home banner disabled and out-of-period states", () => {
     render(
       <AppLivePreview

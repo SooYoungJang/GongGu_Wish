@@ -19,11 +19,10 @@ describe("formToPreviewDeal", () => {
       summary: "제철 감귤",
       adminMemo: "",
       thumbnailUrl: "https://example.com/hiker-thumbnail.jpg",
-      videoUrl: "",
       mediaUrlsText: "https://example.com/carousel-slide.jpg",
-      mediaItemsText: JSON.stringify([
-        { url: "https://example.com/carousel-slide.jpg", mediaType: "IMAGE" },
-      ]),
+      mediaItems: [
+        { url: "https://example.com/carousel-slide.jpg", mediaType: "IMAGE", thumbnailUrl: null },
+      ],
       mediaType: "IMAGE",
       isHomeBanner: false,
       homeBannerStartDate: "",

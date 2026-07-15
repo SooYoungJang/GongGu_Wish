@@ -54,9 +54,8 @@ type SubmissionForm = {
   summary: string;
   adminMemo: string;
   thumbnailUrl: string;
-  videoUrl: string;
   mediaUrlsText: string;
-  mediaItemsText: string;
+  mediaItems: MediaAsset[];
   mediaType: "" | "IMAGE" | "VIDEO";
   isHomeBanner: boolean;
   homeBannerStartDate: string;
@@ -74,9 +73,8 @@ type GroupBuyForm = {
   priceKrw: string;
   summary: string;
   thumbnailUrl: string;
-  videoUrl: string;
   mediaUrlsText: string;
-  mediaItemsText: string;
+  mediaItems: MediaAsset[];
   mediaType: "" | "IMAGE" | "VIDEO";
   status: GroupBuyStatus;
   isHomeBanner: boolean;
@@ -199,39 +197,6 @@ function formatDateTime(value: string | null | undefined) {
   }).format(new Date(value));
 }
 
-function parseMediaItems(value: string): MediaAsset[] {
-  const trimmed = value.trim();
-  if (!trimmed) return [];
-  const parsed = JSON.parse(trimmed) as unknown;
-  if (!Array.isArray(parsed)) {
-    throw new Error("미디어 JSON은 배열이어야 합니다.");
-  }
-
-  const mediaItems: MediaAsset[] = [];
-  for (const item of parsed) {
-    if (!item || typeof item !== "object") continue;
-    const record = item as Record<string, unknown>;
-    const url = typeof record.url === "string" ? record.url.trim() : "";
-    const mediaType =
-      record.mediaType === "VIDEO"
-        ? "VIDEO"
-        : record.mediaType === "IMAGE"
-          ? "IMAGE"
-          : null;
-    const thumbnailUrl =
-      typeof record.thumbnailUrl === "string" && record.thumbnailUrl.trim()
-        ? record.thumbnailUrl.trim()
-        : null;
-    if (!url || !mediaType) continue;
-    mediaItems.push({ url, mediaType, thumbnailUrl });
-  }
-  return mediaItems;
-}
-
-function stringifyMediaItems(items: MediaAsset[] | null | undefined) {
-  return JSON.stringify(items ?? [], null, 2);
-}
-
 function deriveImageUrls(
   mediaItems: MediaAsset[],
   fallbackThumbnail: string,
@@ -266,12 +231,9 @@ function priceInputValue(value: number | null | undefined) {
 
 function inferFormMediaType(
   mediaItems: MediaAsset[],
-  videoUrl: string,
   mediaUrls: string[],
 ) {
-  return (
-    inferHikerSuggestions({ mediaItems, videoUrl, mediaUrls }).mediaType ?? ""
-  );
+  return inferHikerSuggestions({ mediaItems, mediaUrls }).mediaType ?? "";
 }
 
 function mediaTypeLabel(mediaType: "" | "IMAGE" | "VIDEO") {
@@ -280,19 +242,11 @@ function mediaTypeLabel(mediaType: "" | "IMAGE" | "VIDEO") {
   return "미디어 없음";
 }
 
-function previewMediaItems(value: string) {
-  try {
-    return parseMediaItems(value);
-  } catch {
-    return [];
-  }
-}
-
 // oxlint-disable-next-line react/only-export-components -- keep the pure preview mapping covered by a regression test
 export function formToPreviewDeal(
   form: SubmissionForm | GroupBuyForm,
 ): AppLivePreviewDeal {
-  const mediaItems = previewMediaItems(form.mediaItemsText);
+  const mediaItems = form.mediaItems ?? [];
   const mediaUrls = splitLines(form.mediaUrlsText);
   const imageUrl = form.thumbnailUrl.trim();
   let priceKrw: number | null = null;
@@ -325,7 +279,6 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
   const mediaItems = item.mediaItems ?? [];
   const mediaUrls = mediaItems.map((media) => media.url);
   const thumbnailUrl = firstMediaThumbnail(mediaItems, item.imageUrls ?? []);
-  const videoUrl = firstVideoUrl(mediaItems);
   const mediaType = mediaItems.some((media) => media.mediaType === "VIDEO")
     ? "VIDEO"
     : mediaItems.length > 0 || item.imageUrls.length > 0
@@ -345,12 +298,11 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
     summary: text(item.summary),
     adminMemo: text(item.adminMemo),
     thumbnailUrl,
-    videoUrl,
     mediaUrlsText:
       mediaUrls.length > 0
         ? mediaUrls.join("\n")
         : (item.imageUrls ?? []).join("\n"),
-    mediaItemsText: stringifyMediaItems(mediaItems),
+    mediaItems,
     mediaType,
     isHomeBanner: Boolean(item.isHomeBanner),
     homeBannerStartDate: dateInput(item.homeBannerStartDate),
@@ -370,9 +322,8 @@ function groupBuyToForm(item: GroupBuy): GroupBuyForm {
     priceKrw: priceInputValue(item.priceKrw),
     summary: text(item.summary),
     thumbnailUrl: text(item.thumbnailUrl),
-    videoUrl: text(item.videoUrl),
     mediaUrlsText: (item.mediaUrls ?? []).join("\n"),
-    mediaItemsText: stringifyMediaItems(item.mediaItems),
+    mediaItems: item.mediaItems ?? [],
     mediaType: item.mediaType ?? "",
     status: item.status,
     isHomeBanner: Boolean(item.isHomeBanner),
@@ -381,10 +332,21 @@ function groupBuyToForm(item: GroupBuy): GroupBuyForm {
   };
 }
 
+function mediaItemsForForm(form: SubmissionForm | GroupBuyForm) {
+  const mediaItems = form.mediaItems ?? [];
+  if (mediaItems.length > 0) return mediaItems;
+
+  return splitLines(form.mediaUrlsText).map((url) => ({
+    url,
+    mediaType: "IMAGE" as const,
+    thumbnailUrl: null,
+  }));
+}
+
 function submissionPayload(form: SubmissionForm) {
   const bannerError = validateHomeBannerForm(form);
   if (bannerError) throw new Error(bannerError);
-  const mediaItems = parseMediaItems(form.mediaItemsText);
+  const mediaItems = mediaItemsForForm(form);
   const mediaUrls = splitLines(form.mediaUrlsText);
   return {
     productName: form.productName,
@@ -400,10 +362,10 @@ function submissionPayload(form: SubmissionForm) {
     adminMemo: form.adminMemo,
     imageUrls: deriveImageUrls(mediaItems, form.thumbnailUrl.trim(), mediaUrls),
     thumbnailUrl: form.thumbnailUrl,
-    videoUrl: form.videoUrl,
+    videoUrl: firstVideoUrl(mediaItems),
     mediaUrls,
     mediaItems,
-    mediaType: inferFormMediaType(mediaItems, form.videoUrl, mediaUrls) || null,
+    mediaType: inferFormMediaType(mediaItems, mediaUrls) || null,
     isHomeBanner: form.isHomeBanner,
     homeBannerStartDate: form.homeBannerStartDate,
     homeBannerEndDate: form.homeBannerEndDate,
@@ -414,7 +376,7 @@ function groupBuyPayload(form: GroupBuyForm) {
   const bannerError = validateHomeBannerForm(form);
   if (bannerError) throw new Error(bannerError);
   const mediaUrls = splitLines(form.mediaUrlsText);
-  const mediaItems = parseMediaItems(form.mediaItemsText);
+  const mediaItems = mediaItemsForForm(form);
   return {
     productName: form.productName,
     brandName: form.brandName,
@@ -426,10 +388,10 @@ function groupBuyPayload(form: GroupBuyForm) {
     priceKrw: parsePriceKrwInput(form.priceKrw),
     summary: form.summary,
     thumbnailUrl: form.thumbnailUrl,
-    videoUrl: form.videoUrl,
+    videoUrl: firstVideoUrl(mediaItems),
     mediaUrls,
     mediaItems,
-    mediaType: inferFormMediaType(mediaItems, form.videoUrl, mediaUrls) || null,
+    mediaType: inferFormMediaType(mediaItems, mediaUrls) || null,
     status: form.status,
     isHomeBanner: form.isHomeBanner,
     homeBannerStartDate: form.homeBannerStartDate,
@@ -1738,14 +1700,12 @@ function applyHikerResult(
   const mediaUrls = result.mediaUrls ?? [];
   const thumbnailUrl =
     result.thumbnailUrl ?? result.imageUrl ?? form.thumbnailUrl;
-  const videoUrl = result.videoUrl ?? form.videoUrl;
   const suggestions = inferHikerSuggestions({
     caption: result.caption,
     currentProductName:
       form.productName.trim() === "검수 대기 위시템" ? "" : form.productName,
     currentCategory: form.category,
     mediaItems,
-    videoUrl,
     mediaUrls,
     suggestions: result.suggestions ?? null,
   });
@@ -1775,9 +1735,8 @@ function applyHikerResult(
     purchaseUrl: form.purchaseUrl || form.instagramUrl,
     summary: result.caption ? result.caption.slice(0, 500) : form.summary,
     thumbnailUrl,
-    videoUrl,
     mediaUrlsText: mediaUrls.join("\n"),
-    mediaItemsText: stringifyMediaItems(mediaItems),
+    mediaItems,
     mediaType: suggestions.mediaType ?? result.mediaType ?? form.mediaType,
   };
 }
@@ -2518,20 +2477,11 @@ function SubmissionEditor(props: {
           value={form.thumbnailUrl}
           onChange={(value) => setField("thumbnailUrl", value)}
         />
-        <TextField
-          label="비디오 URL"
-          value={form.videoUrl}
-          onChange={(value) => setField("videoUrl", value)}
-        />
         <div className="auto-field">
           <span>미디어 타입</span>
           <strong>
             {mediaTypeLabel(
-              inferFormMediaType(
-                previewMediaItems(form.mediaItemsText),
-                form.videoUrl,
-                splitLines(form.mediaUrlsText),
-              ),
+              inferFormMediaType(form.mediaItems, splitLines(form.mediaUrlsText)),
             )}
           </strong>
           <small>Hiker 미디어를 기준으로 자동 감지됩니다.</small>
@@ -2570,13 +2520,6 @@ function SubmissionEditor(props: {
         value={form.mediaUrlsText}
         onChange={(value) => setField("mediaUrlsText", value)}
         rows={4}
-      />
-      <TextareaField
-        label="미디어 JSON"
-        value={form.mediaItemsText}
-        onChange={(value) => setField("mediaItemsText", value)}
-        rows={7}
-        monospace
       />
       <TextareaField
         label="관리 메모"
@@ -2935,20 +2878,11 @@ function GroupBuyEditor(props: {
           value={form.thumbnailUrl}
           onChange={(value) => setField("thumbnailUrl", value)}
         />
-        <TextField
-          label="비디오 URL"
-          value={form.videoUrl}
-          onChange={(value) => setField("videoUrl", value)}
-        />
         <div className="auto-field">
           <span>미디어 타입</span>
           <strong>
             {mediaTypeLabel(
-              inferFormMediaType(
-                previewMediaItems(form.mediaItemsText),
-                form.videoUrl,
-                splitLines(form.mediaUrlsText),
-              ),
+              inferFormMediaType(form.mediaItems, splitLines(form.mediaUrlsText)),
             )}
           </strong>
           <small>등록된 미디어를 기준으로 자동 감지됩니다.</small>
@@ -2995,13 +2929,6 @@ function GroupBuyEditor(props: {
         value={form.mediaUrlsText}
         onChange={(value) => setField("mediaUrlsText", value)}
         rows={4}
-      />
-      <TextareaField
-        label="미디어 JSON"
-        value={form.mediaItemsText}
-        onChange={(value) => setField("mediaItemsText", value)}
-        rows={7}
-        monospace
       />
 
       <div className="action-row action-row--end">
