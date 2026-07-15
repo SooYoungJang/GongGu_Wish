@@ -24,7 +24,11 @@ CREATE INDEX IF NOT EXISTS search_logs_keyword_norm_searched_at_idx
 ALTER TABLE public.search_logs ENABLE ROW LEVEL SECURITY;
 
 -- Anyone (anon + authenticated) may log a search event.
-CREATE POLICY IF NOT EXISTS "search_logs_anon_insert"
+-- PostgreSQL does not support CREATE POLICY IF NOT EXISTS; make reruns safe
+-- explicitly for both a fresh shadow database and an existing project.
+DROP POLICY IF EXISTS "search_logs_anon_insert"
+  ON public.search_logs;
+CREATE POLICY "search_logs_anon_insert"
   ON public.search_logs
   FOR INSERT
   WITH CHECK (true);
