@@ -3,7 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../api';
-import { MyPageScreen } from '../screens/MyPageScreen';
+import { DealShelf, MyPageScreen } from '../screens/MyPageScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
@@ -18,6 +18,14 @@ const authMocks = vi.hoisted(() => ({
   signOut: vi.fn().mockResolvedValue(undefined),
 }));
 const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
+const dealCardMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../components/DealCard', () => ({
+  DealCard: (props: any) => {
+    dealCardMock(props);
+    return React.createElement('DealCard', props);
+  },
+}));
 
 // Mock @supabase/supabase-js
 vi.mock('@supabase/supabase-js', () => ({
@@ -168,6 +176,64 @@ beforeEach(() => {
 });
 
 describe('MyPageScreen', () => {
+  it('uses the home DealCard surface for activity shelves and keeps remove actions', () => {
+    const item = {
+      id: 'deal-1',
+      productName: '테스트 공구',
+      category: 'beauty',
+    } as any;
+    const onPressDeal = vi.fn();
+    const onRemoveDeal = vi.fn();
+    const styles = {
+      dealShelf: 'dealShelf',
+      shelfHeader: 'shelfHeader',
+      shelfTitle: 'shelfTitle',
+      shelfSubtitle: 'shelfSubtitle',
+      miniDealRail: 'miniDealRail',
+      shelfDealItem: 'shelfDealItem',
+      shelfDealCard: 'shelfDealCard',
+      shelfDealRemove: 'shelfDealRemove',
+      shelfDealRemoveText: 'shelfDealRemoveText',
+      emptyShelf: 'emptyShelf',
+      emptyShelfText: 'emptyShelfText',
+      pressed: 'pressed',
+    } as any;
+
+    dealCardMock.mockClear();
+    let renderer: ReturnType<typeof TestRenderer.create>;
+    act(() => {
+      renderer = renderScreen(
+        React.createElement(DealShelf, {
+          title: '북마크한 공구',
+          subtitle: '저장해둔 공구를 모아봤어요',
+          items: [item],
+          emptyText: '북마크한 공구가 아직 없어요.',
+          onPressDeal,
+          onRemoveDeal,
+          removeLabel: '북마크 해제',
+          s: styles,
+        }),
+      );
+    });
+
+    expect(dealCardMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        item,
+        category: 'beauty',
+        onPress: expect.any(Function),
+        style: styles.shelfDealCard,
+      }),
+    );
+
+    const removeButton = renderer!.root.findByProps({
+      accessibilityLabel: '테스트 공구 북마크 해제',
+    });
+    act(() => {
+      removeButton.props.onPress();
+    });
+    expect(onRemoveDeal).toHaveBeenCalledWith(item);
+  });
+
   it('renders without crashing', () => {
     const renderer = renderMyPageScreen();
     expect(renderer.toJSON()).toBeTruthy();

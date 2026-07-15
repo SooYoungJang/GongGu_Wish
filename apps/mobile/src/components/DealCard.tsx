@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
+import type { StyleProp, ViewStyle } from "react-native";
 import { PriceText } from "./ui/PriceText";
 import { SText } from "./ui/SText";
 
@@ -13,6 +14,7 @@ type DealCardProps = {
   item: GroupBuy;
   category: CategoryColorName;
   onPress: () => void;
+  style?: StyleProp<ViewStyle>;
 };
 
 const CATEGORY_LABELS: Record<CategoryColorName, string> = {
@@ -48,7 +50,7 @@ function formatDeadline(endDate: string | null) {
   return `${date.getMonth() + 1}월 ${date.getDate()}일 마감`;
 }
 
-export function DealCard({ item, category, onPress }: DealCardProps) {
+export function DealCard({ item, category, onPress, style }: DealCardProps) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const token = categoryColors[category];
@@ -66,7 +68,7 @@ export function DealCard({ item, category, onPress }: DealCardProps) {
       accessibilityLabel={`${item.productName ?? "공구"} 상세 보기`}
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [s.card, pressed && s.pressed]}
+      style={({ pressed }) => [s.card, style, pressed && s.pressed]}
     >
       <View style={s.imageWrap}>
         {imageUrl ? (

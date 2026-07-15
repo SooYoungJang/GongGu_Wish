@@ -14,12 +14,14 @@ const MAX_WISH_ITEMS = 50;
 
 export type StoredGroupBuy = Pick<
   GroupBuy,
-  'id' | 'productName' | 'brandName' | 'category' | 'startDate' | 'endDate' | 'purchaseUrl' | 'discountInfo' | 'summary' | 'confidence' | 'thumbnailUrl' | 'videoUrl' | 'mediaUrls' | 'mediaItems' | 'mediaType' | 'rawPost'
+  'id' | 'productName' | 'brandName' | 'category' | 'startDate' | 'endDate' | 'purchaseUrl' | 'discountInfo' | 'summary' | 'confidence' | 'priceKrw' | 'thumbnailUrl' | 'videoUrl' | 'mediaUrls' | 'mediaItems' | 'mediaType' | 'rawPost'
 >;
 
 export type NotificationEntry = {
   groupBuyId: string;
   productName: string | null;
+  // Legacy AsyncStorage entries may not have a price yet.
+  priceKrw?: number | null;
   endDate: string | null;
   startDate: string | null;
   thumbnailUrl: string | null;
@@ -57,6 +59,7 @@ function toStored(item: GroupBuy): StoredGroupBuy {
     startDate: item.startDate,
     summary: item.summary,
     confidence: item.confidence,
+    priceKrw: item.priceKrw,
     thumbnailUrl: item.thumbnailUrl,
     videoUrl: item.videoUrl,
     mediaUrls: item.mediaUrls,
@@ -302,6 +305,7 @@ export function useNotifications() {
       const entry: NotificationEntry = {
         groupBuyId: item.id,
         productName: item.productName,
+        priceKrw: item.priceKrw ?? null,
         endDate: item.endDate,
         startDate: item.startDate,
         thumbnailUrl: item.thumbnailUrl,
