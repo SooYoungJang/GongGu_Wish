@@ -229,10 +229,7 @@ function priceInputValue(value: number | null | undefined) {
   return value === null || value === undefined ? "" : String(value);
 }
 
-function inferFormMediaType(
-  mediaItems: MediaAsset[],
-  mediaUrls: string[],
-) {
+function inferFormMediaType(mediaItems: MediaAsset[], mediaUrls: string[]) {
   return inferHikerSuggestions({ mediaItems, mediaUrls }).mediaType ?? "";
 }
 
@@ -1526,6 +1523,7 @@ function AdminShell({ session }: { session: Session }) {
             ) : null}
             {tab === "notifications" ? (
               <PushNotificationPanel
+                onSearchUsers={adminApi.listUsers}
                 onSend={(input) => adminApi.sendPushNotification(input)}
               />
             ) : null}
@@ -2481,7 +2479,10 @@ function SubmissionEditor(props: {
           <span>미디어 타입</span>
           <strong>
             {mediaTypeLabel(
-              inferFormMediaType(form.mediaItems, splitLines(form.mediaUrlsText)),
+              inferFormMediaType(
+                form.mediaItems,
+                splitLines(form.mediaUrlsText),
+              ),
             )}
           </strong>
           <small>Hiker 미디어를 기준으로 자동 감지됩니다.</small>
@@ -2882,7 +2883,10 @@ function GroupBuyEditor(props: {
           <span>미디어 타입</span>
           <strong>
             {mediaTypeLabel(
-              inferFormMediaType(form.mediaItems, splitLines(form.mediaUrlsText)),
+              inferFormMediaType(
+                form.mediaItems,
+                splitLines(form.mediaUrlsText),
+              ),
             )}
           </strong>
           <small>등록된 미디어를 기준으로 자동 감지됩니다.</small>
@@ -3006,6 +3010,7 @@ function UserPanel(props: {
                   <th>이메일</th>
                   <th>닉네임</th>
                   <th>상태</th>
+                  <th>푸시</th>
                   <th>가입일</th>
                 </tr>
               </thead>
@@ -3020,6 +3025,13 @@ function UserPanel(props: {
                     <td>{item.nickname ?? "-"}</td>
                     <td>
                       <StatusBadge status={item.status ?? "ACTIVE"} />
+                    </td>
+                    <td>
+                      <span
+                        className={`status-badge status-badge--${item.hasPushToken ? "approved" : "duplicate"}`}
+                      >
+                        {item.hasPushToken ? "가능" : "없음"}
+                      </span>
                     </td>
                     <td>{formatDateTime(item.createdAt)}</td>
                   </tr>
@@ -3118,7 +3130,7 @@ function MobileUserCards({
               <StatusBadge status={item.status ?? "ACTIVE"} />
             </div>
             <strong>{item.email ?? item.id}</strong>
-            <p>{item.fcmToken ? "푸시 토큰 등록됨" : "푸시 토큰 없음"}</p>
+            <p>{item.hasPushToken ? "푸시 토큰 등록됨" : "푸시 토큰 없음"}</p>
             <div className="mobile-record-meta">
               <span>가입일</span>
               <strong>{formatDateTime(item.createdAt)}</strong>

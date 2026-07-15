@@ -10,6 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import { normalizeCommercePatch, normalizePriceKrw } from "./commerceFields.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
 import { sendPushNotification } from "./pushNotifications.ts";
+import { mapAdminUser } from "./userContract.ts";
 
 type AdminMethod = "GET" | "POST" | "PATCH" | "DELETE";
 type SubmissionStatus =
@@ -105,6 +106,8 @@ const USER_SELECT = `
   email,
   nickname,
   fcm_token,
+  push_token,
+  push_provider,
   created_at,
   updated_at,
   status
@@ -378,18 +381,6 @@ function mapGroupBuy(row: Record<string, unknown>) {
   };
 }
 
-function mapUser(row: Record<string, unknown>) {
-  return {
-    id: row.id,
-    email: row.email,
-    nickname: row.nickname,
-    fcmToken: row.fcm_token,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    status: row.status ?? "ACTIVE",
-  };
-}
-
 async function listSubmissions(
   supabase: AdminClient,
   params: AdminRequest["params"],
@@ -532,7 +523,7 @@ async function dashboard(supabase: AdminClient) {
       users: users.count ?? 0,
     },
     pendingQueue: recentPending.items,
-    recentUsers: (recentUsers.data ?? []).map((row) => mapUser(row)),
+    recentUsers: (recentUsers.data ?? []).map((row) => mapAdminUser(row)),
     recentGroupBuys: (recentGroupBuys.data ?? []).map((row) =>
       mapGroupBuy(row),
     ),
@@ -719,7 +710,10 @@ async function listUsers(
 
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
-  return { items: (data ?? []).map((row) => mapUser(row)), total: count ?? 0 };
+  return {
+    items: (data ?? []).map((row) => mapAdminUser(row)),
+    total: count ?? 0,
+  };
 }
 
 async function updateUser(
@@ -748,7 +742,7 @@ async function updateUser(
     .single();
 
   if (error) throw new Error(error.message);
-  return mapUser(data);
+  return mapAdminUser(data);
 }
 
 type CdnRefreshStatusRow = {
