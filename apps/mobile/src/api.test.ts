@@ -1,13 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchGroupBuys, lookupInstagramUrl, postPublicJson, refreshGroupBuyMedia } from './api';
+import {
+  fetchGroupBuys,
+  lookupInstagramUrl,
+  postPublicJson,
+  refreshGroupBuyMedia,
+  syncBookmark,
+  syncNotification,
+} from './api';
 import { configurePostgrest } from './lib/postgrest-client';
+
+const sessionMocks = vi.hoisted(() => ({
+  getSessionId: vi.fn(),
+}));
+
+vi.mock('./utils/session', () => sessionMocks);
 
 const originalFetch = global.fetch;
 
 describe('public data fetch diagnostics', () => {
   beforeEach(() => {
     configurePostgrest('sb_publishable_1234567890');
+    sessionMocks.getSessionId.mockReset();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
   });
 
@@ -161,5 +175,13 @@ describe('public data fetch diagnostics', () => {
     await expect(postPublicJson('/submissions', { productName: '' })).rejects.toThrow(
       '제품명은 2자 이상 필수입니다.',
     );
+  });
+
+  it('swallows session lookup failures for popularity sync requests', async () => {
+    const sessionError = new TypeError("Cannot read property 'reload' of undefined");
+    sessionMocks.getSessionId.mockRejectedValue(sessionError);
+
+    await expect(syncBookmark('group-buy-1', true)).resolves.toBeUndefined();
+    await expect(syncNotification('group-buy-1', true)).resolves.toBeUndefined();
   });
 });

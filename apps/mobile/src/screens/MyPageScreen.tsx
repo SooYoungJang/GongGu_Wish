@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -9,6 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ApiError, postPublicJson } from '../api';
 import { useBookmarks, useRecentViews, useNotifications, useWishItems } from '../hooks/useLocalDeals';
 import { AppButton } from '../components/AppButton';
+import { DealCard } from '../components/DealCard';
+import { categoryForGroupBuy } from '../components/home/DealCardGrid';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SText } from '../components/ui/SText';
 import { useAuth } from '../context/AuthContext';
@@ -68,48 +70,7 @@ function GuestSummaryCards({
   );
 }
 
-function getDealVisual(item: GroupBuy) {
-  return item.thumbnailUrl ?? item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ?? item.mediaUrls?.[0] ?? null;
-}
-
-function MiniDealCard({ item, onPress, onRemove, removeLabel, s }: { item: GroupBuy; onPress: (item: GroupBuy) => void; onRemove?: (item: GroupBuy) => void; removeLabel: string; s: ReturnType<typeof makeStyles> }) {
-  const visual = getDealVisual(item);
-  return (
-    <Pressable
-      accessibilityLabel={`${item.productName ?? '공구'} 열기`}
-      accessibilityRole="button"
-      onPress={() => onPress(item)}
-      style={({ pressed }) => [s.miniDealCard, pressed && s.pressed]}
-    >
-      {visual ? (
-        <Image source={{ uri: visual }} style={s.miniDealImage} />
-      ) : (
-        <View style={s.miniDealFallback}>
-          <SText variant="caption" style={s.miniDealFallbackText}>공구</SText>
-        </View>
-      )}
-      <SText variant="label" numberOfLines={2} style={s.miniDealTitle}>
-        {item.productName ?? '공동구매 상품'}
-      </SText>
-      <SText variant="caption" numberOfLines={1} style={s.miniDealMeta}>
-        {item.discountInfo ?? item.brandName ?? '혜택 확인'}
-      </SText>
-      {onRemove ? (
-        <Pressable
-          accessibilityLabel={`${item.productName ?? '공구'} ${removeLabel}`}
-          accessibilityRole="button"
-          onPress={() => onRemove(item)}
-          hitSlop={8}
-          style={s.miniDealRemove}
-        >
-          <SText variant="caption" style={s.miniDealRemoveText}>x</SText>
-        </Pressable>
-      ) : null}
-    </Pressable>
-  );
-}
-
-function DealShelf({
+export function DealShelf({
   title,
   subtitle,
   items,
@@ -138,8 +99,26 @@ function DealShelf({
       </View>
       {items.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.miniDealRail}>
-          {items.map((item) => (
-            <MiniDealCard key={`${title}-${item.id}`} item={item} onPress={onPressDeal} onRemove={onRemoveDeal} removeLabel={removeLabel} s={s} />
+          {items.map((item, index) => (
+            <View key={`${title}-${item.id}`} style={s.shelfDealItem}>
+              <DealCard
+                item={item}
+                category={categoryForGroupBuy(item, index)}
+                onPress={() => onPressDeal(item)}
+                style={s.shelfDealCard}
+              />
+              {onRemoveDeal ? (
+                <Pressable
+                  accessibilityLabel={`${item.productName ?? '공구'} ${removeLabel}`}
+                  accessibilityRole="button"
+                  onPress={() => onRemoveDeal(item)}
+                  hitSlop={8}
+                  style={s.shelfDealRemove}
+                >
+                  <SText variant="caption" style={s.shelfDealRemoveText}>x</SText>
+                </Pressable>
+              ) : null}
+            </View>
           ))}
         </ScrollView>
       ) : (
@@ -251,6 +230,7 @@ export function MyPageScreen() {
     () => notifications.map((entry) => ({
       id: entry.groupBuyId,
       productName: entry.productName,
+      priceKrw: entry.priceKrw,
       brandName: null,
       category: null,
       startDate: null,
@@ -662,49 +642,21 @@ function makeStyles(colors: CommerceColorPalette) {
       marginTop: 2,
     },
     miniDealRail: {
-      gap: spacing.sm,
+      gap: spacing.md,
       paddingRight: spacing.lg,
     },
-    miniDealCard: {
-      width: 132,
+    shelfDealItem: {
+      position: 'relative',
+      width: 168,
     },
-    miniDealImage: {
-      backgroundColor: colors.softBg,
-      borderRadius: 18,
-      height: 132,
-      marginBottom: spacing.sm,
-      width: 132,
+    shelfDealCard: {
+      flexBasis: 'auto',
+      flexGrow: 0,
+      flexShrink: 0,
+      minHeight: 0,
+      width: '100%',
     },
-    miniDealFallback: {
-      alignItems: 'center',
-      backgroundColor: colors.softBg,
-      borderColor: colors.border,
-      borderRadius: 18,
-      borderWidth: 1,
-      height: 132,
-      justifyContent: 'center',
-      marginBottom: spacing.sm,
-      width: 132,
-    },
-    miniDealFallbackText: {
-      color: colors.accent,
-      fontSize: 13,
-      fontWeight: '900',
-    },
-    miniDealTitle: {
-      color: colors.text,
-      fontSize: 13,
-      fontWeight: '900',
-      lineHeight: 18,
-    },
-    miniDealMeta: {
-      color: colors.accent,
-      fontSize: 12,
-      fontWeight: '900',
-      lineHeight: 16,
-      marginTop: 2,
-    },
-    miniDealRemove: {
+    shelfDealRemove: {
       alignItems: 'center',
       backgroundColor: colors.softBg,
       borderRadius: 10,
@@ -715,7 +667,7 @@ function makeStyles(colors: CommerceColorPalette) {
       top: 6,
       width: 20,
     },
-    miniDealRemoveText: {
+    shelfDealRemoveText: {
       color: colors.weak,
       fontSize: 14,
       fontWeight: '900',

@@ -520,9 +520,9 @@ export async function syncBookmark(
   groupBuyId: string,
   bookmark: boolean,
 ): Promise<void> {
-  const { getSessionId } = await import("./utils/session");
-  const sessionId = await getSessionId();
   try {
+    const { getSessionId } = await import("./utils/session");
+    const sessionId = await getSessionId();
     if (bookmark) {
       await postgrestFetch("group_buy_bookmarks", {
         method: "POST",
@@ -551,9 +551,9 @@ export async function syncNotification(
   groupBuyId: string,
   enabled: boolean,
 ): Promise<void> {
-  const { getSessionId } = await import("./utils/session");
-  const sessionId = await getSessionId();
   try {
+    const { getSessionId } = await import("./utils/session");
+    const sessionId = await getSessionId();
     if (enabled) {
       await postgrestFetch("group_buy_notifications", {
         method: "POST",
