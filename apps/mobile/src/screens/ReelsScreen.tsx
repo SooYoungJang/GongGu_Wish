@@ -143,7 +143,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
     if (isPlaybackActive && !summarySheetGate.isOpen && activeReelItem) {
       const id = activeReelItem.id;
       deepViewTimerRef.current = setTimeout(() => {
-        void logDeepView(id);
+        void Promise.resolve(logDeepView(id)).catch(() => undefined);
       }, DEEP_VIEW_THRESHOLD_MS);
     }
     return () => {
@@ -225,7 +225,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
           );
         })}
       </PagerView>
-      {/* Keep the native player mounted so backgrounding cannot race release against replaceAsync. */}
+      {/* Keep the lifecycle-owned distant preloader mounted while Reels is focused. */}
       {Platform.OS !== 'web' && isTabFocused ? (
         <ReelVideoPreloader
           items={reelItems}

@@ -492,9 +492,9 @@ export type PopularGroupBuy = {
  * POST /rest/v1/group_buy_views
  */
 export async function logDeepView(groupBuyId: string): Promise<void> {
-  const { getSessionId } = await import("./utils/session");
-  const sessionId = await getSessionId();
   try {
+    const { getSessionId } = await import("./utils/session");
+    const sessionId = await getSessionId();
     await postgrestFetch("group_buy_views", {
       method: "POST",
       body: {

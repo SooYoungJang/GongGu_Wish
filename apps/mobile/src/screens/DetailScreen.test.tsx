@@ -1,8 +1,5 @@
 const videoMock = vi.hoisted(() => ({
   players: [] as any[],
-  deferReplaceAsync: false,
-  throwReplaceAsync: false,
-  replaceAsyncResolvers: [] as Array<() => void>,
 }));
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
@@ -30,21 +27,7 @@ vi.mock('expo-video', () => ({
       play: vi.fn(),
       pause: vi.fn(),
       replace: vi.fn(),
-      replaceAsync: vi.fn((nextSource: any) => {
-        if (videoMock.throwReplaceAsync) {
-          throw new TypeError("Cannot read property 'reload' of undefined");
-        }
-        if (videoMock.deferReplaceAsync) {
-          return new Promise<void>((resolve) => {
-            videoMock.replaceAsyncResolvers.push(() => {
-              player.source = nextSource;
-              resolve();
-            });
-          });
-        }
-        player.source = nextSource;
-        return Promise.resolve();
-      }),
+      replaceAsync: vi.fn(),
       loop: false,
       muted: true,
       volume: 0,
@@ -380,9 +363,6 @@ const baseGroupBuy: GroupBuy = {
 beforeEach(() => {
   (globalThis as any).__mockKeyboardHeight = 0;
   videoMock.players = [];
-  videoMock.deferReplaceAsync = false;
-  videoMock.throwReplaceAsync = false;
-  videoMock.replaceAsyncResolvers = [];
   queryMock.groupBuys = undefined;
   flashListMock.scrollToOffset.mockClear();
   pagerViewMock.setPage.mockClear();
@@ -1318,8 +1298,7 @@ describe('DetailScreen', () => {
     expect(preloadedPlayer?.play).not.toHaveBeenCalled();
   });
 
-  it('swallows a native preload failure when the player is released during a transition', async () => {
-    videoMock.throwReplaceAsync = true;
+  it('does not replace a live native player while preloading a distant video', () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -1342,11 +1321,7 @@ describe('DetailScreen', () => {
       );
     });
 
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(videoMock.players[0]?.replaceAsync).toHaveBeenCalledTimes(1);
+    expect(videoMock.players[0]?.replaceAsync).not.toHaveBeenCalled();
 
     act(() => {
       renderer!.unmount();
@@ -1374,8 +1349,7 @@ describe('DetailScreen', () => {
     });
   });
 
-  it('does not pause a released preloader player when a pending preload resolves after unmount', async () => {
-    videoMock.deferReplaceAsync = true;
+  it('keeps the preloader player paused without issuing asynchronous commands', () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -1399,23 +1373,13 @@ describe('DetailScreen', () => {
     });
 
     const preloadedPlayer = videoMock.players[0];
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(videoMock.replaceAsyncResolvers).toHaveLength(1);
+
+    expect(preloadedPlayer.replaceAsync).not.toHaveBeenCalled();
+    expect(preloadedPlayer.pause).not.toHaveBeenCalled();
 
     act(() => {
       renderer!.unmount();
     });
-    expect(preloadedPlayer.pause).not.toHaveBeenCalled();
-
-    await act(async () => {
-      videoMock.replaceAsyncResolvers[0]?.();
-      await Promise.resolve();
-    });
-
-    expect(preloadedPlayer.pause).not.toHaveBeenCalled();
   });
 });
 
