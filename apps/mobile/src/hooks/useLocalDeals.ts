@@ -3,6 +3,7 @@ import type { NotificationTriggerInput } from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fetchGroupBuysByIds } from '../api';
 import type { GroupBuy } from '../types';
 
 const BOOKMARK_KEY = '@gonggu/bookmarks/v1';
@@ -22,13 +23,44 @@ export type NotificationEntry = {
   productName: string | null;
   // Legacy AsyncStorage entries may not have a price yet.
   priceKrw?: number | null;
+  brandName?: string | null;
+  category?: GroupBuy['category'];
   endDate: string | null;
   startDate: string | null;
+  purchaseUrl?: string | null;
+  discountInfo?: string | null;
+  summary?: string | null;
+  confidence?: number;
   thumbnailUrl: string | null;
+  videoUrl?: string | null;
+  mediaUrls?: string[];
+  mediaItems?: GroupBuy['mediaItems'];
+  mediaType?: GroupBuy['mediaType'];
+  rawPost?: GroupBuy['rawPost'];
   scheduledFor: string | null;
   notificationId: string | null;
   createdAt: string;
 };
+
+type NotificationDealFields = Pick<
+  NotificationEntry,
+  | 'productName'
+  | 'priceKrw'
+  | 'brandName'
+  | 'category'
+  | 'endDate'
+  | 'startDate'
+  | 'purchaseUrl'
+  | 'discountInfo'
+  | 'summary'
+  | 'confidence'
+  | 'thumbnailUrl'
+  | 'videoUrl'
+  | 'mediaUrls'
+  | 'mediaItems'
+  | 'mediaType'
+  | 'rawPost'
+>;
 
 type NotificationListener = (entries: NotificationEntry[]) => void;
 const notificationListeners = new Set<NotificationListener>();
@@ -70,6 +102,87 @@ function toStored(item: GroupBuy): StoredGroupBuy {
     purchaseUrl: item.purchaseUrl,
     rawPost: item.rawPost,
   };
+}
+
+function toNotificationDealFields(item: GroupBuy): NotificationDealFields {
+  return {
+    productName: item.productName,
+    priceKrw: item.priceKrw ?? null,
+    brandName: item.brandName,
+    category: item.category,
+    endDate: item.endDate,
+    startDate: item.startDate,
+    purchaseUrl: item.purchaseUrl,
+    discountInfo: item.discountInfo,
+    summary: item.summary,
+    confidence: item.confidence,
+    thumbnailUrl: item.thumbnailUrl,
+    videoUrl: item.videoUrl,
+    mediaUrls: item.mediaUrls,
+    mediaItems: item.mediaItems,
+    mediaType: item.mediaType,
+    rawPost: item.rawPost,
+  };
+}
+
+function needsStoredDealHydration(item: StoredGroupBuy) {
+  return (
+    item.priceKrw === undefined ||
+    item.discountInfo === undefined ||
+    item.brandName === undefined ||
+    item.category === undefined ||
+    item.rawPost === undefined
+  );
+}
+
+async function hydrateStoredDeals(key: string, items: StoredGroupBuy[]): Promise<StoredGroupBuy[]> {
+  const ids = [...new Set(items.filter(needsStoredDealHydration).map((item) => item.id))];
+  if (ids.length === 0) return items;
+
+  const freshDeals = await fetchGroupBuysByIds(ids);
+  const freshById = new Map(freshDeals.map((item) => [item.id, item]));
+  const next = items.map((item) => {
+    const fresh = freshById.get(item.id);
+    return fresh ? toStored(fresh) : item;
+  });
+
+  if (next.some((item, index) => item !== items[index])) {
+    await writeJSON(key, next);
+  }
+  return next;
+}
+
+function needsNotificationHydration(entry: NotificationEntry) {
+  return (
+    entry.priceKrw === undefined ||
+    entry.brandName === undefined ||
+    entry.category === undefined ||
+    entry.purchaseUrl === undefined ||
+    entry.discountInfo === undefined ||
+    entry.summary === undefined ||
+    entry.confidence === undefined ||
+    entry.videoUrl === undefined ||
+    entry.mediaUrls === undefined ||
+    entry.mediaType === undefined ||
+    entry.rawPost === undefined
+  );
+}
+
+async function hydrateNotificationEntries(entries: NotificationEntry[]): Promise<NotificationEntry[]> {
+  const ids = [...new Set(entries.filter(needsNotificationHydration).map((entry) => entry.groupBuyId))];
+  if (ids.length === 0) return entries;
+
+  const freshDeals = await fetchGroupBuysByIds(ids);
+  const freshById = new Map(freshDeals.map((item) => [item.id, item]));
+  const next = entries.map((entry) => {
+    const fresh = freshById.get(entry.groupBuyId);
+    return fresh ? { ...entry, ...toNotificationDealFields(fresh) } : entry;
+  });
+
+  if (next.some((entry, index) => entry !== entries[index])) {
+    await writeJSON(NOTI_KEY, next);
+  }
+  return next;
 }
 
 async function readJSON<T>(key: string, fallback: T): Promise<T> {
@@ -141,8 +254,9 @@ export function useBookmarks() {
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(() => {
-    readJSON<StoredGroupBuy[]>(BOOKMARK_KEY, []).then((value) => {
-      setBookmarks(value);
+    readJSON<StoredGroupBuy[]>(BOOKMARK_KEY, []).then(async (value) => {
+      const hydrated = await hydrateStoredDeals(BOOKMARK_KEY, value);
+      setBookmarks(hydrated);
       setReady(true);
     });
   }, []);
@@ -186,8 +300,9 @@ export function useRecentViews() {
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(() => {
-    readJSON<StoredGroupBuy[]>(RECENT_KEY, []).then((value) => {
-      setRecentViews(value);
+    readJSON<StoredGroupBuy[]>(RECENT_KEY, []).then(async (value) => {
+      const hydrated = await hydrateStoredDeals(RECENT_KEY, value);
+      setRecentViews(hydrated);
       setReady(true);
     });
   }, []);
@@ -214,9 +329,10 @@ export function useNotifications() {
   const mountedRef = useRef(false);
 
   const refresh = useCallback(() => {
-    readJSON<NotificationEntry[]>(NOTI_KEY, []).then((value) => {
+    readJSON<NotificationEntry[]>(NOTI_KEY, []).then(async (value) => {
+      const hydrated = await hydrateNotificationEntries(value);
       if (!mountedRef.current) return;
-      publishNotifications(value);
+      publishNotifications(hydrated);
       setReady(true);
     });
   }, []);
@@ -304,11 +420,7 @@ export function useNotifications() {
       }
       const entry: NotificationEntry = {
         groupBuyId: item.id,
-        productName: item.productName,
-        priceKrw: item.priceKrw ?? null,
-        endDate: item.endDate,
-        startDate: item.startDate,
-        thumbnailUrl: item.thumbnailUrl,
+        ...toNotificationDealFields(item),
         scheduledFor,
         notificationId,
         createdAt: new Date().toISOString(),

@@ -4,6 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GroupBuy } from '../types';
 import { clearLocalUserData, useBookmarks, useNotifications, useRecentViews } from './useLocalDeals';
 
+const apiMocks = vi.hoisted(() => ({
+  fetchGroupBuysByIds: vi.fn().mockResolvedValue([]),
+  syncBookmark: vi.fn().mockResolvedValue(undefined),
+  syncNotification: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../api', () => apiMocks);
+
 const storage = vi.hoisted(() => ({
   values: new Map<string, string>(),
   writeGate: null as Promise<void> | null,
@@ -56,6 +64,9 @@ describe('useNotifications', () => {
   beforeEach(() => {
     storage.values.clear();
     storage.writeGate = null;
+    apiMocks.fetchGroupBuysByIds.mockReset().mockResolvedValue([]);
+    apiMocks.syncBookmark.mockReset().mockResolvedValue(undefined);
+    apiMocks.syncNotification.mockReset().mockResolvedValue(undefined);
   });
 
   it('동시에 마운트된 다른 화면에도 알림 변경을 즉시 반영한다', async () => {
@@ -97,6 +108,50 @@ describe('useNotifications', () => {
       expect(JSON.parse(storage.values.get('@gonggu/recent-views/v1') ?? '[]')[0].priceKrw).toBe(200000);
       expect(JSON.parse(storage.values.get('@gonggu/notifications/v1') ?? '[]')[0].priceKrw).toBe(200000);
     });
+  });
+
+  it('기존 활동 데이터도 최신 가격과 할인정보로 보강한다', async () => {
+    const legacyStoredDeal = { ...GROUP_BUY, priceKrw: undefined, discountInfo: undefined };
+    const legacyNotification = {
+      groupBuyId: GROUP_BUY.id,
+      productName: GROUP_BUY.productName,
+      endDate: GROUP_BUY.endDate,
+      startDate: GROUP_BUY.startDate,
+      thumbnailUrl: GROUP_BUY.thumbnailUrl,
+      scheduledFor: null,
+      notificationId: null,
+      createdAt: '2026-07-15T00:00:00.000Z',
+    };
+    const enrichedDeal = {
+      ...GROUP_BUY,
+      brandName: '테스트 브랜드',
+      discountInfo: '20% 할인',
+      thumbnailUrl: 'https://example.com/deal.png',
+    };
+
+    storage.values.set('@gonggu/bookmarks/v1', JSON.stringify([legacyStoredDeal]));
+    storage.values.set('@gonggu/recent-views/v1', JSON.stringify([legacyStoredDeal]));
+    storage.values.set('@gonggu/notifications/v1', JSON.stringify([legacyNotification]));
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([enrichedDeal]);
+
+    const bookmarks = renderHook(() => useBookmarks());
+    const recentViews = renderHook(() => useRecentViews());
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => {
+      expect(bookmarks.result.current.ready).toBe(true);
+      expect(recentViews.result.current.ready).toBe(true);
+      expect(notifications.result.current.ready).toBe(true);
+    });
+
+    expect(bookmarks.result.current.bookmarks[0]).toMatchObject({ priceKrw: 200000, discountInfo: '20% 할인' });
+    expect(recentViews.result.current.recentViews[0]).toMatchObject({ priceKrw: 200000, discountInfo: '20% 할인' });
+    expect(notifications.result.current.notifications[0]).toMatchObject({
+      priceKrw: 200000,
+      brandName: '테스트 브랜드',
+      discountInfo: '20% 할인',
+    });
+    expect(apiMocks.fetchGroupBuysByIds).toHaveBeenCalled();
   });
 
   it('나중에 마운트된 화면도 첫 렌더부터 마지막 알림 상태를 사용한다', async () => {
