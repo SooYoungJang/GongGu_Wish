@@ -1,4 +1,4 @@
-﻿-- Admin-facing view of Instagram CDN media refresh status.
+-- Admin-facing view of Instagram CDN media refresh status.
 -- Categorizes each approved VIDEO group buy into health buckets:
 --   expired      - CDN URL already expired
 --   expiring     - CDN URL expires within refresh_window_hours
