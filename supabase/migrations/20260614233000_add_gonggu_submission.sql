@@ -72,6 +72,13 @@ BEGIN
     FROM pg_constraint
     WHERE conrelid = 'public.gonggu_submissions'::regclass
       AND conname = 'gonggu_submissions_group_buy_id_fkey'
+  ) AND NOT EXISTS (
+    SELECT 1
+    FROM public.gonggu_submissions AS submission
+    LEFT JOIN public.group_buys AS group_buy
+      ON group_buy.id = submission.group_buy_id
+    WHERE submission.group_buy_id IS NOT NULL
+      AND group_buy.id IS NULL
   ) THEN
     ALTER TABLE public.gonggu_submissions
       ADD CONSTRAINT gonggu_submissions_group_buy_id_fkey
@@ -86,6 +93,13 @@ BEGIN
     FROM pg_constraint
     WHERE conrelid = 'public.group_buys'::regclass
       AND conname = 'group_buys_submission_id_fkey'
+  ) AND NOT EXISTS (
+    SELECT 1
+    FROM public.group_buys AS group_buy
+    LEFT JOIN public.gonggu_submissions AS submission
+      ON submission.id = group_buy.submission_id
+    WHERE group_buy.submission_id IS NOT NULL
+      AND submission.id IS NULL
   ) THEN
     ALTER TABLE public.group_buys
       ADD CONSTRAINT group_buys_submission_id_fkey
