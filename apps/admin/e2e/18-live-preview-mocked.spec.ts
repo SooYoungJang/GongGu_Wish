@@ -553,6 +553,7 @@ test("공구 가격 저장 응답과 재조회 결과가 일치한다", async ({
   const detail = page.locator(".detail-panel");
   await expect(detail.getByLabel("가격 (원)")).toHaveValue("12900");
   await detail.getByLabel("가격 (원)").fill("15900");
+  await detail.getByLabel("홈 배너에 노출").uncheck();
   await detail.getByRole("button", { name: "저장" }).click();
   await expect(page.getByRole("status")).toContainText(
     "공구 정보를 저장했습니다.",
@@ -579,11 +580,14 @@ test("공구 가격 저장 응답과 재조회 결과가 일치한다", async ({
   await expect(
     page.locator(".detail-panel").getByLabel("가격 (원)"),
   ).toHaveValue("15900");
+  await expect(
+    page.locator(".detail-panel").getByLabel("홈 배너에 노출"),
+  ).not.toBeChecked();
   expect(state.updates).toContainEqual(
     expect.objectContaining({
       path: "/admin/group-buys/group-buy-live-preview",
       method: "PATCH",
-      body: expect.objectContaining({ priceKrw: 15900 }),
+      body: expect.objectContaining({ priceKrw: 15900, isHomeBanner: false }),
     }),
   );
 });

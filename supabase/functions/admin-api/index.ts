@@ -7,13 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
-import {
-  mergeHomeBannerSchedule,
-  normalizeHomeBannerBoolean,
-  normalizeHomeBannerDate,
-  normalizePriceKrw,
-  normalizePricePatch,
-} from "./commerceFields.ts";
+import { normalizeCommercePatch, normalizePriceKrw } from "./commerceFields.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
 import { sendPushNotification } from "./pushNotifications.ts";
 
@@ -243,57 +237,6 @@ function normalizeMediaUrls(value: unknown): string[] {
         )
         .slice(0, 20)
     : [];
-}
-
-function normalizeCommercePatch(
-  body: Record<string, unknown>,
-  existing: Record<string, unknown>,
-) {
-  const patch: Record<string, unknown> = normalizePricePatch(body);
-
-  const scheduleTouched = [
-    "isHomeBanner",
-    "homeBannerStartDate",
-    "homeBannerEndDate",
-  ].some((key) => hasOwn(body, key));
-  if (scheduleTouched) {
-    const merged = mergeHomeBannerSchedule(
-      compact({
-        isHomeBanner: hasOwn(body, "isHomeBanner")
-          ? normalizeHomeBannerBoolean(body.isHomeBanner)
-          : undefined,
-        startDate: hasOwn(body, "homeBannerStartDate")
-          ? normalizeHomeBannerDate(
-              body.homeBannerStartDate,
-              "homeBannerStartDate",
-            )
-          : undefined,
-        endDate: hasOwn(body, "homeBannerEndDate")
-          ? normalizeHomeBannerDate(body.homeBannerEndDate, "homeBannerEndDate")
-          : undefined,
-      }),
-      {
-        isHomeBanner: bool(existing.is_home_banner),
-        startDate:
-          typeof existing.home_banner_start_date === "string"
-            ? existing.home_banner_start_date
-            : null,
-        endDate:
-          typeof existing.home_banner_end_date === "string"
-            ? existing.home_banner_end_date
-            : null,
-      },
-    );
-
-    if (hasOwn(body, "isHomeBanner"))
-      patch.is_home_banner = merged.isHomeBanner;
-    if (hasOwn(body, "homeBannerStartDate"))
-      patch.home_banner_start_date = merged.startDate;
-    if (hasOwn(body, "homeBannerEndDate"))
-      patch.home_banner_end_date = merged.endDate;
-  }
-
-  return patch;
 }
 
 function normalizeSubmissionPatch(
