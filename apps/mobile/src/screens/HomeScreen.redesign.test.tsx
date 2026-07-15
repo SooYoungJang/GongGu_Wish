@@ -140,6 +140,9 @@ const sampleGroupBuys: GroupBuy[] = [
     summary: '민감 피부를 위한 촉촉한 선크림 공구입니다.',
     confidence: 0.93,
     startDate: null,
+    isHomeBanner: true,
+    homeBannerStartDate: '2000-01-01',
+    homeBannerEndDate: '2099-12-31',
     thumbnailUrl: null,
     videoUrl: null,
     mediaUrls: [],
@@ -159,6 +162,9 @@ const sampleGroupBuys: GroupBuy[] = [
     summary: '아침 식사용 그래놀라 공동구매입니다.',
     confidence: 0.88,
     startDate: null,
+    isHomeBanner: true,
+    homeBannerStartDate: '2000-01-01',
+    homeBannerEndDate: '2099-12-31',
     thumbnailUrl: null,
     videoUrl: null,
     mediaUrls: [],
@@ -596,6 +602,24 @@ describe('HomeScreenContent redesign', () => {
       renderer?.unmount();
       vi.useRealTimers();
     }
+  });
+
+  it('does not promote rows without explicit home-banner opt-in', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [
+        {
+          ...sampleGroupBuys[0],
+          isHomeBanner: undefined,
+          homeBannerStartDate: null,
+          homeBannerEndDate: null,
+        },
+      ],
+    });
+
+    expect(
+      renderer.root.findAllByProps({ testID: 'promo-overlay-gb-1' }),
+    ).toHaveLength(0);
+    expect(flattenText(renderer.toJSON())).toContain('오늘의 특가를 준비 중입니다');
   });
 
   it('keeps an upcoming migrated deal visible from today until commerce starts', () => {

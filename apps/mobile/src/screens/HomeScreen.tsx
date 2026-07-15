@@ -517,12 +517,9 @@ function PromoBanner({
 
   const promoItems = useMemo(() => {
     const displayItems = getDisplayItems(groupBuys);
-    const hasBannerContract = displayItems.some(
-      (item) => item.isHomeBanner !== undefined,
-    );
-    return (
-      hasBannerContract ? selectHomeBannerItems(displayItems) : displayItems
-    ).slice(0, 6);
+    // A deal becomes a home banner only through an explicit admin opt-in and
+    // an active date range. Never promote fallback/legacy rows implicitly.
+    return selectHomeBannerItems(displayItems).slice(0, 6);
   }, [groupBuys, homeBannerDateTick]);
   const scrollRef = useRef<ScrollView | null>(null);
   const currentPositionRef = useRef(promoItems.length > 1 ? 1 : 0);
