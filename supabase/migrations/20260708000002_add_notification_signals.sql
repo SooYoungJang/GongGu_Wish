@@ -20,11 +20,18 @@ CREATE INDEX IF NOT EXISTS group_buy_notifications_created_at_idx
 
 ALTER TABLE public.group_buy_notifications ENABLE ROW LEVEL SECURITY;
 
+-- The remote schema may contain these policies even when the migration
+-- history row is missing. Replace the exact policies so this migration can
+-- reconcile the schema without failing on duplicate policy names.
+DROP POLICY IF EXISTS "group_buy_notifications_anon_insert"
+  ON public.group_buy_notifications;
 CREATE POLICY "group_buy_notifications_anon_insert"
   ON public.group_buy_notifications
   FOR INSERT
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "group_buy_notifications_anon_delete"
+  ON public.group_buy_notifications;
 CREATE POLICY "group_buy_notifications_anon_delete"
   ON public.group_buy_notifications
   FOR DELETE
