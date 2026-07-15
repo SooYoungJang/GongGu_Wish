@@ -14,6 +14,7 @@ const focusMock = vi.hoisted(() => ({
 }));
 
 const recordViewMock = vi.hoisted(() => vi.fn());
+const logDeepViewMock = vi.hoisted(() => vi.fn());
 
 const groupBuys = [0, 1, 2].map((index) => ({
   id: `reel-${index}`,
@@ -82,7 +83,7 @@ vi.mock('react-native-pager-view', () => {
 vi.mock('../api', () => ({
   fallbackGroupBuys: [],
   fetchGroupBuys: vi.fn(),
-  logDeepView: vi.fn(),
+  logDeepView: logDeepViewMock,
 }));
 
 vi.mock('../hooks/useLocalDeals', () => ({
@@ -120,6 +121,8 @@ describe('ReelsScreen player lifecycle', () => {
     appStateMock.listener = null;
     focusMock.blur = null;
     recordViewMock.mockClear();
+    logDeepViewMock.mockReset();
+    logDeepViewMock.mockResolvedValue(undefined);
   });
 
   it('keeps the preloader mounted while backgrounded, but releases it after leaving Reels', () => {
@@ -157,5 +160,28 @@ describe('ReelsScreen player lifecycle', () => {
     act(() => {
       renderer!.unmount();
     });
+  });
+
+  it('does not leak a rejected deep-view request after staying idle on a reel', async () => {
+    vi.useFakeTimers();
+    logDeepViewMock.mockRejectedValue(new TypeError("Cannot read property 'reload' of undefined"));
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+      await Promise.resolve();
+    });
+
+    expect(logDeepViewMock).toHaveBeenCalledTimes(1);
+    expect(logDeepViewMock.mock.calls[0]?.[0]).toMatch(/^reel-[0-2]$/);
+
+    act(() => {
+      renderer!.unmount();
+    });
+    vi.useRealTimers();
   });
 });

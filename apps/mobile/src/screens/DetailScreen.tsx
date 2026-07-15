@@ -175,11 +175,6 @@ export function ReelVideoPreloader({
   direction?: -1 | 1;
   enabled?: boolean;
 }) {
-  const player = useVideoPlayer(null, (p) => {
-    p.loop = true;
-    p.muted = true;
-    p.volume = 0;
-  });
   const targetIndex = enabled
     ? activeIndex + direction * REEL_VIDEO_PRELOAD_DISTANCE
     : -1;
@@ -188,37 +183,17 @@ export function ReelVideoPreloader({
     () => (preloadUrl ? createVideoSource(preloadUrl) : null),
     [preloadUrl],
   );
-  const preloadRequestRef = useRef(0);
 
-  useEffect(() => {
-    const requestId = ++preloadRequestRef.current;
-    if (!preloadSource) return;
-
-    // Start on a microtask so an immediate screen/background transition can
-    // invalidate the request before touching a player that is being released.
-    void Promise.resolve()
-      .then(() => {
-        if (requestId !== preloadRequestRef.current) return undefined;
-        return player.replaceAsync(preloadSource);
-      })
-      .then(() => {
-        if (requestId !== preloadRequestRef.current) return;
-        safelyCallVideoPlayer(() => {
-          player.pause();
-          player.currentTime = 0;
-        });
-      })
-      .catch(() => {
-        // Preloading is opportunistic; playback will retry when the page becomes active.
-      });
-
-    return () => {
-      // useVideoPlayer disposes the native player on unmount. Invalidate the
-      // pending request so its completion handler cannot call pause() after
-      // that disposal has happened.
-      preloadRequestRef.current += 1;
-    };
-  }, [player, preloadSource]);
+  // Give the source to useVideoPlayer at construction time. Replacing the
+  // source of a player that is not attached to a VideoView can race native
+  // release on Android and surface an unhandled `reload` rejection. The hook
+  // owns the player replacement/disposal lifecycle, while the player remains
+  // paused so this still warms the distant source without changing quality.
+  useVideoPlayer(preloadSource, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.volume = 0;
+  });
 
   return null;
 }
@@ -1910,7 +1885,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     if (!overlayOpen && activeGroupBuy) {
       const id = activeGroupBuy.id;
       deepViewTimerRef.current = setTimeout(() => {
-        void logDeepView(id);
+        void Promise.resolve(logDeepView(id)).catch(() => undefined);
       }, 30_000);
     }
     return () => {
