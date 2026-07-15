@@ -3,7 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../api';
-import { DealShelf, MyPageScreen } from '../screens/MyPageScreen';
+import { DealShelf, MyPageScreen, notificationEntryToGroupBuy } from '../screens/MyPageScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
@@ -143,7 +143,6 @@ vi.mock('react-native', () => {
     ActivityIndicator: passthrough('ActivityIndicator'),
   };
 });
-
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -176,6 +175,37 @@ beforeEach(() => {
 });
 
 describe('MyPageScreen', () => {
+  it('keeps notification price and discount fields when building a home card item', () => {
+    const item = notificationEntryToGroupBuy({
+      groupBuyId: 'deal-1',
+      productName: '테스트 공구',
+      priceKrw: 200000,
+      brandName: '테스트 브랜드',
+      category: 'beauty',
+      startDate: '2026-07-15T00:00:00.000Z',
+      endDate: '2026-07-30T00:00:00.000Z',
+      purchaseUrl: 'https://example.com/deal',
+      discountInfo: '20% 할인',
+      summary: '테스트 요약',
+      confidence: 1,
+      thumbnailUrl: 'https://example.com/deal.png',
+      videoUrl: null,
+      mediaUrls: ['https://example.com/deal.png'],
+      mediaType: 'IMAGE',
+      rawPost: { postUrl: 'https://instagram.com/p/1', influencer: { instagramUsername: 'seller' } },
+      scheduledFor: null,
+      notificationId: null,
+      createdAt: '2026-07-15T00:00:00.000Z',
+    });
+
+    expect(item).toMatchObject({
+      priceKrw: 200000,
+      brandName: '테스트 브랜드',
+      discountInfo: '20% 할인',
+      thumbnailUrl: 'https://example.com/deal.png',
+    });
+  });
+
   it('uses the home DealCard surface for activity shelves and keeps remove actions', () => {
     const item = {
       id: 'deal-1',

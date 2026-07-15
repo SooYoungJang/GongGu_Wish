@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { ApiError, postPublicJson } from '../api';
 import { useBookmarks, useRecentViews, useNotifications, useWishItems } from '../hooks/useLocalDeals';
+import type { NotificationEntry } from '../hooks/useLocalDeals';
 import { AppButton } from '../components/AppButton';
 import { DealCard } from '../components/DealCard';
 import { categoryForGroupBuy } from '../components/home/DealCardGrid';
@@ -130,6 +131,27 @@ export function DealShelf({
   );
 }
 
+export function notificationEntryToGroupBuy(entry: NotificationEntry): GroupBuy {
+  return {
+    id: entry.groupBuyId,
+    productName: entry.productName,
+    priceKrw: entry.priceKrw,
+    brandName: entry.brandName ?? null,
+    category: entry.category ?? null,
+    startDate: entry.startDate,
+    endDate: entry.endDate,
+    purchaseUrl: entry.purchaseUrl ?? null,
+    discountInfo: entry.discountInfo ?? null,
+    summary: entry.summary ?? null,
+    confidence: entry.confidence ?? 0,
+    thumbnailUrl: entry.thumbnailUrl,
+    videoUrl: entry.videoUrl ?? null,
+    mediaUrls: entry.mediaUrls ?? [],
+    mediaItems: entry.mediaItems,
+    mediaType: entry.mediaType ?? null,
+    rawPost: entry.rawPost ?? { postUrl: '', influencer: { instagramUsername: '' } },
+  };
+}
 
 export function MyPageScreen() {
   const { colors } = useCommerceTheme();
@@ -226,27 +248,7 @@ export function MyPageScreen() {
     }
   }, [recordWishItem, refreshWishItems, wishUrl]);
 
-  const notificationDeals = useMemo<GroupBuy[]>(
-    () => notifications.map((entry) => ({
-      id: entry.groupBuyId,
-      productName: entry.productName,
-      priceKrw: entry.priceKrw,
-      brandName: null,
-      category: null,
-      startDate: null,
-      endDate: entry.endDate,
-      purchaseUrl: null,
-      discountInfo: null,
-      summary: null,
-      confidence: 0,
-      thumbnailUrl: entry.thumbnailUrl,
-      videoUrl: null,
-      mediaUrls: [],
-      mediaType: null,
-      rawPost: { postUrl: '', influencer: { instagramUsername: '' } },
-    })),
-    [notifications],
-  );
+  const notificationDeals = useMemo<GroupBuy[]>(() => notifications.map(notificationEntryToGroupBuy), [notifications]);
 
   if (authLoading) {
     return (
