@@ -112,6 +112,8 @@ vi.mock("./reelNavigation", () => ({
 vi.mock("./DetailScreen", () => {
   const ReactMock = require("react");
   return {
+    hasPlayableVideoMedia: (groupBuy?: { videoUrl?: string | null }) =>
+      Boolean(groupBuy?.videoUrl),
     makeStyles: () => ({
       safeArea: {},
       verticalPager: {},
@@ -269,6 +271,30 @@ describe("ReelsScreen player lifecycle", () => {
     expect(findPages().find((node) => node.props.isActive)?.props.muted).toBe(
       true,
     );
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
+  it("deactivates the playing reel while the summary sheet is open", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const findPages = () =>
+      renderer!.root.findAll((node) => String(node.type) === "ProductReelPage");
+    const activePage = findPages().find((node) => node.props.isActive);
+    expect(activePage).toBeDefined();
+
+    act(() => {
+      activePage!.props.onSummarySheetStateChange(true, false);
+    });
+
+    expect(findPages().some((node) => node.props.isActive)).toBe(true);
+    expect(findPages().every((node) => !node.props.playbackAllowed)).toBe(true);
 
     act(() => {
       renderer!.unmount();

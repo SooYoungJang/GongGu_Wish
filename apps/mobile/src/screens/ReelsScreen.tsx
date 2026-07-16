@@ -24,6 +24,7 @@ import { getRandomReelIndex } from "./reelNavigation";
 import {
   ProductReelPage,
   ReelVideoPreloader,
+  hasPlayableVideoMedia,
   makeStyles,
 } from "./DetailScreen";
 import {
@@ -31,7 +32,10 @@ import {
   moveReelWindow,
   type ReelWindow,
 } from "./reelWindow";
-import { isPlaybackEligible } from "./playbackEligibility";
+import {
+  DEEP_VIEW_THRESHOLD_MS,
+  isPlaybackEligible,
+} from "./playbackEligibility";
 
 const REELS_TAB_BAR_OVERLAY_OFFSET = 40;
 const REEL_PAGE_RENDER_RADIUS = 1;
@@ -135,11 +139,7 @@ export function ReelsScreen({
   useTabReselect(navigation, handleReelsTabReselect);
 
   const activeReelItem = reelItems[activeIndex];
-  const hasPlayableActiveMedia = Boolean(
-    activeReelItem?.videoUrl ||
-    activeReelItem?.mediaType === "VIDEO" ||
-    activeReelItem?.mediaItems?.some((item) => item.mediaType === "VIDEO"),
-  );
+  const hasPlayableActiveMedia = hasPlayableVideoMedia(activeReelItem);
   const handlePlaybackStateChange = useCallback(
     (itemId: string, isPlaying: boolean) => {
       if (itemId === activeReelItem?.id) {
@@ -162,7 +162,6 @@ export function ReelsScreen({
   }, [isPlaybackActive, activeReelItem, recordView]);
 
   // ── Deep view tracking: count a view only after 10s of continuous watch ──
-  const DEEP_VIEW_THRESHOLD_MS = 10_000;
   const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackEligibleRef = useRef(false);
   useEffect(() => {
@@ -217,6 +216,9 @@ export function ReelsScreen({
         key={item.id}
         groupBuy={item}
         isActive={isPlaybackActive && index === activeIndex}
+        playbackAllowed={
+          isPlaybackActive && !summarySheetGate.isOpen && index === activeIndex
+        }
         replayKey={replayKey}
         shouldPreloadVideo={Math.abs(index - activeIndex) <= 1}
         bottomChromeOffset={REELS_TAB_BAR_OVERLAY_OFFSET}
@@ -245,6 +247,7 @@ export function ReelsScreen({
       s,
       screenHeight,
       screenWidth,
+      summarySheetGate.isOpen,
     ],
   );
 

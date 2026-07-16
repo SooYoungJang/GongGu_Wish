@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { isPlaybackEligible } from "./playbackEligibility";
+import {
+  DEEP_VIEW_THRESHOLD_MS,
+  isPlaybackEligible,
+} from "./playbackEligibility";
 
 const playingVideo = {
   screenFocused: true,
@@ -11,6 +14,10 @@ const playingVideo = {
 };
 
 describe("isPlaybackEligible", () => {
+  it("uses the shared ten-second deep-view threshold", () => {
+    expect(DEEP_VIEW_THRESHOLD_MS).toBe(10_000);
+  });
+
   it("allows continuous playback tracking when every gate is open", () => {
     expect(isPlaybackEligible(playingVideo)).toBe(true);
   });

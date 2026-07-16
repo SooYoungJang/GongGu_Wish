@@ -1,3 +1,5 @@
+export const DEEP_VIEW_THRESHOLD_MS = 10_000;
+
 export type PlaybackEligibilityInput = {
   screenFocused: boolean;
   appActive: boolean;

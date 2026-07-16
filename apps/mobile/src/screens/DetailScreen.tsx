@@ -67,7 +67,10 @@ import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatEndDate, getDaysRemaining } from "../utils";
 import { normalizeForSearch } from "../utils/search";
-import { isPlaybackEligible } from "./playbackEligibility";
+import {
+  DEEP_VIEW_THRESHOLD_MS,
+  isPlaybackEligible,
+} from "./playbackEligibility";
 
 const MAX_VISIBLE_DOTS = 5;
 const VIDEO_EXTENSIONS = [
@@ -138,6 +141,12 @@ function getDisplayMedia(groupBuy: GroupBuy): MediaItem[] {
     isVideo: url === groupBuy.videoUrl || isVideoUrl(url),
     thumbnailUrl: url === groupBuy.videoUrl ? groupBuy.thumbnailUrl : null,
   }));
+}
+
+export function hasPlayableVideoMedia(groupBuy?: GroupBuy): boolean {
+  return Boolean(
+    groupBuy && getDisplayMedia(groupBuy).some((item) => item.isVideo),
+  );
 }
 
 const REEL_VIDEO_PRELOAD_DISTANCE = 2;
@@ -298,6 +307,11 @@ const VideoSlide = memo(function VideoSlide({
   const [areControlsVisible, setControlsVisible] = useState(false);
   const [hasFirstFrame, setHasFirstFrame] = useState(false);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryRequestIdRef = useRef(0);
+  const retryIsActiveRef = useRef(isActive);
+  const retryShouldPlayRef = useRef(shouldPlay);
+  retryIsActiveRef.current = isActive;
+  retryShouldPlayRef.current = shouldPlay;
   const source = useMemo(() => createVideoSource(url), [url]);
 
   const player = useVideoPlayer(source, (p) => {
@@ -349,7 +363,15 @@ const VideoSlide = memo(function VideoSlide({
     });
   }, [isMuted, player]);
 
+  useEffect(() => {
+    return () => {
+      retryRequestIdRef.current += 1;
+    };
+  }, [player, source]);
+
   const retryPlayback = useCallback(() => {
+    const requestId = retryRequestIdRef.current + 1;
+    retryRequestIdRef.current = requestId;
     setPlayerStatus("loading");
     setPlayerError(null);
     try {
@@ -357,16 +379,21 @@ const VideoSlide = memo(function VideoSlide({
       if (result && typeof (result as { then?: unknown }).then === "function") {
         void Promise.resolve(result)
           .then(() => {
-            if (isActive && shouldPlay) player.play();
+            if (retryRequestIdRef.current !== requestId) return;
+            if (retryIsActiveRef.current && retryShouldPlayRef.current) {
+              safelyCallVideoPlayer(() => player.play());
+            }
           })
           .catch((error: unknown) => {
+            if (retryRequestIdRef.current !== requestId) return;
             setPlayerStatus("error");
             setPlayerError(error);
           });
         return;
       }
-      if (isActive && shouldPlay) player.play();
+      if (retryIsActiveRef.current && retryShouldPlayRef.current) player.play();
     } catch (error: unknown) {
+      if (retryRequestIdRef.current !== requestId) return;
       setPlayerStatus("error");
       setPlayerError(error);
     }
@@ -829,6 +856,7 @@ function DetailSearchSheet({
 export type ProductReelPageProps = {
   groupBuy: GroupBuy;
   isActive: boolean;
+  playbackAllowed?: boolean;
   replayKey?: number;
   isSearchSheetVisible?: boolean;
   searchSheetMetrics?: {
@@ -856,6 +884,7 @@ export type ProductReelPageProps = {
 export function ProductReelPage({
   groupBuy,
   isActive,
+  playbackAllowed = isActive,
   replayKey,
   isSearchSheetVisible = false,
   searchSheetMetrics = null,
@@ -895,7 +924,7 @@ export function ProductReelPage({
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
 
   useEffect(() => {
-    if (!isActive || !mediaItems[activeMediaIndex]?.isVideo) {
+    if (isActive && !mediaItems[activeMediaIndex]?.isVideo) {
       onPlaybackStateChange?.(groupBuy.id, false);
     }
   }, [
@@ -1541,10 +1570,33 @@ export function ProductReelPage({
   };
 
   const visibleDots = getVisibleDotIndexes(mediaItems.length, activeMediaIndex);
+  const mediaListExtraData = useMemo(
+    () => ({
+      activeMediaIndex,
+      isActive,
+      muted,
+      playbackAllowed,
+      replayKey,
+      shouldPreloadVideo,
+    }),
+    [
+      activeMediaIndex,
+      isActive,
+      muted,
+      playbackAllowed,
+      replayKey,
+      shouldPreloadVideo,
+    ],
+  );
+  const handleActiveMediaPlaybackStateChange = useCallback(
+    (isPlaying: boolean) => onPlaybackStateChange?.(groupBuy.id, isPlaying),
+    [groupBuy.id, onPlaybackStateChange],
+  );
 
   const renderMediaItem = useCallback(
     ({ item, index }: { item: MediaItem; index: number }) => {
-      const mediaActive = isActive && index === activeMediaIndex;
+      const mediaActive =
+        isActive && playbackAllowed && index === activeMediaIndex;
       const shouldMountVideo =
         mediaActive ||
         (shouldPreloadVideo && index === activeMediaIndex) ||
@@ -1563,8 +1615,8 @@ export function ProductReelPage({
                 thumbnailUrl={thumbnailUrl}
                 muted={muted}
                 onMutedChange={onMutedChange}
-                onPlaybackStateChange={(isPlaying) =>
-                  onPlaybackStateChange?.(groupBuy.id, isPlaying)
+                onPlaybackStateChange={
+                  mediaActive ? handleActiveMediaPlaybackStateChange : undefined
                 }
                 s={s}
               />
@@ -1594,9 +1646,13 @@ export function ProductReelPage({
     [
       activeMediaIndex,
       groupBuy.thumbnailUrl,
+      handleActiveMediaPlaybackStateChange,
       isActive,
       mediaWidth,
+      muted,
+      onMutedChange,
       pageHeight,
+      playbackAllowed,
       s,
       shouldPreloadVideo,
       replayKey,
@@ -1611,6 +1667,7 @@ export function ProductReelPage({
             <View style={s.mediaViewport}>
               <FlashList
                 data={mediaItems}
+                extraData={mediaListExtraData}
                 horizontal
                 pagingEnabled
                 snapToAlignment="start"
@@ -2021,11 +2078,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const [activeProductIndex, setActiveProductIndex] =
     useState(initialReelIndex);
   const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
-  const hasPlayableActiveMedia = Boolean(
-    activeGroupBuy.videoUrl ||
-    activeGroupBuy.mediaType === "VIDEO" ||
-    activeGroupBuy.mediaItems?.some((item) => item.mediaType === "VIDEO"),
-  );
+  const hasPlayableActiveMedia = hasPlayableVideoMedia(activeGroupBuy);
   const handlePlaybackStateChange = useCallback(
     (itemId: string, isPlaying: boolean) => {
       if (itemId === activeGroupBuy.id) {
@@ -2085,7 +2138,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       deepViewTimerRef.current = setTimeout(() => {
         if (!playbackEligibleRef.current) return;
         void Promise.resolve(logDeepView(id)).catch(() => undefined);
-      }, 30_000);
+      }, DEEP_VIEW_THRESHOLD_MS);
     }
     return () => {
       if (deepViewTimerRef.current) {
@@ -2192,6 +2245,13 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         key={item.id}
         groupBuy={item}
         isActive={isScreenFocused && index === activeProductIndex}
+        playbackAllowed={
+          isScreenFocused &&
+          isAppActive &&
+          !summarySheetGate.isOpen &&
+          !isSearchSheetVisible &&
+          index === activeProductIndex
+        }
         isSearchSheetVisible={isSearchSheetVisible}
         searchSheetMetrics={searchSheetMetrics}
         shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
@@ -2214,12 +2274,14 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       handlePlaybackStateChange,
       insets.bottom,
       insets.top,
+      isAppActive,
       isSearchSheetVisible,
       navigation,
       s,
       searchSheetMetrics,
       screenHeight,
       screenWidth,
+      summarySheetGate.isOpen,
     ],
   );
 
