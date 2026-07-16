@@ -9,6 +9,7 @@ on:
       - "apps/mobile/**"
       - "packages/shared/**"
       - "supabase/**"
+      - "scripts/build-gon263-android-e2e.sh"
       - "scripts/mobile-e2e-api-server*.mjs"
       - "scripts/run-gon263-android-e2e.sh"
       - "package.json"
@@ -107,6 +108,9 @@ jobs:
           disable-animations: true
           disk-size: 6000M
           heap-size: 2048M
+          # Compile while the AVD is still stopped. Keeping the emulator alive
+          # during the native release build can starve Quickstep into an ANR.
+          pre-emulator-launch-script: bash scripts/build-gon263-android-e2e.sh
           script: bash scripts/run-gon263-android-e2e.sh
 
       - name: Capture Supabase layer logs
@@ -135,7 +139,14 @@ jobs:
           test -s artifacts/android/adb-reverse.txt
           grep -Fx "reactNativeArchitectures=x86_64" \
             artifacts/android/build-config.txt
+          test -s artifacts/android/android-build.log
+          if grep -Eq '\[(armeabi-v7a|arm64-v8a|x86)\]' \
+            artifacts/android/android-build.log; then
+            echo "Android E2E compiled an unused ABI" >&2
+            exit 1
+          fi
           test -s artifacts/android/disk-before-build.txt
+          test -s artifacts/android/disk-after-build.txt
           test -s artifacts/android/disk-final.txt
           test -s artifacts/android/logcat.txt
           test -s artifacts/android/e2e-media.log

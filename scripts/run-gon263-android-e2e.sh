@@ -10,13 +10,9 @@ capture_final_disk() {
 }
 trap capture_final_disk EXIT
 
-# Gradle reads ORG_GRADLE_PROJECT_* as a project property. Keep the CI release
-# build aligned with the x86_64 emulator instead of compiling four unused ABIs.
 test "${ORG_GRADLE_PROJECT_reactNativeArchitectures:-}" = "x86_64"
-printf 'reactNativeArchitectures=%s\n' \
-  "$ORG_GRADLE_PROJECT_reactNativeArchitectures" \
-  | tee artifacts/android/build-config.txt
-df -h "$repo_root" > artifacts/android/disk-before-build.txt
+test -s artifacts/android/build-config.txt
+test -s artifacts/android/disk-after-build.txt
 
 # Route device-local URLs to the runner so API and media use the same stable
 # loopback origin on every emulator backend.
@@ -26,9 +22,8 @@ adb reverse --list | tee artifacts/android/adb-reverse.txt
 grep -F "tcp:54321 tcp:54321" artifacts/android/adb-reverse.txt
 grep -F "tcp:58080 tcp:58080" artifacts/android/adb-reverse.txt
 
-pushd apps/mobile >/dev/null
-npx expo run:android --variant release --no-bundler
-popd >/dev/null
+adb install -r \
+  apps/mobile/android/app/build/outputs/apk/release/app-release.apk
 
 set +e
 maestro test .maestro/gon-263-critical-journeys.yaml 2>&1 \
