@@ -15,9 +15,25 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
   assert.doesNotMatch(seed, /127\.0\.0\.1:58080/);
   assert.match(seed, /http:\/\/localhost:58080\/media\/fixture\.mp4/);
   assert.match(runner, /adb-reverse-after-install\.txt/);
-  assert.match(runner, /maestro test \.maestro\/gon-263-critical-journeys\.yaml/);
+  assert.match(
+    runner,
+    /maestro test \.maestro\/gon-263-critical-journeys\.yaml/,
+  );
   assert.doesNotMatch(runner, /toybox nc/);
   assert.doesNotMatch(workflow, /device-(supabase|media)-probe\.txt/);
+});
+
+test("canonical detail checks scroll the exact seeded price into view", () => {
+  const flow = read(".maestro/gon-263-critical-journeys.yaml");
+  const priceCheck = `- scrollUntilVisible:
+    element:
+      text: "가격 200,000원"
+    direction: DOWN
+    timeout: 30000
+- assertVisible:
+    text: "가격 200,000원"`;
+
+  assert.equal(flow.split(priceCheck).length - 1, 2);
 });
 
 test("Android E2E config plugin enables cleartext only in generated manifest", () => {

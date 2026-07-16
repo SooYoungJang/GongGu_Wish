@@ -63,8 +63,13 @@ appId: com.gonggu.wish
     visible:
       id: "detail-back-button"
     timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "가격 200,000원"
+    direction: DOWN
+    timeout: 30000
 - assertVisible:
-    text: "200,000원"
+    text: "가격 200,000원"
 - takeScreenshot: gon263-critical-02-ranking-detail
 - tapOn:
     id: "detail-back-button"
@@ -87,8 +92,13 @@ appId: com.gonggu.wish
     visible:
       id: "detail-back-button"
     timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "가격 200,000원"
+    direction: DOWN
+    timeout: 30000
 - assertVisible:
-    text: "200,000원"
+    text: "가격 200,000원"
 - takeScreenshot: gon263-critical-03-mypage-detail
 - tapOn:
     id: "detail-back-button"
