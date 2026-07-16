@@ -59,3 +59,39 @@
 - [x] empty/error/stale 경로가 mock fallback으로 바뀌지 않음
 - [ ] CI 로그가 실패 계층을 식별하고 Android E2E 증거가 위키에 인라인 기록됨
 - [ ] 전체 게이트·PR CI·merge·main CI·로컬 main 동기화 완료
+
+## GON-264 체크리스트
+
+### Task 1: Query·HTTP cache 기반
+
+- [ ] 전역 stale/retry/refetch/gc 정책과 transient 오류 판정 테스트
+- [ ] React Native `AppState`가 Query focus 상태를 갱신
+- [ ] GET 요청 no-store 헤더와 query 실패 구조화 로그 검증
+- Verify: query-client/postgrest 단위 테스트, mobile typecheck
+
+### Task 2: 접근성 트리·label·motion
+
+- [ ] 숨은 GNB와 sticky 원본이 TalkBack 트리에 남지 않음
+- [ ] DealCard가 상품명·가격·판매자·마감 상태를 한 label로 읽음
+- [ ] Reduce Motion 또는 스크린리더 사용 시 홈 배너 자동 회전이 정지
+- Verify: App/Home/DealCard RED-GREEN 테스트
+
+### Task 3: Dynamic Type
+
+- [ ] 캘린더 row/card/scroll offset이 fontScale 2.0에서도 일치
+- [ ] 랭킹 상위 카드가 큰 글꼴에서 세로 배열되고 텍스트가 잘리지 않음
+- [ ] 고정 control height는 minHeight+padding으로 전환
+- Verify: Calendar/Ranking component test, Android 큰 글꼴 screenshot
+
+### Task 4: Modal·비동기 상태
+
+- [ ] 4개 Modal에 제목·modal isolation·onShow announcement 적용
+- [ ] 공통 stale/empty/error/retry 상태를 주요 데이터 화면에 적용
+- [ ] 광범위 LogBox ignore 제거 후 관측 가능한 오류 0건 확인
+- Verify: modal/state component test, TalkBack 탐색, logcat
+
+### Task 5: 완료 검증과 배송
+
+- [ ] mobile/workspace test·typecheck·lint·build 통과
+- [ ] Android 좁은 화면·큰 글꼴·다크 모드·TalkBack E2E 증거 위키 기록
+- [ ] 코드 리뷰, PR CI, squash merge, main CI, 로컬 main 동기화
