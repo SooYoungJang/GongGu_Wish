@@ -212,9 +212,9 @@ export async function createLocalFixture(
     })),
   });
 
-  // Food fixtures deliberately tie on primary sort keys while retaining
-  // different secondary scores. This catches keyset pagination gaps.
-  const currentViewCounts = [6, 6, 3, 8];
+  // Two open-ended food fixtures deliberately tie on score while a third
+  // stays lower. This catches null-deadline, score, and ID keyset gaps.
+  const currentViewCounts = [6, 9, 3, 8];
   const views = currentViewCounts.flatMap((count, groupIndex) =>
     Array.from({ length: count }, (_, viewIndex) => ({
       group_buy_id: groupBuyIds[groupIndex],
