@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { validateHomeBannerForm } from "./homeBannerForm";
+import {
+  canonicalizeHomeBannerForm,
+  validateHomeBannerForm,
+} from "./homeBannerForm";
+
+describe("canonicalizeHomeBannerForm", () => {
+  it("clears stale dates when the banner is disabled", () => {
+    expect(
+      canonicalizeHomeBannerForm({
+        isHomeBanner: false,
+        homeBannerStartDate: "2026-07-01",
+        homeBannerEndDate: "2026-07-31",
+      }),
+    ).toEqual({
+      isHomeBanner: false,
+      homeBannerStartDate: "",
+      homeBannerEndDate: "",
+    });
+  });
+});
 
 describe("validateHomeBannerForm", () => {
   it("allows a disabled banner without dates", () => {

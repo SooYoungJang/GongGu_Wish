@@ -71,6 +71,7 @@ export const publicGroupBuySchema = z.object({
   homeBannerStartDate: publicDateSchema.nullable().optional().default(null),
   homeBannerEndDate: publicDateSchema.nullable().optional().default(null),
   createdAt: publicDateSchema.optional(),
+  updatedAt: publicDateSchema.optional(),
   rawPost: z.object({
     postUrl: z.string(),
     influencer: z.object({

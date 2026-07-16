@@ -33,10 +33,11 @@ import { DealCard } from "../components/DealCard";
 import { CATEGORIES } from "../components/home/CategoryRow";
 import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
-import { fetchGroupBuys } from "../api";
+import { fetchGroupBuys, fetchHomeBannerGroupBuys } from "../api";
 import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { getHomeBannerStatusCopy } from "@gonggu/shared/utils/homeBannerPresentation";
+import { getHomeBannerDateKey } from "@gonggu/shared/utils/homeBanner";
 import { borderRadius, spacing } from "../design/tokens";
 import type { CategoryColorName } from "../design/tokens";
 import { isGroupBuyActiveOnDate } from "../utils/groupBuyDates";
@@ -58,6 +59,7 @@ const HOME_CATEGORY_OPTIONS: Array<{ key: HomeCategory; label: string }> = [
 
 type HomeScreenContentProps = {
   groupBuys: GroupBuy[];
+  homeBannerGroupBuys?: GroupBuy[];
   isError: boolean;
   isFetching: boolean;
   isLoading?: boolean;
@@ -723,6 +725,7 @@ function RecommendedProducts({
 
 export function HomeScreenContent({
   groupBuys,
+  homeBannerGroupBuys,
   isError,
   isFetching,
   isLoading = false,
@@ -740,6 +743,7 @@ export function HomeScreenContent({
   const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const [isCategoryFilterSticky, setIsCategoryFilterSticky] = useState(false);
   const displayGroupBuys = groupBuys;
+  const promoGroupBuys = homeBannerGroupBuys ?? groupBuys;
   const filteredGroupBuys = useMemo(() => {
     if (selectedCategory === "all") return displayGroupBuys;
     return displayGroupBuys.filter(
@@ -804,7 +808,7 @@ export function HomeScreenContent({
             <ShoppingHomeHeading s={s} />
             <PromoBanner
               cardWidth={promoCardWidth}
-              groupBuys={groupBuys}
+              groupBuys={promoGroupBuys}
               onPressDeal={onPressDeal}
               s={s}
               sidePadding={promoSidePadding}
@@ -870,6 +874,9 @@ export function HomeScreenContent({
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [homeBannerDateKey, setHomeBannerDateKey] = useState(() =>
+    getHomeBannerDateKey(),
+  );
   const [scrollToTopRequest, setScrollToTopRequest] = useState<number | null>(
     null,
   );
@@ -878,15 +885,42 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     queryFn: fetchGroupBuys,
     retry: false,
   });
+  const {
+    data: homeBannerData,
+    refetch: refetchHomeBanners,
+  } = useQuery({
+    queryKey: ["home-banner-group-buys", homeBannerDateKey],
+    queryFn: () => fetchHomeBannerGroupBuys(),
+    retry: false,
+  });
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleNextDateCheck = () => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setHours(24, 0, 0, 0);
+      timer = setTimeout(() => {
+        setHomeBannerDateKey(getHomeBannerDateKey());
+        scheduleNextDateCheck();
+      }, Math.max(1, nextMidnight.getTime() - now.getTime()));
+    };
+
+    scheduleNextDateCheck();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
     try {
-      await refetch();
+      await Promise.all([refetch(), refetchHomeBanners()]);
     } finally {
       setIsManualRefreshing(false);
     }
-  }, [refetch]);
+  }, [refetch, refetchHomeBanners]);
 
   const handleHomeTabReselect = useCallback(() => {
     setScrollToTopRequest((request) => (request ?? 0) + 1);
@@ -899,13 +933,14 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   useFocusEffect(
     useCallback(() => {
-      void refetch();
-    }, [refetch]),
+      void Promise.all([refetch(), refetchHomeBanners()]);
+    }, [refetch, refetchHomeBanners]),
   );
 
   return (
     <HomeScreenContent
       groupBuys={groupBuys}
+      homeBannerGroupBuys={homeBannerData ?? []}
       isError={isError}
       isFetching={isManualRefreshing || isFetching}
       isLoading={isLoading}

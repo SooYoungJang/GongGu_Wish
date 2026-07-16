@@ -101,6 +101,24 @@ Deno.test(
   },
 );
 
+Deno.test("clears persisted banner dates when only the opt-out flag changes", () => {
+  assertEquals(
+    normalizeCommercePatch(
+      { isHomeBanner: false },
+      {
+        is_home_banner: true,
+        home_banner_start_date: "2026-07-01",
+        home_banner_end_date: "2026-07-31",
+      },
+    ),
+    {
+      is_home_banner: false,
+      home_banner_start_date: null,
+      home_banner_end_date: null,
+    },
+  );
+});
+
 Deno.test("rejects invalid KRW prices", () => {
   for (const value of [
     -1,
@@ -171,3 +189,13 @@ Deno.test(
     );
   },
 );
+
+Deno.test("canonicalizes a merged opt-out schedule before persistence", () => {
+  assertEquals(
+    mergeHomeBannerSchedule(
+      { isHomeBanner: false },
+      { isHomeBanner: true, startDate: "2026-07-12", endDate: "2026-07-19" },
+    ),
+    { isHomeBanner: false, startDate: null, endDate: null },
+  );
+});

@@ -619,10 +619,10 @@ async function approveSubmission(
     is_home_banner: hasOwn(body, "isHomeBanner")
       ? patch.is_home_banner
       : existing.is_home_banner,
-    home_banner_start_date: hasOwn(body, "homeBannerStartDate")
+    home_banner_start_date: hasOwn(patch, "home_banner_start_date")
       ? patch.home_banner_start_date
       : existing.home_banner_start_date,
-    home_banner_end_date: hasOwn(body, "homeBannerEndDate")
+    home_banner_end_date: hasOwn(patch, "home_banner_end_date")
       ? patch.home_banner_end_date
       : existing.home_banner_end_date,
     source_type: "SUBMISSION",

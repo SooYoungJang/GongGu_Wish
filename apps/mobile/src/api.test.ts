@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  fetchHomeBannerGroupBuys,
   fetchGroupBuys,
   lookupInstagramUrl,
   postPublicJson,
@@ -55,6 +56,64 @@ describe('public data fetch diagnostics', () => {
     const [item] = await fetchGroupBuys();
 
     expect(item.isHomeBanner).toBe(false);
+  });
+
+  it('asks PostgREST for only approved, active home banners', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [],
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchHomeBannerGroupBuys(new Date(2026, 6, 13, 12)),
+    ).resolves.toEqual([]);
+
+    const requestUrl = String(vi.mocked(global.fetch).mock.calls[0]?.[0]);
+    expect(requestUrl).toContain('status=eq.APPROVED');
+    expect(requestUrl).toContain('is_home_banner=eq.true');
+    expect(requestUrl).toContain('home_banner_start_date=lte.2026-07-13');
+    expect(requestUrl).toContain('home_banner_end_date=gte.2026-07-13');
+  });
+
+  it('logs updatedAt revisions so stale or legacy banner responses are diagnosable', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [
+        {
+          id: 'banner-with-revision',
+          product_name: '버전이 있는 홈 배너',
+          category: 'food',
+          confidence: 0,
+          media_urls: [],
+          media_items: [],
+          media_type: null,
+          is_home_banner: true,
+          home_banner_start_date: '2026-07-13',
+          home_banner_end_date: '2026-07-13',
+          updated_at: '2026-07-12T10:00:00.000Z',
+          raw_post_id: null,
+        },
+      ],
+    }) as unknown as typeof fetch;
+
+    const result = await fetchHomeBannerGroupBuys(new Date(2026, 6, 13, 12));
+
+    expect(result[0].updatedAt).toBe('2026-07-12T10:00:00.000Z');
+    expect(console.log).toHaveBeenCalledWith('[HomeBanner] eligibility response', {
+      asOf: '2026-07-13',
+      count: 1,
+      revisions: [
+        {
+          id: 'banner-with-revision',
+          updatedAt: '2026-07-12T10:00:00.000Z',
+        },
+      ],
+      legacyMissingUpdatedAt: [],
+    });
   });
 
   it('rejects a malformed public group-buy response instead of exposing it to screens', async () => {

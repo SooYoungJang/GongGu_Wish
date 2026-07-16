@@ -97,6 +97,14 @@ export function validateHomeBannerSchedule(schedule: {
   startDate: string | null;
   endDate: string | null;
 }) {
+  if (
+    !schedule.isHomeBanner &&
+    (schedule.startDate !== null || schedule.endDate !== null)
+  ) {
+    throw new Error(
+      "Home banner dates must be null when the home banner is disabled.",
+    );
+  }
   if (schedule.isHomeBanner && (!schedule.startDate || !schedule.endDate)) {
     throw new Error(
       "Home banner start and end dates are required when enabled.",
@@ -122,8 +130,11 @@ export function mergeHomeBannerSchedule(
   existing: HomeBannerSchedule,
 ): HomeBannerSchedule {
   const merged = { ...existing, ...patch };
-  validateHomeBannerSchedule(merged);
-  return merged;
+  const canonical = merged.isHomeBanner
+    ? merged
+    : { ...merged, startDate: null, endDate: null };
+  validateHomeBannerSchedule(canonical);
+  return canonical;
 }
 
 function hasOwn(value: Record<string, unknown>, key: string): boolean {
@@ -181,11 +192,18 @@ export function normalizeCommercePatch(
     },
   );
 
-  if (hasOwn(body, "isHomeBanner")) patch.is_home_banner = merged.isHomeBanner;
-  if (hasOwn(body, "homeBannerStartDate"))
-    patch.home_banner_start_date = merged.startDate;
-  if (hasOwn(body, "homeBannerEndDate"))
-    patch.home_banner_end_date = merged.endDate;
+  if (hasOwn(body, "isHomeBanner")) {
+    patch.is_home_banner = merged.isHomeBanner;
+  }
+  if (!merged.isHomeBanner) {
+    patch.home_banner_start_date = null;
+    patch.home_banner_end_date = null;
+  } else {
+    if (hasOwn(body, "homeBannerStartDate"))
+      patch.home_banner_start_date = merged.startDate;
+    if (hasOwn(body, "homeBannerEndDate"))
+      patch.home_banner_end_date = merged.endDate;
+  }
 
   return patch;
 }

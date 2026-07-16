@@ -12,6 +12,7 @@
 
 import { Platform } from "react-native";
 import { publicGroupBuysResponseSchema } from "@gonggu/shared/schemas/group-buy";
+import { getHomeBannerDateKey } from "@gonggu/shared/utils/homeBanner";
 
 import type {
   FeedPost,
@@ -114,15 +115,52 @@ export const API_BASE_URL = Platform.select({
  * Fetch all group buys with raw post details.
  * GET /rest/v1/group_buys?select=*,raw_post_id(*)
  */
+const PUBLIC_GROUP_BUY_SELECT = "*,raw_post_id(*,influencer_id(*))";
+
 export async function fetchGroupBuys(): Promise<GroupBuy[]> {
   try {
     const { data } = await postgrestGet<any[]>(
-      "group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&order=created_at.desc",
+      `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED&order=created_at.desc`,
     );
     return mapGroupBuyRows(data || []);
   } catch (error) {
     console.log(
       "[GroupBuys] fetch failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    throw error;
+  }
+}
+
+/**
+ * Fetch only rows eligible for the home-banner rail.
+ * The date and opt-in filters are pushed to PostgREST so stale or legacy rows
+ * never enter the home-banner collection in the first place.
+ */
+export async function fetchHomeBannerGroupBuys(
+  now = new Date(),
+): Promise<GroupBuy[]> {
+  const dateKey = getHomeBannerDateKey(now);
+  try {
+    const { data } = await postgrestGet<any[]>(
+      `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED&is_home_banner=eq.true&home_banner_start_date=lte.${dateKey}&home_banner_end_date=gte.${dateKey}&order=created_at.desc`,
+    );
+    const items = mapGroupBuyRows(data || []);
+    console.log("[HomeBanner] eligibility response", {
+      asOf: dateKey,
+      count: items.length,
+      revisions: items.map((item) => ({
+        id: item.id,
+        updatedAt: item.updatedAt ?? null,
+      })),
+      legacyMissingUpdatedAt: items
+        .filter((item) => !item.updatedAt)
+        .map((item) => item.id),
+    });
+    return items;
+  } catch (error) {
+    console.log(
+      "[HomeBanner] fetch failed:",
       error instanceof Error ? error.message : String(error),
     );
     throw error;
@@ -198,6 +236,9 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
       ...(homeBannerStartDate !== undefined ? { homeBannerStartDate } : {}),
       ...(homeBannerEndDate !== undefined ? { homeBannerEndDate } : {}),
       createdAt: item.createdAt ?? item.created_at ?? undefined,
+      ...(item.updatedAt !== undefined || item.updated_at !== undefined
+        ? { updatedAt: item.updatedAt ?? item.updated_at }
+        : {}),
       rawPost: {
         postUrl:
           item.rawPostId?.postUrl ??
