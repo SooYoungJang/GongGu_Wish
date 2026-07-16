@@ -6,6 +6,7 @@ import * as apiModule from '../../api';
 import { ApiError } from '../../api';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { SubmitScreen } from '../SubmitScreen';
+import { AccessibilityInfo } from 'react-native';
 
 // ─── Mocks (must be before imports — vitest hoists them) ────────────────────
 
@@ -166,6 +167,19 @@ describe('SubmitScreen', function() {
     expect(text).toContain('일 월 화 수 목 금 토');
     expect(text).toContain('선택된 날짜 없음');
     expect(text).toContain('날짜 지우기');
+
+    var dialog = renderer.root.findByProps({ testID: 'submit-date-picker-dialog' });
+    expect(dialog.props.accessibilityLabel).toBe('시작일 선택 달력');
+    expect(dialog.props.accessibilityViewIsModal).toBe(true);
+    expect(dialog.props.importantForAccessibility).toBe('yes');
+
+    var modal = renderer.root.findByType('Modal' as unknown as React.ElementType);
+    act(function() {
+      modal.props.onShow();
+    });
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
+      '시작일 선택 달력',
+    );
 
     act(function() {
       renderer.root.findByProps({ accessibilityLabel: '닫기' }).props.onPress();
@@ -332,6 +346,10 @@ describe('SubmitScreen', function() {
     var text = flattenText(renderer.toJSON());
     expect(text).toContain('제보 완료');
     expect(text).toContain('홈에서 확인하기');
+    var dialog = renderer.root.findByProps({ testID: 'submit-success-dialog' });
+    expect(dialog.props.accessibilityLabel).toBe('제보 완료');
+    expect(dialog.props.accessibilityViewIsModal).toBe(true);
+    expect(dialog.props.importantForAccessibility).toBe('yes');
   });
 
   it('shows submitting text while in progress', function() {

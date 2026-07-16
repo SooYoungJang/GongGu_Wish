@@ -8,7 +8,7 @@ import {
   getCalendarLayoutMetrics,
 } from "../../components/calendar/CalendarDateRow";
 import { ThemeProvider } from "../../context/ThemeContext";
-import { Pressable } from "react-native";
+import { AccessibilityInfo, Pressable } from "react-native";
 import { spacing } from "../../design/tokens";
 import type { GroupBuy } from "../../types";
 
@@ -77,6 +77,9 @@ vi.mock("react-native", () => {
       ReactMock.createElement(type, props, children);
 
   return {
+    AccessibilityInfo: {
+      announceForAccessibility: vi.fn(),
+    },
     ActivityIndicator: passthrough("ActivityIndicator"),
     FlatList: ReactMock.forwardRef(
       (
@@ -279,6 +282,7 @@ function openCalendarPicker(renderer: TestRenderer.ReactTestRenderer) {
 
 describe("CalendarScreen", () => {
   beforeEach(() => {
+    vi.mocked(AccessibilityInfo.announceForAccessibility).mockClear();
     windowDimensionsMock.fontScale = 1;
     activityMock.bookmarks = [];
     activityMock.notifications = [];
@@ -399,6 +403,18 @@ describe("CalendarScreen", () => {
     expect(
       renderer.root.findByProps({ testID: "calendar-grid" }),
     ).toBeDefined();
+    const dialog = renderer.root.findByProps({
+      testID: "calendar-picker-modal",
+    });
+    expect(dialog.props.accessibilityLabel).toBe("날짜 선택 달력");
+    expect(dialog.props.accessibilityViewIsModal).toBe(true);
+    expect(dialog.props.importantForAccessibility).toBe("yes");
+
+    const modal = renderer.root.find((node) => String(node.type) === "Modal");
+    act(() => modal.props.onShow());
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
+      "날짜 선택 달력",
+    );
     expect(
       renderer.root.findByProps({ testID: "calendar-month-toggle" }).props
         .accessibilityLabel,

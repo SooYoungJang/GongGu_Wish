@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { RankingCategoryChips } from './RankingCategoryChips';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { RANKING_CATEGORIES, RANKING_CATEGORY_LABELS } from '../../features/ranking/types';
+import { AccessibilityInfo } from 'react-native';
 
 vi.mock('react-native', () => {
   const ReactMock = require('react');
@@ -14,6 +15,9 @@ vi.mock('react-native', () => {
       ReactMock.createElement(type, props, children);
 
   return {
+    AccessibilityInfo: {
+      announceForAccessibility: vi.fn(),
+    },
     Modal: ({ children, visible, ...props }: { children?: React.ReactNode; visible?: boolean }) =>
       visible ? ReactMock.createElement('Modal', props, children) : null,
     Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -72,6 +76,20 @@ describe('RankingCategoryChips', () => {
 
     expect(renderer!.root.findAllByType('Modal' as unknown as React.ElementType)).toHaveLength(1);
     expect(flattenText(renderer!.toJSON())).toContain('카테고리 선택');
+    const dialog = renderer!.root.findByProps({
+      testID: 'ranking-category-dialog',
+    });
+    expect(dialog.props.accessibilityLabel).toBe('카테고리 선택');
+    expect(dialog.props.accessibilityViewIsModal).toBe(true);
+    expect(dialog.props.importantForAccessibility).toBe('yes');
+
+    const modal = renderer!.root.findByType(
+      'Modal' as unknown as React.ElementType,
+    );
+    act(() => modal.props.onShow());
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
+      '카테고리 선택',
+    );
 
     const beautyOption = renderer!.root.findByProps({
       accessibilityLabel: '뷰티 카테고리',

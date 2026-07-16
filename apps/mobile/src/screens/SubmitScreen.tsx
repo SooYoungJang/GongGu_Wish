@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Keyboard,
   Modal,
@@ -382,16 +383,25 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
     <SafeAreaView edges={['top']} style={s.safeArea}>
       <Modal
         animationType="fade"
+        onShow={() =>
+          AccessibilityInfo.announceForAccessibility('제보 완료')
+        }
         transparent
         visible={isSuccessModalVisible}
         onRequestClose={() => setIsSuccessModalVisible(false)}
       >
         <View style={s.successBackdrop}>
-          <View style={s.successDialog}>
+          <View
+            accessibilityLabel="제보 완료"
+            accessibilityViewIsModal
+            importantForAccessibility="yes"
+            style={s.successDialog}
+            testID="submit-success-dialog"
+          >
             <View style={s.successIcon}>
               <SText variant="body" style={s.successIconText}>✓</SText>
             </View>
-            <SText variant="title" style={s.successTitle}>
+            <SText accessibilityRole="header" variant="title" style={s.successTitle}>
               제보 완료
             </SText>
             <SText variant="body" style={s.successBody}>
@@ -412,15 +422,26 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
       </Modal>
       <Modal
         animationType="fade"
+        onShow={() =>
+          AccessibilityInfo.announceForAccessibility(
+            `${datePickerTitle} 달력`,
+          )
+        }
         transparent
         visible={datePickerField !== null}
         onRequestClose={() => setDatePickerField(null)}
       >
         <View style={s.calendarBackdrop}>
-          <View style={s.calendarDialog}>
+          <View
+            accessibilityLabel={`${datePickerTitle} 달력`}
+            accessibilityViewIsModal
+            importantForAccessibility="yes"
+            style={s.calendarDialog}
+            testID="submit-date-picker-dialog"
+          >
             <View style={s.calendarTopBar}>
               <View>
-                <SText variant="caption" style={s.calendarEyebrow}>
+                <SText accessibilityRole="header" variant="caption" style={s.calendarEyebrow}>
                   {datePickerTitle}
                 </SText>
                 <SText variant="title" style={s.calendarSelectedText}>

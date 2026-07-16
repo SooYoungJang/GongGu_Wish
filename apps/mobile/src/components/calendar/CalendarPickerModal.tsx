@@ -1,5 +1,11 @@
 import { type Dispatch, useCallback, useMemo } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Modal,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import { SText } from '../ui/SText';
 import { commerceRadius } from '../../design/commerce';
@@ -137,13 +143,18 @@ export function CalendarPickerModal({
   return (
     <Modal
       animationType="fade"
+      onShow={() =>
+        AccessibilityInfo.announceForAccessibility('날짜 선택 달력')
+      }
       onRequestClose={onClose}
       statusBarTranslucent
       transparent
       visible={visible}
     >
       <View
+        accessibilityLabel="날짜 선택 달력"
         accessibilityViewIsModal
+        importantForAccessibility="yes"
         style={s.overlay}
         testID="calendar-picker-modal"
       >
@@ -165,7 +176,7 @@ export function CalendarPickerModal({
                 ‹
               </SText>
             </Pressable>
-            <SText variant="cardTitle" style={s.title}>
+            <SText accessibilityRole="header" variant="cardTitle" style={s.title}>
               {year}년 {month + 1}월
             </SText>
             <Pressable
