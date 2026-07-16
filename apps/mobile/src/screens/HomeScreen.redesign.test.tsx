@@ -45,6 +45,11 @@ vi.mock('react-native', () => {
       ReactMock.createElement(type, props, children);
 
   return {
+    AccessibilityInfo: {
+      addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+      isReduceMotionEnabled: vi.fn(() => Promise.resolve(false)),
+      isScreenReaderEnabled: vi.fn(() => Promise.resolve(false)),
+    },
     ActivityIndicator: passthrough('ActivityIndicator'),
     FlatList: ({ data, renderItem, ListHeaderComponent, ...props }: any) =>
       ReactMock.createElement(
@@ -404,6 +409,30 @@ describe('HomeScreenContent redesign', () => {
       position: 'absolute',
       zIndex: expect.any(Number),
     });
+  });
+
+  it('hides the duplicated in-flow category filter from accessibility when sticky', () => {
+    const renderer = renderHomeContent();
+    const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
+    const scroll = renderer.root.findAll(
+      (node) => String(node.type) === 'KeyboardAwareScrollView',
+    )[0];
+
+    expect(filter.props.accessibilityElementsHidden).toBe(false);
+    expect(filter.props.importantForAccessibility).toBe('auto');
+
+    act(() => {
+      filter.props.onLayout({ nativeEvent: { layout: { y: 100 } } });
+      scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 120 } } });
+    });
+
+    const hiddenFilter = renderer.root.findByProps({
+      testID: 'home-category-filter',
+    });
+    expect(hiddenFilter.props.accessibilityElementsHidden).toBe(true);
+    expect(hiddenFilter.props.importantForAccessibility).toBe(
+      'no-hide-descendants',
+    );
   });
 
   it('places the category filter between weekly deals and the deal grid', () => {
@@ -1508,9 +1537,13 @@ describe('HomeScreenContent redesign interactions', () => {
     const onPressDeal = vi.fn();
     const renderer = renderHomeContent({ onPressDeal });
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
-    const cards = renderer.root.findAllByProps({
-      accessibilityLabel: '비건 선크림 공구 상세 보기',
-    });
+    const cards = renderer.root
+      .findAllByType('Pressable' as unknown as React.ElementType)
+      .filter(
+        (node) =>
+          node.props.accessibilityLabel?.startsWith('비건 선크림 공구') &&
+          node.props.accessibilityLabel?.includes('판매자'),
+      );
     const card = cards[cards.length - 1];
 
     act(() => {
@@ -1537,7 +1570,12 @@ describe('HomeScreenContent redesign interactions', () => {
     expect(labels).not.toContain('알림 열기');
     expect(labels).toContain('상품 검색');
     expect(labels).toContain('전체 캘린더 보기');
-    expect(labels).toContain('비건 선크림 공구 상세 보기');
+    expect(
+      labels.some(
+        (label) =>
+          label.startsWith('비건 선크림 공구') && label.includes('판매자'),
+      ),
+    ).toBe(true);
     for (const pressable of pressables) {
       const style = Array.isArray(pressable.props.style)
         ? Object.assign({}, ...pressable.props.style)

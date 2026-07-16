@@ -45,6 +45,7 @@ import { selectHomeBannerItems } from "../utils/homeBanner";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import type { CommerceColorPalette } from "../design/commerce";
 import type { GroupBuy, HomeScreenProps } from "../types";
+import { useAccessibilityAutoPlayPause } from "../hooks/useAccessibilityAutoPlayPause";
 import { useTabReselect } from "../hooks/useTabReselect";
 import promoScrimSource from "../assets/promo-scrim.png";
 
@@ -239,12 +240,16 @@ function ShoppingHomeHeading({ s }: { s: ReturnType<typeof makeStyles> }) {
 }
 
 function HomeCategoryFilter({
+  accessibilityElementsHidden = false,
+  importantForAccessibility = "auto",
   value,
   onChange,
   onLayout,
   s,
   testID = "home-category-filter",
 }: {
+  accessibilityElementsHidden?: boolean;
+  importantForAccessibility?: ViewProps["importantForAccessibility"];
   value: HomeCategory;
   onChange: Dispatch<SetStateAction<HomeCategory>>;
   onLayout?: ViewProps["onLayout"];
@@ -253,7 +258,9 @@ function HomeCategoryFilter({
 }) {
   return (
     <View
+      accessibilityElementsHidden={accessibilityElementsHidden}
       accessibilityRole="tablist"
+      importantForAccessibility={importantForAccessibility}
       onLayout={onLayout}
       style={s.categoryFilter}
       testID={testID}
@@ -335,13 +342,15 @@ function PromoBanner({
     // an active date range.
     return selectHomeBannerItems(groupBuys).slice(0, 6);
   }, [groupBuys, homeBannerDateTick]);
+  const autoPlayPaused = useAccessibilityAutoPlayPause();
+  const canLoop = promoItems.length > 1;
+  const shouldAutoPlay = canLoop && !autoPlayPaused;
   const scrollRef = useRef<ScrollView | null>(null);
-  const currentPositionRef = useRef(promoItems.length > 1 ? 1 : 0);
+  const currentPositionRef = useRef(canLoop ? 1 : 0);
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleAutoPlayRef = useRef<() => void>(() => {});
   const snapInterval = cardWidth + PROMO_CARD_GAP;
-  const canAutoPlay = promoItems.length > 1;
   const cardHeight = Math.min(260, Math.max(224, Math.round(cardWidth / 1.16)));
   const loopingPromoItems = useMemo(() => {
     if (promoItems.length <= 1)
@@ -381,17 +390,17 @@ function PromoBanner({
 
   const normalizePosition = useCallback(
     (position: number) => {
-      if (!canAutoPlay) return 0;
+      if (!canLoop) return 0;
       if (position <= 0) return promoItems.length;
       if (position >= promoItems.length + 1) return 1;
       return position;
     },
-    [canAutoPlay, promoItems.length],
+    [canLoop, promoItems.length],
   );
 
   const scheduleAutoPlay = useCallback(() => {
     clearAutoPlayTimer();
-    if (!canAutoPlay) return;
+    if (!shouldAutoPlay) return;
 
     autoPlayTimerRef.current = setTimeout(() => {
       const nextPosition = currentPositionRef.current + 1;
@@ -409,7 +418,7 @@ function PromoBanner({
       }, PROMO_WRAP_SETTLE_MS);
     }, PROMO_AUTO_PLAY_MS);
   }, [
-    canAutoPlay,
+    shouldAutoPlay,
     clearAutoPlayTimer,
     clearWrapSettleTimer,
     normalizePosition,
@@ -437,14 +446,14 @@ function PromoBanner({
       const normalizedPosition = normalizePosition(settledPosition);
       currentPositionRef.current = normalizedPosition;
 
-      if (canAutoPlay && normalizedPosition !== settledPosition) {
+      if (canLoop && normalizedPosition !== settledPosition) {
         scrollToPosition(normalizedPosition, false);
       }
 
       scheduleAutoPlay();
     },
     [
-      canAutoPlay,
+      canLoop,
       clearWrapSettleTimer,
       normalizePosition,
       scheduleAutoPlay,
@@ -456,10 +465,12 @@ function PromoBanner({
   useEffect(() => {
     clearAutoPlayTimer();
     clearWrapSettleTimer();
-    currentPositionRef.current = canAutoPlay ? 1 : 0;
+    currentPositionRef.current = canLoop ? 1 : 0;
 
-    if (canAutoPlay) {
+    if (canLoop) {
       scrollToPosition(1, false);
+    }
+    if (shouldAutoPlay) {
       scheduleAutoPlay();
     }
 
@@ -468,12 +479,13 @@ function PromoBanner({
       clearWrapSettleTimer();
     };
   }, [
-    canAutoPlay,
+    canLoop,
     clearAutoPlayTimer,
     clearWrapSettleTimer,
     promoItems.length,
     scheduleAutoPlay,
     scrollToPosition,
+    shouldAutoPlay,
   ]);
 
   if (promoItems.length === 0) {
@@ -492,7 +504,7 @@ function PromoBanner({
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={[s.promoRail, { paddingHorizontal: sidePadding }]}
-      contentOffset={canAutoPlay ? { x: snapInterval, y: 0 } : undefined}
+      contentOffset={canLoop ? { x: snapInterval, y: 0 } : undefined}
       decelerationRate="fast"
       disableIntervalMomentum
       onMomentumScrollEnd={handleMomentumScrollEnd}
@@ -840,6 +852,10 @@ export function HomeScreenContent({
             ) : null}
           </View>
           <HomeCategoryFilter
+            accessibilityElementsHidden={isCategoryFilterSticky}
+            importantForAccessibility={
+              isCategoryFilterSticky ? "no-hide-descendants" : "auto"
+            }
             onChange={setSelectedCategory}
             onLayout={handleCategoryFilterLayout}
             s={s}

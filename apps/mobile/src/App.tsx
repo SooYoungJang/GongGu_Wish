@@ -23,6 +23,7 @@ import {
   decideMainTabsBack,
   useFocusedAndroidBackHandler,
 } from './navigation/androidBack';
+import { getTabBarVisibilityStyle } from './navigation/tabBarVisibility';
 import { mobileQueryClient, syncQueryFocus } from './lib/query-client';
 
 // Initialize PostgREST client with the Supabase anon key
@@ -145,8 +146,8 @@ function MainTabs() {
   const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 12, 0);
   const tabBarBottomPadding = Math.max(insets.bottom - 8, isNarrow ? 2 : 4);
   const tabBarBackgroundColor = isIOS ? 'transparent' : colors.bottomBarBg;
-  // When a Reels bottom sheet opens, hide the GNB by sliding it down off-screen
-  // (style preserved, restored when the sheet closes).
+  // Removing the hidden GNB from layout also removes its duplicate controls
+  // from the native accessibility tree while a Reels sheet is open.
   const [reelsSheetOpen, setReelsSheetOpen] = useState(false);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -232,8 +233,7 @@ function MainTabs() {
                   : colors.bottomBarBorder,
               height: tabBarHeight,
               paddingBottom: tabBarBottomPadding,
-              // Slide the GNB off-screen while a Reels bottom sheet is open.
-              bottom: reelsSheetOpen ? -tabBarHeight : 0,
+              ...getTabBarVisibilityStyle(reelsSheetOpen),
             },
           ],
         };
