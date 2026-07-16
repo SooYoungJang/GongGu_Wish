@@ -1,19 +1,36 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Platform, StatusBar, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useQuery } from '@tanstack/react-query';
-import PagerView from 'react-native-pager-view';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  AppState,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useQuery } from "@tanstack/react-query";
+import PagerView from "react-native-pager-view";
 
-import { fetchGroupBuys } from '../api';
-import { logDeepView } from '../api';
-import { useRecentViews } from '../hooks/useLocalDeals';
-import { useTabReselect } from '../hooks/useTabReselect';
-import { useTheme } from '../context/ThemeContext';
-import type { GroupBuy, MainTabParamList } from '../types';
-import { getRandomReelIndex } from './reelNavigation';
-import { ProductReelPage, ReelVideoPreloader, makeStyles } from './DetailScreen';
+import { fetchGroupBuys } from "../api";
+import { logDeepView } from "../api";
+import { useRecentViews } from "../hooks/useLocalDeals";
+import { useTabReselect } from "../hooks/useTabReselect";
+import { useTheme } from "../context/ThemeContext";
+import type { GroupBuy, MainTabParamList } from "../types";
+import { getRandomReelIndex } from "./reelNavigation";
+import {
+  ProductReelPage,
+  ReelVideoPreloader,
+  makeStyles,
+} from "./DetailScreen";
+import {
+  createReelWindow,
+  moveReelWindow,
+  type ReelWindow,
+} from "./reelWindow";
 
 const REELS_TAB_BAR_OVERLAY_OFFSET = 40;
 const REEL_PAGE_RENDER_RADIUS = 1;
@@ -34,24 +51,36 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChange?: (visible: boolean) => void }) {
+export function ReelsScreen({
+  onSheetVisibilityChange,
+}: {
+  onSheetVisibilityChange?: (visible: boolean) => void;
+}) {
   const { colors, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const pagerRef = useRef<PagerView>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
   const [replayKey, setReplayKey] = useState(0);
   const [reelDirection, setReelDirection] = useState<1 | -1>(1);
-  const [summarySheetGate, setSummarySheetGate] = useState({ isOpen: false, canSwipeReel: true });
+  const [reelWindow, setReelWindow] = useState<ReelWindow<GroupBuy>>(() =>
+    createReelWindow([]),
+  );
+  const { activeIndex, items: reelItems } = reelWindow;
+  const [summarySheetGate, setSummarySheetGate] = useState({
+    isOpen: false,
+    canSwipeReel: true,
+  });
   const [isTabFocused, setTabFocused] = useState(true);
-  const [isAppActive, setAppActive] = useState(AppState.currentState === 'active');
+  const [isAppActive, setAppActive] = useState(
+    AppState.currentState === "active",
+  );
   const { recordView } = useRecentViews();
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      setAppActive(nextState === 'active');
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      setAppActive(nextState === "active");
     });
 
     return () => subscription.remove();
@@ -71,7 +100,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
   );
 
   const { data, isError, isLoading } = useQuery({
-    queryKey: ['group-buys'],
+    queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
     retry: false,
   });
@@ -81,22 +110,10 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
     return shuffle(data ?? []);
   }, [data]);
 
-  // Infinite scroll: append a fresh shuffled batch whenever the user gets
-  // close to the end so reels never run out.
-  const [reelItems, setReelItems] = useState<GroupBuy[]>([]);
-  const batchCounter = useRef(0);
-
   useEffect(() => {
     if (baseBatch.length === 0) return;
-    batchCounter.current = 0;
-    setReelItems([...baseBatch]);
-    setActiveIndex(0);
+    setReelWindow(createReelWindow(baseBatch));
     setReelDirection(1);
-  }, [baseBatch]);
-
-  const appendBatch = useCallback(() => {
-    batchCounter.current += 1;
-    setReelItems((prev) => [...prev, ...shuffle(baseBatch)]);
   }, [baseBatch]);
 
   const handleReelsTabReselect = useCallback(() => {
@@ -104,20 +121,15 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
 
     const nextIndex = getRandomReelIndex(reelItems.length, activeIndex);
     setReelDirection(nextIndex >= activeIndex ? 1 : -1);
-    setActiveIndex(nextIndex);
+    const nextWindow = moveReelWindow(reelWindow, baseBatch, nextIndex);
+    setReelWindow(nextWindow);
     setReplayKey((key) => key + 1);
-    pagerRef.current?.setPageWithoutAnimation?.(nextIndex);
-  }, [activeIndex, reelItems.length]);
+    if (nextWindow.sourceStart === reelWindow.sourceStart) {
+      pagerRef.current?.setPageWithoutAnimation?.(nextWindow.activeIndex);
+    }
+  }, [activeIndex, baseBatch, reelItems.length, reelWindow]);
 
   useTabReselect(navigation, handleReelsTabReselect);
-
-  // When the active index nears the end, append another batch.
-  useEffect(() => {
-    if (reelItems.length === 0) return;
-    if (activeIndex >= reelItems.length - 2) {
-      appendBatch();
-    }
-  }, [activeIndex, reelItems.length, appendBatch]);
 
   const activeReelItem = reelItems[activeIndex];
   const lastRecordedIdRef = useRef<string | null>(null);
@@ -153,13 +165,16 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
     };
   }, [isPlaybackActive, summarySheetGate.isOpen, activeReelItem]);
 
-  const handleSummarySheetStateChange = useCallback((isOpen: boolean, canSwipeReel: boolean) => {
-    setSummarySheetGate((current) => (
-      current.isOpen === isOpen && current.canSwipeReel === canSwipeReel
-        ? current
-        : { isOpen, canSwipeReel }
-    ));
-  }, []);
+  const handleSummarySheetStateChange = useCallback(
+    (isOpen: boolean, canSwipeReel: boolean) => {
+      setSummarySheetGate((current) =>
+        current.isOpen === isOpen && current.canSwipeReel === canSwipeReel
+          ? current
+          : { isOpen, canSwipeReel },
+      );
+    },
+    [],
+  );
 
   const renderReelItem = useCallback(
     (item: GroupBuy, index: number) => (
@@ -180,7 +195,17 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
         s={s}
       />
     ),
-    [isPlaybackActive, activeIndex, handleSummarySheetStateChange, insets.bottom, insets.top, replayKey, s, screenHeight, screenWidth],
+    [
+      isPlaybackActive,
+      activeIndex,
+      handleSummarySheetStateChange,
+      insets.bottom,
+      insets.top,
+      replayKey,
+      s,
+      screenHeight,
+      screenWidth,
+    ],
   );
 
   if (reelItems.length === 0) {
@@ -189,13 +214,15 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
         <StatusBar barStyle="light-content" />
         <Text style={styles.emptyTitle}>
           {isLoading
-            ? '릴스를 불러오는 중이에요'
+            ? "릴스를 불러오는 중이에요"
             : isError
-              ? '릴스 영상을 불러오지 못했어요'
-              : '표시할 릴스 영상이 없어요'}
+              ? "릴스 영상을 불러오지 못했어요"
+              : "표시할 릴스 영상이 없어요"}
         </Text>
         <Text style={styles.emptyDescription}>
-          {isError ? '네트워크 연결 상태를 확인하고 다시 시도해주세요.' : '새 공구 영상이 등록되면 여기에서 확인할 수 있어요.'}
+          {isError
+            ? "네트워크 연결 상태를 확인하고 다시 시도해주세요."
+            : "새 공구 영상이 등록되면 여기에서 확인할 수 있어요."}
         </Text>
       </View>
     );
@@ -205,19 +232,24 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
     <View style={s.safeArea}>
       <StatusBar barStyle="light-content" />
       <PagerView
+        key={`${reelWindow.sourceStart}-${reelItems[0]?.id ?? "empty"}-${reelItems.length}`}
         ref={pagerRef}
-        initialPage={0}
+        initialPage={activeIndex}
         offscreenPageLimit={1}
         onPageSelected={(event) => {
           const next = event.nativeEvent.position;
           if (next !== activeIndex) {
             setReelDirection(next > activeIndex ? 1 : -1);
-            setActiveIndex(next);
+            setReelWindow((current) =>
+              moveReelWindow(current, baseBatch, next),
+            );
           }
         }}
         orientation="vertical"
         overdrag
-        scrollEnabled={screenHeight > 0 && reelItems.length > 1 && !summarySheetGate.isOpen}
+        scrollEnabled={
+          screenHeight > 0 && reelItems.length > 1 && !summarySheetGate.isOpen
+        }
         style={s.verticalPager}
       >
         {reelItems.map((item, index) => {
@@ -225,7 +257,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
 
           return (
             <View
-              key={`${item.id}-${index}`}
+              key={`${item.id}-${reelWindow.sourceStart + index}`}
               collapsable={false}
               style={[s.verticalPagerPage, { height: screenHeight }]}
             >
@@ -235,7 +267,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
         })}
       </PagerView>
       {/* Keep the lifecycle-owned distant preloader mounted while Reels is focused. */}
-      {Platform.OS !== 'web' && isTabFocused ? (
+      {Platform.OS !== "web" && isTabFocused ? (
         <ReelVideoPreloader
           items={reelItems}
           activeIndex={activeIndex}
@@ -248,7 +280,24 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
 }
 
 const styles = StyleSheet.create({
-  empty: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#05070A' },
-  emptyTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  emptyDescription: { color: '#A7AFBE', fontSize: 14, lineHeight: 20, marginTop: 8, textAlign: 'center' },
+  empty: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "#05070A",
+  },
+  emptyTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  emptyDescription: {
+    color: "#A7AFBE",
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+    textAlign: "center",
+  },
 });
