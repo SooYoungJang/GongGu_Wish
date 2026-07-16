@@ -33,13 +33,14 @@ export function RankingTopCard({
   variant,
 }: RankingTopCardProps) {
   const { colors, isDark } = useCommerceTheme();
-  const { width } = useWindowDimensions();
+  const { fontScale, width } = useWindowDimensions();
   const s = useMemo(
     () => makeRankingTopStyles(colors, isDark),
     [colors, isDark],
   );
   const displayName = getDisplayName(item);
   const isHero = variant === "hero";
+  const largeText = fontScale >= 1.3;
   const thumbnails = item.thumbnailUrl
     ? [
         {
@@ -68,6 +69,7 @@ export function RankingTopCard({
         onPress={() => onPress(item)}
         style={({ pressed }) => [
           isHero ? s.heroMainAction : s.compactMainAction,
+          largeText && isHero && s.heroMainActionLargeText,
           pressed && s.pressed,
         ]}
       >
@@ -95,14 +97,24 @@ export function RankingTopCard({
         </View>
         <View style={isHero ? s.heroInfoColumn : s.compactInfoColumn}>
           <SText
-            numberOfLines={2}
+            numberOfLines={largeText ? undefined : 2}
             style={isHero ? s.heroName : s.compactName}
+            testID={`ranking-top-name-${item.rank}`}
             variant="body"
           >
             {displayName}
           </SText>
-          <PriceText priceKrw={item.priceKrw} style={s.price} />
-          <SText numberOfLines={2} style={s.metricText} variant="caption">
+          <PriceText
+            numberOfLines={largeText ? 2 : 1}
+            priceKrw={item.priceKrw}
+            style={s.price}
+          />
+          <SText
+            numberOfLines={largeText ? undefined : 2}
+            style={s.metricText}
+            testID={`ranking-top-metrics-${item.rank}`}
+            variant="caption"
+          >
             조회 {formatCompactCount(item.metrics.deepViews)} · 저장{" "}
             {formatCompactCount(item.metrics.bookmarks)} · 알림{" "}
             {formatCompactCount(item.metrics.notifications)}
@@ -121,17 +133,31 @@ export function RankingTopCard({
             onPress={() => onPressSeller(item)}
             style={({ pressed }) => [s.sellerAction, pressed && s.pressed]}
           >
-            <SText numberOfLines={1} style={s.username} variant="caption">
+            <SText
+              numberOfLines={largeText ? 2 : 1}
+              style={s.username}
+              variant="caption"
+            >
               @{item.username}
             </SText>
           </Pressable>
         ) : (
-          <SText numberOfLines={1} style={s.username} variant="caption">
+          <SText
+            numberOfLines={largeText ? 2 : 1}
+            style={s.username}
+            variant="caption"
+          >
             @{item.username}
           </SText>
         )}
       </View>
-      <View style={isHero ? s.heroFooter : s.compactFooter}>
+      <View
+        style={[
+          isHero ? s.heroFooter : s.compactFooter,
+          largeText &&
+            (isHero ? s.heroFooterLargeText : s.compactFooterLargeText),
+        ]}
+      >
         <SText style={s.detailHint} variant="caption">
           공구 상세에서 더 보기
         </SText>

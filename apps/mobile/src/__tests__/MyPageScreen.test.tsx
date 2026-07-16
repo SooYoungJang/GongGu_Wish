@@ -7,6 +7,7 @@ import { DealShelf, MyPageScreen, notificationEntryToGroupBuy } from '../screens
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
+import { AccessibilityInfo } from 'react-native';
 
 const navigationMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -112,6 +113,9 @@ vi.mock('react-native', () => {
     ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement(type, props, children);
   return {
+    AccessibilityInfo: {
+      announceForAccessibility: vi.fn(),
+    },
     View: passthrough('View'),
     Text: ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement('Text', props, children),
@@ -167,6 +171,7 @@ function renderMyPageScreen() {
 }
 
 beforeEach(() => {
+  vi.mocked(AccessibilityInfo.announceForAccessibility).mockClear();
   authMocks.session = null;
   authMocks.signOut.mockClear();
   alertMocks.alert.mockClear();
@@ -175,6 +180,35 @@ beforeEach(() => {
 });
 
 describe('MyPageScreen', () => {
+  it('isolates and announces the wish registration dialog', async () => {
+    const renderer = renderMyPageScreen();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: '위시 아이템 등록하기' })
+        .props.onPress();
+    });
+
+    const dialog = renderer.root.findByProps({
+      testID: 'wish-registration-dialog',
+    });
+    expect(dialog.props.accessibilityLabel).toBe('위시 아이템 등록');
+    expect(dialog.props.accessibilityViewIsModal).toBe(true);
+    expect(dialog.props.importantForAccessibility).toBe('yes');
+
+    const modal = renderer.root.findByType(
+      'Modal' as unknown as React.ElementType,
+    );
+    act(() => modal.props.onShow());
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
+      '위시 아이템 등록',
+    );
+  });
+
   it('keeps notification price and discount fields when building a home card item', () => {
     const item = notificationEntryToGroupBuy({
       groupBuyId: 'deal-1',

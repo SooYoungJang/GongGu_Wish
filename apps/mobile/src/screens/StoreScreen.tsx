@@ -285,8 +285,9 @@ function makeStyles(colors: CommerceColorPalette) {
       borderBottomColor: "transparent",
       borderBottomWidth: 2,
       flex: 1,
-      height: 40,
       justifyContent: "center",
+      minHeight: 44,
+      paddingVertical: spacing.xs,
     },
     periodText: {
       color: colors.muted,

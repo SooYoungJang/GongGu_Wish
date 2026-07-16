@@ -35,9 +35,10 @@ export function SellerRankingRow({
   onToggleAlert,
 }: SellerRankingRowProps) {
   const { colors, isDark } = useCommerceTheme();
-  const { width } = useWindowDimensions();
+  const { fontScale, width } = useWindowDimensions();
   const s = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
   const compact = width <= 360;
+  const largeText = fontScale >= 1.3;
   const thumbnailSize = compact ? 64 : 72;
   const displayName = item.productName ?? item.brandName ?? item.username;
   const viewCount = formatCompactCount(item.metrics.deepViews);
@@ -67,46 +68,69 @@ export function SellerRankingRow({
 
   return (
     <View testID={`ranking-row-${item.rank}`} style={[s.row, s.cardRow]}>
-      <View style={s.mainRow}>
+      <View
+        style={[s.mainRow, largeText && s.mainRowLargeText]}
+        testID={`ranking-row-main-${item.rank}`}
+      >
         <Pressable
           accessibilityHint="공구 상세 보기"
           accessibilityLabel={accessibilityLabel}
           accessibilityRole="button"
           onPress={handlePress}
-          style={({ pressed }) => [s.mainAction, pressed && s.pressed]}
+          style={({ pressed }) => [
+            s.mainAction,
+            largeText && s.mainActionLargeText,
+            pressed && s.pressed,
+          ]}
         >
-          <View style={s.rankColumn}>
-            <RankBadge rank={item.rank} />
-            <RankingTrendBadge trend={item.trend} />
+          <View style={s.leadMedia}>
+            <View style={s.rankColumn}>
+              <RankBadge rank={item.rank} />
+              <RankingTrendBadge trend={item.trend} />
+            </View>
+
+            {thumbnails.length > 0 ? (
+              <ThumbnailStrip
+                maxVisible={1}
+                size={thumbnailSize}
+                thumbnails={thumbnails}
+              />
+            ) : (
+              <View
+                style={[
+                  s.thumbnailFallback,
+                  { height: thumbnailSize, width: thumbnailSize },
+                ]}
+              >
+                <SText variant="caption" style={s.thumbnailFallbackText}>
+                  {displayName.charAt(0)}
+                </SText>
+              </View>
+            )}
           </View>
 
-          {thumbnails.length > 0 ? (
-            <ThumbnailStrip
-              maxVisible={1}
-              size={thumbnailSize}
-              thumbnails={thumbnails}
-            />
-          ) : (
-            <View
-              style={[
-                s.thumbnailFallback,
-                { height: thumbnailSize, width: thumbnailSize },
-              ]}
-            >
-              <SText variant="caption" style={s.thumbnailFallbackText}>
-                {displayName.charAt(0)}
-              </SText>
-            </View>
-          )}
-
           <View style={s.infoColumn}>
-            <SText variant="body" style={s.sellerName} numberOfLines={2}>
+            <SText
+              variant="body"
+              style={s.sellerName}
+              numberOfLines={largeText ? undefined : 2}
+              testID={`ranking-row-name-${item.rank}`}
+            >
               {displayName}
             </SText>
 
-            <PriceText priceKrw={item.priceKrw} style={s.price} />
+            <PriceText
+              numberOfLines={largeText ? 2 : 1}
+              priceKrw={item.priceKrw}
+              style={s.price}
+            />
 
-            <SText variant="caption" style={s.metricText} numberOfLines={1}>
+            <SText
+              variant="caption"
+              style={s.metricText}
+              numberOfLines={largeText ? 2 : 1}
+              testID={`ranking-row-metrics-${item.rank}`}
+            >
               조회 {viewCount} · 저장 {savedCount} · 알림 {notificationCount}
             </SText>
 
@@ -116,7 +140,9 @@ export function SellerRankingRow({
           </View>
         </Pressable>
 
-        <View style={s.actionColumn}>
+        <View
+          style={[s.actionColumn, largeText && s.actionColumnLargeText]}
+        >
           <GroupBuyAlertButton
             groupBuyName={displayName}
             isEnabled={item.isNotifying ?? false}
@@ -135,12 +161,20 @@ export function SellerRankingRow({
             onPress={() => onPressSeller(item)}
             style={({ pressed }) => [s.sellerAction, pressed && s.pressed]}
           >
-            <SText variant="caption" style={s.username} numberOfLines={1}>
+            <SText
+              variant="caption"
+              style={s.username}
+              numberOfLines={largeText ? 2 : 1}
+            >
               @{item.username}
             </SText>
           </Pressable>
         ) : (
-          <SText variant="caption" style={s.username} numberOfLines={1}>
+          <SText
+            variant="caption"
+            style={s.username}
+            numberOfLines={largeText ? 2 : 1}
+          >
             @{item.username}
           </SText>
         )}
@@ -154,6 +188,9 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
     actionColumn: {
       alignItems: "flex-end",
       justifyContent: "center",
+    },
+    actionColumnLargeText: {
+      alignSelf: "flex-end",
     },
     cardRow: {
       backgroundColor: colors.panelBg,
@@ -182,11 +219,19 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
       gap: spacing.sm,
       minWidth: 0,
     },
+    mainActionLargeText: {
+      alignItems: "flex-start",
+      flexDirection: "column",
+    },
     mainRow: {
       alignItems: "center",
       flexDirection: "row",
       gap: spacing.sm,
       minWidth: 0,
+    },
+    mainRowLargeText: {
+      alignItems: "stretch",
+      flexDirection: "column",
     },
     metricText: {
       color: colors.muted,
@@ -199,6 +244,11 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
       fontSize: 11,
       fontWeight: "900",
       lineHeight: 16,
+    },
+    leadMedia: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: spacing.sm,
     },
     price: {
       fontSize: 12,

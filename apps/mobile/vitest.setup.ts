@@ -32,7 +32,10 @@ vi.mock("react-native", () => {
       View: passthrough("Animated.View"),
     },
     AccessibilityInfo: {
+      addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+      announceForAccessibility: vi.fn(),
       isReduceMotionEnabled: vi.fn(() => Promise.resolve(false)),
+      isScreenReaderEnabled: vi.fn(() => Promise.resolve(false)),
     },
     BackHandler: {
       addEventListener: vi.fn(() => ({ remove: vi.fn() })),

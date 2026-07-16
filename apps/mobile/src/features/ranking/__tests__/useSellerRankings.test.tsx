@@ -170,4 +170,23 @@ describe('useSellerRankings', () => {
       expect(state.updatedAt).toBe(Date.parse('2026-07-16T00:00:00.000Z'));
     }
   });
+
+  it('keeps cached rankings visible when a background refresh fails', () => {
+    const cached = rankingItem('cached');
+    queryMock.current = {
+      data: response([cached]),
+      isError: true,
+      isFetching: false,
+      isLoading: false,
+      refetch: vi.fn(),
+    };
+
+    const state = renderRanking(BASE_QUERY);
+
+    expect(state.status).toBe('ready');
+    if (state.status === 'ready') {
+      expect(state.data).toEqual([cached]);
+      expect(state.refreshError).toContain('최신');
+    }
+  });
 });

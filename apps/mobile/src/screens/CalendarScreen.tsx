@@ -12,6 +12,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,10 +21,10 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchGroupBuys } from "../api";
 import { BackButton } from "../components/BackButton";
 import {
-  CALENDAR_DATE_SECTION_HEIGHT,
   CalendarDateRow,
   calendarDateGroupKey,
   getCalendarDateGroupLayout,
+  getCalendarLayoutMetrics,
   type CalendarDateGroup,
 } from "../components/calendar/CalendarDateRow";
 import {
@@ -31,6 +32,7 @@ import {
   type CalendarGrid,
 } from "../components/calendar/CalendarPickerModal";
 import { SText } from "../components/ui/SText";
+import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { spacing } from "../design/tokens";
 import { commerceRadius } from "../design/commerce";
 import type { CalendarScreenProps, GroupBuy } from "../types";
@@ -334,7 +336,12 @@ function CalendarHeader({
 
 export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const calendarLayoutMetrics = useMemo(
+    () => getCalendarLayoutMetrics(fontScale),
+    [fontScale],
+  );
 
   const initialParam = route.params?.initialDate;
   const initialDate =
@@ -354,10 +361,9 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   const { notifications } = useNotifications();
 
   // Data fetching
-  const { data, isError, isFetching } = useQuery({
+  const { data, isError, isFetching, refetch } = useQuery({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
-    retry: false,
   });
 
   const groupBuys = data ?? [];
@@ -534,23 +540,38 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         {...item}
         filterLabel={calendarFilterLabel}
         isSelected={item.dateKey === selectedDateKey}
+        layoutMetrics={calendarLayoutMetrics}
         onDealPress={openDealDetail}
       />
     ),
-    [calendarFilterLabel, openDealDetail, selectedDateKey],
+    [
+      calendarFilterLabel,
+      calendarLayoutMetrics,
+      openDealDetail,
+      selectedDateKey,
+    ],
+  );
+  const getDateGroupLayout = useCallback(
+    (data: ArrayLike<CalendarDateGroup> | null | undefined, index: number) =>
+      getCalendarDateGroupLayout(
+        data,
+        index,
+        calendarLayoutMetrics.sectionHeight,
+      ),
+    [calendarLayoutMetrics.sectionHeight],
   );
   const handleScrollToIndexFailed = useCallback(
     ({ index }: { index: number }) => {
       dateListRef.current?.scrollToOffset({
         animated: true,
-        offset: CALENDAR_DATE_SECTION_HEIGHT * index,
+        offset: calendarLayoutMetrics.sectionHeight * index,
       });
     },
-    [],
+    [calendarLayoutMetrics.sectionHeight],
   );
   const renderEmptyTimeline = useCallback(
     () =>
-      isFetching && groupBuys.length === 0 ? (
+      isError && groupBuys.length === 0 ? null : isFetching && groupBuys.length === 0 ? (
         <ActivityIndicator color={colors.primary} style={s.loading} />
       ) : (
         <View style={s.emptyDeals}>
@@ -570,6 +591,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
       calendarFilterLabel,
       colors.primary,
       groupBuys.length,
+      isError,
       isFetching,
       s.emptyDateTitle,
       s.emptyDeals,
@@ -610,25 +632,35 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         />
 
         {isError ? (
-          <View style={s.emptyDeals} testID="calendar-query-error">
-            <SText variant="subtitle" style={s.emptyDateTitle}>
-              공구 정보를 불러오지 못했어요.
-            </SText>
-            <SText variant="caption">
-              네트워크 연결 상태를 확인하고 다시 시도해주세요.
-            </SText>
-          </View>
+          <AsyncStateNotice
+            compact
+            isRetrying={isFetching}
+            message={
+              groupBuys.length > 0
+                ? "저장된 공구 일정을 계속 표시하고 있어요."
+                : "네트워크 연결 상태를 확인하고 다시 시도해주세요."
+            }
+            onRetry={refetch}
+            style={s.queryState}
+            testID="calendar-query-state"
+            title={
+              groupBuys.length > 0
+                ? "최신 공구 일정을 확인하지 못했어요"
+                : "공구 정보를 불러오지 못했어요"
+            }
+            variant={groupBuys.length > 0 ? "stale" : "error"}
+          />
         ) : null}
 
         {/*
-          One visible month has at most 31 fixed-height date rows. FlatList is
-          intentional here: getItemLayout keeps date jumps deterministic while
-          FlashList remains reserved for the unbounded media feed.
+          One visible month has at most 31 deterministically measured rows.
+          The shared font-scale metrics keep rendered height, fallback offsets,
+          and getItemLayout aligned while Dynamic Type changes.
         */}
         <FlatList
           contentContainerStyle={s.dateListContent}
-          data={dateGroups}
-          getItemLayout={getCalendarDateGroupLayout}
+          data={isError && groupBuys.length === 0 ? [] : dateGroups}
+          getItemLayout={getDateGroupLayout}
           initialScrollIndex={
             selectedDateIndex >= 0 ? selectedDateIndex : undefined
           }
@@ -655,6 +687,9 @@ function makeStyles(colors: ColorPalette) {
       flex: 1,
       paddingHorizontal: spacing.lg,
       backgroundColor: colors.bg,
+    },
+    queryState: {
+      marginHorizontal: spacing.lg,
     },
 
     // Header stays fixed while the calendar and product list share one scroll.

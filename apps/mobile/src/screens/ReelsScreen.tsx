@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import PagerView from "react-native-pager-view";
 
 import { fetchGroupBuys } from "../api";
+import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { logDeepView } from "../api";
 import { useRecentViews } from "../hooks/useLocalDeals";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
@@ -91,10 +92,9 @@ export function ReelsScreen({
     onSheetVisibilityChange?.(summarySheetGate.isOpen);
   }, [onSheetVisibilityChange, summarySheetGate.isOpen]);
 
-  const { data, isError, isLoading } = useQuery({
+  const { data, isError, isFetching, isLoading, refetch } = useQuery({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
-    retry: false,
   });
 
   // Base shuffled batch, refreshed each time data arrives.
@@ -241,18 +241,28 @@ export function ReelsScreen({
     return (
       <View style={styles.empty}>
         <StatusBar barStyle="light-content" />
-        <Text style={styles.emptyTitle}>
-          {isLoading
-            ? "릴스를 불러오는 중이에요"
-            : isError
-              ? "릴스 영상을 불러오지 못했어요"
-              : "표시할 릴스 영상이 없어요"}
-        </Text>
-        <Text style={styles.emptyDescription}>
-          {isError
-            ? "네트워크 연결 상태를 확인하고 다시 시도해주세요."
-            : "새 공구 영상이 등록되면 여기에서 확인할 수 있어요."}
-        </Text>
+        {isLoading ? (
+          <Text style={styles.emptyTitle}>릴스를 불러오는 중이에요</Text>
+        ) : (
+          <AsyncStateNotice
+            appearance="inverse"
+            isRetrying={isFetching}
+            message={
+              isError
+                ? "네트워크 연결 상태를 확인하고 다시 시도해주세요."
+                : "새 공구 영상이 등록되면 여기에서 확인할 수 있어요."
+            }
+            onRetry={isError ? refetch : undefined}
+            style={styles.emptyNotice}
+            testID="reels-query-state"
+            title={
+              isError
+                ? "릴스 영상을 불러오지 못했어요"
+                : "표시할 릴스 영상이 없어요"
+            }
+            variant={isError ? "error" : "empty"}
+          />
+        )}
       </View>
     );
   }
@@ -260,6 +270,20 @@ export function ReelsScreen({
   return (
     <View style={s.safeArea}>
       <StatusBar barStyle="light-content" />
+      {isError ? (
+        <View style={styles.staleOverlay}>
+          <AsyncStateNotice
+            appearance="inverse"
+            compact
+            isRetrying={isFetching}
+            message="저장된 릴스를 계속 재생하고 있어요."
+            onRetry={refetch}
+            testID="reels-query-state"
+            title="최신 릴스를 확인하지 못했어요"
+            variant="stale"
+          />
+        </View>
+      ) : null}
       <PagerView
         key={`${reelWindow.sourceStart}-${reelItems[0]?.id ?? "empty"}-${reelItems.length}`}
         ref={pagerRef}
@@ -328,5 +352,15 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 8,
     textAlign: "center",
+  },
+  emptyNotice: {
+    alignSelf: "stretch",
+  },
+  staleOverlay: {
+    left: 12,
+    position: "absolute",
+    right: 12,
+    top: 12,
+    zIndex: 20,
   },
 });

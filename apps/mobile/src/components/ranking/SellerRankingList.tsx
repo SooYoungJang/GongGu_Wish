@@ -2,7 +2,6 @@ import { useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Pressable,
   StyleSheet,
   View,
   type FlatListProps,
@@ -11,12 +10,9 @@ import {
 } from "react-native";
 import type { Ref } from "react";
 
-import { SText } from "../ui/SText";
+import { AsyncStateNotice } from "../ui/AsyncStateNotice";
 import { spacing } from "../../design/tokens";
-import {
-  commerceRadius,
-  type CommerceColorPalette,
-} from "../../design/commerce";
+import type { CommerceColorPalette } from "../../design/commerce";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
 import type {
   GroupBuyRankingItem,
@@ -59,6 +55,10 @@ export function SellerRankingList({
     () => [s.content, { paddingTop: topInset }],
     [s.content, topInset],
   );
+  const statusViewportStyle = useMemo(
+    () => [s.statusContainer, { paddingTop: topInset }],
+    [s.statusContainer, topInset],
+  );
   const renderItem: ListRenderItem<RankingListItem> = useCallback(
     ({ item }) => (
       <SellerRankingRow
@@ -72,7 +72,10 @@ export function SellerRankingList({
   );
   if (state.status === "loading") {
     return (
-      <View style={s.statusContainer}>
+      <View
+        style={statusViewportStyle}
+        testID="ranking-status-viewport"
+      >
         <ActivityIndicator color={colors.accent} />
       </View>
     );
@@ -80,44 +83,34 @@ export function SellerRankingList({
 
   if (state.status === "error") {
     return (
-      <View style={s.statusContainer}>
-        <SText variant="body" style={[s.statusTitle, s.errorText]}>
-          {state.message}
-        </SText>
-        {state.retry ? (
-          <Pressable
-            accessibilityLabel="다시 불러오기"
-            accessibilityRole="button"
-            onPress={state.retry}
-            style={s.statusAction}
-          >
-            <SText variant="label" style={s.statusActionText}>
-              다시 시도
-            </SText>
-          </Pressable>
-        ) : null}
+      <View
+        style={statusViewportStyle}
+        testID="ranking-status-viewport"
+      >
+        <AsyncStateNotice
+          message={state.message}
+          onRetry={state.retry}
+          style={s.fullStatus}
+          title="랭킹을 불러오지 못했어요"
+          variant="error"
+        />
       </View>
     );
   }
 
   if (state.status === "empty") {
     return (
-      <View style={s.statusContainer}>
-        <SText variant="body" style={s.statusTitle}>
-          {state.message}
-        </SText>
-        {state.action ? (
-          <Pressable
-            accessibilityLabel={state.action.label}
-            accessibilityRole="button"
-            onPress={state.action.onPress}
-            style={s.statusAction}
-          >
-            <SText variant="label" style={s.statusActionText}>
-              {state.action.label}
-            </SText>
-          </Pressable>
-        ) : null}
+      <View
+        style={statusViewportStyle}
+        testID="ranking-status-viewport"
+      >
+        <AsyncStateNotice
+          actionLabel={state.action?.label}
+          onRetry={state.action?.onPress}
+          style={s.fullStatus}
+          title={state.message}
+          variant="empty"
+        />
       </View>
     );
   }
@@ -138,14 +131,25 @@ export function SellerRankingList({
       data={remainingItems}
       keyExtractor={(item) => item.groupBuyId}
       ListHeaderComponent={
-        topThree.length > 0 ? (
-          <RankingTopThree
-            items={topThree}
-            onPress={onPressItem ?? NOOP}
-            onPressSeller={onPressSeller}
-            onToggleAlert={onToggleAlert ?? NOOP}
-          />
-        ) : null
+        <>
+          {state.refreshError ? (
+            <AsyncStateNotice
+              compact
+              message="저장된 랭킹을 계속 표시하고 있어요."
+              onRetry={state.refresh}
+              title={state.refreshError}
+              variant="stale"
+            />
+          ) : null}
+          {topThree.length > 0 ? (
+            <RankingTopThree
+              items={topThree}
+              onPress={onPressItem ?? NOOP}
+              onPressSeller={onPressSeller}
+              onToggleAlert={onToggleAlert ?? NOOP}
+            />
+          ) : null}
+        </>
       }
       ListFooterComponent={<View style={{ height: bottomPadding }} />}
       ref={listRef}
@@ -167,38 +171,20 @@ function makeStyles(colors: CommerceColorPalette) {
     content: {
       paddingHorizontal: spacing.lg,
     },
-    errorText: {
-      color: colors.error,
+    fullStatus: {
+      alignSelf: "stretch",
     },
     list: {
       backgroundColor: colors.bg,
       flex: 1,
-    },
-    statusAction: {
-      backgroundColor: colors.accent,
-      borderRadius: commerceRadius.full,
-      marginTop: spacing.md,
-      paddingHorizontal: spacing.lg,
-      paddingVertical: spacing.sm,
-    },
-    statusActionText: {
-      color: colors.inverse,
-      fontWeight: "900",
     },
     statusContainer: {
       alignItems: "center",
       backgroundColor: colors.bg,
       flex: 1,
       justifyContent: "center",
-      marginTop: spacing.md,
       paddingHorizontal: spacing["2xl"],
-      paddingVertical: spacing["3xl"],
-    },
-    statusTitle: {
-      color: colors.text,
-      fontWeight: "800",
-      lineHeight: 22,
-      textAlign: "center",
+      paddingBottom: spacing["3xl"],
     },
   });
 }

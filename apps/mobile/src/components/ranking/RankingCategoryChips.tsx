@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import { SText } from '../ui/SText';
 import { spacing } from '../../design/tokens';
@@ -85,7 +92,15 @@ export function RankingCategoryChips({
             </Pressable>
           </View>
 
-          <Modal animationType="fade" onRequestClose={() => setPickerOpen(false)} transparent visible={pickerOpen}>
+          <Modal
+            animationType="fade"
+            onRequestClose={() => setPickerOpen(false)}
+            onShow={() =>
+              AccessibilityInfo.announceForAccessibility('카테고리 선택')
+            }
+            transparent
+            visible={pickerOpen}
+          >
             <View style={s.backdrop}>
               <Pressable
                 accessibilityLabel="카테고리 선택창 닫기"
@@ -93,10 +108,16 @@ export function RankingCategoryChips({
                 onPress={() => setPickerOpen(false)}
                 style={s.backdropDismiss}
               />
-              <View accessibilityViewIsModal style={s.sheet}>
+              <View
+                accessibilityLabel="카테고리 선택"
+                accessibilityViewIsModal
+                importantForAccessibility="yes"
+                style={s.sheet}
+                testID="ranking-category-dialog"
+              >
                 <View style={s.sheetHeader}>
                   <View>
-                    <SText variant="cardTitle" style={s.sheetTitle}>
+                    <SText accessibilityRole="header" variant="cardTitle" style={s.sheetTitle}>
                       카테고리 선택
                     </SText>
                     <SText variant="caption" style={s.sheetSubtitle}>
@@ -190,8 +211,9 @@ function makeStyles(colors: CommerceColorPalette) {
       borderRadius: commerceRadius.sm,
       flexDirection: 'row',
       gap: spacing.xs,
-      minHeight: 36,
+      minHeight: 44,
       paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
     },
     categoryTriggerText: {
       color: colors.bg,
@@ -201,9 +223,9 @@ function makeStyles(colors: CommerceColorPalette) {
       alignItems: 'center',
       backgroundColor: colors.softBg,
       borderRadius: commerceRadius.full,
-      height: 40,
       justifyContent: 'center',
-      width: 40,
+      minHeight: 44,
+      minWidth: 44,
     },
     pressed: {
       opacity: 0.72,
@@ -249,10 +271,10 @@ function makeStyles(colors: CommerceColorPalette) {
       borderColor: colors.border,
       borderRadius: commerceRadius.full,
       borderWidth: 1,
-      height: 34,
       justifyContent: 'center',
+      minHeight: 44,
       paddingHorizontal: spacing.sm,
-      paddingVertical: 0,
+      paddingVertical: spacing.xs,
     },
     sortChipText: {
       color: colors.muted,

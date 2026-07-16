@@ -52,6 +52,7 @@ export type RankingLoadState =
   | {
       status: "ready";
       data: RankingListItem[];
+      refreshError?: string;
       refreshing?: boolean;
       updatedAt?: number;
       refresh?: () => Promise<unknown>;

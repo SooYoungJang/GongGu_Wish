@@ -11,10 +11,37 @@ import { DealCard } from '../DealCard';
 import { SText } from '../ui/SText';
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
-const CALENDAR_CARD_WIDTH = 156;
+export const CALENDAR_CARD_WIDTH = 156;
 export const CALENDAR_CARD_HEIGHT = 256;
-
 export const CALENDAR_DATE_SECTION_HEIGHT = 312;
+
+export type CalendarLayoutMetrics = {
+  cardHeight: number;
+  cardWidth: number;
+  dateRailWidth: number;
+  largeText: boolean;
+  sectionHeight: number;
+};
+
+export function getCalendarLayoutMetrics(
+  fontScale = 1,
+): CalendarLayoutMetrics {
+  const normalizedFontScale = Number.isFinite(fontScale)
+    ? Math.min(2, Math.max(1, fontScale))
+    : 1;
+  const scaleDelta = normalizedFontScale - 1;
+  const cardHeight = CALENDAR_CARD_HEIGHT + Math.round(scaleDelta * 200);
+  const cardWidth = CALENDAR_CARD_WIDTH + Math.round(scaleDelta * 72);
+
+  return {
+    cardHeight,
+    cardWidth,
+    dateRailWidth: 58 + Math.round(scaleDelta * 22),
+    largeText: normalizedFontScale >= 1.3,
+    sectionHeight:
+      cardHeight + 56 + Math.round(scaleDelta * 32),
+  };
+}
 
 export type CalendarDateGroup = {
   date: Date;
@@ -25,11 +52,12 @@ export type CalendarDateGroup = {
 export function getCalendarDateGroupLayout(
   _: ArrayLike<CalendarDateGroup> | null | undefined,
   index: number,
+  sectionHeight = CALENDAR_DATE_SECTION_HEIGHT,
 ) {
   return {
     index,
-    length: CALENDAR_DATE_SECTION_HEIGHT,
-    offset: CALENDAR_DATE_SECTION_HEIGHT * index,
+    length: sectionHeight,
+    offset: sectionHeight * index,
   };
 }
 
@@ -71,14 +99,19 @@ function isToday(date: Date): boolean {
 const CalendarDealCard = memo(function CalendarDealCard({
   index,
   item,
+  layoutMetrics,
   onPress,
 }: {
   index: number;
   item: GroupBuy;
+  layoutMetrics: CalendarLayoutMetrics;
   onPress: Dispatch<GroupBuy>;
 }) {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useMemo(
+    () => makeStyles(colors, layoutMetrics),
+    [colors, layoutMetrics],
+  );
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
 
   return (
@@ -98,20 +131,30 @@ export const CalendarDateRow = memo(function CalendarDateRow({
   filterLabel,
   isSelected,
   items,
+  layoutMetrics,
   onDealPress,
 }: CalendarDateGroup & {
   filterLabel: string | null;
   isSelected: boolean;
+  layoutMetrics: CalendarLayoutMetrics;
   onDealPress: Dispatch<GroupBuy>;
 }) {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useMemo(
+    () => makeStyles(colors, layoutMetrics),
+    [colors, layoutMetrics],
+  );
   const weekday = WEEKDAY_LABELS[(date.getDay() + 6) % 7];
   const renderDeal = useCallback(
     ({ item, index }: { item: GroupBuy; index: number }) => (
-      <CalendarDealCard index={index} item={item} onPress={onDealPress} />
+      <CalendarDealCard
+        index={index}
+        item={item}
+        layoutMetrics={layoutMetrics}
+        onPress={onDealPress}
+      />
     ),
-    [onDealPress],
+    [layoutMetrics, onDealPress],
   );
   const keyExtractor = useCallback((item: GroupBuy) => item.id, []);
 
@@ -134,7 +177,12 @@ export const CalendarDateRow = memo(function CalendarDateRow({
       </View>
 
       <View style={styles.dateSectionContent}>
-        <View style={styles.dateSectionHeader}>
+        <View
+          style={[
+            styles.dateSectionHeader,
+            layoutMetrics.largeText && styles.dateSectionHeaderLarge,
+          ]}
+        >
           <SText variant="subtitle" style={styles.dateSectionTitle}>
             {isToday(date) ? '오늘의 공구' : '진행 공구'}
           </SText>
@@ -151,8 +199,8 @@ export const CalendarDateRow = memo(function CalendarDateRow({
             data={items}
             getItemLayout={(_, index) => ({
               index,
-              length: CALENDAR_CARD_WIDTH + spacing.md,
-              offset: (CALENDAR_CARD_WIDTH + spacing.md) * index,
+              length: layoutMetrics.cardWidth + spacing.md,
+              offset: (layoutMetrics.cardWidth + spacing.md) * index,
             })}
             horizontal
             keyExtractor={keyExtractor}
@@ -180,14 +228,17 @@ export const CalendarDateRow = memo(function CalendarDateRow({
   );
 });
 
-function makeStyles(colors: ColorPalette) {
+function makeStyles(
+  colors: ColorPalette,
+  layoutMetrics: CalendarLayoutMetrics,
+) {
   return StyleSheet.create({
     dateSection: {
       alignItems: 'center',
       borderBottomColor: colors.borderLight,
       borderBottomWidth: 1,
       flexDirection: 'row',
-      height: CALENDAR_DATE_SECTION_HEIGHT,
+      height: layoutMetrics.sectionHeight,
       paddingVertical: spacing.sm,
     },
     dateSectionSelected: {
@@ -200,7 +251,7 @@ function makeStyles(colors: ColorPalette) {
       alignSelf: 'stretch',
       paddingTop: spacing.sm,
       position: 'relative',
-      width: 58,
+      width: layoutMetrics.dateRailWidth,
     },
     dateRailMonth: {
       color: colors.textSecondary,
@@ -240,6 +291,10 @@ function makeStyles(colors: ColorPalette) {
       minHeight: 28,
       paddingRight: spacing.sm,
     },
+    dateSectionHeaderLarge: {
+      alignItems: 'flex-start',
+      flexDirection: 'column',
+    },
     dateSectionTitle: {
       color: colors.textPrimary,
       fontSize: 15,
@@ -248,15 +303,15 @@ function makeStyles(colors: ColorPalette) {
     },
     dealsCarousel: {
       flexGrow: 0,
-      height: CALENDAR_CARD_HEIGHT,
+      height: layoutMetrics.cardHeight,
     },
     dealsCarouselContent: {
       paddingRight: spacing.lg,
     },
     calendarDealCard: {
-      height: CALENDAR_CARD_HEIGHT,
+      height: layoutMetrics.cardHeight,
       marginRight: spacing.md,
-      width: CALENDAR_CARD_WIDTH,
+      width: layoutMetrics.cardWidth,
     },
     emptyDateSection: {
       alignItems: 'center',
@@ -265,7 +320,7 @@ function makeStyles(colors: ColorPalette) {
       borderCurve: 'continuous',
       borderRadius: commerceRadius.lg,
       borderWidth: 1,
-      height: CALENDAR_CARD_HEIGHT,
+      height: layoutMetrics.cardHeight,
       justifyContent: 'center',
       padding: spacing.lg,
     },

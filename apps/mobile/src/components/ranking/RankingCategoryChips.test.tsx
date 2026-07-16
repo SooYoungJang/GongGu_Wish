@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { RankingCategoryChips } from './RankingCategoryChips';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { RANKING_CATEGORIES, RANKING_CATEGORY_LABELS } from '../../features/ranking/types';
+import { AccessibilityInfo } from 'react-native';
 
 vi.mock('react-native', () => {
   const ReactMock = require('react');
@@ -14,6 +15,9 @@ vi.mock('react-native', () => {
       ReactMock.createElement(type, props, children);
 
   return {
+    AccessibilityInfo: {
+      announceForAccessibility: vi.fn(),
+    },
     Modal: ({ children, visible, ...props }: { children?: React.ReactNode; visible?: boolean }) =>
       visible ? ReactMock.createElement('Modal', props, children) : null,
     Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -72,6 +76,20 @@ describe('RankingCategoryChips', () => {
 
     expect(renderer!.root.findAllByType('Modal' as unknown as React.ElementType)).toHaveLength(1);
     expect(flattenText(renderer!.toJSON())).toContain('카테고리 선택');
+    const dialog = renderer!.root.findByProps({
+      testID: 'ranking-category-dialog',
+    });
+    expect(dialog.props.accessibilityLabel).toBe('카테고리 선택');
+    expect(dialog.props.accessibilityViewIsModal).toBe(true);
+    expect(dialog.props.importantForAccessibility).toBe('yes');
+
+    const modal = renderer!.root.findByType(
+      'Modal' as unknown as React.ElementType,
+    );
+    act(() => modal.props.onShow());
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
+      '카테고리 선택',
+    );
 
     const beautyOption = renderer!.root.findByProps({
       accessibilityLabel: '뷰티 카테고리',
@@ -82,7 +100,7 @@ describe('RankingCategoryChips', () => {
     expect(renderer!.root.findAllByType('Modal' as unknown as React.ElementType)).toHaveLength(0);
   });
 
-  it('shows only the selected category name and keeps the trigger compact', () => {
+  it('shows only the selected category name and keeps a scalable touch target', () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -108,7 +126,35 @@ describe('RankingCategoryChips', () => {
     expect(text).toContain('스포츠');
     expect(text).not.toContain('카테고리 스포츠');
     expect(RANKING_CATEGORY_LABELS.baby).toBe('육아');
-    expect(triggerStyle.minHeight).toBeLessThanOrEqual(38);
+    expect(triggerStyle.height).toBeUndefined();
+    expect(triggerStyle.minHeight).toBeGreaterThanOrEqual(44);
+  });
+
+  it('uses scalable sort controls instead of a fixed chip height', () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <RankingCategoryChips
+            mode="sort"
+            value="all"
+            categories={RANKING_CATEGORIES}
+            sort="popular"
+            onChange={vi.fn()}
+            onChangeSort={vi.fn()}
+          />,
+        ),
+      );
+    });
+
+    const popular = renderer!.root.findByProps({
+      accessibilityLabel: '인기 공구 정렬',
+    });
+    const style = flattenStyle(popular.props.style);
+
+    expect(style.height).toBeUndefined();
+    expect(style.minHeight).toBeGreaterThanOrEqual(44);
   });
 
   it('renders sort and category controls as independent filter layers', () => {

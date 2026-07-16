@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Platform, StatusBar, StyleSheet, ToastAndroid, useWindowDimensions, View, LogBox } from 'react-native';
+import { AppState, BackHandler, Platform, StatusBar, StyleSheet, ToastAndroid, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as SystemUI from 'expo-system-ui';
 import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme, useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -23,6 +23,8 @@ import {
   decideMainTabsBack,
   useFocusedAndroidBackHandler,
 } from './navigation/androidBack';
+import { getTabBarVisibilityStyle } from './navigation/tabBarVisibility';
+import { mobileQueryClient, syncQueryFocus } from './lib/query-client';
 
 // Initialize PostgREST client with the Supabase anon key
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -52,7 +54,6 @@ type RootStackWithTabs = RootStackParamList & {
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
 };
 
-const queryClient = new QueryClient();
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const TAB_BAR_HEIGHT = 58;
@@ -145,8 +146,8 @@ function MainTabs() {
   const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 12, 0);
   const tabBarBottomPadding = Math.max(insets.bottom - 8, isNarrow ? 2 : 4);
   const tabBarBackgroundColor = isIOS ? 'transparent' : colors.bottomBarBg;
-  // When a Reels bottom sheet opens, hide the GNB by sliding it down off-screen
-  // (style preserved, restored when the sheet closes).
+  // Removing the hidden GNB from layout also removes its duplicate controls
+  // from the native accessibility tree while a Reels sheet is open.
   const [reelsSheetOpen, setReelsSheetOpen] = useState(false);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -232,8 +233,7 @@ function MainTabs() {
                   : colors.bottomBarBorder,
               height: tabBarHeight,
               paddingBottom: tabBarBottomPadding,
-              // Slide the GNB off-screen while a Reels bottom sheet is open.
-              bottom: reelsSheetOpen ? -tabBarHeight : 0,
+              ...getTabBarVisibilityStyle(reelsSheetOpen),
             },
           ],
         };
@@ -250,8 +250,15 @@ function MainTabs() {
   );
 }
 
-// Suppress the known RN 0.83 Fabric text-warning (false positive)
-LogBox.ignoreLogs(['Text strings must be rendered within a <Text> component']);
+function QueryFocusBridge() {
+  useEffect(() => {
+    syncQueryFocus(AppState.currentState);
+    const subscription = AppState.addEventListener('change', syncQueryFocus);
+    return () => subscription.remove();
+  }, []);
+
+  return null;
+}
 
 /**
  * Wraps NavigationContainer with the current theme's background color
@@ -354,7 +361,8 @@ export default function App() {
     <GestureHandlerRootView style={styles.appRoot}>
       <KeyboardProvider>
         <SafeAreaProvider>
-          <QueryClientProvider client={queryClient}>
+          <QueryClientProvider client={mobileQueryClient}>
+            <QueryFocusBridge />
             <ThemeProvider>
               <AuthProvider>
                 <ThemedNavigationContainer>

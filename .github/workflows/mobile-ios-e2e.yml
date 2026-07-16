@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/mobile-ios-e2e.yml"
       - ".maestro/gon-263-*.yaml"
+      - ".maestro/gon-264-*.yaml"
       - "apps/mobile/**"
       - "packages/shared/**"
       - "supabase/**"
@@ -13,6 +14,7 @@ on:
       - "scripts/gon263-android-e2e-config.test.mjs"
       - "scripts/mobile-e2e-api-server*.mjs"
       - "scripts/run-gon263-android-e2e.sh"
+      - "scripts/run-gon264-android-accessibility.sh"
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:
@@ -136,9 +138,14 @@ jobs:
         run: |
           test -s artifacts/android/critical-output.log
           test -s artifacts/android/reels-output.log
+          test -s artifacts/android/gon264-output.log
           test -s artifacts/android/critical-commands.json
           test -s artifacts/android/reels-commands.json
+          test -s artifacts/android/gon264-commands.json
           test "$(find artifacts/android -name 'gon263-*.png' | wc -l)" -ge 10
+          test "$(find artifacts/android -name 'gon264-android-*.png' | wc -l)" -ge 8
+          test -s artifacts/android/gon264-reels-accessibility.xml
+          test -s artifacts/android/gon264-talkback-state.txt
           test -s artifacts/android/adb-reverse.txt
           test -s artifacts/android/adb-reverse-after-install.txt
           grep -Fx "reactNativeArchitectures=x86_64" \

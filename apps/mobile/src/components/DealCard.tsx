@@ -7,6 +7,7 @@ import { SText } from "./ui/SText";
 import { categoryColors, spacing } from "../design/tokens";
 import { commerceRadius, type CommerceColorPalette } from "../design/commerce";
 import { useCommerceTheme } from "../design/useCommerceTheme";
+import { formatPriceKrw } from "../utils/price";
 import type { CategoryColorName } from "../design/tokens";
 import type { GroupBuy } from "../types";
 
@@ -38,16 +39,39 @@ const CATEGORY_LABELS: Record<CategoryColorName, string> = {
   travel: "여행",
 };
 
-function formatDeadline(endDate: string | null) {
+function formatDeadline(endDate: string | null, now = Date.now()) {
   if (!endDate) return "마감일 미정";
   const date = new Date(endDate);
   if (Number.isNaN(date.getTime())) return "마감일 확인 필요";
 
-  const days = Math.ceil((date.getTime() - Date.now()) / 86_400_000);
+  const days = Math.ceil((date.getTime() - now) / 86_400_000);
   if (days <= 0) return "오늘 마감";
   if (days === 1) return "내일 마감";
   if (days <= 7) return `${days}일 남음`;
   return `${date.getMonth() + 1}월 ${date.getDate()}일 마감`;
+}
+
+export function buildDealCardAccessibilityLabel(
+  item: GroupBuy,
+  now = Date.now(),
+) {
+  const productName = item.productName?.trim() || "공동구매 상품";
+  const price = formatPriceKrw(item.priceKrw) ?? "미정";
+  const sellerName = item.brandName?.trim();
+  const username = item.rawPost.influencer.instagramUsername
+    ?.trim()
+    .replace(/^@\s*/, "");
+  const seller =
+    [sellerName, username ? `@${username}` : null].filter(Boolean).join(" ") ||
+    "정보 미정";
+
+  return [
+    productName,
+    `가격 ${price}`,
+    `판매자 ${seller}`,
+    formatDeadline(item.endDate, now),
+    "상세 보기",
+  ].join(", ");
 }
 
 export function DealCard({ item, category, onPress, style }: DealCardProps) {
@@ -65,7 +89,7 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
 
   return (
     <Pressable
-      accessibilityLabel={`${item.productName ?? "공구"} 상세 보기`}
+      accessibilityLabel={buildDealCardAccessibilityLabel(item)}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [s.card, style, pressed && s.pressed]}

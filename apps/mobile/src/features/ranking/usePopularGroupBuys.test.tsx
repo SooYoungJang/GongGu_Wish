@@ -171,4 +171,22 @@ describe('usePopularGroupBuys', () => {
       expect(state.retry).toBe(queryMock.current.refetch);
     }
   });
+
+  it('keeps cached rankings visible and marks a refresh failure as stale', () => {
+    const cached = rankingItem('cached');
+    queryMock.current = {
+      ...queryMock.current,
+      data: response([cached]),
+      isError: true,
+      isLoading: false,
+    };
+
+    const state = renderRanking();
+
+    expect(state.status).toBe('ready');
+    if (state.status === 'ready') {
+      expect(state.data).toEqual([cached]);
+      expect(state.refreshError).toContain('최신');
+    }
+  });
 });

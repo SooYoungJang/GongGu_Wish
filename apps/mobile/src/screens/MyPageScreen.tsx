@@ -1,5 +1,14 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -264,17 +273,27 @@ export function MyPageScreen() {
     <SafeAreaView edges={['top']} style={s.container}>
       <Modal
         animationType="fade"
+        onShow={() =>
+          AccessibilityInfo.announceForAccessibility('위시 아이템 등록')
+        }
         transparent
         visible={wishModalVisible}
         onRequestClose={closeWishModal}
       >
         <View style={s.modalBackdrop}>
-          <View style={s.wishDialog}>
-            <SText variant="cardTitle" style={s.wishDialogTitle}>위시 아이템 등록하기</SText>
+          <View
+            accessibilityLabel="위시 아이템 등록"
+            accessibilityViewIsModal
+            importantForAccessibility="yes"
+            style={s.wishDialog}
+            testID="wish-registration-dialog"
+          >
+            <SText accessibilityRole="header" variant="cardTitle" style={s.wishDialogTitle}>위시 아이템 등록하기</SText>
             <SText variant="caption" style={s.wishDialogDescription}>
               인스타그램 게시물 URL만 등록하면 검수 후 위시템으로 반영돼요.
             </SText>
             <TextInput
+              accessibilityLabel="위시 아이템 인스타그램 URL"
               autoCapitalize="none"
               autoCorrect={false}
               editable={!wishSubmitting}
@@ -289,10 +308,11 @@ export function MyPageScreen() {
               value={wishUrl}
             />
             {wishFeedback ? (
-              <SText variant="caption" style={s.wishFeedback}>{wishFeedback}</SText>
+              <SText accessibilityLiveRegion="polite" variant="caption" style={s.wishFeedback}>{wishFeedback}</SText>
             ) : null}
             <View style={s.wishDialogActions}>
               <Pressable
+                accessibilityLabel="위시 아이템 등록 닫기"
                 accessibilityRole="button"
                 disabled={wishSubmitting}
                 onPress={closeWishModal}
@@ -301,6 +321,7 @@ export function MyPageScreen() {
                 <SText variant="label" style={s.wishSecondaryButtonText}>닫기</SText>
               </Pressable>
               <Pressable
+                accessibilityLabel="위시 아이템 등록"
                 accessibilityRole="button"
                 disabled={wishSubmitting}
                 onPress={() => void handleSubmitWish()}

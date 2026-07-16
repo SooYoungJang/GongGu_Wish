@@ -27,6 +27,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 
 import { SText } from "../components/ui/SText";
+import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { PriceText } from "../components/ui/PriceText";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
 import { DealCard } from "../components/DealCard";
@@ -45,6 +46,7 @@ import { selectHomeBannerItems } from "../utils/homeBanner";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import type { CommerceColorPalette } from "../design/commerce";
 import type { GroupBuy, HomeScreenProps } from "../types";
+import { useAccessibilityAutoPlayPause } from "../hooks/useAccessibilityAutoPlayPause";
 import { useTabReselect } from "../hooks/useTabReselect";
 import promoScrimSource from "../assets/promo-scrim.png";
 
@@ -239,12 +241,16 @@ function ShoppingHomeHeading({ s }: { s: ReturnType<typeof makeStyles> }) {
 }
 
 function HomeCategoryFilter({
+  accessibilityElementsHidden = false,
+  importantForAccessibility = "auto",
   value,
   onChange,
   onLayout,
   s,
   testID = "home-category-filter",
 }: {
+  accessibilityElementsHidden?: boolean;
+  importantForAccessibility?: ViewProps["importantForAccessibility"];
   value: HomeCategory;
   onChange: Dispatch<SetStateAction<HomeCategory>>;
   onLayout?: ViewProps["onLayout"];
@@ -253,7 +259,9 @@ function HomeCategoryFilter({
 }) {
   return (
     <View
+      accessibilityElementsHidden={accessibilityElementsHidden}
       accessibilityRole="tablist"
+      importantForAccessibility={importantForAccessibility}
       onLayout={onLayout}
       style={s.categoryFilter}
       testID={testID}
@@ -335,13 +343,15 @@ function PromoBanner({
     // an active date range.
     return selectHomeBannerItems(groupBuys).slice(0, 6);
   }, [groupBuys, homeBannerDateTick]);
+  const autoPlayPaused = useAccessibilityAutoPlayPause();
+  const canLoop = promoItems.length > 1;
+  const shouldAutoPlay = canLoop && !autoPlayPaused;
   const scrollRef = useRef<ScrollView | null>(null);
-  const currentPositionRef = useRef(promoItems.length > 1 ? 1 : 0);
+  const currentPositionRef = useRef(canLoop ? 1 : 0);
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleAutoPlayRef = useRef<() => void>(() => {});
   const snapInterval = cardWidth + PROMO_CARD_GAP;
-  const canAutoPlay = promoItems.length > 1;
   const cardHeight = Math.min(260, Math.max(224, Math.round(cardWidth / 1.16)));
   const loopingPromoItems = useMemo(() => {
     if (promoItems.length <= 1)
@@ -381,17 +391,17 @@ function PromoBanner({
 
   const normalizePosition = useCallback(
     (position: number) => {
-      if (!canAutoPlay) return 0;
+      if (!canLoop) return 0;
       if (position <= 0) return promoItems.length;
       if (position >= promoItems.length + 1) return 1;
       return position;
     },
-    [canAutoPlay, promoItems.length],
+    [canLoop, promoItems.length],
   );
 
   const scheduleAutoPlay = useCallback(() => {
     clearAutoPlayTimer();
-    if (!canAutoPlay) return;
+    if (!shouldAutoPlay) return;
 
     autoPlayTimerRef.current = setTimeout(() => {
       const nextPosition = currentPositionRef.current + 1;
@@ -409,7 +419,7 @@ function PromoBanner({
       }, PROMO_WRAP_SETTLE_MS);
     }, PROMO_AUTO_PLAY_MS);
   }, [
-    canAutoPlay,
+    shouldAutoPlay,
     clearAutoPlayTimer,
     clearWrapSettleTimer,
     normalizePosition,
@@ -437,14 +447,14 @@ function PromoBanner({
       const normalizedPosition = normalizePosition(settledPosition);
       currentPositionRef.current = normalizedPosition;
 
-      if (canAutoPlay && normalizedPosition !== settledPosition) {
+      if (canLoop && normalizedPosition !== settledPosition) {
         scrollToPosition(normalizedPosition, false);
       }
 
       scheduleAutoPlay();
     },
     [
-      canAutoPlay,
+      canLoop,
       clearWrapSettleTimer,
       normalizePosition,
       scheduleAutoPlay,
@@ -456,10 +466,12 @@ function PromoBanner({
   useEffect(() => {
     clearAutoPlayTimer();
     clearWrapSettleTimer();
-    currentPositionRef.current = canAutoPlay ? 1 : 0;
+    currentPositionRef.current = canLoop ? 1 : 0;
 
-    if (canAutoPlay) {
+    if (canLoop) {
       scrollToPosition(1, false);
+    }
+    if (shouldAutoPlay) {
       scheduleAutoPlay();
     }
 
@@ -468,12 +480,13 @@ function PromoBanner({
       clearWrapSettleTimer();
     };
   }, [
-    canAutoPlay,
+    canLoop,
     clearAutoPlayTimer,
     clearWrapSettleTimer,
     promoItems.length,
     scheduleAutoPlay,
     scrollToPosition,
+    shouldAutoPlay,
   ]);
 
   if (promoItems.length === 0) {
@@ -492,7 +505,7 @@ function PromoBanner({
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={[s.promoRail, { paddingHorizontal: sidePadding }]}
-      contentOffset={canAutoPlay ? { x: snapInterval, y: 0 } : undefined}
+      contentOffset={canLoop ? { x: snapInterval, y: 0 } : undefined}
       decelerationRate="fast"
       disableIntervalMomentum
       onMomentumScrollEnd={handleMomentumScrollEnd}
@@ -821,25 +834,42 @@ export function HomeScreenContent({
               onOpenCalendar={onOpenCalendar}
               s={s}
             />
-            {isError ? (
-              <View style={s.notice}>
-                <SText variant="caption" style={s.noticeText}>
-                  네트워크 연결 상태를 확인해주세요. 공구 정보를 불러오지
-                  못했어요. 다시 시도해주세요.
-                </SText>
-              </View>
-            ) : null}
-            {isLoading || (isFetching && groupBuys.length === 0) ? (
+            {isLoading && groupBuys.length === 0 ? (
               <ActivityIndicator color={colors.accent} />
-            ) : !isError && groupBuys.length === 0 ? (
-              <View style={s.notice}>
-                <SText variant="caption" style={s.noticeText}>
-                  현재 표시할 공구가 없어요.
-                </SText>
-              </View>
+            ) : isError ? (
+              <AsyncStateNotice
+                compact
+                isRetrying={isFetching}
+                message={
+                  groupBuys.length > 0
+                    ? "네트워크 연결 상태를 확인해주세요. 저장된 공구 정보를 계속 표시하고 있어요."
+                    : "네트워크 연결 상태를 확인해주세요. 잠시 후 다시 시도해주세요."
+                }
+                onRetry={onRefresh}
+                style={s.queryState}
+                testID="home-query-state"
+                title={
+                  groupBuys.length > 0
+                    ? "최신 공구 정보를 확인하지 못했어요"
+                    : "공구 정보를 불러오지 못했어요"
+                }
+                variant={groupBuys.length > 0 ? "stale" : "error"}
+              />
+            ) : groupBuys.length === 0 ? (
+              <AsyncStateNotice
+                compact
+                style={s.queryState}
+                testID="home-query-state"
+                title="현재 표시할 공구가 없어요"
+                variant="empty"
+              />
             ) : null}
           </View>
           <HomeCategoryFilter
+            accessibilityElementsHidden={isCategoryFilterSticky}
+            importantForAccessibility={
+              isCategoryFilterSticky ? "no-hide-descendants" : "auto"
+            }
             onChange={setSelectedCategory}
             onLayout={handleCategoryFilterLayout}
             s={s}
@@ -883,7 +913,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const { data, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
-    retry: false,
   });
   const {
     data: homeBannerData,
@@ -891,7 +920,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   } = useQuery({
     queryKey: ["home-banner-group-buys", homeBannerDateKey],
     queryFn: () => fetchHomeBannerGroupBuys(),
-    retry: false,
   });
 
   useEffect(() => {
@@ -971,6 +999,9 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingBottom: 122,
       paddingHorizontal: 0,
       paddingTop: 0,
+    },
+    queryState: {
+      marginHorizontal: spacing.lg,
     },
     topBar: {
       alignItems: "center",

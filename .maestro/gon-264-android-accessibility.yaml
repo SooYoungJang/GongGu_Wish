@@ -1,0 +1,110 @@
+appId: com.gonggu.wish
+---
+# GON-264 Android-only evidence: the runner enables font scale 2.0 and dark
+# mode before this flow. Selectors intentionally use the same accessibility
+# labels consumed by TalkBack.
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "상품을 검색해보세요"
+    timeout: 60000
+- takeScreenshot: gon264-android-01-home-large-text-dark
+
+# Calendar rows and the modal must remain usable without fixed-height clipping.
+- tapOn:
+    text: "홈 탭"
+- extendedWaitUntil:
+    visible:
+      id: "home-calendar-open"
+    timeout: 30000
+- tapOn:
+    id: "home-calendar-open"
+- extendedWaitUntil:
+    visible:
+      text: "공구 캘린더"
+    timeout: 30000
+- takeScreenshot: gon264-android-03-calendar-large-text-dark
+- tapOn:
+    id: "calendar-month-toggle"
+- extendedWaitUntil:
+    visible:
+      id: "calendar-picker-modal"
+    timeout: 10000
+- assertVisible:
+    text: "날짜 선택 달력"
+- assertVisible:
+    text: "이전 달"
+- assertVisible:
+    text: "다음 달"
+- assertVisible:
+    text: "오늘로 이동"
+- assertVisible:
+    text: "달력 닫기"
+- takeScreenshot: gon264-android-04-calendar-modal
+- tapOn:
+    text: "달력 닫기"
+    index: 0
+- assertNotVisible:
+    id: "calendar-picker-modal"
+- pressKey: back
+
+# A DealCard must expose product, price, seller, deadline, and action as one
+# stable TalkBack label even when the visual card wraps at 200% font scale.
+- extendedWaitUntil:
+    visible:
+      text: "상품을 검색해보세요"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "GON-263 기준 공구, 가격 200,000원, 판매자 GON-263 Brand @gon263_price, .* 상세 보기"
+    direction: DOWN
+    timeout: 30000
+- assertVisible:
+    text: "GON-263 기준 공구, 가격 200,000원, 판매자 GON-263 Brand @gon263_price, .* 상세 보기"
+- takeScreenshot: gon264-android-02-deal-card-label
+
+# Ranking cards switch to the large-text vertical layout and keep the sticky
+# filter controls exposed once the list has scrolled.
+- tapOn:
+    text: "랭킹 탭"
+- extendedWaitUntil:
+    visible:
+      id: "ranking-top-hero"
+    timeout: 30000
+- takeScreenshot: gon264-android-05-ranking-large-text-dark
+- swipe:
+    start: 50%,75%
+    end: 50%,25%
+    duration: 500
+- extendedWaitUntil:
+    visible:
+      id: "ranking-filter-header"
+    timeout: 10000
+- takeScreenshot: gon264-android-06-ranking-sticky-filter
+
+# End with the Reels summary sheet open so the runner can prove that the GNB
+# has been removed from both the layout and the native accessibility tree.
+- tapOn:
+    text: "릴스 탭"
+- extendedWaitUntil:
+    visible:
+      text: "요약 자세히 보기"
+    timeout: 30000
+- assertVisible:
+    text: "릴스 탭"
+- takeScreenshot: gon264-android-07-reels-accessibility-tree
+- tapOn:
+    text: "요약 자세히 보기"
+- extendedWaitUntil:
+    visible:
+      text: "요약 닫기"
+    timeout: 10000
+- assertNotVisible:
+    text: "홈 탭"
+- assertNotVisible:
+    text: "릴스 탭"
+- takeScreenshot: gon264-android-08-reels-sheet-hidden-gnb

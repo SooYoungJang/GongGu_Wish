@@ -63,6 +63,15 @@ if [[ "$critical_status" -eq 0 ]]; then
   fi
 fi
 
+gon264_status=1
+if [[ "$reels_status" -eq 0 ]]; then
+  set +e
+  bash scripts/run-gon264-android-accessibility.sh
+  gon264_status=$?
+  set -e
+fi
+
 adb logcat -d > artifacts/android/logcat.txt || true
 test "$critical_status" -eq 0
 test "$reels_status" -eq 0
+test "$gon264_status" -eq 0

@@ -3,9 +3,13 @@ import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CalendarScreen, filterGroupBuysByActivity } from "../CalendarScreen";
-import { CALENDAR_CARD_HEIGHT } from "../../components/calendar/CalendarDateRow";
+import {
+  CALENDAR_CARD_HEIGHT,
+  CALENDAR_CARD_WIDTH,
+  getCalendarLayoutMetrics,
+} from "../../components/calendar/CalendarDateRow";
 import { ThemeProvider } from "../../context/ThemeContext";
-import { Pressable } from "react-native";
+import { AccessibilityInfo, Pressable } from "react-native";
 import { spacing } from "../../design/tokens";
 import type { GroupBuy } from "../../types";
 
@@ -28,6 +32,12 @@ const navigationMock = vi.hoisted(() => ({
 const listMock = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
   scrollToOffset: vi.fn(),
+}));
+const queryRefetchMock = vi.hoisted(() => vi.fn());
+const windowDimensionsMock = vi.hoisted(() => ({
+  fontScale: 1,
+  height: 844,
+  width: 390,
 }));
 
 vi.mock("../../hooks/useLocalDeals", () => ({
@@ -58,7 +68,7 @@ let mockQueryResult: {
 };
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => mockQueryResult,
+  useQuery: () => ({ ...mockQueryResult, refetch: queryRefetchMock }),
 }));
 
 vi.mock("react-native", () => {
@@ -69,6 +79,9 @@ vi.mock("react-native", () => {
       ReactMock.createElement(type, props, children);
 
   return {
+    AccessibilityInfo: {
+      announceForAccessibility: vi.fn(),
+    },
     ActivityIndicator: passthrough("ActivityIndicator"),
     FlatList: ReactMock.forwardRef(
       (
@@ -132,7 +145,10 @@ vi.mock("react-native", () => {
     View: ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement("View", props, children),
     useColorScheme: () => "light",
-    useWindowDimensions: () => ({ width: 390, height: 844 }),
+    useWindowDimensions: () => ({
+      ...windowDimensionsMock,
+      scale: 3,
+    }),
   };
 });
 
@@ -233,6 +249,15 @@ function flattenText(
   );
 }
 
+function flattenStyle(style: unknown): Record<string, unknown> {
+  if (Array.isArray(style)) {
+    return Object.assign({}, ...style.filter(Boolean).map(flattenStyle));
+  }
+  return style && typeof style === "object"
+    ? (style as Record<string, unknown>)
+    : {};
+}
+
 function renderCalendar(params: Record<string, unknown> = {}) {
   let renderer: TestRenderer.ReactTestRenderer;
   act(() => {
@@ -259,10 +284,13 @@ function openCalendarPicker(renderer: TestRenderer.ReactTestRenderer) {
 
 describe("CalendarScreen", () => {
   beforeEach(() => {
+    vi.mocked(AccessibilityInfo.announceForAccessibility).mockClear();
+    windowDimensionsMock.fontScale = 1;
     activityMock.bookmarks = [];
     activityMock.notifications = [];
     listMock.scrollToIndex.mockClear();
     listMock.scrollToOffset.mockClear();
+    queryRefetchMock.mockClear();
     navigationMock.goBack.mockClear();
     navigationMock.navigate.mockClear();
     mockQueryResult = {
@@ -270,6 +298,54 @@ describe("CalendarScreen", () => {
       isFetching: false,
       isError: false,
     };
+  });
+
+  it("keeps virtualized row measurements aligned at large font scales", () => {
+    const metrics = getCalendarLayoutMetrics(2);
+
+    expect(metrics.cardHeight).toBeGreaterThan(CALENDAR_CARD_HEIGHT);
+    expect(metrics.cardWidth).toBeGreaterThan(CALENDAR_CARD_WIDTH);
+    expect(metrics.sectionHeight).toBeGreaterThan(metrics.cardHeight);
+
+    windowDimensionsMock.fontScale = 2;
+    const today = new Date();
+    const todayKey = today.toISOString().slice(0, 10);
+    mockQueryResult = {
+      data: [
+        {
+          ...sampleGroupBuys[0],
+          id: "large-font-deal",
+          startDate: `${todayKey}T00:00:00+09:00`,
+          endDate: `${todayKey}T23:59:59+09:00`,
+        },
+      ],
+      isFetching: false,
+      isError: false,
+    };
+
+    const renderer = renderCalendar({ initialDate: todayKey });
+    const row = renderer.root.findByProps({
+      testID: `calendar-date-row-${todayKey}`,
+    });
+    const carousel = renderer.root.findByProps({
+      testID: `calendar-deals-carousel-${todayKey}`,
+    });
+    const dateList = renderer.root.findByProps({
+      testID: "calendar-date-list",
+    });
+
+    expect(flattenStyle(row.props.style).height).toBe(metrics.sectionHeight);
+    expect(flattenStyle(carousel.props.style).height).toBe(metrics.cardHeight);
+    expect(carousel.props.getItemLayout(null, 1)).toEqual({
+      index: 1,
+      length: metrics.cardWidth + spacing.md,
+      offset: metrics.cardWidth + spacing.md,
+    });
+    expect(dateList.props.getItemLayout(null, 2)).toEqual({
+      index: 2,
+      length: metrics.sectionHeight,
+      offset: metrics.sectionHeight * 2,
+    });
   });
 
   it("renders the calendar header with current year and month", () => {
@@ -336,6 +412,18 @@ describe("CalendarScreen", () => {
     expect(
       renderer.root.findByProps({ testID: "calendar-grid" }),
     ).toBeDefined();
+    const dialog = renderer.root.findByProps({
+      testID: "calendar-picker-modal",
+    });
+    expect(dialog.props.accessibilityLabel).toBe("날짜 선택 달력");
+    expect(dialog.props.accessibilityViewIsModal).toBe(true);
+    expect(dialog.props.importantForAccessibility).toBe("yes");
+
+    const modal = renderer.root.find((node) => String(node.type) === "Modal");
+    act(() => modal.props.onShow());
+    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
+      "날짜 선택 달력",
+    );
     expect(
       renderer.root.findByProps({ testID: "calendar-month-toggle" }).props
         .accessibilityLabel,
@@ -602,6 +690,36 @@ describe("CalendarScreen", () => {
 
     expect(text).toContain("공구 정보를 불러오지 못했어요");
     expect(text).not.toContain("샘플");
+    const notice = renderer.root.find(
+      (node) =>
+        node.props.testID === "calendar-query-state" &&
+        node.props.accessibilityLiveRegion,
+    );
+    expect(notice.props.accessibilityLiveRegion).toBe("assertive");
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: "다시 불러오기" })
+        .props.onPress();
+    });
+    expect(queryRefetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps cached calendar deals visible with a stale notice", () => {
+    mockQueryResult = {
+      data: sampleGroupBuys,
+      isFetching: false,
+      isError: true,
+    };
+
+    const renderer = renderCalendar();
+    const notice = renderer.root.find(
+      (node) =>
+        node.props.testID === "calendar-query-state" &&
+        node.props.accessibilityLiveRegion,
+    );
+
+    expect(notice.props.accessibilityLiveRegion).toBe("polite");
+    expect(flattenText(renderer.toJSON())).toContain("비건 선크림");
   });
 
   it("shows group buys for the selected date when data is available", () => {
@@ -659,7 +777,9 @@ describe("CalendarScreen", () => {
     expect(text).toContain("30% 할인");
 
     const dealButton = renderer.root.find(
-      (node) => node.props.accessibilityLabel === "오늘의 딜 상세 보기",
+      (node) =>
+        node.props.accessibilityLabel?.startsWith("오늘의 딜, ") &&
+        node.props.accessibilityLabel?.endsWith("상세 보기"),
     );
     act(() => dealButton.props.onPress());
 

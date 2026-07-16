@@ -23,7 +23,6 @@ export function InfluencerGroupBuysScreen({ navigation, route }: InfluencerGroup
   const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ['group-buys', 'influencer', normalizedUsername],
     queryFn: () => fetchGroupBuysByInfluencer(normalizedUsername),
-    retry: false,
   });
 
   const groupBuys = data ?? [];
