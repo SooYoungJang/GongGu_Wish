@@ -4,6 +4,18 @@ export type HomeBannerFormFields = {
   homeBannerEndDate: string;
 };
 
+export function canonicalizeHomeBannerForm<T extends HomeBannerFormFields>(
+  form: T,
+): T {
+  if (form.isHomeBanner) return form;
+
+  return {
+    ...form,
+    homeBannerStartDate: "",
+    homeBannerEndDate: "",
+  };
+}
+
 export function validateHomeBannerForm(form: HomeBannerFormFields): string | null {
   if (!form.isHomeBanner) return null;
 

@@ -1268,6 +1268,26 @@ textarea:focus {
   isolation: isolate;
   background: var(--ink);
 }
+.app-live-preview__home-banner-empty {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 32px;
+  border: 1px dashed var(--border);
+  border-radius: 24px;
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: center;
+}
+.app-live-preview__home-banner-empty strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+.app-live-preview__home-banner-empty span {
+  font-size: 13px;
+}
 .app-live-preview__home-banner-image {
   position: absolute;
   inset: 0;

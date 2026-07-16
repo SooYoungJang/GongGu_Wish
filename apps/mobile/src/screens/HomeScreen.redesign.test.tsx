@@ -645,6 +645,18 @@ describe('HomeScreenContent redesign', () => {
     expect(flattenText(renderer.toJSON())).toContain('오늘의 특가를 준비 중입니다');
   });
 
+  it('uses the server-selected home-banner collection instead of promoting weekly rows', () => {
+    const renderer = renderHomeContent({
+      groupBuys: [sampleGroupBuys[0]],
+      homeBannerGroupBuys: [],
+    });
+
+    expect(
+      renderer.root.findAllByProps({ testID: 'promo-overlay-gb-1' }),
+    ).toHaveLength(0);
+    expect(flattenText(renderer.toJSON())).toContain('오늘의 특가를 준비 중입니다');
+  });
+
   it('keeps an upcoming migrated deal visible from today until commerce starts', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 6, 13, 12, 0, 0));

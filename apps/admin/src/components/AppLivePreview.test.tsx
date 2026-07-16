@@ -150,5 +150,22 @@ describe("AppLivePreview", () => {
 
     expect(screen.getAllByText("홈 배너 미노출").length).toBeGreaterThan(0);
     expect(screen.getAllByText("배너 기간 종료").length).toBeGreaterThan(0);
+    expect(screen.getByText("홈에 노출되지 않음")).toBeTruthy();
+    expect(screen.queryByRole("article", { name: "홈 배너 미리보기" })).toBeNull();
+  });
+
+  it("hides a future banner from the home preview until it becomes eligible", () => {
+    render(
+      <AppLivePreview
+        deal={{
+          ...activeDeal,
+          homeBannerStartDate: "2099-01-01",
+          homeBannerEndDate: "2099-01-31",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("홈에 노출되지 않음")).toBeTruthy();
+    expect(screen.getByText("배너 예약")).toBeTruthy();
   });
 });

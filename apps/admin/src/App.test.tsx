@@ -42,10 +42,12 @@ describe("formToPreviewDeal", () => {
       ],
       mediaType: "IMAGE",
       isHomeBanner: false,
-      homeBannerStartDate: "",
-      homeBannerEndDate: "",
+      homeBannerStartDate: "2026-07-01",
+      homeBannerEndDate: "2026-07-31",
     });
 
     expect(preview.imageUrl).toBe("https://example.com/hiker-thumbnail.jpg");
+    expect(preview.homeBannerStartDate).toBe("");
+    expect(preview.homeBannerEndDate).toBe("");
   });
 });

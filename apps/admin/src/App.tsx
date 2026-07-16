@@ -9,7 +9,10 @@ import {
 import { DatePickerField } from "@/components/DatePickerField";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import { inferHikerSuggestions } from "@/lib/hikerSuggestions";
-import { validateHomeBannerForm } from "@/lib/homeBannerForm";
+import {
+  canonicalizeHomeBannerForm,
+  validateHomeBannerForm,
+} from "@/lib/homeBannerForm";
 import {
   assertPersistedPriceMatches,
   MAX_PRICE_KRW,
@@ -247,6 +250,7 @@ function mediaTypeLabel(mediaType: "" | "IMAGE" | "VIDEO") {
 export function formToPreviewDeal(
   form: SubmissionForm | GroupBuyForm,
 ): AppLivePreviewDeal {
+  const canonicalForm = canonicalizeHomeBannerForm(form);
   const mediaItems = form.mediaItems ?? [];
   const mediaUrls = splitLines(form.mediaUrlsText);
   const imageUrl = form.thumbnailUrl.trim();
@@ -257,7 +261,7 @@ export function formToPreviewDeal(
     priceKrw = null;
   }
 
-  return {
+  return canonicalizeHomeBannerForm({
     productName: form.productName.trim() || "상품명을 입력해주세요",
     brandName: form.brandName.trim() || "브랜드/계정 미지정",
     category:
@@ -270,10 +274,10 @@ export function formToPreviewDeal(
     summary: form.summary.trim() || "요약을 입력하면 상세 화면에 표시됩니다.",
     imageUrl,
     mediaCount: Math.max(mediaItems.length, mediaUrls.length, imageUrl ? 1 : 0),
-    isHomeBanner: form.isHomeBanner,
-    homeBannerStartDate: form.homeBannerStartDate,
-    homeBannerEndDate: form.homeBannerEndDate,
-  };
+    isHomeBanner: canonicalForm.isHomeBanner,
+    homeBannerStartDate: canonicalForm.homeBannerStartDate,
+    homeBannerEndDate: canonicalForm.homeBannerEndDate,
+  });
 }
 
 function submissionToForm(item: GongguSubmission): SubmissionForm {
@@ -286,7 +290,7 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
       ? "IMAGE"
       : "";
 
-  return {
+  return canonicalizeHomeBannerForm({
     productName: text(item.productName),
     brandName: text(item.brandName),
     category: text(item.category),
@@ -308,11 +312,11 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
     isHomeBanner: Boolean(item.isHomeBanner),
     homeBannerStartDate: dateInput(item.homeBannerStartDate),
     homeBannerEndDate: dateInput(item.homeBannerEndDate),
-  };
+  });
 }
 
 function groupBuyToForm(item: GroupBuy): GroupBuyForm {
-  return {
+  return canonicalizeHomeBannerForm({
     productName: text(item.productName),
     brandName: text(item.brandName),
     category: text(item.category),
@@ -330,7 +334,7 @@ function groupBuyToForm(item: GroupBuy): GroupBuyForm {
     isHomeBanner: Boolean(item.isHomeBanner),
     homeBannerStartDate: dateInput(item.homeBannerStartDate),
     homeBannerEndDate: dateInput(item.homeBannerEndDate),
-  };
+  });
 }
 
 function mediaItemsForForm(form: SubmissionForm | GroupBuyForm) {
@@ -345,7 +349,8 @@ function mediaItemsForForm(form: SubmissionForm | GroupBuyForm) {
 }
 
 function submissionPayload(form: SubmissionForm) {
-  const bannerError = validateHomeBannerForm(form);
+  const canonicalForm = canonicalizeHomeBannerForm(form);
+  const bannerError = validateHomeBannerForm(canonicalForm);
   if (bannerError) throw new Error(bannerError);
   const mediaItems = mediaItemsForForm(form);
   const mediaUrls = splitLines(form.mediaUrlsText);
@@ -367,14 +372,15 @@ function submissionPayload(form: SubmissionForm) {
     mediaUrls,
     mediaItems,
     mediaType: inferFormMediaType(mediaItems, mediaUrls) || null,
-    isHomeBanner: form.isHomeBanner,
-    homeBannerStartDate: form.homeBannerStartDate,
-    homeBannerEndDate: form.homeBannerEndDate,
+    isHomeBanner: canonicalForm.isHomeBanner,
+    homeBannerStartDate: canonicalForm.homeBannerStartDate,
+    homeBannerEndDate: canonicalForm.homeBannerEndDate,
   };
 }
 
 function groupBuyPayload(form: GroupBuyForm) {
-  const bannerError = validateHomeBannerForm(form);
+  const canonicalForm = canonicalizeHomeBannerForm(form);
+  const bannerError = validateHomeBannerForm(canonicalForm);
   if (bannerError) throw new Error(bannerError);
   const mediaUrls = splitLines(form.mediaUrlsText);
   const mediaItems = mediaItemsForForm(form);
@@ -394,9 +400,9 @@ function groupBuyPayload(form: GroupBuyForm) {
     mediaItems,
     mediaType: inferFormMediaType(mediaItems, mediaUrls) || null,
     status: form.status,
-    isHomeBanner: form.isHomeBanner,
-    homeBannerStartDate: form.homeBannerStartDate,
-    homeBannerEndDate: form.homeBannerEndDate,
+    isHomeBanner: canonicalForm.isHomeBanner,
+    homeBannerStartDate: canonicalForm.homeBannerStartDate,
+    homeBannerEndDate: canonicalForm.homeBannerEndDate,
   };
 }
 
@@ -2387,6 +2393,15 @@ function SubmissionEditor(props: {
     key: K,
     value: SubmissionForm[K],
   ) => {
+    if (key === "isHomeBanner" && value === false) {
+      props.onChange({
+        ...form,
+        isHomeBanner: false,
+        homeBannerStartDate: "",
+        homeBannerEndDate: "",
+      });
+      return;
+    }
     props.onChange({ ...form, [key]: value });
   };
 
@@ -2826,6 +2841,15 @@ function GroupBuyEditor(props: {
     key: K,
     value: GroupBuyForm[K],
   ) => {
+    if (key === "isHomeBanner" && value === false) {
+      props.onChange({
+        ...form,
+        isHomeBanner: false,
+        homeBannerStartDate: "",
+        homeBannerEndDate: "",
+      });
+      return;
+    }
     props.onChange({ ...form, [key]: value });
   };
   const visibility = getGroupBuyVisibility(form.status);

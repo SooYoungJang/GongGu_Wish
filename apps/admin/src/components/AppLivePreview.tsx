@@ -1,4 +1,5 @@
 import { Component, type KeyboardEvent } from "react";
+import { isHomeBannerEligible } from "@gonggu/shared/utils/homeBanner";
 import {
   getHomeBannerStatusCopy,
   type HomeBannerStatusCopy,
@@ -177,7 +178,8 @@ export class AppLivePreview extends Component<
   render() {
     const { deal } = this.props;
     const { activeTab } = this.state;
-    const bannerExposure = deal.isHomeBanner
+    const homeBannerEligible = isHomeBannerEligible(deal);
+    const bannerExposure = homeBannerEligible
       ? "홈 배너 노출"
       : "홈 배너 미노출";
     const bannerPeriodStatus = getBannerPeriodStatus(deal);
@@ -241,13 +243,20 @@ export class AppLivePreview extends Component<
           aria-labelledby={`${this.baseId}-${activeTab}-tab`}
         >
           {activeTab === "home" ? (
-            <HomeBannerPreview
-              deal={deal}
-              priceText={priceText}
-              bannerExposure={bannerExposure}
-              bannerPeriodStatus={bannerPeriodStatus}
-              copy={homeBannerCopy}
-            />
+            homeBannerEligible ? (
+              <HomeBannerPreview
+                deal={deal}
+                priceText={priceText}
+                bannerExposure={bannerExposure}
+                bannerPeriodStatus={bannerPeriodStatus}
+                copy={homeBannerCopy}
+              />
+            ) : (
+              <HomeBannerEmptyState
+                bannerExposure={bannerExposure}
+                bannerPeriodStatus={bannerPeriodStatus}
+              />
+            )
           ) : null}
           {activeTab === "card" ? <DealCardPreview deal={deal} /> : null}
           {activeTab === "detail" ? (
@@ -257,6 +266,26 @@ export class AppLivePreview extends Component<
       </section>
     );
   }
+}
+
+function HomeBannerEmptyState({
+  bannerExposure,
+  bannerPeriodStatus,
+}: {
+  bannerExposure: string;
+  bannerPeriodStatus: string;
+}) {
+  return (
+    <div
+      className="app-live-preview__home-banner-empty"
+      aria-label="홈 배너 미리보기"
+    >
+      <strong>홈에 노출되지 않음</strong>
+      <span>
+        {bannerExposure} · {bannerPeriodStatus}
+      </span>
+    </div>
+  );
 }
 
 function HomeBannerPreview({

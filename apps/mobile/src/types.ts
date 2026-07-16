@@ -73,6 +73,7 @@ export type GroupBuy = {
   homeBannerStartDate?: string | null;
   homeBannerEndDate?: string | null;
   createdAt?: string;
+  updatedAt?: string;
   rawPost: {
     postUrl: string;
     influencer: {
