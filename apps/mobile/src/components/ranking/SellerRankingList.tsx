@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -8,24 +8,31 @@ import {
   type FlatListProps,
   type FlatList,
   type ListRenderItem,
-} from 'react-native';
-import type { Ref } from 'react';
+} from "react-native";
+import type { Ref } from "react";
 
-import { SText } from '../ui/SText';
-import { spacing } from '../../design/tokens';
-import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
-import { useCommerceTheme } from '../../design/useCommerceTheme';
-import type { GroupBuyRankingItem, RankingListItem, RankingLoadState } from '../../features/ranking/types';
-import { SellerRankingRow } from './SellerRankingRow';
+import { SText } from "../ui/SText";
+import { spacing } from "../../design/tokens";
+import {
+  commerceRadius,
+  type CommerceColorPalette,
+} from "../../design/commerce";
+import { useCommerceTheme } from "../../design/useCommerceTheme";
+import type {
+  GroupBuyRankingItem,
+  RankingListItem,
+  RankingLoadState,
+} from "../../features/ranking/types";
+import { SellerRankingRow } from "./SellerRankingRow";
 
 export interface SellerRankingListProps {
   state: RankingLoadState;
   bottomPadding?: number;
   onRefresh?: () => void;
   onPressItem?: (item: GroupBuyRankingItem) => void;
-  onToggleFollow?: (item: GroupBuyRankingItem) => void;
+  onToggleAlert?: (item: GroupBuyRankingItem) => void;
   topInset?: number;
-  onScroll?: FlatListProps<RankingListItem>['onScroll'];
+  onScroll?: FlatListProps<RankingListItem>["onScroll"];
   listRef?: Ref<FlatList<RankingListItem>>;
 }
 
@@ -36,7 +43,7 @@ export function SellerRankingList({
   bottomPadding = 0,
   onRefresh,
   onPressItem,
-  onToggleFollow,
+  onToggleAlert,
   onScroll,
   listRef,
   topInset = spacing.sm,
@@ -52,12 +59,12 @@ export function SellerRankingList({
       <SellerRankingRow
         item={item}
         onPress={onPressItem ?? NOOP}
-        onToggleFollow={onToggleFollow ?? NOOP}
+        onToggleAlert={onToggleAlert ?? NOOP}
       />
     ),
-    [onPressItem, onToggleFollow],
+    [onPressItem, onToggleAlert],
   );
-  if (state.status === 'loading') {
+  if (state.status === "loading") {
     return (
       <View style={s.statusContainer}>
         <ActivityIndicator color={colors.accent} />
@@ -65,7 +72,7 @@ export function SellerRankingList({
     );
   }
 
-  if (state.status === 'error') {
+  if (state.status === "error") {
     return (
       <View style={s.statusContainer}>
         <SText variant="body" style={[s.statusTitle, s.errorText]}>
@@ -87,7 +94,7 @@ export function SellerRankingList({
     );
   }
 
-  if (state.status === 'empty') {
+  if (state.status === "empty") {
     return (
       <View style={s.statusContainer}>
         <SText variant="body" style={s.statusTitle}>
@@ -122,7 +129,7 @@ export function SellerRankingList({
       onScroll={onScroll}
       onRefresh={onRefresh}
       progressViewOffset={spacing.lg}
-      refreshing={'refreshing' in state ? !!state.refreshing : false}
+      refreshing={"refreshing" in state ? !!state.refreshing : false}
       renderItem={renderItem}
       scrollEventThrottle={16}
       scrollIndicatorInsets={{ bottom: bottomPadding }}
@@ -153,22 +160,22 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     statusActionText: {
       color: colors.inverse,
-      fontWeight: '900',
+      fontWeight: "900",
     },
     statusContainer: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.bg,
       flex: 1,
-      justifyContent: 'center',
+      justifyContent: "center",
       marginTop: spacing.md,
-      paddingHorizontal: spacing['2xl'],
-      paddingVertical: spacing['3xl'],
+      paddingHorizontal: spacing["2xl"],
+      paddingVertical: spacing["3xl"],
     },
     statusTitle: {
       color: colors.text,
-      fontWeight: '800',
+      fontWeight: "800",
       lineHeight: 22,
-      textAlign: 'center',
+      textAlign: "center",
     },
   });
 }

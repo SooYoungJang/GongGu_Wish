@@ -1,23 +1,39 @@
-import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-import { deleteAccount } from '../api';
-import { SText } from '../components/ui/SText';
-import { ThemeToggle } from '../components/ThemeToggle';
-import { useAuth } from '../context/AuthContext';
-import { clearLocalUserData } from '../hooks/useLocalDeals';
-import { IS_EXPO_GO, requestNotificationPermissions, scheduleTestNotification } from '../services/notifications';
-import { useCommerceTheme } from '../design/useCommerceTheme';
-import type { RootStackParamList } from '../types';
+import { deleteAccount } from "../api";
+import { SText } from "../components/ui/SText";
+import { ThemeToggle } from "../components/ThemeToggle";
+import { useAuth } from "../context/AuthContext";
+import { clearLocalUserData } from "../hooks/useLocalDeals";
+import {
+  IS_EXPO_GO,
+  requestNotificationPermissions,
+  scheduleTestNotification,
+} from "../services/notifications";
+import { useCommerceTheme } from "../design/useCommerceTheme";
+import type { RootStackParamList } from "../types";
 
 export function SettingsScreen() {
   const { colors, spacing, radius } = useCommerceTheme();
   const { user, signOut } = useAuth();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const s = useMemo(() => makeStyles(colors, spacing, radius), [colors, radius, spacing]);
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const s = useMemo(
+    () => makeStyles(colors, spacing, radius),
+    [colors, radius, spacing],
+  );
   const [pushEnabled, setPushEnabled] = useState(false);
   const [testScheduled, setTestScheduled] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -39,10 +55,10 @@ export function SettingsScreen() {
     const granted = await requestNotificationPermissions();
     if (!granted) {
       Alert.alert(
-        '알림을 켤 수 없어요',
+        "알림을 켤 수 없어요",
         IS_EXPO_GO
-          ? 'Expo Go에서는 푸시 알림이 지원되지 않아요. 개발 빌드에서 이용 가능합니다.'
-          : '기기 설정에서 알림 권한을 허용해 주세요.',
+          ? "Expo Go에서는 푸시 알림이 지원되지 않아요. 개발 빌드에서 이용 가능합니다."
+          : "기기 설정에서 알림 권한을 허용해 주세요.",
       );
     }
     setPushEnabled(granted);
@@ -57,32 +73,42 @@ export function SettingsScreen() {
     setDeleting(true);
     try {
       await deleteAccount();
-      await clearLocalUserData();
+      await clearLocalUserData(user?.id ? `user:${user.id}` : "guest");
       await signOut();
       navigation.goBack();
     } catch {
-      Alert.alert('회원탈퇴에 실패했어요', '잠시 후 다시 시도해주세요. 계정은 삭제되지 않았을 수 있어요.');
+      Alert.alert(
+        "회원탈퇴에 실패했어요",
+        "잠시 후 다시 시도해주세요. 계정은 삭제되지 않았을 수 있어요.",
+      );
     } finally {
       setDeleting(false);
     }
-  }, [navigation, signOut]);
+  }, [navigation, signOut, user]);
 
   const handleDeleteAccount = useCallback(() => {
     if (!user || deleting) return;
 
-    Alert.alert('회원탈퇴', '계정과 저장된 활동 데이터가 삭제되며 복구할 수 없어요. 정말 탈퇴할까요?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '회원탈퇴',
-        style: 'destructive',
-        onPress: () => void performAccountDeletion(),
-      },
-    ]);
+    Alert.alert(
+      "회원탈퇴",
+      "계정과 저장된 활동 데이터가 삭제되며 복구할 수 없어요. 정말 탈퇴할까요?",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "회원탈퇴",
+          style: "destructive",
+          onPress: () => void performAccountDeletion(),
+        },
+      ],
+    );
   }, [deleting, performAccountDeletion, user]);
 
   return (
-    <SafeAreaView edges={['bottom']} style={s.container}>
-      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={s.scrollContent}>
+    <SafeAreaView edges={["bottom"]} style={s.container}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={s.scrollContent}
+      >
         <SText variant="subtitle" style={s.intro}>
           알림과 화면 테마를 편하게 설정해보세요.
         </SText>
@@ -92,7 +118,9 @@ export function SettingsScreen() {
             알림 설정
           </SText>
           <SText variant="caption" style={s.sectionSubtitle}>
-            {pushEnabled ? '푸시 알림이 활성화되어 있어요.' : '푸시 알림 권한이 꺼져 있어요. 기기 설정에서 켜주세요.'}
+            {pushEnabled
+              ? "푸시 알림이 활성화되어 있어요."
+              : "푸시 알림 권한이 꺼져 있어요. 기기 설정에서 켜주세요."}
           </SText>
           <View style={s.switchRow}>
             <View style={s.switchCopy}>
@@ -161,7 +189,11 @@ export function SettingsScreen() {
               accessibilityRole="button"
               disabled={deleting}
               onPress={handleDeleteAccount}
-              style={({ pressed }) => [s.deleteButton, pressed && s.pressed, deleting && s.disabledButton]}
+              style={({ pressed }) => [
+                s.deleteButton,
+                pressed && s.pressed,
+                deleting && s.disabledButton,
+              ]}
             >
               {deleting ? (
                 <ActivityIndicator color={colors.error} size="small" />
@@ -179,9 +211,9 @@ export function SettingsScreen() {
 }
 
 function makeStyles(
-  colors: ReturnType<typeof useCommerceTheme>['colors'],
-  spacing: ReturnType<typeof useCommerceTheme>['spacing'],
-  radius: ReturnType<typeof useCommerceTheme>['radius'],
+  colors: ReturnType<typeof useCommerceTheme>["colors"],
+  spacing: ReturnType<typeof useCommerceTheme>["spacing"],
+  radius: ReturnType<typeof useCommerceTheme>["radius"],
 ) {
   return StyleSheet.create({
     container: { backgroundColor: colors.bg, flex: 1 },
@@ -205,38 +237,38 @@ function makeStyles(
       padding: spacing.lg,
     },
     switchRow: {
-      alignItems: 'center',
+      alignItems: "center",
       borderBottomColor: colors.borderLight,
       borderBottomWidth: StyleSheet.hairlineWidth,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      justifyContent: "space-between",
       minHeight: spacing.xxl * 3,
       paddingVertical: spacing.sm,
     },
     switchCopy: { flex: 1, gap: spacing.xs, paddingRight: spacing.md },
-    switchLabel: { color: colors.text, fontWeight: '900' },
-    switchDescription: { color: colors.weak, fontWeight: '700' },
+    switchLabel: { color: colors.text, fontWeight: "900" },
+    switchDescription: { color: colors.weak, fontWeight: "700" },
     testButton: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.accentSoft,
       borderRadius: radius.md,
       marginVertical: spacing.md,
       paddingVertical: spacing.md,
     },
-    testButtonText: { color: colors.accent, fontWeight: '900' },
+    testButtonText: { color: colors.accent, fontWeight: "900" },
     deleteButton: {
-      alignItems: 'center',
+      alignItems: "center",
       backgroundColor: colors.errorSoft,
       borderColor: colors.error,
       borderRadius: radius.md,
       borderWidth: 1,
       marginTop: spacing.lg,
       minHeight: spacing.xxl * 2,
-      justifyContent: 'center',
+      justifyContent: "center",
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
     },
-    deleteButtonText: { color: colors.error, fontWeight: '900' },
+    deleteButtonText: { color: colors.error, fontWeight: "900" },
     disabledButton: { opacity: 0.55 },
     pressed: { opacity: 0.65 },
   });
