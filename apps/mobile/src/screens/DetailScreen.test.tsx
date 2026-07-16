@@ -5,6 +5,11 @@ const appStateMock = vi.hoisted(() => ({
   currentState: "active",
   listener: null as null | ((nextState: string) => void),
 }));
+const playbackLifecycleMock = vi.hoisted(() => ({
+  isScreenFocused: true,
+  isAppActive: true,
+  isAppFocused: true,
+}));
 const hardwareBackMock = vi.hoisted(() => ({
   handler: null as null | (() => boolean),
   addEventListener: vi.fn((_event: string, handler: () => boolean) => {
@@ -38,6 +43,15 @@ vi.mock("../hooks/useLocalDeals", () => ({
     retryNotification: vi.fn(),
     toggleNotification: vi.fn(),
     ready: true,
+  }),
+}));
+vi.mock("../hooks/usePlaybackLifecycle", () => ({
+  usePlaybackLifecycle: () => ({
+    ...playbackLifecycleMock,
+    isPlaybackActive:
+      playbackLifecycleMock.isScreenFocused &&
+      playbackLifecycleMock.isAppActive &&
+      playbackLifecycleMock.isAppFocused,
   }),
 }));
 const flashListMock = vi.hoisted(() => ({
@@ -518,6 +532,9 @@ beforeEach(() => {
   (globalThis as any).__mockKeyboardHeight = 0;
   appStateMock.currentState = "active";
   appStateMock.listener = null;
+  playbackLifecycleMock.isScreenFocused = true;
+  playbackLifecycleMock.isAppActive = true;
+  playbackLifecycleMock.isAppFocused = true;
   hardwareBackMock.handler = null;
   hardwareBackMock.addEventListener.mockClear();
   platformMock.os = "ios";
@@ -1894,7 +1911,7 @@ describe("DetailScreen", () => {
 });
 
 describe("DetailScreen video playback", () => {
-  it("deactivates the video page while backgrounded or covered by the summary", () => {
+  it("deactivates video for Android blur, background, or a covering summary", () => {
     const groupBuy: GroupBuy = {
       ...baseGroupBuy,
       videoUrl: "https://example.com/lifecycle.mp4",
@@ -1903,26 +1920,35 @@ describe("DetailScreen video playback", () => {
     };
 
     let renderer: TestRenderer.ReactTestRenderer;
+    const renderScreen = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
     act(() => {
-      renderer = TestRenderer.create(
-        <DetailScreen
-          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
-          navigation={{ addListener: vi.fn(() => () => {}) } as any}
-        />,
-      );
+      renderer = TestRenderer.create(renderScreen());
     });
 
     const findPages = () => renderer!.root.findAllByType(ProductReelPage);
     expect(findPages().some((node) => node.props.playbackAllowed)).toBe(true);
 
-    act(() => {
-      appStateMock.listener?.("background");
-    });
+    playbackLifecycleMock.isAppFocused = false;
+    act(() => renderer!.update(renderScreen()));
     expect(findPages().every((node) => !node.props.playbackAllowed)).toBe(true);
 
-    act(() => {
-      appStateMock.listener?.("active");
-    });
+    playbackLifecycleMock.isAppFocused = true;
+    act(() => renderer!.update(renderScreen()));
+    expect(findPages().some((node) => node.props.playbackAllowed)).toBe(true);
+
+    playbackLifecycleMock.isAppActive = false;
+    playbackLifecycleMock.isAppFocused = false;
+    act(() => renderer!.update(renderScreen()));
+    expect(findPages().every((node) => !node.props.playbackAllowed)).toBe(true);
+
+    playbackLifecycleMock.isAppActive = true;
+    playbackLifecycleMock.isAppFocused = true;
+    act(() => renderer!.update(renderScreen()));
     const activePage = findPages().find((node) => node.props.playbackAllowed);
     expect(activePage).toBeDefined();
 

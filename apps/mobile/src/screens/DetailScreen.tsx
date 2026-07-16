@@ -10,7 +10,6 @@ import {
 import {
   Alert,
   ActivityIndicator,
-  AppState,
   FlatList,
   Image,
   Keyboard,
@@ -66,6 +65,7 @@ import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatEndDate, getDaysRemaining } from "../utils";
 import { normalizeForSearch } from "../utils/search";
+import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useFocusedAndroidBackHandler } from "../navigation/androidBack";
 import {
   DEEP_VIEW_THRESHOLD_MS,
@@ -1988,10 +1988,8 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     isOpen: false,
     canSwipeReel: true,
   });
-  const [isScreenFocused, setScreenFocused] = useState(true);
-  const [isAppActive, setAppActive] = useState(
-    AppState.currentState === "active",
-  );
+  const { isScreenFocused, isAppActive, isAppFocused, isPlaybackActive } =
+    usePlaybackLifecycle();
   const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
   const [isSearchSheetVisible, setSearchSheetVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -2033,27 +2031,6 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       searchSheetTranslate,
     ],
   );
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (nextState) => {
-      setAppActive(nextState === "active");
-    });
-
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
-    const unsubFocus = navigation.addListener("focus", () =>
-      setScreenFocused(true),
-    );
-    const unsubBlur = navigation.addListener("blur", () =>
-      setScreenFocused(false),
-    );
-    return () => {
-      unsubFocus();
-      unsubBlur();
-    };
-  }, [navigation]);
 
   const { data: groupBuys } = useQuery({
     queryKey: ["group-buys"],
@@ -2105,8 +2082,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     setActivePlayerPlaying(false);
   }, [
     activeGroupBuy.id,
-    isAppActive,
-    isScreenFocused,
+    isPlaybackActive,
     isSearchSheetVisible,
     summarySheetGate.isOpen,
   ]);
@@ -2121,7 +2097,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     const overlayOpen = summarySheetGate.isOpen || isSearchSheetVisible;
     const playbackEligible = isPlaybackEligible({
       screenFocused: isScreenFocused,
-      appActive: isAppActive,
+      appActive: isAppActive && isAppFocused,
       overlayOpen,
       playerPlaying: isActivePlayerPlaying,
       hasPlayableMedia: hasPlayableActiveMedia,
@@ -2145,6 +2121,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     hasPlayableActiveMedia,
     isActivePlayerPlaying,
     isAppActive,
+    isAppFocused,
     isScreenFocused,
     isSearchSheetVisible,
     summarySheetGate.isOpen,
@@ -2240,8 +2217,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         groupBuy={item}
         isActive={isScreenFocused && index === activeProductIndex}
         playbackAllowed={
-          isScreenFocused &&
-          isAppActive &&
+          isPlaybackActive &&
           !summarySheetGate.isOpen &&
           !isSearchSheetVisible &&
           index === activeProductIndex
@@ -2268,7 +2244,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       handlePlaybackStateChange,
       insets.bottom,
       insets.top,
-      isAppActive,
+      isPlaybackActive,
       isSearchSheetVisible,
       navigation,
       s,
