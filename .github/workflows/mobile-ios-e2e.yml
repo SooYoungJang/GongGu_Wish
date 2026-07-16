@@ -1,0 +1,144 @@
+name: Mobile iOS E2E
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/mobile-ios-e2e.yml"
+      - ".maestro/gon-263-*.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ios-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gon-263-ios:
+    name: GON-263 iOS journeys
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      EXPO_NO_TELEMETRY: "1"
+      MAESTRO_VERSION: "2.6.1"
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Install pinned Maestro CLI
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          "$HOME/.maestro/bin/maestro" --version
+
+      - name: Boot an available iPhone simulator
+        run: |
+          xcrun simctl list >/dev/null
+          simulator_udid="$(python3 - <<'PY'
+          import json
+          import subprocess
+
+          payload = json.loads(
+              subprocess.check_output(
+                  ["xcrun", "simctl", "list", "devices", "available", "-j"],
+                  text=True,
+              )
+          )
+          devices = [
+              device
+              for runtime_devices in payload["devices"].values()
+              for device in runtime_devices
+              if device.get("isAvailable") and device["name"].startswith("iPhone")
+          ]
+          preferred = next(
+              (device for device in devices if device["name"] == "iPhone 16 Pro"),
+              devices[0] if devices else None,
+          )
+          if preferred is None:
+              raise SystemExit("No available iPhone simulator")
+          print(preferred["udid"])
+          PY
+          )"
+          echo "SIMULATOR_UDID=$simulator_udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$simulator_udid" || true
+          xcrun simctl bootstatus "$simulator_udid" -b
+
+      # Release embeds the JavaScript bundle, so E2E does not depend on Metro.
+      # https://docs.expo.dev/more/expo-cli/#compiling
+      - name: Build and install the iOS release app
+        working-directory: apps/mobile
+        run: |
+          npx expo run:ios \
+            --configuration Release \
+            --device "$SIMULATOR_UDID" \
+            --no-bundler \
+            --output "$RUNNER_TEMP/GongGuWish.app"
+          xcrun simctl get_app_container "$SIMULATOR_UDID" com.gonggu.wish app
+
+      - name: Run canonical navigation and Back flow
+        run: |
+          mkdir -p artifacts/ios
+          set +e
+          maestro test .maestro/gon-263-critical-journeys.yaml 2>&1 \
+            | tee artifacts/ios/critical-output.log
+          status=${PIPESTATUS[0]}
+          set -e
+          find . -maxdepth 1 -name 'gon263-critical-*.png' \
+            -exec cp {} artifacts/ios/ \;
+          latest_dir="$(find "$HOME/.maestro/tests" -mindepth 1 -maxdepth 1 \
+            -type d | sort | tail -n 1)"
+          if [[ -n "$latest_dir" ]]; then
+            cp "$latest_dir/maestro.log" artifacts/ios/critical-maestro.log
+            find "$latest_dir" -maxdepth 1 -name 'commands-*.json' \
+              -exec cp {} artifacts/ios/critical-commands.json \;
+          fi
+          exit "$status"
+
+      - name: Run Reels 100-swipe lifecycle flow
+        run: |
+          set +e
+          maestro test .maestro/gon-263-reels-lifecycle.yaml 2>&1 \
+            | tee artifacts/ios/reels-output.log
+          status=${PIPESTATUS[0]}
+          set -e
+          find . -maxdepth 1 -name 'gon263-reels-*.png' \
+            -exec cp {} artifacts/ios/ \;
+          latest_dir="$(find "$HOME/.maestro/tests" -mindepth 1 -maxdepth 1 \
+            -type d | sort | tail -n 1)"
+          if [[ -n "$latest_dir" ]]; then
+            cp "$latest_dir/maestro.log" artifacts/ios/reels-maestro.log
+            find "$latest_dir" -maxdepth 1 -name 'commands-*.json' \
+              -exec cp {} artifacts/ios/reels-commands.json \;
+          fi
+          exit "$status"
+
+      - name: Capture final simulator state
+        if: always()
+        run: |
+          mkdir -p artifacts/ios
+          xcrun simctl io "$SIMULATOR_UDID" screenshot \
+            artifacts/ios/final-simulator.png || true
+
+      - name: Upload iOS E2E evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gon-263-ios-e2e
+          path: artifacts/ios
+          if-no-files-found: warn
+          retention-days: 14
