@@ -84,12 +84,27 @@ describe("DealCard", () => {
     expect(
       buildDealCardAccessibilityLabel(
         { ...item, endDate: "2026-07-20T00:00:00.000Z" },
-        "food",
         Date.parse("2026-07-17T00:00:00.000Z"),
       ),
     ).toBe(
       "제주 감귤 3kg, 가격 25,900원, 판매자 귤밭상회 @sample, 3일 남음, 상세 보기",
     );
+  });
+
+  it("does not announce a product category as a missing seller", () => {
+    expect(
+      buildDealCardAccessibilityLabel({
+        ...item,
+        brandName: null,
+        rawPost: {
+          ...item.rawPost,
+          influencer: {
+            ...item.rawPost.influencer,
+            instagramUsername: "",
+          },
+        },
+      }),
+    ).toContain("판매자 정보 미정");
   });
 
   it("renders the price directly below the product name", () => {
@@ -109,8 +124,6 @@ describe("DealCard", () => {
       "Pressable" as unknown as React.ElementType,
     );
     expect(card.props.accessibilityLabel).toContain("가격 25,900원");
-    expect(card.props.accessibilityLabel).toContain(
-      "판매자 귤밭상회 @sample",
-    );
+    expect(card.props.accessibilityLabel).toContain("판매자 귤밭상회 @sample");
   });
 });

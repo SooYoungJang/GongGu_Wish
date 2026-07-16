@@ -57,8 +57,8 @@
 - [x] 랭킹 → 마이 → 상세와 홈 → 캘린더 → 상세가 canonical id/data를 유지함
 - [x] Reels blur/background/hardware back/100 swipes와 sheet 우선 닫기가 재현됨
 - [x] empty/error/stale 경로가 mock fallback으로 바뀌지 않음
-- [ ] CI 로그가 실패 계층을 식별하고 Android E2E 증거가 위키에 인라인 기록됨
-- [ ] 전체 게이트·PR CI·merge·main CI·로컬 main 동기화 완료
+- [x] CI 로그가 실패 계층을 식별하고 Android E2E 증거가 위키에 인라인 기록됨
+- [x] 전체 게이트·PR CI·merge·main CI·로컬 main 동기화 완료
 
 ## GON-264 체크리스트
 
@@ -93,5 +93,5 @@
 ### Task 5: 완료 검증과 배송
 
 - [x] mobile/workspace test·typecheck·lint·build 통과
-- [ ] Android 좁은 화면·큰 글꼴·다크 모드·TalkBack E2E 증거 위키 기록
+- [x] Android 좁은 화면·큰 글꼴·다크 모드·TalkBack E2E 증거 위키 기록
 - [ ] 코드 리뷰, PR CI, squash merge, main CI, 로컬 main 동기화

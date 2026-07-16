@@ -92,11 +92,16 @@ test("GON-264 Android E2E exercises large text and the accessibility tree", () =
   assert.match(accessibilityRunner, /gon264-reels-accessibility\.xml/);
   assert.match(accessibilityRunner, /content-desc="홈 탭"/);
   assert.match(accessibilityRunner, /content-desc="릴스 탭"/);
+  assert.match(accessibilityRunner, /test "\$\{home_tab_count[^\n]*\}" -eq 0/);
+  assert.match(accessibilityRunner, /test "\$\{reels_tab_count[^\n]*\}" -eq 0/);
 
   assert.match(flow, /GON-263 기준 공구, 가격 200,000원, 판매자/);
   assert.match(flow, /id: "calendar-picker-modal"/);
   assert.match(flow, /id: "ranking-top-hero"/);
   assert.match(flow, /text: "릴스 탭"/);
+  assert.match(flow, /text: "요약 닫기"/);
+  assert.match(flow, /assertNotVisible:\n\s+text: "홈 탭"/);
+  assert.match(flow, /assertNotVisible:\n\s+text: "릴스 탭"/);
 
   assert.match(workflow, /gon264-output\.log/);
   assert.match(workflow, /gon264-reels-accessibility\.xml/);

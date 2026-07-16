@@ -53,17 +53,17 @@ function formatDeadline(endDate: string | null, now = Date.now()) {
 
 export function buildDealCardAccessibilityLabel(
   item: GroupBuy,
-  category: CategoryColorName,
   now = Date.now(),
 ) {
-  const fallbackLabel = CATEGORY_LABELS[category];
   const productName = item.productName?.trim() || "공동구매 상품";
   const price = formatPriceKrw(item.priceKrw) ?? "미정";
-  const sellerName = item.brandName?.trim() || fallbackLabel;
+  const sellerName = item.brandName?.trim();
   const username = item.rawPost.influencer.instagramUsername
     ?.trim()
     .replace(/^@\s*/, "");
-  const seller = username ? `${sellerName} @${username}` : sellerName;
+  const seller =
+    [sellerName, username ? `@${username}` : null].filter(Boolean).join(" ") ||
+    "정보 미정";
 
   return [
     productName,
@@ -89,7 +89,7 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
 
   return (
     <Pressable
-      accessibilityLabel={buildDealCardAccessibilityLabel(item, category)}
+      accessibilityLabel={buildDealCardAccessibilityLabel(item)}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [s.card, style, pressed && s.pressed]}

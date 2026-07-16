@@ -66,8 +66,8 @@ adb pull /sdcard/gon264-reels-accessibility.xml \
 tree="$artifact_dir/gon264-reels-accessibility.xml"
 home_tab_count="$(grep -o 'content-desc="홈 탭"' "$tree" | wc -l || true)"
 reels_tab_count="$(grep -o 'content-desc="릴스 탭"' "$tree" | wc -l || true)"
-test "${home_tab_count//[[:space:]]/}" -eq 1
-test "${reels_tab_count//[[:space:]]/}" -eq 1
+test "${home_tab_count//[[:space:]]/}" -eq 0
+test "${reels_tab_count//[[:space:]]/}" -eq 0
 
 talkback_component="com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService"
 if adb shell pm path com.google.android.marvin.talkback | grep -q '^package:'; then
@@ -82,6 +82,6 @@ else
 fi
 
 test "$flow_status" -eq 0
-test "$(find "$artifact_dir" -name 'gon264-android-*.png' | wc -l)" -ge 7
+test "$(find "$artifact_dir" -name 'gon264-android-*.png' | wc -l)" -ge 8
 test -s "$artifact_dir/gon264-commands.json"
 test -s "$artifact_dir/gon264-talkback-state.txt"

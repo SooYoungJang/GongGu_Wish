@@ -36,6 +36,14 @@ appId: com.gonggu.wish
     timeout: 10000
 - assertVisible:
     text: "날짜 선택 달력"
+- assertVisible:
+    text: "이전 달"
+- assertVisible:
+    text: "다음 달"
+- assertVisible:
+    text: "오늘로 이동"
+- assertVisible:
+    text: "달력 닫기"
 - takeScreenshot: gon264-android-04-calendar-modal
 - tapOn:
     text: "달력 닫기"
@@ -82,8 +90,8 @@ appId: com.gonggu.wish
     timeout: 10000
 - takeScreenshot: gon264-android-06-ranking-sticky-filter
 
-# End on Reels so the runner can dump and validate the visible GNB
-# accessibility tree. Hidden duplicate tab bars must not appear in that dump.
+# End with the Reels summary sheet open so the runner can prove that the GNB
+# has been removed from both the layout and the native accessibility tree.
 - tapOn:
     text: "릴스 탭"
 - extendedWaitUntil:
@@ -93,3 +101,14 @@ appId: com.gonggu.wish
 - assertVisible:
     text: "릴스 탭"
 - takeScreenshot: gon264-android-07-reels-accessibility-tree
+- tapOn:
+    text: "요약 자세히 보기"
+- extendedWaitUntil:
+    visible:
+      text: "요약 닫기"
+    timeout: 10000
+- assertNotVisible:
+    text: "홈 탭"
+- assertNotVisible:
+    text: "릴스 탭"
+- takeScreenshot: gon264-android-08-reels-sheet-hidden-gnb
