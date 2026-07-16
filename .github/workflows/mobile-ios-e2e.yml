@@ -155,11 +155,12 @@ jobs:
           fi
 
   gon-263-ios:
+    # GON-263 delivery is Android-only; keep this recipe disabled for an
+    # explicitly requested future macOS validation run.
+    if: ${{ false }}
     name: GON-263 iOS journeys
     runs-on: macos-15
-    # A cold Expo SDK 55 Release build on the hosted arm64 runner takes about
-    # 45 minutes before the Maestro journeys begin.
-    timeout-minutes: 75
+    timeout-minutes: 45
     env:
       EXPO_NO_TELEMETRY: "1"
       EXPO_PUBLIC_E2E_MODE: "true"
