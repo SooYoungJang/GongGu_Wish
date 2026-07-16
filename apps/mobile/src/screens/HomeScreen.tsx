@@ -27,6 +27,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 
 import { SText } from "../components/ui/SText";
+import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { PriceText } from "../components/ui/PriceText";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
 import { DealCard } from "../components/DealCard";
@@ -833,22 +834,35 @@ export function HomeScreenContent({
               onOpenCalendar={onOpenCalendar}
               s={s}
             />
-            {isError ? (
-              <View style={s.notice}>
-                <SText variant="caption" style={s.noticeText}>
-                  네트워크 연결 상태를 확인해주세요. 공구 정보를 불러오지
-                  못했어요. 다시 시도해주세요.
-                </SText>
-              </View>
-            ) : null}
-            {isLoading || (isFetching && groupBuys.length === 0) ? (
+            {isLoading && groupBuys.length === 0 ? (
               <ActivityIndicator color={colors.accent} />
-            ) : !isError && groupBuys.length === 0 ? (
-              <View style={s.notice}>
-                <SText variant="caption" style={s.noticeText}>
-                  현재 표시할 공구가 없어요.
-                </SText>
-              </View>
+            ) : isError ? (
+              <AsyncStateNotice
+                compact
+                isRetrying={isFetching}
+                message={
+                  groupBuys.length > 0
+                    ? "네트워크 연결 상태를 확인해주세요. 저장된 공구 정보를 계속 표시하고 있어요."
+                    : "네트워크 연결 상태를 확인해주세요. 잠시 후 다시 시도해주세요."
+                }
+                onRetry={onRefresh}
+                style={s.queryState}
+                testID="home-query-state"
+                title={
+                  groupBuys.length > 0
+                    ? "최신 공구 정보를 확인하지 못했어요"
+                    : "공구 정보를 불러오지 못했어요"
+                }
+                variant={groupBuys.length > 0 ? "stale" : "error"}
+              />
+            ) : groupBuys.length === 0 ? (
+              <AsyncStateNotice
+                compact
+                style={s.queryState}
+                testID="home-query-state"
+                title="현재 표시할 공구가 없어요"
+                variant="empty"
+              />
             ) : null}
           </View>
           <HomeCategoryFilter
@@ -985,6 +999,9 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingBottom: 122,
       paddingHorizontal: 0,
       paddingTop: 0,
+    },
+    queryState: {
+      marginHorizontal: spacing.lg,
     },
     topBar: {
       alignItems: "center",

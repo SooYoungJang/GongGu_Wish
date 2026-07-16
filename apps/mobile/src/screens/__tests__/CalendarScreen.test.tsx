@@ -32,6 +32,7 @@ const listMock = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
   scrollToOffset: vi.fn(),
 }));
+const queryRefetchMock = vi.hoisted(() => vi.fn());
 const windowDimensionsMock = vi.hoisted(() => ({
   fontScale: 1,
   height: 844,
@@ -66,7 +67,7 @@ let mockQueryResult: {
 };
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => mockQueryResult,
+  useQuery: () => ({ ...mockQueryResult, refetch: queryRefetchMock }),
 }));
 
 vi.mock("react-native", () => {
@@ -288,6 +289,7 @@ describe("CalendarScreen", () => {
     activityMock.notifications = [];
     listMock.scrollToIndex.mockClear();
     listMock.scrollToOffset.mockClear();
+    queryRefetchMock.mockClear();
     navigationMock.goBack.mockClear();
     navigationMock.navigate.mockClear();
     mockQueryResult = {
@@ -681,6 +683,36 @@ describe("CalendarScreen", () => {
 
     expect(text).toContain("공구 정보를 불러오지 못했어요");
     expect(text).not.toContain("샘플");
+    const notice = renderer.root.find(
+      (node) =>
+        node.props.testID === "calendar-query-state" &&
+        node.props.accessibilityLiveRegion,
+    );
+    expect(notice.props.accessibilityLiveRegion).toBe("assertive");
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: "다시 불러오기" })
+        .props.onPress();
+    });
+    expect(queryRefetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps cached calendar deals visible with a stale notice", () => {
+    mockQueryResult = {
+      data: sampleGroupBuys,
+      isFetching: false,
+      isError: true,
+    };
+
+    const renderer = renderCalendar();
+    const notice = renderer.root.find(
+      (node) =>
+        node.props.testID === "calendar-query-state" &&
+        node.props.accessibilityLiveRegion,
+    );
+
+    expect(notice.props.accessibilityLiveRegion).toBe("polite");
+    expect(flattenText(renderer.toJSON())).toContain("비건 선크림");
   });
 
   it("shows group buys for the selected date when data is available", () => {

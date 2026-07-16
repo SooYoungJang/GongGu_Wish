@@ -32,6 +32,7 @@ import {
   type CalendarGrid,
 } from "../components/calendar/CalendarPickerModal";
 import { SText } from "../components/ui/SText";
+import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { spacing } from "../design/tokens";
 import { commerceRadius } from "../design/commerce";
 import type { CalendarScreenProps, GroupBuy } from "../types";
@@ -360,7 +361,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   const { notifications } = useNotifications();
 
   // Data fetching
-  const { data, isError, isFetching } = useQuery({
+  const { data, isError, isFetching, refetch } = useQuery({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
   });
@@ -570,7 +571,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   );
   const renderEmptyTimeline = useCallback(
     () =>
-      isFetching && groupBuys.length === 0 ? (
+      isError && groupBuys.length === 0 ? null : isFetching && groupBuys.length === 0 ? (
         <ActivityIndicator color={colors.primary} style={s.loading} />
       ) : (
         <View style={s.emptyDeals}>
@@ -590,6 +591,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
       calendarFilterLabel,
       colors.primary,
       groupBuys.length,
+      isError,
       isFetching,
       s.emptyDateTitle,
       s.emptyDeals,
@@ -630,14 +632,24 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         />
 
         {isError ? (
-          <View style={s.emptyDeals} testID="calendar-query-error">
-            <SText variant="subtitle" style={s.emptyDateTitle}>
-              공구 정보를 불러오지 못했어요.
-            </SText>
-            <SText variant="caption">
-              네트워크 연결 상태를 확인하고 다시 시도해주세요.
-            </SText>
-          </View>
+          <AsyncStateNotice
+            compact
+            isRetrying={isFetching}
+            message={
+              groupBuys.length > 0
+                ? "저장된 공구 일정을 계속 표시하고 있어요."
+                : "네트워크 연결 상태를 확인하고 다시 시도해주세요."
+            }
+            onRetry={refetch}
+            style={s.queryState}
+            testID="calendar-query-state"
+            title={
+              groupBuys.length > 0
+                ? "최신 공구 일정을 확인하지 못했어요"
+                : "공구 정보를 불러오지 못했어요"
+            }
+            variant={groupBuys.length > 0 ? "stale" : "error"}
+          />
         ) : null}
 
         {/*
@@ -647,7 +659,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         */}
         <FlatList
           contentContainerStyle={s.dateListContent}
-          data={dateGroups}
+          data={isError && groupBuys.length === 0 ? [] : dateGroups}
           getItemLayout={getDateGroupLayout}
           initialScrollIndex={
             selectedDateIndex >= 0 ? selectedDateIndex : undefined
@@ -675,6 +687,9 @@ function makeStyles(colors: ColorPalette) {
       flex: 1,
       paddingHorizontal: spacing.lg,
       backgroundColor: colors.bg,
+    },
+    queryState: {
+      marginHorizontal: spacing.lg,
     },
 
     // Header stays fixed while the calendar and product list share one scroll.

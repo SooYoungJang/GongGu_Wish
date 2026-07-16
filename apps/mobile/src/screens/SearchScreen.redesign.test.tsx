@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SearchScreen } from './SearchScreen';
 import type { GroupBuy, Influencer } from '../types';
@@ -30,9 +30,18 @@ const mocks = vi.hoisted(() => {
     isActive: true,
   };
 	  return {
+	    groupBuy,
 	    groupBuys: [groupBuy],
+	    groupBuysError: false,
+	    groupBuysFetching: false,
+	    groupBuysRefetch: vi.fn(),
+	    influencer,
 	    influencers: [influencer],
+	    influencersError: false,
+	    influencersFetching: false,
+	    influencersRefetch: vi.fn(),
 	    popularTerms: [{ keyword: '베개', rank: 1, count: 8 }],
+	    popularTermsRefetch: vi.fn(),
 	    canGoBack: vi.fn(() => true),
 	    navigate: vi.fn(),
 	    goBack: vi.fn(),
@@ -88,9 +97,22 @@ vi.mock('../context/ThemeContext', () => ({
 
 	vi.mock('@tanstack/react-query', () => ({
 	  useQuery: ({ queryKey }: { queryKey: string[] }) => {
-	    if (queryKey[0] === 'group-buys') return { data: mocks.groupBuys };
-	    if (queryKey[0] === 'popular-search-terms') return { data: mocks.popularTerms };
-	    return { data: mocks.influencers };
+	    if (queryKey[0] === 'group-buys') return {
+	      data: mocks.groupBuys,
+	      isError: mocks.groupBuysError,
+	      isFetching: mocks.groupBuysFetching,
+	      refetch: mocks.groupBuysRefetch,
+	    };
+	    if (queryKey[0] === 'popular-search-terms') return {
+	      data: mocks.popularTerms,
+	      refetch: mocks.popularTermsRefetch,
+	    };
+	    return {
+	      data: mocks.influencers,
+	      isError: mocks.influencersError,
+	      isFetching: mocks.influencersFetching,
+	      refetch: mocks.influencersRefetch,
+	    };
 	  },
 	}));
 
@@ -171,6 +193,52 @@ async function renderSearchScreen() {
 }
 
 describe('SearchScreen redesign', () => {
+  beforeEach(() => {
+    mocks.groupBuys = [mocks.groupBuy];
+    mocks.groupBuysError = false;
+    mocks.groupBuysFetching = false;
+    mocks.influencers = [mocks.influencer];
+    mocks.influencersError = false;
+    mocks.influencersFetching = false;
+    mocks.groupBuysRefetch.mockClear();
+    mocks.influencersRefetch.mockClear();
+    mocks.popularTermsRefetch.mockClear();
+  });
+
+  it('shows a shared retry state when search sources fail without cache', async () => {
+    mocks.groupBuys = [];
+    mocks.influencers = [];
+    mocks.groupBuysError = true;
+    const renderer = await renderSearchScreen();
+    const notice = renderer.root.find(
+      (node) =>
+        node.props.testID === 'search-query-state' &&
+        node.props.accessibilityLiveRegion,
+    );
+
+    expect(notice.props.accessibilityLiveRegion).toBe('assertive');
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: '다시 불러오기' })
+        .props.onPress();
+    });
+    expect(mocks.groupBuysRefetch).toHaveBeenCalledTimes(1);
+    expect(mocks.influencersRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps cached search sources visible with a stale notice', async () => {
+    mocks.groupBuysError = true;
+    const renderer = await renderSearchScreen();
+    const notice = renderer.root.find(
+      (node) =>
+        node.props.testID === 'search-query-state' &&
+        node.props.accessibilityLiveRegion,
+    );
+
+    expect(notice.props.accessibilityLiveRegion).toBe('polite');
+    expect(flattenText(renderer.toJSON())).toContain('베개');
+  });
+
   it('renders the reference-style empty search layout', async () => {
     const renderer = await renderSearchScreen();
     const text = flattenText(renderer.toJSON());

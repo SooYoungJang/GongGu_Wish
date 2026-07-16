@@ -21,6 +21,13 @@ const playbackLifecycleMock = vi.hoisted(() => ({
 const recordViewMock = vi.hoisted(() => vi.fn());
 const logDeepViewMock = vi.hoisted(() => vi.fn());
 const themeMock = vi.hoisted(() => ({ colors: {}, shadows: {} }));
+const queryResultMock = vi.hoisted(() => ({
+  data: undefined as Array<Record<string, unknown>> | undefined,
+  isError: false,
+  isFetching: false,
+  isLoading: false,
+  refetch: vi.fn(),
+}));
 
 const groupBuys = [0, 1, 2].map((index) => ({
   id: `reel-${index}`,
@@ -37,6 +44,7 @@ vi.mock("react-native", () => {
       ReactMock.createElement(type, props, children);
 
   return {
+    ActivityIndicator: passthrough("ActivityIndicator"),
     AppState: {
       get currentState() {
         return appStateMock.currentState;
@@ -49,6 +57,7 @@ vi.mock("react-native", () => {
       ),
     },
     Platform: { OS: "android" },
+    Pressable: passthrough("Pressable"),
     StatusBar: passthrough("StatusBar"),
     StyleSheet: { create: (styles: unknown) => styles },
     Text: passthrough("Text"),
@@ -76,7 +85,7 @@ vi.mock("@react-navigation/native", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: groupBuys }),
+  useQuery: () => queryResultMock,
 }));
 
 vi.mock("react-native-pager-view", () => {
@@ -159,6 +168,54 @@ describe("ReelsScreen player lifecycle", () => {
     recordViewMock.mockClear();
     logDeepViewMock.mockReset();
     logDeepViewMock.mockResolvedValue(undefined);
+    queryResultMock.data = groupBuys;
+    queryResultMock.isError = false;
+    queryResultMock.isFetching = false;
+    queryResultMock.isLoading = false;
+    queryResultMock.refetch.mockClear();
+  });
+
+  it("shows an accessible retry state when reels fail without cache", () => {
+    queryResultMock.data = undefined;
+    queryResultMock.isError = true;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const notice = renderer!.root.find(
+      (node) =>
+        node.props.testID === "reels-query-state" &&
+        node.props.accessibilityLiveRegion,
+    );
+    expect(notice.props.accessibilityLiveRegion).toBe("assertive");
+    act(() => {
+      renderer!.root
+        .findByProps({ accessibilityLabel: "다시 불러오기" })
+        .props.onPress();
+    });
+    expect(queryResultMock.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps cached reels playable with a stale notice", () => {
+    queryResultMock.isError = true;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    expect(
+      renderer!.root.find(
+        (node) =>
+          node.props.testID === "reels-query-state" &&
+          node.props.accessibilityLiveRegion,
+      ).props.accessibilityLiveRegion,
+    ).toBe("polite");
+    expect(
+      renderer!.root.findByType("PagerView" as unknown as React.ElementType),
+    ).toBeTruthy();
   });
 
   it("pauses for Android blur or background and releases the preloader after leaving Reels", () => {

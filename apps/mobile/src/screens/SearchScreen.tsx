@@ -12,6 +12,7 @@ import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controlle
 import { SearchResultsPanel } from '../components/home/SearchResultsPanel';
 import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { SText } from '../components/ui/SText';
+import { AsyncStateNotice } from '../components/ui/AsyncStateNotice';
 import { fetchGroupBuys, fetchInfluencers, fetchPopularSearchTerms, logSearchTerm, searchInfluencers, type PopularSearchTerm } from '../api';
 import { normalizeForSearch, pushRecentTerm } from '../utils/search';
 import { spacing } from '../design/tokens';
@@ -95,11 +96,13 @@ export function SearchScreen() {
   const {
     data: groupBuysData,
     isError: isGroupBuysError,
+    isFetching: isGroupBuysFetching,
     refetch: refetchGroupBuys,
   } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys });
   const {
     data: influencersData,
     isError: isInfluencersError,
+    isFetching: isInfluencersFetching,
     refetch: refetchInfluencers,
   } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers });
   const { data: popularTerms, refetch: refetchPopularTerms } = useQuery({
@@ -170,6 +173,10 @@ export function SearchScreen() {
   const groupBuys = useMemo(() => groupBuysData ?? [], [groupBuysData]);
   const influencers = useMemo(() => influencersData ?? [], [influencersData]);
   const hasPublicDataError = Boolean(isGroupBuysError || isInfluencersError);
+  const hasPublicData = groupBuys.length > 0 || influencers.length > 0;
+  const handleRetryPublicData = useCallback(() => {
+    void Promise.all([refetchGroupBuys(), refetchInfluencers()]);
+  }, [refetchGroupBuys, refetchInfluencers]);
   const searchResults = useMemo(
     () => searchInfluencers(influencers, debouncedQuery).slice(0, 8),
     [influencers, debouncedQuery],
@@ -295,11 +302,23 @@ export function SearchScreen() {
         contentContainerStyle={s.scrollContent}
       >
         {hasPublicDataError ? (
-          <View style={s.dataNotice} testID="search-data-error">
-            <SText variant="caption" style={s.dataNoticeText}>
-              공구 정보를 불러오지 못했어요. 네트워크 연결 상태를 확인해주세요.
-            </SText>
-          </View>
+          <AsyncStateNotice
+            compact
+            isRetrying={isGroupBuysFetching || isInfluencersFetching}
+            message={
+              hasPublicData
+                ? '저장된 검색 정보를 계속 표시하고 있어요.'
+                : '네트워크 연결 상태를 확인하고 다시 시도해주세요.'
+            }
+            onRetry={handleRetryPublicData}
+            testID="search-query-state"
+            title={
+              hasPublicData
+                ? '최신 검색 정보를 확인하지 못했어요'
+                : '검색 정보를 불러오지 못했어요'
+            }
+            variant={hasPublicData ? 'stale' : 'error'}
+          />
         ) : null}
         {hasQuery ? (
           <View style={s.resultsWrap}>
@@ -319,16 +338,14 @@ export function SearchScreen() {
             {searchResults.length > 0 && (
               <SearchResultsPanel results={searchResults} onPressInfluencer={handleSelectInfluencer} />
             )}
-            {dealResults.length === 0 && searchResults.length === 0 && (
+            {dealResults.length === 0 && searchResults.length === 0 && !hasPublicDataError && (
               <View style={s.emptyState}>
                 <SText variant="body" style={s.emptyIcon}>⌕</SText>
                 <SText variant="body" style={s.emptyTitle}>
-                  {hasPublicDataError ? '검색 데이터를 불러오지 못했어요' : '검색 결과가 없어요'}
+                  검색 결과가 없어요
                 </SText>
                 <SText variant="body" style={s.emptyDesc}>
-                  {hasPublicDataError
-                    ? '잠시 후 다시 시도해주세요.'
-                    : '브랜드명, 제품명 또는 인플루언서 username을 다시 확인해 주세요.'}
+                  브랜드명, 제품명 또는 인플루언서 username을 다시 확인해 주세요.
                 </SText>
               </View>
             )}
@@ -437,14 +454,6 @@ function makeStyles(colors: CommerceColorPalette) {
     clearIcon: { fontSize: 24, color: colors.disabled, fontWeight: '300', lineHeight: 26 },
     scrollContent: { paddingBottom: spacing['4xl'], paddingHorizontal: 18 },
 
-    dataNotice: {
-      backgroundColor: colors.softBg,
-      borderRadius: 12,
-      marginTop: 16,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-    },
-    dataNoticeText: { color: colors.weak, textAlign: 'center' },
     resultsWrap: { paddingTop: 36 },
     resultTitle: { color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: 0, lineHeight: 26, marginBottom: 14 },
     resultRow: {

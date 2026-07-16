@@ -1457,6 +1457,40 @@ describe('HomeScreenContent redesign', () => {
     expect(text).not.toContain('로컬 API');
   });
 
+  it('renders an assertive retry state when no home cache is available', () => {
+    const onRefresh = vi.fn();
+    const renderer = renderHomeContent({
+      groupBuys: [],
+      isError: true,
+      onRefresh,
+    });
+    const notice = renderer.root.find(
+      (node) =>
+        node.props.testID === 'home-query-state' &&
+        node.props.accessibilityLiveRegion,
+    );
+
+    expect(notice.props.accessibilityLiveRegion).toBe('assertive');
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: '다시 불러오기' })
+        .props.onPress();
+    });
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps cached home deals visible with a polite stale notice', () => {
+    const renderer = renderHomeContent({ isError: true });
+    const notice = renderer.root.find(
+      (node) =>
+        node.props.testID === 'home-query-state' &&
+        node.props.accessibilityLiveRegion,
+    );
+
+    expect(notice.props.accessibilityLiveRegion).toBe('polite');
+    expect(renderer.root.findAllByType(DealCard).length).toBeGreaterThan(0);
+  });
+
   it('does not render local sample products when the public response is empty', () => {
     const renderer = renderHomeContent({ groupBuys: [] });
     const text = flattenText(renderer.toJSON());
