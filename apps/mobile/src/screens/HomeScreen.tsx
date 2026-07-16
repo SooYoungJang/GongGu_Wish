@@ -33,7 +33,7 @@ import { DealCard } from "../components/DealCard";
 import { CATEGORIES } from "../components/home/CategoryRow";
 import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
-import { fallbackGroupBuys, fetchGroupBuys } from "../api";
+import { fetchGroupBuys } from "../api";
 import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { getHomeBannerStatusCopy } from "@gonggu/shared/utils/homeBannerPresentation";
@@ -60,6 +60,7 @@ type HomeScreenContentProps = {
   groupBuys: GroupBuy[];
   isError: boolean;
   isFetching: boolean;
+  isLoading?: boolean;
   onRefresh: HomeAction;
   onOpenSearch: HomeAction;
   onOpenCalendar: HomeAction;
@@ -102,10 +103,6 @@ function getPromoVisual(item: GroupBuy) {
     item.thumbnailUrl?.trim() ??
     null
   );
-}
-
-function getDisplayItems(groupBuys: GroupBuy[]) {
-  return groupBuys.length > 0 ? groupBuys : fallbackGroupBuys;
 }
 
 function normalizeHomeCategory(
@@ -332,10 +329,9 @@ function PromoBanner({
   }, []);
 
   const promoItems = useMemo(() => {
-    const displayItems = getDisplayItems(groupBuys);
     // A deal becomes a home banner only through an explicit admin opt-in and
-    // an active date range. Never promote fallback/legacy rows implicitly.
-    return selectHomeBannerItems(displayItems).slice(0, 6);
+    // an active date range.
+    return selectHomeBannerItems(groupBuys).slice(0, 6);
   }, [groupBuys, homeBannerDateTick]);
   const scrollRef = useRef<ScrollView | null>(null);
   const currentPositionRef = useRef(promoItems.length > 1 ? 1 : 0);
@@ -729,6 +725,7 @@ export function HomeScreenContent({
   groupBuys,
   isError,
   isFetching,
+  isLoading = false,
   onRefresh,
   onOpenSearch,
   onOpenCalendar,
@@ -742,10 +739,7 @@ export function HomeScreenContent({
   const scrollOffsetRef = useRef(0);
   const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const [isCategoryFilterSticky, setIsCategoryFilterSticky] = useState(false);
-  const displayGroupBuys = useMemo(
-    () => getDisplayItems(groupBuys),
-    [groupBuys],
-  );
+  const displayGroupBuys = groupBuys;
   const filteredGroupBuys = useMemo(() => {
     if (selectedCategory === "all") return displayGroupBuys;
     return displayGroupBuys.filter(
@@ -826,13 +820,19 @@ export function HomeScreenContent({
             {isError ? (
               <View style={s.notice}>
                 <SText variant="caption" style={s.noticeText}>
-                  네트워크 연결 상태를 확인해주세요. (샘플 데이터를 표시
-                  중입니다)
+                  네트워크 연결 상태를 확인해주세요. 공구 정보를 불러오지
+                  못했어요. 다시 시도해주세요.
                 </SText>
               </View>
             ) : null}
-            {isFetching && groupBuys.length === 0 ? (
+            {isLoading || (isFetching && groupBuys.length === 0) ? (
               <ActivityIndicator color={colors.accent} />
+            ) : !isError && groupBuys.length === 0 ? (
+              <View style={s.notice}>
+                <SText variant="caption" style={s.noticeText}>
+                  현재 표시할 공구가 없어요.
+                </SText>
+              </View>
             ) : null}
           </View>
           <HomeCategoryFilter
@@ -873,7 +873,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [scrollToTopRequest, setScrollToTopRequest] = useState<number | null>(
     null,
   );
-  const { data, isError, refetch } = useQuery({
+  const { data, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
     retry: false,
@@ -895,7 +895,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   useTabReselect(navigation, handleHomeTabReselect);
 
-  const groupBuys = data?.length ? data : fallbackGroupBuys;
+  const groupBuys = data ?? [];
 
   useFocusEffect(
     useCallback(() => {
@@ -907,7 +907,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     <HomeScreenContent
       groupBuys={groupBuys}
       isError={isError}
-      isFetching={isManualRefreshing}
+      isFetching={isManualRefreshing || isFetching}
+      isLoading={isLoading}
       onRefresh={handleManualRefresh}
       scrollToTopRequest={scrollToTopRequest}
       onOpenSearch={() => navigation.navigate("SearchScreen")}

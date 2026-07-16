@@ -8,9 +8,32 @@ import { spacing } from '../design/tokens';
 import type { GroupBuy } from '../types';
 
 const mockWindowDimensions = vi.hoisted(() => ({ width: 393 }));
+const fallbackGroupBuysMock = vi.hoisted(() => [
+  {
+    id: 'local-fixture-only',
+    productName: '로컬 샘플 공구',
+    brandName: null,
+    category: null,
+    startDate: null,
+    endDate: null,
+    purchaseUrl: null,
+    discountInfo: '샘플 할인',
+    summary: null,
+    confidence: 0,
+    thumbnailUrl: null,
+    videoUrl: null,
+    mediaUrls: [],
+    mediaType: null,
+    isHomeBanner: false,
+    rawPost: {
+      postUrl: '',
+      influencer: { instagramUsername: '' },
+    },
+  },
+]);
 
 vi.mock('../api', () => ({
-  fallbackGroupBuys: [],
+  fallbackGroupBuys: fallbackGroupBuysMock,
   fetchGroupBuys: vi.fn(),
 }));
 
@@ -1391,6 +1414,13 @@ describe('HomeScreenContent redesign', () => {
 
     expect(text).toContain('네트워크 연결 상태를 확인해주세요.');
     expect(text).not.toContain('로컬 API');
+  });
+
+  it('does not render local sample products when the public response is empty', () => {
+    const renderer = renderHomeContent({ groupBuys: [] });
+    const text = flattenText(renderer.toJSON());
+
+    expect(text).not.toContain('로컬 샘플 공구');
   });
 });
 

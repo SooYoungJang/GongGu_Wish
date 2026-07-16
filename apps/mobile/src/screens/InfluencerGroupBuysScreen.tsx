@@ -3,23 +3,16 @@ import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 
-import { fallbackGroupBuys, fetchGroupBuysByInfluencer } from '../api';
+import { fetchGroupBuysByInfluencer } from '../api';
 import { AlertCard } from '../components/AlertCard';
 import { AppButton } from '../components/AppButton';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SText } from '../components/ui/SText';
 import { spacing } from '../design/tokens';
 import { commerceRadius } from '../design/commerce';
-import type { GroupBuy, InfluencerGroupBuysScreenProps } from '../types';
+import type { InfluencerGroupBuysScreenProps } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import type { ColorPalette } from '../context/ThemeContext';
-
-function getFallbackGroupBuysByInfluencer(username: string): GroupBuy[] {
-  const normalizedUsername = username.replace(/^@/, '').toLowerCase();
-  return fallbackGroupBuys.filter(
-    (item) => item.rawPost.influencer.instagramUsername.replace(/^@/, '').toLowerCase() === normalizedUsername,
-  );
-}
 
 export function InfluencerGroupBuysScreen({ navigation, route }: InfluencerGroupBuysScreenProps) {
   const { influencerUsername, influencerDisplayName } = route.params;
@@ -33,7 +26,7 @@ export function InfluencerGroupBuysScreen({ navigation, route }: InfluencerGroup
     retry: false,
   });
 
-  const groupBuys = data ?? getFallbackGroupBuysByInfluencer(normalizedUsername);
+  const groupBuys = data ?? [];
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
@@ -50,7 +43,7 @@ export function InfluencerGroupBuysScreen({ navigation, route }: InfluencerGroup
 
         {isError ? (
           <View style={s.notice}>
-            <SText variant="caption" style={{ color: colors.noticeText, textAlign: 'center' }}>네트워크 연결 상태를 확인해주세요. 샘플 데이터를 표시 중입니다.</SText>
+            <SText variant="caption" style={{ color: colors.noticeText, textAlign: 'center' }}>네트워크 연결 상태를 확인해주세요. 공구 정보를 불러오지 못했어요.</SText>
           </View>
         ) : null}
 

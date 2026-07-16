@@ -12,7 +12,6 @@ import type { GroupBuy } from "../../types";
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 vi.mock("../../api", () => ({
-  fallbackGroupBuys: [],
   fetchGroupBuys: vi.fn(),
 }));
 
@@ -577,6 +576,20 @@ describe("CalendarScreen", () => {
     const renderer = renderCalendar();
     const text = flattenText(renderer!.toJSON());
     expect(text).toContain("이 날짜의 공구가 없어요");
+  });
+
+  it("shows a network error state without substituting sample deals", () => {
+    mockQueryResult = {
+      data: null,
+      isFetching: false,
+      isError: true,
+    };
+
+    const renderer = renderCalendar();
+    const text = flattenText(renderer!.toJSON());
+
+    expect(text).toContain("공구 정보를 불러오지 못했어요");
+    expect(text).not.toContain("샘플");
   });
 
   it("shows group buys for the selected date when data is available", () => {

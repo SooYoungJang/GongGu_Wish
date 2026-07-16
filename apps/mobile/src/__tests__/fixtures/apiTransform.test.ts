@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { rawGroupBuysResponse, expectedGroupBuys } from "./realApiData";
+import { fixtureGroupBuys } from "./groupBuys";
 import { mapPostgrestToApp } from "../../utils/postgrest-mapper";
 
 vi.mock("../../lib/postgrest-client", () => ({
@@ -18,7 +19,6 @@ import { postgrestGet } from "../../lib/postgrest-client";
 import {
   fetchGroupBuys,
   fetchInfluencers,
-  fallbackGroupBuys,
   mapGroupBuyRows,
 } from "../../api";
 import { rawInfluencersResponse, expectedInfluencers } from "./realApiData";
@@ -234,17 +234,17 @@ describe("API 변환 로직 — 실제 PostgREST 응답 기반", () => {
     });
   });
 
-  describe("fallbackGroupBuys", () => {
-    it("API 실패 시 사용할 수 있는 비어있지 않은 fallback 데이터가 있다", () => {
-      expect(fallbackGroupBuys.length).toBeGreaterThan(0);
-      expect(fallbackGroupBuys[0].productName).toBeTruthy();
+  describe("test-only group buy fixtures", () => {
+    it("keeps explicit fixtures available for component tests", () => {
+      expect(fixtureGroupBuys.length).toBeGreaterThan(0);
+      expect(fixtureGroupBuys[0].productName).toBeTruthy();
       expect(
-        fallbackGroupBuys[0].rawPost.influencer.instagramUsername,
+        fixtureGroupBuys[0].rawPost.influencer.instagramUsername,
       ).toBeTruthy();
     });
 
-    it("fallback 데이터도 GroupBuy 타입 구조를 만족한다", () => {
-      for (const gb of fallbackGroupBuys) {
+    it("fixtures satisfy the GroupBuy test shape", () => {
+      for (const gb of fixtureGroupBuys) {
         expect(gb).toHaveProperty("id");
         expect(gb).toHaveProperty("productName");
         expect(gb).toHaveProperty("rawPost.influencer.instagramUsername");

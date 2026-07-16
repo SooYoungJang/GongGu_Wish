@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 
-import { fallbackGroupBuys, fetchGroupBuys } from "../api";
+import { fetchGroupBuys } from "../api";
 import { BackButton } from "../components/BackButton";
 import {
   CALENDAR_DATE_SECTION_HEIGHT,
@@ -354,13 +354,13 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   const { notifications } = useNotifications();
 
   // Data fetching
-  const { data, isFetching } = useQuery({
+  const { data, isError, isFetching } = useQuery({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
     retry: false,
   });
 
-  const groupBuys = data?.length ? data : fallbackGroupBuys;
+  const groupBuys = data ?? [];
 
   const bookmarkedIds = useMemo(
     () => new Set(bookmarks.map((item) => item.id)),
@@ -608,6 +608,17 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
           visible={isCalendarExpanded}
           year={currentYear}
         />
+
+        {isError ? (
+          <View style={s.emptyDeals} testID="calendar-query-error">
+            <SText variant="subtitle" style={s.emptyDateTitle}>
+              공구 정보를 불러오지 못했어요.
+            </SText>
+            <SText variant="caption">
+              네트워크 연결 상태를 확인하고 다시 시도해주세요.
+            </SText>
+          </View>
+        ) : null}
 
         {/*
           One visible month has at most 31 fixed-height date rows. FlatList is
