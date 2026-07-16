@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const read = (path) => readFileSync(path, "utf8");
+const read = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 const require = createRequire(import.meta.url);
 
 test("Android E2E verifies localhost origins through the app journeys", () => {
@@ -68,4 +68,37 @@ test("production app config keeps Android cleartext disabled", () => {
       process.env.EXPO_PUBLIC_E2E_MODE = previousMode;
     }
   }
+});
+
+test("GON-264 Android E2E exercises large text and the accessibility tree", () => {
+  const workflow = read(".github/workflows/mobile-ios-e2e.yml");
+  const orchestrator = read("scripts/run-gon263-android-e2e.sh");
+  const accessibilityRunner = read(
+    "scripts/run-gon264-android-accessibility.sh",
+  );
+  const flow = read(".maestro/gon-264-android-accessibility.yaml");
+
+  assert.match(
+    orchestrator,
+    /bash scripts\/run-gon264-android-accessibility\.sh/,
+  );
+  assert.match(accessibilityRunner, /settings put system font_scale 2\.0/);
+  assert.match(accessibilityRunner, /cmd uimode night yes/);
+  assert.match(
+    accessibilityRunner,
+    /maestro test \.maestro\/gon-264-android-accessibility\.yaml/,
+  );
+  assert.match(accessibilityRunner, /uiautomator dump/);
+  assert.match(accessibilityRunner, /gon264-reels-accessibility\.xml/);
+  assert.match(accessibilityRunner, /content-desc="홈 탭"/);
+  assert.match(accessibilityRunner, /content-desc="릴스 탭"/);
+
+  assert.match(flow, /GON-263 기준 공구, 가격 200,000원, 판매자/);
+  assert.match(flow, /id: "calendar-picker-modal"/);
+  assert.match(flow, /id: "ranking-top-hero"/);
+  assert.match(flow, /text: "릴스 탭"/);
+
+  assert.match(workflow, /gon264-output\.log/);
+  assert.match(workflow, /gon264-reels-accessibility\.xml/);
+  assert.match(workflow, /gon264-android-\*\.png/);
 });
