@@ -16,7 +16,7 @@ import {
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey",
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -58,7 +58,10 @@ serve(async (req: Request) => {
     cursor = parseRequestCursor(request);
   } catch (error) {
     return jsonResponse(
-      { error: error instanceof Error ? error.message : "Invalid ranking request" },
+      {
+        error:
+          error instanceof Error ? error.message : "Invalid ranking request",
+      },
       400,
     );
   }
@@ -86,11 +89,10 @@ serve(async (req: Request) => {
     });
 
     if (error) throw new Error(error.message);
-    if (!Array.isArray(data)) throw new Error("Ranking RPC returned a non-array response");
+    if (!Array.isArray(data))
+      throw new Error("Ranking RPC returned a non-array response");
 
-    return jsonResponse(
-      buildRankingResponse(data as RankingRpcRow[], request),
-    );
+    return jsonResponse(buildRankingResponse(data as RankingRpcRow[], request));
   } catch (error) {
     console.error(
       "[seller-rankings] ranking query failed:",

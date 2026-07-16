@@ -1,0 +1,3 @@
+-- Intentionally empty.
+-- GON-263 integration tests create isolated fixtures through local Supabase
+-- HTTP boundaries and remove them after each run.

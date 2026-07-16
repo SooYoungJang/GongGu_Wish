@@ -217,6 +217,11 @@ web3 = 30
 # secret = ""
 
 [functions.refresh-instagram-media]
+[functions.seller-rankings]
+# Rankings expose only the same approved rows available through public
+# PostgREST. Mobile callers may be signed out, so no user JWT is required.
+verify_jwt = false
+
 [functions.hiker-lookup]
 # UMANS_API_KEY: umans.ai API key for LLM-based product-name inference.
 # Set via: supabase secrets set UMANS_API_KEY=sk-...
