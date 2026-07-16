@@ -25,9 +25,10 @@ import {
 
 // Initialize PostgREST client with the Supabase anon key
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-configurePostgrest(anonKey);
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+configurePostgrest(anonKey, supabaseUrl);
 // Initialize Supabase Auth client
-configureSupabase(anonKey);
+configureSupabase(anonKey, supabaseUrl);
 
 import { AdminScreen } from './screens/AdminScreen';
 import { AuthScreen } from './screens/AuthScreen';

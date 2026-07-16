@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { configurePostgrest, postgrestFetch } from './postgrest-client';
+import { callEdgeFunction, configurePostgrest, postgrestFetch } from './postgrest-client';
 
 const originalFetch = global.fetch;
 
@@ -35,5 +35,35 @@ describe('postgrestFetch diagnostics', () => {
       message: 'Network request failed',
       cause: undefined,
     });
+  });
+
+  it('uses one configured local Supabase origin for REST and Edge requests', async () => {
+    configurePostgrest('local-anon-key', 'http://10.0.2.2:54321/');
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: vi.fn().mockResolvedValue([]),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ data: [] }),
+      }) as unknown as typeof fetch;
+
+    await postgrestFetch('group_buys?select=id');
+    await callEdgeFunction('seller-rankings', { limit: 1 }, { authToken: '' });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      'http://10.0.2.2:54321/rest/v1/group_buys?select=id',
+      expect.any(Object),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      'http://10.0.2.2:54321/functions/v1/seller-rankings',
+      expect.any(Object),
+    );
   });
 });

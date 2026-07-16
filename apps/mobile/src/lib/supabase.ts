@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SUPABASE_URL = 'https://iosdoheblabfimkjnvfj.supabase.co';
+import { resolveSupabaseUrl } from './supabase-config';
 
 let _supabase: SupabaseClient | null = null;
 
@@ -9,9 +9,9 @@ let _supabase: SupabaseClient | null = null;
  * Initialize the Supabase client with the anon key.
  * Must be called before any auth operations.
  */
-export function configureSupabase(anonKey: string): SupabaseClient {
+export function configureSupabase(anonKey: string, supabaseUrl?: string): SupabaseClient {
   if (!_supabase) {
-    _supabase = createClient(SUPABASE_URL, anonKey, {
+    _supabase = createClient(resolveSupabaseUrl(supabaseUrl), anonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
