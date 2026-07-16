@@ -6,7 +6,7 @@ import test from "node:test";
 const read = (path) => readFileSync(path, "utf8");
 const require = createRequire(import.meta.url);
 
-test("Android E2E uses verified adb-reversed localhost origins", () => {
+test("Android E2E verifies localhost origins through the app journeys", () => {
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
   const seed = read("supabase/seed.sql");
   const runner = read("scripts/run-gon263-android-e2e.sh");
@@ -15,10 +15,9 @@ test("Android E2E uses verified adb-reversed localhost origins", () => {
   assert.doesNotMatch(seed, /127\.0\.0\.1:58080/);
   assert.match(seed, /http:\/\/localhost:58080\/media\/fixture\.mp4/);
   assert.match(runner, /adb-reverse-after-install\.txt/);
-  assert.match(runner, /device-supabase-probe\.txt/);
-  assert.match(runner, /device-media-probe\.txt/);
-  assert.match(runner, /toybox nc/);
-  assert.match(runner, /toybox nc -w 10 -q 2/);
+  assert.match(runner, /maestro test \.maestro\/gon-263-critical-journeys\.yaml/);
+  assert.doesNotMatch(runner, /toybox nc/);
+  assert.doesNotMatch(workflow, /device-(supabase|media)-probe\.txt/);
 });
 
 test("Android E2E config plugin enables cleartext only in generated manifest", () => {

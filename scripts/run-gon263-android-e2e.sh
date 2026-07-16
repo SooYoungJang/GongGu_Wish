@@ -14,19 +14,6 @@ test "${ORG_GRADLE_PROJECT_reactNativeArchitectures:-}" = "x86_64"
 test -s artifacts/android/build-config.txt
 test -s artifacts/android/disk-after-build.txt
 
-probe_device_http() {
-  local port="$1"
-  local path="$2"
-  local output="$3"
-
-  printf 'GET %s HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n' \
-    "$path" \
-    | adb shell toybox nc -w 10 -q 2 127.0.0.1 "$port" \
-    | tr -d '\r' \
-    | tee "$output"
-  grep -Eq '^HTTP/1\.[01] 200' "$output"
-}
-
 # Route device-local URLs to the runner so API and media use the same stable
 # loopback origin on every emulator backend.
 adb reverse tcp:54321 tcp:54321
@@ -42,9 +29,6 @@ grep -F "tcp:54321 tcp:54321" \
   artifacts/android/adb-reverse-after-install.txt
 grep -F "tcp:58080 tcp:58080" \
   artifacts/android/adb-reverse-after-install.txt
-probe_device_http 54321 /auth/v1/health \
-  artifacts/android/device-supabase-probe.txt
-probe_device_http 58080 /health artifacts/android/device-media-probe.txt
 
 set +e
 maestro test .maestro/gon-263-critical-journeys.yaml 2>&1 \

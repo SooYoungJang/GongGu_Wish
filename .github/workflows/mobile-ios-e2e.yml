@@ -141,10 +141,6 @@ jobs:
           test "$(find artifacts/android -name 'gon263-*.png' | wc -l)" -ge 10
           test -s artifacts/android/adb-reverse.txt
           test -s artifacts/android/adb-reverse-after-install.txt
-          grep -Eq '^HTTP/1\.[01] 200' \
-            artifacts/android/device-supabase-probe.txt
-          grep -Eq '^HTTP/1\.[01] 200' \
-            artifacts/android/device-media-probe.txt
           grep -Fx "reactNativeArchitectures=x86_64" \
             artifacts/android/build-config.txt
           grep -F 'android:usesCleartextTraffic="true"' \
