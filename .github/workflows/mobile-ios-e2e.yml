@@ -64,7 +64,7 @@ jobs:
           test -n "$anon_key"
           echo "::add-mask::$anon_key"
           echo "EXPO_PUBLIC_E2E_MODE=true" >> "$GITHUB_ENV"
-          echo "EXPO_PUBLIC_SUPABASE_URL=http://10.0.2.2:54321" >> "$GITHUB_ENV"
+          echo "EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
           echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$anon_key" >> "$GITHUB_ENV"
 
       - name: Install pinned Maestro CLI
@@ -129,6 +129,7 @@ jobs:
           test -s artifacts/android/critical-commands.json
           test -s artifacts/android/reels-commands.json
           test "$(find artifacts/android -name 'gon263-*.png' | wc -l)" -ge 10
+          test -s artifacts/android/adb-reverse.txt
           test -s artifacts/android/logcat.txt
           test -s artifacts/android/e2e-media.log
 
@@ -156,7 +157,9 @@ jobs:
   gon-263-ios:
     name: GON-263 iOS journeys
     runs-on: macos-15
-    timeout-minutes: 45
+    # A cold Expo SDK 55 Release build on the hosted arm64 runner takes about
+    # 45 minutes before the Maestro journeys begin.
+    timeout-minutes: 75
     env:
       EXPO_NO_TELEMETRY: "1"
       EXPO_PUBLIC_E2E_MODE: "true"

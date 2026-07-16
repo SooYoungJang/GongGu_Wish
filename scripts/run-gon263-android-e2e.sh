@@ -5,6 +5,14 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 mkdir -p artifacts/android
 
+# Route device-local URLs to the runner so API and media use the same stable
+# loopback origin on every emulator backend.
+adb reverse tcp:54321 tcp:54321
+adb reverse tcp:58080 tcp:58080
+adb reverse --list | tee artifacts/android/adb-reverse.txt
+grep -F "tcp:54321 tcp:54321" artifacts/android/adb-reverse.txt
+grep -F "tcp:58080 tcp:58080" artifacts/android/adb-reverse.txt
+
 pushd apps/mobile >/dev/null
 npx expo run:android --variant release --no-bundler
 popd >/dev/null
