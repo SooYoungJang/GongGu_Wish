@@ -12,6 +12,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,10 +21,10 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchGroupBuys } from "../api";
 import { BackButton } from "../components/BackButton";
 import {
-  CALENDAR_DATE_SECTION_HEIGHT,
   CalendarDateRow,
   calendarDateGroupKey,
   getCalendarDateGroupLayout,
+  getCalendarLayoutMetrics,
   type CalendarDateGroup,
 } from "../components/calendar/CalendarDateRow";
 import {
@@ -334,7 +335,12 @@ function CalendarHeader({
 
 export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const calendarLayoutMetrics = useMemo(
+    () => getCalendarLayoutMetrics(fontScale),
+    [fontScale],
+  );
 
   const initialParam = route.params?.initialDate;
   const initialDate =
@@ -533,19 +539,34 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         {...item}
         filterLabel={calendarFilterLabel}
         isSelected={item.dateKey === selectedDateKey}
+        layoutMetrics={calendarLayoutMetrics}
         onDealPress={openDealDetail}
       />
     ),
-    [calendarFilterLabel, openDealDetail, selectedDateKey],
+    [
+      calendarFilterLabel,
+      calendarLayoutMetrics,
+      openDealDetail,
+      selectedDateKey,
+    ],
+  );
+  const getDateGroupLayout = useCallback(
+    (data: ArrayLike<CalendarDateGroup> | null | undefined, index: number) =>
+      getCalendarDateGroupLayout(
+        data,
+        index,
+        calendarLayoutMetrics.sectionHeight,
+      ),
+    [calendarLayoutMetrics.sectionHeight],
   );
   const handleScrollToIndexFailed = useCallback(
     ({ index }: { index: number }) => {
       dateListRef.current?.scrollToOffset({
         animated: true,
-        offset: CALENDAR_DATE_SECTION_HEIGHT * index,
+        offset: calendarLayoutMetrics.sectionHeight * index,
       });
     },
-    [],
+    [calendarLayoutMetrics.sectionHeight],
   );
   const renderEmptyTimeline = useCallback(
     () =>
@@ -620,14 +641,14 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         ) : null}
 
         {/*
-          One visible month has at most 31 fixed-height date rows. FlatList is
-          intentional here: getItemLayout keeps date jumps deterministic while
-          FlashList remains reserved for the unbounded media feed.
+          One visible month has at most 31 deterministically measured rows.
+          The shared font-scale metrics keep rendered height, fallback offsets,
+          and getItemLayout aligned while Dynamic Type changes.
         */}
         <FlatList
           contentContainerStyle={s.dateListContent}
           data={dateGroups}
-          getItemLayout={getCalendarDateGroupLayout}
+          getItemLayout={getDateGroupLayout}
           initialScrollIndex={
             selectedDateIndex >= 0 ? selectedDateIndex : undefined
           }

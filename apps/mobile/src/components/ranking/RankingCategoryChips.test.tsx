@@ -82,7 +82,7 @@ describe('RankingCategoryChips', () => {
     expect(renderer!.root.findAllByType('Modal' as unknown as React.ElementType)).toHaveLength(0);
   });
 
-  it('shows only the selected category name and keeps the trigger compact', () => {
+  it('shows only the selected category name and keeps a scalable touch target', () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -108,7 +108,35 @@ describe('RankingCategoryChips', () => {
     expect(text).toContain('스포츠');
     expect(text).not.toContain('카테고리 스포츠');
     expect(RANKING_CATEGORY_LABELS.baby).toBe('육아');
-    expect(triggerStyle.minHeight).toBeLessThanOrEqual(38);
+    expect(triggerStyle.height).toBeUndefined();
+    expect(triggerStyle.minHeight).toBeGreaterThanOrEqual(44);
+  });
+
+  it('uses scalable sort controls instead of a fixed chip height', () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <RankingCategoryChips
+            mode="sort"
+            value="all"
+            categories={RANKING_CATEGORIES}
+            sort="popular"
+            onChange={vi.fn()}
+            onChangeSort={vi.fn()}
+          />,
+        ),
+      );
+    });
+
+    const popular = renderer!.root.findByProps({
+      accessibilityLabel: '인기 공구 정렬',
+    });
+    const style = flattenStyle(popular.props.style);
+
+    expect(style.height).toBeUndefined();
+    expect(style.minHeight).toBeGreaterThanOrEqual(44);
   });
 
   it('renders sort and category controls as independent filter layers', () => {

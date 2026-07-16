@@ -1,10 +1,16 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RankingTopThree } from "./RankingTopThree";
 import { ThemeProvider } from "../../context/ThemeContext";
 import type { GroupBuyRankingItem } from "../../features/ranking/types";
+
+const windowDimensionsMock = vi.hoisted(() => ({
+  fontScale: 1,
+  height: 812,
+  width: 375,
+}));
 
 vi.mock("@expo/vector-icons", () => ({
   Ionicons: ({ name }: { name: string }) =>
@@ -26,10 +32,8 @@ vi.mock("react-native", () => {
     View: passthrough("View"),
     useColorScheme: () => "light",
     useWindowDimensions: () => ({
-      width: 375,
-      height: 812,
+      ...windowDimensionsMock,
       scale: 2,
-      fontScale: 1,
     }),
   };
 });
@@ -66,6 +70,42 @@ function sampleRanking(
 }
 
 describe("RankingTopThree", () => {
+  beforeEach(() => {
+    windowDimensionsMock.fontScale = 1;
+    windowDimensionsMock.width = 375;
+  });
+
+  it("stacks compact cards and releases text clamps for large fonts", () => {
+    windowDimensionsMock.fontScale = 2;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <RankingTopThree
+            items={[sampleRanking(1), sampleRanking(2), sampleRanking(3)]}
+            onPress={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const grid = renderer!.root.findByProps({
+      testID: "ranking-top-compact-grid",
+    });
+    const heroName = renderer!.root.findByProps({
+      testID: "ranking-top-name-1",
+    });
+
+    expect(grid.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ flexDirection: "column" }),
+      ]),
+    );
+    expect(heroName.props.numberOfLines).toBeUndefined();
+  });
+
   it("renders rank one as a hero and ranks two and three as compact cards", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 

@@ -31,9 +31,16 @@ export function makeRankingTopStyles(
       justifyContent: "space-between",
       marginTop: spacing.sm,
     },
+    compactFooterLargeText: {
+      alignItems: "stretch",
+      flexDirection: "column",
+    },
     compactGrid: {
       flexDirection: "row",
       gap: spacing.sm,
+    },
+    compactGridLargeText: {
+      flexDirection: "column",
     },
     compactInfoColumn: {
       gap: spacing.xxs,
@@ -92,6 +99,10 @@ export function makeRankingTopStyles(
       justifyContent: "space-between",
       marginTop: spacing.md,
     },
+    heroFooterLargeText: {
+      alignItems: "stretch",
+      flexDirection: "column",
+    },
     heroInfoColumn: {
       flex: 1,
       gap: spacing.xs,
@@ -102,6 +113,9 @@ export function makeRankingTopStyles(
       flexDirection: "row",
       gap: spacing.md,
       minWidth: 0,
+    },
+    heroMainActionLargeText: {
+      flexDirection: "column",
     },
     heroMediaColumn: {
       alignItems: "center",

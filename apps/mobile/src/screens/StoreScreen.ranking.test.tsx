@@ -293,6 +293,30 @@ describe("StoreScreen ranking redesign", () => {
     ).toBe("absolute");
   });
 
+  it("uses scalable period tabs instead of a fixed text height", () => {
+    const navigation = createNavigation();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <StoreScreen
+            navigation={navigation as never}
+            route={{ key: "Store-test", name: "Store" } as never}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const weeklyTab = renderer!.root.findByProps({
+      accessibilityLabel: "이번 주 랭킹 기간",
+    });
+    const style = flattenStyle(weeklyTab.props.style);
+
+    expect(style.height).toBeUndefined();
+    expect(style.minHeight).toBeGreaterThanOrEqual(44);
+  });
+
   it("keeps the list inset stable under the unified sticky header", () => {
     const navigation = createNavigation();
     let renderer: TestRenderer.ReactTestRenderer;

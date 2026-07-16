@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 
 import { useCommerceTheme } from "../../design/useCommerceTheme";
 import type {
@@ -26,7 +26,9 @@ export function RankingTopThree({
   onToggleAlert,
 }: RankingTopThreeProps) {
   const { colors } = useCommerceTheme();
+  const { fontScale } = useWindowDimensions();
   const s = useMemo(() => makeRankingTopStyles(colors), [colors]);
+  const largeText = fontScale >= 1.3;
   const topItems = items
     .filter((item) => item.rank >= 1 && item.rank <= 3)
     .sort((left, right) => left.rank - right.rank);
@@ -53,7 +55,10 @@ export function RankingTopThree({
         variant="hero"
       />
       {compact.length > 0 ? (
-        <View style={s.compactGrid}>
+        <View
+          style={[s.compactGrid, largeText && s.compactGridLargeText]}
+          testID="ranking-top-compact-grid"
+        >
           {compact.map((item) => (
             <RankingTopCard
               key={item.groupBuyId}

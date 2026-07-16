@@ -1,6 +1,6 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GroupBuyAlertButton } from "./FollowButton";
 import { RankBadge } from "./RankBadge";
@@ -12,6 +12,12 @@ import { commerceLightColors, commerceRadius } from "../../design/commerce";
 import { spacing } from "../../design/tokens";
 import type { GroupBuyRankingItem } from "../../features/ranking/types";
 import { getRankingTrend } from "../../features/ranking/types";
+
+const windowDimensionsMock = vi.hoisted(() => ({
+  fontScale: 1,
+  height: 812,
+  width: 375,
+}));
 
 vi.mock("react-native", () => {
   const ReactMock = require("react");
@@ -50,10 +56,8 @@ vi.mock("react-native", () => {
       ReactMock.createElement("Pressable", props, children),
     StyleSheet: { create: (styles: unknown) => styles },
     useWindowDimensions: () => ({
-      width: 375,
-      height: 812,
+      ...windowDimensionsMock,
       scale: 2,
-      fontScale: 1,
     }),
     useColorScheme: () => "light",
     Text: passthrough("Text"),
@@ -121,6 +125,42 @@ function flattenStyle(style: unknown): Record<string, unknown> {
 }
 
 describe("ranking components", () => {
+  beforeEach(() => {
+    windowDimensionsMock.fontScale = 1;
+    windowDimensionsMock.width = 375;
+  });
+
+  it("stacks ordinary ranking rows and releases text clamps for large fonts", () => {
+    windowDimensionsMock.fontScale = 2;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingRow
+            item={sampleRanking()}
+            onPress={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />,
+        ),
+      );
+    });
+
+    const mainRow = renderer!.root.findByProps({
+      testID: "ranking-row-main-1",
+    });
+    const name = renderer!.root.findByProps({
+      testID: "ranking-row-name-1",
+    });
+    const metrics = renderer!.root.findByProps({
+      testID: "ranking-row-metrics-1",
+    });
+
+    expect(flattenStyle(mainRow.props.style).flexDirection).toBe("column");
+    expect(name.props.numberOfLines).toBeUndefined();
+    expect(metrics.props.numberOfLines).toBe(2);
+  });
+
   it("renders top-three ranks without leading zeroes", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
