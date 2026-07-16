@@ -18,6 +18,7 @@ test("Android E2E uses verified adb-reversed localhost origins", () => {
   assert.match(runner, /device-supabase-probe\.txt/);
   assert.match(runner, /device-media-probe\.txt/);
   assert.match(runner, /toybox nc/);
+  assert.match(runner, /toybox nc -w 10 -q 2/);
 });
 
 test("Android E2E config plugin enables cleartext only in generated manifest", () => {

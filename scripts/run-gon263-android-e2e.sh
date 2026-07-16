@@ -21,7 +21,7 @@ probe_device_http() {
 
   printf 'GET %s HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n' \
     "$path" \
-    | adb shell toybox nc -w 10 127.0.0.1 "$port" \
+    | adb shell toybox nc -w 10 -q 2 127.0.0.1 "$port" \
     | tr -d '\r' \
     | tee "$output"
   grep -Eq '^HTTP/1\.[01] 200' "$output"
