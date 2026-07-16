@@ -5,6 +5,19 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 mkdir -p artifacts/android
 
+capture_final_disk() {
+  df -h "$repo_root" > artifacts/android/disk-final.txt || true
+}
+trap capture_final_disk EXIT
+
+# Gradle reads ORG_GRADLE_PROJECT_* as a project property. Keep the CI release
+# build aligned with the x86_64 emulator instead of compiling four unused ABIs.
+test "${ORG_GRADLE_PROJECT_reactNativeArchitectures:-}" = "x86_64"
+printf 'reactNativeArchitectures=%s\n' \
+  "$ORG_GRADLE_PROJECT_reactNativeArchitectures" \
+  | tee artifacts/android/build-config.txt
+df -h "$repo_root" > artifacts/android/disk-before-build.txt
+
 # Route device-local URLs to the runner so API and media use the same stable
 # loopback origin on every emulator backend.
 adb reverse tcp:54321 tcp:54321
