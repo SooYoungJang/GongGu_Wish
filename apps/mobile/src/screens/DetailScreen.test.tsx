@@ -5,6 +5,20 @@ const appStateMock = vi.hoisted(() => ({
   currentState: "active",
   listener: null as null | ((nextState: string) => void),
 }));
+const hardwareBackMock = vi.hoisted(() => ({
+  handler: null as null | (() => boolean),
+  addEventListener: vi.fn((_event: string, handler: () => boolean) => {
+    hardwareBackMock.handler = handler;
+    return {
+      remove: vi.fn(() => {
+        if (hardwareBackMock.handler === handler) {
+          hardwareBackMock.handler = null;
+        }
+      }),
+    };
+  }),
+}));
+const platformMock = vi.hoisted(() => ({ os: "ios" }));
 const logDeepViewMock = vi.hoisted(() => vi.fn());
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
@@ -178,7 +192,7 @@ vi.mock("react-native", () => {
       ),
     },
     BackHandler: {
-      addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+      addEventListener: hardwareBackMock.addEventListener,
       exitApp: vi.fn(),
     },
     Animated: {
@@ -232,7 +246,11 @@ vi.mock("react-native", () => {
     PanResponder: {
       create: vi.fn((handlers: any) => ({ panHandlers: handlers })),
     },
-    Platform: { OS: "ios" },
+    Platform: {
+      get OS() {
+        return platformMock.os;
+      },
+    },
     Easing: {
       out: vi.fn((fn: any) => fn),
       cubic: vi.fn(),
@@ -500,6 +518,9 @@ beforeEach(() => {
   (globalThis as any).__mockKeyboardHeight = 0;
   appStateMock.currentState = "active";
   appStateMock.listener = null;
+  hardwareBackMock.handler = null;
+  hardwareBackMock.addEventListener.mockClear();
+  platformMock.os = "ios";
   logDeepViewMock.mockReset();
   logDeepViewMock.mockResolvedValue(undefined);
   videoMock.players = [];
@@ -1120,6 +1141,69 @@ describe("DetailScreen", () => {
     expect(
       renderer!.root.findAll((node) => String(node.type) === "ScrollView"),
     ).toHaveLength(0);
+  });
+
+  it("closes search then summary before delegating Android Back to the stack", () => {
+    platformMock.os = "android";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      summary: "두 overlay의 Android Back 우선순위를 검증합니다.",
+    };
+    const navigation = {
+      goBack: vi.fn(),
+      addListener: vi.fn(() => () => {}),
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={navigation as any}
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "요약 자세히 보기",
+    );
+    const searchButton = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "상품 검색",
+    );
+    act(() => {
+      summaryButton.props.onPress();
+      searchButton.props.onPress();
+    });
+    const findPressables = (accessibilityLabel: string) =>
+      renderer!.root.findAll(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === accessibilityLabel,
+      );
+
+    expect(findPressables("상품 검색 닫기")).toHaveLength(1);
+    expect(findPressables("요약 닫기")).toHaveLength(1);
+
+    act(() => {
+      expect(hardwareBackMock.handler?.()).toBe(true);
+    });
+    expect(findPressables("상품 검색 닫기")).toHaveLength(0);
+    expect(findPressables("요약 닫기")).toHaveLength(1);
+
+    act(() => {
+      expect(hardwareBackMock.handler?.()).toBe(true);
+    });
+    expect(findPressables("요약 닫기")).toHaveLength(0);
+    expect(hardwareBackMock.handler?.()).toBe(false);
+    expect(navigation.goBack).not.toHaveBeenCalled();
+
+    act(() => {
+      renderer!.unmount();
+    });
   });
 
   it("raises the search bottom sheet above the keyboard", () => {

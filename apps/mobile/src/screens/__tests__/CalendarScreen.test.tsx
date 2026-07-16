@@ -342,6 +342,18 @@ describe("CalendarScreen", () => {
     ).toContain("달력 닫기");
   });
 
+  it("closes the calendar picker from the native Android modal request", () => {
+    const renderer = renderCalendar();
+    openCalendarPicker(renderer);
+    const modal = renderer.root.find((node) => String(node.type) === "Modal");
+
+    act(() => modal.props.onRequestClose());
+
+    expect(
+      renderer.root.findAllByProps({ testID: "calendar-picker-modal" }),
+    ).toHaveLength(0);
+  });
+
   it("renders weekday labels in order (월~일)", () => {
     const renderer = renderCalendar();
     openCalendarPicker(renderer);

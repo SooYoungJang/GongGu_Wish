@@ -11,7 +11,6 @@ import {
   Alert,
   ActivityIndicator,
   AppState,
-  BackHandler,
   FlatList,
   Image,
   Keyboard,
@@ -67,6 +66,7 @@ import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatEndDate, getDaysRemaining } from "../utils";
 import { normalizeForSearch } from "../utils/search";
+import { useFocusedAndroidBackHandler } from "../navigation/androidBack";
 import {
   DEEP_VIEW_THRESHOLD_MS,
   isPlaybackEligible,
@@ -1288,31 +1288,25 @@ export function ProductReelPage({
     resetSummarySheetState,
   ]);
 
-  // 안드로이드 물리 뒤로가기: 바텀시트가 열려 있으면 시트를 닫고, 아니면 기본 동작.
-  useEffect(() => {
-    if (!isActive) return;
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        if (isSearchSheetVisible) {
-          onCloseSearchSheet?.();
-          return true;
-        }
-        if (isSummaryVisible) {
-          setSummaryOpen(false);
-          return true;
-        }
-        return false;
-      },
-    );
-    return () => subscription.remove();
+  // Focused custom overlays consume Back first; returning false delegates the
+  // next press to the native stack so Detail itself can pop normally.
+  const handleAndroidBack = useCallback(() => {
+    if (isSearchSheetVisible) {
+      onCloseSearchSheet?.();
+      return true;
+    }
+    if (isSummaryVisible) {
+      setSummaryOpen(false);
+      return true;
+    }
+    return false;
   }, [
-    isActive,
     isSearchSheetVisible,
     isSummaryVisible,
     onCloseSearchSheet,
     setSummaryOpen,
   ]);
+  useFocusedAndroidBackHandler(handleAndroidBack, isActive);
 
   useEffect(() => {
     setActiveMediaIndex(0);
