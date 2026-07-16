@@ -219,7 +219,16 @@ export async function postgrestFetch<T>(
   });
 
   const requestUrl = buildUrl(path);
-  const requestHeaders = { ...headers, ...options.headers };
+  // Public commerce data must come from the origin rather than a native HTTP
+  // cache so an old price or home-banner opt-in cannot outrank a newer row.
+  // Source: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control#no-store
+  const cacheHeaders: Record<string, string> = method === 'GET'
+    ? {
+        'Cache-Control': 'no-cache, no-store, max-age=0',
+        Pragma: 'no-cache',
+      }
+    : {};
+  const requestHeaders = { ...headers, ...cacheHeaders, ...options.headers };
 
   console.log('[PostgREST] request', {
     url: requestUrl,

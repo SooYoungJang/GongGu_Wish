@@ -66,4 +66,26 @@ describe('postgrestFetch diagnostics', () => {
       expect.any(Object),
     );
   });
+
+  it('prevents native HTTP caches from serving stale public GET data', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue([]),
+    }) as unknown as typeof fetch;
+
+    await postgrestFetch('group_buys?select=id');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/rest/v1/group_buys?select=id'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Cache-Control': 'no-cache, no-store, max-age=0',
+          Pragma: 'no-cache',
+        }),
+        method: 'GET',
+      }),
+    );
+  });
 });
