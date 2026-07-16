@@ -145,11 +145,11 @@ export async function createLocalFixture(
   const suffix = `${Date.now()}-${randomUUID().slice(0, 8)}`;
   const influencerId = `gon263-influencer-${suffix}`;
   const rawPostIds = Array.from(
-    { length: 4 },
+    { length: 5 },
     (_, index) => `gon263-post-${index}-${suffix}`,
   );
   const groupBuyIds = Array.from(
-    { length: 4 },
+    { length: 5 },
     (_, index) => `gon263-deal-${index}-${suffix}`,
   );
   const productName = `GON263 계약 공구 ${suffix}`;
@@ -186,7 +186,7 @@ export async function createLocalFixture(
     })),
   });
 
-  const categories = ["food", "food", "food", "beauty"];
+  const categories = ["food", "food", "food", "food", "beauty"];
   await serviceRest(config, "setup", "group_buys", {
     method: "POST",
     prefer: "return=minimal",
@@ -197,7 +197,7 @@ export async function createLocalFixture(
       brand_name: "GON-263 Brand",
       category: categories[index],
       start_date: isoOffset(-24),
-      end_date: index === 0 || index === 1 ? null : isoOffset(24 * (index + 1)),
+      end_date: index <= 2 ? null : isoOffset(24 * (index + 1)),
       purchase_url: `https://example.test/gon263/${index}`,
       discount_info: `${10 + index}% 할인`,
       price_krw: 10000 + index * 1000,
@@ -212,9 +212,10 @@ export async function createLocalFixture(
     })),
   });
 
-  // Two open-ended food fixtures deliberately tie on score while a third
-  // stays lower. This catches null-deadline, score, and ID keyset gaps.
-  const currentViewCounts = [6, 9, 3, 8];
+  // Two open-ended food fixtures deliberately tie on score, a third open-ended
+  // fixture stays lower, and a fourth has a deadline. This exercises every
+  // null-deadline score/ID branch plus the non-null-to-null transition.
+  const currentViewCounts = [6, 9, 3, 4, 8];
   const views = currentViewCounts.flatMap((count, groupIndex) =>
     Array.from({ length: count }, (_, viewIndex) => ({
       group_buy_id: groupBuyIds[groupIndex],

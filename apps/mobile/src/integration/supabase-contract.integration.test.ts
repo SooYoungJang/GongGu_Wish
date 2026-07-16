@@ -237,16 +237,29 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
         limit: 100,
       });
       if (sort === "deadlineSoon") {
+        const nullDeadlineFixtureIds = new Set(fixture.groupBuyIds.slice(0, 3));
         const nullDeadlineFixtures = full.data.filter(
           (item) =>
-            (item.groupBuyId === fixture?.groupBuyIds[0] ||
-              item.groupBuyId === fixture?.groupBuyIds[1]) &&
+            nullDeadlineFixtureIds.has(item.groupBuyId) &&
             item.endDate === null,
         );
-        expect(nullDeadlineFixtures).toHaveLength(2);
+        expect(nullDeadlineFixtures).toHaveLength(3);
+        const scoreById = new Map(
+          nullDeadlineFixtures.map((item) => [
+            item.groupBuyId,
+            item.metrics.score,
+          ]),
+        );
+        const tiedScore = scoreById.get(fixture.groupBuyIds[0]);
+        expect(tiedScore).toEqual(expect.any(Number));
+        expect(scoreById.get(fixture.groupBuyIds[1])).toBe(tiedScore);
+        expect(scoreById.get(fixture.groupBuyIds[2])).toBeLessThan(
+          tiedScore as number,
+        );
         expect(
-          new Set(nullDeadlineFixtures.map((item) => item.metrics.score)).size,
-        ).toBe(1);
+          full.data.find((item) => item.groupBuyId === fixture?.groupBuyIds[3])
+            ?.endDate,
+        ).toEqual(expect.any(String));
       }
       const pagedIds: string[] = [];
       let cursor: string | undefined;
