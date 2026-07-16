@@ -83,6 +83,7 @@ jobs:
       - name: Build and install the iOS release app
         working-directory: apps/mobile
         run: |
+          mkdir -p "$HOME/.expo"
           npx expo run:ios \
             --configuration Release \
             --device "$SIMULATOR_UDID" \
