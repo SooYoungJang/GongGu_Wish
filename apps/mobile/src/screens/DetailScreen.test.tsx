@@ -1,6 +1,11 @@
 const videoMock = vi.hoisted(() => ({
   players: [] as any[],
 }));
+const appStateMock = vi.hoisted(() => ({
+  currentState: "active",
+  listener: null as null | ((nextState: string) => void),
+}));
+const logDeepViewMock = vi.hoisted(() => vi.fn());
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
 }));
@@ -35,6 +40,7 @@ vi.mock("expo-video", () => ({
     return ReactMock.createElement("VideoView", props, children);
   },
   useVideoPlayer: (source: any, setup?: any) => {
+    const listeners = new Map<string, Set<(payload: any) => void>>();
     const player = {
       play: vi.fn(),
       pause: vi.fn(),
@@ -46,8 +52,28 @@ vi.mock("expo-video", () => ({
       audioMixingMode: "auto",
       allowsExternalPlayback: true,
       currentTime: 12,
+      playing: false,
+      addListener: vi.fn((event: string, listener: (payload: any) => void) => {
+        const eventListeners = listeners.get(event) ?? new Set();
+        eventListeners.add(listener);
+        listeners.set(event, eventListeners);
+        return {
+          remove: () => eventListeners.delete(listener),
+        };
+      }),
+      emit: (event: string, payload: any) => {
+        listeners.get(event)?.forEach((listener) => listener(payload));
+      },
       source,
     };
+    player.play.mockImplementation(() => {
+      player.playing = true;
+      player.emit("playingChange", { isPlaying: true });
+    });
+    player.pause.mockImplementation(() => {
+      player.playing = false;
+      player.emit("playingChange", { isPlaying: false });
+    });
     setup?.(player);
     videoMock.players.push(player);
     return player;
@@ -64,6 +90,7 @@ vi.mock("@tanstack/react-query", () => ({
 
 vi.mock("../api", () => ({
   fetchGroupBuys: vi.fn(),
+  logDeepView: logDeepViewMock,
 }));
 
 vi.mock("@shopify/flash-list", () => {
@@ -120,7 +147,12 @@ import { Alert, Animated, Linking } from "react-native";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DetailScreen, ReelVideoPreloader } from "./DetailScreen";
+import {
+  DetailScreen,
+  ProductReelPage,
+  ReelVideoPreloader,
+  hasPlayableVideoMedia,
+} from "./DetailScreen";
 import { spacing } from "../design/tokens";
 import type { GroupBuy } from "../types";
 
@@ -133,6 +165,18 @@ vi.mock("react-native", () => {
 
   return {
     Alert: { alert: vi.fn() },
+    ActivityIndicator: passthrough("ActivityIndicator"),
+    AppState: {
+      get currentState() {
+        return appStateMock.currentState;
+      },
+      addEventListener: vi.fn(
+        (_event: string, listener: (nextState: string) => void) => {
+          appStateMock.listener = listener;
+          return { remove: vi.fn() };
+        },
+      ),
+    },
     BackHandler: {
       addEventListener: vi.fn(() => ({ remove: vi.fn() })),
       exitApp: vi.fn(),
@@ -454,6 +498,10 @@ const baseGroupBuy: GroupBuy = {
 
 beforeEach(() => {
   (globalThis as any).__mockKeyboardHeight = 0;
+  appStateMock.currentState = "active";
+  appStateMock.listener = null;
+  logDeepViewMock.mockReset();
+  logDeepViewMock.mockResolvedValue(undefined);
   videoMock.players = [];
   queryMock.groupBuys = undefined;
   flashListMock.scrollToOffset.mockClear();
@@ -1762,6 +1810,98 @@ describe("DetailScreen", () => {
 });
 
 describe("DetailScreen video playback", () => {
+  it("deactivates the video page while backgrounded or covered by the summary", () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl: "https://example.com/lifecycle.mp4",
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const findPages = () => renderer!.root.findAllByType(ProductReelPage);
+    expect(findPages().some((node) => node.props.playbackAllowed)).toBe(true);
+
+    act(() => {
+      appStateMock.listener?.("background");
+    });
+    expect(findPages().every((node) => !node.props.playbackAllowed)).toBe(true);
+
+    act(() => {
+      appStateMock.listener?.("active");
+    });
+    const activePage = findPages().find((node) => node.props.playbackAllowed);
+    expect(activePage).toBeDefined();
+
+    act(() => {
+      activePage!.props.onSummarySheetStateChange(true, false);
+    });
+    expect(findPages().some((node) => node.props.isActive)).toBe(true);
+    expect(findPages().every((node) => !node.props.playbackAllowed)).toBe(true);
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
+  it("recognizes extension-based video media for playback eligibility", () => {
+    expect(
+      hasPlayableVideoMedia({
+        ...baseGroupBuy,
+        videoUrl: null,
+        mediaType: "IMAGE",
+        mediaItems: [],
+        mediaUrls: ["https://example.com/video/stream.m3u8?token=abc"],
+      }),
+    ).toBe(true);
+  });
+
+  it("ignores inactive preloaded videos when tracking an active deep view", async () => {
+    vi.useFakeTimers();
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl: "https://example.com/active.mp4",
+      mediaType: "VIDEO",
+      mediaUrls: [],
+      mediaItems: [
+        { url: "https://example.com/active.mp4", mediaType: "VIDEO" },
+        { url: "https://example.com/preloaded.mp4", mediaType: "VIDEO" },
+      ],
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+      await Promise.resolve();
+    });
+
+    expect(logDeepViewMock).toHaveBeenCalledTimes(1);
+    expect(logDeepViewMock).toHaveBeenCalledWith(groupBuy.id);
+
+    act(() => {
+      renderer!.unmount();
+    });
+    vi.useRealTimers();
+  });
+
   it("renders VideoView for videoUrl even when the URL has no video extension", () => {
     const groupBuy: GroupBuy = {
       ...baseGroupBuy,
@@ -1895,5 +2035,129 @@ describe("DetailScreen video playback", () => {
           node.props.accessibilityLabel === "음소거 해제",
       ),
     ).toBeDefined();
+  });
+
+  it("shows a retry action when the native player reports an error", () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl: "https://example.com/retry.mp4",
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const findCurrentPlayer = () =>
+      [...videoMock.players]
+        .reverse()
+        .find(
+          (entry) =>
+            entry.source?.uri === groupBuy.videoUrl &&
+            entry.addListener.mock.calls.some(
+              (call: unknown[]) => call[0] === "statusChange",
+            ),
+        );
+    const player = findCurrentPlayer();
+    expect(player).toBeDefined();
+    act(() => {
+      player!.emit("statusChange", {
+        status: "error",
+        error: new Error("stream failed"),
+      });
+    });
+
+    const retryButtons = renderer!.root.findAll(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "동영상 다시 시도",
+    );
+    expect(
+      renderer!.root
+        .findAll((node) => String(node.type) === "Pressable")
+        .map((node) => node.props.accessibilityLabel),
+    ).toContain("동영상 다시 시도");
+    const retryButton = retryButtons[0];
+    const retryPlayer = findCurrentPlayer();
+    expect(retryPlayer).toBeDefined();
+
+    act(() => {
+      retryButton.props.onPress();
+    });
+
+    expect(retryPlayer!.replaceAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ uri: groupBuy.videoUrl }),
+    );
+  });
+
+  it("does not play a released player when a pending retry finishes after unmount", async () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl: "https://example.com/pending-retry.mp4",
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+    let resolveRetry!: () => void;
+    const pendingRetry = new Promise<void>((resolve) => {
+      resolveRetry = resolve;
+    });
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const findCurrentPlayer = () =>
+      [...videoMock.players]
+        .reverse()
+        .find(
+          (entry) =>
+            entry.source?.uri === groupBuy.videoUrl &&
+            entry.addListener.mock.calls.some(
+              (call: unknown[]) => call[0] === "statusChange",
+            ),
+        );
+    const player = findCurrentPlayer();
+    expect(player).toBeDefined();
+    act(() => {
+      player!.emit("statusChange", {
+        status: "error",
+        error: new Error("stream failed"),
+      });
+    });
+
+    const retryPlayer = findCurrentPlayer();
+    expect(retryPlayer).toBeDefined();
+    retryPlayer!.replaceAsync.mockReturnValueOnce(pendingRetry);
+    const playCallsBeforeRetry = retryPlayer!.play.mock.calls.length;
+    const retryButton = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "동영상 다시 시도",
+    );
+
+    act(() => {
+      retryButton.props.onPress();
+      renderer!.unmount();
+    });
+    await act(async () => {
+      resolveRetry();
+      await pendingRetry;
+      await Promise.resolve();
+    });
+
+    expect(retryPlayer!.play).toHaveBeenCalledTimes(playCallsBeforeRetry);
   });
 });

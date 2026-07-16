@@ -9,6 +9,8 @@ import {
 } from "react";
 import {
   Alert,
+  ActivityIndicator,
+  AppState,
   BackHandler,
   FlatList,
   Image,
@@ -29,7 +31,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { FlashList } from "@shopify/flash-list";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { VideoView, useVideoPlayer, type VideoPlayerStatus } from "expo-video";
 import PagerView from "react-native-pager-view";
 import {
   Gesture,
@@ -65,6 +67,10 @@ import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatEndDate, getDaysRemaining } from "../utils";
 import { normalizeForSearch } from "../utils/search";
+import {
+  DEEP_VIEW_THRESHOLD_MS,
+  isPlaybackEligible,
+} from "./playbackEligibility";
 
 const MAX_VISIBLE_DOTS = 5;
 const VIDEO_EXTENSIONS = [
@@ -135,6 +141,12 @@ function getDisplayMedia(groupBuy: GroupBuy): MediaItem[] {
     isVideo: url === groupBuy.videoUrl || isVideoUrl(url),
     thumbnailUrl: url === groupBuy.videoUrl ? groupBuy.thumbnailUrl : null,
   }));
+}
+
+export function hasPlayableVideoMedia(groupBuy?: GroupBuy): boolean {
+  return Boolean(
+    groupBuy && getDisplayMedia(groupBuy).some((item) => item.isVideo),
+  );
 }
 
 const REEL_VIDEO_PRELOAD_DISTANCE = 2;
@@ -273,6 +285,9 @@ type VideoSlideProps = {
   isActive: boolean;
   thumbnailUrl?: string | null;
   replayKey?: number;
+  muted?: boolean;
+  onMutedChange?: (muted: boolean) => void;
+  onPlaybackStateChange?: (isPlaying: boolean) => void;
   s: ReturnType<typeof makeStyles>;
 };
 
@@ -281,13 +296,22 @@ const VideoSlide = memo(function VideoSlide({
   isActive,
   replayKey,
   thumbnailUrl,
+  muted,
+  onMutedChange,
+  onPlaybackStateChange,
   s,
 }: VideoSlideProps) {
   const [shouldPlay, setShouldPlay] = useState(true);
-  const [isMuted, setMuted] = useState(false);
+  const [localMuted, setLocalMuted] = useState(muted ?? false);
+  const isMuted = muted ?? localMuted;
   const [areControlsVisible, setControlsVisible] = useState(false);
   const [hasFirstFrame, setHasFirstFrame] = useState(false);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryRequestIdRef = useRef(0);
+  const retryIsActiveRef = useRef(isActive);
+  const retryShouldPlayRef = useRef(shouldPlay);
+  retryIsActiveRef.current = isActive;
+  retryShouldPlayRef.current = shouldPlay;
   const source = useMemo(() => createVideoSource(url), [url]);
 
   const player = useVideoPlayer(source, (p) => {
@@ -297,6 +321,86 @@ const VideoSlide = memo(function VideoSlide({
     p.audioMixingMode = "doNotMix";
     p.allowsExternalPlayback = false;
   });
+  const [playerStatus, setPlayerStatus] = useState<VideoPlayerStatus>(
+    player.status,
+  );
+  const [playerError, setPlayerError] = useState<unknown>(null);
+
+  useEffect(() => {
+    const updatePlaybackState = (isPlaying: boolean) => {
+      onPlaybackStateChange?.(isActive && isPlaying);
+    };
+
+    updatePlaybackState(Boolean(player.playing));
+    const subscription = player.addListener?.(
+      "playingChange",
+      ({ isPlaying }: { isPlaying: boolean }) => updatePlaybackState(isPlaying),
+    );
+
+    return () => {
+      subscription?.remove();
+      onPlaybackStateChange?.(false);
+    };
+  }, [isActive, onPlaybackStateChange, player]);
+
+  useEffect(() => {
+    const subscription = player.addListener?.(
+      "statusChange",
+      ({ status, error }: { status: VideoPlayerStatus; error?: unknown }) => {
+        setPlayerStatus(status);
+        setPlayerError(error ?? null);
+      },
+    );
+
+    return () => subscription?.remove();
+  }, [player]);
+
+  useEffect(() => {
+    safelyCallVideoPlayer(() => {
+      player.muted = isMuted;
+      player.volume = 1;
+      player.audioMixingMode = "doNotMix";
+    });
+  }, [isMuted, player]);
+
+  useEffect(() => {
+    return () => {
+      retryRequestIdRef.current += 1;
+    };
+  }, [player, source]);
+
+  const retryPlayback = useCallback(() => {
+    const requestId = retryRequestIdRef.current + 1;
+    retryRequestIdRef.current = requestId;
+    setPlayerStatus("loading");
+    setPlayerError(null);
+    try {
+      const result = player.replaceAsync?.(source);
+      if (result && typeof (result as { then?: unknown }).then === "function") {
+        void Promise.resolve(result)
+          .then(() => {
+            if (retryRequestIdRef.current !== requestId) return;
+            if (retryIsActiveRef.current && retryShouldPlayRef.current) {
+              safelyCallVideoPlayer(() => player.play());
+            }
+          })
+          .catch((error: unknown) => {
+            if (retryRequestIdRef.current !== requestId) return;
+            setPlayerStatus("error");
+            setPlayerError(error);
+          });
+        return;
+      }
+      if (retryIsActiveRef.current && retryShouldPlayRef.current) player.play();
+    } catch (error: unknown) {
+      if (retryRequestIdRef.current !== requestId) return;
+      setPlayerStatus("error");
+      setPlayerError(error);
+    }
+  }, [isActive, player, shouldPlay, source]);
+
+  const isPlayerLoading = playerStatus === "loading";
+  const isPlayerError = playerStatus === "error" || Boolean(playerError);
 
   const showControlsTemporarily = useCallback(() => {
     setControlsVisible(true);
@@ -373,16 +477,10 @@ const VideoSlide = memo(function VideoSlide({
 
   const toggleMuted = useCallback(() => {
     showControlsTemporarily();
-    setMuted((current) => {
-      const next = !current;
-      safelyCallVideoPlayer(() => {
-        player.muted = next;
-        player.volume = 1;
-        player.audioMixingMode = "doNotMix";
-      });
-      return next;
-    });
-  }, [player, showControlsTemporarily]);
+    const next = !isMuted;
+    setLocalMuted(next);
+    onMutedChange?.(next);
+  }, [isMuted, onMutedChange, showControlsTemporarily]);
 
   return (
     <View style={s.videoSlide}>
@@ -395,6 +493,8 @@ const VideoSlide = memo(function VideoSlide({
         surfaceType={Platform.OS === "android" ? "textureView" : undefined}
         onFirstFrameRender={() => {
           setHasFirstFrame(true);
+          setPlayerStatus("readyToPlay");
+          setPlayerError(null);
           safelyCallVideoPlayer(() => {
             player.muted = isMuted;
             player.volume = 1;
@@ -409,6 +509,31 @@ const VideoSlide = memo(function VideoSlide({
           style={s.videoPoster}
           resizeMode="contain"
         />
+      ) : null}
+      {isPlayerLoading ? (
+        <View pointerEvents="none" style={s.videoStatusOverlay}>
+          <ActivityIndicator color="#FFFFFF" />
+          <SText style={s.videoStatusText} variant="caption">
+            동영상 불러오는 중
+          </SText>
+        </View>
+      ) : null}
+      {isPlayerError ? (
+        <View style={s.videoErrorOverlay}>
+          <SText style={s.videoStatusText} variant="caption">
+            동영상을 불러오지 못했어요
+          </SText>
+          <Pressable
+            accessibilityLabel="동영상 다시 시도"
+            accessibilityRole="button"
+            onPress={retryPlayback}
+            style={({ pressed }) => [s.videoRetryButton, pressed && s.pressed]}
+          >
+            <SText style={s.videoRetryLabel} variant="caption">
+              다시 시도
+            </SText>
+          </Pressable>
+        </View>
       ) : null}
       <Pressable
         accessibilityLabel="동영상 컨트롤 표시"
@@ -731,6 +856,7 @@ function DetailSearchSheet({
 export type ProductReelPageProps = {
   groupBuy: GroupBuy;
   isActive: boolean;
+  playbackAllowed?: boolean;
   replayKey?: number;
   isSearchSheetVisible?: boolean;
   searchSheetMetrics?: {
@@ -747,6 +873,9 @@ export type ProductReelPageProps = {
   onBack: () => void;
   showBackButton?: boolean;
   onCloseSearchSheet?: () => void;
+  muted?: boolean;
+  onMutedChange?: (muted: boolean) => void;
+  onPlaybackStateChange?: (itemId: string, isPlaying: boolean) => void;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
   s: ReturnType<typeof makeStyles>;
@@ -755,6 +884,7 @@ export type ProductReelPageProps = {
 export function ProductReelPage({
   groupBuy,
   isActive,
+  playbackAllowed = isActive,
   replayKey,
   isSearchSheetVisible = false,
   searchSheetMetrics = null,
@@ -767,6 +897,9 @@ export function ProductReelPage({
   onBack,
   showBackButton = true,
   onCloseSearchSheet,
+  muted,
+  onMutedChange,
+  onPlaybackStateChange,
   onSummarySheetStateChange,
   s,
 }: ProductReelPageProps) {
@@ -789,6 +922,18 @@ export function ProductReelPage({
   const [summarySheetMeasuredHeight, setSummarySheetMeasuredHeight] =
     useState(0);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
+
+  useEffect(() => {
+    if (isActive && !mediaItems[activeMediaIndex]?.isVideo) {
+      onPlaybackStateChange?.(groupBuy.id, false);
+    }
+  }, [
+    activeMediaIndex,
+    groupBuy.id,
+    isActive,
+    mediaItems,
+    onPlaybackStateChange,
+  ]);
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const {
     getNotificationState,
@@ -1425,10 +1570,33 @@ export function ProductReelPage({
   };
 
   const visibleDots = getVisibleDotIndexes(mediaItems.length, activeMediaIndex);
+  const mediaListExtraData = useMemo(
+    () => ({
+      activeMediaIndex,
+      isActive,
+      muted,
+      playbackAllowed,
+      replayKey,
+      shouldPreloadVideo,
+    }),
+    [
+      activeMediaIndex,
+      isActive,
+      muted,
+      playbackAllowed,
+      replayKey,
+      shouldPreloadVideo,
+    ],
+  );
+  const handleActiveMediaPlaybackStateChange = useCallback(
+    (isPlaying: boolean) => onPlaybackStateChange?.(groupBuy.id, isPlaying),
+    [groupBuy.id, onPlaybackStateChange],
+  );
 
   const renderMediaItem = useCallback(
     ({ item, index }: { item: MediaItem; index: number }) => {
-      const mediaActive = isActive && index === activeMediaIndex;
+      const mediaActive =
+        isActive && playbackAllowed && index === activeMediaIndex;
       const shouldMountVideo =
         mediaActive ||
         (shouldPreloadVideo && index === activeMediaIndex) ||
@@ -1445,6 +1613,11 @@ export function ProductReelPage({
                 isActive={mediaActive}
                 replayKey={replayKey}
                 thumbnailUrl={thumbnailUrl}
+                muted={muted}
+                onMutedChange={onMutedChange}
+                onPlaybackStateChange={
+                  mediaActive ? handleActiveMediaPlaybackStateChange : undefined
+                }
                 s={s}
               />
             ) : thumbnailUrl ? (
@@ -1473,9 +1646,13 @@ export function ProductReelPage({
     [
       activeMediaIndex,
       groupBuy.thumbnailUrl,
+      handleActiveMediaPlaybackStateChange,
       isActive,
       mediaWidth,
+      muted,
+      onMutedChange,
       pageHeight,
+      playbackAllowed,
       s,
       shouldPreloadVideo,
       replayKey,
@@ -1490,6 +1667,7 @@ export function ProductReelPage({
             <View style={s.mediaViewport}>
               <FlashList
                 data={mediaItems}
+                extraData={mediaListExtraData}
                 horizontal
                 pagingEnabled
                 snapToAlignment="start"
@@ -1817,6 +1995,10 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     canSwipeReel: true,
   });
   const [isScreenFocused, setScreenFocused] = useState(true);
+  const [isAppActive, setAppActive] = useState(
+    AppState.currentState === "active",
+  );
+  const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
   const [isSearchSheetVisible, setSearchSheetVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -1859,6 +2041,14 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   );
 
   useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      setAppActive(nextState === "active");
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
     const unsubFocus = navigation.addListener("focus", () =>
       setScreenFocused(true),
     );
@@ -1888,6 +2078,15 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const [activeProductIndex, setActiveProductIndex] =
     useState(initialReelIndex);
   const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
+  const hasPlayableActiveMedia = hasPlayableVideoMedia(activeGroupBuy);
+  const handlePlaybackStateChange = useCallback(
+    (itemId: string, isPlaying: boolean) => {
+      if (itemId === activeGroupBuy.id) {
+        setActivePlayerPlaying(isPlaying);
+      }
+    },
+    [activeGroupBuy.id],
+  );
   const searchItems = useMemo(() => {
     const seen = new Set<string>();
     const source = [...reelItems, ...(groupBuys ?? [])];
@@ -1908,19 +2107,38 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   useEffect(() => {
     recordView(activeGroupBuy);
   }, [activeGroupBuy, recordView]);
+  useEffect(() => {
+    setActivePlayerPlaying(false);
+  }, [
+    activeGroupBuy.id,
+    isAppActive,
+    isScreenFocused,
+    isSearchSheetVisible,
+    summarySheetGate.isOpen,
+  ]);
   // ── Deep view tracking: count a view only after 30s of continuous watch ──
   const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playbackEligibleRef = useRef(false);
   useEffect(() => {
     if (deepViewTimerRef.current) {
       clearTimeout(deepViewTimerRef.current);
       deepViewTimerRef.current = null;
     }
     const overlayOpen = summarySheetGate.isOpen || isSearchSheetVisible;
-    if (!overlayOpen && activeGroupBuy) {
+    const playbackEligible = isPlaybackEligible({
+      screenFocused: isScreenFocused,
+      appActive: isAppActive,
+      overlayOpen,
+      playerPlaying: isActivePlayerPlaying,
+      hasPlayableMedia: hasPlayableActiveMedia,
+    });
+    playbackEligibleRef.current = playbackEligible;
+    if (playbackEligible && activeGroupBuy) {
       const id = activeGroupBuy.id;
       deepViewTimerRef.current = setTimeout(() => {
+        if (!playbackEligibleRef.current) return;
         void Promise.resolve(logDeepView(id)).catch(() => undefined);
-      }, 30_000);
+      }, DEEP_VIEW_THRESHOLD_MS);
     }
     return () => {
       if (deepViewTimerRef.current) {
@@ -1928,7 +2146,15 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         deepViewTimerRef.current = null;
       }
     };
-  }, [activeGroupBuy, summarySheetGate.isOpen, isSearchSheetVisible]);
+  }, [
+    activeGroupBuy,
+    hasPlayableActiveMedia,
+    isActivePlayerPlaying,
+    isAppActive,
+    isScreenFocused,
+    isSearchSheetVisible,
+    summarySheetGate.isOpen,
+  ]);
   const handleSummarySheetStateChange = useCallback(
     (isOpen: boolean, canSwipeReel: boolean) => {
       setSummarySheetGate({ isOpen, canSwipeReel });
@@ -2019,6 +2245,13 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         key={item.id}
         groupBuy={item}
         isActive={isScreenFocused && index === activeProductIndex}
+        playbackAllowed={
+          isScreenFocused &&
+          isAppActive &&
+          !summarySheetGate.isOpen &&
+          !isSearchSheetVisible &&
+          index === activeProductIndex
+        }
         isSearchSheetVisible={isSearchSheetVisible}
         searchSheetMetrics={searchSheetMetrics}
         shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
@@ -2029,6 +2262,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         bottomInset={insets.bottom}
         onBack={() => navigation.goBack()}
         onCloseSearchSheet={closeSearchSheet}
+        onPlaybackStateChange={handlePlaybackStateChange}
         onSummarySheetStateChange={handleSummarySheetStateChange}
         s={s}
       />
@@ -2037,14 +2271,17 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       activeProductIndex,
       closeSearchSheet,
       handleSummarySheetStateChange,
+      handlePlaybackStateChange,
       insets.bottom,
       insets.top,
+      isAppActive,
       isSearchSheetVisible,
       navigation,
       s,
       searchSheetMetrics,
       screenHeight,
       screenWidth,
+      summarySheetGate.isOpen,
     ],
   );
 
@@ -2319,6 +2556,40 @@ export function makeStyles(
     videoTapLayer: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 2,
+    },
+    videoStatusOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 4,
+    },
+    videoErrorOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      backgroundColor: "rgba(5,7,10,0.68)",
+      justifyContent: "center",
+      padding: spacing.lg,
+      zIndex: 5,
+    },
+    videoStatusText: {
+      color: "rgba(255,255,255,0.88)",
+      marginTop: spacing.sm,
+      textAlign: "center",
+    },
+    videoRetryButton: {
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.14)",
+      borderColor: "rgba(255,255,255,0.28)",
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      marginTop: spacing.md,
+      minHeight: 44,
+      justifyContent: "center",
+      paddingHorizontal: spacing.lg,
+    },
+    videoRetryLabel: {
+      color: "#FFFFFF",
+      fontWeight: "800",
     },
     videoControlsOverlay: {
       ...StyleSheet.absoluteFillObject,

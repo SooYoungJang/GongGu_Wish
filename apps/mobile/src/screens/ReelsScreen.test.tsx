@@ -1,11 +1,11 @@
-import React from 'react';
-import TestRenderer, { act } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ReelsScreen } from './ReelsScreen';
+import { ReelsScreen } from "./ReelsScreen";
 
 const appStateMock = vi.hoisted(() => ({
-  currentState: 'active',
+  currentState: "active",
   listener: null as null | React.Dispatch<string>,
 }));
 
@@ -15,14 +15,17 @@ const focusMock = vi.hoisted(() => ({
 
 const recordViewMock = vi.hoisted(() => vi.fn());
 const logDeepViewMock = vi.hoisted(() => vi.fn());
+const themeMock = vi.hoisted(() => ({ colors: {}, shadows: {} }));
 
 const groupBuys = [0, 1, 2].map((index) => ({
   id: `reel-${index}`,
   productName: `릴스 ${index}`,
+  videoUrl: `https://example.com/reel-${index}.mp4`,
+  mediaType: "VIDEO",
 }));
 
-vi.mock('react-native', () => {
-  const ReactMock = require('react');
+vi.mock("react-native", () => {
+  const ReactMock = require("react");
   const passthrough =
     (type: string) =>
     ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -33,30 +36,32 @@ vi.mock('react-native', () => {
       get currentState() {
         return appStateMock.currentState;
       },
-      addEventListener: vi.fn((_event: string, listener: React.Dispatch<string>) => {
-        appStateMock.listener = listener;
-        return { remove: vi.fn() };
-      }),
+      addEventListener: vi.fn(
+        (_event: string, listener: React.Dispatch<string>) => {
+          appStateMock.listener = listener;
+          return { remove: vi.fn() };
+        },
+      ),
     },
-    Platform: { OS: 'android' },
-    StatusBar: passthrough('StatusBar'),
+    Platform: { OS: "android" },
+    StatusBar: passthrough("StatusBar"),
     StyleSheet: { create: (styles: unknown) => styles },
-    Text: passthrough('Text'),
-    View: passthrough('View'),
+    Text: passthrough("Text"),
+    View: passthrough("View"),
     useWindowDimensions: () => ({ width: 360, height: 720 }),
   };
 });
 
-vi.mock('react-native-safe-area-context', () => ({
+vi.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 
-vi.mock('@react-navigation/native', () => ({
+vi.mock("@react-navigation/native", () => ({
   useFocusEffect: (effect: () => void | (() => void)) => {
-    const ReactMock = require('react');
+    const ReactMock = require("react");
     ReactMock.useEffect(() => {
       const cleanup = effect();
-      focusMock.blur = typeof cleanup === 'function' ? cleanup : null;
+      focusMock.blur = typeof cleanup === "function" ? cleanup : null;
       return () => {
         focusMock.blur = null;
       };
@@ -65,59 +70,72 @@ vi.mock('@react-navigation/native', () => ({
   useNavigation: () => ({}),
 }));
 
-vi.mock('@tanstack/react-query', () => ({
+vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: groupBuys }),
 }));
 
-vi.mock('react-native-pager-view', () => {
-  const ReactMock = require('react');
+vi.mock("react-native-pager-view", () => {
+  const ReactMock = require("react");
   return {
-    default: ReactMock.forwardRef((props: Record<string, unknown>, ref: React.Ref<unknown>) => {
-      ReactMock.useImperativeHandle(ref, () => ({
-        setPageWithoutAnimation: vi.fn(),
-      }));
-      return ReactMock.createElement('PagerView', props, props.children);
-    }),
+    default: ReactMock.forwardRef(
+      (props: Record<string, unknown>, ref: React.Ref<unknown>) => {
+        ReactMock.useImperativeHandle(ref, () => ({
+          setPageWithoutAnimation: vi.fn(),
+        }));
+        return ReactMock.createElement("PagerView", props, props.children);
+      },
+    ),
   };
 });
 
-vi.mock('../api', () => ({
+vi.mock("../api", () => ({
   fetchGroupBuys: vi.fn(),
   logDeepView: logDeepViewMock,
 }));
 
-vi.mock('../hooks/useLocalDeals', () => ({
+vi.mock("../hooks/useLocalDeals", () => ({
   useRecentViews: () => ({ recordView: recordViewMock }),
 }));
 
-vi.mock('../hooks/useTabReselect', () => ({
+vi.mock("../hooks/useTabReselect", () => ({
   useTabReselect: vi.fn(),
 }));
 
-vi.mock('../context/ThemeContext', () => ({
-  useTheme: () => ({ colors: {}, shadows: {} }),
+vi.mock("../context/ThemeContext", () => ({
+  useTheme: () => themeMock,
 }));
 
-vi.mock('./reelNavigation', () => ({
+vi.mock("./reelNavigation", () => ({
   getRandomReelIndex: () => 0,
 }));
 
-vi.mock('./DetailScreen', () => {
-  const ReactMock = require('react');
+vi.mock("./DetailScreen", () => {
+  const ReactMock = require("react");
   return {
+    hasPlayableVideoMedia: (groupBuy?: { videoUrl?: string | null }) =>
+      Boolean(groupBuy?.videoUrl),
     makeStyles: () => ({
       safeArea: {},
       verticalPager: {},
       verticalPagerPage: {},
     }),
-    ProductReelPage: (props: Record<string, unknown>) => ReactMock.createElement('ProductReelPage', props),
-    ReelVideoPreloader: (props: Record<string, unknown>) => ReactMock.createElement('ReelVideoPreloader', props),
+    ProductReelPage: (props: Record<string, any>) => {
+      ReactMock.useEffect(() => {
+        props.onPlaybackStateChange?.(
+          props.groupBuy.id,
+          Boolean(props.isActive),
+        );
+      }, [props.groupBuy.id, props.isActive, props.onPlaybackStateChange]);
+      return ReactMock.createElement("ProductReelPage", props);
+    },
+    ReelVideoPreloader: (props: Record<string, unknown>) =>
+      ReactMock.createElement("ReelVideoPreloader", props),
   };
 });
 
-describe('ReelsScreen player lifecycle', () => {
+describe("ReelsScreen player lifecycle", () => {
   beforeEach(() => {
-    appStateMock.currentState = 'active';
+    appStateMock.currentState = "active";
     appStateMock.listener = null;
     focusMock.blur = null;
     recordViewMock.mockClear();
@@ -125,27 +143,30 @@ describe('ReelsScreen player lifecycle', () => {
     logDeepViewMock.mockResolvedValue(undefined);
   });
 
-  it('keeps the preloader mounted while backgrounded, but releases it after leaving Reels', () => {
+  it("keeps the preloader mounted while backgrounded, but releases it after leaving Reels", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
       renderer = TestRenderer.create(<ReelsScreen />);
     });
 
-    const findPreloaders = () => renderer!.root.findAll((node) => String(node.type) === 'ReelVideoPreloader');
+    const findPreloaders = () =>
+      renderer!.root.findAll(
+        (node) => String(node.type) === "ReelVideoPreloader",
+      );
 
     expect(findPreloaders()).toHaveLength(1);
     expect(findPreloaders()[0]?.props.enabled).toBe(true);
 
     act(() => {
-      appStateMock.listener?.('background');
+      appStateMock.listener?.("background");
     });
 
     expect(findPreloaders()).toHaveLength(1);
     expect(findPreloaders()[0]?.props.enabled).toBe(false);
 
     act(() => {
-      appStateMock.listener?.('active');
+      appStateMock.listener?.("active");
     });
 
     expect(findPreloaders()).toHaveLength(1);
@@ -162,13 +183,26 @@ describe('ReelsScreen player lifecycle', () => {
     });
   });
 
-  it('does not leak a rejected deep-view request after staying idle on a reel', async () => {
+  it("does not leak a rejected deep-view request after staying idle on a reel", async () => {
     vi.useFakeTimers();
-    logDeepViewMock.mockRejectedValue(new TypeError("Cannot read property 'reload' of undefined"));
+    logDeepViewMock.mockRejectedValue(
+      new TypeError("Cannot read property 'reload' of undefined"),
+    );
 
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const activePage = renderer!.root.find(
+      (node) =>
+        String(node.type) === "ProductReelPage" && node.props.isActive === true,
+    );
+    act(() => {
+      activePage.props.onPlaybackStateChange?.(
+        activePage.props.groupBuy.id,
+        true,
+      );
     });
 
     await act(async () => {
@@ -183,5 +217,87 @@ describe('ReelsScreen player lifecycle', () => {
       renderer!.unmount();
     });
     vi.useRealTimers();
+  });
+
+  it("keeps the pager page window bounded after repeated forward swipes", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const findPager = () =>
+      renderer!.root.find((node) => String(node.type) === "PagerView");
+
+    for (let index = 0; index < 100; index += 1) {
+      act(() => {
+        findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
+      });
+
+      const children = findPager().props.children as unknown[];
+      expect(children).toHaveLength(7);
+      expect(findPager().props.initialPage).toBeGreaterThanOrEqual(0);
+      expect(findPager().props.initialPage).toBeLessThan(7);
+    }
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
+  it("keeps the mute choice across reel page changes", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const findPages = () =>
+      renderer!.root.findAll((node) => String(node.type) === "ProductReelPage");
+    const findPager = () =>
+      renderer!.root.find((node) => String(node.type) === "PagerView");
+    const activePage = findPages().find((node) => node.props.isActive);
+
+    act(() => {
+      activePage?.props.onMutedChange?.(true);
+    });
+
+    expect(findPages().every((node) => node.props.muted === true)).toBe(true);
+
+    act(() => {
+      findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
+    });
+
+    expect(findPages().find((node) => node.props.isActive)?.props.muted).toBe(
+      true,
+    );
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
+  it("deactivates the playing reel while the summary sheet is open", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const findPages = () =>
+      renderer!.root.findAll((node) => String(node.type) === "ProductReelPage");
+    const activePage = findPages().find((node) => node.props.isActive);
+    expect(activePage).toBeDefined();
+
+    act(() => {
+      activePage!.props.onSummarySheetStateChange(true, false);
+    });
+
+    expect(findPages().some((node) => node.props.isActive)).toBe(true);
+    expect(findPages().every((node) => !node.props.playbackAllowed)).toBe(true);
+
+    act(() => {
+      renderer!.unmount();
+    });
   });
 });
