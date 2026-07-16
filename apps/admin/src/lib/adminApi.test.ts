@@ -108,4 +108,91 @@ describe("adminApi", () => {
     expect(result.items[0].priceKrw).toBe(200000);
     expect(result.items[0].isHomeBanner).toBe(false);
   });
+
+  it("rejects a PATCH response that omits the persisted price field", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          id: "group-buy-1",
+          status: "APPROVED",
+        },
+      }),
+    } as Response);
+
+    await expect(
+      adminApi.updateGroupBuy("group-buy-1", { priceKrw: 200000 }),
+    ).rejects.toThrow("가격 계약");
+  });
+
+  it("allows an explicit null price but rejects an invalid persisted type", async () => {
+    const fetchMock = vi.spyOn(global, "fetch");
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            id: "group-buy-1",
+            priceKrw: null,
+            status: "APPROVED",
+          },
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            id: "group-buy-1",
+            priceKrw: "가격 미정",
+            status: "APPROVED",
+          },
+        }),
+      } as Response);
+
+    await expect(
+      adminApi.updateGroupBuy("group-buy-1", { priceKrw: null }),
+    ).resolves.toMatchObject({ priceKrw: null });
+    await expect(
+      adminApi.updateGroupBuy("group-buy-1", { priceKrw: 200000 }),
+    ).rejects.toThrow("가격 계약");
+  });
+
+  it("rejects conflicting camelCase and snake_case persisted prices", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          id: "group-buy-1",
+          priceKrw: 200000,
+          price_krw: "199000",
+          status: "APPROVED",
+        },
+      }),
+    } as Response);
+
+    await expect(
+      adminApi.updateGroupBuy("group-buy-1", { priceKrw: 200000 }),
+    ).rejects.toThrow("가격 계약");
+  });
+
+  it("rejects a malformed list row instead of normalizing its price to null", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          items: [{ id: "group-buy-1", status: "APPROVED" }],
+          total: 1,
+        },
+      }),
+    } as Response);
+
+    await expect(
+      adminApi.listGroupBuys({ page: 1, limit: 25 }),
+    ).rejects.toThrow("가격 계약");
+  });
 });

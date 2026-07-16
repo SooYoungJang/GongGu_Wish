@@ -7,7 +7,10 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
-import { normalizeCommercePatch, normalizePriceKrw } from "./commerceFields.ts";
+import {
+  normalizeCommercePatch,
+  normalizePersistedPriceKrw,
+} from "./commerceFields.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
 import { sendPushNotification } from "./pushNotifications.ts";
 import { mapAdminUser } from "./userContract.ts";
@@ -327,7 +330,7 @@ function mapSubmission(row: Record<string, unknown>) {
     endDate: row.end_date,
     purchaseUrl: row.purchase_url,
     discountInfo: row.discount_info,
-    priceKrw: normalizePriceKrw(row.price_krw),
+    priceKrw: normalizePersistedPriceKrw(row.price_krw),
     summary: row.summary,
     instagramUrl: row.instagram_url,
     imageUrls: row.image_urls ?? [],
@@ -359,7 +362,7 @@ function mapGroupBuy(row: Record<string, unknown>) {
     endDate: row.end_date,
     purchaseUrl: row.purchase_url,
     discountInfo: row.discount_info,
-    priceKrw: normalizePriceKrw(row.price_krw),
+    priceKrw: normalizePersistedPriceKrw(row.price_krw),
     summary: row.summary,
     thumbnailUrl: row.thumbnail_url,
     videoUrl: row.video_url,

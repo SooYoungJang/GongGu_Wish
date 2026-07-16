@@ -5,6 +5,7 @@ import {
   normalizeCommercePatch,
   normalizePriceKrw,
   normalizePricePatch,
+  normalizePersistedPriceKrw,
   validateHomeBannerSchedule,
 } from "./commerceFields.ts";
 
@@ -48,6 +49,16 @@ Deno.test("normalizes optional KRW prices", () => {
   assertEquals(normalizePriceKrw(0), 0);
   assertEquals(normalizePriceKrw(""), null);
   assertEquals(normalizePriceKrw(null), null);
+});
+
+Deno.test("fails closed when a persisted price field is missing", () => {
+  assertEquals(normalizePersistedPriceKrw(null), null);
+  assertEquals(normalizePersistedPriceKrw(200000), 200000);
+  assertEquals(normalizePersistedPriceKrw("200000"), 200000);
+  assertThrows(
+    () => normalizePersistedPriceKrw(undefined),
+    "price_krw is missing from the database response.",
+  );
 });
 
 Deno.test(
