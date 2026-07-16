@@ -644,4 +644,38 @@ describe("ranking components", () => {
     );
     expect(onPress).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps cached ranking rows visible with a stale-data retry notice", () => {
+    const refresh = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList
+            state={{
+              status: "ready",
+              data: [sampleRanking()],
+              refresh,
+              refreshError: "최신 랭킹을 확인하지 못했어요.",
+            }}
+          />,
+        ),
+      );
+    });
+
+    expect(
+      renderer!.root.findByProps({ testID: "async-state-notice" }),
+    ).toBeTruthy();
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-top-hero" }),
+    ).toBeTruthy();
+
+    act(() => {
+      renderer!.root
+        .findByProps({ accessibilityLabel: "다시 불러오기" })
+        .props.onPress();
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
 });

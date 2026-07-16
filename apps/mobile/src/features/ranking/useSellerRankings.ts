@@ -27,7 +27,9 @@ export function useSellerRankings(query: GroupBuyRankingQuery): RankingLoadState
       return { status: 'loading', data: response?.data, refresh: rankingsQuery.refetch };
     }
 
-    if (rankingsQuery.isError) {
+    const data = response?.data ?? [];
+
+    if (rankingsQuery.isError && data.length === 0) {
       return {
         status: 'error',
         data: response?.data,
@@ -36,8 +38,6 @@ export function useSellerRankings(query: GroupBuyRankingQuery): RankingLoadState
         refresh: rankingsQuery.refetch,
       };
     }
-
-    const data = response?.data ?? [];
 
     if (data.length === 0) {
       return {
@@ -51,6 +51,9 @@ export function useSellerRankings(query: GroupBuyRankingQuery): RankingLoadState
     return {
       status: 'ready',
       data,
+      refreshError: rankingsQuery.isError
+        ? '최신 랭킹을 확인하지 못했어요. 저장된 랭킹을 표시하고 있습니다.'
+        : undefined,
       refreshing: rankingsQuery.isFetching && !rankingsQuery.isLoading,
       updatedAt,
       refresh: rankingsQuery.refetch,

@@ -40,7 +40,9 @@ export function usePopularGroupBuys(
       };
     }
 
-    if (query.isError) {
+    const data = response?.data ?? [];
+
+    if (query.isError && data.length === 0) {
       return {
         status: 'error',
         data: response?.data,
@@ -49,8 +51,6 @@ export function usePopularGroupBuys(
         refresh: query.refetch,
       };
     }
-
-    const data = response?.data ?? [];
 
     if (data.length === 0) {
       return {
@@ -64,6 +64,9 @@ export function usePopularGroupBuys(
     return {
       status: 'ready',
       data,
+      refreshError: query.isError
+        ? '최신 랭킹을 확인하지 못했어요. 저장된 랭킹을 표시하고 있습니다.'
+        : undefined,
       refreshing: query.isFetching && !query.isLoading,
       updatedAt,
       refresh: query.refetch,
