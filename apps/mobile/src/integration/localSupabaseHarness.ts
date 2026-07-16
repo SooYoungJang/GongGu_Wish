@@ -197,7 +197,7 @@ export async function createLocalFixture(
       brand_name: "GON-263 Brand",
       category: categories[index],
       start_date: isoOffset(-24),
-      end_date: isoOffset(24 * (index === 2 ? 1 : index + 1)),
+      end_date: index === 0 || index === 1 ? null : isoOffset(24 * (index + 1)),
       purchase_url: `https://example.test/gon263/${index}`,
       discount_info: `${10 + index}% 할인`,
       price_krw: 10000 + index * 1000,

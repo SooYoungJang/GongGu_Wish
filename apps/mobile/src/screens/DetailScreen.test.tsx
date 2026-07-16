@@ -653,6 +653,48 @@ describe("DetailScreen", () => {
     expect(recentViewsMock.recordView).not.toHaveBeenCalledWith(otherItem);
   });
 
+  it("keeps the canonical active item stable while fetched reels reorder", () => {
+    const canonicalItem: GroupBuy = {
+      ...baseGroupBuy,
+      purchaseUrl: "https://example.com/canonical-buy",
+      summary: "canonical summary",
+    };
+    const otherItem: GroupBuy = {
+      ...baseGroupBuy,
+      id: "group-buy-other",
+      productName: "다른 공구",
+    };
+    const renderScreen = () => (
+      <DetailScreen
+        route={
+          {
+            key: "Detail",
+            name: "Detail",
+            params: { groupBuy: canonicalItem },
+          } as any
+        }
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    queryMock.groupBuys = [canonicalItem, otherItem];
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderScreen());
+    });
+    expect(recentViewsMock.recordView).toHaveBeenCalledWith(canonicalItem);
+
+    recentViewsMock.recordView.mockClear();
+    queryMock.groupBuys = [otherItem, canonicalItem];
+    act(() => renderer!.update(renderScreen()));
+
+    const activePage = renderer!.root
+      .findAllByType(ProductReelPage)
+      .find((node) => node.props.isActive);
+    expect(activePage?.props.groupBuy).toBe(canonicalItem);
+    expect(recentViewsMock.recordView).not.toHaveBeenCalledWith(otherItem);
+  });
+
   it("renders every media slide in a paging gallery", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {

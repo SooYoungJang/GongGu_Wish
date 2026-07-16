@@ -147,6 +147,20 @@ Deno.test("rejects a cursor reused with another ranking filter", async () => {
     Error,
     "period",
   );
+  await assertRejects(
+    async () => {
+      assertRankingCursorMatchesRequest(
+        cursor,
+        normalizeRankingRequest({
+          category: "food",
+          period: "weekly",
+          sort: "popular",
+        }),
+      );
+    },
+    Error,
+    "sort",
+  );
 });
 
 Deno.test(

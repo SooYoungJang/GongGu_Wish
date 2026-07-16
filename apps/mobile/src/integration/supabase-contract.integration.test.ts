@@ -213,6 +213,15 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
         cursor: firstPage.pageInfo.nextCursor ?? undefined,
       }),
     ).rejects.toThrow("cursor period");
+    await expect(
+      fetchGroupBuyRankings({
+        category: "food",
+        period: "weekly",
+        sort: "deadlineSoon",
+        limit: 2,
+        cursor: firstPage.pageInfo.nextCursor ?? undefined,
+      }),
+    ).rejects.toThrow("cursor sort");
 
     for (const sort of [
       "popular",
@@ -227,6 +236,18 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
         sort,
         limit: 100,
       });
+      if (sort === "deadlineSoon") {
+        const nullDeadlineFixtures = full.data.filter(
+          (item) =>
+            (item.groupBuyId === fixture?.groupBuyIds[0] ||
+              item.groupBuyId === fixture?.groupBuyIds[1]) &&
+            item.endDate === null,
+        );
+        expect(nullDeadlineFixtures).toHaveLength(2);
+        expect(
+          new Set(nullDeadlineFixtures.map((item) => item.metrics.score)).size,
+        ).toBe(1);
+      }
       const pagedIds: string[] = [];
       let cursor: string | undefined;
       for (let page = 0; page < 100; page += 1) {

@@ -2046,8 +2046,13 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     () => getInitialReelIndex(groupBuy, reelItems),
     [groupBuy.id, reelItems],
   );
-  const [activeProductIndex, setActiveProductIndex] =
-    useState(initialReelIndex);
+  const [activeProductId, setActiveProductId] = useState(groupBuy.id);
+  const activeProductIndex = useMemo(() => {
+    const currentIndex = reelItems.findIndex(
+      (item) => item.id === activeProductId,
+    );
+    return currentIndex >= 0 ? currentIndex : initialReelIndex;
+  }, [activeProductId, initialReelIndex, reelItems]);
   const [canonicalAlignedRouteId, setCanonicalAlignedRouteId] = useState<
     string | null
   >(null);
@@ -2208,7 +2213,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
 
   useEffect(() => {
     if (!hasCanonicalRouteGroupBuy) return;
-    setActiveProductIndex(initialReelIndex);
+    setActiveProductId(groupBuy.id);
     verticalPagerRef.current?.setPageWithoutAnimation?.(initialReelIndex);
     setCanonicalAlignedRouteId(groupBuy.id);
   }, [
@@ -2225,7 +2230,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       setSearchQuery("");
       setSummarySheetGate({ isOpen: false, canSwipeReel: true });
       if (nextIndex >= 0) {
-        setActiveProductIndex(nextIndex);
+        setActiveProductId(item.id);
         verticalPagerRef.current?.setPage?.(nextIndex);
         return;
       }
@@ -2293,7 +2298,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
             nextIndex >= 0 &&
             nextIndex < reelItems.length
           ) {
-            setActiveProductIndex(nextIndex);
+            setActiveProductId(reelItems[nextIndex].id);
           }
         }}
         orientation="vertical"
