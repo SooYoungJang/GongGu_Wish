@@ -10,6 +10,7 @@ on:
       - "packages/shared/**"
       - "supabase/**"
       - "scripts/build-gon263-android-e2e.sh"
+      - "scripts/gon263-android-e2e-config.test.mjs"
       - "scripts/mobile-e2e-api-server*.mjs"
       - "scripts/run-gon263-android-e2e.sh"
       - "package.json"
@@ -68,7 +69,7 @@ jobs:
           test -n "$anon_key"
           echo "::add-mask::$anon_key"
           echo "EXPO_PUBLIC_E2E_MODE=true" >> "$GITHUB_ENV"
-          echo "EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
+          echo "EXPO_PUBLIC_SUPABASE_URL=http://localhost:54321" >> "$GITHUB_ENV"
           echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$anon_key" >> "$GITHUB_ENV"
 
       - name: Install pinned Maestro CLI
@@ -80,7 +81,9 @@ jobs:
       - name: Validate and start local video fixture
         shell: bash
         run: |
-          node --test scripts/mobile-e2e-api-server.test.mjs
+          node --test \
+            scripts/gon263-android-e2e-config.test.mjs \
+            scripts/mobile-e2e-api-server.test.mjs
           mkdir -p artifacts/android
           E2E_API_HOST=0.0.0.0 E2E_API_PORT=58080 \
             node scripts/mobile-e2e-api-server.mjs \
@@ -137,8 +140,15 @@ jobs:
           test -s artifacts/android/reels-commands.json
           test "$(find artifacts/android -name 'gon263-*.png' | wc -l)" -ge 10
           test -s artifacts/android/adb-reverse.txt
+          test -s artifacts/android/adb-reverse-after-install.txt
+          grep -Eq '^HTTP/1\.[01] 200' \
+            artifacts/android/device-supabase-probe.txt
+          grep -Eq '^HTTP/1\.[01] 200' \
+            artifacts/android/device-media-probe.txt
           grep -Fx "reactNativeArchitectures=x86_64" \
             artifacts/android/build-config.txt
+          grep -F 'android:usesCleartextTraffic="true"' \
+            artifacts/android/android-manifest.xml
           test -s artifacts/android/android-prebuild.log
           test -s artifacts/android/android-build.log
           if grep -Eq '\[(armeabi-v7a|arm64-v8a|x86)\]' \

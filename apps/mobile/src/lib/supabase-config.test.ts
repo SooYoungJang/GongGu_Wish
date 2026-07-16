@@ -10,6 +10,9 @@ describe("resolveSupabaseUrl", () => {
     expect(
       resolveSupabaseUrl("http://127.0.0.1:54321", { requireLocal: true }),
     ).toBe("http://127.0.0.1:54321");
+    expect(
+      resolveSupabaseUrl("http://localhost:54321", { requireLocal: true }),
+    ).toBe("http://localhost:54321");
   });
 
   it("refuses a default or remote Supabase origin for an E2E build", () => {

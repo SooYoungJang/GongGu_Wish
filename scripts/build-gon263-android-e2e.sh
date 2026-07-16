@@ -18,6 +18,10 @@ npx expo prebuild --platform android --no-install \
   2>&1 | tee "$repo_root/artifacts/android/android-prebuild.log"
 popd >/dev/null
 test -s apps/mobile/android/gradlew
+cp apps/mobile/android/app/src/main/AndroidManifest.xml \
+  artifacts/android/android-manifest.xml
+grep -F 'android:usesCleartextTraffic="true"' \
+  artifacts/android/android-manifest.xml
 
 pushd apps/mobile/android >/dev/null
 ./gradlew app:assembleRelease \
