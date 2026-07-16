@@ -10,7 +10,11 @@ import { DatePickerField } from "@/components/DatePickerField";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import { inferHikerSuggestions } from "@/lib/hikerSuggestions";
 import { validateHomeBannerForm } from "@/lib/homeBannerForm";
-import { MAX_PRICE_KRW, parsePriceKrwInput } from "@/lib/priceKrw";
+import {
+  assertPersistedPriceMatches,
+  MAX_PRICE_KRW,
+  parsePriceKrwInput,
+} from "@/lib/priceKrw";
 import {
   getGroupBuyVisibility,
   groupBuyStatusForVisibility,
@@ -718,46 +722,55 @@ function AdminShell({ session }: { session: Session }) {
     }
   }, [debouncedSubmissionQuery, submissionPage, submissionStatus]);
 
-  const loadGroupBuys = useCallback(async () => {
-    const requestId = ++groupBuyRequestIdRef.current;
-    const requestQuery = debouncedGroupBuyQuery;
-    setGroupBuysLoading(true);
-    try {
-      const data = await adminApi.listGroupBuys({
-        page: groupBuyPage,
-        limit: PAGE_SIZE,
-        status: groupBuyStatus,
-        q: requestQuery,
-      });
-      if (
-        requestId !== groupBuyRequestIdRef.current ||
-        requestQuery !== groupBuyQueryRef.current
-      )
-        return;
-      setGroupBuys(data.items);
-      setGroupBuysTotal(data.total);
-      setSelectedGroupBuy((current) => {
-        const next = current
-          ? (data.items.find((item) => item.id === current.id) ?? null)
-          : null;
-        setGroupBuyForm(next ? groupBuyToForm(next) : null);
-        return next;
-      });
-    } catch (error) {
-      if (
-        requestId !== groupBuyRequestIdRef.current ||
-        requestQuery !== groupBuyQueryRef.current
-      )
-        return;
-      setNotice({
-        tone: "error",
-        message: error instanceof Error ? error.message : "공구 목록 조회 실패",
-      });
-    } finally {
-      if (requestId === groupBuyRequestIdRef.current)
-        setGroupBuysLoading(false);
-    }
-  }, [debouncedGroupBuyQuery, groupBuyPage, groupBuyStatus]);
+  const loadGroupBuys = useCallback(
+    async (options: { syncSelected?: boolean } = {}) => {
+      const syncSelected = options.syncSelected ?? true;
+      const requestId = ++groupBuyRequestIdRef.current;
+      const requestQuery = debouncedGroupBuyQuery;
+      setGroupBuysLoading(true);
+      try {
+        const data = await adminApi.listGroupBuys({
+          page: groupBuyPage,
+          limit: PAGE_SIZE,
+          status: groupBuyStatus,
+          q: requestQuery,
+        });
+        if (
+          requestId !== groupBuyRequestIdRef.current ||
+          requestQuery !== groupBuyQueryRef.current
+        )
+          return null;
+        setGroupBuys(data.items);
+        setGroupBuysTotal(data.total);
+        if (syncSelected) {
+          setSelectedGroupBuy((current) => {
+            const next = current
+              ? (data.items.find((item) => item.id === current.id) ?? null)
+              : null;
+            setGroupBuyForm(next ? groupBuyToForm(next) : null);
+            return next;
+          });
+        }
+        return data;
+      } catch (error) {
+        if (
+          requestId !== groupBuyRequestIdRef.current ||
+          requestQuery !== groupBuyQueryRef.current
+        )
+          return;
+        setNotice({
+          tone: "error",
+          message:
+            error instanceof Error ? error.message : "공구 목록 조회 실패",
+        });
+        return null;
+      } finally {
+        if (requestId === groupBuyRequestIdRef.current)
+          setGroupBuysLoading(false);
+      }
+    },
+    [debouncedGroupBuyQuery, groupBuyPage, groupBuyStatus],
+  );
 
   const loadUsers = useCallback(async () => {
     const requestId = ++userRequestIdRef.current;
@@ -1108,18 +1121,38 @@ function AdminShell({ session }: { session: Session }) {
     try {
       const payload = groupBuyPayload(groupBuyForm);
       const next = await adminApi.updateGroupBuy(selectedGroupBuy.id, payload);
-      if (next.priceKrw !== payload.priceKrw) {
+      assertPersistedPriceMatches(payload.priceKrw, next.priceKrw);
+
+      const returnToList = shouldReturnToGroupBuyList(
+        groupBuyStatus,
+        next.status,
+      );
+      const refreshed = await loadGroupBuys({ syncSelected: false });
+      if (!refreshed) {
         throw new Error(
-          "저장된 가격을 다시 확인하지 못했습니다. 잠시 후 다시 시도해주세요.",
+          "저장 후 공구 목록을 다시 확인하지 못했습니다. 잠시 후 다시 시도해주세요.",
         );
       }
+      const refreshedGroupBuy = refreshed.items.find(
+        (item) => item.id === selectedGroupBuy.id,
+      );
+      if (refreshedGroupBuy) {
+        assertPersistedPriceMatches(
+          payload.priceKrw,
+          refreshedGroupBuy.priceKrw,
+        );
+      } else if (!returnToList) {
+        throw new Error(
+          "저장 후 공구 목록에서 현재 상품을 찾지 못했습니다. 잠시 후 다시 시도해주세요.",
+        );
+      }
+
       setNotice({ tone: "success", message: "공구 정보를 저장했습니다." });
-      if (shouldReturnToGroupBuyList(groupBuyStatus, next.status)) {
+      if (returnToList) {
         closeDetail();
       } else {
-        selectGroupBuy(next, false);
+        selectGroupBuy(refreshedGroupBuy ?? next, false);
       }
-      await loadGroupBuys();
       await loadDashboard();
     } catch (error) {
       setNotice({

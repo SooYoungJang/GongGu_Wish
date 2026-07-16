@@ -3,6 +3,19 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/supabase/client", () => ({ supabase: {} }));
 
 import { formToPreviewDeal } from "./App";
+import { assertPersistedPriceMatches } from "./lib/priceKrw";
+
+describe("assertPersistedPriceMatches", () => {
+  it("accepts the same persisted price", () => {
+    expect(() => assertPersistedPriceMatches(200000, 200000)).not.toThrow();
+  });
+
+  it("rejects a list refresh that changes the persisted price", () => {
+    expect(() => assertPersistedPriceMatches(200000, null)).toThrow(
+      "저장된 가격",
+    );
+  });
+});
 
 describe("formToPreviewDeal", () => {
   it("uses the Hiker representative thumbnail instead of a carousel image", () => {
@@ -21,7 +34,11 @@ describe("formToPreviewDeal", () => {
       thumbnailUrl: "https://example.com/hiker-thumbnail.jpg",
       mediaUrlsText: "https://example.com/carousel-slide.jpg",
       mediaItems: [
-        { url: "https://example.com/carousel-slide.jpg", mediaType: "IMAGE", thumbnailUrl: null },
+        {
+          url: "https://example.com/carousel-slide.jpg",
+          mediaType: "IMAGE",
+          thumbnailUrl: null,
+        },
       ],
       mediaType: "IMAGE",
       isHomeBanner: false,
