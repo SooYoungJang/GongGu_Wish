@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   fetchHomeBannerGroupBuys,
+  fetchGroupBuyRankings,
   fetchGroupBuys,
   lookupInstagramUrl,
   postPublicJson,
@@ -37,6 +38,61 @@ describe('public data fetch diagnostics', () => {
     await expect(fetchGroupBuys()).rejects.toThrow('Network request failed');
 
     expect(console.log).toHaveBeenCalledWith('[GroupBuys] fetch failed:', 'Network request failed');
+  });
+
+  it('sends ranking filters and cursor to the server-side group-buy contract', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [],
+        pageInfo: { limit: 2, hasMore: false, nextCursor: null },
+        meta: {
+          category: 'food',
+          period: 'weekly',
+          sort: 'rising',
+          scoreVersion: 'v2',
+          generatedAt: '2026-07-16T00:00:00.000Z',
+        },
+      }),
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchGroupBuyRankings({
+        category: 'food',
+        period: 'weekly',
+        sort: 'rising',
+        limit: 2,
+        cursor: 'opaque-cursor',
+      }),
+    ).resolves.toMatchObject({ pageInfo: { hasMore: false } });
+
+    const [requestUrl, requestInit] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+    expect(String(requestUrl)).toContain('/functions/v1/seller-rankings');
+    expect(JSON.parse(String((requestInit as RequestInit).body))).toEqual({
+      category: 'food',
+      period: 'weekly',
+      sort: 'rising',
+      limit: 2,
+      cursor: 'opaque-cursor',
+    });
+  });
+
+  it('rejects a malformed ranking response instead of exposing partial rows', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [], meta: {} }),
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchGroupBuyRankings({
+        category: 'all',
+        period: 'weekly',
+        sort: 'popular',
+        limit: 20,
+      }),
+    ).rejects.toThrow('Invalid group-buy ranking response');
   });
 
   it('does not enable a home banner when the backend omits the flag', async () => {

@@ -1,73 +1,37 @@
-export type RankingCategory =
-  | 'all'
-  | 'food'
-  | 'living'
-  | 'beauty'
-  | 'fashion'
-  | 'home'
-  | 'kitchen'
-  | 'electronics'
-  | 'pet'
-  | 'auto'
-  | 'hobby'
-  | 'baby'
-  | 'sports'
-  | 'stationery'
-  | 'books'
-  | 'media'
-  | 'travel';
+import type {
+  GroupBuyRankingItem,
+  RankingCategory,
+  RankingPeriod,
+  RankingSort,
+  RankingTrend,
+} from '@gonggu/shared/schemas/ranking';
 
-export type RankingPeriod = 'today' | 'weekly' | 'monthly';
-
-export type RankingSort = 'popular' | 'rising' | 'deadlineSoon' | 'newDeal';
-
-export type RankingTrend =
-  | { kind: 'up'; delta: number }
-  | { kind: 'down'; delta: number }
-  | { kind: 'same' }
-  | { kind: 'new' };
+export type {
+  GroupBuyRankingItem,
+  GroupBuyRankingQuery,
+  GroupBuyRankingResponse,
+  RankingCategory,
+  RankingPeriod,
+  RankingSort,
+  RankingTrend,
+} from '@gonggu/shared/schemas/ranking';
 
 export type RankingThumbnail = {
   id: string;
   imageUrl: string | null;
   label?: string | null;
-  groupBuyId?: string | null;
 };
 
-export type SellerRanking = {
-  id: string;
-  sellerId: string;
-  rank: number;
-  previousRank: number | null;
-  trend: RankingTrend;
-  displayName: string;
-  username: string;
-  avatarUrl: string | null;
-  category: Exclude<RankingCategory, 'all'>;
-  followerCount?: number | null;
-  activeDealCount: number;
-  endingSoonCount?: number | null;
-  trustScore?: number | null;
-  isFollowing: boolean;
-  isSponsored: boolean;
-  thumbnails: RankingThumbnail[];
-  representativeGroupBuyId?: string | null;
-  startDate?: string | null;
-  endDate?: string | null;
-  priceKrw?: number | null;
-};
-
-export type SellerRankingQuery = {
-  category: RankingCategory;
-  period: RankingPeriod;
-  sort: RankingSort;
+/** Local presentation state; ranking data itself remains the shared contract. */
+export type RankingListItem = GroupBuyRankingItem & {
+  isNotifying?: boolean;
 };
 
 export type RankingLoadState =
-  | { status: 'loading'; data?: SellerRanking[]; refresh?: () => Promise<unknown> }
+  | { status: 'loading'; data?: RankingListItem[]; refresh?: () => Promise<unknown> }
   | {
       status: 'error';
-      data?: SellerRanking[];
+      data?: RankingListItem[];
       message: string;
       retry?: () => void;
       refresh?: () => Promise<unknown>;
@@ -81,7 +45,7 @@ export type RankingLoadState =
     }
   | {
       status: 'ready';
-      data: SellerRanking[];
+      data: RankingListItem[];
       refreshing?: boolean;
       updatedAt?: number;
       refresh?: () => Promise<unknown>;

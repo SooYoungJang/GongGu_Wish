@@ -9,7 +9,10 @@ import {
   type CommerceColorPalette,
 } from "../../design/commerce";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
-import type { SellerRanking } from "../../features/ranking/types";
+import type {
+  GroupBuyRankingItem,
+  RankingListItem,
+} from "../../features/ranking/types";
 import { formatCompactCount } from "../../features/ranking/types";
 import { FollowButton } from "./FollowButton";
 import { RankBadge } from "./RankBadge";
@@ -17,9 +20,9 @@ import { RankingTrendBadge } from "./RankingTrendBadge";
 import { ThumbnailStrip } from "./ThumbnailStrip";
 
 export interface SellerRankingRowProps {
-  item: SellerRanking;
-  onPress: (item: SellerRanking) => void;
-  onToggleFollow: (item: SellerRanking) => void;
+  item: RankingListItem;
+  onPress: (item: GroupBuyRankingItem) => void;
+  onToggleFollow: (item: GroupBuyRankingItem) => void;
 }
 
 export function SellerRankingRow({
@@ -32,12 +35,19 @@ export function SellerRankingRow({
   const s = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
   const compact = width <= 360;
   const thumbnailSize = compact ? 64 : 72;
-  const viewCount =
-    item.followerCount == null ? "-" : formatCompactCount(item.followerCount);
-  const savedCount = formatCompactCount(item.activeDealCount);
-  const popularityScore =
-    item.trustScore == null ? null : Math.round(item.trustScore);
-  const accessibilityLabel = `${item.rank}위 ${item.displayName}, 조회 ${viewCount}, 저장 ${savedCount}`;
+  const displayName = item.productName ?? item.brandName ?? item.username;
+  const viewCount = formatCompactCount(item.metrics.deepViews);
+  const savedCount = formatCompactCount(item.metrics.bookmarks);
+  const notificationCount = formatCompactCount(item.metrics.notifications);
+  const popularityScore = Math.round(item.metrics.score);
+  const thumbnails = item.thumbnailUrl
+    ? [{ id: `${item.groupBuyId}-thumbnail`, imageUrl: item.thumbnailUrl, label: displayName }]
+    : item.mediaUrls.slice(0, 3).map((imageUrl, index) => ({
+        id: `${item.groupBuyId}-media-${index}`,
+        imageUrl,
+        label: displayName,
+      }));
+  const accessibilityLabel = `${item.rank}위 ${displayName}, 조회 ${viewCount}, 저장 ${savedCount}`;
 
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
   const handleToggleFollow = useCallback(
@@ -59,11 +69,11 @@ export function SellerRankingRow({
           <RankingTrendBadge trend={item.trend} />
         </View>
 
-        {item.thumbnails.length > 0 ? (
+        {thumbnails.length > 0 ? (
           <ThumbnailStrip
             maxVisible={1}
             size={thumbnailSize}
-            thumbnails={item.thumbnails}
+            thumbnails={thumbnails}
           />
         ) : (
           <View
@@ -73,14 +83,14 @@ export function SellerRankingRow({
             ]}
           >
             <SText variant="caption" style={s.thumbnailFallbackText}>
-              {item.displayName.charAt(0)}
+              {displayName.charAt(0)}
             </SText>
           </View>
         )}
 
         <View style={s.infoColumn}>
           <SText variant="body" style={s.sellerName} numberOfLines={2}>
-            {item.displayName}
+            {displayName}
           </SText>
 
           <PriceText priceKrw={item.priceKrw} style={s.price} />
@@ -90,21 +100,19 @@ export function SellerRankingRow({
           </SText>
 
           <SText variant="caption" style={s.metricText} numberOfLines={1}>
-            조회 {viewCount} · 저장 {savedCount}
+            조회 {viewCount} · 저장 {savedCount} · 알림 {notificationCount}
           </SText>
 
-          {popularityScore != null ? (
-            <SText variant="caption" style={s.popularityText}>
-              인기지수 {popularityScore}
-            </SText>
-          ) : null}
+          <SText variant="caption" style={s.popularityText}>
+            인기지수 {popularityScore}
+          </SText>
         </View>
       </Pressable>
 
       <View style={s.actionColumn}>
         <FollowButton
-          isFollowing={item.isFollowing}
-          sellerName={item.displayName}
+          isFollowing={item.isNotifying ?? false}
+          sellerName={displayName}
           onFollow={handleToggleFollow}
         />
       </View>
