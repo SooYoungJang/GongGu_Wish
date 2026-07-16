@@ -73,12 +73,10 @@ export function AdminScreen() {
   const influencersQuery = useQuery({
     queryKey: ['admin', 'influencers'],
     queryFn: () => fetchAdminJson<Influencer[]>('/admin/influencers'),
-    retry: false,
   });
   const submissionsQuery = useQuery({
     queryKey: ['admin', 'submissions'],
     queryFn: fetchAdminSubmissions,
-    retry: false,
   });
 
   const influencers = influencersQuery.data ?? [];

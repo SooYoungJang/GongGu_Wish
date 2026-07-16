@@ -94,7 +94,6 @@ export function ReelsScreen({
   const { data, isError, isLoading } = useQuery({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
-    retry: false,
   });
 
   // Base shuffled batch, refreshed each time data arrives.

@@ -357,7 +357,6 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   const { data, isError, isFetching } = useQuery({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
-    retry: false,
   });
 
   const groupBuys = data ?? [];

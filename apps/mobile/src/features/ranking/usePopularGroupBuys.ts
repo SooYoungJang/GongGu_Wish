@@ -24,7 +24,6 @@ export function usePopularGroupBuys(
         sort,
         limit,
       }),
-    staleTime: 1000 * 60 * 5,
   });
 
   return useMemo((): RankingLoadState => {

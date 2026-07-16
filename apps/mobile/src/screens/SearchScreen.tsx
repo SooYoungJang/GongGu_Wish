@@ -96,18 +96,16 @@ export function SearchScreen() {
     data: groupBuysData,
     isError: isGroupBuysError,
     refetch: refetchGroupBuys,
-  } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys, retry: false });
+  } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys });
   const {
     data: influencersData,
     isError: isInfluencersError,
     refetch: refetchInfluencers,
-  } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers, retry: false });
+  } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers });
   const { data: popularTerms, refetch: refetchPopularTerms } = useQuery({
     queryKey: ['popular-search-terms'],
     // Rolling 24-hour window keeps the ranking populated even right after midnight.
     queryFn: () => fetchPopularSearchTerms(10, 24),
-    retry: false,
-    staleTime: 60_000,
   });
 
   const handleSearchTabReselect = useCallback(() => {

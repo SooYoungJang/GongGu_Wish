@@ -883,7 +883,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const { data, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
-    retry: false,
   });
   const {
     data: homeBannerData,
@@ -891,7 +890,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   } = useQuery({
     queryKey: ["home-banner-group-buys", homeBannerDateKey],
     queryFn: () => fetchHomeBannerGroupBuys(),
-    retry: false,
   });
 
   useEffect(() => {

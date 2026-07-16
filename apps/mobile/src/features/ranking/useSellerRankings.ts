@@ -15,7 +15,6 @@ export function useSellerRankings(query: GroupBuyRankingQuery): RankingLoadState
       query.cursor,
     ],
     queryFn: () => fetchGroupBuyRankings(query),
-    staleTime: 1000 * 60 * 5,
   });
 
   return useMemo((): RankingLoadState => {

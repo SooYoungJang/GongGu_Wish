@@ -2035,7 +2035,6 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const { data: groupBuys } = useQuery({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
-    retry: false,
   });
 
   const reelItems = useMemo(
