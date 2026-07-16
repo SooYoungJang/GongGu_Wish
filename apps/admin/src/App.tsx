@@ -723,8 +723,11 @@ function AdminShell({ session }: { session: Session }) {
   }, [debouncedSubmissionQuery, submissionPage, submissionStatus]);
 
   const loadGroupBuys = useCallback(
-    async (options: { syncSelected?: boolean } = {}) => {
+    async (
+      options: { syncSelected?: boolean; rethrowOnError?: boolean } = {},
+    ) => {
       const syncSelected = options.syncSelected ?? true;
+      const rethrowOnError = options.rethrowOnError ?? false;
       const requestId = ++groupBuyRequestIdRef.current;
       const requestQuery = debouncedGroupBuyQuery;
       setGroupBuysLoading(true);
@@ -757,7 +760,8 @@ function AdminShell({ session }: { session: Session }) {
           requestId !== groupBuyRequestIdRef.current ||
           requestQuery !== groupBuyQueryRef.current
         )
-          return;
+          return null;
+        if (rethrowOnError) throw error;
         setNotice({
           tone: "error",
           message:
@@ -1127,7 +1131,10 @@ function AdminShell({ session }: { session: Session }) {
         groupBuyStatus,
         next.status,
       );
-      const refreshed = await loadGroupBuys({ syncSelected: false });
+      const refreshed = await loadGroupBuys({
+        syncSelected: false,
+        rethrowOnError: true,
+      });
       if (!refreshed) {
         throw new Error(
           "저장 후 공구 목록을 다시 확인하지 못했습니다. 잠시 후 다시 시도해주세요.",
