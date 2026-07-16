@@ -11,7 +11,7 @@ import type {
   PushNotificationInput,
   PushNotificationResult,
 } from "@/types";
-import { normalizePriceKrwValue } from "./priceKrw";
+import { normalizePersistedPriceKrwValue } from "./priceKrw";
 
 type AdminMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -32,6 +32,13 @@ export class AdminApiError extends Error {
     super(message);
     this.name = "AdminApiError";
     this.status = status;
+  }
+}
+
+export class AdminApiContractError extends Error {
+  constructor(message: string) {
+    super(`관리자 API 가격 계약 오류: ${message}`);
+    this.name = "AdminApiContractError";
   }
 }
 
@@ -92,31 +99,95 @@ async function requestAdmin<T>(
   return payload.data;
 }
 
-function normalizeGroupBuyResponse(groupBuy: GroupBuy): GroupBuy {
-  const raw = groupBuy as GroupBuy & {
-    price_krw?: unknown;
-    is_home_banner?: unknown;
-    home_banner_start_date?: unknown;
-    home_banner_end_date?: unknown;
-  };
-  const rawPrice = raw.priceKrw !== undefined ? raw.priceKrw : raw.price_krw;
+function hasOwn(value: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizePersistedGroupBuyPrice(raw: Record<string, unknown>) {
+  const hasCamelPrice = hasOwn(raw, "priceKrw");
+  const hasSnakePrice = hasOwn(raw, "price_krw");
+  if (!hasCamelPrice && !hasSnakePrice) {
+    throw new AdminApiContractError("priceKrw 필드가 응답에서 누락되었습니다.");
+  }
+
+  let camelPrice: number | null | undefined;
+  let snakePrice: number | null | undefined;
+  try {
+    if (hasCamelPrice) {
+      camelPrice = normalizePersistedPriceKrwValue(raw.priceKrw);
+    }
+    if (hasSnakePrice) {
+      snakePrice = normalizePersistedPriceKrwValue(raw.price_krw);
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "유효하지 않은 가격";
+    throw new AdminApiContractError(message);
+  }
+
+  if (hasCamelPrice && hasSnakePrice && camelPrice !== snakePrice) {
+    throw new AdminApiContractError(
+      "priceKrw와 price_krw가 서로 다른 값을 가리킵니다.",
+    );
+  }
+
+  return camelPrice ?? snakePrice ?? null;
+}
+
+export function normalizeGroupBuyResponse(groupBuy: unknown): GroupBuy {
+  if (!isRecord(groupBuy)) {
+    throw new AdminApiContractError("공구 응답이 객체가 아닙니다.");
+  }
+
+  const rawPrice = normalizePersistedGroupBuyPrice(groupBuy);
   const rawIsHomeBanner =
-    raw.isHomeBanner !== undefined ? raw.isHomeBanner : raw.is_home_banner;
+    groupBuy.isHomeBanner !== undefined
+      ? groupBuy.isHomeBanner
+      : groupBuy.is_home_banner;
   const rawStartDate =
-    raw.homeBannerStartDate !== undefined
-      ? raw.homeBannerStartDate
-      : raw.home_banner_start_date;
+    groupBuy.homeBannerStartDate !== undefined
+      ? groupBuy.homeBannerStartDate
+      : groupBuy.home_banner_start_date;
   const rawEndDate =
-    raw.homeBannerEndDate !== undefined
-      ? raw.homeBannerEndDate
-      : raw.home_banner_end_date;
+    groupBuy.homeBannerEndDate !== undefined
+      ? groupBuy.homeBannerEndDate
+      : groupBuy.home_banner_end_date;
+  const { price_krw: _legacyPrice, ...canonicalGroupBuy } = groupBuy;
   return {
-    ...groupBuy,
-    priceKrw: normalizePriceKrwValue(rawPrice),
+    ...canonicalGroupBuy,
+    priceKrw: rawPrice,
     isHomeBanner: rawIsHomeBanner === true,
     homeBannerStartDate: typeof rawStartDate === "string" ? rawStartDate : null,
     homeBannerEndDate: typeof rawEndDate === "string" ? rawEndDate : null,
-  };
+  } as GroupBuy;
+}
+
+function normalizeGroupBuyListResponse(
+  result: unknown,
+): ListResponse<GroupBuy> {
+  if (!isRecord(result) || !Array.isArray(result.items)) {
+    throw new AdminApiContractError(
+      "공구 목록 응답의 items가 배열이 아닙니다.",
+    );
+  }
+  if (
+    typeof result.total !== "number" ||
+    !Number.isInteger(result.total) ||
+    result.total < 0
+  ) {
+    throw new AdminApiContractError(
+      "공구 목록 응답의 total이 유효하지 않습니다.",
+    );
+  }
+
+  return {
+    ...result,
+    items: result.items.map(normalizeGroupBuyResponse),
+  } as ListResponse<GroupBuy>;
 }
 
 export const adminApi = {
@@ -172,10 +243,7 @@ export const adminApi = {
   }) {
     return requestAdmin<ListResponse<GroupBuy>>("/admin/group-buys", "GET", {
       params,
-    }).then((result) => ({
-      ...result,
-      items: result.items.map(normalizeGroupBuyResponse),
-    }));
+    }).then(normalizeGroupBuyListResponse);
   },
 
   updateGroupBuy(id: string, body: Record<string, unknown>) {

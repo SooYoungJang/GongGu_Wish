@@ -23,6 +23,16 @@ export function normalizePriceKrw(value: unknown): number | null {
   return parsed;
 }
 
+export function normalizePersistedPriceKrw(value: unknown): number | null {
+  if (value === undefined) {
+    throw new Error("price_krw is missing from the database response.");
+  }
+  if (typeof value === "string" && value.trim() === "") {
+    throw new Error("price_krw must be null or a non-negative integer.");
+  }
+  return normalizePriceKrw(value);
+}
+
 export function normalizePricePatch(
   body: Record<string, unknown>,
 ): Record<string, unknown> {
