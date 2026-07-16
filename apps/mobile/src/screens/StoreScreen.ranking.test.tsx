@@ -1,6 +1,5 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { Animated } from "react-native";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { StoreScreen } from "./StoreScreen";
@@ -70,10 +69,17 @@ vi.mock("react-native", () => {
     }
   }
 
-  const flatList = ({ data, renderItem, ListFooterComponent, ...props }: any) =>
+  const flatList = ({
+    data,
+    renderItem,
+    ListHeaderComponent,
+    ListFooterComponent,
+    ...props
+  }: any) =>
     ReactMock.createElement(
       "FlatList",
       props,
+      ListHeaderComponent,
       ...(data ?? []).map((item: unknown, index: number) =>
         renderItem({ item, index }),
       ),
@@ -179,13 +185,6 @@ function flattenStyle(style: unknown): Record<string, unknown> {
     : {};
 }
 
-function getTranslateY(style: unknown): { __getValue: () => number } {
-  const transform = flattenStyle(style).transform as Array<{
-    translateY: { __getValue: () => number };
-  }>;
-  return transform[0].translateY;
-}
-
 function createNavigation() {
   let tabPressListener: (() => void) | undefined;
   return {
@@ -225,8 +224,13 @@ describe("StoreScreen ranking redesign", () => {
       "Pressable" as unknown as React.ElementType,
     );
     expect(text).not.toContain("사람들이 많이 찾고 저장한 공구를 모았어요");
-    expect(text).not.toContain("업데이트");
+    expect(text).toContain("업데이트");
     expect(text).not.toContain("전체 랭킹");
+    expect(text).toContain("인기 공구 랭킹");
+    expect(text).toContain("최근 7일 롤링 집계");
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-basis-bar" }),
+    ).toBeTruthy();
     expect(
       pressables.filter(
         (item) => item.props.accessibilityLabel === "랭킹 검색",
@@ -242,8 +246,7 @@ describe("StoreScreen ranking redesign", () => {
     ).toHaveLength(1);
   });
 
-  it("scrolls period and sort filters away while keeping the category filter pinned", () => {
-    vi.useFakeTimers();
+  it("keeps period, sort, category, and ranking basis in one sticky header", () => {
     const navigation = createNavigation();
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -260,73 +263,37 @@ describe("StoreScreen ranking redesign", () => {
 
     act(() => {
       renderer!.root
-        .findByProps({ testID: "ranking-collapsible-filters" })
+        .findByProps({ testID: "ranking-filter-header" })
         .props.onLayout({
-          nativeEvent: { layout: { height: 90, width: 375, x: 0, y: 0 } },
-        });
-      renderer!.root
-        .findByProps({ testID: "ranking-category-filter" })
-        .props.onLayout({
-          nativeEvent: { layout: { height: 52, width: 375, x: 0, y: 0 } },
+          nativeEvent: { layout: { height: 184, width: 375, x: 0, y: 0 } },
         });
     });
 
-    const collapsible = renderer!.root.findByProps({
-      testID: "ranking-collapsible-filters",
-    });
-    const category = renderer!.root.findByProps({
-      testID: "ranking-category-filter",
+    const header = renderer!.root.findByProps({
+      testID: "ranking-filter-header",
     });
     const clip = renderer!.root.findByProps({ testID: "ranking-scroll-clip" });
-    const flatList = renderer!.root.findByType(
-      "FlatList" as unknown as React.ElementType,
-    );
-    const collapsibleTranslate = getTranslateY(collapsible.props.style);
-    const categoryTranslate = getTranslateY(category.props.style);
-
     expect(flattenStyle(clip.props.style).overflow).toBe("hidden");
     expect(
-      collapsible.findAllByProps({ accessibilityLabel: "인기 공구 정렬" })
-        .length,
+      header.findAllByProps({ testID: "ranking-basis-bar" }).length,
     ).toBeGreaterThan(0);
     expect(
-      collapsible.findAllByProps({ accessibilityLabel: "카테고리 전체 선택" }),
-    ).toHaveLength(0);
-    expect(
-      category.findAllByProps({ accessibilityLabel: "카테고리 전체 선택" })
-        .length,
+      header.findAllByProps({ accessibilityLabel: "인기 공구 정렬" }).length,
     ).toBeGreaterThan(0);
     expect(
-      category.findAllByProps({ accessibilityLabel: "인기 공구 정렬" }),
-    ).toHaveLength(0);
-    expect(collapsibleTranslate.__getValue()).toBe(0);
-    expect(categoryTranslate.__getValue()).toBe(90);
+      header.findAllByProps({ accessibilityLabel: "카테고리 전체 선택" })
+        .length,
+    ).toBeGreaterThan(0);
 
-    act(() =>
-      flatList.props.onScroll({ nativeEvent: { contentOffset: { y: 90 } } }),
-    );
-    expect(collapsibleTranslate.__getValue()).toBe(-90);
-    expect(categoryTranslate.__getValue()).toBe(0);
-
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
-    expect(collapsibleTranslate.__getValue()).toBe(-90);
-    expect(categoryTranslate.__getValue()).toBe(0);
-
-    act(() =>
-      flatList.props.onScroll({ nativeEvent: { contentOffset: { y: 0 } } }),
-    );
-    expect(collapsibleTranslate.__getValue()).toBe(0);
-    expect(categoryTranslate.__getValue()).toBe(90);
-    expect(Animated.event).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ useNativeDriver: true }),
-    );
-    expect(Animated.timing).not.toHaveBeenCalled();
+    expect(
+      flattenStyle(
+        renderer!.root.findByProps({ testID: "ranking-filter-header" }).props
+          .style,
+      ).position,
+    ).toBe("absolute");
   });
 
-  it("keeps the list inset stable while the two filter layers move", () => {
+  it("keeps the list inset stable under the unified sticky header", () => {
     const navigation = createNavigation();
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -343,14 +310,9 @@ describe("StoreScreen ranking redesign", () => {
 
     act(() => {
       renderer!.root
-        .findByProps({ testID: "ranking-collapsible-filters" })
+        .findByProps({ testID: "ranking-filter-header" })
         .props.onLayout({
-          nativeEvent: { layout: { height: 90, width: 375, x: 0, y: 0 } },
-        });
-      renderer!.root
-        .findByProps({ testID: "ranking-category-filter" })
-        .props.onLayout({
-          nativeEvent: { layout: { height: 52, width: 375, x: 0, y: 0 } },
+          nativeEvent: { layout: { height: 184, width: 375, x: 0, y: 0 } },
         });
     });
 
@@ -360,19 +322,9 @@ describe("StoreScreen ranking redesign", () => {
     const initialTopInset = flattenStyle(
       initialList.props.contentContainerStyle,
     ).paddingTop;
-    expect(initialTopInset).toBe(90 + 52 + spacing.sm);
+    expect(initialTopInset).toBe(184 + spacing.sm);
 
-    act(() =>
-      initialList.props.onScroll({
-        nativeEvent: { contentOffset: { y: 120 } },
-      }),
-    );
-    const hiddenList = renderer!.root.findByType(
-      "FlatList" as unknown as React.ElementType,
-    );
-    expect(
-      flattenStyle(hiddenList.props.contentContainerStyle).paddingTop,
-    ).toBe(initialTopInset);
+    expect(initialList.props.contentContainerStyle).toBeTruthy();
   });
 
   it("refreshes the ranking when its active GNB tab is pressed again", () => {
@@ -425,6 +377,32 @@ describe("StoreScreen ranking redesign", () => {
 
     expect(navigation.navigate).toHaveBeenCalledWith("Detail", {
       groupBuy: expect.objectContaining({ id: "group-1" }),
+    });
+  });
+
+  it("opens the seller's group-buy list from a separate accessible target", () => {
+    const navigation = createNavigation();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <StoreScreen
+            navigation={navigation as never}
+            route={{ key: "Store-test", name: "Store" } as never}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const sellerAction = renderer!.root.findByProps({
+      accessibilityLabel: "@summer.market 판매자 공구 보기",
+    });
+    act(() => sellerAction.props.onPress());
+
+    expect(navigation.navigate).toHaveBeenCalledWith("InfluencerGroupBuys", {
+      influencerUsername: "summer.market",
+      influencerDisplayName: null,
     });
   });
 });

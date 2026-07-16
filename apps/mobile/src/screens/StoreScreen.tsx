@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  Animated,
   Pressable,
   StyleSheet,
   View,
@@ -12,7 +11,11 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
-import { RankingCategoryChips, SellerRankingList } from "../components/ranking";
+import {
+  RankingBasisBar,
+  RankingCategoryChips,
+  SellerRankingList,
+} from "../components/ranking";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
 import { SText } from "../components/ui/SText";
 import { ScreenHeader } from "../components/ScreenHeader";
@@ -38,8 +41,7 @@ import type { StoreScreenProps, GroupBuy } from "../types";
 const TAB_BAR_HEIGHT = 70;
 const TAB_BAR_BOTTOM_MARGIN = spacing.lg;
 const FLOATING_TAB_RESERVED_HEIGHT = TAB_BAR_HEIGHT + TAB_BAR_BOTTOM_MARGIN;
-const DEFAULT_COLLAPSIBLE_FILTER_HEIGHT = 90;
-const DEFAULT_CATEGORY_FILTER_HEIGHT = 52;
+const DEFAULT_FILTER_HEADER_HEIGHT = 240;
 
 // 랭킹 행을 GroupBuy로 변환해 useNotifications.toggleNotification에 넘긴다.
 // startDate/endDate가 있으면 시작 1시간 전 푸시가 예약되고, 없어도 알림 항목은
@@ -77,22 +79,17 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
     useState<RankingCategory>("all");
   const [period, setPeriod] = useState<RankingPeriod>("weekly");
   const [sort, setSort] = useState<RankingSort>("popular");
-  const [collapsibleFilterHeight, setCollapsibleFilterHeight] = useState(
-    DEFAULT_COLLAPSIBLE_FILTER_HEIGHT,
+  const [filterHeaderHeight, setFilterHeaderHeight] = useState(
+    DEFAULT_FILTER_HEADER_HEIGHT,
   );
-  const measuredCollapsibleFilterHeightRef = useRef(
-    DEFAULT_COLLAPSIBLE_FILTER_HEIGHT,
-  );
-  const [categoryFilterHeight, setCategoryFilterHeight] = useState(
-    DEFAULT_CATEGORY_FILTER_HEIGHT,
-  );
-  const measuredCategoryFilterHeightRef = useRef(
-    DEFAULT_CATEGORY_FILTER_HEIGHT,
-  );
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const measuredFilterHeaderHeightRef = useRef(DEFAULT_FILTER_HEADER_HEIGHT);
   const rankingListRef = useRef<FlatList<RankingListItem>>(null);
 
   const rankingState = usePopularGroupBuys(period, selectedCategory, sort);
+  const rankingUpdatedAt =
+    rankingState.status === "ready" || rankingState.status === "empty"
+      ? rankingState.updatedAt
+      : undefined;
   const { isNotifying, getNotificationState, toggleNotification } =
     useNotifications();
 
@@ -111,14 +108,6 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
     };
   }, [getNotificationState, isNotifying, rankingState]);
 
-  const handleRankingScroll = useMemo(
-    () =>
-      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-        useNativeDriver: true,
-      }),
-    [scrollY],
-  );
-
   const handleRankingTabReselect = useCallback(() => {
     rankingListRef.current?.scrollToOffset({ offset: 0, animated: true });
     void rankingState.refresh?.();
@@ -126,41 +115,30 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
 
   useTabReselect(navigation, handleRankingTabReselect);
 
-  const collapsibleFilterTranslateY = scrollY.interpolate({
-    inputRange: [0, collapsibleFilterHeight],
-    outputRange: [0, -collapsibleFilterHeight],
-    extrapolate: "clamp",
-  });
-  const categoryFilterTranslateY = scrollY.interpolate({
-    inputRange: [0, collapsibleFilterHeight],
-    outputRange: [collapsibleFilterHeight, 0],
-    extrapolate: "clamp",
-  });
-
   const bottomPadding =
     FLOATING_TAB_RESERVED_HEIGHT + insets.bottom + spacing["2xl"];
 
-  const handleCollapsibleFilterLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      const nextHeight = Math.ceil(event.nativeEvent.layout.height);
-      if (nextHeight <= measuredCollapsibleFilterHeightRef.current) return;
-      measuredCollapsibleFilterHeightRef.current = nextHeight;
-      setCollapsibleFilterHeight(nextHeight);
-    },
-    [],
-  );
-
-  const handleCategoryFilterLayout = useCallback((event: LayoutChangeEvent) => {
+  const handleFilterHeaderLayout = useCallback((event: LayoutChangeEvent) => {
     const nextHeight = Math.ceil(event.nativeEvent.layout.height);
-    if (nextHeight <= measuredCategoryFilterHeightRef.current) return;
-    measuredCategoryFilterHeightRef.current = nextHeight;
-    setCategoryFilterHeight(nextHeight);
+    if (nextHeight === measuredFilterHeaderHeightRef.current) return;
+    measuredFilterHeaderHeightRef.current = nextHeight;
+    setFilterHeaderHeight(nextHeight);
   }, []);
 
   const handlePressSeller = useCallback(
     (item: GroupBuyRankingItem) => {
       navigation.navigate("Detail", {
         groupBuy: rankingToGroupBuy(item),
+      });
+    },
+    [navigation],
+  );
+
+  const handlePressInfluencer = useCallback(
+    (item: GroupBuyRankingItem) => {
+      navigation.navigate("InfluencerGroupBuys", {
+        influencerUsername: item.username,
+        influencerDisplayName: item.brandName,
       });
     },
     [navigation],
@@ -180,7 +158,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       <View style={s.contentShell}>
         <View style={s.header}>
           <ScreenHeader
-            title="랭킹"
+            title="인기 공구 랭킹"
             right={
               <Pressable
                 accessibilityLabel="랭킹 검색"
@@ -199,25 +177,24 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
             state={patchedRankingState}
             bottomPadding={bottomPadding}
             listRef={rankingListRef}
-            onScroll={handleRankingScroll}
             onRefresh={rankingState.refresh}
             onPressItem={handlePressSeller}
+            onPressSeller={handlePressInfluencer}
             onToggleAlert={handleToggleNotification}
-            topInset={
-              collapsibleFilterHeight + categoryFilterHeight + spacing.sm
-            }
+            topInset={filterHeaderHeight + spacing.sm}
           />
 
-          <Animated.View
-            onLayout={handleCollapsibleFilterLayout}
-            style={[
-              s.collapsibleFilterSection,
-              {
-                transform: [{ translateY: collapsibleFilterTranslateY }],
-              },
-            ]}
-            testID="ranking-collapsible-filters"
+          <View
+            onLayout={handleFilterHeaderLayout}
+            style={s.filterHeader}
+            testID="ranking-filter-header"
           >
+            <RankingBasisBar
+              category={selectedCategory}
+              period={period}
+              sort={sort}
+              updatedAt={rankingUpdatedAt}
+            />
             <View accessibilityRole="tablist" style={s.periodRow}>
               {(["today", "weekly", "monthly"] as const).map((nextPeriod) => {
                 const selected = nextPeriod === period;
@@ -249,18 +226,6 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
               onChange={setSelectedCategory}
               onChangeSort={setSort}
             />
-          </Animated.View>
-
-          <Animated.View
-            onLayout={handleCategoryFilterLayout}
-            style={[
-              s.categoryFilterSection,
-              {
-                transform: [{ translateY: categoryFilterTranslateY }],
-              },
-            ]}
-            testID="ranking-category-filter"
-          >
             <RankingCategoryChips
               mode="category"
               value={selectedCategory}
@@ -269,7 +234,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
               onChange={setSelectedCategory}
               onChangeSort={setSort}
             />
-          </Animated.View>
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -284,26 +249,17 @@ function makeStyles(colors: CommerceColorPalette) {
       maxWidth: 720,
       width: "100%",
     },
-    categoryFilterSection: {
+    filterHeader: {
       backgroundColor: colors.bg,
       borderBottomColor: colors.divider,
       borderBottomWidth: 1,
       left: 0,
-      paddingVertical: spacing.sm,
+      paddingBottom: spacing.sm,
+      paddingTop: spacing.sm,
       position: "absolute",
       right: 0,
       top: 0,
       zIndex: 3,
-    },
-    collapsibleFilterSection: {
-      backgroundColor: colors.bg,
-      gap: spacing.sm,
-      left: 0,
-      paddingBottom: spacing.sm,
-      position: "absolute",
-      right: 0,
-      top: 0,
-      zIndex: 2,
     },
     header: {
       backgroundColor: colors.bg,

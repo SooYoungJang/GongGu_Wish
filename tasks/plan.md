@@ -1,4 +1,4 @@
-# Implementation Plan: 관리자 실시간 앱 프리뷰
+# Implementation Plan: 관리자 상세 실시간 앱 프리뷰
 
 ## Overview
 
@@ -48,14 +48,35 @@ DB/API 계약을 additive 방식으로 확장한 뒤 Hiker 자동 추론과 홈 
 
 ## Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| 새 boolean 기본값 때문에 기존 홈 배너가 사라짐 | High | 기존 승인·활성 행을 현재 공구 기간으로 backfill |
-| 날짜의 시간대 경계에서 하루 일찍 종료 | High | date-only 로컬 비교와 inclusive 종료일 테스트 |
-| Hiker 휴리스틱이 잘못된 값을 덮어씀 | Medium | 기존 관리자 입력은 보존하고 빈 값만 자동 채움 |
-| 웹 프리뷰와 앱 카피가 어긋남 | Medium | 앱의 실제 우선순위와 가격/상태 규칙을 테스트 사례로 복제 |
-| DB column drop이 롤백을 어렵게 함 | High | 이번 변경은 additive-only, legacy 컬럼 drop 금지 |
+| Risk                                           | Impact | Mitigation                                               |
+| ---------------------------------------------- | ------ | -------------------------------------------------------- |
+| 새 boolean 기본값 때문에 기존 홈 배너가 사라짐 | High   | 기존 승인·활성 행을 현재 공구 기간으로 backfill          |
+| 날짜의 시간대 경계에서 하루 일찍 종료          | High   | date-only 로컬 비교와 inclusive 종료일 테스트            |
+| Hiker 휴리스틱이 잘못된 값을 덮어씀            | Medium | 기존 관리자 입력은 보존하고 빈 값만 자동 채움            |
+| 웹 프리뷰와 앱 카피가 어긋남                   | Medium | 앱의 실제 우선순위와 가격/상태 규칙을 테스트 사례로 복제 |
+| DB column drop이 롤백을 어렵게 함              | High   | 이번 변경은 additive-only, legacy 컬럼 drop 금지         |
 
 ## Open Questions
 
 - 없음.
+
+## GON-260 Implementation Plan: 랭킹 UI 리디자인
+
+GON-258에서 확정한 공구 랭킹 계약과 GON-259의 공구 알림 상태를 기존 모바일 랭킹 화면에 연결한다. 화면 제목과 집계 설명을 명확히 하고, 상위 1위 hero·2~3위 compact·4위 이후 일반 목록을 분리하며, 필터 영역과 각 클릭 목적지의 접근성 경계를 보강한다.
+
+### Decisions
+
+- 기존 `usePopularGroupBuys`, `GroupBuyAlertButton`, detail/seller navigation 계약을 재사용한다.
+- `StoreScreen`은 orchestration만 담당하고 순위별 presentation은 ranking component로 분리한다.
+- 필터의 서버 요청 상태와 시각적 basis를 같은 값에서 만들고, 측정된 sticky header 높이로 목록 inset을 유지한다.
+- 가격·상품명·이미지가 누락된 공구도 기존 보수적인 fallback을 사용한다.
+
+### Tasks
+
+- [x] 기존 랭킹 컴포넌트·StoreScreen 흐름과 의존성 확인
+- [x] 상위 1~3위 grouping/label/click target 회귀 테스트 작성
+- [x] 상위 3위 hero/compact presentation 구현
+- [x] 4위 이후 목록·집계 설명·sticky filter header 연결
+- [x] null 가격·미디어 fallback·접근성 target 자동 검증
+- [x] workspace test/typecheck/build/lint 실행
+- [ ] 코드 리뷰 및 Linear/wiki/PR/CI/main 동기화
