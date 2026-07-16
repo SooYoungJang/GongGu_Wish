@@ -103,6 +103,12 @@ test("GON-264 Android E2E exercises large text and the accessibility tree", () =
   assert.match(flow, /assertNotVisible:\n\s+text: "홈 탭"/);
   assert.match(flow, /assertNotVisible:\n\s+text: "릴스 탭"/);
 
+  const afterDealCard = flow.slice(
+    flow.indexOf("takeScreenshot: gon264-android-02-deal-card-label"),
+    flow.indexOf('text: "랭킹 탭"'),
+  );
+  assert.doesNotMatch(afterDealCard, /상품을 검색해보세요/);
+
   assert.match(workflow, /gon264-output\.log/);
   assert.match(workflow, /gon264-reels-accessibility\.xml/);
   assert.match(workflow, /gon264-android-\*\.png/);

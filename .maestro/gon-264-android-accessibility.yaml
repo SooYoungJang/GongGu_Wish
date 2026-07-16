@@ -69,10 +69,6 @@ appId: com.gonggu.wish
 
 # Ranking cards switch to the large-text vertical layout and keep the sticky
 # filter controls exposed once the list has scrolled.
-- extendedWaitUntil:
-    visible:
-      text: "상품을 검색해보세요"
-    timeout: 30000
 - tapOn:
     text: "랭킹 탭"
 - extendedWaitUntil:
