@@ -1,0 +1,96 @@
+appId: com.gonggu.wish
+---
+# GON-263: Reels remains bounded and responsive across overlay Back,
+# 100 vertical swipes, background/resume, and tab-root Android Back.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "상품을 검색해보세요"
+    timeout: 60000
+- tapOn:
+    text: "릴스 탭"
+- extendedWaitUntil:
+    visible:
+      text: "릴스 탭"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      text: "요약 자세히 보기"
+    timeout: 30000
+- takeScreenshot: gon263-reels-01-opened
+
+# Overlay Back is consumed before the tab-root handler.
+- tapOn:
+    text: "요약 자세히 보기"
+- extendedWaitUntil:
+    visible:
+      text: "요약 닫기"
+    timeout: 10000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "요약 닫기"
+- assertNotVisible:
+    text: "요약 닫기"
+- assertVisible:
+    text: "릴스 탭"
+
+# Stress the bounded pager window and native video lifecycle.
+- repeat:
+    times: 100
+    commands:
+      - swipe:
+          start: 50%,55%
+          end: 50%,15%
+          duration: 200
+          waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- assertNotVisible:
+    text: "요약 닫기"
+- assertVisible:
+    text: "릴스 탭"
+- extendedWaitUntil:
+    visible:
+      text: "요약 자세히 보기"
+    timeout: 30000
+- takeScreenshot: gon263-reels-02-after-100-swipes
+
+# Exercise AppState background -> active without restarting the process.
+- pressKey: home
+- launchApp:
+    stopApp: false
+- waitForAnimationToEnd
+- assertVisible:
+    text: "릴스 탭"
+- extendedWaitUntil:
+    visible:
+      text: "요약 자세히 보기"
+    timeout: 30000
+- takeScreenshot: gon263-reels-03-background-resume
+
+# Android hardware Back at a non-home tab returns to Home. iOS uses the GNB.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "홈 탭"
+- extendedWaitUntil:
+    visible:
+      text: "상품을 검색해보세요"
+    timeout: 30000
+- takeScreenshot: gon263-reels-04-hardware-back-home

@@ -50,12 +50,12 @@
 ## GON-263 체크리스트
 
 - [x] `EXPO_PUBLIC_SUPABASE_URL`이 PostgREST/Auth/Edge에 동일하게 적용됨
-- [ ] `priceKrw=200000`이 Admin save → DB → Admin list → public mobile 응답에서 보존됨
-- [ ] `isHomeBanner=false` 저장 후 preview/RN home 공개 응답에서 노출되지 않음
-- [ ] 랭킹 category/sort/period/cursor가 실제 RPC와 Edge 응답에서 일치함
-- [ ] 알림 권한 거부·예약 실패·빠른 중복 탭 회귀가 자동 검증됨
-- [ ] 랭킹 → 마이 → 상세와 홈 → 캘린더 → 상세가 canonical id/data를 유지함
-- [ ] Reels blur/background/hardware back/100 swipes와 sheet 우선 닫기가 재현됨
-- [ ] empty/error/stale 경로가 mock fallback으로 바뀌지 않음
+- [x] `priceKrw=200000`이 Admin save → DB → Admin list → public mobile 응답에서 보존됨
+- [x] `isHomeBanner=false` 저장 후 preview/RN home 공개 응답에서 노출되지 않음
+- [x] 랭킹 category/sort/period/cursor가 실제 RPC와 Edge 응답에서 일치함
+- [x] 알림 권한 거부·예약 실패·빠른 중복 탭 회귀가 자동 검증됨
+- [x] 랭킹 → 마이 → 상세와 홈 → 캘린더 → 상세가 canonical id/data를 유지함
+- [x] Reels blur/background/hardware back/100 swipes와 sheet 우선 닫기가 재현됨
+- [x] empty/error/stale 경로가 mock fallback으로 바뀌지 않음
 - [ ] CI 로그가 실패 계층을 식별하고 Android E2E 증거가 위키에 인라인 기록됨
 - [ ] 전체 게이트·PR CI·merge·main CI·로컬 main 동기화 완료
