@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AppState,
   Platform,
   StatusBar,
   StyleSheet,
@@ -9,7 +8,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { useQuery } from "@tanstack/react-query";
 import PagerView from "react-native-pager-view";
@@ -17,6 +16,7 @@ import PagerView from "react-native-pager-view";
 import { fetchGroupBuys } from "../api";
 import { logDeepView } from "../api";
 import { useRecentViews } from "../hooks/useLocalDeals";
+import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useTabReselect } from "../hooks/useTabReselect";
 import { useTheme } from "../context/ThemeContext";
 import type { GroupBuy, MainTabParamList } from "../types";
@@ -77,34 +77,19 @@ export function ReelsScreen({
     isOpen: false,
     canSwipeReel: true,
   });
-  const [isTabFocused, setTabFocused] = useState(true);
-  const [isAppActive, setAppActive] = useState(
-    AppState.currentState === "active",
-  );
+  const {
+    isScreenFocused: isTabFocused,
+    isAppActive,
+    isAppFocused,
+    isPlaybackActive,
+  } = usePlaybackLifecycle();
   const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
   const [isReelsMuted, setReelsMuted] = useState(false);
   const { recordView } = useRecentViews();
 
   useEffect(() => {
-    const subscription = AppState.addEventListener("change", (nextState) => {
-      setAppActive(nextState === "active");
-    });
-
-    return () => subscription.remove();
-  }, []);
-
-  const isPlaybackActive = isTabFocused && isAppActive;
-
-  useEffect(() => {
     onSheetVisibilityChange?.(summarySheetGate.isOpen);
   }, [onSheetVisibilityChange, summarySheetGate.isOpen]);
-
-  useFocusEffect(
-    useCallback(() => {
-      setTabFocused(true);
-      return () => setTabFocused(false);
-    }, []),
-  );
 
   const { data, isError, isLoading } = useQuery({
     queryKey: ["group-buys"],
@@ -150,7 +135,7 @@ export function ReelsScreen({
   );
   useEffect(() => {
     setActivePlayerPlaying(false);
-  }, [activeReelItem?.id, isAppActive, isTabFocused, summarySheetGate.isOpen]);
+  }, [activeReelItem?.id, isPlaybackActive, summarySheetGate.isOpen]);
   const lastRecordedIdRef = useRef<string | null>(null);
   useEffect(() => {
     const item = isPlaybackActive ? activeReelItem : undefined;
@@ -171,7 +156,7 @@ export function ReelsScreen({
     }
     const playbackEligible = isPlaybackEligible({
       screenFocused: isTabFocused,
-      appActive: isAppActive,
+      appActive: isAppActive && isAppFocused,
       overlayOpen: summarySheetGate.isOpen,
       playerPlaying: isActivePlayerPlaying,
       hasPlayableMedia: hasPlayableActiveMedia,
@@ -195,6 +180,7 @@ export function ReelsScreen({
     hasPlayableActiveMedia,
     isActivePlayerPlaying,
     isAppActive,
+    isAppFocused,
     isTabFocused,
     summarySheetGate.isOpen,
   ]);

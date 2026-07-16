@@ -12,6 +12,11 @@ const appStateMock = vi.hoisted(() => ({
 const focusMock = vi.hoisted(() => ({
   blur: null as null | (() => void),
 }));
+const playbackLifecycleMock = vi.hoisted(() => ({
+  isScreenFocused: true,
+  isAppActive: true,
+  isAppFocused: true,
+}));
 
 const recordViewMock = vi.hoisted(() => vi.fn());
 const logDeepViewMock = vi.hoisted(() => vi.fn());
@@ -97,6 +102,16 @@ vi.mock("../hooks/useLocalDeals", () => ({
   useRecentViews: () => ({ recordView: recordViewMock }),
 }));
 
+vi.mock("../hooks/usePlaybackLifecycle", () => ({
+  usePlaybackLifecycle: () => ({
+    ...playbackLifecycleMock,
+    isPlaybackActive:
+      playbackLifecycleMock.isScreenFocused &&
+      playbackLifecycleMock.isAppActive &&
+      playbackLifecycleMock.isAppFocused,
+  }),
+}));
+
 vi.mock("../hooks/useTabReselect", () => ({
   useTabReselect: vi.fn(),
 }));
@@ -138,16 +153,20 @@ describe("ReelsScreen player lifecycle", () => {
     appStateMock.currentState = "active";
     appStateMock.listener = null;
     focusMock.blur = null;
+    playbackLifecycleMock.isScreenFocused = true;
+    playbackLifecycleMock.isAppActive = true;
+    playbackLifecycleMock.isAppFocused = true;
     recordViewMock.mockClear();
     logDeepViewMock.mockReset();
     logDeepViewMock.mockResolvedValue(undefined);
   });
 
-  it("keeps the preloader mounted while backgrounded, but releases it after leaving Reels", () => {
+  it("pauses for Android blur or background and releases the preloader after leaving Reels", () => {
     let renderer: TestRenderer.ReactTestRenderer;
+    const renderScreen = () => <ReelsScreen />;
 
     act(() => {
-      renderer = TestRenderer.create(<ReelsScreen />);
+      renderer = TestRenderer.create(renderScreen());
     });
 
     const findPreloaders = () =>
@@ -158,22 +177,34 @@ describe("ReelsScreen player lifecycle", () => {
     expect(findPreloaders()).toHaveLength(1);
     expect(findPreloaders()[0]?.props.enabled).toBe(true);
 
+    playbackLifecycleMock.isAppFocused = false;
     act(() => {
-      appStateMock.listener?.("background");
+      renderer!.update(renderScreen());
     });
 
     expect(findPreloaders()).toHaveLength(1);
     expect(findPreloaders()[0]?.props.enabled).toBe(false);
 
+    playbackLifecycleMock.isAppFocused = true;
     act(() => {
-      appStateMock.listener?.("active");
+      renderer!.update(renderScreen());
     });
 
     expect(findPreloaders()).toHaveLength(1);
     expect(findPreloaders()[0]?.props.enabled).toBe(true);
 
+    playbackLifecycleMock.isAppActive = false;
+    playbackLifecycleMock.isAppFocused = false;
     act(() => {
-      focusMock.blur?.();
+      renderer!.update(renderScreen());
+    });
+
+    expect(findPreloaders()).toHaveLength(1);
+    expect(findPreloaders()[0]?.props.enabled).toBe(false);
+
+    playbackLifecycleMock.isScreenFocused = false;
+    act(() => {
+      renderer!.update(renderScreen());
     });
 
     expect(findPreloaders()).toHaveLength(0);

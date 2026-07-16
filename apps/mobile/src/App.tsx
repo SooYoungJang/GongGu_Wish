@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, StatusBar, StyleSheet, ToastAndroid, useWindowDimensions, View, LogBox } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as SystemUI from 'expo-system-ui';
@@ -18,6 +18,10 @@ import { configureSupabase } from './lib/supabase';
 import { registerForPushNotifications, requestNotificationPermissions } from './services/notifications';
 import { BackButton } from './components/BackButton';
 import { getCommerceColors } from './design/commerce';
+import {
+  decideMainTabsBack,
+  useFocusedAndroidBackHandler,
+} from './navigation/androidBack';
 
 // Initialize PostgREST client with the Supabase anon key
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -148,32 +152,28 @@ function MainTabs() {
   const activeTabNameRef = useRef<keyof MainTabParamList>('Home');
   const lastHomeBackPressAtRef = useRef(0);
 
-  // Android back button: if the user is on a non-Home tab, move to Home
-  // instead of exiting the app. On Home, require a second back press while the
-  // toast is visible before exiting.
-  // MainTabs is a stack screen, so this handler unmounts while a detail or
-  // other stack screen is pushed on top, avoiding conflicts with those.
-  useEffect(() => {
-    if (isIOS) return undefined;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (activeTabNameRef.current !== 'Home') {
-        lastHomeBackPressAtRef.current = 0;
-        navigation.navigate('MainTabs', { screen: 'Home' });
-        return true;
-      }
+  // This listener exists only while MainTabs is the focused root stack screen.
+  // Stack children and native modals therefore get the first chance to pop or
+  // dismiss before tab-root behavior is considered.
+  const handleAndroidBack = useCallback(() => {
+    const decision = decideMainTabsBack(
+      activeTabNameRef.current,
+      lastHomeBackPressAtRef.current,
+      Date.now(),
+      EXIT_BACK_PRESS_WINDOW_MS,
+    );
+    lastHomeBackPressAtRef.current = decision.nextHomeBackPressAt;
 
-      const now = Date.now();
-      if (now - lastHomeBackPressAtRef.current <= EXIT_BACK_PRESS_WINDOW_MS) {
-        BackHandler.exitApp();
-        return true;
-      }
-
-      lastHomeBackPressAtRef.current = now;
+    if (decision.action === 'navigate-home') {
+      navigation.navigate('MainTabs', { screen: 'Home' });
+    } else if (decision.action === 'exit-app') {
+      BackHandler.exitApp();
+    } else {
       ToastAndroid.show('종료하려면 다시 누르세요', ToastAndroid.SHORT);
-      return true;
-    });
-    return () => subscription.remove();
-  }, [isIOS, navigation]);
+    }
+    return true;
+  }, [navigation]);
+  useFocusedAndroidBackHandler(handleAndroidBack, !isIOS);
 
   return (
     <Tab.Navigator
