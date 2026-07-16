@@ -464,7 +464,7 @@ export async function syncBookmark(
 export async function syncNotification(
   groupBuyId: string,
   enabled: boolean,
-): Promise<void> {
+): Promise<boolean> {
   try {
     const { getSessionId } = await import("./utils/session");
     const sessionId = await getSessionId();
@@ -472,7 +472,7 @@ export async function syncNotification(
       await postgrestFetch("group_buy_notifications", {
         method: "POST",
         body: { group_buy_id: groupBuyId, session_id: sessionId },
-        prefer: "return=minimal",
+        prefer: "resolution=merge-duplicates,return=minimal",
       });
     } else {
       await postgrestFetch(
@@ -480,11 +480,13 @@ export async function syncNotification(
         { method: "DELETE" },
       );
     }
+    return true;
   } catch (error) {
     console.log(
-      "[Popularity] sync notification failed:",
+      "[Notification] sync notification failed:",
       error instanceof Error ? error.message : String(error),
     );
+    return false;
   }
 }
 

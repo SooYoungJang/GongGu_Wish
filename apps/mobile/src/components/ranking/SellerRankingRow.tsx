@@ -14,7 +14,7 @@ import type {
   RankingListItem,
 } from "../../features/ranking/types";
 import { formatCompactCount } from "../../features/ranking/types";
-import { FollowButton } from "./FollowButton";
+import { GroupBuyAlertButton } from "./FollowButton";
 import { RankBadge } from "./RankBadge";
 import { RankingTrendBadge } from "./RankingTrendBadge";
 import { ThumbnailStrip } from "./ThumbnailStrip";
@@ -22,13 +22,13 @@ import { ThumbnailStrip } from "./ThumbnailStrip";
 export interface SellerRankingRowProps {
   item: RankingListItem;
   onPress: (item: GroupBuyRankingItem) => void;
-  onToggleFollow: (item: GroupBuyRankingItem) => void;
+  onToggleAlert: (item: GroupBuyRankingItem) => void;
 }
 
 export function SellerRankingRow({
   item,
   onPress,
-  onToggleFollow,
+  onToggleAlert,
 }: SellerRankingRowProps) {
   const { colors, isDark } = useCommerceTheme();
   const { width } = useWindowDimensions();
@@ -41,7 +41,13 @@ export function SellerRankingRow({
   const notificationCount = formatCompactCount(item.metrics.notifications);
   const popularityScore = Math.round(item.metrics.score);
   const thumbnails = item.thumbnailUrl
-    ? [{ id: `${item.groupBuyId}-thumbnail`, imageUrl: item.thumbnailUrl, label: displayName }]
+    ? [
+        {
+          id: `${item.groupBuyId}-thumbnail`,
+          imageUrl: item.thumbnailUrl,
+          label: displayName,
+        },
+      ]
     : item.mediaUrls.slice(0, 3).map((imageUrl, index) => ({
         id: `${item.groupBuyId}-media-${index}`,
         imageUrl,
@@ -50,9 +56,9 @@ export function SellerRankingRow({
   const accessibilityLabel = `${item.rank}위 ${displayName}, 조회 ${viewCount}, 저장 ${savedCount}`;
 
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
-  const handleToggleFollow = useCallback(
-    () => onToggleFollow(item),
-    [item, onToggleFollow],
+  const handleToggleAlert = useCallback(
+    () => onToggleAlert(item),
+    [item, onToggleAlert],
   );
 
   return (
@@ -110,10 +116,11 @@ export function SellerRankingRow({
       </Pressable>
 
       <View style={s.actionColumn}>
-        <FollowButton
-          isFollowing={item.isNotifying ?? false}
-          sellerName={displayName}
-          onFollow={handleToggleFollow}
+        <GroupBuyAlertButton
+          groupBuyName={displayName}
+          isEnabled={item.isNotifying ?? false}
+          notificationState={item.notificationState}
+          onPress={handleToggleAlert}
         />
       </View>
     </View>

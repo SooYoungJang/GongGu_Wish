@@ -5,15 +5,15 @@ import React, {
   useEffect,
   useMemo,
   useState,
-} from 'react';
-import type { AuthError, Session, User } from '@supabase/supabase-js';
-import { Linking } from 'react-native';
+} from "react";
+import type { AuthError, Session, User } from "@supabase/supabase-js";
+import { Linking } from "react-native";
 
-import { getSupabase } from '../lib/supabase';
-import { setAuthToken, clearAuthToken } from '../utils/auth';
-import type { SocialAuthProvider } from '../utils/authHelpers';
+import { getSupabase } from "../lib/supabase";
+import { setAuthToken, clearAuthToken } from "../utils/auth";
+import type { SocialAuthProvider } from "../utils/authHelpers";
 
-export const AUTH_REDIRECT_URL = 'gongguwish://auth/callback';
+export const AUTH_REDIRECT_URL = "gongguwish://auth/callback";
 export const EMAIL_CODE_TTL_SECONDS = 5 * 60;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -58,17 +58,19 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 function getAuthCodeFromUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
-    const searchCode = parsed.searchParams.get('code');
+    const searchCode = parsed.searchParams.get("code");
     if (searchCode) return searchCode;
 
-    const hash = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : parsed.hash;
+    const hash = parsed.hash.startsWith("#")
+      ? parsed.hash.slice(1)
+      : parsed.hash;
     const hashParams = new URLSearchParams(hash);
-    return hashParams.get('code');
+    return hashParams.get("code");
   } catch {
-    const [, query = ''] = url.split('?');
-    const [queryPart, hashPart = ''] = query.split('#');
+    const [, query = ""] = url.split("?");
+    const [queryPart, hashPart = ""] = query.split("#");
     const params = new URLSearchParams(queryPart || hashPart);
-    return params.get('code');
+    return params.get("code");
   }
 }
 
@@ -90,16 +92,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const handleAuthCallbackUrl = useCallback(async (url: string) => {
-    const code = getAuthCodeFromUrl(url);
-    if (!code) return;
+  const handleAuthCallbackUrl = useCallback(
+    async (url: string) => {
+      const code = getAuthCodeFromUrl(url);
+      if (!code) return;
 
-    const supabase = getSupabase();
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      applySession(data.session);
-    }
-  }, [applySession]);
+      const supabase = getSupabase();
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      if (!error) {
+        applySession(data.session);
+      }
+    },
+    [applySession],
+  );
 
   // Restore session on mount
   useEffect(() => {
@@ -131,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {});
 
-    const subscription = Linking.addEventListener('url', ({ url }) => {
+    const subscription = Linking.addEventListener("url", ({ url }) => {
       handleAuthCallbackUrl(url).catch(() => {});
     });
 
@@ -191,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (email: string): Promise<AuthError | null> => {
       const supabase = getSupabase();
       const { error } = await supabase.auth.resend({
-        type: 'signup',
+        type: "signup",
         email,
         options: {
           emailRedirectTo: AUTH_REDIRECT_URL,
@@ -208,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token,
-        type: 'email',
+        type: "email",
       });
       if (!error) {
         applySession(data.session);
@@ -299,7 +304,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return ctx;
+}
+
+/** Returns auth state when mounted under AuthProvider, otherwise guest scope. */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
 }

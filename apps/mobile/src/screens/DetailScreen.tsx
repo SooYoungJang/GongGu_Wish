@@ -790,7 +790,41 @@ export function ProductReelPage({
     useState(0);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
   const { isBookmarked, toggleBookmark } = useBookmarks();
-  const { isNotifying, toggleNotification } = useNotifications();
+  const {
+    getNotificationState,
+    isNotifying,
+    retryNotification,
+    toggleNotification,
+  } = useNotifications();
+  const notificationState = getNotificationState(groupBuy.id);
+  const notificationEnabled = isNotifying(groupBuy.id);
+  const notificationLabel =
+    notificationState.status === "pending"
+      ? "알림 처리 중"
+      : notificationState.status === "failed"
+        ? "알림 재시도"
+        : notificationState.status === "unsupported" ||
+            notificationState.status === "unavailable"
+          ? "알림 설정 불가"
+          : notificationEnabled
+            ? "알림설정됨"
+            : "알림";
+  const handleNotificationPress = useCallback(() => {
+    if (
+      notificationState.status === "failed" ||
+      notificationState.status === "unsupported" ||
+      notificationState.status === "unavailable"
+    ) {
+      void retryNotification(groupBuy);
+      return;
+    }
+    void toggleNotification(groupBuy);
+  }, [
+    groupBuy,
+    notificationState.status,
+    retryNotification,
+    toggleNotification,
+  ]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
@@ -1588,16 +1622,16 @@ export function ProductReelPage({
             icon={
               <Ionicons
                 name={
-                  isNotifying(groupBuy.id)
+                  notificationEnabled
                     ? "notifications"
                     : "notifications-outline"
                 }
                 size={26}
-                color={isNotifying(groupBuy.id) ? colors.accent : "#FFFFFF"}
+                color={notificationEnabled ? colors.accent : "#FFFFFF"}
               />
             }
-            label={isNotifying(groupBuy.id) ? "알림설정됨" : "알림"}
-            onPress={() => toggleNotification(groupBuy)}
+            label={notificationLabel}
+            onPress={handleNotificationPress}
             s={s}
           />
           <ReelPurchaseAction onPress={handleOpenLink} s={s} />
