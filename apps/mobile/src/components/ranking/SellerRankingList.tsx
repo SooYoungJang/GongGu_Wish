@@ -23,14 +23,18 @@ import type {
   RankingListItem,
   RankingLoadState,
 } from "../../features/ranking/types";
+import { RankingTopThree } from "./RankingTopThree";
 import { SellerRankingRow } from "./SellerRankingRow";
+
+type RankingItemAction = (...args: [GroupBuyRankingItem]) => void;
 
 export interface SellerRankingListProps {
   state: RankingLoadState;
   bottomPadding?: number;
   onRefresh?: () => void;
-  onPressItem?: (item: GroupBuyRankingItem) => void;
-  onToggleAlert?: (item: GroupBuyRankingItem) => void;
+  onPressItem?: RankingItemAction;
+  onPressSeller?: RankingItemAction;
+  onToggleAlert?: RankingItemAction;
   topInset?: number;
   onScroll?: FlatListProps<RankingListItem>["onScroll"];
   listRef?: Ref<FlatList<RankingListItem>>;
@@ -43,6 +47,7 @@ export function SellerRankingList({
   bottomPadding = 0,
   onRefresh,
   onPressItem,
+  onPressSeller,
   onToggleAlert,
   onScroll,
   listRef,
@@ -59,10 +64,11 @@ export function SellerRankingList({
       <SellerRankingRow
         item={item}
         onPress={onPressItem ?? NOOP}
+        onPressSeller={onPressSeller}
         onToggleAlert={onToggleAlert ?? NOOP}
       />
     ),
-    [onPressItem, onToggleAlert],
+    [onPressItem, onPressSeller, onToggleAlert],
   );
   if (state.status === "loading") {
     return (
@@ -116,14 +122,31 @@ export function SellerRankingList({
     );
   }
 
+  const topThree = state.data.filter(
+    (item) => item.rank >= 1 && item.rank <= 3,
+  );
+  const remainingItems = state.data.filter(
+    (item) => item.rank < 1 || item.rank > 3,
+  );
+
   return (
     <Animated.FlatList
       accessibilityLabel="공구 랭킹 목록"
       accessibilityRole="list"
       alwaysBounceVertical={false}
       contentContainerStyle={contentContainerStyle}
-      data={state.data}
+      data={remainingItems}
       keyExtractor={(item) => item.groupBuyId}
+      ListHeaderComponent={
+        topThree.length > 0 ? (
+          <RankingTopThree
+            items={topThree}
+            onPress={onPressItem ?? NOOP}
+            onPressSeller={onPressSeller}
+            onToggleAlert={onToggleAlert ?? NOOP}
+          />
+        ) : null
+      }
       ListFooterComponent={<View style={{ height: bottomPadding }} />}
       ref={listRef}
       onScroll={onScroll}

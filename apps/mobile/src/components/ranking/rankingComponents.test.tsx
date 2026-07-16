@@ -24,12 +24,14 @@ vi.mock("react-native", () => {
     data,
     renderItem,
     ItemSeparatorComponent,
+    ListHeaderComponent,
     ListFooterComponent,
     ...props
   }: any) =>
     ReactMock.createElement(
       "FlatList",
       props,
+      ListHeaderComponent,
       ...(data ?? []).flatMap((item: unknown, index: number) => [
         renderItem({ item, index }),
         ItemSeparatorComponent
@@ -372,6 +374,36 @@ describe("ranking components", () => {
     expect(onToggleFollow).toHaveBeenCalledWith(item);
   });
 
+  it("keeps an ordinary row seller action separate from the detail action", () => {
+    const item = sampleRanking({
+      groupBuyId: "group-seller-target",
+      rank: 4,
+      username: "ordinary.seller",
+    });
+    const onPressSeller = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingRow
+            item={item}
+            onPress={vi.fn()}
+            onPressSeller={onPressSeller}
+            onToggleAlert={vi.fn()}
+          />,
+        ),
+      );
+    });
+
+    const sellerAction = renderer!.root.findByProps({
+      accessibilityLabel: "@ordinary.seller 판매자 공구 보기",
+    });
+    act(() => sellerAction.props.onPress());
+
+    expect(onPressSeller).toHaveBeenCalledWith(item);
+  });
+
   it("shows the actual popularity metrics instead of a misleading deal count", () => {
     const item = sampleRanking({
       priceKrw: 25900,
@@ -407,7 +439,7 @@ describe("ranking components", () => {
   });
 
   it("uses the same rounded card surface for every ranking row", () => {
-    const rankings = [1, 2, 3, 4].map((rank) =>
+    const rankings = [4, 5, 6, 7].map((rank) =>
       sampleRanking({ groupBuyId: `group-${rank}`, rank }),
     );
     let renderer: TestRenderer.ReactTestRenderer;
@@ -420,7 +452,7 @@ describe("ranking components", () => {
       );
     });
 
-    for (const rank of [1, 2, 3, 4]) {
+    for (const rank of [4, 5, 6, 7]) {
       const row = renderer!.root.findByProps({ testID: `ranking-row-${rank}` });
       const style = flattenStyle(row.props.style);
 

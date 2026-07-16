@@ -36,3 +36,13 @@
 - [x] 독립 review와 후속 재검토 통과
 - [ ] commit, push, PR, CI, merge, local main fast-forward
 - Verify: repo-wide 영향 테스트와 CI
+
+## GON-260 체크리스트
+
+- [x] 랭킹 관련 기존 컴포넌트와 `StoreScreen` 흐름 확인
+- [x] 상위 1~3위 grouping/label/click target 회귀 테스트 작성
+- [x] 상위 3위 hero/compact presentation 구현
+- [x] 4위 이후 목록·집계 설명·sticky filter header 연결
+- [ ] 좁은 화면·긴 상품명·null 가격·접근성 검증
+- [ ] workspace test/typecheck/build/lint 실행
+- [ ] 코드 리뷰 및 Linear/wiki/PR/CI/main 동기화

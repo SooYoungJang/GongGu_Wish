@@ -96,9 +96,9 @@ function makeStyles(colors: CommerceColorPalette) {
       alignItems: "center",
       borderRadius: commerceRadius.full,
       borderWidth: 1,
-      height: 40,
+      height: 44,
       justifyContent: "center",
-      width: 40,
+      width: 44,
     },
     followButton: {
       backgroundColor: "transparent",

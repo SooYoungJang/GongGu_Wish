@@ -19,15 +19,19 @@ import { RankBadge } from "./RankBadge";
 import { RankingTrendBadge } from "./RankingTrendBadge";
 import { ThumbnailStrip } from "./ThumbnailStrip";
 
+type RankingItemAction = (...args: [GroupBuyRankingItem]) => void;
+
 export interface SellerRankingRowProps {
   item: RankingListItem;
-  onPress: (item: GroupBuyRankingItem) => void;
-  onToggleAlert: (item: GroupBuyRankingItem) => void;
+  onPress: RankingItemAction;
+  onPressSeller?: RankingItemAction;
+  onToggleAlert: RankingItemAction;
 }
 
 export function SellerRankingRow({
   item,
   onPress,
+  onPressSeller,
   onToggleAlert,
 }: SellerRankingRowProps) {
   const { colors, isDark } = useCommerceTheme();
@@ -63,65 +67,83 @@ export function SellerRankingRow({
 
   return (
     <View testID={`ranking-row-${item.rank}`} style={[s.row, s.cardRow]}>
-      <Pressable
-        accessibilityHint="공구 상세 보기"
-        accessibilityLabel={accessibilityLabel}
-        accessibilityRole="button"
-        onPress={handlePress}
-        style={({ pressed }) => [s.mainAction, pressed && s.pressed]}
-      >
-        <View style={s.rankColumn}>
-          <RankBadge rank={item.rank} />
-          <RankingTrendBadge trend={item.trend} />
-        </View>
+      <View style={s.mainRow}>
+        <Pressable
+          accessibilityHint="공구 상세 보기"
+          accessibilityLabel={accessibilityLabel}
+          accessibilityRole="button"
+          onPress={handlePress}
+          style={({ pressed }) => [s.mainAction, pressed && s.pressed]}
+        >
+          <View style={s.rankColumn}>
+            <RankBadge rank={item.rank} />
+            <RankingTrendBadge trend={item.trend} />
+          </View>
 
-        {thumbnails.length > 0 ? (
-          <ThumbnailStrip
-            maxVisible={1}
-            size={thumbnailSize}
-            thumbnails={thumbnails}
-          />
-        ) : (
-          <View
-            style={[
-              s.thumbnailFallback,
-              { height: thumbnailSize, width: thumbnailSize },
-            ]}
-          >
-            <SText variant="caption" style={s.thumbnailFallbackText}>
-              {displayName.charAt(0)}
+          {thumbnails.length > 0 ? (
+            <ThumbnailStrip
+              maxVisible={1}
+              size={thumbnailSize}
+              thumbnails={thumbnails}
+            />
+          ) : (
+            <View
+              style={[
+                s.thumbnailFallback,
+                { height: thumbnailSize, width: thumbnailSize },
+              ]}
+            >
+              <SText variant="caption" style={s.thumbnailFallbackText}>
+                {displayName.charAt(0)}
+              </SText>
+            </View>
+          )}
+
+          <View style={s.infoColumn}>
+            <SText variant="body" style={s.sellerName} numberOfLines={2}>
+              {displayName}
+            </SText>
+
+            <PriceText priceKrw={item.priceKrw} style={s.price} />
+
+            <SText variant="caption" style={s.metricText} numberOfLines={1}>
+              조회 {viewCount} · 저장 {savedCount} · 알림 {notificationCount}
+            </SText>
+
+            <SText variant="caption" style={s.popularityText}>
+              인기지수 {popularityScore}
             </SText>
           </View>
-        )}
+        </Pressable>
 
-        <View style={s.infoColumn}>
-          <SText variant="body" style={s.sellerName} numberOfLines={2}>
-            {displayName}
-          </SText>
+        <View style={s.actionColumn}>
+          <GroupBuyAlertButton
+            groupBuyName={displayName}
+            isEnabled={item.isNotifying ?? false}
+            notificationState={item.notificationState}
+            onPress={handleToggleAlert}
+          />
+        </View>
+      </View>
 
-          <PriceText priceKrw={item.priceKrw} style={s.price} />
-
+      <View style={s.sellerRow}>
+        {onPressSeller ? (
+          <Pressable
+            accessibilityHint="판매자의 공구 목록 보기"
+            accessibilityLabel={`@${item.username} 판매자 공구 보기`}
+            accessibilityRole="button"
+            onPress={() => onPressSeller(item)}
+            style={({ pressed }) => [s.sellerAction, pressed && s.pressed]}
+          >
+            <SText variant="caption" style={s.username} numberOfLines={1}>
+              @{item.username}
+            </SText>
+          </Pressable>
+        ) : (
           <SText variant="caption" style={s.username} numberOfLines={1}>
             @{item.username}
           </SText>
-
-          <SText variant="caption" style={s.metricText} numberOfLines={1}>
-            조회 {viewCount} · 저장 {savedCount} · 알림 {notificationCount}
-          </SText>
-
-          <SText variant="caption" style={s.popularityText}>
-            인기지수 {popularityScore}
-          </SText>
-        </View>
-      </Pressable>
-
-      <View style={s.actionColumn}>
-        <GroupBuyAlertButton
-          groupBuyName={displayName}
-          isEnabled={item.isNotifying ?? false}
-          notificationState={item.notificationState}
-          onPress={handleToggleAlert}
-        />
+        )}
       </View>
     </View>
   );
@@ -160,6 +182,12 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
       gap: spacing.sm,
       minWidth: 0,
     },
+    mainRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: spacing.sm,
+      minWidth: 0,
+    },
     metricText: {
       color: colors.muted,
       fontSize: 11,
@@ -185,9 +213,7 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
       width: 34,
     },
     row: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: spacing.sm,
+      gap: spacing.xs,
       paddingHorizontal: spacing.sm,
       paddingVertical: spacing.md,
     },
@@ -197,6 +223,15 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
       fontWeight: "900",
       lineHeight: 20,
       minWidth: 0,
+    },
+    sellerAction: {
+      alignSelf: "flex-start",
+      justifyContent: "center",
+      minHeight: 44,
+    },
+    sellerRow: {
+      minHeight: 44,
+      justifyContent: "center",
     },
     thumbnailFallback: {
       alignItems: "center",
