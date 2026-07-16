@@ -13,6 +13,12 @@ printf 'reactNativeArchitectures=%s\n' \
   | tee artifacts/android/build-config.txt
 df -h "$repo_root" > artifacts/android/disk-before-build.txt
 
+pushd apps/mobile >/dev/null
+npx expo prebuild --platform android --no-install \
+  2>&1 | tee "$repo_root/artifacts/android/android-prebuild.log"
+popd >/dev/null
+test -s apps/mobile/android/gradlew
+
 pushd apps/mobile/android >/dev/null
 ./gradlew app:assembleRelease \
   -x lint \

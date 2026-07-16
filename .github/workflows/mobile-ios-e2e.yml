@@ -139,6 +139,7 @@ jobs:
           test -s artifacts/android/adb-reverse.txt
           grep -Fx "reactNativeArchitectures=x86_64" \
             artifacts/android/build-config.txt
+          test -s artifacts/android/android-prebuild.log
           test -s artifacts/android/android-build.log
           if grep -Eq '\[(armeabi-v7a|arm64-v8a|x86)\]' \
             artifacts/android/android-build.log; then
