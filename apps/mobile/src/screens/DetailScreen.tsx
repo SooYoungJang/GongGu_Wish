@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   Alert,
+  AppState,
   BackHandler,
   FlatList,
   Image,
@@ -65,6 +66,7 @@ import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatEndDate, getDaysRemaining } from "../utils";
 import { normalizeForSearch } from "../utils/search";
+import { isPlaybackEligible } from "./playbackEligibility";
 
 const MAX_VISIBLE_DOTS = 5;
 const VIDEO_EXTENSIONS = [
@@ -273,6 +275,7 @@ type VideoSlideProps = {
   isActive: boolean;
   thumbnailUrl?: string | null;
   replayKey?: number;
+  onPlaybackStateChange?: (isPlaying: boolean) => void;
   s: ReturnType<typeof makeStyles>;
 };
 
@@ -281,6 +284,7 @@ const VideoSlide = memo(function VideoSlide({
   isActive,
   replayKey,
   thumbnailUrl,
+  onPlaybackStateChange,
   s,
 }: VideoSlideProps) {
   const [shouldPlay, setShouldPlay] = useState(true);
@@ -297,6 +301,23 @@ const VideoSlide = memo(function VideoSlide({
     p.audioMixingMode = "doNotMix";
     p.allowsExternalPlayback = false;
   });
+
+  useEffect(() => {
+    const updatePlaybackState = (isPlaying: boolean) => {
+      onPlaybackStateChange?.(isActive && isPlaying);
+    };
+
+    updatePlaybackState(Boolean(player.playing));
+    const subscription = player.addListener?.(
+      "playingChange",
+      ({ isPlaying }: { isPlaying: boolean }) => updatePlaybackState(isPlaying),
+    );
+
+    return () => {
+      subscription?.remove();
+      onPlaybackStateChange?.(false);
+    };
+  }, [isActive, onPlaybackStateChange, player]);
 
   const showControlsTemporarily = useCallback(() => {
     setControlsVisible(true);
@@ -747,6 +768,7 @@ export type ProductReelPageProps = {
   onBack: () => void;
   showBackButton?: boolean;
   onCloseSearchSheet?: () => void;
+  onPlaybackStateChange?: (itemId: string, isPlaying: boolean) => void;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
   s: ReturnType<typeof makeStyles>;
@@ -767,6 +789,7 @@ export function ProductReelPage({
   onBack,
   showBackButton = true,
   onCloseSearchSheet,
+  onPlaybackStateChange,
   onSummarySheetStateChange,
   s,
 }: ProductReelPageProps) {
@@ -789,6 +812,12 @@ export function ProductReelPage({
   const [summarySheetMeasuredHeight, setSummarySheetMeasuredHeight] =
     useState(0);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
+
+  useEffect(() => {
+    if (!isActive || !mediaItems[activeMediaIndex]?.isVideo) {
+      onPlaybackStateChange?.(groupBuy.id, false);
+    }
+  }, [activeMediaIndex, groupBuy.id, isActive, mediaItems, onPlaybackStateChange]);
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const {
     getNotificationState,
@@ -1445,6 +1474,9 @@ export function ProductReelPage({
                 isActive={mediaActive}
                 replayKey={replayKey}
                 thumbnailUrl={thumbnailUrl}
+                onPlaybackStateChange={(isPlaying) =>
+                  onPlaybackStateChange?.(groupBuy.id, isPlaying)
+                }
                 s={s}
               />
             ) : thumbnailUrl ? (
@@ -1817,6 +1849,10 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     canSwipeReel: true,
   });
   const [isScreenFocused, setScreenFocused] = useState(true);
+  const [isAppActive, setAppActive] = useState(
+    AppState.currentState === "active",
+  );
+  const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
   const [isSearchSheetVisible, setSearchSheetVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -1859,6 +1895,14 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   );
 
   useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      setAppActive(nextState === "active");
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
     const unsubFocus = navigation.addListener("focus", () =>
       setScreenFocused(true),
     );
@@ -1888,6 +1932,19 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const [activeProductIndex, setActiveProductIndex] =
     useState(initialReelIndex);
   const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
+  const hasPlayableActiveMedia = Boolean(
+    activeGroupBuy.videoUrl ||
+      activeGroupBuy.mediaType === "VIDEO" ||
+      activeGroupBuy.mediaItems?.some((item) => item.mediaType === "VIDEO"),
+  );
+  const handlePlaybackStateChange = useCallback(
+    (itemId: string, isPlaying: boolean) => {
+      if (itemId === activeGroupBuy.id) {
+        setActivePlayerPlaying(isPlaying);
+      }
+    },
+    [activeGroupBuy.id],
+  );
   const searchItems = useMemo(() => {
     const seen = new Set<string>();
     const source = [...reelItems, ...(groupBuys ?? [])];
@@ -1908,17 +1965,36 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   useEffect(() => {
     recordView(activeGroupBuy);
   }, [activeGroupBuy, recordView]);
+  useEffect(() => {
+    setActivePlayerPlaying(false);
+  }, [
+    activeGroupBuy.id,
+    isAppActive,
+    isScreenFocused,
+    isSearchSheetVisible,
+    summarySheetGate.isOpen,
+  ]);
   // ── Deep view tracking: count a view only after 30s of continuous watch ──
   const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playbackEligibleRef = useRef(false);
   useEffect(() => {
     if (deepViewTimerRef.current) {
       clearTimeout(deepViewTimerRef.current);
       deepViewTimerRef.current = null;
     }
     const overlayOpen = summarySheetGate.isOpen || isSearchSheetVisible;
-    if (!overlayOpen && activeGroupBuy) {
+    const playbackEligible = isPlaybackEligible({
+      screenFocused: isScreenFocused,
+      appActive: isAppActive,
+      overlayOpen,
+      playerPlaying: isActivePlayerPlaying,
+      hasPlayableMedia: hasPlayableActiveMedia,
+    });
+    playbackEligibleRef.current = playbackEligible;
+    if (playbackEligible && activeGroupBuy) {
       const id = activeGroupBuy.id;
       deepViewTimerRef.current = setTimeout(() => {
+        if (!playbackEligibleRef.current) return;
         void Promise.resolve(logDeepView(id)).catch(() => undefined);
       }, 30_000);
     }
@@ -1928,7 +2004,15 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         deepViewTimerRef.current = null;
       }
     };
-  }, [activeGroupBuy, summarySheetGate.isOpen, isSearchSheetVisible]);
+  }, [
+    activeGroupBuy,
+    hasPlayableActiveMedia,
+    isActivePlayerPlaying,
+    isAppActive,
+    isScreenFocused,
+    isSearchSheetVisible,
+    summarySheetGate.isOpen,
+  ]);
   const handleSummarySheetStateChange = useCallback(
     (isOpen: boolean, canSwipeReel: boolean) => {
       setSummarySheetGate({ isOpen, canSwipeReel });
@@ -2029,6 +2113,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
         bottomInset={insets.bottom}
         onBack={() => navigation.goBack()}
         onCloseSearchSheet={closeSearchSheet}
+        onPlaybackStateChange={handlePlaybackStateChange}
         onSummarySheetStateChange={handleSummarySheetStateChange}
         s={s}
       />
@@ -2037,6 +2122,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       activeProductIndex,
       closeSearchSheet,
       handleSummarySheetStateChange,
+      handlePlaybackStateChange,
       insets.bottom,
       insets.top,
       isSearchSheetVisible,

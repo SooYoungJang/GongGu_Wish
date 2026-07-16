@@ -19,6 +19,8 @@ const logDeepViewMock = vi.hoisted(() => vi.fn());
 const groupBuys = [0, 1, 2].map((index) => ({
   id: `reel-${index}`,
   productName: `릴스 ${index}`,
+  videoUrl: `https://example.com/reel-${index}.mp4`,
+  mediaType: "VIDEO",
 }));
 
 vi.mock("react-native", () => {
@@ -114,8 +116,15 @@ vi.mock("./DetailScreen", () => {
       verticalPager: {},
       verticalPagerPage: {},
     }),
-    ProductReelPage: (props: Record<string, unknown>) =>
-      ReactMock.createElement("ProductReelPage", props),
+    ProductReelPage: (props: Record<string, any>) => {
+      ReactMock.useEffect(() => {
+        props.onPlaybackStateChange?.(
+          props.groupBuy.id,
+          Boolean(props.isActive),
+        );
+      }, [props.groupBuy.id, props.isActive, props.onPlaybackStateChange]);
+      return ReactMock.createElement("ProductReelPage", props);
+    },
     ReelVideoPreloader: (props: Record<string, unknown>) =>
       ReactMock.createElement("ReelVideoPreloader", props),
   };
@@ -180,6 +189,17 @@ describe("ReelsScreen player lifecycle", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const activePage = renderer!.root.find(
+      (node) =>
+        String(node.type) === "ProductReelPage" && node.props.isActive === true,
+    );
+    act(() => {
+      activePage.props.onPlaybackStateChange?.(
+        activePage.props.groupBuy.id,
+        true,
+      );
     });
 
     await act(async () => {

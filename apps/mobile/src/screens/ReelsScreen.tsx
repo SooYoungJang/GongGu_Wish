@@ -31,6 +31,7 @@ import {
   moveReelWindow,
   type ReelWindow,
 } from "./reelWindow";
+import { isPlaybackEligible } from "./playbackEligibility";
 
 const REELS_TAB_BAR_OVERLAY_OFFSET = 40;
 const REEL_PAGE_RENDER_RADIUS = 1;
@@ -76,6 +77,7 @@ export function ReelsScreen({
   const [isAppActive, setAppActive] = useState(
     AppState.currentState === "active",
   );
+  const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
   const { recordView } = useRecentViews();
 
   useEffect(() => {
@@ -132,6 +134,27 @@ export function ReelsScreen({
   useTabReselect(navigation, handleReelsTabReselect);
 
   const activeReelItem = reelItems[activeIndex];
+  const hasPlayableActiveMedia = Boolean(
+    activeReelItem?.videoUrl ||
+      activeReelItem?.mediaType === "VIDEO" ||
+      activeReelItem?.mediaItems?.some((item) => item.mediaType === "VIDEO"),
+  );
+  const handlePlaybackStateChange = useCallback(
+    (itemId: string, isPlaying: boolean) => {
+      if (itemId === activeReelItem?.id) {
+        setActivePlayerPlaying(isPlaying);
+      }
+    },
+    [activeReelItem?.id],
+  );
+  useEffect(() => {
+    setActivePlayerPlaying(false);
+  }, [
+    activeReelItem?.id,
+    isAppActive,
+    isTabFocused,
+    summarySheetGate.isOpen,
+  ]);
   const lastRecordedIdRef = useRef<string | null>(null);
   useEffect(() => {
     const item = isPlaybackActive ? activeReelItem : undefined;
@@ -145,15 +168,24 @@ export function ReelsScreen({
   // ── Deep view tracking: count a view only after 10s of continuous watch ──
   const DEEP_VIEW_THRESHOLD_MS = 10_000;
   const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playbackEligibleRef = useRef(false);
   useEffect(() => {
     if (deepViewTimerRef.current) {
       clearTimeout(deepViewTimerRef.current);
       deepViewTimerRef.current = null;
     }
-    // Only track while the tab is focused and no overlay sheet is open.
-    if (isPlaybackActive && !summarySheetGate.isOpen && activeReelItem) {
+    const playbackEligible = isPlaybackEligible({
+      screenFocused: isTabFocused,
+      appActive: isAppActive,
+      overlayOpen: summarySheetGate.isOpen,
+      playerPlaying: isActivePlayerPlaying,
+      hasPlayableMedia: hasPlayableActiveMedia,
+    });
+    playbackEligibleRef.current = playbackEligible;
+    if (playbackEligible && activeReelItem) {
       const id = activeReelItem.id;
       deepViewTimerRef.current = setTimeout(() => {
+        if (!playbackEligibleRef.current) return;
         void Promise.resolve(logDeepView(id)).catch(() => undefined);
       }, DEEP_VIEW_THRESHOLD_MS);
     }
@@ -163,7 +195,14 @@ export function ReelsScreen({
         deepViewTimerRef.current = null;
       }
     };
-  }, [isPlaybackActive, summarySheetGate.isOpen, activeReelItem]);
+  }, [
+    activeReelItem,
+    hasPlayableActiveMedia,
+    isActivePlayerPlaying,
+    isAppActive,
+    isTabFocused,
+    summarySheetGate.isOpen,
+  ]);
 
   const handleSummarySheetStateChange = useCallback(
     (isOpen: boolean, canSwipeReel: boolean) => {
@@ -191,6 +230,7 @@ export function ReelsScreen({
         bottomInset={insets.bottom}
         onBack={NOOP}
         showBackButton={false}
+        onPlaybackStateChange={handlePlaybackStateChange}
         onSummarySheetStateChange={handleSummarySheetStateChange}
         s={s}
       />
@@ -199,6 +239,7 @@ export function ReelsScreen({
       isPlaybackActive,
       activeIndex,
       handleSummarySheetStateChange,
+      handlePlaybackStateChange,
       insets.bottom,
       insets.top,
       replayKey,

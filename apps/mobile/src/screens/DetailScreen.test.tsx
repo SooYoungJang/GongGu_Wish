@@ -35,6 +35,7 @@ vi.mock("expo-video", () => ({
     return ReactMock.createElement("VideoView", props, children);
   },
   useVideoPlayer: (source: any, setup?: any) => {
+    const listeners = new Set<(payload: { isPlaying: boolean }) => void>();
     const player = {
       play: vi.fn(),
       pause: vi.fn(),
@@ -46,8 +47,26 @@ vi.mock("expo-video", () => ({
       audioMixingMode: "auto",
       allowsExternalPlayback: true,
       currentTime: 12,
+      playing: false,
+      addListener: vi.fn(
+        (
+          _event: string,
+          listener: (payload: { isPlaying: boolean }) => void,
+        ) => {
+          listeners.add(listener);
+          return { remove: () => listeners.delete(listener) };
+        },
+      ),
       source,
     };
+    player.play.mockImplementation(() => {
+      player.playing = true;
+      listeners.forEach((listener) => listener({ isPlaying: true }));
+    });
+    player.pause.mockImplementation(() => {
+      player.playing = false;
+      listeners.forEach((listener) => listener({ isPlaying: false }));
+    });
     setup?.(player);
     videoMock.players.push(player);
     return player;
@@ -133,6 +152,10 @@ vi.mock("react-native", () => {
 
   return {
     Alert: { alert: vi.fn() },
+    AppState: {
+      currentState: "active",
+      addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+    },
     BackHandler: {
       addEventListener: vi.fn(() => ({ remove: vi.fn() })),
       exitApp: vi.fn(),
