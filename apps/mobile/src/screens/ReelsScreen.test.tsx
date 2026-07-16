@@ -241,4 +241,36 @@ describe("ReelsScreen player lifecycle", () => {
       renderer!.unmount();
     });
   });
+
+  it("keeps the mute choice across reel page changes", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const findPages = () =>
+      renderer!.root.findAll((node) => String(node.type) === "ProductReelPage");
+    const findPager = () =>
+      renderer!.root.find((node) => String(node.type) === "PagerView");
+    const activePage = findPages().find((node) => node.props.isActive);
+
+    act(() => {
+      activePage?.props.onMutedChange?.(true);
+    });
+
+    expect(findPages().every((node) => node.props.muted === true)).toBe(true);
+
+    act(() => {
+      findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
+    });
+
+    expect(findPages().find((node) => node.props.isActive)?.props.muted).toBe(
+      true,
+    );
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
 });

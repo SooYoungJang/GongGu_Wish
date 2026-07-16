@@ -35,7 +35,7 @@ vi.mock("expo-video", () => ({
     return ReactMock.createElement("VideoView", props, children);
   },
   useVideoPlayer: (source: any, setup?: any) => {
-    const listeners = new Set<(payload: { isPlaying: boolean }) => void>();
+    const listeners = new Map<string, Set<(payload: any) => void>>();
     const player = {
       play: vi.fn(),
       pause: vi.fn(),
@@ -48,24 +48,26 @@ vi.mock("expo-video", () => ({
       allowsExternalPlayback: true,
       currentTime: 12,
       playing: false,
-      addListener: vi.fn(
-        (
-          _event: string,
-          listener: (payload: { isPlaying: boolean }) => void,
-        ) => {
-          listeners.add(listener);
-          return { remove: () => listeners.delete(listener) };
-        },
-      ),
+      addListener: vi.fn((event: string, listener: (payload: any) => void) => {
+        const eventListeners = listeners.get(event) ?? new Set();
+        eventListeners.add(listener);
+        listeners.set(event, eventListeners);
+        return {
+          remove: () => eventListeners.delete(listener),
+        };
+      }),
+      emit: (event: string, payload: any) => {
+        listeners.get(event)?.forEach((listener) => listener(payload));
+      },
       source,
     };
     player.play.mockImplementation(() => {
       player.playing = true;
-      listeners.forEach((listener) => listener({ isPlaying: true }));
+      player.emit("playingChange", { isPlaying: true });
     });
     player.pause.mockImplementation(() => {
       player.playing = false;
-      listeners.forEach((listener) => listener({ isPlaying: false }));
+      player.emit("playingChange", { isPlaying: false });
     });
     setup?.(player);
     videoMock.players.push(player);
@@ -152,6 +154,7 @@ vi.mock("react-native", () => {
 
   return {
     Alert: { alert: vi.fn() },
+    ActivityIndicator: passthrough("ActivityIndicator"),
     AppState: {
       currentState: "active",
       addEventListener: vi.fn(() => ({ remove: vi.fn() })),
@@ -1918,5 +1921,65 @@ describe("DetailScreen video playback", () => {
           node.props.accessibilityLabel === "음소거 해제",
       ),
     ).toBeDefined();
+  });
+
+  it("shows a retry action when the native player reports an error", () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl: "https://example.com/retry.mp4",
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const findCurrentPlayer = () =>
+      [...videoMock.players]
+        .reverse()
+        .find(
+          (entry) =>
+            entry.source?.uri === groupBuy.videoUrl &&
+            entry.addListener.mock.calls.some(
+              (call: unknown[]) => call[0] === "statusChange",
+            ),
+        );
+    const player = findCurrentPlayer();
+    expect(player).toBeDefined();
+    act(() => {
+      player!.emit("statusChange", {
+        status: "error",
+        error: new Error("stream failed"),
+      });
+    });
+
+    const retryButtons = renderer!.root.findAll(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "동영상 다시 시도",
+    );
+    expect(
+      renderer!.root
+        .findAll((node) => String(node.type) === "Pressable")
+        .map((node) => node.props.accessibilityLabel),
+    ).toContain("동영상 다시 시도");
+    const retryButton = retryButtons[0];
+    const retryPlayer = findCurrentPlayer();
+    expect(retryPlayer).toBeDefined();
+
+    act(() => {
+      retryButton.props.onPress();
+    });
+
+    expect(retryPlayer!.replaceAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ uri: groupBuy.videoUrl }),
+    );
   });
 });

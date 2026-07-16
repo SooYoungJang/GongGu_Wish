@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   Alert,
+  ActivityIndicator,
   AppState,
   BackHandler,
   FlatList,
@@ -30,7 +31,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { FlashList } from "@shopify/flash-list";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { VideoView, useVideoPlayer, type VideoPlayerStatus } from "expo-video";
 import PagerView from "react-native-pager-view";
 import {
   Gesture,
@@ -275,6 +276,8 @@ type VideoSlideProps = {
   isActive: boolean;
   thumbnailUrl?: string | null;
   replayKey?: number;
+  muted?: boolean;
+  onMutedChange?: (muted: boolean) => void;
   onPlaybackStateChange?: (isPlaying: boolean) => void;
   s: ReturnType<typeof makeStyles>;
 };
@@ -284,11 +287,14 @@ const VideoSlide = memo(function VideoSlide({
   isActive,
   replayKey,
   thumbnailUrl,
+  muted,
+  onMutedChange,
   onPlaybackStateChange,
   s,
 }: VideoSlideProps) {
   const [shouldPlay, setShouldPlay] = useState(true);
-  const [isMuted, setMuted] = useState(false);
+  const [localMuted, setLocalMuted] = useState(muted ?? false);
+  const isMuted = muted ?? localMuted;
   const [areControlsVisible, setControlsVisible] = useState(false);
   const [hasFirstFrame, setHasFirstFrame] = useState(false);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -301,6 +307,10 @@ const VideoSlide = memo(function VideoSlide({
     p.audioMixingMode = "doNotMix";
     p.allowsExternalPlayback = false;
   });
+  const [playerStatus, setPlayerStatus] = useState<VideoPlayerStatus>(
+    player.status,
+  );
+  const [playerError, setPlayerError] = useState<unknown>(null);
 
   useEffect(() => {
     const updatePlaybackState = (isPlaying: boolean) => {
@@ -318,6 +328,52 @@ const VideoSlide = memo(function VideoSlide({
       onPlaybackStateChange?.(false);
     };
   }, [isActive, onPlaybackStateChange, player]);
+
+  useEffect(() => {
+    const subscription = player.addListener?.(
+      "statusChange",
+      ({ status, error }: { status: VideoPlayerStatus; error?: unknown }) => {
+        setPlayerStatus(status);
+        setPlayerError(error ?? null);
+      },
+    );
+
+    return () => subscription?.remove();
+  }, [player]);
+
+  useEffect(() => {
+    safelyCallVideoPlayer(() => {
+      player.muted = isMuted;
+      player.volume = 1;
+      player.audioMixingMode = "doNotMix";
+    });
+  }, [isMuted, player]);
+
+  const retryPlayback = useCallback(() => {
+    setPlayerStatus("loading");
+    setPlayerError(null);
+    try {
+      const result = player.replaceAsync?.(source);
+      if (result && typeof (result as { then?: unknown }).then === "function") {
+        void Promise.resolve(result)
+          .then(() => {
+            if (isActive && shouldPlay) player.play();
+          })
+          .catch((error: unknown) => {
+            setPlayerStatus("error");
+            setPlayerError(error);
+          });
+        return;
+      }
+      if (isActive && shouldPlay) player.play();
+    } catch (error: unknown) {
+      setPlayerStatus("error");
+      setPlayerError(error);
+    }
+  }, [isActive, player, shouldPlay, source]);
+
+  const isPlayerLoading = playerStatus === "loading";
+  const isPlayerError = playerStatus === "error" || Boolean(playerError);
 
   const showControlsTemporarily = useCallback(() => {
     setControlsVisible(true);
@@ -394,16 +450,10 @@ const VideoSlide = memo(function VideoSlide({
 
   const toggleMuted = useCallback(() => {
     showControlsTemporarily();
-    setMuted((current) => {
-      const next = !current;
-      safelyCallVideoPlayer(() => {
-        player.muted = next;
-        player.volume = 1;
-        player.audioMixingMode = "doNotMix";
-      });
-      return next;
-    });
-  }, [player, showControlsTemporarily]);
+    const next = !isMuted;
+    setLocalMuted(next);
+    onMutedChange?.(next);
+  }, [isMuted, onMutedChange, showControlsTemporarily]);
 
   return (
     <View style={s.videoSlide}>
@@ -416,6 +466,8 @@ const VideoSlide = memo(function VideoSlide({
         surfaceType={Platform.OS === "android" ? "textureView" : undefined}
         onFirstFrameRender={() => {
           setHasFirstFrame(true);
+          setPlayerStatus("readyToPlay");
+          setPlayerError(null);
           safelyCallVideoPlayer(() => {
             player.muted = isMuted;
             player.volume = 1;
@@ -430,6 +482,31 @@ const VideoSlide = memo(function VideoSlide({
           style={s.videoPoster}
           resizeMode="contain"
         />
+      ) : null}
+      {isPlayerLoading ? (
+        <View pointerEvents="none" style={s.videoStatusOverlay}>
+          <ActivityIndicator color="#FFFFFF" />
+          <SText style={s.videoStatusText} variant="caption">
+            동영상 불러오는 중
+          </SText>
+        </View>
+      ) : null}
+      {isPlayerError ? (
+        <View style={s.videoErrorOverlay}>
+          <SText style={s.videoStatusText} variant="caption">
+            동영상을 불러오지 못했어요
+          </SText>
+          <Pressable
+            accessibilityLabel="동영상 다시 시도"
+            accessibilityRole="button"
+            onPress={retryPlayback}
+            style={({ pressed }) => [s.videoRetryButton, pressed && s.pressed]}
+          >
+            <SText style={s.videoRetryLabel} variant="caption">
+              다시 시도
+            </SText>
+          </Pressable>
+        </View>
       ) : null}
       <Pressable
         accessibilityLabel="동영상 컨트롤 표시"
@@ -768,6 +845,8 @@ export type ProductReelPageProps = {
   onBack: () => void;
   showBackButton?: boolean;
   onCloseSearchSheet?: () => void;
+  muted?: boolean;
+  onMutedChange?: (muted: boolean) => void;
   onPlaybackStateChange?: (itemId: string, isPlaying: boolean) => void;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
@@ -789,6 +868,8 @@ export function ProductReelPage({
   onBack,
   showBackButton = true,
   onCloseSearchSheet,
+  muted,
+  onMutedChange,
   onPlaybackStateChange,
   onSummarySheetStateChange,
   s,
@@ -817,7 +898,13 @@ export function ProductReelPage({
     if (!isActive || !mediaItems[activeMediaIndex]?.isVideo) {
       onPlaybackStateChange?.(groupBuy.id, false);
     }
-  }, [activeMediaIndex, groupBuy.id, isActive, mediaItems, onPlaybackStateChange]);
+  }, [
+    activeMediaIndex,
+    groupBuy.id,
+    isActive,
+    mediaItems,
+    onPlaybackStateChange,
+  ]);
   const { isBookmarked, toggleBookmark } = useBookmarks();
   const {
     getNotificationState,
@@ -1474,6 +1561,8 @@ export function ProductReelPage({
                 isActive={mediaActive}
                 replayKey={replayKey}
                 thumbnailUrl={thumbnailUrl}
+                muted={muted}
+                onMutedChange={onMutedChange}
                 onPlaybackStateChange={(isPlaying) =>
                   onPlaybackStateChange?.(groupBuy.id, isPlaying)
                 }
@@ -1934,8 +2023,8 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
   const hasPlayableActiveMedia = Boolean(
     activeGroupBuy.videoUrl ||
-      activeGroupBuy.mediaType === "VIDEO" ||
-      activeGroupBuy.mediaItems?.some((item) => item.mediaType === "VIDEO"),
+    activeGroupBuy.mediaType === "VIDEO" ||
+    activeGroupBuy.mediaItems?.some((item) => item.mediaType === "VIDEO"),
   );
   const handlePlaybackStateChange = useCallback(
     (itemId: string, isPlaying: boolean) => {
@@ -2405,6 +2494,40 @@ export function makeStyles(
     videoTapLayer: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 2,
+    },
+    videoStatusOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 4,
+    },
+    videoErrorOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      backgroundColor: "rgba(5,7,10,0.68)",
+      justifyContent: "center",
+      padding: spacing.lg,
+      zIndex: 5,
+    },
+    videoStatusText: {
+      color: "rgba(255,255,255,0.88)",
+      marginTop: spacing.sm,
+      textAlign: "center",
+    },
+    videoRetryButton: {
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.14)",
+      borderColor: "rgba(255,255,255,0.28)",
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      marginTop: spacing.md,
+      minHeight: 44,
+      justifyContent: "center",
+      paddingHorizontal: spacing.lg,
+    },
+    videoRetryLabel: {
+      color: "#FFFFFF",
+      fontWeight: "800",
     },
     videoControlsOverlay: {
       ...StyleSheet.absoluteFillObject,

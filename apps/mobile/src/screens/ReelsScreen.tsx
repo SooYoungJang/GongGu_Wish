@@ -78,6 +78,7 @@ export function ReelsScreen({
     AppState.currentState === "active",
   );
   const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
+  const [isReelsMuted, setReelsMuted] = useState(false);
   const { recordView } = useRecentViews();
 
   useEffect(() => {
@@ -136,8 +137,8 @@ export function ReelsScreen({
   const activeReelItem = reelItems[activeIndex];
   const hasPlayableActiveMedia = Boolean(
     activeReelItem?.videoUrl ||
-      activeReelItem?.mediaType === "VIDEO" ||
-      activeReelItem?.mediaItems?.some((item) => item.mediaType === "VIDEO"),
+    activeReelItem?.mediaType === "VIDEO" ||
+    activeReelItem?.mediaItems?.some((item) => item.mediaType === "VIDEO"),
   );
   const handlePlaybackStateChange = useCallback(
     (itemId: string, isPlaying: boolean) => {
@@ -149,12 +150,7 @@ export function ReelsScreen({
   );
   useEffect(() => {
     setActivePlayerPlaying(false);
-  }, [
-    activeReelItem?.id,
-    isAppActive,
-    isTabFocused,
-    summarySheetGate.isOpen,
-  ]);
+  }, [activeReelItem?.id, isAppActive, isTabFocused, summarySheetGate.isOpen]);
   const lastRecordedIdRef = useRef<string | null>(null);
   useEffect(() => {
     const item = isPlaybackActive ? activeReelItem : undefined;
@@ -230,6 +226,8 @@ export function ReelsScreen({
         bottomInset={insets.bottom}
         onBack={NOOP}
         showBackButton={false}
+        muted={isReelsMuted}
+        onMutedChange={setReelsMuted}
         onPlaybackStateChange={handlePlaybackStateChange}
         onSummarySheetStateChange={handleSummarySheetStateChange}
         s={s}
