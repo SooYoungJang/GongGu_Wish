@@ -9,17 +9,16 @@
  *  - PostgREST error codes → app ApiError
  *  - snake_case → camelCase response mapping
  */
-import { Platform } from 'react-native';
-
 import { ApiError, type PaginationMeta, type PaginationParams } from './api-types';
+import { DEFAULT_SUPABASE_URL, resolveSupabaseUrl } from './supabase-config';
 
 import { mapPostgrestToApp } from '../utils/postgrest-mapper';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-const SUPABASE_URL = 'https://iosdoheblabfimkjnvfj.supabase.co';
 const REST_VERSION = '/rest/v1/';
-export const API_BASE_URL = `${SUPABASE_URL}${REST_VERSION}`;
+let _supabaseUrl = DEFAULT_SUPABASE_URL;
+export let API_BASE_URL = `${_supabaseUrl}${REST_VERSION}`;
 
 // The anon key is configured at module init.
 // In a real build, this is set via EXPO_PUBLIC_SUPABASE_ANON_KEY or a config module.
@@ -29,8 +28,10 @@ let _anonKey: string = '';
  * Configure the PostgREST client with the Supabase anon key.
  * Must be called before any API requests.
  */
-export function configurePostgrest(anonKey: string): void {
+export function configurePostgrest(anonKey: string, supabaseUrl?: string): void {
   _anonKey = anonKey;
+  _supabaseUrl = resolveSupabaseUrl(supabaseUrl);
+  API_BASE_URL = `${_supabaseUrl}${REST_VERSION}`;
 }
 
 export function getAnonKey(): string {
@@ -338,7 +339,7 @@ export async function callEdgeFunction<T>(
   body: unknown,
   options: { method?: string; signal?: AbortSignal; authToken?: string | null } = {},
 ): Promise<T> {
-  const url = `${SUPABASE_URL}/functions/v1/${functionName}`;
+  const url = `${_supabaseUrl}/functions/v1/${functionName}`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     apikey: _anonKey,

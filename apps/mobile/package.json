@@ -13,7 +13,8 @@
     "lint": "eslint src --ext .ts,.tsx",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:integration:supabase": "vitest run --config vitest.integration.config.ts --reporter=verbose"
   },
   "dependencies": {
     "@expo/ngrok": "^4.1.3",

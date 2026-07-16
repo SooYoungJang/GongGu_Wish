@@ -221,7 +221,7 @@ function getReelItems(current: GroupBuy, fetched?: GroupBuy[]) {
     seen.add(item.id);
     if (item.id === current.id) {
       includedCurrent = true;
-      items.push(current);
+      items.push(item);
     } else {
       items.push(item);
     }
@@ -2046,9 +2046,23 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
     () => getInitialReelIndex(groupBuy, reelItems),
     [groupBuy.id, reelItems],
   );
-  const [activeProductIndex, setActiveProductIndex] =
-    useState(initialReelIndex);
+  const [activeProductId, setActiveProductId] = useState(groupBuy.id);
+  const activeProductIndex = useMemo(() => {
+    const currentIndex = reelItems.findIndex(
+      (item) => item.id === activeProductId,
+    );
+    return currentIndex >= 0 ? currentIndex : initialReelIndex;
+  }, [activeProductId, initialReelIndex, reelItems]);
+  const [canonicalAlignedRouteId, setCanonicalAlignedRouteId] = useState<
+    string | null
+  >(null);
   const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
+  const hasCanonicalRouteGroupBuy = Boolean(
+    groupBuys?.some((item) => item.id === groupBuy.id),
+  );
+  const hasCanonicalActiveGroupBuy = Boolean(
+    groupBuys?.some((item) => item.id === activeGroupBuy.id),
+  );
   const hasPlayableActiveMedia = hasPlayableVideoMedia(activeGroupBuy);
   const handlePlaybackStateChange = useCallback(
     (itemId: string, isPlaying: boolean) => {
@@ -2076,8 +2090,16 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       .slice(0, 30);
   }, [groupBuy, searchItems, debouncedQuery]);
   useEffect(() => {
+    if (canonicalAlignedRouteId !== groupBuy.id || !hasCanonicalActiveGroupBuy)
+      return;
     recordView(activeGroupBuy);
-  }, [activeGroupBuy, recordView]);
+  }, [
+    activeGroupBuy,
+    canonicalAlignedRouteId,
+    groupBuy.id,
+    hasCanonicalActiveGroupBuy,
+    recordView,
+  ]);
   useEffect(() => {
     setActivePlayerPlaying(false);
   }, [
@@ -2190,9 +2212,16 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   }, [activeProductIndex]);
 
   useEffect(() => {
-    setActiveProductIndex(initialReelIndex);
+    if (!hasCanonicalRouteGroupBuy) return;
+    setActiveProductId(groupBuy.id);
     verticalPagerRef.current?.setPageWithoutAnimation?.(initialReelIndex);
-  }, [initialReelIndex, reelItems.length, groupBuy.id]);
+    setCanonicalAlignedRouteId(groupBuy.id);
+  }, [
+    groupBuy.id,
+    hasCanonicalRouteGroupBuy,
+    initialReelIndex,
+    reelItems.length,
+  ]);
 
   const handleSelectSearchResult = useCallback(
     (item: GroupBuy) => {
@@ -2201,7 +2230,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       setSearchQuery("");
       setSummarySheetGate({ isOpen: false, canSwipeReel: true });
       if (nextIndex >= 0) {
-        setActiveProductIndex(nextIndex);
+        setActiveProductId(item.id);
         verticalPagerRef.current?.setPage?.(nextIndex);
         return;
       }
@@ -2269,7 +2298,7 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
             nextIndex >= 0 &&
             nextIndex < reelItems.length
           ) {
-            setActiveProductIndex(nextIndex);
+            setActiveProductId(reelItems[nextIndex].id);
           }
         }}
         orientation="vertical"

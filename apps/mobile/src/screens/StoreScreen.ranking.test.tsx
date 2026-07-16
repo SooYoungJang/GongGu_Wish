@@ -20,7 +20,7 @@ const ranking: GroupBuyRankingItem = {
   mediaUrls: [],
   startDate: null,
   endDate: null,
-  priceKrw: null,
+  priceKrw: 200000,
   metrics: {
     deepViews: 12000,
     bookmarks: 83,
@@ -376,7 +376,7 @@ describe("StoreScreen ranking redesign", () => {
     act(() => rowAction!.props.onPress());
 
     expect(navigation.navigate).toHaveBeenCalledWith("Detail", {
-      groupBuy: expect.objectContaining({ id: "group-1" }),
+      groupBuy: expect.objectContaining({ id: "group-1", priceKrw: 200000 }),
     });
   });
 

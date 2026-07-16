@@ -1,0 +1,191 @@
+appId: com.gonggu.wish
+---
+# GON-263: canonical data survives ranking -> recent views -> detail, while
+# home -> calendar -> detail keeps Android overlay and stack Back priority.
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "상품을 검색해보세요"
+    timeout: 60000
+- takeScreenshot: gon263-critical-01-home
+
+# Ranking -> detail records the exact ranked item in recent views.
+- tapOn:
+    text: "랭킹 탭"
+- extendedWaitUntil:
+    visible:
+      text: "인기 공구 랭킹"
+    timeout: 30000
+
+# Exercise the visible period, sort, and category controls before returning to
+# the canonical popular page. Cursor/filter binding is verified against the
+# same local Edge endpoint by the integration contract suite.
+- tapOn:
+    text: "이번 달 랭킹 기간"
+- tapOn:
+    text: "급상승 정렬"
+- tapOn:
+    text: "카테고리 전체 선택"
+- extendedWaitUntil:
+    visible:
+      text: "카테고리 선택"
+    timeout: 10000
+- tapOn:
+    text: "뷰티 카테고리"
+- extendedWaitUntil:
+    visible:
+      id: "ranking-top-hero"
+    timeout: 30000
+- takeScreenshot: gon263-critical-02-ranking-filters
+- tapOn:
+    text: "뷰티 선택"
+- extendedWaitUntil:
+    visible:
+      text: "카테고리 선택"
+    timeout: 10000
+- tapOn:
+    text: "전체 카테고리"
+- tapOn:
+    text: "인기 공구 정렬"
+- tapOn:
+    text: "이번 주 랭킹 기간"
+- extendedWaitUntil:
+    visible:
+      id: "ranking-top-hero"
+    timeout: 30000
+- tapOn:
+    id: "ranking-top-hero"
+- extendedWaitUntil:
+    visible:
+      id: "detail-back-button"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "가격 200,000원"
+    direction: DOWN
+    timeout: 30000
+- assertVisible:
+    text: "가격 200,000원"
+- takeScreenshot: gon263-critical-02-ranking-detail
+- tapOn:
+    id: "detail-back-button"
+- extendedWaitUntil:
+    visible:
+      text: "인기 공구 랭킹"
+    timeout: 15000
+
+# My page reads the same recent-view store and reopens the canonical detail.
+- tapOn:
+    text: "마이 탭"
+- extendedWaitUntil:
+    visible:
+      text: "최근 본 공구"
+    timeout: 30000
+- tapOn:
+    text: ".* 상세 보기"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: "detail-back-button"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "가격 200,000원"
+    direction: DOWN
+    timeout: 30000
+- assertVisible:
+    text: "가격 200,000원"
+- takeScreenshot: gon263-critical-03-mypage-detail
+- tapOn:
+    id: "detail-back-button"
+- extendedWaitUntil:
+    visible:
+      text: "마이페이지"
+    timeout: 15000
+
+# Home -> calendar -> detail uses full public GroupBuy data.
+- tapOn:
+    text: "홈 탭"
+- extendedWaitUntil:
+    visible:
+      id: "home-calendar-open"
+    timeout: 30000
+- tapOn:
+    id: "home-calendar-open"
+- extendedWaitUntil:
+    visible:
+      text: "공구 캘린더"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      text: ".* 상세 보기"
+    timeout: 30000
+- tapOn:
+    text: ".* 상세 보기"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: "detail-back-button"
+    timeout: 30000
+- takeScreenshot: gon263-critical-04-calendar-detail
+
+# An Android hardware Back closes the focused summary sheet before popping
+# the Detail stack. iOS closes the same overlay through its accessible control.
+- tapOn:
+    text: "요약 자세히 보기"
+- extendedWaitUntil:
+    visible:
+      text: "요약 닫기"
+    timeout: 10000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "요약 닫기"
+- assertNotVisible:
+    text: "요약 닫기"
+- assertVisible:
+    id: "detail-back-button"
+- takeScreenshot: gon263-critical-05-sheet-back-priority
+
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: "detail-back-button"
+- extendedWaitUntil:
+    visible:
+      text: "공구 캘린더"
+    timeout: 15000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: "calendar-back-button"
+- extendedWaitUntil:
+    visible:
+      text: "상품을 검색해보세요"
+    timeout: 30000
+- takeScreenshot: gon263-critical-06-back-home

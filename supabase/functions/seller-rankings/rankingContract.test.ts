@@ -4,6 +4,7 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 import {
+  assertRankingCursorMatchesRequest,
   buildRankingResponse,
   decodeRankingCursor,
   encodeRankingCursor,
@@ -54,9 +55,12 @@ Deno.test(
   "round-trips an opaque cursor without losing its typed sort key",
   () => {
     const cursor = {
+      category: "food" as const,
+      period: "weekly" as const,
       sort: "popular" as const,
       groupBuyId: "group-buy-2",
       numericValue: 42,
+      secondaryScore: 42,
     };
 
     assertEquals(decodeRankingCursor(encodeRankingCursor(cursor)), cursor);
@@ -69,7 +73,13 @@ Deno.test(
     await assertRejects(
       async () => {
         decodeRankingCursor(
-          encodeRankingCursor({ sort: "popular", groupBuyId: "group-buy-2" }),
+          encodeRankingCursor({
+            category: "food",
+            period: "weekly",
+            sort: "popular",
+            groupBuyId: "group-buy-2",
+            secondaryScore: 42,
+          }),
         );
       },
       Error,
@@ -77,6 +87,81 @@ Deno.test(
     );
   },
 );
+
+Deno.test("rejects a cursor without its secondary score", async () => {
+  await assertRejects(
+    async () => {
+      decodeRankingCursor(
+        encodeRankingCursor({
+          category: "food",
+          period: "weekly",
+          sort: "popular",
+          groupBuyId: "group-buy-2",
+          numericValue: 42,
+          secondaryScore: Number.NaN,
+        }),
+      );
+    },
+    Error,
+    "secondary score",
+  );
+});
+
+Deno.test("rejects a cursor reused with another ranking filter", async () => {
+  const cursor = decodeRankingCursor(
+    encodeRankingCursor({
+      category: "food",
+      period: "weekly",
+      sort: "rising",
+      groupBuyId: "group-buy-2",
+      numericValue: 12,
+      secondaryScore: 42,
+    }),
+  );
+
+  await assertRejects(
+    async () => {
+      assertRankingCursorMatchesRequest(
+        cursor,
+        normalizeRankingRequest({
+          category: "beauty",
+          period: "weekly",
+          sort: "rising",
+        }),
+      );
+    },
+    Error,
+    "category",
+  );
+  await assertRejects(
+    async () => {
+      assertRankingCursorMatchesRequest(
+        cursor,
+        normalizeRankingRequest({
+          category: "food",
+          period: "monthly",
+          sort: "rising",
+        }),
+      );
+    },
+    Error,
+    "period",
+  );
+  await assertRejects(
+    async () => {
+      assertRankingCursorMatchesRequest(
+        cursor,
+        normalizeRankingRequest({
+          category: "food",
+          period: "weekly",
+          sort: "popular",
+        }),
+      );
+    },
+    Error,
+    "sort",
+  );
+});
 
 Deno.test(
   "builds a response with a next cursor only when another page exists",
@@ -140,6 +225,17 @@ Deno.test(
     assertEquals(response.data[0].groupBuyId, "group-buy-1");
     assertEquals(response.pageInfo.hasMore, true);
     assertEquals(response.pageInfo.nextCursor !== null, true);
+    assertEquals(
+      decodeRankingCursor(response.pageInfo.nextCursor!),
+      {
+        category: "all",
+        period: "weekly",
+        sort: "popular",
+        groupBuyId: "group-buy-1",
+        numericValue: 14,
+        secondaryScore: 14,
+      },
+    );
     assertEquals(response.meta.scoreVersion, "v2");
   },
 );

@@ -1,0 +1,61 @@
+name: Supabase Integration Contracts
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/shared/**"
+      - "supabase/**"
+      - ".github/workflows/supabase-integration.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/shared/**"
+      - "supabase/**"
+      - ".github/workflows/supabase-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-integration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  local-contracts:
+    name: Local Supabase Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
+        with:
+          version: latest
+      - name: Start isolated Supabase stack
+        run: >-
+          supabase start
+          -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
+      - name: Verify Admin, PostgREST, mobile, and ranking contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          export LOCAL_SUPABASE_URL="${API_URL:?missing local API URL}"
+          export LOCAL_SUPABASE_ANON_KEY="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+          export LOCAL_SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY:-${SECRET_KEY:-}}"
+          test -n "$LOCAL_SUPABASE_ANON_KEY"
+          test -n "$LOCAL_SUPABASE_SERVICE_ROLE_KEY"
+          npm run test:integration:supabase --workspace=@gonggu/mobile
+      - name: Stop isolated Supabase stack
+        if: always()
+        run: supabase stop

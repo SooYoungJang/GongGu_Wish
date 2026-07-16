@@ -33,8 +33,11 @@ export type RankingRequest = {
 };
 
 export type RankingCursor = {
+  category: RankingCategory;
+  period: RankingPeriod;
   sort: RankingSort;
   groupBuyId: string;
+  secondaryScore: number;
   numericValue?: number;
   timestampValue?: string | null;
 };
@@ -145,10 +148,12 @@ export function normalizeRankingRequest(input: unknown): RankingRequest {
   const sort = value.sort === undefined ? "popular" : value.sort;
   const limit = value.limit === undefined ? 20 : Number(value.limit);
 
-  if (!isRankingPeriod(period))
+  if (!isRankingPeriod(period)) {
     throw new Error(`period must be today, weekly, or monthly`);
-  if (!isRankingSort(sort))
+  }
+  if (!isRankingSort(sort)) {
     throw new Error(`sort must be popular, rising, deadlineSoon, or newDeal`);
+  }
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
     throw new Error("limit must be an integer between 1 and 100");
   }
@@ -195,15 +200,20 @@ export function decodeRankingCursor(value: string): RankingCursor {
     throw new Error("cursor is not a valid ranking cursor");
   }
 
-  if (!parsed || typeof parsed !== "object")
+  if (!parsed || typeof parsed !== "object") {
     throw new Error("cursor is not a valid ranking cursor");
+  }
   const cursor = parsed as Record<string, unknown>;
   if (
+    !isRankingCategory(cursor.category) ||
+    !isRankingPeriod(cursor.period) ||
     !isRankingSort(cursor.sort) ||
     typeof cursor.groupBuyId !== "string" ||
-    !cursor.groupBuyId
+    !cursor.groupBuyId ||
+    typeof cursor.secondaryScore !== "number" ||
+    !Number.isFinite(cursor.secondaryScore)
   ) {
-    throw new Error("cursor is not a valid ranking cursor");
+    throw new Error("cursor is missing its filter identity or secondary score");
   }
   if (
     (cursor.sort === "popular" || cursor.sort === "rising") &&
@@ -225,10 +235,26 @@ export function decodeRankingCursor(value: string): RankingCursor {
   return parsed as RankingCursor;
 }
 
+export function assertRankingCursorMatchesRequest(
+  cursor: RankingCursor,
+  request: RankingRequest,
+): void {
+  if (cursor.category !== request.category) {
+    throw new Error("cursor category does not match the requested category");
+  }
+  if (cursor.period !== request.period) {
+    throw new Error("cursor period does not match the requested period");
+  }
+  if (cursor.sort !== request.sort) {
+    throw new Error("cursor sort does not match the requested ranking sort");
+  }
+}
+
 function toNonNegativeInteger(value: number | string): number {
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 0)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
     throw new Error("ranking metric is invalid");
+  }
   return parsed;
 }
 
@@ -250,8 +276,9 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
 
   const trendDelta = toNonNegativeInteger(row.trend_delta);
   const rank = toPositiveInteger(row.rank);
-  const previousRank =
-    row.previous_rank === null ? null : toPositiveInteger(row.previous_rank);
+  const previousRank = row.previous_rank === null
+    ? null
+    : toPositiveInteger(row.previous_rank);
   const mediaUrls = row.media_urls ?? [];
   if (!row.group_buy_id || !row.username || !row.score_version) {
     throw new Error("ranking row identity is invalid");
@@ -265,10 +292,9 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
   if (row.thumbnail_url !== null && row.thumbnail_url.length === 0) {
     throw new Error("ranking thumbnail is invalid");
   }
-  const trend =
-    row.trend_kind === "up" || row.trend_kind === "down"
-      ? { kind: row.trend_kind, delta: trendDelta }
-      : { kind: row.trend_kind };
+  const trend = row.trend_kind === "up" || row.trend_kind === "down"
+    ? { kind: row.trend_kind, delta: trendDelta }
+    : { kind: row.trend_kind };
 
   return {
     groupBuyId: row.group_buy_id,
@@ -301,12 +327,16 @@ function cursorForRow(
   request: RankingRequest,
 ): RankingCursor {
   const cursor: RankingCursor = {
+    category: request.category,
+    period: request.period,
     sort: request.sort,
     groupBuyId: row.group_buy_id,
+    secondaryScore: toNumber(row.score),
   };
   if (request.sort === "popular") cursor.numericValue = toNumber(row.score);
-  if (request.sort === "rising")
+  if (request.sort === "rising") {
     cursor.numericValue = toNumber(row.score_delta);
+  }
   if (request.sort === "deadlineSoon") cursor.timestampValue = row.end_date;
   if (request.sort === "newDeal") cursor.timestampValue = row.created_at;
   return cursor;
@@ -328,8 +358,8 @@ export function buildRankingResponse(
       hasMore,
       nextCursor: hasMore
         ? encodeRankingCursor(
-            cursorForRow(pageRows[pageRows.length - 1], request),
-          )
+          cursorForRow(pageRows[pageRows.length - 1], request),
+        )
         : null,
     },
     meta: {

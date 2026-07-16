@@ -1,0 +1,383 @@
+name: Mobile E2E
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/mobile-ios-e2e.yml"
+      - ".maestro/gon-263-*.yaml"
+      - "apps/mobile/**"
+      - "packages/shared/**"
+      - "supabase/**"
+      - "scripts/build-gon263-android-e2e.sh"
+      - "scripts/gon263-android-e2e-config.test.mjs"
+      - "scripts/mobile-e2e-api-server*.mjs"
+      - "scripts/run-gon263-android-e2e.sh"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ios-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gon-263-android:
+    name: GON-263 Android journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EXPO_NO_TELEMETRY: "1"
+      MAESTRO_VERSION: "2.6.1"
+      # The emulator can only execute x86_64. Restricting the release build to
+      # that ABI avoids filling the runner disk with unused native artifacts.
+      ORG_GRADLE_PROJECT_reactNativeArchitectures: "x86_64"
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
+        with:
+          version: latest
+
+      - name: Start real local Supabase and export app-safe configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase start \
+            -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
+          eval "$(supabase status -o env)"
+          anon_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+          test -n "$anon_key"
+          echo "::add-mask::$anon_key"
+          echo "EXPO_PUBLIC_E2E_MODE=true" >> "$GITHUB_ENV"
+          echo "EXPO_PUBLIC_SUPABASE_URL=http://localhost:54321" >> "$GITHUB_ENV"
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$anon_key" >> "$GITHUB_ENV"
+
+      - name: Install pinned Maestro CLI
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          "$HOME/.maestro/bin/maestro" --version
+
+      - name: Validate and start local video fixture
+        shell: bash
+        run: |
+          node --test \
+            scripts/gon263-android-e2e-config.test.mjs \
+            scripts/mobile-e2e-api-server.test.mjs
+          mkdir -p artifacts/android
+          E2E_API_HOST=0.0.0.0 E2E_API_PORT=58080 \
+            node scripts/mobile-e2e-api-server.mjs \
+            > artifacts/android/e2e-media.log 2>&1 &
+          echo "E2E_MEDIA_PID=$!" >> "$GITHUB_ENV"
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:58080/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+
+      - name: Enable KVM access
+        run: |
+          sudo usermod -aG kvm "$USER"
+          sudo chown "$USER" /dev/kvm
+
+      - name: Build release app and run Android journeys
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 36
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          disk-size: 6000M
+          heap-size: 2048M
+          # Compile while the AVD is still stopped. Keeping the emulator alive
+          # during the native release build can starve Quickstep into an ANR.
+          pre-emulator-launch-script: bash scripts/build-gon263-android-e2e.sh
+          script: bash scripts/run-gon263-android-e2e.sh
+
+      - name: Capture Supabase layer logs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p artifacts/android
+          docker ps --format '{{.Names}}' > artifacts/android/supabase-containers.txt || true
+          while IFS= read -r container; do
+            case "$container" in
+              *edge_runtime*|*rest*|*db*)
+                docker logs "$container" > "artifacts/android/${container}.log" 2>&1 || true
+                ;;
+            esac
+          done < artifacts/android/supabase-containers.txt
+
+      - name: Validate Android evidence
+        if: always()
+        shell: bash
+        run: |
+          test -s artifacts/android/critical-output.log
+          test -s artifacts/android/reels-output.log
+          test -s artifacts/android/critical-commands.json
+          test -s artifacts/android/reels-commands.json
+          test "$(find artifacts/android -name 'gon263-*.png' | wc -l)" -ge 10
+          test -s artifacts/android/adb-reverse.txt
+          test -s artifacts/android/adb-reverse-after-install.txt
+          grep -Fx "reactNativeArchitectures=x86_64" \
+            artifacts/android/build-config.txt
+          grep -F 'android:usesCleartextTraffic="true"' \
+            artifacts/android/android-manifest.xml
+          test -s artifacts/android/android-prebuild.log
+          test -s artifacts/android/android-build.log
+          if grep -Eq '\[(armeabi-v7a|arm64-v8a|x86)\]' \
+            artifacts/android/android-build.log; then
+            echo "Android E2E compiled an unused ABI" >&2
+            exit 1
+          fi
+          test -s artifacts/android/disk-before-build.txt
+          test -s artifacts/android/disk-after-build.txt
+          test -s artifacts/android/disk-final.txt
+          test -s artifacts/android/logcat.txt
+          test -s artifacts/android/e2e-media.log
+
+      - name: Upload Android E2E evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gon-263-android-e2e
+          path: artifacts/android
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
+
+      - name: Stop local video fixture
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${E2E_MEDIA_PID:-}" ]]; then
+            kill "$E2E_MEDIA_PID" || true
+          fi
+
+  gon-263-ios:
+    # GON-263 delivery is Android-only; keep this recipe disabled for an
+    # explicitly requested future macOS validation run.
+    if: ${{ false }}
+    name: GON-263 iOS journeys
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      EXPO_NO_TELEMETRY: "1"
+      EXPO_PUBLIC_E2E_MODE: "true"
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "local-e2e-anon-key"
+      EXPO_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321"
+      MAESTRO_VERSION: "2.6.1"
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Install pinned Maestro CLI
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          "$HOME/.maestro/bin/maestro" --version
+
+      - name: Select Xcode 26 for Expo SDK 55
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_path=""
+          for candidate in \
+            /Applications/Xcode_26.2.app/Contents/Developer \
+            /Applications/Xcode_26.2.0.app/Contents/Developer \
+            /Applications/Xcode_26.3.app/Contents/Developer; do
+            if [[ -d "$candidate" ]]; then
+              xcode_path="$candidate"
+              break
+            fi
+          done
+          test -n "$xcode_path"
+          echo "DEVELOPER_DIR=$xcode_path" >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$xcode_path" xcodebuild -version
+
+      - name: Start local read-only mobile API fixture
+        shell: bash
+        run: |
+          node --test scripts/mobile-e2e-api-server.test.mjs
+          mkdir -p artifacts/ios
+          node scripts/mobile-e2e-api-server.mjs \
+            > artifacts/ios/e2e-api.log 2>&1 &
+          echo "E2E_API_PID=$!" >> "$GITHUB_ENV"
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:54321/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+
+      - name: Boot an available iPhone simulator
+        run: |
+          xcrun simctl list >/dev/null
+          simulator_udid="$(python3 - <<'PY'
+          import json
+          import subprocess
+
+          payload = json.loads(
+              subprocess.check_output(
+                  ["xcrun", "simctl", "list", "devices", "available", "-j"],
+                  text=True,
+              )
+          )
+          runtime_items = list(payload["devices"].items())
+          runtime_items.sort(
+              key=lambda item: (
+                  "iOS-26-2" not in item[0],
+                  "iOS-26" not in item[0],
+                  item[0],
+              )
+          )
+          devices = [
+              device
+              for _, runtime_devices in runtime_items
+              for device in runtime_devices
+              if device.get("isAvailable") and device["name"].startswith("iPhone")
+          ]
+          preferred = next(
+              (device for device in devices if device["name"] == "iPhone 16 Pro"),
+              devices[0] if devices else None,
+          )
+          if preferred is None:
+              raise SystemExit("No available iPhone simulator")
+          print(preferred["udid"])
+          PY
+          )"
+          echo "SIMULATOR_UDID=$simulator_udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$simulator_udid" || true
+          xcrun simctl bootstatus "$simulator_udid" -b
+
+      # Release embeds the JavaScript bundle, so E2E does not depend on Metro.
+      # https://docs.expo.dev/more/expo-cli/#compiling
+      - name: Build and install the iOS release app
+        working-directory: apps/mobile
+        run: |
+          mkdir -p "$HOME/.expo"
+          npx expo run:ios \
+            --configuration Release \
+            --device "$SIMULATOR_UDID" \
+            --no-bundler
+          xcrun simctl get_app_container "$SIMULATOR_UDID" com.gonggu.wish app
+
+      - name: Run canonical navigation and Back flow
+        run: |
+          mkdir -p artifacts/ios
+          set +e
+          maestro test .maestro/gon-263-critical-journeys.yaml 2>&1 \
+            | tee artifacts/ios/critical-output.log
+          status=${PIPESTATUS[0]}
+          set -e
+          find . -maxdepth 1 -name 'gon263-critical-*.png' \
+            -exec cp {} artifacts/ios/ \;
+          latest_dir="$(find "$HOME/.maestro/tests" -mindepth 1 -maxdepth 1 \
+            -type d | sort | tail -n 1)"
+          if [[ -n "$latest_dir" ]]; then
+            cp "$latest_dir/maestro.log" artifacts/ios/critical-maestro.log
+            find "$latest_dir" -maxdepth 1 -name 'commands-*.json' \
+              -exec cp {} artifacts/ios/critical-commands.json \;
+          fi
+          exit "$status"
+
+      - name: Run Reels 100-swipe lifecycle flow
+        run: |
+          set +e
+          maestro test .maestro/gon-263-reels-lifecycle.yaml 2>&1 \
+            | tee artifacts/ios/reels-output.log
+          status=${PIPESTATUS[0]}
+          set -e
+          find . -maxdepth 1 -name 'gon263-reels-*.png' \
+            -exec cp {} artifacts/ios/ \;
+          latest_dir="$(find "$HOME/.maestro/tests" -mindepth 1 -maxdepth 1 \
+            -type d | sort | tail -n 1)"
+          if [[ -n "$latest_dir" ]]; then
+            cp "$latest_dir/maestro.log" artifacts/ios/reels-maestro.log
+            find "$latest_dir" -maxdepth 1 -name 'commands-*.json' \
+              -exec cp {} artifacts/ios/reels-commands.json \;
+          fi
+          exit "$status"
+
+      - name: Capture final simulator state
+        if: always()
+        run: |
+          mkdir -p artifacts/ios
+          xcrun simctl io "$SIMULATOR_UDID" screenshot \
+            artifacts/ios/final-simulator.png || true
+          xcrun simctl spawn "$SIMULATOR_UDID" log show \
+            --last 45m --style compact \
+            --predicate 'processImagePath CONTAINS "GongGu"' \
+            > artifacts/ios/simulator.log 2>&1 || true
+
+      - name: Validate iOS evidence and read-only boundary
+        if: always()
+        shell: bash
+        run: |
+          test -s artifacts/ios/e2e-api.log
+          test -s artifacts/ios/critical-output.log
+          test -s artifacts/ios/reels-output.log
+          test -s artifacts/ios/critical-commands.json
+          test -s artifacts/ios/reels-commands.json
+          test "$(find artifacts/ios -name 'gon263-*.png' | wc -l)" -ge 10
+          test -s artifacts/ios/final-simulator.png
+          if grep -q '"layer":"unexpected-mutation"' artifacts/ios/e2e-api.log; then
+            echo "The automated iOS journey attempted a data mutation" >&2
+            exit 1
+          fi
+
+      - name: Stop local mobile API fixture
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${E2E_API_PID:-}" ]]; then
+            kill "$E2E_API_PID" || true
+          fi
+
+      - name: Upload iOS E2E evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gon-263-ios-e2e
+          path: artifacts/ios
+          if-no-files-found: error
+          retention-days: 14
