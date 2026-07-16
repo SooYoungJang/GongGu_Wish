@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CalendarScreen, filterGroupBuysByActivity } from "../CalendarScreen";
 import {
   CALENDAR_CARD_HEIGHT,
+  CALENDAR_CARD_WIDTH,
   getCalendarLayoutMetrics,
 } from "../../components/calendar/CalendarDateRow";
 import { ThemeProvider } from "../../context/ThemeContext";
@@ -303,6 +304,7 @@ describe("CalendarScreen", () => {
     const metrics = getCalendarLayoutMetrics(2);
 
     expect(metrics.cardHeight).toBeGreaterThan(CALENDAR_CARD_HEIGHT);
+    expect(metrics.cardWidth).toBeGreaterThan(CALENDAR_CARD_WIDTH);
     expect(metrics.sectionHeight).toBeGreaterThan(metrics.cardHeight);
 
     windowDimensionsMock.fontScale = 2;
@@ -334,6 +336,11 @@ describe("CalendarScreen", () => {
 
     expect(flattenStyle(row.props.style).height).toBe(metrics.sectionHeight);
     expect(flattenStyle(carousel.props.style).height).toBe(metrics.cardHeight);
+    expect(carousel.props.getItemLayout(null, 1)).toEqual({
+      index: 1,
+      length: metrics.cardWidth + spacing.md,
+      offset: metrics.cardWidth + spacing.md,
+    });
     expect(dateList.props.getItemLayout(null, 2)).toEqual({
       index: 2,
       length: metrics.sectionHeight,

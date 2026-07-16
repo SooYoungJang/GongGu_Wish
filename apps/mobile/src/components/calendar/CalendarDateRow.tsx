@@ -11,12 +11,13 @@ import { DealCard } from '../DealCard';
 import { SText } from '../ui/SText';
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
-const CALENDAR_CARD_WIDTH = 156;
+export const CALENDAR_CARD_WIDTH = 156;
 export const CALENDAR_CARD_HEIGHT = 256;
 export const CALENDAR_DATE_SECTION_HEIGHT = 312;
 
 export type CalendarLayoutMetrics = {
   cardHeight: number;
+  cardWidth: number;
   dateRailWidth: number;
   largeText: boolean;
   sectionHeight: number;
@@ -29,10 +30,12 @@ export function getCalendarLayoutMetrics(
     ? Math.min(2, Math.max(1, fontScale))
     : 1;
   const scaleDelta = normalizedFontScale - 1;
-  const cardHeight = CALENDAR_CARD_HEIGHT + Math.round(scaleDelta * 128);
+  const cardHeight = CALENDAR_CARD_HEIGHT + Math.round(scaleDelta * 200);
+  const cardWidth = CALENDAR_CARD_WIDTH + Math.round(scaleDelta * 72);
 
   return {
     cardHeight,
+    cardWidth,
     dateRailWidth: 58 + Math.round(scaleDelta * 22),
     largeText: normalizedFontScale >= 1.3,
     sectionHeight:
@@ -196,8 +199,8 @@ export const CalendarDateRow = memo(function CalendarDateRow({
             data={items}
             getItemLayout={(_, index) => ({
               index,
-              length: CALENDAR_CARD_WIDTH + spacing.md,
-              offset: (CALENDAR_CARD_WIDTH + spacing.md) * index,
+              length: layoutMetrics.cardWidth + spacing.md,
+              offset: (layoutMetrics.cardWidth + spacing.md) * index,
             })}
             horizontal
             keyExtractor={keyExtractor}
@@ -308,7 +311,7 @@ function makeStyles(
     calendarDealCard: {
       height: layoutMetrics.cardHeight,
       marginRight: spacing.md,
-      width: CALENDAR_CARD_WIDTH,
+      width: layoutMetrics.cardWidth,
     },
     emptyDateSection: {
       alignItems: 'center',

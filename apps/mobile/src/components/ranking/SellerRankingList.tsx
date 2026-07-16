@@ -55,6 +55,10 @@ export function SellerRankingList({
     () => [s.content, { paddingTop: topInset }],
     [s.content, topInset],
   );
+  const statusViewportStyle = useMemo(
+    () => [s.statusContainer, { paddingTop: topInset }],
+    [s.statusContainer, topInset],
+  );
   const renderItem: ListRenderItem<RankingListItem> = useCallback(
     ({ item }) => (
       <SellerRankingRow
@@ -68,7 +72,10 @@ export function SellerRankingList({
   );
   if (state.status === "loading") {
     return (
-      <View style={s.statusContainer}>
+      <View
+        style={statusViewportStyle}
+        testID="ranking-status-viewport"
+      >
         <ActivityIndicator color={colors.accent} />
       </View>
     );
@@ -76,25 +83,35 @@ export function SellerRankingList({
 
   if (state.status === "error") {
     return (
-      <AsyncStateNotice
-        message={state.message}
-        onRetry={state.retry}
-        style={s.fullStatus}
-        title="랭킹을 불러오지 못했어요"
-        variant="error"
-      />
+      <View
+        style={statusViewportStyle}
+        testID="ranking-status-viewport"
+      >
+        <AsyncStateNotice
+          message={state.message}
+          onRetry={state.retry}
+          style={s.fullStatus}
+          title="랭킹을 불러오지 못했어요"
+          variant="error"
+        />
+      </View>
     );
   }
 
   if (state.status === "empty") {
     return (
-      <AsyncStateNotice
-        actionLabel={state.action?.label}
-        onRetry={state.action?.onPress}
-        style={s.fullStatus}
-        title={state.message}
-        variant="empty"
-      />
+      <View
+        style={statusViewportStyle}
+        testID="ranking-status-viewport"
+      >
+        <AsyncStateNotice
+          actionLabel={state.action?.label}
+          onRetry={state.action?.onPress}
+          style={s.fullStatus}
+          title={state.message}
+          variant="empty"
+        />
+      </View>
     );
   }
 
@@ -155,10 +172,7 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingHorizontal: spacing.lg,
     },
     fullStatus: {
-      flex: 1,
-      justifyContent: "center",
-      marginHorizontal: spacing.lg,
-      marginTop: spacing.md,
+      alignSelf: "stretch",
     },
     list: {
       backgroundColor: colors.bg,
@@ -169,9 +183,8 @@ function makeStyles(colors: CommerceColorPalette) {
       backgroundColor: colors.bg,
       flex: 1,
       justifyContent: "center",
-      marginTop: spacing.md,
       paddingHorizontal: spacing["2xl"],
-      paddingVertical: spacing["3xl"],
+      paddingBottom: spacing["3xl"],
     },
   });
 }

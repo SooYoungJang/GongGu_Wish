@@ -629,6 +629,7 @@ describe("ranking components", () => {
               action: { label: "전체 보기", onPress },
             }}
             bottomPadding={0}
+            topInset={320}
           />,
         ),
       );
@@ -637,8 +638,12 @@ describe("ranking components", () => {
     const action = renderer!.root.findByProps({
       accessibilityLabel: "전체 보기",
     });
+    const viewport = renderer!.root.findByProps({
+      testID: "ranking-status-viewport",
+    });
     act(() => action.props.onPress());
 
+    expect(flattenStyle(viewport.props.style).paddingTop).toBe(320);
     expect(flattenText(renderer!.toJSON())).toContain(
       "아직 집계된 랭킹이 없어요",
     );
