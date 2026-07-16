@@ -240,6 +240,7 @@ export function ReelsScreen({
       handlePlaybackStateChange,
       insets.bottom,
       insets.top,
+      isReelsMuted,
       replayKey,
       s,
       screenHeight,

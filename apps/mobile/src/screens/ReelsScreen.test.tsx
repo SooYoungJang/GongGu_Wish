@@ -15,6 +15,7 @@ const focusMock = vi.hoisted(() => ({
 
 const recordViewMock = vi.hoisted(() => vi.fn());
 const logDeepViewMock = vi.hoisted(() => vi.fn());
+const themeMock = vi.hoisted(() => ({ colors: {}, shadows: {} }));
 
 const groupBuys = [0, 1, 2].map((index) => ({
   id: `reel-${index}`,
@@ -101,7 +102,7 @@ vi.mock("../hooks/useTabReselect", () => ({
 }));
 
 vi.mock("../context/ThemeContext", () => ({
-  useTheme: () => ({ colors: {}, shadows: {} }),
+  useTheme: () => themeMock,
 }));
 
 vi.mock("./reelNavigation", () => ({
