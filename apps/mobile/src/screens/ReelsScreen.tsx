@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Platform, StatusBar, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AppState, Platform, StatusBar, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useQuery } from '@tanstack/react-query';
 import PagerView from 'react-native-pager-view';
 
-import { fetchGroupBuys, fallbackGroupBuys } from '../api';
+import { fetchGroupBuys } from '../api';
 import { logDeepView } from '../api';
 import { useRecentViews } from '../hooks/useLocalDeals';
 import { useTabReselect } from '../hooks/useTabReselect';
@@ -70,7 +70,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
     }, []),
   );
 
-  const { data } = useQuery({
+  const { data, isError, isLoading } = useQuery({
     queryKey: ['group-buys'],
     queryFn: fetchGroupBuys,
     retry: false,
@@ -78,8 +78,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
 
   // Base shuffled batch, refreshed each time data arrives.
   const baseBatch = useMemo<GroupBuy[]>(() => {
-    const items = data?.length ? data : fallbackGroupBuys;
-    return shuffle(items);
+    return shuffle(data ?? []);
   }, [data]);
 
   // Infinite scroll: append a fresh shuffled batch whenever the user gets
@@ -188,6 +187,16 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
     return (
       <View style={styles.empty}>
         <StatusBar barStyle="light-content" />
+        <Text style={styles.emptyTitle}>
+          {isLoading
+            ? '릴스를 불러오는 중이에요'
+            : isError
+              ? '릴스 영상을 불러오지 못했어요'
+              : '표시할 릴스 영상이 없어요'}
+        </Text>
+        <Text style={styles.emptyDescription}>
+          {isError ? '네트워크 연결 상태를 확인하고 다시 시도해주세요.' : '새 공구 영상이 등록되면 여기에서 확인할 수 있어요.'}
+        </Text>
       </View>
     );
   }
@@ -239,5 +248,7 @@ export function ReelsScreen({ onSheetVisibilityChange }: { onSheetVisibilityChan
 }
 
 const styles = StyleSheet.create({
-  empty: { flex: 1, backgroundColor: '#05070A' },
+  empty: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#05070A' },
+  emptyTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  emptyDescription: { color: '#A7AFBE', fontSize: 14, lineHeight: 20, marginTop: 8, textAlign: 'center' },
 });

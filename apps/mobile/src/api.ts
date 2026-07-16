@@ -11,6 +11,7 @@
  */
 
 import { Platform } from "react-native";
+import { publicGroupBuysResponseSchema } from "@gonggu/shared/schemas/group-buy";
 
 import type {
   FeedPost,
@@ -105,121 +106,6 @@ export const API_BASE_URL = Platform.select({
   default: "http://192.168.219.122:3003/api/v1",
 }) as string;
 
-// ─── Sample Data ─────────────────────────────────────────────────────────────
-
-export const fallbackGroupBuys: GroupBuy[] = [
-  {
-    id: "sample-1",
-    productName: "비건 선크림 공구",
-    brandName: "Sample Beauty",
-    category: "beauty",
-    endDate: "2026-06-15T23:59:59+09:00",
-    purchaseUrl: "https://example.com",
-    discountInfo: "20% 할인",
-    summary: "인플루언서 게시물에서 감지된 공동구매 후보입니다.",
-    confidence: 0.82,
-    startDate: null,
-    thumbnailUrl: null,
-    videoUrl: null,
-    mediaUrls: [],
-    mediaType: null,
-    rawPost: {
-      postUrl: "https://www.instagram.com/",
-      influencer: {
-        instagramUsername: "sample_influencer",
-      },
-    },
-  },
-  {
-    id: "sample-2",
-    productName: "프리미엄 유아용품 세트",
-    brandName: "맘편한세상",
-    category: "baby",
-    endDate: "2026-07-01T23:59:59+09:00",
-    purchaseUrl: "https://example.com/baby",
-    discountInfo: "35% 할인",
-    summary: "신생아부터 돌까지 필요한 유아용품을 한 번에.",
-    confidence: 0.91,
-    startDate: null,
-    thumbnailUrl: null,
-    videoUrl: null,
-    mediaUrls: [],
-    mediaType: null,
-    rawPost: {
-      postUrl: "https://www.instagram.com/",
-      influencer: {
-        instagramUsername: "mom_blogger",
-      },
-    },
-  },
-  {
-    id: "sample-3",
-    productName: "올인원 홈트레이닝 키트",
-    brandName: "핏스타그램",
-    category: "living",
-    endDate: "2026-06-28T23:59:59+09:00",
-    purchaseUrl: "https://example.com/fitness",
-    discountInfo: "25% 할인",
-    summary: "홈트레이닝에 필요한 모든 도구를 세트로.",
-    confidence: 0.78,
-    startDate: null,
-    thumbnailUrl: null,
-    videoUrl: null,
-    mediaUrls: [],
-    mediaType: null,
-    rawPost: {
-      postUrl: "https://www.instagram.com/",
-      influencer: {
-        instagramUsername: "fitness_influencer",
-      },
-    },
-  },
-  {
-    id: "sample-4",
-    productName: "스마트 홈 카메라",
-    brandName: "테크스토어",
-    category: "electronics",
-    endDate: "2026-06-20T23:59:59+09:00",
-    purchaseUrl: "https://example.com/camera",
-    discountInfo: "15% 할인",
-    summary: "반려동물, 아이 모니터링에 최적화된 스마트 카메라.",
-    confidence: 0.85,
-    startDate: null,
-    thumbnailUrl: null,
-    videoUrl: null,
-    mediaUrls: [],
-    mediaType: null,
-    rawPost: {
-      postUrl: "https://www.instagram.com/",
-      influencer: {
-        instagramUsername: "tech_reviewer",
-      },
-    },
-  },
-  {
-    id: "sample-5",
-    productName: "자연유래 클렌징 3종 세트",
-    brandName: "글로우스킨",
-    category: "beauty",
-    endDate: "2026-07-10T23:59:59+09:00",
-    purchaseUrl: "https://example.com/skincare",
-    discountInfo: "30% 할인",
-    summary: "민감성 피부를 위한 저자극 클렌징 라인.",
-    confidence: 0.88,
-    startDate: null,
-    thumbnailUrl: null,
-    videoUrl: null,
-    mediaUrls: [],
-    mediaType: null,
-    rawPost: {
-      postUrl: "https://www.instagram.com/",
-      influencer: {
-        instagramUsername: "skincare_expert",
-      },
-    },
-  },
-];
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // PUBLIC DATA — PostgREST
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -243,11 +129,30 @@ export async function fetchGroupBuys(): Promise<GroupBuy[]> {
   }
 }
 
+function validatePublicGroupBuys(items: unknown): GroupBuy[] {
+  const result = publicGroupBuysResponseSchema.safeParse(items);
+  if (!result.success) {
+    throw new ApiError(
+      502,
+      "Invalid public group buy response",
+      result.error.issues.map((issue) => ({
+        field: issue.path.join(".") || "response",
+        message: issue.message,
+        code: "INVALID_PUBLIC_GROUP_BUY",
+      })),
+    );
+  }
+
+  // Keep the mapper's legacy-compatible optional-field shape while using the
+  // shared schema as the runtime boundary validator.
+  return items as GroupBuy[];
+}
+
 /**
  * Map raw PostgREST group_buy rows into the app's GroupBuy type.
  */
 export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
-  return (rows || []).map((item) => {
+  const mapped = (rows || []).map((item) => {
     const rawPriceKrw =
       item.priceKrw !== undefined ? item.priceKrw : item.price_krw;
     const priceKrw = normalizePriceKrw(rawPriceKrw);
@@ -308,7 +213,9 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
         },
       },
     };
-  }) as GroupBuy[];
+  });
+
+  return validatePublicGroupBuys(mapped);
 }
 
 /**

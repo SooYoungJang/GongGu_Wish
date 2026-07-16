@@ -12,7 +12,7 @@ import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controlle
 import { SearchResultsPanel } from '../components/home/SearchResultsPanel';
 import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { SText } from '../components/ui/SText';
-import { fallbackGroupBuys, fetchGroupBuys, fetchInfluencers, fetchPopularSearchTerms, logSearchTerm, searchInfluencers, type PopularSearchTerm } from '../api';
+import { fetchGroupBuys, fetchInfluencers, fetchPopularSearchTerms, logSearchTerm, searchInfluencers, type PopularSearchTerm } from '../api';
 import { normalizeForSearch, pushRecentTerm } from '../utils/search';
 import { spacing } from '../design/tokens';
 import { useCommerceTheme } from '../design/useCommerceTheme';
@@ -20,25 +20,6 @@ import { useTabReselect } from '../hooks/useTabReselect';
 import type { CommerceColorPalette } from '../design/commerce';
 import type { GroupBuy, Influencer, MainTabParamList, RootStackParamList } from '../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-
-function getFallbackInfluencers(groupBuys: GroupBuy[]): Influencer[] {
-  const influencers = new Map<string, Influencer>();
-  for (const gb of groupBuys) {
-    const username = gb.rawPost.influencer.instagramUsername.replace(/^@/, '');
-    const key = username.toLowerCase();
-    if (!influencers.has(key)) {
-      influencers.set(key, {
-        id: `fallback-${key}`,
-        instagramUsername: username,
-        displayName: null,
-        isActive: true,
-      });
-    }
-  }
-  return Array.from(influencers.values()).sort((a, b) =>
-    a.instagramUsername.localeCompare(b.instagramUsername),
-  );
-}
 
 const RECENT_KEY = 'search:recent';
 const RECENT_MAX = 10;
@@ -111,8 +92,16 @@ export function SearchScreen() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const { data: groupBuysData, refetch: refetchGroupBuys } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys, retry: false });
-  const { data: influencersData, refetch: refetchInfluencers } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers, retry: false });
+  const {
+    data: groupBuysData,
+    isError: isGroupBuysError,
+    refetch: refetchGroupBuys,
+  } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys, retry: false });
+  const {
+    data: influencersData,
+    isError: isInfluencersError,
+    refetch: refetchInfluencers,
+  } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers, retry: false });
   const { data: popularTerms, refetch: refetchPopularTerms } = useQuery({
     queryKey: ['popular-search-terms'],
     // Rolling 24-hour window keeps the ranking populated even right after midnight.
@@ -180,11 +169,9 @@ export function SearchScreen() {
     });
   }, []);
 
-  const groupBuys = useMemo(() => groupBuysData?.length ? groupBuysData : fallbackGroupBuys, [groupBuysData]);
-  const influencers = useMemo(() => {
-    if (influencersData?.length) return influencersData;
-    return getFallbackInfluencers(groupBuys);
-  }, [influencersData, groupBuys]);
+  const groupBuys = useMemo(() => groupBuysData ?? [], [groupBuysData]);
+  const influencers = useMemo(() => influencersData ?? [], [influencersData]);
+  const hasPublicDataError = Boolean(isGroupBuysError || isInfluencersError);
   const searchResults = useMemo(
     () => searchInfluencers(influencers, debouncedQuery).slice(0, 8),
     [influencers, debouncedQuery],
@@ -309,6 +296,13 @@ export function SearchScreen() {
         scrollRef={scrollRef}
         contentContainerStyle={s.scrollContent}
       >
+        {hasPublicDataError ? (
+          <View style={s.dataNotice} testID="search-data-error">
+            <SText variant="caption" style={s.dataNoticeText}>
+              공구 정보를 불러오지 못했어요. 네트워크 연결 상태를 확인해주세요.
+            </SText>
+          </View>
+        ) : null}
         {hasQuery ? (
           <View style={s.resultsWrap}>
             {dealResults.length > 0 && (
@@ -330,8 +324,14 @@ export function SearchScreen() {
             {dealResults.length === 0 && searchResults.length === 0 && (
               <View style={s.emptyState}>
                 <SText variant="body" style={s.emptyIcon}>⌕</SText>
-                <SText variant="body" style={s.emptyTitle}>검색 결과가 없어요</SText>
-                <SText variant="body" style={s.emptyDesc}>브랜드명, 제품명 또는 인플루언서 username을 다시 확인해 주세요.</SText>
+                <SText variant="body" style={s.emptyTitle}>
+                  {hasPublicDataError ? '검색 데이터를 불러오지 못했어요' : '검색 결과가 없어요'}
+                </SText>
+                <SText variant="body" style={s.emptyDesc}>
+                  {hasPublicDataError
+                    ? '잠시 후 다시 시도해주세요.'
+                    : '브랜드명, 제품명 또는 인플루언서 username을 다시 확인해 주세요.'}
+                </SText>
               </View>
             )}
           </View>
@@ -439,6 +439,14 @@ function makeStyles(colors: CommerceColorPalette) {
     clearIcon: { fontSize: 24, color: colors.disabled, fontWeight: '300', lineHeight: 26 },
     scrollContent: { paddingBottom: spacing['4xl'], paddingHorizontal: 18 },
 
+    dataNotice: {
+      backgroundColor: colors.softBg,
+      borderRadius: 12,
+      marginTop: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    dataNoticeText: { color: colors.weak, textAlign: 'center' },
     resultsWrap: { paddingTop: 36 },
     resultTitle: { color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: 0, lineHeight: 26, marginBottom: 14 },
     resultRow: {

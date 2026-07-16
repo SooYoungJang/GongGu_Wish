@@ -57,6 +57,24 @@ describe('public data fetch diagnostics', () => {
     expect(item.isHomeBanner).toBe(false);
   });
 
+  it('rejects a malformed public group-buy response instead of exposing it to screens', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [
+        {
+          id: 'malformed-group-buy',
+          product_name: '잘못된 공구',
+          confidence: 2,
+          raw_post_id: null,
+        },
+      ],
+    }) as unknown as typeof fetch;
+
+    await expect(fetchGroupBuys()).rejects.toThrow('Invalid public group buy response');
+  });
+
   it('looks up Instagram metadata through the Supabase hiker function', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,

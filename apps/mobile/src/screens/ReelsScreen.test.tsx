@@ -41,6 +41,7 @@ vi.mock('react-native', () => {
     Platform: { OS: 'android' },
     StatusBar: passthrough('StatusBar'),
     StyleSheet: { create: (styles: unknown) => styles },
+    Text: passthrough('Text'),
     View: passthrough('View'),
     useWindowDimensions: () => ({ width: 360, height: 720 }),
   };
@@ -81,7 +82,6 @@ vi.mock('react-native-pager-view', () => {
 });
 
 vi.mock('../api', () => ({
-  fallbackGroupBuys: [],
   fetchGroupBuys: vi.fn(),
   logDeepView: logDeepViewMock,
 }));

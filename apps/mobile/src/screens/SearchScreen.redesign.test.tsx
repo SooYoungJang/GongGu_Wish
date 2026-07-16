@@ -40,7 +40,6 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('../api', () => ({
-	  fallbackGroupBuys: mocks.groupBuys,
 	  fetchGroupBuys: vi.fn(),
 	  fetchInfluencers: vi.fn(),
 	  fetchPopularSearchTerms: vi.fn(),

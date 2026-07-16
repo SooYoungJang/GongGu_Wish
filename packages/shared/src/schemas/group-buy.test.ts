@@ -4,6 +4,7 @@ import {
   groupBuyCategorySchema,
   groupBuyStatusSchema,
   groupBuysResponseSchema,
+  publicGroupBuySchema,
   groupBuyAdminSchema,
   calendarGroupBuyItemSchema,
   calendarGroupBuyResponseSchema,
@@ -18,6 +19,45 @@ describe("group-buy schemas", () => {
       for (const category of ["lifestyle", "digital", "living", "electronics"]) {
         expect(groupBuyCategorySchema.safeParse(category).success).toBe(true);
       }
+    });
+  });
+
+  describe("publicGroupBuySchema", () => {
+    const publicGroupBuy = {
+      id: "public-group-buy-1",
+      productName: "공개 공구",
+      brandName: "공개 브랜드",
+      category: "beauty",
+      startDate: "2026-07-01T00:00:00",
+      endDate: "2026-07-07T23:59:59",
+      purchaseUrl: "https://example.com/buy",
+      discountInfo: "20% 할인",
+      priceKrw: 200000,
+      summary: "공개 공구 요약",
+      confidence: 0.9,
+      thumbnailUrl: null,
+      videoUrl: null,
+      mediaUrls: [],
+      mediaItems: [],
+      mediaType: null,
+      rawPost: {
+        postUrl: "https://instagram.com/p/public-group-buy-1",
+        influencer: { instagramUsername: "public_seller" },
+      },
+    };
+
+    it("validates the mobile public contract and defaults banner opt-in to false", () => {
+      const result = publicGroupBuySchema.safeParse(publicGroupBuy);
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.isHomeBanner).toBe(false);
+    });
+
+    it("rejects an invalid persisted price", () => {
+      expect(
+        publicGroupBuySchema.safeParse({ ...publicGroupBuy, priceKrw: "200000" })
+          .success,
+      ).toBe(false);
     });
   });
 
