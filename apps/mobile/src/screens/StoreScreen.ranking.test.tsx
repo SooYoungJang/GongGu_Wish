@@ -6,25 +6,31 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StoreScreen } from './StoreScreen';
 import { ThemeProvider } from '../context/ThemeContext';
 import { spacing } from '../design/tokens';
-import type { SellerRanking } from '../features/ranking/types';
+import type { GroupBuyRankingItem } from '../features/ranking/types';
 
-const ranking: SellerRanking = {
-  id: 'rank-1',
-  sellerId: 'group-1',
+const ranking: GroupBuyRankingItem = {
+  groupBuyId: 'group-1',
   rank: 1,
   previousRank: 2,
   trend: { kind: 'up', delta: 1 },
-  displayName: '여름 한정 공구',
+  productName: '여름 한정 공구',
+  brandName: null,
   username: 'summer.market',
-  avatarUrl: null,
   category: 'living',
-  followerCount: 12000,
-  activeDealCount: 83,
-  trustScore: 91,
-  isFollowing: false,
-  isSponsored: false,
-  thumbnails: [{ id: 'thumb-1', imageUrl: null, groupBuyId: 'group-1' }],
-  representativeGroupBuyId: 'group-1',
+  thumbnailUrl: null,
+  mediaUrls: [],
+  startDate: null,
+  endDate: null,
+  priceKrw: null,
+  metrics: {
+    deepViews: 12000,
+    bookmarks: 83,
+    notifications: 0,
+    searchClicks: 0,
+    score: 91,
+    scoreDelta: 0,
+  },
+  scoreVersion: 'v2',
 };
 
 const refreshRanking = vi.hoisted(() => vi.fn());
@@ -299,5 +305,28 @@ describe('StoreScreen ranking redesign', () => {
     act(() => navigation.emitTabPress());
 
     expect(refreshRanking).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the ranked group-buy detail using the canonical groupBuyId', () => {
+    const navigation = createNavigation();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <StoreScreen navigation={navigation as never} route={{ key: 'Store-test', name: 'Store' } as never} />
+        </ThemeProvider>,
+      );
+    });
+
+    const rowAction = renderer!.root
+      .findAllByType('Pressable' as unknown as React.ElementType)
+      .find((pressable) => pressable.props.accessibilityHint === '공구 상세 보기');
+
+    act(() => rowAction!.props.onPress());
+
+    expect(navigation.navigate).toHaveBeenCalledWith('Detail', {
+      groupBuy: expect.objectContaining({ id: 'group-1' }),
+    });
   });
 });

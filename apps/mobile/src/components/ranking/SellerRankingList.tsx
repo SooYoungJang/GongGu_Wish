@@ -15,18 +15,18 @@ import { SText } from '../ui/SText';
 import { spacing } from '../../design/tokens';
 import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
 import { useCommerceTheme } from '../../design/useCommerceTheme';
-import type { SellerRanking, RankingLoadState } from '../../features/ranking/types';
+import type { GroupBuyRankingItem, RankingListItem, RankingLoadState } from '../../features/ranking/types';
 import { SellerRankingRow } from './SellerRankingRow';
 
 export interface SellerRankingListProps {
   state: RankingLoadState;
   bottomPadding?: number;
   onRefresh?: () => void;
-  onPressItem?: (item: SellerRanking) => void;
-  onToggleFollow?: (item: SellerRanking) => void;
+  onPressItem?: (item: GroupBuyRankingItem) => void;
+  onToggleFollow?: (item: GroupBuyRankingItem) => void;
   topInset?: number;
-  onScroll?: FlatListProps<SellerRanking>['onScroll'];
-  listRef?: Ref<FlatList<SellerRanking>>;
+  onScroll?: FlatListProps<RankingListItem>['onScroll'];
+  listRef?: Ref<FlatList<RankingListItem>>;
 }
 
 const NOOP = () => undefined;
@@ -47,7 +47,7 @@ export function SellerRankingList({
     () => [s.content, { paddingTop: topInset }],
     [s.content, topInset],
   );
-  const renderItem: ListRenderItem<SellerRanking> = useCallback(
+  const renderItem: ListRenderItem<RankingListItem> = useCallback(
     ({ item }) => (
       <SellerRankingRow
         item={item}
@@ -116,7 +116,7 @@ export function SellerRankingList({
       alwaysBounceVertical={false}
       contentContainerStyle={contentContainerStyle}
       data={state.data}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item) => item.groupBuyId}
       ListFooterComponent={<View style={{ height: bottomPadding }} />}
       ref={listRef}
       onScroll={onScroll}

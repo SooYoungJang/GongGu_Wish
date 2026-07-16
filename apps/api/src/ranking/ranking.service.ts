@@ -1,147 +1,333 @@
-import { Injectable } from '@nestjs/common';
-import { RankingTab, RankingCategory, RankingPeriod, RankingSort, SellerRankingQueryDto } from './dto/seller-ranking-query.dto';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Injectable,
+} from "@nestjs/common";
+import type {
+  GroupBuyRankingItem,
+  GroupBuyRankingQuery,
+  GroupBuyRankingResponse,
+  RankingCategory,
+  RankingSort,
+} from "@gonggu/shared";
 
-export type RankingTrend =
-  | { kind: 'up'; delta: number }
-  | { kind: 'down'; delta: number }
-  | { kind: 'same' }
-  | { kind: 'new' };
+import { SupabaseService } from "../supabase/supabase.service";
+import type { GroupBuyRankingQueryDto } from "./dto/seller-ranking-query.dto";
 
-export type RankingThumbnail = {
-  id: string;
-  imageUrl: string | null;
-  label?: string | null;
-  groupBuyId?: string | null;
-};
+const SCORE_VERSION = "v2";
+const RANKING_CATEGORIES: readonly RankingCategory[] = [
+  "all",
+  "food",
+  "living",
+  "beauty",
+  "fashion",
+  "home",
+  "kitchen",
+  "electronics",
+  "pet",
+  "auto",
+  "hobby",
+  "baby",
+  "sports",
+  "stationery",
+  "books",
+  "media",
+  "travel",
+];
+const RANKING_PERIODS = ["today", "weekly", "monthly"] as const;
+const RANKING_SORTS: readonly RankingSort[] = [
+  "popular",
+  "rising",
+  "deadlineSoon",
+  "newDeal",
+];
 
-export type SellerRanking = {
-  id: string;
-  sellerId: string;
-  rank: number;
-  previousRank: number | null;
-  trend: RankingTrend;
-  displayName: string;
+type RankingRpcRow = {
+  group_buy_id: string;
+  rank: number | string;
+  previous_rank: number | string | null;
+  trend_kind: "up" | "down" | "same" | "new";
+  trend_delta: number | string;
+  product_name: string | null;
+  brand_name: string | null;
   username: string;
-  avatarUrl: string | null;
   category: string;
-  followerCount?: number | null;
-  activeDealCount: number;
-  endingSoonCount?: number | null;
-  trustScore?: number | null;
-  isFollowing: boolean;
-  isSponsored: boolean;
-  thumbnails: RankingThumbnail[];
-  representativeGroupBuyId?: string | null;
+  thumbnail_url: string | null;
+  media_urls: string[] | null;
+  start_date: string | null;
+  end_date: string | null;
+  price_krw: number | string | null;
+  created_at: string;
+  deep_views: number | string;
+  bookmarks: number | string;
+  notifications: number | string;
+  search_clicks: number | string;
+  score: number | string;
+  score_delta: number | string;
+  score_version: string;
 };
 
-function getRankingTrend(rank: number, previousRank: number | null): RankingTrend {
-  if (previousRank == null) return { kind: 'new' };
-  if (previousRank > rank) return { kind: 'up', delta: previousRank - rank };
-  if (previousRank < rank) return { kind: 'down', delta: rank - previousRank };
-  return { kind: 'same' };
+type RankingCursor = {
+  sort: RankingSort;
+  groupBuyId: string;
+  numericValue?: number;
+  timestampValue?: string | null;
+};
+
+function toFiniteNumber(value: number | string, field: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${field} is invalid`);
+  }
+  return parsed;
 }
 
-const thumbnail = (id: string, label: string) => ({
-  id,
-  imageUrl: null,
-  label,
-  groupBuyId: `group-${id}`,
-});
+function toNonNegativeInteger(value: number | string, field: string): number {
+  const parsed = toFiniteNumber(value, field);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`${field} is invalid`);
+  }
+  return parsed;
+}
 
-const STATIC_RANKINGS: SellerRanking[] = [
-  {
-    id: 'rank-1', sellerId: 'seller-ovenfresh', rank: 1, previousRank: 4,
-    trend: getRankingTrend(1, 4), displayName: '오븐프레시 마켓', username: 'ovenfresh.market',
-    avatarUrl: null, category: RankingCategory.food, followerCount: 48200, activeDealCount: 12,
-    endingSoonCount: 3, trustScore: 98, isFollowing: true, isSponsored: false,
-    thumbnails: [thumbnail('oven-1', '그래놀라'), thumbnail('oven-2', '무화과잼'), thumbnail('oven-3', '버터쿠키')],
-    representativeGroupBuyId: 'group-oven-1',
-  },
-  {
-    id: 'rank-2', sellerId: 'seller-mellowmom', rank: 2, previousRank: 1,
-    trend: getRankingTrend(2, 1), displayName: '멜로우맘 키즈', username: 'mellowmom.kids',
-    avatarUrl: null, category: RankingCategory.baby, followerCount: 31500, activeDealCount: 8,
-    endingSoonCount: 2, trustScore: 95, isFollowing: false, isSponsored: false,
-    thumbnails: [thumbnail('mom-1', '등원룩'), thumbnail('mom-2', '간식팩'), thumbnail('mom-3', '세제')],
-    representativeGroupBuyId: 'group-mom-1',
-  },
-  {
-    id: 'rank-3', sellerId: 'seller-glowpick', rank: 3, previousRank: null,
-    trend: getRankingTrend(3, null), displayName: '글로우픽 뷰티', username: 'glowpick.beauty',
-    avatarUrl: null, category: RankingCategory.beauty, followerCount: 62100, activeDealCount: 15,
-    endingSoonCount: 5, trustScore: 96, isFollowing: false, isSponsored: true,
-    thumbnails: [thumbnail('glow-1', '비타세럼'), thumbnail('glow-2', '선쿠션'), thumbnail('glow-3', '클렌저')],
-    representativeGroupBuyId: 'group-glow-1',
-  },
-  {
-    id: 'rank-4', sellerId: 'seller-studiofit', rank: 4, previousRank: 4,
-    trend: getRankingTrend(4, 4), displayName: '스튜디오핏', username: 'studiofit.daily',
-    avatarUrl: null, category: RankingCategory.fashion, followerCount: 27700, activeDealCount: 6,
-    endingSoonCount: 1, trustScore: 91, isFollowing: true, isSponsored: false,
-    thumbnails: [thumbnail('fit-1', '니트'), thumbnail('fit-2', '코트')],
-    representativeGroupBuyId: 'group-fit-1',
-  },
-  {
-    id: 'rank-5', sellerId: 'seller-livingnote', rank: 5, previousRank: 9,
-    trend: getRankingTrend(5, 9), displayName: '리빙노트', username: 'livingnote.home',
-    avatarUrl: null, category: RankingCategory.lifestyle, followerCount: 39800, activeDealCount: 10,
-    endingSoonCount: 4, trustScore: 93, isFollowing: false, isSponsored: false,
-    thumbnails: [thumbnail('living-1', '수납함'), thumbnail('living-2', '디퓨저'), thumbnail('living-3', '침구')],
-    representativeGroupBuyId: 'group-living-1',
-  },
-  {
-    id: 'rank-6', sellerId: 'seller-techpick', rank: 6, previousRank: 5,
-    trend: getRankingTrend(6, 5), displayName: '테크픽 공구', username: 'techpick.gadget',
-    avatarUrl: null, category: RankingCategory.digital, followerCount: 18200, activeDealCount: 4,
-    endingSoonCount: 0, trustScore: 89, isFollowing: false, isSponsored: false,
-    thumbnails: [thumbnail('tech-1', '충전기'), thumbnail('tech-2', '키보드'), thumbnail('tech-3', '허브')],
-    representativeGroupBuyId: 'group-tech-1',
-  },
-];
+function toPositiveInteger(value: number | string, field: string): number {
+  const parsed = toNonNegativeInteger(value, field);
+  if (parsed < 1) {
+    throw new Error(`${field} is invalid`);
+  }
+  return parsed;
+}
+
+function toNonNegativeNumber(value: number | string, field: string): number {
+  const parsed = toFiniteNumber(value, field);
+  if (parsed < 0) {
+    throw new Error(`${field} is invalid`);
+  }
+  return parsed;
+}
+
+function encodeCursor(cursor: RankingCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+function decodeCursor(value: string, sort: RankingSort): RankingCursor {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+  } catch {
+    throw new BadRequestException("cursor가 올바르지 않습니다.");
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new BadRequestException("cursor가 올바르지 않습니다.");
+  }
+
+  const cursor = parsed as Record<string, unknown>;
+  if (
+    cursor.sort !== sort ||
+    typeof cursor.groupBuyId !== "string" ||
+    !cursor.groupBuyId
+  ) {
+    throw new BadRequestException("cursor가 현재 정렬과 일치하지 않습니다.");
+  }
+
+  if (
+    cursor.numericValue !== undefined &&
+    typeof cursor.numericValue !== "number"
+  ) {
+    throw new BadRequestException("cursor가 올바르지 않습니다.");
+  }
+  if (
+    cursor.timestampValue !== undefined &&
+    cursor.timestampValue !== null &&
+    typeof cursor.timestampValue !== "string"
+  ) {
+    throw new BadRequestException("cursor가 올바르지 않습니다.");
+  }
+  if (
+    (sort === "popular" || sort === "rising") &&
+    (typeof cursor.numericValue !== "number" ||
+      !Number.isFinite(cursor.numericValue))
+  ) {
+    throw new BadRequestException("cursor에 숫자 정렬 키가 없습니다.");
+  }
+  if (sort === "newDeal" && typeof cursor.timestampValue !== "string") {
+    throw new BadRequestException("cursor에 시간 정렬 키가 없습니다.");
+  }
+
+  return cursor as RankingCursor;
+}
+
+function normalizeRequest(
+  query: GroupBuyRankingQueryDto,
+): GroupBuyRankingQuery {
+  const category = (query.category ?? "all") as RankingCategory;
+  const period = (query.period ?? "weekly") as GroupBuyRankingQuery["period"];
+  const sort = (query.sort ?? "popular") as RankingSort;
+  const limit = query.limit ?? 20;
+
+  if (!RANKING_CATEGORIES.includes(category)) {
+    throw new BadRequestException("지원하지 않는 랭킹 카테고리입니다.");
+  }
+  if (!RANKING_PERIODS.includes(period)) {
+    throw new BadRequestException("지원하지 않는 랭킹 기간입니다.");
+  }
+  if (!RANKING_SORTS.includes(sort)) {
+    throw new BadRequestException("지원하지 않는 랭킹 정렬입니다.");
+  }
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    throw new BadRequestException("랭킹 limit은 1에서 100 사이여야 합니다.");
+  }
+  if (query.cursor !== undefined && query.cursor.length === 0) {
+    throw new BadRequestException("cursor는 비어 있을 수 없습니다.");
+  }
+
+  return {
+    category,
+    period,
+    sort,
+    limit,
+    ...(query.cursor !== undefined ? { cursor: query.cursor } : {}),
+  };
+}
+
+function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
+  const rank = toPositiveInteger(row.rank, "rank");
+  const previousRank =
+    row.previous_rank === null
+      ? null
+      : toPositiveInteger(row.previous_rank, "previous_rank");
+  const trendDelta = toNonNegativeInteger(row.trend_delta, "trend_delta");
+  const mediaUrls = row.media_urls ?? [];
+
+  if (
+    !row.group_buy_id ||
+    !row.username ||
+    !RANKING_CATEGORIES.includes(row.category as RankingCategory) ||
+    row.category === "all"
+  ) {
+    throw new Error("ranking row identity is invalid");
+  }
+  if (!["up", "down", "same", "new"].includes(row.trend_kind)) {
+    throw new Error("ranking trend is invalid");
+  }
+  if (
+    !Array.isArray(mediaUrls) ||
+    mediaUrls.some((url) => typeof url !== "string" || url.length === 0)
+  ) {
+    throw new Error("ranking media is invalid");
+  }
+  if (row.thumbnail_url !== null && row.thumbnail_url.length === 0) {
+    throw new Error("ranking thumbnail is invalid");
+  }
+
+  const trend =
+    row.trend_kind === "up" || row.trend_kind === "down"
+      ? { kind: row.trend_kind, delta: trendDelta }
+      : { kind: row.trend_kind };
+
+  return {
+    groupBuyId: row.group_buy_id,
+    rank,
+    previousRank,
+    trend,
+    productName: row.product_name,
+    brandName: row.brand_name,
+    username: row.username,
+    category: row.category as GroupBuyRankingItem["category"],
+    thumbnailUrl: row.thumbnail_url,
+    mediaUrls,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    priceKrw:
+      row.price_krw === null
+        ? null
+        : toNonNegativeInteger(row.price_krw, "price_krw"),
+    metrics: {
+      deepViews: toNonNegativeInteger(row.deep_views, "deep_views"),
+      bookmarks: toNonNegativeInteger(row.bookmarks, "bookmarks"),
+      notifications: toNonNegativeInteger(row.notifications, "notifications"),
+      searchClicks: toNonNegativeInteger(row.search_clicks, "search_clicks"),
+      score: toNonNegativeNumber(row.score, "score"),
+      scoreDelta: toFiniteNumber(row.score_delta, "score_delta"),
+    },
+    scoreVersion: row.score_version || SCORE_VERSION,
+  };
+}
 
 @Injectable()
 export class RankingService {
-  private readonly rankings: SellerRanking[] = STATIC_RANKINGS;
+  constructor(private readonly supabase: SupabaseService) {}
 
-  list(query: SellerRankingQueryDto): { data: SellerRanking[] } {
-    let next: SellerRanking[] = [...this.rankings];
+  async list(query: GroupBuyRankingQueryDto): Promise<GroupBuyRankingResponse> {
+    const request = normalizeRequest(query);
 
-    if (query.tab === RankingTab.following) {
-      next = next.filter((item) => item.isFollowing);
+    const cursor = request.cursor
+      ? decodeCursor(request.cursor, request.sort)
+      : undefined;
+    const { data, error } = await this.supabase.admin.rpc(
+      "get_group_buy_rankings",
+      {
+        category_filter: request.category,
+        period_filter: request.period,
+        sort_filter: request.sort,
+        limit_count: request.limit + 1,
+        cursor_numeric: cursor?.numericValue ?? null,
+        cursor_timestamp: cursor?.timestampValue ?? null,
+        cursor_group_buy_id: cursor?.groupBuyId ?? null,
+      },
+    );
+
+    if (error) {
+      throw new BadGatewayException("랭킹 집계 데이터를 불러오지 못했습니다.");
+    }
+    if (!Array.isArray(data)) {
+      throw new BadGatewayException("랭킹 집계 응답이 올바르지 않습니다.");
     }
 
-    if (query.category && query.category !== RankingCategory.all) {
-      next = next.filter((item) => item.category === query.category);
-    }
+    try {
+      const rows = data as RankingRpcRow[];
+      const pageRows = rows.slice(0, request.limit);
+      const mapped = pageRows.map(toRankingItem);
+      const response: GroupBuyRankingResponse = {
+        data: mapped,
+        pageInfo: {
+          limit: request.limit,
+          hasMore: rows.length > request.limit,
+          nextCursor:
+            rows.length > request.limit
+              ? encodeCursor({
+                  sort: request.sort,
+                  groupBuyId: mapped[mapped.length - 1].groupBuyId,
+                  ...(request.sort === "popular" || request.sort === "rising"
+                    ? {
+                        numericValue:
+                          request.sort === "popular"
+                            ? mapped[mapped.length - 1].metrics.score
+                            : mapped[mapped.length - 1].metrics.scoreDelta,
+                      }
+                    : {
+                        timestampValue:
+                          request.sort === "deadlineSoon"
+                            ? mapped[mapped.length - 1].endDate
+                            : String(rows[request.limit - 1].created_at),
+                      }),
+                })
+              : null,
+        },
+        meta: {
+          category: request.category,
+          period: request.period,
+          sort: request.sort,
+          scoreVersion: mapped[0]?.scoreVersion ?? SCORE_VERSION,
+          generatedAt: new Date().toISOString(),
+        },
+      };
 
-    if (query.period === RankingPeriod.today) {
-      next = next.sort((a, b) => (b.endingSoonCount ?? 0) - (a.endingSoonCount ?? 0) || a.rank - b.rank);
+      return response;
+    } catch (caught) {
+      if (caught instanceof BadRequestException) throw caught;
+      throw new BadGatewayException("랭킹 응답 계약이 유효하지 않습니다.");
     }
-
-    if (query.period === RankingPeriod.monthly) {
-      next = next.sort((a, b) => (b.followerCount ?? 0) - (a.followerCount ?? 0) || a.rank - b.rank);
-    }
-
-    if (query.sort === RankingSort.rising) {
-      next = next.sort((a, b) => {
-        const aDelta = a.trend.kind === 'up' ? a.trend.delta : 0;
-        const bDelta = b.trend.kind === 'up' ? b.trend.delta : 0;
-        return bDelta - aDelta || a.rank - b.rank;
-      });
-    }
-
-    if (query.sort === RankingSort.deadlineSoon) {
-      next = next.sort((a, b) => (b.endingSoonCount ?? 0) - (a.endingSoonCount ?? 0) || a.rank - b.rank);
-    }
-
-    if (query.sort === RankingSort.newDeal) {
-      next = next.sort((a, b) => (a.trend.kind === 'new' ? -1 : 0) - (b.trend.kind === 'new' ? -1 : 0) || a.rank - b.rank);
-    }
-
-    if (query.sort === RankingSort.brand) {
-      next = next.sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko-KR'));
-    }
-
-    return { data: next };
   }
 }

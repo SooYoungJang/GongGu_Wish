@@ -2,48 +2,91 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { GroupBuy } from '../../types';
-import type { RankingLoadState, RankingSort } from './types';
+import type {
+  GroupBuyRankingItem,
+  GroupBuyRankingResponse,
+  RankingLoadState,
+  RankingSort,
+} from './types';
 import { usePopularGroupBuys } from './usePopularGroupBuys';
 
 const queryMock = vi.hoisted(() => ({
   current: {} as Record<string, unknown>,
+  options: undefined as
+    | {
+        queryKey: readonly unknown[];
+        queryFn: () => Promise<unknown>;
+      }
+    | undefined,
+}));
+
+const apiMock = vi.hoisted(() => ({
+  fetchGroupBuyRankings: vi.fn(),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => queryMock.current,
+  useQuery: (options: typeof queryMock.options) => {
+    queryMock.options = options;
+    return queryMock.current;
+  },
 }));
 
-vi.mock('../../api', () => ({
-  POPULAR_PERIOD_HOURS: { today: 24, weekly: 168, monthly: 720 },
-  fetchPopularGroupBuysWithDetail: vi.fn(),
-}));
+vi.mock('../../api', () => apiMock);
 
-function groupBuy(id: string): GroupBuy {
+function rankingItem(
+  id: string,
+  overrides: Partial<GroupBuyRankingItem> = {},
+): GroupBuyRankingItem {
   return {
-    id,
+    groupBuyId: id,
+    rank: 1,
+    previousRank: null,
+    trend: { kind: 'same' },
     productName: id,
     brandName: null,
+    username: `${id}.seller`,
     category: 'living',
+    thumbnailUrl: null,
+    mediaUrls: [],
     startDate: null,
     endDate: null,
-    purchaseUrl: null,
-    discountInfo: null,
-    summary: null,
-    confidence: 0,
-    thumbnailUrl: null,
-    videoUrl: null,
-    mediaUrls: [],
-    mediaType: null,
-    rawPost: { postUrl: '', influencer: { instagramUsername: `${id}.seller` } },
+    priceKrw: null,
+    metrics: {
+      deepViews: 0,
+      bookmarks: 0,
+      notifications: 0,
+      searchClicks: 0,
+      score: 0,
+      scoreDelta: 0,
+    },
+    scoreVersion: 'v2',
+    ...overrides,
   };
 }
 
-function renderRanking(sort: RankingSort): RankingLoadState {
+function response(data: GroupBuyRankingItem[]): GroupBuyRankingResponse {
+  return {
+    data,
+    pageInfo: { limit: 30, hasMore: false, nextCursor: null },
+    meta: {
+      category: 'all',
+      period: 'weekly',
+      sort: 'popular',
+      scoreVersion: 'v2',
+      generatedAt: '2026-07-16T00:00:00.000Z',
+    },
+  };
+}
+
+function renderRanking(
+  period: 'today' | 'weekly' | 'monthly' = 'weekly',
+  category: 'all' | 'food' | 'living' = 'all',
+  sort: RankingSort = 'popular',
+): RankingLoadState {
   let state: RankingLoadState = { status: 'loading', data: undefined };
 
   function Harness() {
-    state = usePopularGroupBuys('weekly', 'all', sort);
+    state = usePopularGroupBuys(period, category, sort);
     return null;
   }
 
@@ -56,73 +99,76 @@ function renderRanking(sort: RankingSort): RankingLoadState {
 
 describe('usePopularGroupBuys', () => {
   beforeEach(() => {
+    queryMock.options = undefined;
     queryMock.current = {
-      data: [],
+      data: response([]),
       dataUpdatedAt: 1_720_000_000_000,
       isError: false,
       isFetching: false,
       isLoading: false,
       refetch: vi.fn(),
     };
+    apiMock.fetchGroupBuyRankings.mockReset();
   });
 
-  it('sorts rising deals by recent search clicks with deterministic tie breakers', () => {
-    queryMock.current.data = [
-      {
-        groupBuyId: 'popular',
-        deepViews: 100,
-        bookmarks: 3,
-        searchClicks: 1,
-        score: 100,
-        groupBuy: groupBuy('popular'),
-      },
-      {
-        groupBuyId: 'rising',
-        deepViews: 20,
-        bookmarks: 2,
-        searchClicks: 9,
-        score: 30,
-        groupBuy: groupBuy('rising'),
-      },
-    ];
+  it('preserves the server ranking order and does not re-filter response data', () => {
+    const first = rankingItem('first', { rank: 7, category: 'food' });
+    const second = rankingItem('second', { rank: 2, category: 'living' });
+    queryMock.current.data = response([first, second]);
 
-    const state = renderRanking('rising');
+    const state = renderRanking('weekly', 'food', 'rising');
 
     expect(state.status).toBe('ready');
     if (state.status === 'ready') {
-      expect(state.data.map((item) => item.representativeGroupBuyId)).toEqual(['rising', 'popular']);
+      expect(state.data).toEqual([first, second]);
     }
+    expect(queryMock.options?.queryKey).toEqual([
+      'group-buy-rankings',
+      'weekly',
+      'food',
+      'rising',
+      30,
+    ]);
   });
 
-  it('preserves the completed refresh time for empty filtered results', () => {
-    const state = renderRanking('popular');
+  it('sends all ranking filters to the shared API contract', async () => {
+    const request = {
+      category: 'food' as const,
+      period: 'monthly' as const,
+      sort: 'deadlineSoon' as const,
+      limit: 30,
+    };
+    apiMock.fetchGroupBuyRankings.mockResolvedValue(response([]));
+
+    renderRanking(request.period, request.category, request.sort);
+
+    await queryMock.options?.queryFn();
+    expect(apiMock.fetchGroupBuyRankings).toHaveBeenCalledWith(request);
+  });
+
+  it('preserves the server-generated time for an empty success response', () => {
+    const state = renderRanking();
 
     expect(state.status).toBe('empty');
     if (state.status === 'empty') {
-      expect(state.updatedAt).toBe(1_720_000_000_000);
+      expect(state.updatedAt).toBe(Date.parse('2026-07-16T00:00:00.000Z'));
     }
   });
 
-  it.each([
-    ['lifestyle', 'living'],
-    ['digital', 'electronics'],
-  ] as const)('maps the legacy %s category to %s for ranking filters', (legacy, canonical) => {
-    queryMock.current.data = [
-      {
-        groupBuyId: legacy,
-        deepViews: 1,
-        bookmarks: 0,
-        searchClicks: 0,
-        score: 1,
-        groupBuy: { ...groupBuy(legacy), category: legacy },
-      },
-    ];
+  it('keeps API failures as an error state instead of showing fallback rankings', () => {
+    queryMock.current = {
+      ...queryMock.current,
+      data: undefined,
+      isError: true,
+      isLoading: false,
+    };
 
-    const state = renderRanking('popular');
+    const state = renderRanking();
 
-    expect(state.status).toBe('ready');
-    if (state.status === 'ready') {
-      expect(state.data[0].category).toBe(canonical);
+    expect(state.status).toBe('error');
+    if (state.status === 'error') {
+      expect(state.data).toBeUndefined();
+      expect(state.retry).toBe(queryMock.current.refetch);
     }
   });
 });

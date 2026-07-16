@@ -10,7 +10,7 @@ import { SellerRankingRow } from './SellerRankingRow';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { commerceLightColors, commerceRadius } from '../../design/commerce';
 import { spacing } from '../../design/tokens';
-import type { SellerRanking } from '../../features/ranking/types';
+import type { GroupBuyRankingItem } from '../../features/ranking/types';
 import { getRankingTrend } from '../../features/ranking/types';
 
 vi.mock('react-native', () => {
@@ -56,33 +56,30 @@ function withTheme(ui: React.ReactElement) {
   return <ThemeProvider>{ui}</ThemeProvider>;
 }
 
-function sampleRanking(overrides: Partial<SellerRanking> = {}): SellerRanking {
+function sampleRanking(overrides: Partial<GroupBuyRankingItem> = {}): GroupBuyRankingItem {
   return {
-    id: 'rank-sample',
-    sellerId: 'seller-sample',
+    groupBuyId: 'group-sample',
     rank: 1,
     previousRank: 2,
     trend: getRankingTrend(1, 2),
-    displayName: '샘플마켓',
+    productName: '샘플마켓',
+    brandName: null,
     username: 'sample.market',
-    avatarUrl: null,
     category: 'food',
-    followerCount: 12300,
-    activeDealCount: 7,
-    endingSoonCount: 2,
-    trustScore: 96,
-    isFollowing: false,
-    isSponsored: false,
-    thumbnails: [
-      {
-        id: 'thumb-1',
-        imageUrl: null,
-        label: '그래놀라',
-        groupBuyId: 'group-1',
-      },
-    ],
-    representativeGroupBuyId: 'group-1',
+    thumbnailUrl: null,
+    mediaUrls: [],
+    startDate: null,
+    endDate: null,
     priceKrw: null,
+    metrics: {
+      deepViews: 12300,
+      bookmarks: 7,
+      notifications: 2,
+      searchClicks: 0,
+      score: 96,
+      scoreDelta: 0,
+    },
+    scoreVersion: 'v2',
     ...overrides,
   };
 }
@@ -179,7 +176,7 @@ describe('ranking components', () => {
 
   it('renders ranking trends as color-only directional text', () => {
     const cases: Array<{
-      trend: SellerRanking['trend'];
+      trend: GroupBuyRankingItem['trend'];
       label: string;
       color: string;
     }> = [
@@ -241,8 +238,8 @@ describe('ranking components', () => {
 
   it('wires seller row follow button to the selected ranking item', () => {
     const item = sampleRanking({
-      id: 'rank-follow-target',
-      displayName: '팔로우대상',
+      groupBuyId: 'group-follow-target',
+      productName: '팔로우대상',
     });
     const onToggleFollow = vi.fn();
     let renderer: TestRenderer.ReactTestRenderer;
@@ -265,10 +262,15 @@ describe('ranking components', () => {
 
   it('shows the actual popularity metrics instead of a misleading deal count', () => {
     const item = sampleRanking({
-      followerCount: 12300,
-      activeDealCount: 7,
-      trustScore: 96,
       priceKrw: 25900,
+      metrics: {
+        deepViews: 12300,
+        bookmarks: 7,
+        notifications: 2,
+        searchClicks: 0,
+        score: 96,
+        scoreDelta: 0,
+      },
     });
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -287,7 +289,7 @@ describe('ranking components', () => {
   });
 
   it('uses the same rounded card surface for every ranking row', () => {
-    const rankings = [1, 2, 3, 4].map((rank) => sampleRanking({ id: `rank-${rank}`, rank }));
+    const rankings = [1, 2, 3, 4].map((rank) => sampleRanking({ groupBuyId: `group-${rank}`, rank }));
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -312,9 +314,9 @@ describe('ranking components', () => {
   });
 
   it('keeps every row rounded when a filter replaces the list data', () => {
-    const initialRankings = [1, 2, 3, 4].map((rank) => sampleRanking({ id: `initial-rank-${rank}`, rank }));
+    const initialRankings = [1, 2, 3, 4].map((rank) => sampleRanking({ groupBuyId: `initial-group-${rank}`, rank }));
     const filteredRankings = [7, 8, 9, 10].map((rank) =>
-      sampleRanking({ id: `filtered-rank-${rank}`, rank }),
+      sampleRanking({ groupBuyId: `filtered-group-${rank}`, rank }),
     );
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -345,7 +347,16 @@ describe('ranking components', () => {
   });
 
   it('renders ready ranking rows with list accessibility and compact Korean counts', () => {
-    const rankings = [sampleRanking({ followerCount: 12300 })];
+    const rankings = [sampleRanking({
+      metrics: {
+        deepViews: 12300,
+        bookmarks: 7,
+        notifications: 2,
+        searchClicks: 0,
+        score: 96,
+        scoreDelta: 0,
+      },
+    })];
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {

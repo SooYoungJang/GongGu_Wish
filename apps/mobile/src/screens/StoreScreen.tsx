@@ -12,10 +12,11 @@ import { useCommerceTheme } from '../design/useCommerceTheme';
 import {
   RANKING_CATEGORIES,
   RANKING_PERIOD_LABELS,
+  type GroupBuyRankingItem,
+  type RankingListItem,
   type RankingCategory,
   type RankingPeriod,
   type RankingSort,
-  type SellerRanking,
 } from '../features/ranking/types';
 import { usePopularGroupBuys } from '../features/ranking/usePopularGroupBuys';
 import { syncNotification } from '../api';
@@ -34,25 +35,25 @@ const DEFAULT_CATEGORY_FILTER_HEIGHT = 52;
 // 랭킹 행을 GroupBuy로 변환해 useNotifications.toggleNotification에 넘긴다.
 // startDate/endDate가 있으면 시작 1시간 전 푸시가 예약되고, 없어도 알림 항목은
 // 마이페이지·릴스가 읽는 공유 스토어에 저장된다.
-function rankingToGroupBuy(item: SellerRanking): GroupBuy {
-  const groupBuyId = item.representativeGroupBuyId ?? item.id;
+function rankingToGroupBuy(item: GroupBuyRankingItem): GroupBuy {
+  const displayName = item.productName ?? item.brandName ?? item.username;
   return {
-    id: groupBuyId,
-    productName: item.displayName,
-    brandName: null,
+    id: item.groupBuyId,
+    productName: item.productName,
+    brandName: item.brandName,
     category: item.category,
-    startDate: item.startDate ?? null,
-    endDate: item.endDate ?? null,
-    priceKrw: item.priceKrw ?? null,
+    startDate: item.startDate,
+    endDate: item.endDate,
+    priceKrw: item.priceKrw,
     purchaseUrl: null,
     discountInfo: null,
     summary: null,
     confidence: 0,
-    thumbnailUrl: item.thumbnails[0]?.imageUrl ?? null,
+    thumbnailUrl: item.thumbnailUrl ?? item.mediaUrls[0] ?? null,
     videoUrl: null,
-    mediaUrls: [],
+    mediaUrls: item.mediaUrls,
     mediaType: null,
-    rawPost: { postUrl: '', influencer: { instagramUsername: item.username } },
+    rawPost: { postUrl: '', influencer: { instagramUsername: item.username || displayName } },
   };
 }
 
@@ -68,7 +69,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const [categoryFilterHeight, setCategoryFilterHeight] = useState(DEFAULT_CATEGORY_FILTER_HEIGHT);
   const measuredCategoryFilterHeightRef = useRef(DEFAULT_CATEGORY_FILTER_HEIGHT);
   const scrollY = useRef(new Animated.Value(0)).current;
-  const rankingListRef = useRef<FlatList<SellerRanking>>(null);
+  const rankingListRef = useRef<FlatList<RankingListItem>>(null);
 
   const rankingState = usePopularGroupBuys(period, selectedCategory, sort);
   const { isNotifying, toggleNotification } = useNotifications();
@@ -81,7 +82,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
         ...item,
         // 알림 버튼은 진짜 알림 설정 상태를 반영한다. useNotifications 스토어는
         // 마이페이지("알림 설정한 공구")와 릴스(bell)가 함께 읽는 같은 저장소다.
-        isFollowing: isNotifying(item.representativeGroupBuyId ?? item.id),
+        isNotifying: isNotifying(item.groupBuyId),
       })),
     };
   }, [rankingState, isNotifying]);
@@ -129,19 +130,17 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   }, []);
 
   const handlePressSeller = useCallback(
-    (item: SellerRanking) => {
-      navigation.navigate('InfluencerGroupBuys', {
-        influencerUsername: item.username,
-        influencerDisplayName: item.displayName,
+    (item: GroupBuyRankingItem) => {
+      navigation.navigate('Detail', {
+        groupBuy: rankingToGroupBuy(item),
       });
     },
     [navigation],
   );
 
   const handleToggleNotification = useCallback(
-    (item: SellerRanking) => {
-      const groupBuyId = item.representativeGroupBuyId;
-      if (!groupBuyId) return;
+    (item: GroupBuyRankingItem) => {
+      const groupBuyId = item.groupBuyId;
       const willEnable = !isNotifying(groupBuyId);
       // 서버 인기도 집계용 미러 (fire-and-forget)
       void syncNotification(groupBuyId, willEnable);

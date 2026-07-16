@@ -12,7 +12,21 @@
 
 import { Platform } from "react-native";
 import { publicGroupBuysResponseSchema } from "@gonggu/shared/schemas/group-buy";
+import {
+  groupBuyRankingQuerySchema,
+  groupBuyRankingResponseSchema,
+} from "@gonggu/shared/schemas/ranking";
 import { getHomeBannerDateKey } from "@gonggu/shared/utils/homeBanner";
+
+import type {
+  GroupBuyRankingItem as SharedGroupBuyRankingItem,
+  GroupBuyRankingQuery as SharedGroupBuyRankingQuery,
+  GroupBuyRankingResponse as SharedGroupBuyRankingResponse,
+  RankingCategory as SharedRankingCategory,
+  RankingPeriod as SharedRankingPeriod,
+  RankingSort as SharedRankingSort,
+  RankingTrend as SharedRankingTrend,
+} from "@gonggu/shared/schemas/ranking";
 
 import type {
   FeedPost,
@@ -43,61 +57,13 @@ export { ApiError } from "./lib/api-types";
 
 // ─── Ranking types (mobile-specific) ─────────────────────────────────────────
 
-export type RankingCategory =
-  | "all"
-  | "food"
-  | "living"
-  | "beauty"
-  | "fashion"
-  | "home"
-  | "kitchen"
-  | "electronics"
-  | "pet"
-  | "auto"
-  | "hobby"
-  | "baby"
-  | "sports"
-  | "stationery"
-  | "books"
-  | "media"
-  | "travel";
-export type RankingPeriod = "today" | "weekly" | "monthly";
-export type RankingSort = "popular" | "rising" | "deadlineSoon" | "newDeal";
-export type RankingTrend =
-  | { kind: "up"; delta: number }
-  | { kind: "down"; delta: number }
-  | { kind: "same" }
-  | { kind: "new" };
-export type RankingThumbnail = {
-  id: string;
-  imageUrl: string | null;
-  label?: string | null;
-  groupBuyId?: string | null;
-};
-export type SellerRanking = {
-  id: string;
-  sellerId: string;
-  rank: number;
-  previousRank: number | null;
-  trend: RankingTrend;
-  displayName: string;
-  username: string;
-  avatarUrl: string | null;
-  category: Exclude<RankingCategory, "all">;
-  followerCount?: number | null;
-  activeDealCount: number;
-  endingSoonCount?: number | null;
-  trustScore?: number | null;
-  isFollowing: boolean;
-  isSponsored: boolean;
-  thumbnails: RankingThumbnail[];
-  representativeGroupBuyId?: string | null;
-};
-export type SellerRankingQuery = {
-  category: RankingCategory;
-  period: RankingPeriod;
-  sort: RankingSort;
-};
+export type RankingCategory = SharedRankingCategory;
+export type RankingPeriod = SharedRankingPeriod;
+export type RankingSort = SharedRankingSort;
+export type RankingTrend = SharedRankingTrend;
+export type GroupBuyRankingItem = SharedGroupBuyRankingItem;
+export type GroupBuyRankingQuery = SharedGroupBuyRankingQuery;
+export type GroupBuyRankingResponse = SharedGroupBuyRankingResponse;
 
 // ─── NestJS URL (kept for postPublicJson) ────────────────────────────────────
 
@@ -544,7 +510,7 @@ export async function fetchPopularGroupBuys(
       "[Popularity] fetch popular group buys failed:",
       error instanceof Error ? error.message : String(error),
     );
-    return [];
+    throw error;
   }
 }
 
@@ -576,7 +542,7 @@ export async function fetchGroupBuysByIds(ids: string[]): Promise<GroupBuy[]> {
       "[GroupBuys] fetch by ids failed:",
       error instanceof Error ? error.message : String(error),
     );
-    return [];
+    throw error;
   }
 }
 
@@ -614,17 +580,43 @@ export async function fetchGroupBuysByInfluencer(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Fetch seller rankings.
+ * Fetch group-buy rankings using the shared mobile/web/API contract.
  * POST /functions/v1/seller-rankings
  */
-export async function fetchSellerRankings(
-  query: SellerRankingQuery,
-): Promise<SellerRanking[]> {
-  const body = await callEdgeFunction<{ data: SellerRanking[] }>(
+export async function fetchGroupBuyRankings(
+  query: GroupBuyRankingQuery,
+): Promise<GroupBuyRankingResponse> {
+  const queryResult = groupBuyRankingQuerySchema.safeParse(query);
+  if (!queryResult.success) {
+    throw new ApiError(
+      400,
+      "Invalid group-buy ranking query",
+      queryResult.error.issues.map((issue) => ({
+        field: issue.path.join(".") || "query",
+        message: issue.message,
+        code: "INVALID_GROUP_BUY_RANKING_QUERY",
+      })),
+    );
+  }
+
+  const body = await callEdgeFunction<unknown>(
     "seller-rankings",
-    query,
+    queryResult.data,
   );
-  return body.data;
+  const responseResult = groupBuyRankingResponseSchema.safeParse(body);
+  if (!responseResult.success) {
+    throw new ApiError(
+      502,
+      "Invalid group-buy ranking response",
+      responseResult.error.issues.map((issue) => ({
+        field: issue.path.join(".") || "response",
+        message: issue.message,
+        code: "INVALID_GROUP_BUY_RANKING_RESPONSE",
+      })),
+    );
+  }
+
+  return responseResult.data;
 }
 
 /**

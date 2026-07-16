@@ -1,82 +1,60 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import { fetchSellerRankings } from '../../api';
-import { MOCK_RANKINGS } from './rankingFixtures';
-import type { RankingLoadState, SellerRanking, SellerRankingQuery } from './types';
+import { fetchGroupBuyRankings } from '../../api';
+import type { GroupBuyRankingQuery, RankingLoadState } from './types';
 
-function applyRankingQuery(items: SellerRanking[], query: SellerRankingQuery): SellerRanking[] {
-  let next = items;
-
-  if (query.category !== 'all') {
-    next = next.filter((item) => item.category === query.category);
-  }
-
-  if (query.period === 'today') {
-    next = [...next].sort((a, b) => (b.endingSoonCount ?? 0) - (a.endingSoonCount ?? 0) || a.rank - b.rank);
-  }
-
-  if (query.period === 'monthly') {
-    next = [...next].sort((a, b) => (b.followerCount ?? 0) - (a.followerCount ?? 0) || a.rank - b.rank);
-  }
-
-  if (query.sort === 'rising') {
-    next = [...next].sort((a, b) => {
-      const aDelta = a.trend.kind === 'up' ? a.trend.delta : 0;
-      const bDelta = b.trend.kind === 'up' ? b.trend.delta : 0;
-      return bDelta - aDelta || a.rank - b.rank;
-    });
-  }
-
-  if (query.sort === 'deadlineSoon') {
-    next = [...next].sort((a, b) => (b.endingSoonCount ?? 0) - (a.endingSoonCount ?? 0) || a.rank - b.rank);
-  }
-
-  if (query.sort === 'newDeal') {
-    next = [...next].sort((a, b) => (a.trend.kind === 'new' ? -1 : 0) - (b.trend.kind === 'new' ? -1 : 0) || a.rank - b.rank);
-  }
-
-  return next;
-}
-
-export function useSellerRankings(query: SellerRankingQuery): RankingLoadState {
+export function useSellerRankings(query: GroupBuyRankingQuery): RankingLoadState {
   const rankingsQuery = useQuery({
-    queryKey: ['seller-rankings', query],
-    queryFn: async () => {
-      try {
-        return await fetchSellerRankings(query);
-      } catch {
-        return applyRankingQuery(MOCK_RANKINGS, query);
-      }
-    },
+    queryKey: [
+      'group-buy-rankings',
+      query.category,
+      query.period,
+      query.sort,
+      query.limit,
+      query.cursor,
+    ],
+    queryFn: () => fetchGroupBuyRankings(query),
     staleTime: 1000 * 60 * 5,
   });
 
   return useMemo((): RankingLoadState => {
+    const response = rankingsQuery.data;
+    const updatedAt = response?.meta.generatedAt
+      ? Date.parse(response.meta.generatedAt)
+      : undefined;
+
     if (rankingsQuery.isLoading) {
-      return { status: 'loading', data: rankingsQuery.data };
+      return { status: 'loading', data: response?.data, refresh: rankingsQuery.refetch };
     }
 
     if (rankingsQuery.isError) {
       return {
         status: 'error',
-        data: rankingsQuery.data,
+        data: response?.data,
         message: '랭킹을 불러오지 못했어요. 잠시 후 다시 시도해주세요.',
         retry: rankingsQuery.refetch,
+        refresh: rankingsQuery.refetch,
       };
     }
 
-    const data = rankingsQuery.data ?? [];
+    const data = response?.data ?? [];
 
-   if (data.length === 0) {
-     return {
-       status: 'empty',
-       message: '아직 집계된 랭킹이 없어요',
-     };
-   }
+    if (data.length === 0) {
+      return {
+        status: 'empty',
+        message: '아직 집계된 랭킹이 없어요',
+        updatedAt,
+        refresh: rankingsQuery.refetch,
+      };
+    }
 
-    return { status: 'ready', data, refreshing: rankingsQuery.isFetching && !rankingsQuery.isLoading };
+    return {
+      status: 'ready',
+      data,
+      refreshing: rankingsQuery.isFetching && !rankingsQuery.isLoading,
+      updatedAt,
+      refresh: rankingsQuery.refetch,
+    };
   }, [rankingsQuery.data, rankingsQuery.isError, rankingsQuery.isFetching, rankingsQuery.isLoading, rankingsQuery.refetch]);
 }
-
-export { applyRankingQuery };
