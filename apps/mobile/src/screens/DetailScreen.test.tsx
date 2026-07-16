@@ -611,6 +611,48 @@ describe("DetailScreen", () => {
     );
   });
 
+  it("does not record another reel while an async canonical route item is aligning", () => {
+    const partialRankingItem: GroupBuy = {
+      ...baseGroupBuy,
+      purchaseUrl: null,
+      summary: null,
+    };
+    const canonicalItem: GroupBuy = {
+      ...baseGroupBuy,
+      purchaseUrl: "https://example.com/canonical-buy",
+      summary: "canonical summary",
+    };
+    const otherItem: GroupBuy = {
+      ...baseGroupBuy,
+      id: "group-buy-other",
+      productName: "다른 공구",
+    };
+    const renderScreen = () => (
+      <DetailScreen
+        route={
+          {
+            key: "Detail",
+            name: "Detail",
+            params: { groupBuy: partialRankingItem },
+          } as any
+        }
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderScreen());
+    });
+    expect(recentViewsMock.recordView).not.toHaveBeenCalled();
+
+    queryMock.groupBuys = [otherItem, canonicalItem];
+    act(() => renderer!.update(renderScreen()));
+
+    expect(recentViewsMock.recordView).toHaveBeenCalledWith(canonicalItem);
+    expect(recentViewsMock.recordView).not.toHaveBeenCalledWith(otherItem);
+  });
+
   it("renders every media slide in a paging gallery", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {

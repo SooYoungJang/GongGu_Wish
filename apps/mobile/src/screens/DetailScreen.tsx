@@ -2048,7 +2048,13 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   );
   const [activeProductIndex, setActiveProductIndex] =
     useState(initialReelIndex);
+  const [canonicalAlignedRouteId, setCanonicalAlignedRouteId] = useState<
+    string | null
+  >(null);
   const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
+  const hasCanonicalRouteGroupBuy = Boolean(
+    groupBuys?.some((item) => item.id === groupBuy.id),
+  );
   const hasCanonicalActiveGroupBuy = Boolean(
     groupBuys?.some((item) => item.id === activeGroupBuy.id),
   );
@@ -2079,9 +2085,16 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       .slice(0, 30);
   }, [groupBuy, searchItems, debouncedQuery]);
   useEffect(() => {
-    if (!hasCanonicalActiveGroupBuy) return;
+    if (canonicalAlignedRouteId !== groupBuy.id || !hasCanonicalActiveGroupBuy)
+      return;
     recordView(activeGroupBuy);
-  }, [activeGroupBuy, hasCanonicalActiveGroupBuy, recordView]);
+  }, [
+    activeGroupBuy,
+    canonicalAlignedRouteId,
+    groupBuy.id,
+    hasCanonicalActiveGroupBuy,
+    recordView,
+  ]);
   useEffect(() => {
     setActivePlayerPlaying(false);
   }, [
@@ -2194,9 +2207,16 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   }, [activeProductIndex]);
 
   useEffect(() => {
+    if (!hasCanonicalRouteGroupBuy) return;
     setActiveProductIndex(initialReelIndex);
     verticalPagerRef.current?.setPageWithoutAnimation?.(initialReelIndex);
-  }, [initialReelIndex, reelItems.length, groupBuy.id]);
+    setCanonicalAlignedRouteId(groupBuy.id);
+  }, [
+    groupBuy.id,
+    hasCanonicalRouteGroupBuy,
+    initialReelIndex,
+    reelItems.length,
+  ]);
 
   const handleSelectSearchResult = useCallback(
     (item: GroupBuy) => {
