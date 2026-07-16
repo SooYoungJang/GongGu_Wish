@@ -13,6 +13,7 @@ export default defineConfig({
     environment: "node",
     hookTimeout: 120_000,
     include: ["src/integration/**/*.integration.test.ts"],
+    setupFiles: ["src/integration/requireLocalSupabase.ts"],
     testTimeout: 120_000,
   },
 });

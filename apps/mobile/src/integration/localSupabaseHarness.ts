@@ -34,6 +34,15 @@ export function hasLocalSupabaseConfig(): boolean {
   );
 }
 
+export function requireLocalSupabaseConfig(): LocalSupabaseConfig {
+  if (!hasLocalSupabaseConfig()) {
+    throw new Error(
+      "[local-supabase:setup] LOCAL_SUPABASE_URL, LOCAL_SUPABASE_ANON_KEY, and LOCAL_SUPABASE_SERVICE_ROLE_KEY are required",
+    );
+  }
+  return getLocalSupabaseConfig();
+}
+
 export function getLocalSupabaseConfig(): LocalSupabaseConfig {
   const config = {
     url: process.env.LOCAL_SUPABASE_URL ?? "",
@@ -188,7 +197,7 @@ export async function createLocalFixture(
       brand_name: "GON-263 Brand",
       category: categories[index],
       start_date: isoOffset(-24),
-      end_date: isoOffset(24 * (index + 1)),
+      end_date: isoOffset(24 * (index === 2 ? 1 : index + 1)),
       purchase_url: `https://example.test/gon263/${index}`,
       discount_info: `${10 + index}% 할인`,
       price_krw: 10000 + index * 1000,
@@ -198,12 +207,14 @@ export async function createLocalFixture(
       is_home_banner: index === 0,
       home_banner_start_date: index === 0 ? dateOffset(-1) : null,
       home_banner_end_date: index === 0 ? dateOffset(7) : null,
-      created_at: isoOffset(-4 + index),
+      created_at: isoOffset(index === 2 ? -4 : -4 + index),
       updated_at: now,
     })),
   });
 
-  const currentViewCounts = [6, 4, 2, 8];
+  // Food fixtures deliberately tie on primary sort keys while retaining
+  // different secondary scores. This catches keyset pagination gaps.
+  const currentViewCounts = [6, 6, 3, 8];
   const views = currentViewCounts.flatMap((count, groupIndex) =>
     Array.from({ length: count }, (_, viewIndex) => ({
       group_buy_id: groupBuyIds[groupIndex],

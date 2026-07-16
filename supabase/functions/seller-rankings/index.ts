@@ -6,6 +6,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 
 import {
+  assertRankingCursorMatchesRequest,
   buildRankingResponse,
   decodeRankingCursor,
   normalizeRankingRequest,
@@ -29,9 +30,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 function parseRequestCursor(request: RankingRequest) {
   if (!request.cursor) return undefined;
   const cursor = decodeRankingCursor(request.cursor);
-  if (cursor.sort !== request.sort) {
-    throw new Error("cursor sort does not match the requested ranking sort");
-  }
+  assertRankingCursorMatchesRequest(cursor, request);
   return cursor;
 }
 
@@ -59,8 +58,9 @@ serve(async (req: Request) => {
   } catch (error) {
     return jsonResponse(
       {
-        error:
-          error instanceof Error ? error.message : "Invalid ranking request",
+        error: error instanceof Error
+          ? error.message
+          : "Invalid ranking request",
       },
       400,
     );
@@ -78,19 +78,21 @@ serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data, error } = await supabase.rpc("get_group_buy_rankings", {
+    const { data, error } = await supabase.rpc("get_group_buy_rankings_v2", {
       category_filter: request.category,
       period_filter: request.period,
       sort_filter: request.sort,
       limit_count: request.limit + 1,
       cursor_numeric: cursor?.numericValue ?? null,
+      cursor_score: cursor?.secondaryScore ?? null,
       cursor_timestamp: cursor?.timestampValue ?? null,
       cursor_group_buy_id: cursor?.groupBuyId ?? null,
     });
 
     if (error) throw new Error(error.message);
-    if (!Array.isArray(data))
+    if (!Array.isArray(data)) {
       throw new Error("Ranking RPC returned a non-array response");
+    }
 
     return jsonResponse(buildRankingResponse(data as RankingRpcRow[], request));
   } catch (error) {

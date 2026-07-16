@@ -194,5 +194,56 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
       period: "weekly",
       sort: "popular",
     });
+
+    await expect(
+      fetchGroupBuyRankings({
+        category: "beauty",
+        period: "weekly",
+        sort: "popular",
+        limit: 2,
+        cursor: firstPage.pageInfo.nextCursor ?? undefined,
+      }),
+    ).rejects.toThrow("cursor category");
+    await expect(
+      fetchGroupBuyRankings({
+        category: "food",
+        period: "monthly",
+        sort: "popular",
+        limit: 2,
+        cursor: firstPage.pageInfo.nextCursor ?? undefined,
+      }),
+    ).rejects.toThrow("cursor period");
+
+    for (const sort of [
+      "popular",
+      "rising",
+      "deadlineSoon",
+      "newDeal",
+    ] as const) {
+      phaseLog("ranking", `walking every ${sort} keyset page`);
+      const full = await fetchGroupBuyRankings({
+        category: "food",
+        period: "monthly",
+        sort,
+        limit: 100,
+      });
+      const pagedIds: string[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 100; page += 1) {
+        const response = await fetchGroupBuyRankings({
+          category: "food",
+          period: "monthly",
+          sort,
+          limit: 1,
+          cursor,
+        });
+        pagedIds.push(...response.data.map((item) => item.groupBuyId));
+        if (!response.pageInfo.hasMore) break;
+        cursor = response.pageInfo.nextCursor ?? undefined;
+        expect(cursor).toEqual(expect.any(String));
+      }
+      expect(pagedIds).toEqual(full.data.map((item) => item.groupBuyId));
+      expect(new Set(pagedIds).size).toBe(pagedIds.length);
+    }
   });
 });

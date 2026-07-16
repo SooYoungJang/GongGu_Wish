@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
+import { resolveSupabaseUrl } from './lib/supabase-config';
 import { registerForPushNotifications, requestNotificationPermissions } from './services/notifications';
 import { BackButton } from './components/BackButton';
 import { getCommerceColors } from './design/commerce';
@@ -25,7 +26,9 @@ import {
 
 // Initialize PostgREST client with the Supabase anon key
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseUrl = resolveSupabaseUrl(process.env.EXPO_PUBLIC_SUPABASE_URL, {
+  requireLocal: process.env.EXPO_PUBLIC_E2E_MODE === 'true',
+});
 configurePostgrest(anonKey, supabaseUrl);
 // Initialize Supabase Auth client
 configureSupabase(anonKey, supabaseUrl);

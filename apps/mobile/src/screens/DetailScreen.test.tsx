@@ -28,6 +28,9 @@ const logDeepViewMock = vi.hoisted(() => vi.fn());
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
 }));
+const recentViewsMock = vi.hoisted(() => ({
+  recordView: vi.fn(),
+}));
 vi.mock("../hooks/useLocalDeals", () => ({
   useBookmarks: () => ({
     bookmarks: [],
@@ -35,7 +38,11 @@ vi.mock("../hooks/useLocalDeals", () => ({
     toggleBookmark: vi.fn(),
     ready: true,
   }),
-  useRecentViews: () => ({ recentViews: [], recordView: vi.fn(), ready: true }),
+  useRecentViews: () => ({
+    recentViews: [],
+    recordView: recentViewsMock.recordView,
+    ready: true,
+  }),
   useNotifications: () => ({
     notifications: [],
     getNotificationState: () => ({ status: "idle" }),
@@ -542,6 +549,7 @@ beforeEach(() => {
   logDeepViewMock.mockResolvedValue(undefined);
   videoMock.players = [];
   queryMock.groupBuys = undefined;
+  recentViewsMock.recordView.mockReset();
   flashListMock.scrollToOffset.mockClear();
   pagerViewMock.setPage.mockClear();
   pagerViewMock.setPageWithoutAnimation.mockClear();
@@ -552,6 +560,57 @@ beforeEach(() => {
 });
 
 describe("DetailScreen", () => {
+  it("replaces a partial ranking route item with canonical public data before recording it", () => {
+    const partialRankingItem: GroupBuy = {
+      ...baseGroupBuy,
+      purchaseUrl: null,
+      discountInfo: null,
+      summary: null,
+      videoUrl: null,
+      mediaUrls: [],
+      mediaType: null,
+    };
+    const canonicalItem: GroupBuy = {
+      ...baseGroupBuy,
+      priceKrw: 200000,
+      purchaseUrl: "https://example.com/canonical-buy",
+      discountInfo: "canonical discount",
+      summary: "canonical summary",
+    };
+    queryMock.groupBuys = [canonicalItem];
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: partialRankingItem },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const canonicalPage = renderer!.root
+      .findAllByType(ProductReelPage)
+      .find((node) => node.props.groupBuy.id === canonicalItem.id);
+    expect(canonicalPage?.props.groupBuy).toMatchObject({
+      id: canonicalItem.id,
+      purchaseUrl: canonicalItem.purchaseUrl,
+      discountInfo: canonicalItem.discountInfo,
+      summary: canonicalItem.summary,
+      priceKrw: canonicalItem.priceKrw,
+    });
+    expect(recentViewsMock.recordView).toHaveBeenCalledWith(canonicalItem);
+    expect(recentViewsMock.recordView).not.toHaveBeenCalledWith(
+      partialRankingItem,
+    );
+  });
+
   it("renders every media slide in a paging gallery", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {

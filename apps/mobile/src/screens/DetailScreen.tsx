@@ -221,7 +221,7 @@ function getReelItems(current: GroupBuy, fetched?: GroupBuy[]) {
     seen.add(item.id);
     if (item.id === current.id) {
       includedCurrent = true;
-      items.push(current);
+      items.push(item);
     } else {
       items.push(item);
     }
@@ -2049,6 +2049,9 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
   const [activeProductIndex, setActiveProductIndex] =
     useState(initialReelIndex);
   const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
+  const hasCanonicalActiveGroupBuy = Boolean(
+    groupBuys?.some((item) => item.id === activeGroupBuy.id),
+  );
   const hasPlayableActiveMedia = hasPlayableVideoMedia(activeGroupBuy);
   const handlePlaybackStateChange = useCallback(
     (itemId: string, isPlaying: boolean) => {
@@ -2076,8 +2079,9 @@ export function DetailScreen({ route, navigation }: DetailScreenProps) {
       .slice(0, 30);
   }, [groupBuy, searchItems, debouncedQuery]);
   useEffect(() => {
+    if (!hasCanonicalActiveGroupBuy) return;
     recordView(activeGroupBuy);
-  }, [activeGroupBuy, recordView]);
+  }, [activeGroupBuy, hasCanonicalActiveGroupBuy, recordView]);
   useEffect(() => {
     setActivePlayerPlaying(false);
   }, [
