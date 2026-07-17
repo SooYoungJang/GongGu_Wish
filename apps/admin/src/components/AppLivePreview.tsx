@@ -53,6 +53,7 @@ function formatWeeklyDeadline(value: string, now = new Date()) {
   if (Number.isNaN(date.getTime())) return "마감일 확인 필요";
 
   const days = Math.ceil((date.getTime() - now.getTime()) / 86_400_000);
+  if (days < 0) return "마감";
   return days === 0 ? "오늘 마감" : `${days}일 남음`;
 }
 

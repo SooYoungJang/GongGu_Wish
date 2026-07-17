@@ -77,6 +77,28 @@ describe("AppLivePreview", () => {
     expect(screen.getByText(activeDeal.summary)).toBeTruthy();
   });
 
+  it("shows 마감 instead of a negative countdown for expired deals", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppLivePreview
+        deal={{
+          ...activeDeal,
+          endDate: "2000-01-01",
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "공구 카드" }));
+
+    const dealCard = screen.getByRole("article", {
+      name: "공구 카드 미리보기",
+    });
+    expect(
+      dealCard.querySelector(".app-live-preview__deal-card-deadline-badge")
+        ?.textContent,
+    ).toBe("마감");
+  });
+
   it("supports keyboard arrow navigation across preview tabs", async () => {
     const user = userEvent.setup();
     render(<AppLivePreview deal={activeDeal} />);
