@@ -469,6 +469,27 @@ function findSummarySheetPanGesture(renderer: TestRenderer.ReactTestRenderer) {
     .find((handlers) => handlers.activeOffsetY === 6);
 }
 
+function expectPreparedSummarySheetClosed(
+  renderer: TestRenderer.ReactTestRenderer,
+) {
+  const overlay = renderer.root.findByProps({
+    testID: "reels-summary-sheet-overlay",
+  });
+  expect(overlay.props.pointerEvents).toBe("none");
+  expect(overlay.props.accessibilityElementsHidden).toBe(true);
+  expect(overlay.props.importantForAccessibility).toBe(
+    "no-hide-descendants",
+  );
+  expect(
+    renderer.root.findAllByProps({
+      testID: "reels-summary-sheet-backdrop",
+    }),
+  ).toHaveLength(0);
+  expect(
+    renderer.root.findAll((node) => String(node.type) === "ScrollView"),
+  ).toHaveLength(1);
+}
+
 function flattenStyle(style: any): any[] {
   if (!Array.isArray(style)) return [style].filter(Boolean);
   return style.flatMap(flattenStyle).filter(Boolean);
@@ -1162,9 +1183,7 @@ describe("DetailScreen", () => {
       });
     });
 
-    expect(
-      renderer!.root.findAll((node) => String(node.type) === "ScrollView"),
-    ).toHaveLength(0);
+    expectPreparedSummarySheetClosed(renderer!);
   });
 
   it("does not move to the next reel from a summary bottom-edge pull-up while the sheet is open", () => {
@@ -1219,6 +1238,18 @@ describe("DetailScreen", () => {
     act(() => {
       summaryButton.props.onPress();
     });
+
+    const openSummaryOverlay = renderer!.root.findByProps({
+      testID: "reels-summary-sheet-overlay",
+    });
+    expect(openSummaryOverlay.props.pointerEvents).toBe("box-none");
+    expect(openSummaryOverlay.props.accessibilityElementsHidden).toBe(false);
+    expect(openSummaryOverlay.props.importantForAccessibility).toBe("auto");
+    const openSummaryBackdrop = renderer!.root.findByProps({
+      testID: "reels-summary-sheet-backdrop",
+    });
+    expect(openSummaryBackdrop.props.accessibilityLabel).toBe("요약 닫기");
+    expect(openSummaryBackdrop.props.accessibilityRole).toBe("button");
 
     const scrollView = renderer!.root.find(
       (node) => String(node.type) === "ScrollView",
@@ -1316,9 +1347,7 @@ describe("DetailScreen", () => {
       );
     });
 
-    expect(
-      renderer!.root.findAll((node) => String(node.type) === "ScrollView"),
-    ).toHaveLength(0);
+    expectPreparedSummarySheetClosed(renderer!);
 
     const summaryButton = renderer!.root.findAll(
       (node) =>
@@ -1427,9 +1456,7 @@ describe("DetailScreen", () => {
       closeButton.props.onPress();
     });
 
-    expect(
-      renderer!.root.findAll((node) => String(node.type) === "ScrollView"),
-    ).toHaveLength(0);
+    expectPreparedSummarySheetClosed(renderer!);
   });
 
   it("closes search then summary before delegating Android Back to the stack", () => {
@@ -1486,7 +1513,7 @@ describe("DetailScreen", () => {
     act(() => {
       expect(hardwareBackMock.handler?.()).toBe(true);
     });
-    expect(findPressables("요약 닫기")).toHaveLength(0);
+    expectPreparedSummarySheetClosed(renderer!);
     expect(hardwareBackMock.handler?.()).toBe(false);
     expect(navigation.goBack).not.toHaveBeenCalled();
 
@@ -1747,9 +1774,7 @@ describe("DetailScreen", () => {
       });
     });
 
-    expect(
-      renderer!.root.findAll((node) => String(node.type) === "ScrollView"),
-    ).toHaveLength(0);
+    expectPreparedSummarySheetClosed(renderer!);
   });
 
   it("keeps the summary sheet open when the inner scroll only reaches the top during the same drag", () => {
@@ -1858,9 +1883,7 @@ describe("DetailScreen", () => {
       });
     });
 
-    expect(
-      renderer!.root.findAll((node) => String(node.type) === "ScrollView"),
-    ).toHaveLength(0);
+    expectPreparedSummarySheetClosed(renderer!);
   });
 
   it("keeps the summary sheet open from an upward edge swipe at the top of the scroll", () => {
@@ -1953,9 +1976,7 @@ describe("DetailScreen", () => {
       gesture.onEnd({ translationY: 180, velocityY: 100 });
     });
 
-    expect(
-      renderer!.root.findAll((node) => String(node.type) === "ScrollView"),
-    ).toHaveLength(0);
+    expectPreparedSummarySheetClosed(renderer!);
   });
 
   it("keeps the summary sheet open when the handle is dragged upward", () => {
