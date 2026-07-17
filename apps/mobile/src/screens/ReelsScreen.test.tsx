@@ -365,7 +365,7 @@ describe("ReelsScreen player lifecycle", () => {
     });
   });
 
-  it("deactivates the playing reel while the summary sheet is open", () => {
+  it("keeps the playing reel active while the summary sheet is open", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -382,7 +382,9 @@ describe("ReelsScreen player lifecycle", () => {
     });
 
     expect(findPages().some((node) => node.props.isActive)).toBe(true);
-    expect(findPages().every((node) => !node.props.playbackAllowed)).toBe(true);
+    expect(
+      findPages().find((node) => node.props.isActive)?.props.playbackAllowed,
+    ).toBe(true);
 
     act(() => {
       renderer!.unmount();
