@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   BOTTOM_SHEET_ACCESSIBILITY_BUFFER_MS,
-  BOTTOM_SHEET_ANIMATION_MS,
+  REELS_SUMMARY_SHEET_ANIMATION_MS,
 } from "../design/bottomSheetMotion";
 import {
   TAB_BAR_ACCESSIBILITY_SETTLE_MS,
@@ -90,7 +90,7 @@ describe("getTabBarVisibilityStyle", () => {
 
   it("derives accessibility settling from the sheet animation duration", () => {
     expect(TAB_BAR_ACCESSIBILITY_SETTLE_MS).toBe(
-      BOTTOM_SHEET_ANIMATION_MS + BOTTOM_SHEET_ACCESSIBILITY_BUFFER_MS,
+      REELS_SUMMARY_SHEET_ANIMATION_MS + BOTTOM_SHEET_ACCESSIBILITY_BUFFER_MS,
     );
   });
 

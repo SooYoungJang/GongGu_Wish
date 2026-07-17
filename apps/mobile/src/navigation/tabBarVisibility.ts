@@ -4,7 +4,7 @@ import { PlatformPressable } from "@react-navigation/elements";
 
 import {
   BOTTOM_SHEET_ACCESSIBILITY_BUFFER_MS,
-  BOTTOM_SHEET_ANIMATION_MS,
+  REELS_SUMMARY_SHEET_ANIMATION_MS,
 } from "../design/bottomSheetMotion";
 
 export type TabBarVisibilityStyle = {
@@ -12,7 +12,7 @@ export type TabBarVisibilityStyle = {
 };
 
 export const TAB_BAR_ACCESSIBILITY_SETTLE_MS =
-  BOTTOM_SHEET_ANIMATION_MS + BOTTOM_SHEET_ACCESSIBILITY_BUFFER_MS;
+  REELS_SUMMARY_SHEET_ANIMATION_MS + BOTTOM_SHEET_ACCESSIBILITY_BUFFER_MS;
 
 export function getTabBarVisibilityStyle(
   hidden: boolean,

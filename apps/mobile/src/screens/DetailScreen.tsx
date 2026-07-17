@@ -61,7 +61,10 @@ import {
 } from "../hooks/useLocalDeals";
 import { SText } from "../components/ui/SText";
 import { borderRadius, spacing } from "../design/tokens";
-import { BOTTOM_SHEET_ANIMATION_MS } from "../design/bottomSheetMotion";
+import {
+  BOTTOM_SHEET_ANIMATION_MS,
+  REELS_SUMMARY_SHEET_ANIMATION_MS,
+} from "../design/bottomSheetMotion";
 import { useTheme } from "../context/ThemeContext";
 import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
 import type { ColorPalette } from "../context/ThemeContext";
@@ -1225,7 +1228,7 @@ export function ProductReelPage({
 
   const snapSummarySheetOpen = useCallback(() => {
     summarySheetTranslate.value = withTiming(0, {
-      duration: BOTTOM_SHEET_ANIMATION_MS,
+      duration: REELS_SUMMARY_SHEET_ANIMATION_MS,
       easing: Easing.out(Easing.cubic),
     });
   }, [summarySheetTranslate]);
@@ -1240,7 +1243,7 @@ export function ProductReelPage({
         summarySheetTranslate.value = withTiming(
           summarySheetMaxHeight,
           {
-            duration: BOTTOM_SHEET_ANIMATION_MS,
+            duration: REELS_SUMMARY_SHEET_ANIMATION_MS,
             easing: Easing.out(Easing.cubic),
           },
           (finished) => {
@@ -1285,7 +1288,7 @@ export function ProductReelPage({
             return;
           }
           summarySheetTranslate.value = withTiming(0, {
-            duration: BOTTOM_SHEET_ANIMATION_MS,
+            duration: REELS_SUMMARY_SHEET_ANIMATION_MS,
             easing: Easing.out(Easing.cubic),
           });
         }),
@@ -1377,7 +1380,7 @@ export function ProductReelPage({
         .onEnd((event) => {
           if (summaryCanPullFromScroll.value <= 0 || event.translationY <= 0) {
             summarySheetTranslate.value = withTiming(0, {
-              duration: BOTTOM_SHEET_ANIMATION_MS,
+              duration: REELS_SUMMARY_SHEET_ANIMATION_MS,
               easing: Easing.out(Easing.cubic),
             });
             return;
@@ -1392,7 +1395,7 @@ export function ProductReelPage({
             return;
           }
           summarySheetTranslate.value = withTiming(0, {
-            duration: BOTTOM_SHEET_ANIMATION_MS,
+            duration: REELS_SUMMARY_SHEET_ANIMATION_MS,
             easing: Easing.out(Easing.cubic),
           });
         }),
