@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Platform,
   StatusBar,
@@ -101,6 +108,10 @@ export function ReelsScreen({
   const baseBatch = useMemo<GroupBuy[]>(() => {
     return shuffle(data ?? []);
   }, [data]);
+  const reelPagerKey = useMemo(
+    () => baseBatch.map((item) => item.id).join("|"),
+    [baseBatch],
+  );
 
   useEffect(() => {
     if (baseBatch.length === 0) return;
@@ -125,17 +136,29 @@ export function ReelsScreen({
 
   const activeReelItem = reelItems[activeIndex];
   const hasPlayableActiveMedia = hasPlayableVideoMedia(activeReelItem);
+  const activeReelItemIdRef = useRef<string | undefined>(activeReelItem?.id);
+  useLayoutEffect(() => {
+    activeReelItemIdRef.current = activeReelItem?.id;
+  }, [activeReelItem?.id]);
   const handlePlaybackStateChange = useCallback(
     (itemId: string, isPlaying: boolean) => {
-      if (itemId === activeReelItem?.id) {
-        setActivePlayerPlaying(isPlaying);
-      }
+      if (itemId !== activeReelItemIdRef.current) return;
+      setActivePlayerPlaying((current) =>
+        current === isPlaying ? current : isPlaying,
+      );
     },
-    [activeReelItem?.id],
+    [],
   );
   useEffect(() => {
     setActivePlayerPlaying(false);
-  }, [activeReelItem?.id, isPlaybackActive, summarySheetGate.isOpen]);
+  }, [activeReelItem?.id, isPlaybackActive]);
+  const previousReelWindowStartRef = useRef(reelWindow.sourceStart);
+  useLayoutEffect(() => {
+    const previousSourceStart = previousReelWindowStartRef.current;
+    previousReelWindowStartRef.current = reelWindow.sourceStart;
+    if (previousSourceStart === reelWindow.sourceStart) return;
+    pagerRef.current?.setPageWithoutAnimation?.(reelWindow.activeIndex);
+  }, [reelWindow.activeIndex, reelWindow.sourceStart]);
   const lastRecordedIdRef = useRef<string | null>(null);
   useEffect(() => {
     const item = isPlaybackActive ? activeReelItem : undefined;
@@ -284,7 +307,7 @@ export function ReelsScreen({
         </View>
       ) : null}
       <PagerView
-        key={`${reelWindow.sourceStart}-${reelItems[0]?.id ?? "empty"}-${reelItems.length}`}
+        key={reelPagerKey}
         ref={pagerRef}
         initialPage={activeIndex}
         offscreenPageLimit={1}

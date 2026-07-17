@@ -1136,6 +1136,56 @@ describe("DetailScreen", () => {
     expect(flattenText(renderer!.toJSON())).toContain("다음 공구");
   });
 
+  it("keeps the playback callback stable across detail page changes", () => {
+    const nextGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: "group-buy-2",
+      productName: "다음 공구",
+      thumbnailUrl: "https://example.com/next.jpg",
+      mediaUrls: ["https://example.com/next.jpg"],
+      rawPost: {
+        postUrl: "https://instagram.com/p/next",
+        influencer: {
+          instagramUsername: "next_seller",
+        },
+      },
+    };
+    queryMock.groupBuys = [baseGroupBuy, nextGroupBuy];
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={{
+            goBack: vi.fn(),
+            addListener: vi.fn(() => () => {}),
+          } as any}
+        />,
+      );
+    });
+
+    const initialCallback = findProductReelPages(renderer!)
+      .find((node) => node.props.isActive)?.props.onPlaybackStateChange;
+
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 1 },
+      });
+    });
+
+    expect(
+      findProductReelPages(renderer!).find((node) => node.props.isActive)?.props
+        .onPlaybackStateChange,
+    ).toBe(initialCallback);
+  });
+
   it("clears an open summary sheet when leaving and returning to a reel page", () => {
     const nextGroupBuy: GroupBuy = {
       ...baseGroupBuy,

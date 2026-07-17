@@ -28,6 +28,10 @@ const queryResultMock = vi.hoisted(() => ({
   isLoading: false,
   refetch: vi.fn(),
 }));
+const pagerViewMock = vi.hoisted(() => ({
+  mounts: 0,
+  setPageWithoutAnimation: vi.fn(),
+}));
 
 const groupBuys = [0, 1, 2].map((index) => ({
   id: `reel-${index}`,
@@ -93,8 +97,11 @@ vi.mock("react-native-pager-view", () => {
   return {
     default: ReactMock.forwardRef(
       (props: Record<string, unknown>, ref: React.Ref<unknown>) => {
+        ReactMock.useEffect(() => {
+          pagerViewMock.mounts += 1;
+        }, []);
         ReactMock.useImperativeHandle(ref, () => ({
-          setPageWithoutAnimation: vi.fn(),
+          setPageWithoutAnimation: pagerViewMock.setPageWithoutAnimation,
         }));
         return ReactMock.createElement("PagerView", props, props.children);
       },
@@ -173,6 +180,8 @@ describe("ReelsScreen player lifecycle", () => {
     queryResultMock.isFetching = false;
     queryResultMock.isLoading = false;
     queryResultMock.refetch.mockClear();
+    pagerViewMock.mounts = 0;
+    pagerViewMock.setPageWithoutAnimation.mockClear();
   });
 
   it("shows an accessible retry state when reels fail without cache", () => {
@@ -307,6 +316,41 @@ describe("ReelsScreen player lifecycle", () => {
     vi.useRealTimers();
   });
 
+  it("restarts deep-view eligibility after a summary sheet closes", async () => {
+    vi.useFakeTimers();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const findPages = () =>
+      renderer!.root.findAll((node) => String(node.type) === "ProductReelPage");
+    const activePage = findPages().find((node) => node.props.isActive);
+    expect(activePage).toBeDefined();
+
+    act(() => {
+      activePage!.props.onPlaybackStateChange?.(
+        activePage!.props.groupBuy.id,
+        true,
+      );
+      activePage!.props.onSummarySheetStateChange?.(true, false);
+      activePage!.props.onSummarySheetStateChange?.(false, true);
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+      await Promise.resolve();
+    });
+
+    expect(logDeepViewMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      renderer!.unmount();
+    });
+    vi.useRealTimers();
+  });
+
   it("keeps the pager page window bounded after repeated forward swipes", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -327,6 +371,57 @@ describe("ReelsScreen player lifecycle", () => {
       expect(findPager().props.initialPage).toBeGreaterThanOrEqual(0);
       expect(findPager().props.initialPage).toBeLessThan(7);
     }
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
+  it("recenters the existing pager when the bounded window advances", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const findPager = () =>
+      renderer!.root.find((node) => String(node.type) === "PagerView");
+
+    expect(pagerViewMock.mounts).toBe(1);
+    act(() => {
+      findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
+    });
+
+    expect(pagerViewMock.mounts).toBe(1);
+    expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledWith(4);
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
+  it("keeps the playback callback stable across reel page changes", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    const findPages = () =>
+      renderer!.root.findAll((node) => String(node.type) === "ProductReelPage");
+    const findPager = () =>
+      renderer!.root.find((node) => String(node.type) === "PagerView");
+    const initialCallback = findPages().find((node) => node.props.isActive)
+      ?.props.onPlaybackStateChange;
+
+    act(() => {
+      findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
+    });
+
+    expect(
+      findPages().find((node) => node.props.isActive)?.props
+        .onPlaybackStateChange,
+    ).toBe(initialCallback);
 
     act(() => {
       renderer!.unmount();

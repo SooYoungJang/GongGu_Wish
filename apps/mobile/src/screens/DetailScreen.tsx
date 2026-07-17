@@ -2,6 +2,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -2251,13 +2252,18 @@ function DetailScreenContent({
     groupBuys?.some((item) => item.id === activeGroupBuy.id),
   );
   const hasPlayableActiveMedia = hasPlayableVideoMedia(activeGroupBuy);
+  const activeGroupBuyIdRef = useRef(activeGroupBuy.id);
+  useLayoutEffect(() => {
+    activeGroupBuyIdRef.current = activeGroupBuy.id;
+  }, [activeGroupBuy.id]);
   const handlePlaybackStateChange = useCallback(
     (itemId: string, isPlaying: boolean) => {
-      if (itemId === activeGroupBuy.id) {
-        setActivePlayerPlaying(isPlaying);
-      }
+      if (itemId !== activeGroupBuyIdRef.current) return;
+      setActivePlayerPlaying((current) =>
+        current === isPlaying ? current : isPlaying,
+      );
     },
-    [activeGroupBuy.id],
+    [],
   );
   const searchItems = useMemo(() => {
     const seen = new Set<string>();
@@ -2292,8 +2298,6 @@ function DetailScreenContent({
   }, [
     activeGroupBuy.id,
     isPlaybackActive,
-    isSearchSheetVisible,
-    summarySheetGate.isOpen,
   ]);
   // ── Deep view tracking: count a view only after 30s of continuous watch ──
   const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2337,7 +2341,11 @@ function DetailScreenContent({
   ]);
   const handleSummarySheetStateChange = useCallback(
     (isOpen: boolean, canSwipeReel: boolean) => {
-      setSummarySheetGate({ isOpen, canSwipeReel });
+      setSummarySheetGate((current) =>
+        current.isOpen === isOpen && current.canSwipeReel === canSwipeReel
+          ? current
+          : { isOpen, canSwipeReel },
+      );
     },
     [],
   );
