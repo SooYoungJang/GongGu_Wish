@@ -887,7 +887,7 @@ export type ProductReelPageProps = {
   s: ReturnType<typeof makeStyles>;
 };
 
-export function ProductReelPage({
+function ProductReelPageComponent({
   groupBuy,
   isActive,
   playbackAllowed = isActive,
@@ -2091,6 +2091,8 @@ export function ProductReelPage({
   );
 }
 
+export const ProductReelPage = memo(ProductReelPageComponent);
+
 function NotificationLinkedDetail({
   groupBuyId,
   navigation,
@@ -2423,6 +2425,7 @@ function DetailScreenContent({
     },
     [navigation, reelItems, resetSearchSheetClosed],
   );
+  const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
   const renderReelItem = useCallback(
     ({ item, index }: { item: GroupBuy; index: number }) => (
@@ -2442,7 +2445,7 @@ function DetailScreenContent({
         mediaWidth={screenWidth}
         topInset={insets.top}
         bottomInset={insets.bottom}
-        onBack={() => navigation.goBack()}
+        onBack={handleBack}
         onCloseSearchSheet={closeSearchSheet}
         onPlaybackStateChange={handlePlaybackStateChange}
         onSummarySheetStateChange={handleSummarySheetStateChange}
@@ -2454,6 +2457,7 @@ function DetailScreenContent({
       closeSearchSheet,
       handleSummarySheetStateChange,
       handlePlaybackStateChange,
+      handleBack,
       insets.bottom,
       insets.top,
       isPlaybackActive,
