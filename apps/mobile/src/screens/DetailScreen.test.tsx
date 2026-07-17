@@ -2211,6 +2211,46 @@ describe("DetailScreen", () => {
 });
 
 describe("DetailScreen video playback", () => {
+  it("keeps video playback active while the search sheet is open", () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl: "https://example.com/search-sheet.mp4",
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const findPages = () => renderer!.root.findAllByType(ProductReelPage);
+    const searchButton = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "상품 검색",
+    );
+
+    expect(findPages().find((node) => node.props.isActive)?.props.playbackAllowed)
+      .toBe(true);
+
+    act(() => {
+      searchButton.props.onPress();
+    });
+
+    expect(findPages().find((node) => node.props.isActive)?.props.playbackAllowed)
+      .toBe(true);
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
   it("deactivates video for Android blur or background but not a summary sheet", () => {
     const groupBuy: GroupBuy = {
       ...baseGroupBuy,

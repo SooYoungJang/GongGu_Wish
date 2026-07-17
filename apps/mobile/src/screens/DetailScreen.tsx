@@ -2432,7 +2432,6 @@ function DetailScreenContent({
         isActive={isScreenFocused && index === activeProductIndex}
         playbackAllowed={
           isPlaybackActive &&
-          !isSearchSheetVisible &&
           index === activeProductIndex
         }
         isSearchSheetVisible={isSearchSheetVisible}
