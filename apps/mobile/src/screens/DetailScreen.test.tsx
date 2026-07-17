@@ -218,6 +218,7 @@ vi.mock("react-native-pager-view", () => {
 
 import React, { type ReactNode } from "react";
 import { Alert, Animated, Linking } from "react-native";
+import { withTiming } from "react-native-reanimated";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -228,6 +229,7 @@ import {
   hasPlayableVideoMedia,
 } from "./DetailScreen";
 import { spacing } from "../design/tokens";
+import { REELS_SUMMARY_SHEET_ANIMATION_MS } from "../design/bottomSheetMotion";
 import type { GroupBuy } from "../types";
 
 vi.mock("react-native", () => {
@@ -1235,9 +1237,14 @@ describe("DetailScreen", () => {
         node.props.accessibilityLabel === "요약 자세히 보기",
     )[0];
 
+    vi.mocked(withTiming).mockClear();
     act(() => {
       summaryButton.props.onPress();
     });
+    expect(withTiming).toHaveBeenCalledWith(
+      0,
+      expect.objectContaining({ duration: REELS_SUMMARY_SHEET_ANIMATION_MS }),
+    );
 
     const openSummaryOverlay = renderer!.root.findByProps({
       testID: "reels-summary-sheet-overlay",
