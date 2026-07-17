@@ -91,6 +91,15 @@ describe("DealCard", () => {
     );
   });
 
+  it("announces a previous-day deadline as expired instead of today", () => {
+    expect(
+      buildDealCardAccessibilityLabel(
+        { ...item, endDate: "2026-07-16T23:59:59" },
+        Date.parse("2026-07-18T00:30:00"),
+      ),
+    ).toContain("마감됨");
+  });
+
   it("does not announce a product category as a missing seller", () => {
     expect(
       buildDealCardAccessibilityLabel({

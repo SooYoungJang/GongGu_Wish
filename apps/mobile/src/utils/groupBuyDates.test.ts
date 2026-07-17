@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type { GroupBuy } from '../types';
-import { doesGroupBuyOverlapRange, formatDateKey, isGroupBuyActiveOnDate, parseDateKey } from './groupBuyDates';
+import {
+  doesGroupBuyOverlapRange,
+  filterActiveGroupBuys,
+  formatDateKey,
+  isGroupBuyActiveOnDate,
+  parseDateKey,
+} from './groupBuyDates';
 
 function makeGroupBuy(overrides: Partial<GroupBuy>): GroupBuy {
   return {
@@ -59,6 +65,24 @@ describe('groupBuyDates', () => {
 
     expect(isGroupBuyActiveOnDate(item, new Date('2026-06-30T12:00:00'))).toBe(false);
     expect(isGroupBuyActiveOnDate(item, new Date('2027-01-01T12:00:00'))).toBe(false);
+  });
+
+  it('filters group buys that ended before the current local day', () => {
+    const asOf = new Date(2026, 6, 18, 12);
+    const expired = makeGroupBuy({
+      id: 'gb-expired',
+      endDate: '2026-07-16T23:59:59',
+    });
+    const endingToday = makeGroupBuy({
+      id: 'gb-ending-today',
+      endDate: '2026-07-18T00:00:00',
+    });
+    const noDeadline = makeGroupBuy({ id: 'gb-no-deadline' });
+
+    expect(filterActiveGroupBuys([expired, endingToday, noDeadline], asOf).map((item) => item.id)).toEqual([
+      'gb-ending-today',
+      'gb-no-deadline',
+    ]);
   });
 
   it('includes group buys that overlap the selected week', () => {

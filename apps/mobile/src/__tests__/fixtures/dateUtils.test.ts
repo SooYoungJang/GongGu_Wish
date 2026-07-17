@@ -35,6 +35,10 @@ describe('formatEndDate', () => {
     expect(formatEndDate('2026-06-15T12:00:00+09:00')).toBe('마감됨');
   });
 
+  it('어제 마감했지만 24시간이 지나지 않은 공구도 "마감됨"을 반환한다', () => {
+    expect(formatEndDate('2026-06-30T23:59:59+09:00')).toBe('마감됨');
+  });
+
   it('오늘 마감인 경우 "오늘 마감"을 반환한다', () => {
     expect(formatEndDate('2026-07-01T12:00:00+09:00')).toBe('오늘 마감');
   });

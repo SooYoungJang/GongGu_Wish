@@ -56,6 +56,28 @@ export function getGroupBuyDateRange(item: GroupBuy): { start: Date | null; end:
   };
 }
 
+/**
+ * Group-buy end dates are date-level deadlines in the mobile UI. Keep an item
+ * visible through its local end date, then hide it from public lists starting
+ * on the following local day.
+ */
+export function isGroupBuyExpired(
+  item: Pick<GroupBuy, 'endDate'>,
+  date: Date = new Date(),
+): boolean {
+  const end = parseDate(item.endDate);
+  if (!end) return false;
+
+  return endOfDay(end) < startOfDay(date);
+}
+
+export function filterActiveGroupBuys(
+  groupBuys: GroupBuy[],
+  date: Date = new Date(),
+): GroupBuy[] {
+  return groupBuys.filter((item) => !isGroupBuyExpired(item, date));
+}
+
 export function isGroupBuyActiveOnDate(item: GroupBuy, date: Date): boolean {
   const { start, end } = getGroupBuyDateRange(item);
   if (!start && !end) return false;
