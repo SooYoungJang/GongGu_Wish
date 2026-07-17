@@ -61,6 +61,7 @@ import {
 } from "../hooks/useLocalDeals";
 import { SText } from "../components/ui/SText";
 import { borderRadius, spacing } from "../design/tokens";
+import { BOTTOM_SHEET_ANIMATION_MS } from "../design/bottomSheetMotion";
 import { useTheme } from "../context/ThemeContext";
 import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
 import type { ColorPalette } from "../context/ThemeContext";
@@ -90,8 +91,6 @@ const SUMMARY_SCROLL_TOP_EPSILON = 2;
 const DETAIL_SEARCH_CHROME_OFFSET = 72;
 const SUMMARY_SHEET_MAX_HEIGHT_RATIO = 0.58;
 const SEARCH_SHEET_MAX_HEIGHT_RATIO = 0.7;
-const BOTTOM_SHEET_ANIMATION_MS = 220;
-
 // When the summary sheet is open the media stage shrinks to a centered card
 // with this much inset on each side.
 const MEDIA_STAGE_SIDE_INSET = 48;
@@ -1977,15 +1976,33 @@ export function ProductReelPage({
         </Reanimated.View>
       </>
 
-      {summary && isSummaryVisible ? (
-        <View style={s.summaryOverlay} pointerEvents="box-none">
+      {summary && (isActive || isSummaryVisible) ? (
+        <View
+          accessibilityElementsHidden={!isSummaryVisible}
+          importantForAccessibility={
+            isSummaryVisible ? "auto" : "no-hide-descendants"
+          }
+          pointerEvents={isSummaryVisible ? "box-none" : "none"}
+          style={s.summaryOverlay}
+          testID="reels-summary-sheet-overlay"
+        >
           <Pressable
-            accessibilityLabel="요약 닫기"
-            accessibilityRole="button"
+            accessibilityElementsHidden={!isSummaryVisible}
+            accessibilityLabel={isSummaryVisible ? "요약 닫기" : undefined}
+            accessibilityRole={isSummaryVisible ? "button" : undefined}
+            accessible={isSummaryVisible}
+            importantForAccessibility={
+              isSummaryVisible ? "yes" : "no-hide-descendants"
+            }
             onPress={() => setSummaryOpen(false)}
             style={s.summaryBackdrop}
+            testID="reels-summary-sheet-backdrop"
           />
           <Reanimated.View
+            accessibilityElementsHidden={!isSummaryVisible}
+            importantForAccessibility={
+              isSummaryVisible ? "auto" : "no-hide-descendants"
+            }
             onLayout={handleSummarySheetLayout}
             style={[
               s.summarySheet,

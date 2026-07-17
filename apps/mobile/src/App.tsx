@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, BackHandler, Platform, StatusBar, StyleSheet, ToastAndroid, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Constants from 'expo-constants';
@@ -24,7 +24,10 @@ import {
   decideMainTabsBack,
   useFocusedAndroidBackHandler,
 } from './navigation/androidBack';
-import { getTabBarVisibilityStyle } from './navigation/tabBarVisibility';
+import {
+  createTabBarButtonRenderer,
+  getTabBarVisibilityStyle,
+} from './navigation/tabBarVisibility';
 import { mobileQueryClient, syncQueryFocus } from './lib/query-client';
 import { notificationLinking } from './navigation/notificationLinking';
 
@@ -158,9 +161,14 @@ function MainTabs() {
   const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 12, 0);
   const tabBarBottomPadding = Math.max(insets.bottom - 8, isNarrow ? 2 : 4);
   const tabBarBackgroundColor = isIOS ? 'transparent' : colors.bottomBarBg;
-  // Removing the hidden GNB from layout also removes its duplicate controls
-  // from the native accessibility tree while a Reels sheet is open.
+  // Keep the GNB mounted so opening a Reels sheet does not invalidate the
+  // navigator layout. Each button defers its own accessibility-tree update
+  // until the sheet transition settles, avoiding a second navigator render.
   const [reelsSheetOpen, setReelsSheetOpen] = useState(false);
+  const renderTabBarButton = useMemo(
+    () => createTabBarButtonRenderer(reelsSheetOpen),
+    [reelsSheetOpen],
+  );
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   // Active tab name inside the bottom tab navigator, mirrored into a ref from
@@ -213,6 +221,7 @@ function MainTabs() {
         const isReelsActive = activeRouteName === 'Reels';
         return {
           headerShown: false,
+          tabBarButton: renderTabBarButton,
           tabBarIconStyle: styles.tabIconSlot,
           tabBarItemStyle: [
             styles.tabButton,
@@ -245,7 +254,7 @@ function MainTabs() {
                   : colors.bottomBarBorder,
               height: tabBarHeight,
               paddingBottom: tabBarBottomPadding,
-              ...getTabBarVisibilityStyle(reelsSheetOpen),
+              ...getTabBarVisibilityStyle(reelsSheetOpen, tabBarHeight),
             },
           ],
         };
