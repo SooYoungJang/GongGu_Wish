@@ -2432,7 +2432,6 @@ function DetailScreenContent({
         isActive={isScreenFocused && index === activeProductIndex}
         playbackAllowed={
           isPlaybackActive &&
-          !summarySheetGate.isOpen &&
           !isSearchSheetVisible &&
           index === activeProductIndex
         }
@@ -2465,7 +2464,6 @@ function DetailScreenContent({
       searchSheetMetrics,
       screenHeight,
       screenWidth,
-      summarySheetGate.isOpen,
     ],
   );
 

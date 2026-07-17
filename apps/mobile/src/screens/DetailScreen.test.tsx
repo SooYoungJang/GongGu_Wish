@@ -2211,7 +2211,7 @@ describe("DetailScreen", () => {
 });
 
 describe("DetailScreen video playback", () => {
-  it("deactivates video for Android blur, background, or a covering summary", () => {
+  it("deactivates video for Android blur or background but not a summary sheet", () => {
     const groupBuy: GroupBuy = {
       ...baseGroupBuy,
       videoUrl: "https://example.com/lifecycle.mp4",
@@ -2256,7 +2256,9 @@ describe("DetailScreen video playback", () => {
       activePage!.props.onSummarySheetStateChange(true, false);
     });
     expect(findPages().some((node) => node.props.isActive)).toBe(true);
-    expect(findPages().every((node) => !node.props.playbackAllowed)).toBe(true);
+    expect(
+      findPages().find((node) => node.props.isActive)?.props.playbackAllowed,
+    ).toBe(true);
 
     act(() => {
       renderer!.unmount();
