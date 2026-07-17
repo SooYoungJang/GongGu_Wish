@@ -13,6 +13,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 
+import { AdsProvider } from './ads/AdsContext';
 import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
@@ -437,19 +438,21 @@ export default function App() {
     <GestureHandlerRootView style={styles.appRoot}>
       <KeyboardProvider>
         <SafeAreaProvider>
-          <QueryClientProvider client={mobileQueryClient}>
-            <QueryFocusBridge />
-            <ThemeProvider>
-              <AuthProvider>
-                <NotificationPreferencesBoundary>
-                  <NotificationScheduleBridge />
-                  <ThemedNavigationContainer>
-                    <ThemedStackNavigator />
-                  </ThemedNavigationContainer>
-                </NotificationPreferencesBoundary>
-              </AuthProvider>
-            </ThemeProvider>
-          </QueryClientProvider>
+          <AdsProvider>
+            <QueryClientProvider client={mobileQueryClient}>
+              <QueryFocusBridge />
+              <ThemeProvider>
+                <AuthProvider>
+                  <NotificationPreferencesBoundary>
+                    <NotificationScheduleBridge />
+                    <ThemedNavigationContainer>
+                      <ThemedStackNavigator />
+                    </ThemedNavigationContainer>
+                  </NotificationPreferencesBoundary>
+                </AuthProvider>
+              </ThemeProvider>
+            </QueryClientProvider>
+          </AdsProvider>
         </SafeAreaProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>

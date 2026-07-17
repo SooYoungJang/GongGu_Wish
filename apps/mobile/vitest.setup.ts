@@ -8,6 +8,14 @@ Object.defineProperty(global, "fetch", {
 
 (globalThis as any).__DEV__ = false;
 
+vi.mock("expo-constants", () => ({
+  default: {
+    expoConfig: {
+      extra: {},
+    },
+  },
+}));
+
 // ─── react-native mock ──────────────────────────────────────────────────────
 const passthrough = (type: string) =>
   ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -212,6 +220,31 @@ vi.mock("react-native-pager-view", () => {
 vi.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
   SafeAreaProvider: ({ children }: { children: unknown }) => children,
+}));
+
+vi.mock("react-native-google-mobile-ads", () => ({
+  default: vi.fn(() => ({
+    initialize: vi.fn(async () => []),
+  })),
+  AdsConsent: {
+    gatherConsent: vi.fn(async () => ({ canRequestAds: true })),
+    getConsentInfo: vi.fn(async () => ({ canRequestAds: true })),
+  },
+  NativeAd: {
+    createForAdRequest: vi.fn(),
+  },
+  NativeAdView: passthrough("NativeAdView"),
+  NativeAsset: passthrough("NativeAsset"),
+  NativeMediaView: passthrough("NativeMediaView"),
+  NativeAssetType: {
+    ADVERTISER: "advertiser",
+    BODY: "body",
+    CALL_TO_ACTION: "callToAction",
+    HEADLINE: "headline",
+  },
+  TestIds: {
+    NATIVE: "test-native-unit",
+  },
 }));
 
 vi.mock("@react-native-async-storage/async-storage", () => ({

@@ -37,6 +37,14 @@ vi.mock('../api', () => ({
   fetchGroupBuys: vi.fn(),
 }));
 
+vi.mock('../components/ads/NativeAdCard', () => {
+  const ReactMock = require('react');
+  return {
+    NativeAdCard: ({ testID }: { testID?: string }) =>
+      ReactMock.createElement('NativeAdCard', { testID }),
+  };
+});
+
 vi.mock('react-native', () => {
   const ReactMock = require('react');
   const passthrough =
@@ -1500,6 +1508,44 @@ describe('HomeScreenContent redesign', () => {
 });
 
 describe('HomeScreenContent redesign v2', () => {
+  it('does not reserve a native ad slot before six recommended products', () => {
+    const renderer = renderHomeContent({
+      groupBuys: sampleGroupBuys.slice(0, 2),
+    });
+
+    expect(
+      renderer.root.findAllByProps({ testID: 'home-native-ad' }),
+    ).toHaveLength(0);
+  });
+
+  it('places one native ad after the sixth recommended product', () => {
+    const groupBuys = Array.from({ length: 8 }, (_, index) => ({
+      ...sampleGroupBuys[index % sampleGroupBuys.length],
+      id: `recommended-${index + 1}`,
+      isHomeBanner: false,
+    }));
+    const renderer = renderHomeContent({ groupBuys });
+    const grid = renderer.root
+      .findAllByProps({ testID: 'home-recommendation-grid' })
+      .find((node) => String(node.type) === 'View')!;
+    const order = grid.children.map((child) => {
+      if (typeof child === 'string') return child;
+      return child.props.item?.id ?? child.props.testID;
+    });
+
+    expect(order).toEqual([
+      'recommended-1',
+      'recommended-2',
+      'recommended-3',
+      'recommended-4',
+      'recommended-5',
+      'recommended-6',
+      'home-native-ad',
+      'recommended-7',
+      'recommended-8',
+    ]);
+  });
+
   it('does not render the old weekly calendar sections', () => {
     const renderer = renderHomeContent();
     const text = flattenText(renderer!.toJSON());

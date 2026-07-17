@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -31,6 +32,7 @@ import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { PriceText } from "../components/ui/PriceText";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
 import { DealCard } from "../components/DealCard";
+import { NativeAdCard } from "../components/ads/NativeAdCard";
 import { CATEGORIES } from "../components/home/CategoryRow";
 import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
@@ -715,14 +717,18 @@ function RecommendedProducts({
   return (
     <View style={s.recommendSection}>
       {products.length > 0 ? (
-        <View style={s.productGrid}>
+        <View style={s.productGrid} testID="home-recommendation-grid">
           {products.map((item, index) => (
-            <DealCard
-              item={item}
-              key={item.id}
-              onPress={() => onPressDeal(item)}
-              category={categoryForGroupBuy(item, index)}
-            />
+            <Fragment key={item.id}>
+              <DealCard
+                item={item}
+                onPress={() => onPressDeal(item)}
+                category={categoryForGroupBuy(item, index)}
+              />
+              {index === 5 ? (
+                <NativeAdCard testID="home-native-ad" />
+              ) : null}
+            </Fragment>
           ))}
         </View>
       ) : (
