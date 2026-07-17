@@ -203,7 +203,7 @@ export function ReelsScreen({
         groupBuy={item}
         isActive={isPlaybackActive && index === activeIndex}
         playbackAllowed={
-          isPlaybackActive && !summarySheetGate.isOpen && index === activeIndex
+          isPlaybackActive && index === activeIndex
         }
         replayKey={replayKey}
         shouldPreloadVideo={Math.abs(index - activeIndex) <= 1}
@@ -233,7 +233,6 @@ export function ReelsScreen({
       s,
       screenHeight,
       screenWidth,
-      summarySheetGate.isOpen,
     ],
   );
 
