@@ -103,7 +103,9 @@ export type PushNotificationInput = {
 
 export type PushNotificationResult = {
   provider: "expo";
+  audienceType?: "general" | "new_submission" | "deadline" | "influencer" | "brand";
   targeted: number;
+  preferenceFiltered?: number;
   sent: number;
   failed: number;
   invalidTokensRemoved: number;

@@ -285,6 +285,9 @@ export function PushNotificationPanel({
             발송 완료 · 대상 {result.targeted.toLocaleString()}명 · 성공{" "}
             {result.sent.toLocaleString()}건 · 실패{" "}
             {result.failed.toLocaleString()}건
+            {(result.preferenceFiltered ?? 0) > 0
+              ? ` · 사용자 설정 제외 ${result.preferenceFiltered?.toLocaleString()}명`
+              : ""}
             {result.invalidTokensRemoved > 0
               ? ` · 만료 토큰 정리 ${result.invalidTokensRemoved.toLocaleString()}개`
               : ""}

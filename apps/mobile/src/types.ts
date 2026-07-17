@@ -5,7 +5,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   CalendarScreen: { initialDate?: string };
-  Detail: { groupBuy: GroupBuy };
+  Detail:
+    | { groupBuy: GroupBuy; groupBuyId?: never }
+    | { groupBuy?: never; groupBuyId: string };
   FeedDetail: { feedId: string };
   InfluencerGroupBuys: { influencerUsername: string; influencerDisplayName: string | null };
   SearchScreen: undefined;

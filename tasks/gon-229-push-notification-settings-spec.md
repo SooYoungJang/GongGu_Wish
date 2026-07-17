@@ -36,7 +36,7 @@ type NotificationPreferences = {
 ```
 
 - 로컬 키는 인증 사용자와 guest namespace를 분리한다.
-- 서버 `users` row에는 동등한 boolean·smallint[]·text[] 필드를 additive하게 저장한다.
+- 서버 `users` row에는 동등한 boolean·integer[]·text[] 필드를 additive하게 저장한다.
 - 입력은 경계에서 trim, case-insensitive dedupe, bounded length/count, reminder-day allowlist로 정규화한다.
 - `pushEnabled=false`는 저장된 push token을 제거하며 이후 앱 시작에서 재등록하지 않는다.
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, BackHandler, Platform, StatusBar, StyleSheet, ToastAndroid, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
+import Constants from 'expo-constants';
 import * as SystemUI from 'expo-system-ui';
 import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme, useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -16,7 +17,7 @@ import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
 import { resolveSupabaseUrl } from './lib/supabase-config';
-import { registerForPushNotifications, requestNotificationPermissions } from './services/notifications';
+import { registerForPushNotifications } from './services/notifications';
 import { BackButton } from './components/BackButton';
 import { getCommerceColors } from './design/commerce';
 import {
@@ -25,11 +26,17 @@ import {
 } from './navigation/androidBack';
 import { getTabBarVisibilityStyle } from './navigation/tabBarVisibility';
 import { mobileQueryClient, syncQueryFocus } from './lib/query-client';
+import { notificationLinking } from './navigation/notificationLinking';
 
 // Initialize PostgREST client with the Supabase anon key
-const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-const supabaseUrl = resolveSupabaseUrl(process.env.EXPO_PUBLIC_SUPABASE_URL, {
-  requireLocal: process.env.EXPO_PUBLIC_E2E_MODE === 'true',
+const automatedE2E = Constants.expoConfig?.extra?.automatedE2E === true;
+const anonKey = automatedE2E
+  ? (Constants.expoConfig?.extra?.e2eSupabaseAnonKey ?? '')
+  : (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '');
+const supabaseUrl = resolveSupabaseUrl(automatedE2E
+  ? Constants.expoConfig?.extra?.e2eSupabaseUrl
+  : process.env.EXPO_PUBLIC_SUPABASE_URL, {
+  requireLocal: automatedE2E,
 });
 configurePostgrest(anonKey, supabaseUrl);
 // Initialize Supabase Auth client
@@ -49,6 +56,11 @@ import { ReelsScreen } from './screens/ReelsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import {
+  NotificationPreferencesProvider,
+  useNotificationPreferences,
+} from './context/NotificationPreferencesContext';
+import { useNotifications } from './hooks/useLocalDeals';
 
 type RootStackWithTabs = RootStackParamList & {
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
@@ -260,6 +272,50 @@ function QueryFocusBridge() {
   return null;
 }
 
+function NotificationPreferencesBoundary({ children }: { children: React.ReactNode }) {
+  const { session, user } = useAuth();
+  const namespace = user?.id ? `user:${user.id}` : 'guest';
+  return (
+    <NotificationPreferencesProvider
+      authToken={session?.access_token}
+      namespace={namespace}
+    >
+      {children}
+    </NotificationPreferencesProvider>
+  );
+}
+
+function NotificationScheduleBridge() {
+  const { preferences, ready: preferencesReady } = useNotificationPreferences();
+  const { ready: notificationsReady, rescheduleNotifications } = useNotifications();
+  const lastScheduleSignatureRef = useRef<string | null>(null);
+  const scheduleSignature = JSON.stringify({
+    pushEnabled: preferences.pushEnabled,
+    deadlineRemindersEnabled: preferences.deadlineRemindersEnabled,
+    reminderDays: preferences.reminderDays,
+  });
+
+  useEffect(() => {
+    if (!preferencesReady || !notificationsReady) return;
+    if (lastScheduleSignatureRef.current === scheduleSignature) return;
+    lastScheduleSignatureRef.current = scheduleSignature;
+    void rescheduleNotifications(preferences).catch((error) => {
+      console.warn({
+        event: 'notification_schedule_reconcile_failed',
+        errorName: error instanceof Error ? error.name : typeof error,
+      });
+    });
+  }, [
+    notificationsReady,
+    preferences,
+    preferencesReady,
+    rescheduleNotifications,
+    scheduleSignature,
+  ]);
+
+  return null;
+}
+
 /**
  * Wraps NavigationContainer with the current theme's background color
  * so dark-mode screen transitions don't flash white.
@@ -267,6 +323,7 @@ function QueryFocusBridge() {
 function ThemedNavigationContainer({ children }: { children: React.ReactNode }) {
   const { colors, isDark } = useTheme();
   const { user, session, isLoading: authLoading } = useAuth();
+  const { preferences, ready: preferencesReady } = useNotificationPreferences();
   const userId = user?.id;
   const accessToken = session?.access_token;
   const bg = colors.bg;
@@ -276,17 +333,25 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
   }, [bg]);
 
   useEffect(() => {
-    requestNotificationPermissions().catch(() => {
-      // permission request is best-effort; user can enable later in settings
-    });
-  }, []);
-
-  useEffect(() => {
-    if (authLoading || !userId || !accessToken) return;
-    registerForPushNotifications(accessToken).catch(() => {
+    if (
+      authLoading ||
+      !preferencesReady ||
+      !preferences.pushEnabled ||
+      !userId ||
+      !accessToken
+    ) return;
+    registerForPushNotifications(accessToken, {
+      requestPermission: false,
+    }).catch(() => {
       // push registration is best-effort; delivery can be enabled again on next launch
     });
-  }, [accessToken, authLoading, userId]);
+  }, [
+    accessToken,
+    authLoading,
+    preferences.pushEnabled,
+    preferencesReady,
+    userId,
+  ]);
 
   const navTheme = React.useMemo(() => {
     const base = isDark ? DarkTheme : DefaultTheme;
@@ -309,7 +374,9 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
     <>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={bg} />
       <View style={{ flex: 1, backgroundColor: bg }}>
-        <NavigationContainer theme={navTheme}>{children}</NavigationContainer>
+        <NavigationContainer linking={notificationLinking} theme={navTheme}>
+          {children}
+        </NavigationContainer>
       </View>
     </>
   );
@@ -365,9 +432,12 @@ export default function App() {
             <QueryFocusBridge />
             <ThemeProvider>
               <AuthProvider>
-                <ThemedNavigationContainer>
-                  <ThemedStackNavigator />
-                </ThemedNavigationContainer>
+                <NotificationPreferencesBoundary>
+                  <NotificationScheduleBridge />
+                  <ThemedNavigationContainer>
+                    <ThemedStackNavigator />
+                  </ThemedNavigationContainer>
+                </NotificationPreferencesBoundary>
               </AuthProvider>
             </ThemeProvider>
           </QueryClientProvider>

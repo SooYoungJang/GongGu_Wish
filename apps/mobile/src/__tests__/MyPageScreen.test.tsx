@@ -20,6 +20,31 @@ const authMocks = vi.hoisted(() => ({
 }));
 const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
 const dealCardMock = vi.hoisted(() => vi.fn());
+const settingsPreferenceMocks = vi.hoisted(() => ({
+  preferences: {
+    pushEnabled: true,
+    deadlineRemindersEnabled: true,
+    newSubmissionsEnabled: true,
+    reminderDays: [1, 3, 7] as Array<1 | 3 | 7>,
+    followedInfluencers: ["seller.one"],
+    followedBrands: ["Brand A"],
+  },
+  updatePreferences: vi.fn(async (patch: Record<string, unknown>) => patch),
+  toggleInfluencer: vi.fn(),
+  toggleBrand: vi.fn(),
+}));
+
+vi.mock('../context/NotificationPreferencesContext', () => ({
+  useNotificationPreferences: () => ({
+    preferences: settingsPreferenceMocks.preferences,
+    ready: true,
+    saving: false,
+    error: null,
+    updatePreferences: settingsPreferenceMocks.updatePreferences,
+    toggleInfluencer: settingsPreferenceMocks.toggleInfluencer,
+    toggleBrand: settingsPreferenceMocks.toggleBrand,
+  }),
+}));
 
 vi.mock('../components/DealCard', () => ({
   DealCard: (props: any) => {
@@ -177,6 +202,15 @@ beforeEach(() => {
   alertMocks.alert.mockClear();
   navigationMocks.navigate.mockClear();
   navigationMocks.goBack.mockClear();
+  settingsPreferenceMocks.preferences.pushEnabled = true;
+  settingsPreferenceMocks.preferences.deadlineRemindersEnabled = true;
+  settingsPreferenceMocks.preferences.newSubmissionsEnabled = true;
+  settingsPreferenceMocks.preferences.reminderDays = [1, 3, 7];
+  settingsPreferenceMocks.preferences.followedInfluencers = ['seller.one'];
+  settingsPreferenceMocks.preferences.followedBrands = ['Brand A'];
+  settingsPreferenceMocks.updatePreferences.mockClear();
+  settingsPreferenceMocks.toggleInfluencer.mockClear();
+  settingsPreferenceMocks.toggleBrand.mockClear();
 });
 
 describe('MyPageScreen', () => {
@@ -334,6 +368,43 @@ describe('MyPageScreen', () => {
     expect(rendered).toContain('시스템');
     expect(rendered).toContain('라이트');
     expect(rendered).toContain('다크');
+    expect(rendered).toContain('공구 마감 임박 알림');
+    expect(rendered).toContain('신규 제보 알림');
+    expect(rendered).toContain('D-7');
+    expect(rendered).toContain('@seller.one');
+    expect(rendered).toContain('Brand A');
+  });
+
+  it('persists deadline switches, D-day choices, and follow removals', async () => {
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    const deadlineSwitch = renderer.root.findByProps({
+      accessibilityLabel: '공구 마감 임박 알림',
+    });
+    const d7 = renderer.root.findByProps({ accessibilityLabel: 'D-7 알림' });
+    const influencer = renderer.root.findByProps({
+      accessibilityLabel: '@seller.one 인플루언서 알림 해제',
+    });
+    const brand = renderer.root.findByProps({
+      accessibilityLabel: 'Brand A 브랜드 알림 해제',
+    });
+
+    await act(async () => {
+      await deadlineSwitch.props.onValueChange(false);
+      await d7.props.onPress();
+      await influencer.props.onPress();
+      await brand.props.onPress();
+    });
+
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      deadlineRemindersEnabled: false,
+    });
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      reminderDays: [1, 3],
+    });
+    expect(settingsPreferenceMocks.toggleInfluencer).toHaveBeenCalledWith(
+      'seller.one',
+    );
+    expect(settingsPreferenceMocks.toggleBrand).toHaveBeenCalledWith('Brand A');
   });
 
   it('places account deletion at the bottom and asks for confirmation', async () => {
