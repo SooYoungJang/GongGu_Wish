@@ -457,6 +457,14 @@ function findVerticalPager(renderer: TestRenderer.ReactTestRenderer) {
   return renderer.root.find((node) => String(node.type) === "PagerView");
 }
 
+function findProductReelPages(renderer: TestRenderer.ReactTestRenderer) {
+  const pageType = ProductReelPage as any;
+  const memoizedPageType = pageType.type;
+  return renderer.root.findAll(
+    (node) => node.type === pageType || node.type === memoizedPageType,
+  );
+}
+
 function findSummaryScrollGesture(renderer: TestRenderer.ReactTestRenderer) {
   return renderer.root
     .findAll((node) => String(node.type) === "GestureDetector")
@@ -630,6 +638,10 @@ beforeEach(() => {
 });
 
 describe("DetailScreen", () => {
+  it("memoizes product pages to avoid parent bookkeeping rerenders", () => {
+    expect((ProductReelPage as any).$$typeof).toBe(Symbol.for("react.memo"));
+  });
+
   it("connects influencer and brand follow controls to notification preferences", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
@@ -683,7 +695,7 @@ describe("DetailScreen", () => {
     });
 
     expect(
-      renderer!.root.findAllByType(ProductReelPage).some(
+      findProductReelPages(renderer!).some(
         (node) => node.props.groupBuy.id === baseGroupBuy.id,
       ),
     ).toBe(true);
@@ -747,8 +759,7 @@ describe("DetailScreen", () => {
       );
     });
 
-    const canonicalPage = renderer!.root
-      .findAllByType(ProductReelPage)
+    const canonicalPage = findProductReelPages(renderer!)
       .find((node) => node.props.groupBuy.id === canonicalItem.id);
     expect(canonicalPage?.props.groupBuy).toMatchObject({
       id: canonicalItem.id,
@@ -840,9 +851,9 @@ describe("DetailScreen", () => {
     queryMock.groupBuys = [otherItem, canonicalItem];
     act(() => renderer!.update(renderScreen()));
 
-    const activePage = renderer!.root
-      .findAllByType(ProductReelPage)
-      .find((node) => node.props.isActive);
+    const activePage = findProductReelPages(renderer!).find(
+      (node) => node.props.isActive,
+    );
     expect(activePage?.props.groupBuy).toBe(canonicalItem);
     expect(recentViewsMock.recordView).not.toHaveBeenCalledWith(otherItem);
   });
@@ -1123,6 +1134,56 @@ describe("DetailScreen", () => {
     });
 
     expect(flattenText(renderer!.toJSON())).toContain("다음 공구");
+  });
+
+  it("keeps the playback callback stable across detail page changes", () => {
+    const nextGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: "group-buy-2",
+      productName: "다음 공구",
+      thumbnailUrl: "https://example.com/next.jpg",
+      mediaUrls: ["https://example.com/next.jpg"],
+      rawPost: {
+        postUrl: "https://instagram.com/p/next",
+        influencer: {
+          instagramUsername: "next_seller",
+        },
+      },
+    };
+    queryMock.groupBuys = [baseGroupBuy, nextGroupBuy];
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={{
+            goBack: vi.fn(),
+            addListener: vi.fn(() => () => {}),
+          } as any}
+        />,
+      );
+    });
+
+    const initialCallback = findProductReelPages(renderer!)
+      .find((node) => node.props.isActive)?.props.onPlaybackStateChange;
+
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 1 },
+      });
+    });
+
+    expect(
+      findProductReelPages(renderer!).find((node) => node.props.isActive)?.props
+        .onPlaybackStateChange,
+    ).toBe(initialCallback);
   });
 
   it("clears an open summary sheet when leaving and returning to a reel page", () => {
@@ -2229,7 +2290,7 @@ describe("DetailScreen video playback", () => {
       );
     });
 
-    const findPages = () => renderer!.root.findAllByType(ProductReelPage);
+    const findPages = () => findProductReelPages(renderer!);
     const searchButton = renderer!.root.find(
       (node) =>
         String(node.type) === "Pressable" &&
@@ -2270,7 +2331,7 @@ describe("DetailScreen video playback", () => {
       renderer = TestRenderer.create(renderScreen());
     });
 
-    const findPages = () => renderer!.root.findAllByType(ProductReelPage);
+    const findPages = () => findProductReelPages(renderer!);
     expect(findPages().some((node) => node.props.playbackAllowed)).toBe(true);
 
     playbackLifecycleMock.isAppFocused = false;
