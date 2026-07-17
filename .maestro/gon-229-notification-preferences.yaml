@@ -1,0 +1,71 @@
+appId: com.gonggu.wish
+---
+# GON-229 Android: verify notification controls and schedule a real local push.
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: "상품을 검색해보세요"
+    timeout: 60000
+- tapOn:
+    text: "마이 탭"
+- extendedWaitUntil:
+    visible:
+      text: "마이페이지"
+    timeout: 30000
+- tapOn:
+    text: "설정 열기"
+- extendedWaitUntil:
+    visible:
+      text: "알림 설정"
+    timeout: 30000
+- assertVisible:
+    id: "push-notification-toggle"
+- assertVisible:
+    id: "deadline-notification-toggle"
+- assertVisible:
+    id: "new-submission-notification-toggle"
+- assertVisible:
+    id: "deadline-reminder-day-7"
+- assertVisible:
+    id: "deadline-reminder-day-3"
+- assertVisible:
+    id: "deadline-reminder-day-1"
+- takeScreenshot: gon229-android-01-settings-defaults
+
+# Preferences remain independently controllable.
+- tapOn:
+    id: "deadline-reminder-day-7"
+- tapOn:
+    id: "new-submission-notification-toggle"
+- takeScreenshot: gon229-android-02-custom-preferences
+- tapOn:
+    id: "new-submission-notification-toggle"
+- tapOn:
+    id: "push-notification-toggle"
+- extendedWaitUntil:
+    visible:
+      text: "앱에서 푸시 수신을 중지했어요.*"
+    timeout: 10000
+- takeScreenshot: gon229-android-03-push-disabled
+- tapOn:
+    id: "push-notification-toggle"
+- extendedWaitUntil:
+    visible:
+      text: "앱과 기기에서 푸시 알림을 받을 수 있어요.*"
+    timeout: 10000
+
+# The E2E build schedules an 8-second notification carrying a canonical URL.
+- tapOn:
+    id: "test-notification-button"
+- scrollUntilVisible:
+    element:
+      text: "8초 뒤 알림 예약됨"
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    text: "8초 뒤 알림 예약됨"
+- takeScreenshot: gon229-android-04-test-notification-scheduled

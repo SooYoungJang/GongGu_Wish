@@ -7,14 +7,17 @@ on:
       - ".github/workflows/mobile-ios-e2e.yml"
       - ".maestro/gon-263-*.yaml"
       - ".maestro/gon-264-*.yaml"
+      - ".maestro/gon-229-*.yaml"
       - "apps/mobile/**"
       - "packages/shared/**"
       - "supabase/**"
       - "scripts/build-gon263-android-e2e.sh"
       - "scripts/gon263-android-e2e-config.test.mjs"
+      - "scripts/gon229-notification-contract.test.mjs"
       - "scripts/mobile-e2e-api-server*.mjs"
       - "scripts/run-gon263-android-e2e.sh"
       - "scripts/run-gon264-android-accessibility.sh"
+      - "scripts/run-gon229-android-notifications.sh"
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:
@@ -84,6 +87,7 @@ jobs:
         shell: bash
         run: |
           node --test \
+            scripts/gon229-notification-contract.test.mjs \
             scripts/gon263-android-e2e-config.test.mjs \
             scripts/mobile-e2e-api-server.test.mjs
           mkdir -p artifacts/android
@@ -139,11 +143,19 @@ jobs:
           test -s artifacts/android/critical-output.log
           test -s artifacts/android/reels-output.log
           test -s artifacts/android/gon264-output.log
+          test -s artifacts/android/gon229-preferences-output.log
+          test -s artifacts/android/gon229-tap-output.log
           test -s artifacts/android/critical-commands.json
           test -s artifacts/android/reels-commands.json
           test -s artifacts/android/gon264-commands.json
+          test -s artifacts/android/gon229-preferences-commands.json
+          test -s artifacts/android/gon229-tap-commands.json
           test "$(find artifacts/android -name 'gon263-*.png' | wc -l)" -ge 10
           test "$(find artifacts/android -name 'gon264-android-*.png' | wc -l)" -ge 8
+          test "$(find artifacts/android -name 'gon229-android-*.png' | wc -l)" -ge 7
+          test -s artifacts/android/gon229-notification-state.txt
+          test -s artifacts/android/gon229-notification-drawer.xml
+          test -s artifacts/android/gon229-alarm-state.txt
           test -s artifacts/android/gon264-reels-accessibility.xml
           test -s artifacts/android/gon264-talkback-state.txt
           test -s artifacts/android/adb-reverse.txt

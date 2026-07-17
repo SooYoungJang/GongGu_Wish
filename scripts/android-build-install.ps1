@@ -1,5 +1,6 @@
 param(
-  [string]$BuildRoot = "C:\codex-tools\work\GongGu_Wish"
+  [string]$BuildRoot = "C:\codex-tools\work\GongGu_Wish",
+  [switch]$AutomatedE2E
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,9 +16,17 @@ if (-not $BuildRoot.StartsWith("C:\codex-tools\work\")) {
   throw "BuildRoot must stay under C:\codex-tools\work"
 }
 
+if ($AutomatedE2E) {
+  $env:EXPO_PUBLIC_E2E_MODE = "true"
+  $env:EXPO_PUBLIC_SUPABASE_URL = "http://localhost:54321"
+  $env:EXPO_PUBLIC_SUPABASE_ANON_KEY = "local-e2e-anon-key"
+}
+
 $androidSdk = $env:ANDROID_HOME
 if (-not $androidSdk) { $androidSdk = $env:ANDROID_SDK_ROOT }
-if (-not (Test-Path -LiteralPath $androidSdk)) { $androidSdk = "C:\Android\Sdk" }
+if (-not $androidSdk -or -not (Test-Path -LiteralPath $androidSdk)) {
+  $androidSdk = "C:\Android\Sdk"
+}
 
 $jdk = Get-ChildItem "C:\codex-tools\jdk17" -Directory -ErrorAction SilentlyContinue |
   Sort-Object LastWriteTime -Descending |
@@ -56,7 +65,7 @@ try {
   npx expo export:embed --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res
   Push-Location "android"
   try {
-    .\gradlew.bat installDebug -x lint -x test --configure-on-demand --build-cache -PreactNativeArchitectures=x86_64
+    .\gradlew.bat installDebug -x lint -x test --configure-on-demand --build-cache --no-daemon -PreactNativeArchitectures=x86_64
   } finally {
     Pop-Location
   }

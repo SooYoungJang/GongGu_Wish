@@ -26,7 +26,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { FlashList } from "@shopify/flash-list";
 import { VideoView, useVideoPlayer, type VideoPlayerStatus } from "expo-video";
@@ -49,9 +49,10 @@ import Reanimated, {
   type SharedValue,
 } from "react-native-reanimated";
 
-import { fetchGroupBuys, logDeepView } from "../api";
+import { fetchGroupBuyById, fetchGroupBuys, logDeepView } from "../api";
 import { Ionicons } from "@expo/vector-icons";
 import { BackButton } from "../components/BackButton";
+import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { PriceText } from "../components/ui/PriceText";
 import {
   useBookmarks,
@@ -61,6 +62,7 @@ import {
 import { SText } from "../components/ui/SText";
 import { borderRadius, spacing } from "../design/tokens";
 import { useTheme } from "../context/ThemeContext";
+import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
 import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatEndDate, getDaysRemaining } from "../utils";
@@ -579,15 +581,17 @@ type ReelActionProps = {
   label: string;
   onPress: () => void;
   s: ReturnType<typeof makeStyles>;
+  testID?: string;
 };
 
-function ReelAction({ icon, label, onPress, s }: ReelActionProps) {
+function ReelAction({ icon, label, onPress, s, testID }: ReelActionProps) {
   return (
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [s.railButton, pressed && s.pressed]}
+      testID={testID}
     >
       <View style={s.railIconBox}>{icon}</View>
       <SText variant="caption" style={s.railLabel}>
@@ -906,6 +910,13 @@ export function ProductReelPage({
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
   const { colors } = useTheme();
+  const {
+    preferences,
+    ready: notificationPreferencesReady,
+    saving: notificationPreferencesSaving,
+    toggleBrand,
+    toggleInfluencer,
+  } = useNotificationPreferences();
   const [summaryScrollContentHeight, setSummaryScrollContentHeight] =
     useState(0);
   const [summaryScrollViewportHeight, setSummaryScrollViewportHeight] =
@@ -978,6 +989,19 @@ export function ProductReelPage({
     /^@/,
     "",
   );
+  const isInfluencerFollowed = preferences.followedInfluencers.some(
+    (target) =>
+      target.toLocaleLowerCase("en-US") ===
+      sellerName.toLocaleLowerCase("en-US"),
+  );
+  const brandName = groupBuy.brandName?.trim() ?? "";
+  const isBrandFollowed = preferences.followedBrands.some(
+    (target) =>
+      target.toLocaleLowerCase("en-US") ===
+      brandName.toLocaleLowerCase("en-US"),
+  );
+  const followControlsDisabled =
+    !notificationPreferencesReady || notificationPreferencesSaving;
   const summary = groupBuy.summary ?? groupBuy.discountInfo ?? "";
   const summarySheetMaxHeight = Math.max(
     280,
@@ -1805,6 +1829,7 @@ export function ProductReelPage({
             label={notificationLabel}
             onPress={handleNotificationPress}
             s={s}
+            testID="detail-notification-toggle"
           />
           <ReelPurchaseAction onPress={handleOpenLink} s={s} />
         </Reanimated.View>
@@ -1829,6 +1854,79 @@ export function ProductReelPage({
             <SText variant="cardTitle" style={s.sellerName} numberOfLines={1}>
               {sellerName}
             </SText>
+          </View>
+
+          <View style={s.followTargetRow}>
+            {sellerName ? (
+              <Pressable
+                accessibilityLabel={`@${sellerName} 인플루언서 알림 ${isInfluencerFollowed ? "해제" : "설정"}`}
+                accessibilityRole="checkbox"
+                accessibilityState={{
+                  checked: isInfluencerFollowed,
+                  disabled: followControlsDisabled,
+                }}
+                disabled={followControlsDisabled}
+                onPress={() => void toggleInfluencer(sellerName)}
+                style={({ pressed }) => [
+                  s.followTargetChip,
+                  isInfluencerFollowed && s.followTargetChipActive,
+                  pressed && s.pressed,
+                ]}
+                testID="follow-influencer-notifications"
+              >
+                <Ionicons
+                  color={isInfluencerFollowed ? colors.accent : "#FFFFFF"}
+                  name={
+                    isInfluencerFollowed
+                      ? "notifications"
+                      : "notifications-outline"
+                  }
+                  size={14}
+                />
+                <SText
+                  style={[
+                    s.followTargetText,
+                    isInfluencerFollowed && s.followTargetTextActive,
+                  ]}
+                  variant="caption"
+                >
+                  인플루언서 알림
+                </SText>
+              </Pressable>
+            ) : null}
+            {brandName ? (
+              <Pressable
+                accessibilityLabel={`${brandName} 브랜드 알림 ${isBrandFollowed ? "해제" : "설정"}`}
+                accessibilityRole="checkbox"
+                accessibilityState={{
+                  checked: isBrandFollowed,
+                  disabled: followControlsDisabled,
+                }}
+                disabled={followControlsDisabled}
+                onPress={() => void toggleBrand(brandName)}
+                style={({ pressed }) => [
+                  s.followTargetChip,
+                  isBrandFollowed && s.followTargetChipActive,
+                  pressed && s.pressed,
+                ]}
+                testID="follow-brand-notifications"
+              >
+                <Ionicons
+                  color={isBrandFollowed ? colors.accent : "#FFFFFF"}
+                  name={isBrandFollowed ? "pricetag" : "pricetag-outline"}
+                  size={14}
+                />
+                <SText
+                  style={[
+                    s.followTargetText,
+                    isBrandFollowed && s.followTargetTextActive,
+                  ]}
+                  variant="caption"
+                >
+                  브랜드 알림
+                </SText>
+              </Pressable>
+            ) : null}
           </View>
 
           <SText variant="cardTitle" style={s.productName} numberOfLines={2}>
@@ -1976,8 +2074,79 @@ export function ProductReelPage({
   );
 }
 
+function NotificationLinkedDetail({
+  groupBuyId,
+  navigation,
+}: {
+  groupBuyId: string;
+  navigation: DetailScreenProps["navigation"];
+}) {
+  const { colors } = useTheme();
+  const {
+    data,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ["group-buy", groupBuyId],
+    queryFn: () => fetchGroupBuyById(groupBuyId),
+  });
+
+  if (data) {
+    return <DetailScreenContent groupBuy={data} navigation={navigation} />;
+  }
+
+  return (
+    <SafeAreaView style={{ backgroundColor: colors.bg, flex: 1 }}>
+      <BackButton onPress={() => navigation.goBack()} />
+      <View
+        style={{ flex: 1, justifyContent: "center", padding: spacing.lg }}
+        testID={isError ? "notification-linked-detail-error" : "notification-linked-detail-loading"}
+      >
+        {isError ? (
+          <AsyncStateNotice
+            isRetrying={isFetching}
+            message="알림이 가리킨 공구를 다시 확인해주세요."
+            onRetry={() => refetch()}
+            testID="notification-linked-detail-error-notice"
+            title="공구 상세를 불러오지 못했어요"
+            variant="error"
+          />
+        ) : (
+          <View style={{ alignItems: "center", gap: spacing.sm }}>
+            <ActivityIndicator color={colors.primary} />
+            <SText variant="body">공구 상세를 불러오는 중이에요</SText>
+          </View>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
 export function DetailScreen({ route, navigation }: DetailScreenProps) {
-  const { groupBuy } = route.params;
+  if ("groupBuy" in route.params && route.params.groupBuy) {
+    return (
+      <DetailScreenContent
+        groupBuy={route.params.groupBuy}
+        navigation={navigation}
+      />
+    );
+  }
+  return (
+    <NotificationLinkedDetail
+      groupBuyId={route.params.groupBuyId}
+      navigation={navigation}
+    />
+  );
+}
+
+function DetailScreenContent({
+  groupBuy,
+  navigation,
+}: {
+  groupBuy: GroupBuy;
+  navigation: DetailScreenProps["navigation"];
+}) {
   const { colors, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
   const { recordView } = useRecentViews();
@@ -2823,6 +2992,32 @@ export function makeStyles(
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
+    followTargetRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.xs,
+      marginBottom: spacing.xs,
+      marginTop: spacing.xs,
+    },
+    followTargetChip: {
+      alignItems: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.34)",
+      borderColor: "rgba(255, 255, 255, 0.34)",
+      borderRadius: 999,
+      borderWidth: 1,
+      flexDirection: "row",
+      gap: spacing.xs,
+      justifyContent: "center",
+      minHeight: 36,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    followTargetChipActive: {
+      backgroundColor: "rgba(255, 255, 255, 0.92)",
+      borderColor: colors.accent,
+    },
+    followTargetText: { color: "#FFFFFF", fontWeight: "900" },
+    followTargetTextActive: { color: colors.accent },
     productName: {
       color: "#FFFFFF",
       fontSize: 16,

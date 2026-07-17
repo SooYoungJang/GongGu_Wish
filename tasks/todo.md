@@ -94,4 +94,39 @@
 
 - [x] mobile/workspace test·typecheck·lint·build 통과
 - [x] Android 좁은 화면·큰 글꼴·다크 모드·TalkBack E2E 증거 위키 기록
-- [ ] 코드 리뷰, PR CI, squash merge, main CI, 로컬 main 동기화
+- [x] 코드 리뷰, PR CI, squash merge, main CI, 로컬 main 동기화
+
+## GON-229 체크리스트
+
+### Task 1: Preference·DB·Edge contract
+
+- [ ] preference normalize/default/storage contract 테스트
+- [ ] additive Supabase·Prisma migration과 schema parity
+- [ ] register/unregister token과 preference upsert 경계 검증
+- [ ] admin-api audience 선호 필터와 구조화 결과/로그 검증
+
+### Task 2: Android 다중 reminder
+
+- [ ] endDate 기준 D-7·D-3·D-1 미래 trigger 계산
+- [ ] 다중 native ID 저장·legacy 호환·전체 취소
+- [ ] 선호 변경 시 기존 알림 재조정
+
+### Task 3: Settings·follow UX
+
+- [ ] push/마감/신규 제보 switch와 OS 권한 상태 분리
+- [ ] D-1·D-3·D-7 선택과 최소 1개 guard
+- [ ] Detail 인플루언서·브랜드 follow와 Settings 관리 chip
+- [ ] loading/error/retry·접근성 label/state 검증
+
+### Task 4: Notification deep link
+
+- [ ] 안전한 payload URL canonicalization
+- [ ] foreground/background/cold-start response linking
+- [ ] ID-only Detail fetch loading/error/retry 화면
+
+### Task 5: Android 배송
+
+- [ ] targeted/mobile/workspace test·typecheck·lint·build
+- [ ] Android 설정·follow·deep-link Maestro와 PNG/logcat 증거 위키 기록
+- [ ] 독립 리뷰·PR CI 통과
+- [ ] 운영 migration 승인 후 squash merge·main CI·로컬 main 동기화·Linear Done

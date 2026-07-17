@@ -1,16 +1,22 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import {
   isExpoPushToken,
-  validatePushNotificationInput,
+  matchesPushPreferences,
   type ValidatedPushNotificationInput,
+  validatePushNotificationInput,
 } from "./pushNotificationContract.ts";
 
 const EXPO_PUSH_SEND_URL = "https://exp.host/--/api/v2/push/send";
 const EXPO_BATCH_SIZE = 100;
+const PUSH_CANDIDATE_PAGE_SIZE = 500;
+const PUSH_CANDIDATE_COLUMNS =
+  "id, push_token, push_enabled, deadline_reminders_enabled, new_submissions_enabled, followed_influencers, followed_brands";
 
 export type PushNotificationResult = {
   provider: "expo";
+  audienceType: ValidatedPushNotificationInput["audience"]["type"];
   targeted: number;
+  preferenceFiltered: number;
   sent: number;
   failed: number;
   invalidTokensRemoved: number;
@@ -54,10 +60,9 @@ async function sendExpoBatch(
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const message =
-      isRecord(payload) && typeof payload.message === "string"
-        ? payload.message
-        : `Expo push request failed: ${response.status}`;
+    const message = isRecord(payload) && typeof payload.message === "string"
+      ? payload.message
+      : `Expo push request failed: ${response.status}`;
     throw new Error(message);
   }
 
@@ -73,33 +78,29 @@ export async function sendPushNotification(
   }
   const input = validatePushNotificationInput(body);
 
-  let query = supabase
-    .from("users")
-    .select("id, push_token")
-    .eq("push_provider", "expo")
-    .not("push_token", "is", null);
-
-  if (input.userIds) query = query.in("id", input.userIds);
-
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-
-  const tokens = [
-    ...new Set(
-      (data ?? [])
-        .map((row) => (row as Record<string, unknown>).push_token)
-        .filter(isExpoPushToken),
-    ),
-  ];
+  const rows = await collectPushCandidateRows(supabase, input.userIds);
+  const { candidateTokens, tokens, duplicateTokens } =
+    selectPushRecipientTokens(rows, input.audience);
+  const preferenceFiltered = candidateTokens.length - tokens.length;
 
   if (tokens.length === 0) {
-    return {
+    const result: PushNotificationResult = {
       provider: "expo",
+      audienceType: input.audience.type,
       targeted: 0,
+      preferenceFiltered,
       sent: 0,
       failed: 0,
       invalidTokensRemoved: 0,
     };
+    console.info(
+      JSON.stringify({
+        event: "push_delivery_completed",
+        ...result,
+        duplicateTokens,
+      }),
+    );
+    return result;
   }
 
   let sent = 0;
@@ -114,8 +115,9 @@ export async function sendPushNotification(
         sent += 1;
       } else {
         failed += 1;
-        if (isDeviceNotRegisteredTicket(ticket))
+        if (isDeviceNotRegisteredTicket(ticket)) {
           invalidTokens.add(tokenBatch[index]);
+        }
       }
     }
   }
@@ -141,11 +143,70 @@ export async function sendPushNotification(
     }
   }
 
-  return {
+  const result: PushNotificationResult = {
     provider: "expo",
+    audienceType: input.audience.type,
     targeted: tokens.length,
+    preferenceFiltered,
     sent,
     failed,
     invalidTokensRemoved,
   };
+  console.info(
+    JSON.stringify({
+      event: "push_delivery_completed",
+      ...result,
+      duplicateTokens,
+    }),
+  );
+  return result;
+}
+
+export async function collectPushCandidateRows(
+  supabase: SupabaseClient,
+  userIds: string[] | null,
+) {
+  const rows: Record<string, unknown>[] = [];
+  for (let from = 0;; from += PUSH_CANDIDATE_PAGE_SIZE) {
+    let query = supabase
+      .from("users")
+      .select(PUSH_CANDIDATE_COLUMNS)
+      .eq("push_provider", "expo")
+      .not("push_token", "is", null);
+    if (userIds) query = query.in("id", userIds);
+    const { data, error } = await query
+      .order("id", { ascending: true })
+      .range(from, from + PUSH_CANDIDATE_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const page = (data ?? []) as Record<string, unknown>[];
+    rows.push(...page);
+    if (page.length < PUSH_CANDIDATE_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+export function selectPushRecipientTokens(
+  rows: Record<string, unknown>[],
+  audience: ValidatedPushNotificationInput["audience"],
+) {
+  const rowsByToken = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const token = row.push_token;
+    if (!isExpoPushToken(token)) continue;
+    const owners = rowsByToken.get(token) ?? [];
+    owners.push(row);
+    rowsByToken.set(token, owners);
+  }
+
+  const candidateTokens = [...rowsByToken.keys()];
+  const tokens: string[] = [];
+  let duplicateTokens = 0;
+  for (const [token, owners] of rowsByToken) {
+    if (owners.length !== 1) {
+      duplicateTokens += 1;
+      continue;
+    }
+    if (matchesPushPreferences(owners[0], audience)) tokens.push(token);
+  }
+  return { candidateTokens, tokens, duplicateTokens };
 }

@@ -23,6 +23,17 @@ test("home-banner requests never return the disabled 200,000 KRW fixture", () =>
   );
 });
 
+test("single group-buy requests return only the exact deep-link target", () => {
+  const rows = selectGroupBuyRows(
+    new URL(
+      "http://127.0.0.1:54321/rest/v1/group_buys?id=eq.gon263-e2e-price-200000",
+    ),
+  );
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].id, "gon263-e2e-price-200000");
+});
+
 test("ranking responses preserve filters and canonical fixture identity", () => {
   const response = buildRankingResponse({
     category: "food",
@@ -46,7 +57,8 @@ test("ranking responses preserve filters and canonical fixture identity", () => 
   assert.ok(
     response.data.some(
       (item) =>
-        item.groupBuyId === "gon263-price-200000" && item.priceKrw === 200000,
+        item.groupBuyId === "gon263-e2e-price-200000" &&
+        item.priceKrw === 200000,
     ),
   );
 });

@@ -27,9 +27,36 @@ const platformMock = vi.hoisted(() => ({ os: "ios" }));
 const logDeepViewMock = vi.hoisted(() => vi.fn());
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
+  linkedGroupBuy: undefined as any,
+  linkedIsError: false,
+  linkedIsFetching: false,
+  linkedRefetch: vi.fn(),
 }));
 const recentViewsMock = vi.hoisted(() => ({
   recordView: vi.fn(),
+}));
+const notificationPreferencesMock = vi.hoisted(() => ({
+  preferences: {
+    pushEnabled: true,
+    deadlineRemindersEnabled: true,
+    newSubmissionsEnabled: true,
+    reminderDays: [1, 3, 7],
+    followedInfluencers: [] as string[],
+    followedBrands: [] as string[],
+  },
+  toggleInfluencer: vi.fn(),
+  toggleBrand: vi.fn(),
+}));
+vi.mock("../context/NotificationPreferencesContext", () => ({
+  useNotificationPreferences: () => ({
+    preferences: notificationPreferencesMock.preferences,
+    ready: true,
+    saving: false,
+    error: null,
+    updatePreferences: vi.fn(),
+    toggleInfluencer: notificationPreferencesMock.toggleInfluencer,
+    toggleBrand: notificationPreferencesMock.toggleBrand,
+  }),
 }));
 vi.mock("../hooks/useLocalDeals", () => ({
   useBookmarks: () => ({
@@ -116,14 +143,26 @@ vi.mock("expo-video", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({
-    data: queryMock.groupBuys,
-    isLoading: false,
-    isError: false,
-  }),
+  useQuery: (options: { queryKey?: unknown[] }) =>
+    options.queryKey?.[0] === "group-buy"
+      ? {
+          data: queryMock.linkedGroupBuy,
+          isLoading: !queryMock.linkedGroupBuy && !queryMock.linkedIsError,
+          isError: queryMock.linkedIsError,
+          isFetching: queryMock.linkedIsFetching,
+          refetch: queryMock.linkedRefetch,
+        }
+      : {
+          data: queryMock.groupBuys,
+          isLoading: false,
+          isError: false,
+          isFetching: false,
+          refetch: vi.fn(),
+        },
 }));
 
 vi.mock("../api", () => ({
+  fetchGroupBuyById: vi.fn(),
   fetchGroupBuys: vi.fn(),
   logDeepView: logDeepViewMock,
 }));
@@ -549,7 +588,15 @@ beforeEach(() => {
   logDeepViewMock.mockResolvedValue(undefined);
   videoMock.players = [];
   queryMock.groupBuys = undefined;
+  queryMock.linkedGroupBuy = undefined;
+  queryMock.linkedIsError = false;
+  queryMock.linkedIsFetching = false;
+  queryMock.linkedRefetch.mockReset();
   recentViewsMock.recordView.mockReset();
+  notificationPreferencesMock.preferences.followedInfluencers = [];
+  notificationPreferencesMock.preferences.followedBrands = [];
+  notificationPreferencesMock.toggleInfluencer.mockReset();
+  notificationPreferencesMock.toggleBrand.mockReset();
   flashListMock.scrollToOffset.mockClear();
   pagerViewMock.setPage.mockClear();
   pagerViewMock.setPageWithoutAnimation.mockClear();
@@ -560,6 +607,88 @@ beforeEach(() => {
 });
 
 describe("DetailScreen", () => {
+  it("connects influencer and brand follow controls to notification preferences", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{
+            key: "Detail",
+            name: "Detail",
+            params: { groupBuy: baseGroupBuy },
+          } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const influencer = renderer!.root.findByProps({
+      accessibilityLabel: "@hanssang_home 인플루언서 알림 설정",
+    });
+    const brand = renderer!.root.findByProps({
+      accessibilityLabel: "퍼스트 브랜드 알림 설정",
+    });
+    expect(influencer.props.accessibilityState.checked).toBe(false);
+    expect(brand.props.accessibilityState.checked).toBe(false);
+
+    act(() => {
+      influencer.props.onPress();
+      brand.props.onPress();
+    });
+    expect(notificationPreferencesMock.toggleInfluencer).toHaveBeenCalledWith(
+      "hanssang_home",
+    );
+    expect(notificationPreferencesMock.toggleBrand).toHaveBeenCalledWith(
+      "퍼스트",
+    );
+  });
+
+  it("loads the canonical item for an ID-only notification route", () => {
+    queryMock.linkedGroupBuy = baseGroupBuy;
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{
+            key: "Detail",
+            name: "Detail",
+            params: { groupBuyId: baseGroupBuy.id },
+          } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByType(ProductReelPage).some(
+        (node) => node.props.groupBuy.id === baseGroupBuy.id,
+      ),
+    ).toBe(true);
+  });
+
+  it("shows a retryable error for a missing notification-linked item", () => {
+    queryMock.linkedIsError = true;
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{
+            key: "Detail",
+            name: "Detail",
+            params: { groupBuyId: "missing" },
+          } as any}
+          navigation={{ goBack: vi.fn() } as any}
+        />,
+      );
+    });
+
+    const retry = renderer!.root.findByProps({
+      accessibilityLabel: "다시 불러오기",
+    });
+    act(() => retry.props.onPress());
+    expect(queryMock.linkedRefetch).toHaveBeenCalledOnce();
+  });
+
   it("replaces a partial ranking route item with canonical public data before recording it", () => {
     const partialRankingItem: GroupBuy = {
       ...baseGroupBuy,
