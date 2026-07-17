@@ -120,7 +120,7 @@ export function SettingsScreen() {
   const handleTestNotification = useCallback(async () => {
     const id = await scheduleTestNotification(
       testDelaySeconds,
-      automatedE2E ? "gon263-price-200000" : undefined,
+      automatedE2E ? "gon263-e2e-price-200000" : undefined,
     );
     setTestScheduled(Boolean(id));
   }, [automatedE2E, testDelaySeconds]);

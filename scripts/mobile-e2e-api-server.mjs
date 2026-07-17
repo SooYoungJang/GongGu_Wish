@@ -78,7 +78,7 @@ const fixture = ({
 
 const GROUP_BUYS = [
   fixture({
-    id: "gon263-price-200000",
+    id: "gon263-e2e-price-200000",
     productName: "GON-263 기준 공구",
     username: "gon263_price",
     category: "food",

@@ -63,11 +63,17 @@ test("Android notification runtime covers consent, deep links, and persistence",
   const windowsBuild = read("scripts/android-build-install.ps1");
   const orchestrator = read("scripts/run-gon263-android-e2e.sh");
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
+  const supabaseSeed = read("supabase/seed.sql");
+  const localFixtureServer = read("scripts/mobile-e2e-api-server.mjs");
+  const sharedFixtureId = "gon263-e2e-price-200000";
 
   assert.match(app, /requestPermission: false/);
   assert.match(app, /Constants\.expoConfig\?\.extra\?\.e2eSupabaseUrl/);
   assert.match(settings, /testID="push-notification-toggle"/);
   assert.match(settings, /Constants\.expoConfig\?\.extra\?\.automatedE2E/);
+  assert.match(settings, new RegExp(sharedFixtureId));
+  assert.match(supabaseSeed, new RegExp(sharedFixtureId));
+  assert.match(localFixtureServer, new RegExp(sharedFixtureId));
   assert.match(settings, /testID=\{`deadline-reminder-day-\$\{day\}`\}/);
   assert.match(notifications, /clearLastNotificationResponseAsync/);
   assert.match(notifications, /buildGroupBuyNotificationUrl/);
