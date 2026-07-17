@@ -1986,18 +1986,15 @@ export function ProductReelPage({
           style={s.summaryOverlay}
           testID="reels-summary-sheet-overlay"
         >
-          <Pressable
-            accessibilityElementsHidden={!isSummaryVisible}
-            accessibilityLabel={isSummaryVisible ? "요약 닫기" : undefined}
-            accessibilityRole={isSummaryVisible ? "button" : undefined}
-            accessible={isSummaryVisible}
-            importantForAccessibility={
-              isSummaryVisible ? "yes" : "no-hide-descendants"
-            }
-            onPress={() => setSummaryOpen(false)}
-            style={s.summaryBackdrop}
-            testID="reels-summary-sheet-backdrop"
-          />
+          {isSummaryVisible ? (
+            <Pressable
+              accessibilityLabel="요약 닫기"
+              accessibilityRole="button"
+              onPress={() => setSummaryOpen(false)}
+              style={s.summaryBackdrop}
+              testID="reels-summary-sheet-backdrop"
+            />
+          ) : null}
           <Reanimated.View
             accessibilityElementsHidden={!isSummaryVisible}
             importantForAccessibility={

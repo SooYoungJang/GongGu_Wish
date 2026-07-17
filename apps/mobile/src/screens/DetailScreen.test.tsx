@@ -480,15 +480,11 @@ function expectPreparedSummarySheetClosed(
   expect(overlay.props.importantForAccessibility).toBe(
     "no-hide-descendants",
   );
-  const backdrop = renderer.root.findByProps({
-    testID: "reels-summary-sheet-backdrop",
-  });
-  expect(backdrop.props.accessible).toBe(false);
-  expect(backdrop.props.accessibilityLabel).toBeUndefined();
-  expect(backdrop.props.accessibilityElementsHidden).toBe(true);
-  expect(backdrop.props.importantForAccessibility).toBe(
-    "no-hide-descendants",
-  );
+  expect(
+    renderer.root.findAllByProps({
+      testID: "reels-summary-sheet-backdrop",
+    }),
+  ).toHaveLength(0);
   expect(
     renderer.root.findAll((node) => String(node.type) === "ScrollView"),
   ).toHaveLength(1);
@@ -1249,6 +1245,11 @@ describe("DetailScreen", () => {
     expect(openSummaryOverlay.props.pointerEvents).toBe("box-none");
     expect(openSummaryOverlay.props.accessibilityElementsHidden).toBe(false);
     expect(openSummaryOverlay.props.importantForAccessibility).toBe("auto");
+    const openSummaryBackdrop = renderer!.root.findByProps({
+      testID: "reels-summary-sheet-backdrop",
+    });
+    expect(openSummaryBackdrop.props.accessibilityLabel).toBe("요약 닫기");
+    expect(openSummaryBackdrop.props.accessibilityRole).toBe("button");
 
     const scrollView = renderer!.root.find(
       (node) => String(node.type) === "ScrollView",
