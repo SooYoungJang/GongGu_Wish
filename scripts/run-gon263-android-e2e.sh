@@ -71,7 +71,16 @@ if [[ "$reels_status" -eq 0 ]]; then
   set -e
 fi
 
+gon229_status=1
+if [[ "$gon264_status" -eq 0 ]]; then
+  set +e
+  bash scripts/run-gon229-android-notifications.sh
+  gon229_status=$?
+  set -e
+fi
+
 adb logcat -d > artifacts/android/logcat.txt || true
 test "$critical_status" -eq 0
 test "$reels_status" -eq 0
 test "$gon264_status" -eq 0
+test "$gon229_status" -eq 0

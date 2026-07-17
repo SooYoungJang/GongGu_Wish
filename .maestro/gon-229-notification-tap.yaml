@@ -1,0 +1,65 @@
+appId: com.gonggu.wish
+---
+# The runner has backgrounded the app and expanded Android notifications.
+- extendedWaitUntil:
+    visible:
+      text: ".*푸시 테스트.*"
+    timeout: 30000
+- takeScreenshot: gon229-android-05-notification-drawer
+- tapOn:
+    text: ".*푸시 테스트.*"
+- extendedWaitUntil:
+    visible:
+      id: "detail-back-button"
+    timeout: 30000
+- assertVisible:
+    text: "GON-263 기준 공구"
+- takeScreenshot: gon229-android-06-notification-deep-link
+
+# Follow targets and schedule the selected deadline reminder from Detail.
+- assertVisible:
+    id: "follow-influencer-notifications"
+- assertVisible:
+    id: "follow-brand-notifications"
+- tapOn:
+    id: "follow-influencer-notifications"
+- tapOn:
+    id: "follow-brand-notifications"
+- tapOn:
+    id: "detail-notification-toggle"
+- extendedWaitUntil:
+    visible:
+      text: "알림설정됨"
+    timeout: 15000
+- takeScreenshot: gon229-android-07-follows-and-deadline
+
+# Relaunch through the normal launcher intent. The consumed response must not
+# replay, and the Android-local preferences must still be present.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      text: "상품을 검색해보세요"
+    timeout: 60000
+- tapOn:
+    text: "마이 탭"
+- extendedWaitUntil:
+    visible:
+      text: "마이페이지"
+    timeout: 30000
+- tapOn:
+    text: "설정 열기"
+- extendedWaitUntil:
+    visible:
+      text: "팔로우 알림"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "@gon263_price ×"
+    direction: DOWN
+    timeout: 30000
+- assertVisible:
+    text: "@gon263_price ×"
+- assertVisible:
+    text: "GON-263 Brand ×"
+- takeScreenshot: gon229-android-08-persisted-preferences

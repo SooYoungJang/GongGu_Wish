@@ -25,6 +25,18 @@ const createAppConfig = ({ config }) => {
 
   const resolvedConfig = {
     ...config,
+    extra: {
+      ...config.extra,
+      automatedE2E,
+      ...(automatedE2E
+        ? {
+            e2eSupabaseUrl:
+              process.env.EXPO_PUBLIC_SUPABASE_URL ?? "http://localhost:54321",
+            e2eSupabaseAnonKey:
+              process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "local-e2e-anon-key",
+          }
+        : {}),
+    },
     android: {
       ...config.android,
     },

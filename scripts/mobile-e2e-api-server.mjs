@@ -139,7 +139,9 @@ export function selectGroupBuyRows(url) {
     rows = rows.filter((row) => row.is_home_banner);
   }
   const idFilter = url.searchParams.get("id");
-  if (idFilter?.startsWith("in.(") && idFilter.endsWith(")")) {
+  if (idFilter?.startsWith("eq.")) {
+    rows = rows.filter((row) => row.id === idFilter.slice(3));
+  } else if (idFilter?.startsWith("in.(") && idFilter.endsWith(")")) {
     const ids = new Set(idFilter.slice(4, -1).split(","));
     rows = rows.filter((row) => ids.has(row.id));
   }
