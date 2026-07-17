@@ -141,6 +141,46 @@ describe("public data fetch diagnostics", () => {
     expect(requestUrl).toContain("home_banner_end_date=gte.2026-07-13");
   });
 
+  it("does not expose approved group buys that ended before today", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 18, 12));
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [
+        {
+          id: "expired-group-buy",
+          product_name: "지난 공구",
+          end_date: "2026-07-16T23:59:59",
+          confidence: 0,
+          media_urls: [],
+          media_items: [],
+          media_type: null,
+          raw_post_id: null,
+        },
+        {
+          id: "active-group-buy",
+          product_name: "오늘 마감 공구",
+          end_date: "2026-07-18T00:00:00",
+          confidence: 0,
+          media_urls: [],
+          media_items: [],
+          media_type: null,
+          raw_post_id: null,
+        },
+      ],
+    }) as unknown as typeof fetch;
+
+    try {
+      await expect(fetchGroupBuys()).resolves.toEqual([
+        expect.objectContaining({ id: "active-group-buy" }),
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("logs updatedAt revisions so stale or legacy banner responses are diagnosable", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,

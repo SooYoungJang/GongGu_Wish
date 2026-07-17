@@ -8,6 +8,7 @@ import { categoryColors, spacing } from "../design/tokens";
 import { commerceRadius, type CommerceColorPalette } from "../design/commerce";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import { formatPriceKrw } from "../utils/price";
+import { isGroupBuyExpired } from "../utils/groupBuyDates";
 import type { CategoryColorName } from "../design/tokens";
 import type { GroupBuy } from "../types";
 
@@ -43,6 +44,7 @@ function formatDeadline(endDate: string | null, now = Date.now()) {
   if (!endDate) return "마감일 미정";
   const date = new Date(endDate);
   if (Number.isNaN(date.getTime())) return "마감일 확인 필요";
+  if (isGroupBuyExpired({ endDate }, new Date(now))) return "마감됨";
 
   const days = Math.ceil((date.getTime() - now) / 86_400_000);
   if (days <= 0) return "오늘 마감";

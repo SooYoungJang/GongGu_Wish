@@ -50,6 +50,7 @@ import {
 } from "./lib/postgrest-client";
 import { ApiError, type ApiValidationError } from "./lib/api-types";
 import { normalizePriceKrw } from "./utils/price";
+import { filterActiveGroupBuys } from "./utils/groupBuyDates";
 
 // ─── Re-export ApiError for consumers that import it ─────────────────────────
 export type { ApiValidationError } from "./lib/api-types";
@@ -88,7 +89,7 @@ export async function fetchGroupBuys(): Promise<GroupBuy[]> {
     const { data } = await postgrestGet<any[]>(
       `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED&order=created_at.desc`,
     );
-    return mapGroupBuyRows(data || []);
+    return filterActiveGroupBuys(mapGroupBuyRows(data || []));
   } catch (error) {
     console.log(
       "[GroupBuys] fetch failed:",
@@ -111,7 +112,7 @@ export async function fetchHomeBannerGroupBuys(
     const { data } = await postgrestGet<any[]>(
       `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED&is_home_banner=eq.true&home_banner_start_date=lte.${dateKey}&home_banner_end_date=gte.${dateKey}&order=created_at.desc`,
     );
-    const items = mapGroupBuyRows(data || []);
+    const items = filterActiveGroupBuys(mapGroupBuyRows(data || []), now);
     console.log("[HomeBanner] eligibility response", {
       asOf: dateKey,
       count: items.length,
@@ -574,7 +575,7 @@ export async function fetchGroupBuysByInfluencer(
   const { data } = await postgrestGet<any[]>(
     `group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&raw_post_id.influencer_id.instagram_username=eq.${encodeURIComponent(normalizedUsername)}&order=created_at.desc`,
   );
-  return mapGroupBuyRows(data || []);
+  return filterActiveGroupBuys(mapGroupBuyRows(data || []));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

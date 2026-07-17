@@ -4,7 +4,7 @@
  * postgrestGet은 mapPostgrestToApp를 거쳐 snake_case → camelCase 변환을 수행한 뒤
  * 데이터를 반환하므로, 테스트에서도 변환 후의 데이터로 fetchGroupBuys 매핑 로직을 검증한다.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 
 import { rawGroupBuysResponse, expectedGroupBuys } from "./realApiData";
 import { fixtureGroupBuys } from "./groupBuys";
@@ -30,6 +30,12 @@ const mappedInfluencers = mapPostgrestToApp(rawInfluencersResponse) as any[];
 describe("API 변환 로직 — 실제 PostgREST 응답 기반", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-01T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe("fetchGroupBuys 매핑", () => {

@@ -1,3 +1,5 @@
+import { isGroupBuyExpired } from './utils/groupBuyDates';
+
 /**
  * Format a date string into a human-readable deadline label.
  * Examples: "마감됨", "오늘 마감", "내일 마감", "6월 22일 마감 (3일 남음)"
@@ -5,6 +7,7 @@
 export function formatEndDate(dateString: string | null | undefined): string {
   if (!dateString) return '미정';
   const date = new Date(dateString);
+  if (isGroupBuyExpired({ endDate: dateString })) return '마감됨';
   const now = new Date();
   const diffMs = date.getTime() - now.getTime();
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
