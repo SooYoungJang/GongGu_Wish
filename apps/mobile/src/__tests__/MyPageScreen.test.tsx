@@ -354,6 +354,17 @@ describe('MyPageScreen', () => {
     expect(renderer.toJSON()).toBeTruthy();
   });
 
+  it('explains that guest bookmarks and notifications require login', async () => {
+    const renderer = renderMyPageScreen();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain(
+      '북마크와 알림 설정은 로그인 후 이용할 수 있어요.',
+    );
+  });
+
   it('shows loading state initially', () => {
     const renderer = renderMyPageScreen();
     const json = renderer.toJSON();
@@ -408,7 +419,15 @@ describe('MyPageScreen', () => {
   });
 
   it('persists deadline switches, D-day choices, and follow removals', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
     const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     const deadlineSwitch = renderer.root.findByProps({
       accessibilityLabel: '공구 마감 임박 알림',
     });
@@ -437,6 +456,22 @@ describe('MyPageScreen', () => {
       'seller.one',
     );
     expect(settingsPreferenceMocks.toggleBrand).toHaveBeenCalledWith('Brand A');
+  });
+
+  it('routes guest notification changes to login without persisting them', async () => {
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    const push = renderer.root.findByProps({
+      accessibilityLabel: '푸시 알림',
+    });
+
+    await act(async () => {
+      await push.props.onValueChange(true);
+      await Promise.resolve();
+    });
+
+    expect(navigationMocks.navigate).toHaveBeenCalledWith('Login');
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
+    expect(push.props.value).toBe(false);
   });
 
   it('places account deletion at the bottom and asks for confirmation', async () => {

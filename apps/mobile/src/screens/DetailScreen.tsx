@@ -73,6 +73,7 @@ import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatEndDate, getDaysRemaining } from "../utils";
 import { normalizeForSearch } from "../utils/search";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
+import { useAuthGate } from "../hooks/useAuthGate";
 import { useFocusedAndroidBackHandler } from "../navigation/androidBack";
 import {
   DEEP_VIEW_THRESHOLD_MS,
@@ -913,6 +914,7 @@ function ProductReelPageComponent({
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
   const { colors } = useTheme();
+  const { isAuthenticated, requireAuth } = useAuthGate();
   const {
     preferences,
     ready: notificationPreferencesReady,
@@ -956,7 +958,8 @@ function ProductReelPageComponent({
     toggleNotification,
   } = useNotifications();
   const notificationState = getNotificationState(groupBuy.id);
-  const notificationEnabled = isNotifying(groupBuy.id);
+  const notificationEnabled =
+    isAuthenticated && isNotifying(groupBuy.id);
   const notificationLabel =
     notificationState.status === "pending"
       ? "알림 처리 중"
@@ -969,6 +972,7 @@ function ProductReelPageComponent({
             ? "알림설정됨"
             : "알림";
   const handleNotificationPress = useCallback(() => {
+    if (!requireAuth()) return;
     if (
       notificationState.status === "failed" ||
       notificationState.status === "unsupported" ||
@@ -981,6 +985,7 @@ function ProductReelPageComponent({
   }, [
     groupBuy,
     notificationState.status,
+    requireAuth,
     retryNotification,
     toggleNotification,
   ]);
@@ -992,19 +997,31 @@ function ProductReelPageComponent({
     /^@/,
     "",
   );
-  const isInfluencerFollowed = preferences.followedInfluencers.some(
+  const isInfluencerFollowed = isAuthenticated && preferences.followedInfluencers.some(
     (target) =>
       target.toLocaleLowerCase("en-US") ===
       sellerName.toLocaleLowerCase("en-US"),
   );
   const brandName = groupBuy.brandName?.trim() ?? "";
-  const isBrandFollowed = preferences.followedBrands.some(
+  const isBrandFollowed = isAuthenticated && preferences.followedBrands.some(
     (target) =>
       target.toLocaleLowerCase("en-US") ===
       brandName.toLocaleLowerCase("en-US"),
   );
   const followControlsDisabled =
     !notificationPreferencesReady || notificationPreferencesSaving;
+  const handleBookmarkPress = useCallback(() => {
+    if (!requireAuth()) return;
+    toggleBookmark(groupBuy);
+  }, [groupBuy, requireAuth, toggleBookmark]);
+  const handleInfluencerFollowPress = useCallback(() => {
+    if (!requireAuth()) return;
+    void toggleInfluencer(sellerName);
+  }, [requireAuth, sellerName, toggleInfluencer]);
+  const handleBrandFollowPress = useCallback(() => {
+    if (!requireAuth()) return;
+    void toggleBrand(brandName);
+  }, [brandName, requireAuth, toggleBrand]);
   const summary = groupBuy.summary ?? groupBuy.discountInfo ?? "";
   const summarySheetMaxHeight = Math.max(
     280,
@@ -1793,14 +1810,14 @@ function ProductReelPageComponent({
             icon={
               <Ionicons
                 name={
-                  isBookmarked(groupBuy.id) ? "bookmark" : "bookmark-outline"
+                  isAuthenticated && isBookmarked(groupBuy.id) ? "bookmark" : "bookmark-outline"
                 }
                 size={26}
-                color={isBookmarked(groupBuy.id) ? colors.accent : "#FFFFFF"}
+                color={isAuthenticated && isBookmarked(groupBuy.id) ? colors.accent : "#FFFFFF"}
               />
             }
-            label={isBookmarked(groupBuy.id) ? "북마크됨" : "북마크"}
-            onPress={() => toggleBookmark(groupBuy)}
+            label={isAuthenticated && isBookmarked(groupBuy.id) ? "북마크됨" : "북마크"}
+            onPress={handleBookmarkPress}
             s={s}
           />
           <ReelAction
@@ -1869,7 +1886,7 @@ function ProductReelPageComponent({
                   disabled: followControlsDisabled,
                 }}
                 disabled={followControlsDisabled}
-                onPress={() => void toggleInfluencer(sellerName)}
+                onPress={handleInfluencerFollowPress}
                 style={({ pressed }) => [
                   s.followTargetChip,
                   isInfluencerFollowed && s.followTargetChipActive,
@@ -1906,7 +1923,7 @@ function ProductReelPageComponent({
                   disabled: followControlsDisabled,
                 }}
                 disabled={followControlsDisabled}
-                onPress={() => void toggleBrand(brandName)}
+                onPress={handleBrandFollowPress}
                 style={({ pressed }) => [
                   s.followTargetChip,
                   isBrandFollowed && s.followTargetChipActive,

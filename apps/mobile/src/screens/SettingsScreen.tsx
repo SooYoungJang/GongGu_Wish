@@ -20,6 +20,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
 import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
 import { clearLocalUserData } from "../hooks/useLocalDeals";
+import { useAuthGate } from "../hooks/useAuthGate";
 import {
   getNotificationPermissionStatus,
   IS_EXPO_GO,
@@ -51,6 +52,7 @@ export function SettingsScreen() {
   } = useNotificationPreferences();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { isAuthenticated, requireAuth } = useAuthGate();
   const s = useMemo(
     () => makeStyles(colors, spacing, radius),
     [colors, radius, spacing],
@@ -72,6 +74,7 @@ export function SettingsScreen() {
   );
 
   const handlePushChange = useCallback(async (value: boolean) => {
+    if (!requireAuth()) return;
     if (!value) {
       await updatePreferences({ pushEnabled: false });
       return;
@@ -101,21 +104,27 @@ export function SettingsScreen() {
         "네트워크 연결을 확인한 뒤 푸시 알림을 다시 켜주세요.",
       );
     }
-  }, [accessToken, updatePreferences]);
+  }, [accessToken, requireAuth, updatePreferences]);
 
   const handleDeadlineChange = useCallback(
-    (value: boolean) =>
-      updatePreferences({ deadlineRemindersEnabled: value }),
-    [updatePreferences],
+    (value: boolean) => {
+      if (!requireAuth()) return;
+      void updatePreferences({ deadlineRemindersEnabled: value });
+    },
+    [requireAuth, updatePreferences],
   );
 
   const handleNewSubmissionsChange = useCallback(
-    (value: boolean) => updatePreferences({ newSubmissionsEnabled: value }),
-    [updatePreferences],
+    (value: boolean) => {
+      if (!requireAuth()) return;
+      void updatePreferences({ newSubmissionsEnabled: value });
+    },
+    [requireAuth, updatePreferences],
   );
 
   const handleReminderDay = useCallback(
     async (day: NotificationReminderDay) => {
+      if (!requireAuth()) return;
       const selected = preferences.reminderDays.includes(day);
       if (selected && preferences.reminderDays.length === 1) {
         Alert.alert(
@@ -130,7 +139,23 @@ export function SettingsScreen() {
           : [...preferences.reminderDays, day],
       });
     },
-    [preferences.reminderDays, updatePreferences],
+    [preferences.reminderDays, requireAuth, updatePreferences],
+  );
+
+  const handleFollowInfluencerPress = useCallback(
+    (target: string) => {
+      if (!requireAuth()) return;
+      void toggleInfluencer(target);
+    },
+    [requireAuth, toggleInfluencer],
+  );
+
+  const handleFollowBrandPress = useCallback(
+    (target: string) => {
+      if (!requireAuth()) return;
+      void toggleBrand(target);
+    },
+    [requireAuth, toggleBrand],
   );
 
   const handleTestNotification = useCallback(async () => {
@@ -142,8 +167,14 @@ export function SettingsScreen() {
   }, [automatedE2E, testDelaySeconds]);
 
   const controlsDisabled = !preferencesReady || preferencesSaving;
-  const pushEnabled = preferences.pushEnabled;
-  const permissionCopy = !pushEnabled
+  const pushEnabled = isAuthenticated && preferences.pushEnabled;
+  const deadlineRemindersEnabled =
+    isAuthenticated && preferences.deadlineRemindersEnabled;
+  const newSubmissionsEnabled =
+    isAuthenticated && preferences.newSubmissionsEnabled;
+  const permissionCopy = !isAuthenticated
+    ? "로그인 후 원하는 알림을 직접 켤 수 있어요."
+    : !pushEnabled
     ? "앱에서 푸시 수신을 중지했어요. 저장된 원격 토큰도 제거됩니다."
     : permissionStatus === "granted"
       ? "앱과 기기에서 푸시 알림을 받을 수 있어요."
@@ -249,12 +280,12 @@ export function SettingsScreen() {
             </View>
             <Switch
               accessibilityLabel="공구 마감 임박 알림"
-              disabled={controlsDisabled || !pushEnabled}
+              disabled={controlsDisabled || (isAuthenticated && !pushEnabled)}
               onValueChange={(value) => void handleDeadlineChange(value)}
-              thumbColor={preferences.deadlineRemindersEnabled ? colors.accent : colors.weak}
+              thumbColor={deadlineRemindersEnabled ? colors.accent : colors.weak}
               trackColor={{ false: colors.softBg, true: colors.accentSoft }}
               testID="deadline-notification-toggle"
-              value={preferences.deadlineRemindersEnabled}
+              value={deadlineRemindersEnabled}
             />
           </View>
           <View style={s.switchRow}>
@@ -268,12 +299,12 @@ export function SettingsScreen() {
             </View>
             <Switch
               accessibilityLabel="신규 제보 알림"
-              disabled={controlsDisabled || !pushEnabled}
+              disabled={controlsDisabled || (isAuthenticated && !pushEnabled)}
               onValueChange={(value) => void handleNewSubmissionsChange(value)}
-              thumbColor={preferences.newSubmissionsEnabled ? colors.accent : colors.weak}
+              thumbColor={newSubmissionsEnabled ? colors.accent : colors.weak}
               trackColor={{ false: colors.softBg, true: colors.accentSoft }}
               testID="new-submission-notification-toggle"
-              value={preferences.newSubmissionsEnabled}
+              value={newSubmissionsEnabled}
             />
           </View>
 
@@ -286,13 +317,18 @@ export function SettingsScreen() {
             </SText>
             <View style={s.dayRow}>
               {[...NOTIFICATION_REMINDER_DAYS].reverse().map((day) => {
-                const selected = preferences.reminderDays.includes(day);
+                const selected =
+                  isAuthenticated && preferences.reminderDays.includes(day);
+                const dayDisabled =
+                  controlsDisabled ||
+                  (isAuthenticated &&
+                    (!pushEnabled || !deadlineRemindersEnabled));
                 return (
                   <Pressable
                     accessibilityLabel={`D-${day} 알림`}
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selected, disabled: controlsDisabled || !pushEnabled || !preferences.deadlineRemindersEnabled }}
-                    disabled={controlsDisabled || !pushEnabled || !preferences.deadlineRemindersEnabled}
+                    accessibilityState={{ checked: selected, disabled: dayDisabled }}
+                    disabled={dayDisabled}
                     key={day}
                     onPress={() => void handleReminderDay(day)}
                     style={({ pressed }) => [
@@ -333,7 +369,7 @@ export function SettingsScreen() {
                     accessibilityLabel={`@${target} 인플루언서 알림 해제`}
                     accessibilityRole="button"
                     key={`influencer:${target}`}
-                    onPress={() => void toggleInfluencer(target)}
+                    onPress={() => handleFollowInfluencerPress(target)}
                     style={({ pressed }) => [s.followChip, pressed && s.pressed]}
                   >
                     <SText style={s.followChipText} variant="caption">@{target} ×</SText>
@@ -344,7 +380,7 @@ export function SettingsScreen() {
                     accessibilityLabel={`${target} 브랜드 알림 해제`}
                     accessibilityRole="button"
                     key={`brand:${target}`}
-                    onPress={() => void toggleBrand(target)}
+                    onPress={() => handleFollowBrandPress(target)}
                     style={({ pressed }) => [s.followChip, pressed && s.pressed]}
                   >
                     <SText style={s.followChipText} variant="caption">{target} ×</SText>

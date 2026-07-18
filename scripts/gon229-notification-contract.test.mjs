@@ -88,7 +88,19 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(windowsBuild, /\[switch\]\$AutomatedE2E/);
   assert.match(windowsBuild, /EXPO_PUBLIC_E2E_MODE = "true"/);
   assert.match(read("apps/mobile/app.config.js"), /e2eSupabaseUrl/);
-  assert.match(windowsBuild, /gradlew\.bat installDebug[^\n]*--no-daemon/);
+  assert.match(windowsBuild, /\[string\]\$BuildVariant = "Release"/);
+  assert.match(windowsBuild, /\[string\]\$EnvFile = ""/);
+  assert.match(windowsBuild, /\[IO\.Path\]::GetFullPath\(\$BuildRoot\)/);
+  assert.match(windowsBuild, /\[StringComparison\]::OrdinalIgnoreCase/);
+  assert.match(windowsBuild, /\^\[A-Za-z_\]\[A-Za-z0-9_\]\*\$/);
+  assert.match(
+    windowsBuild,
+    /SetEnvironmentVariable\(\$name, \$value, "Process"\)/,
+  );
+  assert.match(windowsBuild, /\$installTask = "install\$BuildVariant"/);
+  assert.match(windowsBuild, /\$env:NODE_ENV = "production"/);
+  assert.match(windowsBuild, /gradlew\.bat \$installTask[^\n]*--no-daemon/);
+  assert.match(windowsBuild, /Gradle \$installTask failed with exit code/);
   assert.match(orchestrator, /run-gon229-android-notifications\.sh/);
   assert.match(workflow, /gon229-notification-state\.txt/);
   assert.match(ciWorkflow, /supabase functions deploy register-push-token/);
@@ -120,4 +132,56 @@ test("Android push registration is wired to Firebase and reports failures", () =
   assert.match(settings, /session\?\.access_token/);
   assert.match(notifications, /console\.warn\(/);
   assert.match(gitignore, /\*-firebase-adminsdk-\*\.json/);
+});
+
+test("notification and bookmark actions require authentication", () => {
+  const defaults = read(
+    "apps/mobile/src/services/notificationPreferences.ts",
+  );
+  const edgeContract = read(
+    "supabase/functions/register-push-token/contract.ts",
+  );
+  const authGate = read("apps/mobile/src/hooks/useAuthGate.ts");
+  const detail = read("apps/mobile/src/screens/DetailScreen.tsx");
+  const store = read("apps/mobile/src/screens/StoreScreen.tsx");
+  const settings = read("apps/mobile/src/screens/SettingsScreen.tsx");
+  const myPage = read("apps/mobile/src/screens/MyPageScreen.tsx");
+  const migration = read(
+    "supabase/migrations/20260719000001_disable_notification_defaults.sql",
+  );
+
+  for (const source of [defaults, edgeContract]) {
+    assert.match(source, /pushEnabled:\s*false/);
+    assert.match(source, /deadlineRemindersEnabled:\s*false/);
+    assert.match(source, /newSubmissionsEnabled:\s*false/);
+  }
+  assert.match(authGate, /navigation\.navigate\("Login"\)/);
+  assert.match(authGate, /isAuthenticated/);
+  assert.match(detail, /const handleBookmarkPress/);
+  assert.match(detail, /if \(!requireAuth\(\)\) return/);
+  assert.match(detail, /onPress=\{handleBookmarkPress\}/);
+  assert.match(detail, /handleInfluencerFollowPress/);
+  assert.match(detail, /handleBrandFollowPress/);
+  assert.match(store, /handleToggleNotification/);
+  assert.match(store, /if \(!requireAuth\(\)\) return/);
+  assert.match(settings, /const pushEnabled = isAuthenticated/);
+  assert.match(settings, /const handleFollowInfluencerPress/);
+  assert.match(settings, /const handleFollowBrandPress/);
+  assert.match(
+    myPage,
+    /const handleRemoveBookmark[\s\S]*?if \(!requireAuth\(\)\) return;[\s\S]*?removeBookmark\(item\.id\)/,
+  );
+  assert.match(
+    myPage,
+    /const handleRemoveNotification[\s\S]*?if \(!requireAuth\(\)\) return;[\s\S]*?removeNotification\(item\.id\)/,
+  );
+  assert.match(migration, /ALTER COLUMN push_enabled SET DEFAULT false/);
+  assert.match(
+    migration,
+    /ALTER COLUMN deadline_reminders_enabled SET DEFAULT false/,
+  );
+  assert.match(
+    migration,
+    /ALTER COLUMN new_submissions_enabled SET DEFAULT false/,
+  );
 });

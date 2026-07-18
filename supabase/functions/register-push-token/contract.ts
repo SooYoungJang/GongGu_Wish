@@ -12,9 +12,9 @@ export type NotificationPreferences = {
 };
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
-  pushEnabled: true,
-  deadlineRemindersEnabled: true,
-  newSubmissionsEnabled: true,
+  pushEnabled: false,
+  deadlineRemindersEnabled: false,
+  newSubmissionsEnabled: false,
   reminderDays: [1, 3, 7],
   followedInfluencers: [],
   followedBrands: [],
@@ -176,14 +176,14 @@ export function fromNotificationPreferenceColumns(
   return validatePreferences({
     pushEnabled: typeof columns.push_enabled === "boolean"
       ? columns.push_enabled
-      : true,
+      : false,
     deadlineRemindersEnabled:
       typeof columns.deadline_reminders_enabled === "boolean"
         ? columns.deadline_reminders_enabled
-        : true,
+        : false,
     newSubmissionsEnabled: typeof columns.new_submissions_enabled === "boolean"
       ? columns.new_submissions_enabled
-      : true,
+      : false,
     reminderDays: columns.notification_reminder_days ??
       DEFAULT_NOTIFICATION_PREFERENCES.reminderDays,
     followedInfluencers: columns.followed_influencers ?? [],

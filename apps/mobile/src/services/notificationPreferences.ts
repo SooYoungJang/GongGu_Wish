@@ -16,9 +16,9 @@ export type NotificationPreferences = {
 };
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
-  pushEnabled: true,
-  deadlineRemindersEnabled: true,
-  newSubmissionsEnabled: true,
+  pushEnabled: false,
+  deadlineRemindersEnabled: false,
+  newSubmissionsEnabled: false,
   reminderDays: [1, 3, 7],
   followedInfluencers: [],
   followedBrands: [],

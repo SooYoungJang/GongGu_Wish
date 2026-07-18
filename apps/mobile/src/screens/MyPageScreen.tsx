@@ -25,6 +25,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { SText } from '../components/ui/SText';
 import { useAuth } from '../context/AuthContext';
 import { useCommerceTheme } from '../design/useCommerceTheme';
+import { useAuthGate } from '../hooks/useAuthGate';
 import { useTabReselect } from '../hooks/useTabReselect';
 import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
 import { spacing } from '../design/tokens';
@@ -165,6 +166,7 @@ export function notificationEntryToGroupBuy(entry: NotificationEntry): GroupBuy 
 export function MyPageScreen() {
   const { colors } = useCommerceTheme();
   const { user, isLoading: authLoading, signOut } = useAuth();
+  const { requireAuth } = useAuthGate();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -215,6 +217,16 @@ export function MyPageScreen() {
   const handlePressDeal = useCallback((item: GroupBuy) => {
     navigation.navigate('Detail', { groupBuy: item });
   }, [navigation]);
+
+  const handleRemoveBookmark = useCallback((item: GroupBuy) => {
+    if (!requireAuth()) return;
+    removeBookmark(item.id);
+  }, [removeBookmark, requireAuth]);
+
+  const handleRemoveNotification = useCallback((item: GroupBuy) => {
+    if (!requireAuth()) return;
+    removeNotification(item.id);
+  }, [removeNotification, requireAuth]);
 
   const closeWishModal = useCallback(() => {
     if (wishSubmitting) return;
@@ -368,7 +380,7 @@ export function MyPageScreen() {
           <View style={s.guestHero}>
             <SText variant="cardTitle" style={s.guestHeroTitle}>내 활동을 가볍게 모아봤어요</SText>
             <SText variant="caption" style={s.guestHeroSubtitle}>
-              로그인하지 않아도 최근 본 공구, 북마크, 알림 설정을 확인할 수 있어요.
+              북마크와 알림 설정은 로그인 후 이용할 수 있어요.
             </SText>
             <Pressable accessibilityRole="button" onPress={handleLoginPress} style={({ pressed }) => [s.softLoginButton, pressed && s.pressed]}>
               <SText variant="label" style={s.softLoginText}>계정 연결해서 여러 기기에서 이어보기</SText>
@@ -397,7 +409,7 @@ export function MyPageScreen() {
           items={bookmarkedDeals}
           emptyText="북마크한 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
-          onRemoveDeal={(item) => removeBookmark(item.id)}
+          onRemoveDeal={handleRemoveBookmark}
           removeLabel="북마크 해제"
           s={s}
         />
@@ -408,7 +420,7 @@ export function MyPageScreen() {
           items={notificationDeals}
           emptyText="알림을 설정한 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
-          onRemoveDeal={(item) => removeNotification(item.id)}
+          onRemoveDeal={handleRemoveNotification}
           removeLabel="알림 해제"
           s={s}
         />

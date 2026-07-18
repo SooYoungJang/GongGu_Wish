@@ -32,7 +32,12 @@ describe("notification preferences", () => {
     });
   });
 
-  it("uses backward-compatible opt-in defaults for missing data", () => {
+  it("keeps every notification category off until the user opts in", () => {
+    expect(DEFAULT_NOTIFICATION_PREFERENCES).toMatchObject({
+      pushEnabled: false,
+      deadlineRemindersEnabled: false,
+      newSubmissionsEnabled: false,
+    });
     expect(normalizeNotificationPreferences(null)).toEqual(
       DEFAULT_NOTIFICATION_PREFERENCES,
     );

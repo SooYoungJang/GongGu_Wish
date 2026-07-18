@@ -38,10 +38,23 @@ const notificationServiceMocks = vi.hoisted(() => {
   };
 });
 const authMocks = vi.hoisted(() => ({ user: null as { id: string } | null }));
+const notificationPreferenceMocks = vi.hoisted(() => ({
+  preferences: {
+    pushEnabled: true,
+    deadlineRemindersEnabled: true,
+    newSubmissionsEnabled: true,
+    reminderDays: [1, 3, 7] as Array<1 | 3 | 7>,
+    followedInfluencers: [] as string[],
+    followedBrands: [] as string[],
+  },
+}));
 
 vi.mock("../api", () => apiMocks);
 vi.mock("../context/AuthContext", () => ({
   useOptionalAuth: () => (authMocks.user ? { user: authMocks.user } : null),
+}));
+vi.mock("../context/NotificationPreferencesContext", () => ({
+  useNotificationPreferences: () => notificationPreferenceMocks,
 }));
 vi.mock("../services/notifications", () => notificationServiceMocks);
 

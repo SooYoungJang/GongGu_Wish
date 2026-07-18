@@ -34,6 +34,7 @@ import {
 } from "../features/ranking/types";
 import { usePopularGroupBuys } from "../features/ranking/usePopularGroupBuys";
 import { useNotifications } from "../hooks/useLocalDeals";
+import { useAuthGate } from "../hooks/useAuthGate";
 import { useTabReselect } from "../hooks/useTabReselect";
 import type { GroupBuyAlertState } from "../services/notifications";
 import type { StoreScreenProps, GroupBuy } from "../types";
@@ -111,6 +112,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       : undefined;
   const { isNotifying, getNotificationState, toggleNotification } =
     useNotifications();
+  const { requireAuth } = useAuthGate();
 
   const patchedRankingState = useMemo(() => {
     if (rankingState.status !== "ready" || !rankingState.data)
@@ -241,11 +243,12 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
 
   const handleToggleNotification = useCallback(
     (item: GroupBuyRankingItem) => {
+      if (!requireAuth()) return;
       // 진짜 알림 등록/해제: useNotifications 스토어에 쓰면 마이페이지·릴스에 즉시 반영되고,
       // startDate가 있으면 시작 1시간 전 푸시도 예약된다.
       void toggleNotification(rankingToGroupBuy(item));
     },
-    [toggleNotification],
+    [requireAuth, toggleNotification],
   );
 
   return (
