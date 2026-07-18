@@ -1,39 +1,42 @@
 import { StyleSheet } from "react-native";
 
-import {
-  commerceRadius,
-  type CommerceColorPalette,
-} from "../../design/commerce";
-import { spacing } from "../../design/tokens";
+import type { useCommerceTheme } from "../../design/useCommerceTheme";
 
 export function makeRankingTopStyles(
-  colors: CommerceColorPalette,
-  isDark = false,
+  theme: ReturnType<typeof useCommerceTheme>,
 ) {
+  const { colors, radius, spacing, typography } = theme;
   return StyleSheet.create({
+    cardFooter: {
+      alignItems: "center",
+      borderTopColor: colors.divider,
+      borderTopWidth: 1,
+      flexDirection: "row",
+      gap: spacing.sm,
+      justifyContent: "space-between",
+      marginTop: spacing.sm,
+      minHeight: 52,
+      paddingTop: spacing.xs,
+    },
+    cardFooterLargeText: {
+      alignItems: "stretch",
+      flexDirection: "column",
+    },
+    commerceRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.sm,
+    },
     compactCard: {
-      backgroundColor: colors.panelBg,
+      backgroundColor: colors.cardBg,
       borderColor: colors.borderLight,
-      borderRadius: commerceRadius.lg,
+      borderCurve: "continuous",
+      borderRadius: radius.xl,
       borderWidth: 1,
       flex: 1,
       minWidth: 0,
-      padding: spacing.md,
-      shadowColor: "#000000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDark ? 0.08 : 0.04,
-      shadowRadius: 8,
-    },
-    compactFooter: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: spacing.xs,
-      justifyContent: "space-between",
-      marginTop: spacing.sm,
-    },
-    compactFooterLargeText: {
-      alignItems: "stretch",
-      flexDirection: "column",
+      padding: spacing.sm,
     },
     compactGrid: {
       flexDirection: "row",
@@ -42,107 +45,126 @@ export function makeRankingTopStyles(
     compactGridLargeText: {
       flexDirection: "column",
     },
-    compactInfoColumn: {
-      gap: spacing.xxs,
+    compactInfo: {
+      flex: 1,
+      gap: spacing.xs,
+      justifyContent: "center",
       minWidth: 0,
     },
     compactMainAction: {
+      flex: 1,
       gap: spacing.sm,
+      minWidth: 0,
     },
-    compactMediaColumn: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: spacing.xs,
+    compactMainActionLargeText: {
+      alignItems: "stretch",
+    },
+    compactMedia: {
+      aspectRatio: 1,
+      backgroundColor: colors.softBg,
+      borderCurve: "continuous",
+      borderRadius: radius.lg,
+      overflow: "hidden",
+      width: "100%",
     },
     compactName: {
       color: colors.text,
-      fontSize: 14,
+      fontSize: 15,
       fontWeight: "900",
-      lineHeight: 19,
+      lineHeight: 21,
       minWidth: 0,
-    },
-    compactThumbnailFallback: {
-      alignItems: "center",
-      backgroundColor: colors.softBg,
-      borderColor: colors.borderLight,
-      borderRadius: commerceRadius.sm,
-      borderWidth: 1,
-      justifyContent: "center",
     },
     container: {
       gap: spacing.md,
-      paddingBottom: spacing.md,
-      paddingHorizontal: spacing.lg,
-      paddingTop: spacing.lg,
+      paddingBottom: spacing.xl,
+      paddingTop: spacing.md,
     },
-    detailHint: {
-      color: colors.weak,
-      flex: 1,
-      fontSize: 10,
-      lineHeight: 14,
+    deadline: {
+      color: colors.warning,
+      fontSize: 11,
+      fontWeight: "800",
+      lineHeight: 16,
     },
     heroCard: {
-      backgroundColor: colors.panelBg,
+      backgroundColor: colors.cardBg,
       borderColor: colors.borderLight,
-      borderRadius: commerceRadius.xl,
+      borderCurve: "continuous",
+      borderRadius: radius.xxl,
       borderWidth: 1,
-      padding: spacing.lg,
-      shadowColor: "#000000",
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: isDark ? 0.1 : 0.05,
-      shadowRadius: 10,
+      padding: spacing.md,
     },
-    heroFooter: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: spacing.sm,
-      justifyContent: "space-between",
-      marginTop: spacing.md,
-    },
-    heroFooterLargeText: {
-      alignItems: "stretch",
-      flexDirection: "column",
-    },
-    heroInfoColumn: {
-      flex: 1,
+    heroInfo: {
       gap: spacing.xs,
-      minWidth: 0,
+      paddingHorizontal: spacing.xs,
     },
     heroMainAction: {
-      alignItems: "flex-start",
-      flexDirection: "row",
       gap: spacing.md,
-      minWidth: 0,
     },
-    heroMainActionLargeText: {
-      flexDirection: "column",
-    },
-    heroMediaColumn: {
-      alignItems: "center",
-      gap: spacing.xs,
+    heroMedia: {
+      aspectRatio: 1.5,
+      backgroundColor: colors.softBg,
+      borderCurve: "continuous",
+      borderRadius: radius.xl,
+      overflow: "hidden",
+      width: "100%",
     },
     heroName: {
       color: colors.text,
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: "900",
-      lineHeight: 24,
+      lineHeight: 27,
       minWidth: 0,
     },
-    heroThumbnailFallback: {
-      alignItems: "center",
-      backgroundColor: colors.softBg,
-      borderColor: colors.borderLight,
-      borderRadius: commerceRadius.md,
-      borderWidth: 1,
-      justifyContent: "center",
+    heroPopularityOverlay: {
+      backgroundColor: colors.accent,
+      borderCurve: "continuous",
+      borderRadius: radius.full,
+      bottom: spacing.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      position: "absolute",
+      right: spacing.sm,
     },
-    metricText: {
-      color: colors.muted,
-      fontSize: 11,
-      fontWeight: "700",
+    heroPopularityText: {
+      color: colors.inverse,
+      fontSize: 12,
+      fontWeight: "900",
       lineHeight: 16,
     },
-    popularityText: {
+    imageFallback: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      backgroundColor: colors.softBg,
+      gap: spacing.sm,
+      justifyContent: "center",
+      padding: spacing.sm,
+    },
+    imageFallbackLabel: {
+      ...typography.meta,
+      color: colors.weak,
+      textAlign: "center",
+    },
+    imageFallbackMark: {
+      alignItems: "center",
+      backgroundColor: colors.accentSoft,
+      borderCurve: "continuous",
+      borderRadius: radius.full,
+      height: spacing.xxl * 2,
+      justifyContent: "center",
+      width: spacing.xxl * 2,
+    },
+    imageFallbackText: {
+      ...typography.pageTitle,
+      color: colors.accent,
+    },
+    popularityPill: {
+      backgroundColor: colors.accentSoft,
+      borderCurve: "continuous",
+      borderRadius: radius.full,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xxs,
+    },
+    popularityPillText: {
       color: colors.accent,
       fontSize: 11,
       fontWeight: "900",
@@ -152,26 +174,62 @@ export function makeRankingTopStyles(
       opacity: 0.72,
     },
     price: {
-      fontSize: 13,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    productImage: {
+      height: "100%",
+      width: "100%",
+    },
+    proofText: {
+      color: colors.muted,
+      fontSize: 11,
+      fontWeight: "700",
+      lineHeight: 16,
+    },
+    rankOverlay: {
+      alignItems: "center",
+      backgroundColor: colors.cardBg,
+      borderCurve: "continuous",
+      borderRadius: radius.full,
+      flexDirection: "row",
+      gap: spacing.xs,
+      left: spacing.sm,
+      padding: spacing.xxs,
+      position: "absolute",
+      top: spacing.sm,
+    },
+    reasonText: {
+      color: colors.accent,
+      flexShrink: 1,
+      fontSize: 12,
+      fontWeight: "900",
+      lineHeight: 17,
+    },
+    sectionSubtitle: {
+      color: colors.muted,
       lineHeight: 18,
     },
     sectionTitle: {
       color: colors.text,
+      fontSize: 20,
       fontWeight: "900",
+      lineHeight: 27,
     },
     sellerAction: {
-      alignSelf: "flex-start",
+      flex: 1,
       justifyContent: "center",
       minHeight: 44,
+      minWidth: 0,
     },
-    sellerRow: {
-      justifyContent: "center",
-      minHeight: 44,
+    signalRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.xs,
     },
-    thumbnailFallbackText: {
-      color: colors.muted,
-      fontSize: 18,
-      fontWeight: "900",
+    titleBlock: {
+      gap: spacing.xxs,
     },
     username: {
       color: colors.weak,

@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { useWindowDimensions, View } from "react-native";
 
 import { useCommerceTheme } from "../../design/useCommerceTheme";
+import { getTopPopularityScore } from "../../features/ranking/popularityPresentation";
 import type {
   GroupBuyRankingItem,
   RankingListItem,
@@ -10,53 +11,70 @@ import { SText } from "../ui/SText";
 import { RankingTopCard } from "./RankingTopCard";
 import { makeRankingTopStyles } from "./RankingTopThree.styles";
 
-type RankingItemAction = (...args: [GroupBuyRankingItem]) => void;
+type RankingItemAction = (item: GroupBuyRankingItem) => void;
 
 export interface RankingTopThreeProps {
   items: readonly RankingListItem[];
   onPress: RankingItemAction;
   onPressSeller?: RankingItemAction;
   onToggleAlert: RankingItemAction;
+  topScore?: number;
 }
 
-export function RankingTopThree({
+export const RankingTopThree = memo(function RankingTopThree({
   items,
   onPress,
   onPressSeller,
   onToggleAlert,
+  topScore,
 }: RankingTopThreeProps) {
-  const { colors } = useCommerceTheme();
-  const { fontScale } = useWindowDimensions();
-  const s = useMemo(() => makeRankingTopStyles(colors), [colors]);
+  const theme = useCommerceTheme();
+  const { fontScale, width } = useWindowDimensions();
+  const s = useMemo(() => makeRankingTopStyles(theme), [theme]);
   const largeText = fontScale >= 1.3;
-  const topItems = items
-    .filter((item) => item.rank >= 1 && item.rank <= 3)
-    .sort((left, right) => left.rank - right.rank);
+  const stackCompact = largeText || width <= 340;
+  const topItems = items.filter((item) => item.rank >= 1 && item.rank <= 3);
 
   if (topItems.length === 0) return null;
 
-  const [hero, ...compact] = topItems;
+  const hero = topItems.find((item) => item.rank === 1);
+  const compact = topItems.filter(
+    (item) => item.rank === 2 || item.rank === 3,
+  );
+  const comparisonScore =
+    topScore ??
+    getTopPopularityScore(topItems.map((item) => item.metrics.score));
 
   return (
     <View
-      accessibilityLabel="랭킹 상위 3위"
-      accessibilityRole="header"
       style={s.container}
       testID="ranking-top-three"
     >
-      <SText variant="cardTitle" style={s.sectionTitle}>
-        상위 3위
-      </SText>
-      <RankingTopCard
-        item={hero}
-        onPress={onPress}
-        onPressSeller={onPressSeller}
-        onToggleAlert={onToggleAlert}
-        variant="hero"
-      />
+      <View style={s.titleBlock}>
+        <SText
+          accessibilityRole="header"
+          variant="cardTitle"
+          style={s.sectionTitle}
+        >
+          지금 뜨는 공구
+        </SText>
+        <SText variant="caption" style={s.sectionSubtitle}>
+          관심이 빠르게 모이는 상품부터 둘러보세요
+        </SText>
+      </View>
+      {hero ? (
+        <RankingTopCard
+          item={hero}
+          onPress={onPress}
+          onPressSeller={onPressSeller}
+          onToggleAlert={onToggleAlert}
+          topScore={comparisonScore}
+          variant="hero"
+        />
+      ) : null}
       {compact.length > 0 ? (
         <View
-          style={[s.compactGrid, largeText && s.compactGridLargeText]}
+          style={[s.compactGrid, stackCompact && s.compactGridLargeText]}
           testID="ranking-top-compact-grid"
         >
           {compact.map((item) => (
@@ -66,6 +84,7 @@ export function RankingTopThree({
               onPress={onPress}
               onPressSeller={onPressSeller}
               onToggleAlert={onToggleAlert}
+              topScore={comparisonScore}
               variant="compact"
             />
           ))}
@@ -73,4 +92,4 @@ export function RankingTopThree({
       ) : null}
     </View>
   );
-}
+});

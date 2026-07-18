@@ -1,46 +1,57 @@
 appId: com.gonggu.wish
-name: Ranking sticky category filters
+name: Ranking discovery sticky period filters
 ---
 - launchApp
 - extendedWaitUntil:
     visible: "랭킹 탭"
-    timeout: 30000
+    timeout: 60000
 - tapOn: "랭킹 탭"
 - extendedWaitUntil:
-    visible: "카테고리 전체 선택"
+    visible: "인기지수 안내"
     timeout: 30000
+- assertVisible: "지금 뜨는 공구"
+- assertVisible: "인기지수 100"
+- assertVisible: "카테고리 전체 선택"
+- assertVisible: "이번 주 랭킹 기간"
+- takeScreenshot: apps/mobile/.maestro/evidence/ranking-discovery-final-01-initial
+
+# The auxiliary explanation, sort, and category controls scroll away while the
+# period tabs remain pinned above the product-first ranking content.
+- swipe:
+    start: 50%,78%
+    end: 50%,28%
+    duration: 900
+- waitForAnimationToEnd
+- assertVisible: "이번 주 랭킹 기간"
+- assertNotVisible: "인기지수 안내"
+- assertNotVisible: "카테고리 전체 선택"
+- assertVisible: "GON-263 기준 공구"
+- takeScreenshot: apps/mobile/.maestro/evidence/ranking-discovery-final-02-spotlight
+
+# Lower ranks keep the same detail-first card action and separate alert target.
+- swipe:
+    start: 50%,76%
+    end: 50%,24%
+    duration: 900
+- waitForAnimationToEnd
+- assertVisible: "GON-263 canonical 상세"
+- assertVisible: "인기지수 67 · 인기점수 상승"
+- takeScreenshot: apps/mobile/.maestro/evidence/ranking-discovery-final-03-list
+- tapOn:
+    id: "ranking-row-4"
 - extendedWaitUntil:
-    visible: "1위"
+    visible:
+      id: "detail-back-button"
     timeout: 30000
-- assertVisible: "이번 주"
-- assertVisible: "인기 공구"
-
-- swipe:
-    start: 50%, 78%
-    end: 50%, 28%
-    duration: 1200
-- waitForAnimationToEnd
-- assertVisible: "카테고리 전체 선택"
-- assertNotVisible: "이번 주"
-- assertNotVisible: "인기 공구"
-
-- swipe:
-    start: 50%, 74%
-    end: 50%, 38%
-    duration: 700
-- waitForAnimationToEnd
-- assertVisible: "카테고리 전체 선택"
-- assertNotVisible: "이번 주"
-
-- swipe:
-    start: 50%, 30%
-    end: 50%, 86%
-    duration: 1000
-- swipe:
-    start: 50%, 30%
-    end: 50%, 86%
-    duration: 1000
-- waitForAnimationToEnd
-- assertVisible: "이번 주"
-- assertVisible: "인기 공구"
-- assertVisible: "카테고리 전체 선택"
+- scrollUntilVisible:
+    element:
+      text: "가격 48,000원"
+    direction: DOWN
+    timeout: 30000
+- assertVisible: "가격 48,000원"
+- takeScreenshot: apps/mobile/.maestro/evidence/ranking-discovery-final-04-detail
+- tapOn:
+    id: "detail-back-button"
+- extendedWaitUntil:
+    visible: "이번 주 랭킹 기간"
+    timeout: 15000

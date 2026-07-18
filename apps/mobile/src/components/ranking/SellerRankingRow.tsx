@@ -1,75 +1,89 @@
-import { useCallback, useMemo } from "react";
-import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
-
-import { SText } from "../ui/SText";
-import { PriceText } from "../ui/PriceText";
-import { spacing } from "../../design/tokens";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
-  commerceRadius,
-  type CommerceColorPalette,
-} from "../../design/commerce";
+  Image,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
+
 import { useCommerceTheme } from "../../design/useCommerceTheme";
+import {
+  formatRankingDeadline,
+  getRankingItemAccessibilityLabel,
+  getPopularityPresentation,
+} from "../../features/ranking/popularityPresentation";
 import type {
   GroupBuyRankingItem,
   RankingListItem,
 } from "../../features/ranking/types";
-import { formatCompactCount } from "../../features/ranking/types";
+import { PriceText } from "../ui/PriceText";
+import { SText } from "../ui/SText";
 import { GroupBuyAlertButton } from "./FollowButton";
 import { RankBadge } from "./RankBadge";
 import { RankingTrendBadge } from "./RankingTrendBadge";
-import { ThumbnailStrip } from "./ThumbnailStrip";
 
-type RankingItemAction = (...args: [GroupBuyRankingItem]) => void;
+type RankingItemAction = (item: GroupBuyRankingItem) => void;
 
 export interface SellerRankingRowProps {
   item: RankingListItem;
   onPress: RankingItemAction;
   onPressSeller?: RankingItemAction;
   onToggleAlert: RankingItemAction;
+  topScore?: number;
 }
 
-export function SellerRankingRow({
+export const SellerRankingRow = memo(function SellerRankingRow({
   item,
   onPress,
   onPressSeller,
   onToggleAlert,
+  topScore,
 }: SellerRankingRowProps) {
-  const { colors, isDark } = useCommerceTheme();
+  const theme = useCommerceTheme();
+  const { shadow } = theme;
   const { fontScale, width } = useWindowDimensions();
-  const s = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
+  const s = useMemo(() => makeStyles(theme), [theme]);
   const compact = width <= 360;
   const largeText = fontScale >= 1.3;
-  const thumbnailSize = compact ? 64 : 72;
-  const displayName = item.productName ?? item.brandName ?? item.username;
-  const viewCount = formatCompactCount(item.metrics.deepViews);
-  const savedCount = formatCompactCount(item.metrics.bookmarks);
-  const notificationCount = formatCompactCount(item.metrics.notifications);
-  const popularityScore = Math.round(item.metrics.score);
-  const thumbnails = item.thumbnailUrl
-    ? [
-        {
-          id: `${item.groupBuyId}-thumbnail`,
-          imageUrl: item.thumbnailUrl,
-          label: displayName,
-        },
-      ]
-    : item.mediaUrls.slice(0, 3).map((imageUrl, index) => ({
-        id: `${item.groupBuyId}-media-${index}`,
-        imageUrl,
-        label: displayName,
-      }));
-  const accessibilityLabel = `${item.rank}위 ${displayName}, 조회 ${viewCount}, 저장 ${savedCount}`;
+  const displayName =
+    (item.productName ?? item.brandName ?? item.username) || "공구";
+  const imageUrl = item.thumbnailUrl ?? item.mediaUrls[0] ?? null;
+  const imageSource = useMemo(
+    () => (imageUrl ? { uri: imageUrl } : null),
+    [imageUrl],
+  );
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const popularity = getPopularityPresentation(
+    item.metrics,
+    topScore ?? item.metrics.score,
+  );
+  const deadline = formatRankingDeadline(item.endDate);
+  const accessibilityLabel = getRankingItemAccessibilityLabel({
+    rank: item.rank,
+    name: displayName,
+    priceKrw: item.priceKrw,
+    deadline,
+    popularity,
+  });
 
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
+  const handlePressSeller = useCallback(
+    () => onPressSeller?.(item),
+    [item, onPressSeller],
+  );
   const handleToggleAlert = useCallback(
     () => onToggleAlert(item),
     [item, onToggleAlert],
   );
+  const handleImageError = useCallback(() => {
+    if (imageUrl) setFailedImageUrl(imageUrl);
+  }, [imageUrl]);
 
   return (
-    <View testID={`ranking-row-${item.rank}`} style={[s.row, s.cardRow]}>
+    <View testID={`ranking-row-${item.rank}`} style={[s.cardRow, shadow]}>
       <View
-        style={[s.mainRow, largeText && s.mainRowLargeText]}
+        style={[s.mainRow, largeText ? s.mainRowLargeText : null]}
         testID={`ranking-row-main-${item.rank}`}
       >
         <Pressable
@@ -79,70 +93,67 @@ export function SellerRankingRow({
           onPress={handlePress}
           style={({ pressed }) => [
             s.mainAction,
-            largeText && s.mainActionLargeText,
-            pressed && s.pressed,
+            largeText ? s.mainActionLargeText : null,
+            pressed ? s.pressed : null,
           ]}
         >
-          <View style={s.leadMedia}>
-            <View style={s.rankColumn}>
-              <RankBadge rank={item.rank} />
-              <RankingTrendBadge trend={item.trend} />
-            </View>
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={s.rankColumn}
+          >
+            <RankBadge rank={item.rank} />
+            <RankingTrendBadge trend={item.trend} />
+          </View>
 
-            {thumbnails.length > 0 ? (
-              <ThumbnailStrip
-                maxVisible={1}
-                size={thumbnailSize}
-                thumbnails={thumbnails}
+          <View style={[s.media, compact ? s.mediaCompact : null]}>
+            {imageSource && imageUrl !== failedImageUrl ? (
+              <Image
+                accessible={false}
+                onError={handleImageError}
+                resizeMode="cover"
+                source={imageSource}
+                style={s.image}
+                testID={`ranking-row-image-${item.rank}`}
               />
             ) : (
-              <View
-                style={[
-                  s.thumbnailFallback,
-                  { height: thumbnailSize, width: thumbnailSize },
-                ]}
-              >
-                <SText variant="caption" style={s.thumbnailFallbackText}>
-                  {displayName.charAt(0)}
-                </SText>
-              </View>
+              <SText style={s.thumbnailFallbackText} variant="caption">
+                {displayName.charAt(0)}
+              </SText>
             )}
           </View>
 
           <View style={s.infoColumn}>
             <SText
-              variant="body"
-              style={s.sellerName}
+              numberOfLines={largeText ? undefined : 1}
+              style={s.signalText}
+              testID={`ranking-row-signal-${item.rank}`}
+              variant="caption"
+            >
+              인기지수 {popularity.index} · {popularity.reason}
+            </SText>
+            <SText
               numberOfLines={largeText ? undefined : 2}
+              style={s.sellerName}
               testID={`ranking-row-name-${item.rank}`}
+              variant="body"
             >
               {displayName}
             </SText>
-
-            <PriceText
-              numberOfLines={largeText ? 2 : 1}
-              priceKrw={item.priceKrw}
-              style={s.price}
-            />
-
-            <SText
-              variant="caption"
-              style={s.metricText}
-              numberOfLines={largeText ? 2 : 1}
-              testID={`ranking-row-metrics-${item.rank}`}
-            >
-              조회 {viewCount} · 저장 {savedCount} · 알림 {notificationCount}
-            </SText>
-
-            <SText variant="caption" style={s.popularityText}>
-              인기지수 {popularityScore}
-            </SText>
+            <View style={s.commerceRow}>
+              <PriceText
+                numberOfLines={largeText ? 2 : 1}
+                priceKrw={item.priceKrw}
+                style={s.price}
+              />
+              <SText style={s.deadline} variant="caption">
+                {deadline}
+              </SText>
+            </View>
           </View>
         </Pressable>
 
-        <View
-          style={[s.actionColumn, largeText && s.actionColumnLargeText]}
-        >
+        <View style={[s.actionColumn, largeText ? s.actionColumnLargeText : null]}>
           <GroupBuyAlertButton
             groupBuyName={displayName}
             isEnabled={item.isNotifying ?? false}
@@ -158,22 +169,27 @@ export function SellerRankingRow({
             accessibilityHint="판매자의 공구 목록 보기"
             accessibilityLabel={`@${item.username} 판매자 공구 보기`}
             accessibilityRole="button"
-            onPress={() => onPressSeller(item)}
-            style={({ pressed }) => [s.sellerAction, pressed && s.pressed]}
+            onPress={handlePressSeller}
+            style={({ pressed }) => [
+              s.sellerAction,
+              pressed ? s.pressed : null,
+            ]}
           >
             <SText
-              variant="caption"
+              numberOfLines={largeText ? undefined : 1}
               style={s.username}
-              numberOfLines={largeText ? 2 : 1}
+              testID={`ranking-row-seller-${item.rank}`}
+              variant="caption"
             >
               @{item.username}
             </SText>
           </Pressable>
         ) : (
           <SText
-            variant="caption"
+            numberOfLines={largeText ? undefined : 1}
             style={s.username}
-            numberOfLines={largeText ? 2 : 1}
+            testID={`ranking-row-seller-${item.rank}`}
+            variant="caption"
           >
             @{item.username}
           </SText>
@@ -181,9 +197,10 @@ export function SellerRankingRow({
       </View>
     </View>
   );
-}
+});
 
-function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
+function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
+  const { colors, radius, spacing, typography } = theme;
   return StyleSheet.create({
     actionColumn: {
       alignItems: "flex-end",
@@ -194,17 +211,30 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
     },
     cardRow: {
       backgroundColor: colors.panelBg,
-      borderCurve: "continuous",
       borderColor: colors.borderLight,
-      borderRadius: commerceRadius.lg,
+      borderCurve: "continuous",
+      borderRadius: radius.lg,
       borderWidth: 1,
-      elevation: 1,
+      gap: spacing.xs,
       marginBottom: spacing.sm,
-      minHeight: 122,
-      shadowColor: "#000000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDark ? 0.08 : 0.04,
-      shadowRadius: 8,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.sm,
+    },
+    commerceRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.sm,
+    },
+    deadline: {
+      color: colors.warning,
+      fontSize: 11,
+      fontWeight: "800",
+      lineHeight: 16,
+    },
+    image: {
+      height: "100%",
+      width: "100%",
     },
     infoColumn: {
       flex: 1,
@@ -233,64 +263,57 @@ function makeStyles(colors: CommerceColorPalette, isDark: boolean) {
       alignItems: "stretch",
       flexDirection: "column",
     },
-    metricText: {
-      color: colors.muted,
-      fontSize: 11,
-      fontWeight: "700",
-      lineHeight: 16,
-    },
-    popularityText: {
-      color: colors.accent,
-      fontSize: 11,
-      fontWeight: "900",
-      lineHeight: 16,
-    },
-    leadMedia: {
+    media: {
       alignItems: "center",
-      flexDirection: "row",
-      gap: spacing.sm,
+      backgroundColor: colors.softBg,
+      borderColor: colors.borderLight,
+      borderCurve: "continuous",
+      borderRadius: radius.md,
+      borderWidth: 1,
+      height: 80,
+      justifyContent: "center",
+      overflow: "hidden",
+      width: 64,
+    },
+    mediaCompact: {
+      height: 72,
+      width: 56,
+    },
+    pressed: {
+      opacity: 0.72,
     },
     price: {
       fontSize: 12,
       lineHeight: 17,
-    },
-    pressed: {
-      opacity: 0.72,
     },
     rankColumn: {
       alignItems: "center",
       gap: spacing.xs,
       width: 34,
     },
-    row: {
-      gap: spacing.xs,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.md,
-    },
-    sellerName: {
-      color: colors.text,
-      fontSize: 15,
-      fontWeight: "900",
-      lineHeight: 20,
-      minWidth: 0,
-    },
     sellerAction: {
       alignSelf: "flex-start",
       justifyContent: "center",
       minHeight: 44,
+      minWidth: 44,
+      paddingHorizontal: spacing.xs,
+    },
+    sellerName: {
+      color: colors.text,
+      ...typography.bodyStrong,
+      minWidth: 0,
     },
     sellerRow: {
+      borderTopColor: colors.divider,
+      borderTopWidth: 1,
+      justifyContent: "center",
       minHeight: 44,
-      justifyContent: "center",
     },
-    thumbnailFallback: {
-      alignItems: "center",
-      backgroundColor: colors.softBg,
-      borderColor: colors.borderLight,
-      borderCurve: "continuous",
-      borderRadius: commerceRadius.sm,
-      borderWidth: 1,
-      justifyContent: "center",
+    signalText: {
+      color: colors.accent,
+      fontSize: 11,
+      fontWeight: "900",
+      lineHeight: 16,
     },
     thumbnailFallbackText: {
       color: colors.muted,

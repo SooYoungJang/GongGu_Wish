@@ -11,9 +11,8 @@ import {
 import type { Ref } from "react";
 
 import { AsyncStateNotice } from "../ui/AsyncStateNotice";
-import { spacing } from "../../design/tokens";
-import type { CommerceColorPalette } from "../../design/commerce";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
+import { getTopPopularityScore } from "../../features/ranking/popularityPresentation";
 import type {
   GroupBuyRankingItem,
   RankingListItem,
@@ -22,7 +21,7 @@ import type {
 import { RankingTopThree } from "./RankingTopThree";
 import { SellerRankingRow } from "./SellerRankingRow";
 
-type RankingItemAction = (...args: [GroupBuyRankingItem]) => void;
+type RankingItemAction = (item: GroupBuyRankingItem) => void;
 
 export interface SellerRankingListProps {
   state: RankingLoadState;
@@ -37,6 +36,8 @@ export interface SellerRankingListProps {
 }
 
 const NOOP = () => undefined;
+const KEY_EXTRACTOR = (item: RankingListItem) => item.groupBuyId;
+const EMPTY_RANKINGS: readonly RankingListItem[] = [];
 
 export function SellerRankingList({
   state,
@@ -47,17 +48,45 @@ export function SellerRankingList({
   onToggleAlert,
   onScroll,
   listRef,
-  topInset = spacing.sm,
+  topInset,
 }: SellerRankingListProps) {
-  const { colors } = useCommerceTheme();
-  const s = useMemo(() => makeStyles(colors), [colors]);
+  const theme = useCommerceTheme();
+  const { colors, spacing } = theme;
+  const s = useMemo(() => makeStyles(theme), [theme]);
+  const resolvedTopInset = topInset ?? spacing.sm;
   const contentContainerStyle = useMemo(
-    () => [s.content, { paddingTop: topInset }],
-    [s.content, topInset],
+    () => [s.content, { paddingTop: resolvedTopInset }],
+    [resolvedTopInset, s.content],
   );
   const statusViewportStyle = useMemo(
-    () => [s.statusContainer, { paddingTop: topInset }],
-    [s.statusContainer, topInset],
+    () => [s.statusContainer, { paddingTop: resolvedTopInset }],
+    [resolvedTopInset, s.statusContainer],
+  );
+  const readyData = state.status === "ready" ? state.data : EMPTY_RANKINGS;
+  const { remainingItems, topScore, topThree } = useMemo(() => {
+    const comparisonScore = getTopPopularityScore(
+      readyData.map((item) => item.metrics.score),
+    );
+    let leadingTopCount = 0;
+    while (leadingTopCount < Math.min(3, readyData.length)) {
+      const rank = readyData[leadingTopCount].rank;
+      if (rank < 1 || rank > 3) break;
+      leadingTopCount += 1;
+    }
+
+    return {
+      topScore: comparisonScore,
+      topThree: readyData.slice(0, leadingTopCount),
+      remainingItems: readyData.slice(leadingTopCount),
+    };
+  }, [readyData]);
+  const footerStyle = useMemo(
+    () => [s.footer, { height: bottomPadding }],
+    [bottomPadding, s.footer],
+  );
+  const scrollIndicatorInsets = useMemo(
+    () => ({ bottom: bottomPadding }),
+    [bottomPadding],
   );
   const renderItem: ListRenderItem<RankingListItem> = useCallback(
     ({ item }) => (
@@ -66,13 +95,17 @@ export function SellerRankingList({
         onPress={onPressItem ?? NOOP}
         onPressSeller={onPressSeller}
         onToggleAlert={onToggleAlert ?? NOOP}
+        topScore={topScore}
       />
     ),
-    [onPressItem, onPressSeller, onToggleAlert],
+    [onPressItem, onPressSeller, onToggleAlert, topScore],
   );
   if (state.status === "loading") {
     return (
       <View
+        accessible
+        accessibilityLabel="랭킹 불러오는 중"
+        accessibilityRole="progressbar"
         style={statusViewportStyle}
         testID="ranking-status-viewport"
       >
@@ -115,13 +148,6 @@ export function SellerRankingList({
     );
   }
 
-  const topThree = state.data.filter(
-    (item) => item.rank >= 1 && item.rank <= 3,
-  );
-  const remainingItems = state.data.filter(
-    (item) => item.rank < 1 || item.rank > 3,
-  );
-
   return (
     <Animated.FlatList
       accessibilityLabel="공구 랭킹 목록"
@@ -129,7 +155,7 @@ export function SellerRankingList({
       alwaysBounceVertical={false}
       contentContainerStyle={contentContainerStyle}
       data={remainingItems}
-      keyExtractor={(item) => item.groupBuyId}
+      keyExtractor={KEY_EXTRACTOR}
       ListHeaderComponent={
         <>
           {state.refreshError ? (
@@ -147,32 +173,37 @@ export function SellerRankingList({
               onPress={onPressItem ?? NOOP}
               onPressSeller={onPressSeller}
               onToggleAlert={onToggleAlert ?? NOOP}
+              topScore={topScore}
             />
           ) : null}
         </>
       }
-      ListFooterComponent={<View style={{ height: bottomPadding }} />}
+      ListFooterComponent={<View style={footerStyle} />}
       ref={listRef}
       onScroll={onScroll}
       onRefresh={onRefresh}
-      progressViewOffset={spacing.lg}
+      progressViewOffset={resolvedTopInset + spacing.lg}
       refreshing={"refreshing" in state ? !!state.refreshing : false}
       renderItem={renderItem}
       scrollEventThrottle={16}
-      scrollIndicatorInsets={{ bottom: bottomPadding }}
+      scrollIndicatorInsets={scrollIndicatorInsets}
       showsVerticalScrollIndicator={false}
       style={s.list}
     />
   );
 }
 
-function makeStyles(colors: CommerceColorPalette) {
+function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
+  const { colors, spacing } = theme;
   return StyleSheet.create({
     content: {
       paddingHorizontal: spacing.lg,
     },
     fullStatus: {
       alignSelf: "stretch",
+    },
+    footer: {
+      width: "100%",
     },
     list: {
       backgroundColor: colors.bg,
@@ -183,8 +214,8 @@ function makeStyles(colors: CommerceColorPalette) {
       backgroundColor: colors.bg,
       flex: 1,
       justifyContent: "center",
-      paddingHorizontal: spacing["2xl"],
-      paddingBottom: spacing["3xl"],
+      paddingHorizontal: spacing.xxl,
+      paddingBottom: spacing.section,
     },
   });
 }
