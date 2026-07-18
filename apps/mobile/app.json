@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#ffffff",
+    "icon": "./assets/app-icon.png",
     "scheme": "gongguwish",
     "ios": {
       "supportsTablet": true,
