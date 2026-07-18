@@ -56,7 +56,22 @@ test("production app config keeps Android cleartext disabled", () => {
     delete process.env.EXPO_PUBLIC_E2E_MODE;
     const productionConfig = appConfig({ config: { android: {} } });
     assert.equal(productionConfig.android.usesCleartextTraffic, undefined);
-    assert.equal(productionConfig.mods, undefined);
+    assert.equal(typeof productionConfig.mods.android.manifest, "function");
+
+    const adsManifest = {
+      manifest: {
+        $: {},
+        application: [{ $: { "android:name": ".MainApplication" } }],
+      },
+    };
+    const adsResult = appConfig.applyGoogleMobileAdsAndroidManifest(
+      adsManifest,
+      appConfig.GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
+    );
+    assert.equal(
+      adsResult.manifest.application[0].$["android:usesCleartextTraffic"],
+      undefined,
+    );
 
     process.env.EXPO_PUBLIC_E2E_MODE = "true";
     const e2eConfig = appConfig({ config: { android: {} } });

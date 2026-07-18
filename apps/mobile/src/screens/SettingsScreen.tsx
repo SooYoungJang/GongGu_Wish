@@ -14,6 +14,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { deleteAccount } from "../api";
+import { useAds } from "../ads/AdsContext";
 import { SText } from "../components/ui/SText";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
@@ -35,6 +36,7 @@ import type { RootStackParamList } from "../types";
 
 export function SettingsScreen() {
   const { colors, spacing, radius } = useCommerceTheme();
+  const { privacyOptionsRequired, showPrivacyOptions } = useAds();
   const { user, signOut } = useAuth();
   const {
     error: preferencesError,
@@ -57,6 +59,7 @@ export function SettingsScreen() {
   const automatedE2E = Constants.expoConfig?.extra?.automatedE2E === true;
   const testDelaySeconds = automatedE2E ? 8 : 10;
   const [deleting, setDeleting] = useState(false);
+  const [updatingAdPrivacy, setUpdatingAdPrivacy] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -168,6 +171,22 @@ export function SettingsScreen() {
       ],
     );
   }, [deleting, performAccountDeletion, user]);
+
+  const handleAdPrivacyOptions = useCallback(async () => {
+    if (updatingAdPrivacy) return;
+    setUpdatingAdPrivacy(true);
+    try {
+      const shown = await showPrivacyOptions();
+      if (!shown) {
+        Alert.alert(
+          "개인정보 설정을 열지 못했어요",
+          "잠시 후 다시 시도해주세요.",
+        );
+      }
+    } finally {
+      setUpdatingAdPrivacy(false);
+    }
+  }, [showPrivacyOptions, updatingAdPrivacy]);
 
   return (
     <SafeAreaView edges={["bottom"]} style={s.container}>
@@ -370,6 +389,37 @@ export function SettingsScreen() {
           <ThemeToggle />
         </View>
 
+        {privacyOptionsRequired ? (
+          <View style={s.accountCard}>
+            <SText variant="cardTitle" style={s.sectionTitle}>
+              개인정보 및 광고
+            </SText>
+            <SText variant="caption" style={s.sectionSubtitle}>
+              Google 광고에 사용하는 개인정보 선택을 언제든 변경할 수 있어요.
+            </SText>
+            <Pressable
+              accessibilityLabel="광고 개인정보 설정"
+              accessibilityRole="button"
+              accessibilityState={{ busy: updatingAdPrivacy }}
+              disabled={updatingAdPrivacy}
+              onPress={handleAdPrivacyOptions}
+              style={({ pressed }) => [
+                s.privacyButton,
+                updatingAdPrivacy && s.disabledButton,
+                pressed && s.pressed,
+              ]}
+            >
+              {updatingAdPrivacy ? (
+                <ActivityIndicator color={colors.accent} size="small" />
+              ) : (
+                <SText variant="label" style={s.privacyButtonText}>
+                  광고 개인정보 설정
+                </SText>
+              )}
+            </Pressable>
+          </View>
+        ) : null}
+
         {user ? (
           <View style={s.accountCard}>
             <SText variant="cardTitle" style={s.sectionTitle}>
@@ -505,6 +555,17 @@ function makeStyles(
       paddingVertical: spacing.sm,
     },
     deleteButtonText: { color: colors.error, fontWeight: "900" },
+    privacyButton: {
+      alignItems: "center",
+      backgroundColor: colors.accentSoft,
+      borderRadius: radius.md,
+      justifyContent: "center",
+      marginTop: spacing.lg,
+      minHeight: 48,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    privacyButtonText: { color: colors.accent, fontWeight: "900" },
     disabledButton: { opacity: 0.55 },
     pressed: { opacity: 0.65 },
   });

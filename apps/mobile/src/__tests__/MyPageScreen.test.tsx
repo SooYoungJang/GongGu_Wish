@@ -20,6 +20,10 @@ const authMocks = vi.hoisted(() => ({
 }));
 const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
 const dealCardMock = vi.hoisted(() => vi.fn());
+const adsMocks = vi.hoisted(() => ({
+  privacyOptionsRequired: false,
+  showPrivacyOptions: vi.fn(async () => true),
+}));
 const settingsPreferenceMocks = vi.hoisted(() => ({
   preferences: {
     pushEnabled: true,
@@ -32,6 +36,17 @@ const settingsPreferenceMocks = vi.hoisted(() => ({
   updatePreferences: vi.fn(async (patch: Record<string, unknown>) => patch),
   toggleInfluencer: vi.fn(),
   toggleBrand: vi.fn(),
+}));
+
+vi.mock('../ads/AdsContext', () => ({
+  useAds: () => ({
+    enabled: true,
+    homeNativeUnitId: 'test-native-unit',
+    isReady: true,
+    isSettled: true,
+    privacyOptionsRequired: adsMocks.privacyOptionsRequired,
+    showPrivacyOptions: adsMocks.showPrivacyOptions,
+  }),
 }));
 
 vi.mock('../context/NotificationPreferencesContext', () => ({
@@ -211,6 +226,8 @@ beforeEach(() => {
   settingsPreferenceMocks.updatePreferences.mockClear();
   settingsPreferenceMocks.toggleInfluencer.mockClear();
   settingsPreferenceMocks.toggleBrand.mockClear();
+  adsMocks.privacyOptionsRequired = false;
+  adsMocks.showPrivacyOptions.mockClear();
 });
 
 describe('MyPageScreen', () => {
@@ -373,6 +390,21 @@ describe('MyPageScreen', () => {
     expect(rendered).toContain('D-7');
     expect(rendered).toContain('@seller.one');
     expect(rendered).toContain('Brand A');
+  });
+
+  it('opens required Google ad privacy options from settings', async () => {
+    adsMocks.privacyOptionsRequired = true;
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    const button = renderer.root.findByProps({
+      accessibilityLabel: '광고 개인정보 설정',
+    });
+
+    await act(async () => {
+      await button.props.onPress();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('개인정보 및 광고');
+    expect(adsMocks.showPrivacyOptions).toHaveBeenCalledOnce();
   });
 
   it('persists deadline switches, D-day choices, and follow removals', async () => {
