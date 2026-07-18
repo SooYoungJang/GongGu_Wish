@@ -9,12 +9,16 @@ const require = createRequire(import.meta.url);
 test("Android E2E verifies localhost origins through the app journeys", () => {
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
   const seed = read("supabase/seed.sql");
+  const builder = read("scripts/build-gon263-android-e2e.sh");
   const runner = read("scripts/run-gon263-android-e2e.sh");
 
   assert.match(workflow, /EXPO_PUBLIC_SUPABASE_URL=http:\/\/localhost:54321/);
   assert.doesNotMatch(seed, /127\.0\.0\.1:58080/);
   assert.match(seed, /http:\/\/localhost:58080\/media\/fixture\.mp4/);
   assert.match(runner, /adb-reverse-after-install\.txt/);
+  assert.match(builder, /-Dorg\.gradle\.jvmargs=\"-Xmx4096m/);
+  assert.match(builder, /-Dorg\.gradle\.parallel=false/);
+  assert.match(builder, /-Dorg\.gradle\.workers\.max=2/);
   assert.match(
     runner,
     /maestro test \.maestro\/gon-263-critical-journeys\.yaml/,
