@@ -24,6 +24,14 @@ grep -F 'android:usesCleartextTraffic="true"' \
   artifacts/android/android-manifest.xml
 
 pushd apps/mobile/android >/dev/null
+./gradlew :app:generateCodegenArtifactsFromSchema \
+  --configure-on-demand \
+  --build-cache \
+  -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=768m" \
+  -Dorg.gradle.parallel=false \
+  -Dorg.gradle.workers.max=2 \
+  -PreactNativeArchitectures="$ORG_GRADLE_PROJECT_reactNativeArchitectures" \
+  2>&1 | tee "$repo_root/artifacts/android/android-codegen.log"
 ./gradlew app:assembleRelease \
   -x lint \
   -x test \
