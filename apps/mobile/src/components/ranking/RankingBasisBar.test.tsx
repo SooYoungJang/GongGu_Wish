@@ -36,7 +36,7 @@ function flattenText(
 }
 
 describe("RankingBasisBar", () => {
-  it("explains the selected period, sort, category, rolling window, and metrics", () => {
+  it("explains the popularity signal in one consumer-friendly summary", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -55,11 +55,19 @@ describe("RankingBasisBar", () => {
     const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
     const basis = renderer!.root.findByProps({ testID: "ranking-basis-bar" });
 
-    expect(text).toContain("최근 7일 롤링 집계");
-    expect(text).toContain("이번 주");
-    expect(text).toContain("인기 공구");
-    expect(text).toContain("전체");
-    expect(text).toContain("조회·저장·알림·검색 클릭");
+    expect(text).toContain("인기지수 안내");
+    expect(text).toContain(
+      "현재 목록 최고점=100 · 조회·저장·알림·상세 관심 반영",
+    );
+    expect(text).toContain("최근 7일 기준");
+    expect(text).toContain("업데이트");
+    expect(text).not.toContain("롤링 집계");
     expect(basis.props.accessibilityLabel).toContain("최근 7일 롤링 집계");
+    expect(basis.props.accessibilityLabel).toContain("현재 목록 최고점 100");
+    expect(basis.props.accessibilityLabel).toContain(
+      "조회, 저장, 알림, 상세 관심 반영",
+    );
+    expect(basis.props.accessibilityLabel).toContain("업데이트");
+    expect(basis.props.accessibilityLabel).toContain("전체 카테고리");
   });
 });

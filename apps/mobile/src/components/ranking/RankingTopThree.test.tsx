@@ -69,6 +69,21 @@ function sampleRanking(
   };
 }
 
+function flattenText(
+  node:
+    | TestRenderer.ReactTestRendererJSON
+    | TestRenderer.ReactTestRendererJSON[]
+    | null,
+): string {
+  if (!node) return "";
+  if (Array.isArray(node)) return node.map(flattenText).join(" ");
+  return (
+    node.children
+      ?.map((child) => (typeof child === "string" ? child : flattenText(child)))
+      .join(" ") ?? ""
+  );
+}
+
 describe("RankingTopThree", () => {
   beforeEach(() => {
     windowDimensionsMock.fontScale = 1;
@@ -106,6 +121,33 @@ describe("RankingTopThree", () => {
     expect(heroName.props.numberOfLines).toBeUndefined();
   });
 
+  it("stacks spotlight cards on a 320 point wide screen", () => {
+    windowDimensionsMock.width = 320;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <RankingTopThree
+            items={[sampleRanking(1), sampleRanking(2), sampleRanking(3)]}
+            onPress={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const grid = renderer!.root.findByProps({
+      testID: "ranking-top-compact-grid",
+    });
+
+    expect(grid.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ flexDirection: "column" }),
+      ]),
+    );
+  });
+
   it("renders rank one as a hero and ranks two and three as compact cards", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -135,6 +177,182 @@ describe("RankingTopThree", () => {
     ).toBeTruthy();
   });
 
+  it("leads with product imagery and relative popularity reasons", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <RankingTopThree
+            items={[
+              sampleRanking(1, {
+                thumbnailUrl: "https://example.com/leader.jpg",
+                endDate: "2099-07-31T15:00:00.000Z",
+                metrics: {
+                  deepViews: 5000,
+                  bookmarks: 0,
+                  notifications: 0,
+                  searchClicks: 0,
+                  score: 100,
+                  scoreDelta: 0,
+                },
+              }),
+              sampleRanking(2, {
+                metrics: {
+                  deepViews: 3000,
+                  bookmarks: 20,
+                  notifications: 4,
+                  searchClicks: 2,
+                  score: 50,
+                  scoreDelta: 0,
+                },
+              }),
+              sampleRanking(3, {
+                metrics: {
+                  deepViews: 2000,
+                  bookmarks: 0,
+                  notifications: 12,
+                  searchClicks: 1,
+                  score: 25,
+                  scoreDelta: 0,
+                },
+              }),
+            ]}
+            onPress={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
+
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-top-image-1" }),
+    ).toBeTruthy();
+    expect(text).toContain("지금 뜨는 공구");
+    expect(text).toContain("인기지수 100");
+    expect(text).toContain("인기지수 50");
+    expect(text).toContain("인기지수 25");
+    expect(text).toContain("조회 반응 있음");
+    expect(text).toContain("저장 반응 있음");
+    expect(text).toContain("알림 관심 있음");
+    expect(text).toContain("마감");
+    expect(text).toContain("상품 이미지 준비 중");
+  });
+
+  it("falls back gracefully when the hero image fails to load", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <RankingTopThree
+            items={[
+              sampleRanking(1, {
+                thumbnailUrl: "https://example.com/broken.jpg",
+              }),
+            ]}
+            onPress={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const image = renderer!.root.findByProps({
+      testID: "ranking-top-image-1",
+    });
+    act(() => image.props.onError());
+
+    expect(
+      renderer!.root.findAllByProps({ testID: "ranking-top-image-1" }),
+    ).toHaveLength(0);
+    expect(flattenText(renderer!.toJSON())).toContain("상품 이미지 준비 중");
+  });
+
+  it("never promotes ranks two or three into the hero slot", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <RankingTopThree
+            items={[sampleRanking(2), sampleRanking(3)]}
+            onPress={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    expect(
+      renderer!.root
+        .findAllByType("View" as unknown as React.ElementType)
+        .filter((node) => node.props.testID === "ranking-top-hero"),
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-top-compact-2" }),
+    ).toBeTruthy();
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-top-compact-3" }),
+    ).toBeTruthy();
+  });
+
+  it("preserves the server order of spotlight ranks", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <RankingTopThree
+            items={[sampleRanking(3), sampleRanking(2)]}
+            onPress={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const compactCards = renderer!.root
+      .findAllByType("View" as unknown as React.ElementType)
+      .filter(
+        (node) =>
+          node.props.testID === "ranking-top-compact-2" ||
+          node.props.testID === "ranking-top-compact-3",
+      );
+    expect(compactCards.map((node) => node.props.testID)).toEqual([
+      "ranking-top-compact-3",
+      "ranking-top-compact-2",
+    ]);
+  });
+
+  it("does not truncate a long seller name at large font scales", () => {
+    windowDimensionsMock.fontScale = 2;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <RankingTopThree
+            items={[
+              sampleRanking(1, {
+                username: "very.long.seller.name.for.accessibility",
+              }),
+            ]}
+            onPress={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-top-seller-1" }).props
+        .numberOfLines,
+    ).toBeUndefined();
+  });
+
   it("keeps each top card detail action separate from its alert action", () => {
     const onPress = vi.fn();
     const onToggleAlert = vi.fn();
@@ -153,7 +371,7 @@ describe("RankingTopThree", () => {
     });
 
     const detailAction = renderer!.root.findByProps({
-      accessibilityLabel: "1위 분리된 공구 상세 보기",
+      accessibilityHint: "공구 상세 보기",
     });
     const alertAction = renderer!.root.findByProps({
       accessibilityLabel: "분리된 공구 알림",
@@ -166,6 +384,9 @@ describe("RankingTopThree", () => {
     expect(onToggleAlert).toHaveBeenCalledWith(
       expect.objectContaining({ groupBuyId: "group-1" }),
     );
+    expect(detailAction.props.accessibilityLabel).toContain("인기지수");
+    expect(detailAction.props.accessibilityLabel).toContain("가격 정보 없음");
+    expect(detailAction.props.accessibilityLabel).toContain("마감일 미정");
   });
 
   it("keeps the seller destination separate from the product detail action", () => {

@@ -1,7 +1,12 @@
-import { useMemo } from "react";
-import { Pressable, useWindowDimensions, View } from "react-native";
+import { memo, useCallback, useMemo, useState } from "react";
+import { Image, Pressable, useWindowDimensions, View } from "react-native";
 
 import { useCommerceTheme } from "../../design/useCommerceTheme";
+import {
+  formatRankingDeadline,
+  getRankingItemAccessibilityLabel,
+  getPopularityPresentation,
+} from "../../features/ranking/popularityPresentation";
 import type {
   GroupBuyRankingItem,
   RankingListItem,
@@ -12,90 +17,136 @@ import { SText } from "../ui/SText";
 import { GroupBuyAlertButton } from "./FollowButton";
 import { RankBadge } from "./RankBadge";
 import { RankingTrendBadge } from "./RankingTrendBadge";
-import { ThumbnailStrip } from "./ThumbnailStrip";
 import { makeRankingTopStyles } from "./RankingTopThree.styles";
 
-type RankingItemAction = (...args: [GroupBuyRankingItem]) => void;
+type RankingItemAction = (item: GroupBuyRankingItem) => void;
 
 export interface RankingTopCardProps {
   item: RankingListItem;
   onPress: RankingItemAction;
   onPressSeller?: RankingItemAction;
   onToggleAlert: RankingItemAction;
+  topScore?: number;
   variant: "hero" | "compact";
 }
 
-export function RankingTopCard({
+export const RankingTopCard = memo(function RankingTopCard({
   item,
   onPress,
   onPressSeller,
   onToggleAlert,
+  topScore,
   variant,
 }: RankingTopCardProps) {
-  const { colors, isDark } = useCommerceTheme();
-  const { fontScale, width } = useWindowDimensions();
-  const s = useMemo(
-    () => makeRankingTopStyles(colors, isDark),
-    [colors, isDark],
-  );
+  const theme = useCommerceTheme();
+  const { shadow } = theme;
+  const { fontScale } = useWindowDimensions();
+  const s = useMemo(() => makeRankingTopStyles(theme), [theme]);
   const displayName = getDisplayName(item);
   const isHero = variant === "hero";
   const largeText = fontScale >= 1.3;
-  const thumbnails = item.thumbnailUrl
-    ? [
-        {
-          id: `${item.groupBuyId}-thumbnail`,
-          imageUrl: item.thumbnailUrl,
-          label: displayName,
-        },
-      ]
-    : item.mediaUrls.slice(0, 3).map((imageUrl, index) => ({
-        id: `${item.groupBuyId}-media-${index}`,
-        imageUrl,
-        label: displayName,
-      }));
-  const thumbnailSize = isHero ? Math.min(Math.max(width * 0.3, 104), 132) : 80;
-  const detailLabel = `${item.rank}위 ${displayName} 상세 보기`;
+  const imageUrl = item.thumbnailUrl ?? item.mediaUrls[0] ?? null;
+  const imageSource = useMemo(
+    () => (imageUrl ? { uri: imageUrl } : null),
+    [imageUrl],
+  );
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const popularity = getPopularityPresentation(
+    item.metrics,
+    topScore ?? item.metrics.score,
+  );
+  const deadline = formatRankingDeadline(item.endDate);
+  const proof = `조회 ${formatCompactCount(item.metrics.deepViews)} · 저장 ${formatCompactCount(item.metrics.bookmarks)} · 알림 ${formatCompactCount(item.metrics.notifications)}`;
+  const detailLabel = getRankingItemAccessibilityLabel({
+    rank: item.rank,
+    name: displayName,
+    priceKrw: item.priceKrw,
+    deadline,
+    popularity,
+    metrics: isHero ? item.metrics : undefined,
+  });
+
+  const handlePress = useCallback(() => onPress(item), [item, onPress]);
+  const handlePressSeller = useCallback(
+    () => onPressSeller?.(item),
+    [item, onPressSeller],
+  );
+  const handleToggleAlert = useCallback(
+    () => onToggleAlert(item),
+    [item, onToggleAlert],
+  );
+  const handleImageError = useCallback(() => {
+    if (imageUrl) setFailedImageUrl(imageUrl);
+  }, [imageUrl]);
 
   return (
     <View
-      style={isHero ? s.heroCard : s.compactCard}
+      style={[isHero ? s.heroCard : s.compactCard, shadow]}
       testID={isHero ? "ranking-top-hero" : `ranking-top-compact-${item.rank}`}
     >
       <Pressable
         accessibilityHint="공구 상세 보기"
         accessibilityLabel={detailLabel}
         accessibilityRole="button"
-        onPress={() => onPress(item)}
+        onPress={handlePress}
         style={({ pressed }) => [
           isHero ? s.heroMainAction : s.compactMainAction,
-          largeText && isHero && s.heroMainActionLargeText,
-          pressed && s.pressed,
+          largeText && !isHero ? s.compactMainActionLargeText : null,
+          pressed ? s.pressed : null,
         ]}
       >
-        <View style={isHero ? s.heroMediaColumn : s.compactMediaColumn}>
-          <RankBadge rank={item.rank} />
-          <RankingTrendBadge trend={item.trend} />
-          {thumbnails.length > 0 ? (
-            <ThumbnailStrip
-              maxVisible={1}
-              size={thumbnailSize}
-              thumbnails={thumbnails}
+        <View style={isHero ? s.heroMedia : s.compactMedia}>
+          {imageSource && imageUrl !== failedImageUrl ? (
+            <Image
+              accessible={false}
+              onError={handleImageError}
+              resizeMode="cover"
+              source={imageSource}
+              style={s.productImage}
+              testID={`ranking-top-image-${item.rank}`}
             />
           ) : (
-            <View
-              style={[
-                isHero ? s.heroThumbnailFallback : s.compactThumbnailFallback,
-                { height: thumbnailSize, width: thumbnailSize },
-              ]}
-            >
-              <SText variant="caption" style={s.thumbnailFallbackText}>
-                {displayName.charAt(0)}
+            <View style={s.imageFallback}>
+              <View style={s.imageFallbackMark}>
+                <SText style={s.imageFallbackText} variant="caption">
+                  {displayName.charAt(0)}
+                </SText>
+              </View>
+              <SText style={s.imageFallbackLabel} variant="caption">
+                상품 이미지 준비 중
               </SText>
             </View>
           )}
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={s.rankOverlay}
+          >
+            <RankBadge rank={item.rank} />
+            <RankingTrendBadge trend={item.trend} />
+          </View>
+          {isHero ? (
+            <View style={s.heroPopularityOverlay}>
+              <SText style={s.heroPopularityText} variant="caption">
+                인기지수 {popularity.index}
+              </SText>
+            </View>
+          ) : null}
         </View>
-        <View style={isHero ? s.heroInfoColumn : s.compactInfoColumn}>
+
+        <View style={isHero ? s.heroInfo : s.compactInfo}>
+          <View style={s.signalRow}>
+            {!isHero ? (
+              <View style={s.popularityPill}>
+                <SText style={s.popularityPillText} variant="caption">
+                  인기지수 {popularity.index}
+                </SText>
+              </View>
+            ) : null}
+            <SText style={s.reasonText} variant="caption">
+              {popularity.reason}
+            </SText>
+          </View>
           <SText
             numberOfLines={largeText ? undefined : 2}
             style={isHero ? s.heroName : s.compactName}
@@ -104,38 +155,45 @@ export function RankingTopCard({
           >
             {displayName}
           </SText>
-          <PriceText
-            numberOfLines={largeText ? 2 : 1}
-            priceKrw={item.priceKrw}
-            style={s.price}
-          />
-          <SText
-            numberOfLines={largeText ? undefined : 2}
-            style={s.metricText}
-            testID={`ranking-top-metrics-${item.rank}`}
-            variant="caption"
-          >
-            조회 {formatCompactCount(item.metrics.deepViews)} · 저장{" "}
-            {formatCompactCount(item.metrics.bookmarks)} · 알림{" "}
-            {formatCompactCount(item.metrics.notifications)}
-          </SText>
-          <SText style={s.popularityText} variant="caption">
-            인기지수 {Math.round(item.metrics.score)}
-          </SText>
+          <View style={s.commerceRow}>
+            <PriceText
+              numberOfLines={largeText ? 2 : 1}
+              priceKrw={item.priceKrw}
+              style={s.price}
+            />
+            <SText style={s.deadline} variant="caption">
+              {deadline}
+            </SText>
+          </View>
+          {isHero ? (
+            <SText
+              numberOfLines={largeText ? undefined : 1}
+              style={s.proofText}
+              testID={`ranking-top-metrics-${item.rank}`}
+              variant="caption"
+            >
+              {proof}
+            </SText>
+          ) : null}
         </View>
       </Pressable>
-      <View style={s.sellerRow}>
+
+      <View style={[s.cardFooter, largeText ? s.cardFooterLargeText : null]}>
         {onPressSeller ? (
           <Pressable
             accessibilityHint="판매자의 공구 목록 보기"
             accessibilityLabel={`@${item.username} 판매자 공구 보기`}
             accessibilityRole="button"
-            onPress={() => onPressSeller(item)}
-            style={({ pressed }) => [s.sellerAction, pressed && s.pressed]}
+            onPress={handlePressSeller}
+            style={({ pressed }) => [
+              s.sellerAction,
+              pressed ? s.pressed : null,
+            ]}
           >
             <SText
-              numberOfLines={largeText ? 2 : 1}
+              numberOfLines={largeText ? undefined : 1}
               style={s.username}
+              testID={`ranking-top-seller-${item.rank}`}
               variant="caption"
             >
               @{item.username}
@@ -143,34 +201,24 @@ export function RankingTopCard({
           </Pressable>
         ) : (
           <SText
-            numberOfLines={largeText ? 2 : 1}
+            numberOfLines={largeText ? undefined : 1}
             style={s.username}
+            testID={`ranking-top-seller-${item.rank}`}
             variant="caption"
           >
             @{item.username}
           </SText>
         )}
-      </View>
-      <View
-        style={[
-          isHero ? s.heroFooter : s.compactFooter,
-          largeText &&
-            (isHero ? s.heroFooterLargeText : s.compactFooterLargeText),
-        ]}
-      >
-        <SText style={s.detailHint} variant="caption">
-          공구 상세에서 더 보기
-        </SText>
         <GroupBuyAlertButton
           groupBuyName={displayName}
           isEnabled={item.isNotifying ?? false}
           notificationState={item.notificationState}
-          onPress={() => onToggleAlert(item)}
+          onPress={handleToggleAlert}
         />
       </View>
     </View>
   );
-}
+});
 
 function getDisplayName(item: GroupBuyRankingItem) {
   return (item.productName ?? item.brandName ?? item.username) || "공구";

@@ -96,6 +96,35 @@
 - [x] Android 좁은 화면·큰 글꼴·다크 모드·TalkBack E2E 증거 위키 기록
 - [x] 코드 리뷰, PR CI, squash merge, main CI, 로컬 main 동기화
 
+## Ranking Discovery Redesign v2 체크리스트
+
+### Task 1: 인기지표 presentation
+
+- [x] 현재 목록 최고 점수 대비 0~100 인기지수 계산
+- [x] score delta와 네 신호 기반 근거 문구 선택
+- [x] 0점·동률·누락 값 회귀 테스트
+- Verify: ranking presentation targeted Vitest
+
+### Task 2: 상위 1·2·3위
+
+- [x] 1위 image-led hero와 2·3위 spotlight 카드 구현
+- [x] 상세 action과 44px 알림 action 분리
+- [x] 320px·fontScale 2.0 세로 fallback과 접근성 label 검증
+- Verify: `RankingTopThree` component tests
+
+### Task 3: 4위 이후와 필터
+
+- [x] 4위 이후 compact card에 가격·마감·인기 근거 표시
+- [x] 기술 basis 패널을 소비자 친화적 한 줄 설명으로 축소
+- [x] 기간·정렬·카테고리 sticky filter와 비동기 상태 유지
+- Verify: ranking components + `StoreScreen` tests
+
+### Task 4: 런타임·배송
+
+- [x] mobile targeted/full test·typecheck·lint·build
+- [x] Android 일반/큰 글꼴·dark·320px 상세 E2E와 PNG/영상
+- [ ] 위키 기록, 코드 리뷰, PR CI, squash merge, main CI, local main 동기화
+
 ## GON-229 체크리스트
 
 ### Task 1: Preference·DB·Edge contract

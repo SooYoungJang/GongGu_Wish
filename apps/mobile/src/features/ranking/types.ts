@@ -9,6 +9,7 @@ import type { GroupBuyAlertState } from "../../services/notifications";
 
 export type {
   GroupBuyRankingItem,
+  GroupBuyRankingMetrics,
   GroupBuyRankingQuery,
   GroupBuyRankingResponse,
   RankingCategory,

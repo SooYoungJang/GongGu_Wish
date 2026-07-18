@@ -50,8 +50,10 @@ vi.mock("react-native", () => {
     );
 
   return {
+    ActivityIndicator: passthrough("ActivityIndicator"),
     Animated: { FlatList: flatList },
     FlatList: flatList,
+    Image: passthrough("Image"),
     Pressable: ({ children, ...props }: any) =>
       ReactMock.createElement("Pressable", props, children),
     StyleSheet: { create: (styles: unknown) => styles },
@@ -152,13 +154,66 @@ describe("ranking components", () => {
     const name = renderer!.root.findByProps({
       testID: "ranking-row-name-1",
     });
-    const metrics = renderer!.root.findByProps({
-      testID: "ranking-row-metrics-1",
+    const signal = renderer!.root.findByProps({
+      testID: "ranking-row-signal-1",
     });
 
     expect(flattenStyle(mainRow.props.style).flexDirection).toBe("column");
     expect(name.props.numberOfLines).toBeUndefined();
-    expect(metrics.props.numberOfLines).toBe(2);
+    expect(signal.props.numberOfLines).toBeUndefined();
+  });
+
+  it("falls back gracefully when a ranking row image fails to load", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingRow
+            item={sampleRanking({
+              thumbnailUrl: "https://example.com/broken.jpg",
+            })}
+            onPress={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />,
+        ),
+      );
+    });
+
+    const image = renderer!.root.findByProps({
+      testID: "ranking-row-image-1",
+    });
+    act(() => image.props.onError());
+
+    expect(
+      renderer!.root.findAllByProps({ testID: "ranking-row-image-1" }),
+    ).toHaveLength(0);
+    expect(flattenText(renderer!.toJSON())).toContain("샘");
+  });
+
+  it("does not truncate a long row seller name at large font scales", () => {
+    windowDimensionsMock.fontScale = 2;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingRow
+            item={sampleRanking({
+              rank: 4,
+              username: "very.long.seller.name.for.accessibility",
+            })}
+            onPress={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />,
+        ),
+      );
+    });
+
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-row-seller-4" }).props
+        .numberOfLines,
+    ).toBeUndefined();
   });
 
   it("renders top-three ranks without leading zeroes", () => {
@@ -240,7 +295,7 @@ describe("ranking components", () => {
     }
   });
 
-  it("renders ranking trends as color-only directional text", () => {
+  it("renders ranking trends with directional symbols in addition to color", () => {
     const cases: Array<{
       trend: GroupBuyRankingItem["trend"];
       label: string;
@@ -382,6 +437,29 @@ describe("ranking components", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the alert action at least 44 by 44 points", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <GroupBuyAlertButton
+            groupBuyName="샘플마켓"
+            isEnabled={false}
+            onPress={vi.fn()}
+          />,
+        ),
+      );
+    });
+
+    const action = renderer!.root.findByType(
+      "Pressable" as unknown as React.ElementType,
+    );
+    const style = flattenStyle(action.props.style({ pressed: false }));
+    expect(style.width).toBeGreaterThanOrEqual(44);
+    expect(style.height).toBeGreaterThanOrEqual(44);
+  });
+
   it("wires seller row follow button to the selected ranking item", () => {
     const item = sampleRanking({
       groupBuyId: "group-follow-target",
@@ -444,8 +522,9 @@ describe("ranking components", () => {
     expect(onPressSeller).toHaveBeenCalledWith(item);
   });
 
-  it("shows the actual popularity metrics instead of a misleading deal count", () => {
+  it("shows a relative popularity reason and deadline instead of technical metrics", () => {
     const item = sampleRanking({
+      endDate: "2099-07-31T15:00:00.000Z",
       priceKrw: 25900,
       metrics: {
         deepViews: 12300,
@@ -465,17 +544,82 @@ describe("ranking components", () => {
             item={item}
             onPress={vi.fn()}
             onToggleAlert={vi.fn()}
+            topScore={192}
           />,
         ),
       );
     });
 
     const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
-    expect(text).toContain("조회 1.2만");
-    expect(text).toContain("저장 7");
-    expect(text).toContain("인기지수 96");
+    expect(text).toContain("인기지수 50");
+    expect(text).toContain("저장 반응 있음");
+    expect(text).toContain("마감");
     expect(text).toContain("25,900원");
+    expect(text).not.toContain("조회 1.2만 · 저장 7 · 알림 2");
     expect(text).not.toContain("공구 7개");
+
+    const detailAction = renderer!.root.findByProps({
+      accessibilityHint: "공구 상세 보기",
+    });
+    expect(detailAction.props.accessibilityLabel).toContain("25,900원");
+    expect(detailAction.props.accessibilityLabel).toContain("인기지수 50");
+    expect(detailAction.props.accessibilityLabel).not.toContain("조회 1.2만");
+  });
+
+  it("ignores a malformed score without zeroing every item index", () => {
+    const rankings = [
+      sampleRanking({
+        groupBuyId: "score-100",
+        rank: 1,
+        metrics: { ...sampleRanking().metrics, score: 100 },
+      }),
+      sampleRanking({
+        groupBuyId: "score-invalid",
+        rank: 2,
+        metrics: { ...sampleRanking().metrics, score: Number.NaN },
+      }),
+      sampleRanking({
+        groupBuyId: "score-50",
+        rank: 3,
+        metrics: { ...sampleRanking().metrics, score: 50 },
+      }),
+    ];
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(<SellerRankingList state={{ status: "ready", data: rankings }} />),
+      );
+    });
+
+    const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
+    expect(text).toContain("인기지수 100");
+    expect(text).toContain("인기지수 0");
+    expect(text).toContain("인기지수 50");
+  });
+
+  it("does not promote a misplaced top rank ahead of the server order", () => {
+    const rankings = [
+      sampleRanking({ groupBuyId: "rank-4", rank: 4 }),
+      sampleRanking({ groupBuyId: "rank-1", rank: 1 }),
+      sampleRanking({ groupBuyId: "rank-2", rank: 2 }),
+    ];
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(<SellerRankingList state={{ status: "ready", data: rankings }} />),
+      );
+    });
+
+    expect(
+      renderer!.root
+        .findAllByType("View" as unknown as React.ElementType)
+        .filter((node) => node.props.testID === "ranking-top-hero"),
+    ).toHaveLength(0);
+    expect(renderer!.root.findByProps({ testID: "ranking-row-4" })).toBeTruthy();
+    expect(renderer!.root.findByProps({ testID: "ranking-row-1" })).toBeTruthy();
+    expect(renderer!.root.findByProps({ testID: "ranking-row-2" })).toBeTruthy();
   });
 
   it("uses the same rounded card surface for every ranking row", () => {
@@ -503,6 +647,7 @@ describe("ranking components", () => {
       expect(style.borderColor).toBe(commerceLightColors.borderLight);
       expect(style.borderBottomWidth).toBeUndefined();
       expect(style.overflow).toBeUndefined();
+      expect(style.boxShadow).toBeUndefined();
       expect(style.shadowOpacity).toBeLessThanOrEqual(0.08);
       expect(style.elevation).toBeLessThanOrEqual(1);
       expect(style.marginBottom).toBe(spacing.sm);
@@ -648,6 +793,22 @@ describe("ranking components", () => {
       "아직 집계된 랭킹이 없어요",
     );
     expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it("announces the ranking loading state as progress", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(<SellerRankingList state={{ status: "loading" }} />),
+      );
+    });
+
+    const viewport = renderer!.root.findByProps({
+      testID: "ranking-status-viewport",
+    });
+    expect(viewport.props.accessibilityRole).toBe("progressbar");
+    expect(viewport.props.accessibilityLabel).toBe("랭킹 불러오는 중");
   });
 
   it("keeps cached ranking rows visible with a stale-data retry notice", () => {

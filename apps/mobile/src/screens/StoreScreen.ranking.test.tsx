@@ -93,10 +93,11 @@ vi.mock("react-native", () => {
       FlatList: flatList,
       Value: AnimatedValue,
       View: passthrough("AnimatedView"),
-      event: vi.fn((mapping: any[]) => {
+      event: vi.fn((mapping: any[], config: { listener?: CallableFunction }) => {
         const value = mapping[0].nativeEvent.contentOffset.y as AnimatedValue;
         return (event: { nativeEvent: { contentOffset: { y: number } } }) => {
           value.value = event.nativeEvent.contentOffset.y;
+          config.listener?.(event);
         };
       }),
       timing: vi.fn((value: AnimatedValue, config: { toValue: number }) => ({
@@ -226,8 +227,10 @@ describe("StoreScreen ranking redesign", () => {
     expect(text).not.toContain("사람들이 많이 찾고 저장한 공구를 모았어요");
     expect(text).toContain("업데이트");
     expect(text).not.toContain("전체 랭킹");
-    expect(text).toContain("인기 공구 랭킹");
-    expect(text).toContain("최근 7일 롤링 집계");
+    expect(text).toContain("인기 공구");
+    expect(text).toContain("인기지수 안내");
+    expect(text).toContain("현재 목록 최고점=100");
+    expect(text).toContain("조회·저장·알림·상세 관심");
     expect(
       renderer!.root.findByProps({ testID: "ranking-basis-bar" }),
     ).toBeTruthy();
@@ -293,6 +296,78 @@ describe("StoreScreen ranking redesign", () => {
     ).toBe("absolute");
   });
 
+  it("collapses auxiliary filters on scroll while keeping the period tabs pinned", () => {
+    const navigation = createNavigation();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <StoreScreen
+            navigation={navigation as never}
+            route={{ key: "Store-test", name: "Store" } as never}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    act(() => {
+      renderer!.root
+        .findByProps({ testID: "ranking-collapsible-filters" })
+        .props.onLayout({
+          nativeEvent: { layout: { height: 132, width: 375, x: 0, y: 0 } },
+        });
+    });
+
+    const flatList = renderer!.root.findByType(
+      "FlatList" as unknown as React.ElementType,
+    );
+    act(() =>
+      flatList.props.onScroll({
+        nativeEvent: { contentOffset: { y: 240 } },
+      }),
+    );
+
+    const header = renderer!.root.findByProps({
+      testID: "ranking-filter-header",
+    });
+    const transform = flattenStyle(header.props.style).transform as Array<{
+      translateY: { __getValue: () => number };
+    }>;
+
+    expect(transform[0].translateY.__getValue()).toBe(-132);
+    expect(
+      header.findByProps({ testID: "ranking-period-tabs" }),
+    ).toBeTruthy();
+    expect(
+      header.findAllByProps({ testID: "ranking-basis-bar" }),
+    ).toHaveLength(0);
+    expect(
+      header.findAllByProps({ accessibilityLabel: "카테고리 전체 선택" }),
+    ).toHaveLength(0);
+    expect(
+      header.findByProps({ testID: "ranking-collapsible-filters" }).props
+        .accessibilityElementsHidden,
+    ).toBe(true);
+    expect(
+      header.findByProps({ testID: "ranking-collapsible-filters" }).props
+        .importantForAccessibility,
+    ).toBe("no-hide-descendants");
+
+    act(() =>
+      flatList.props.onScroll({
+        nativeEvent: { contentOffset: { y: 0 } },
+      }),
+    );
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-collapsible-filters" })
+        .props.accessibilityElementsHidden,
+    ).toBe(false);
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-basis-bar" }),
+    ).toBeTruthy();
+  });
+
   it("uses scalable period tabs instead of a fixed text height", () => {
     const navigation = createNavigation();
     let renderer: TestRenderer.ReactTestRenderer;
@@ -315,6 +390,27 @@ describe("StoreScreen ranking redesign", () => {
 
     expect(style.height).toBeUndefined();
     expect(style.minHeight).toBeGreaterThanOrEqual(44);
+  });
+
+  it("keeps the search target at least 44 by 44 points", () => {
+    const navigation = createNavigation();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <StoreScreen
+            navigation={navigation as never}
+            route={{ key: "Store-test", name: "Store" } as never}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const search = renderer!.root.findByProps({ accessibilityLabel: "랭킹 검색" });
+    const style = flattenStyle(search.props.style({ pressed: false }));
+    expect(style.width).toBeGreaterThanOrEqual(44);
+    expect(style.height).toBeGreaterThanOrEqual(44);
   });
 
   it("keeps the list inset stable under the unified sticky header", () => {
@@ -349,6 +445,9 @@ describe("StoreScreen ranking redesign", () => {
     expect(initialTopInset).toBe(184 + spacing.sm);
 
     expect(initialList.props.contentContainerStyle).toBeTruthy();
+    expect(initialList.props.progressViewOffset).toBe(
+      184 + spacing.sm + spacing.lg,
+    );
   });
 
   it("refreshes the ranking when its active GNB tab is pressed again", () => {
