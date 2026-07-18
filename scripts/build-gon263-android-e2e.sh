@@ -22,6 +22,8 @@ cp apps/mobile/android/app/src/main/AndroidManifest.xml \
   artifacts/android/android-manifest.xml
 grep -F 'android:usesCleartextTraffic="true"' \
   artifacts/android/android-manifest.xml
+node scripts/generate-gon263-android-codegen.mjs \
+  2>&1 | tee artifacts/android/android-codegen.log
 
 pushd apps/mobile/android >/dev/null
 ./gradlew :app:generateCodegenArtifactsFromSchema \
@@ -32,7 +34,7 @@ pushd apps/mobile/android >/dev/null
   -Dorg.gradle.workers.max=2 \
   -PnewArchEnabled=true \
   -PreactNativeArchitectures="$ORG_GRADLE_PROJECT_reactNativeArchitectures" \
-  2>&1 | tee "$repo_root/artifacts/android/android-codegen.log"
+  2>&1 | tee -a "$repo_root/artifacts/android/android-codegen.log"
 ./gradlew app:assembleRelease \
   -x lint \
   -x test \
