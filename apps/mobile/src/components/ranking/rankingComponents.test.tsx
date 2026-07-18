@@ -303,12 +303,12 @@ describe("ranking components", () => {
     }> = [
       {
         trend: { kind: "up", delta: 2 },
-        label: "▲2",
+        label: "▲2위",
         color: commerceLightColors.accent,
       },
       {
         trend: { kind: "down", delta: 3 },
-        label: "▼3",
+        label: "▼3위",
         color: commerceLightColors.blue,
       },
       { trend: { kind: "same" }, label: "-", color: commerceLightColors.weak },
@@ -588,7 +588,9 @@ describe("ranking components", () => {
 
     act(() => {
       renderer = TestRenderer.create(
-        withTheme(<SellerRankingList state={{ status: "ready", data: rankings }} />),
+        withTheme(
+          <SellerRankingList state={{ status: "ready", data: rankings }} />,
+        ),
       );
     });
 
@@ -608,7 +610,9 @@ describe("ranking components", () => {
 
     act(() => {
       renderer = TestRenderer.create(
-        withTheme(<SellerRankingList state={{ status: "ready", data: rankings }} />),
+        withTheme(
+          <SellerRankingList state={{ status: "ready", data: rankings }} />,
+        ),
       );
     });
 
@@ -617,9 +621,15 @@ describe("ranking components", () => {
         .findAllByType("View" as unknown as React.ElementType)
         .filter((node) => node.props.testID === "ranking-top-hero"),
     ).toHaveLength(0);
-    expect(renderer!.root.findByProps({ testID: "ranking-row-4" })).toBeTruthy();
-    expect(renderer!.root.findByProps({ testID: "ranking-row-1" })).toBeTruthy();
-    expect(renderer!.root.findByProps({ testID: "ranking-row-2" })).toBeTruthy();
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-row-4" }),
+    ).toBeTruthy();
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-row-1" }),
+    ).toBeTruthy();
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-row-2" }),
+    ).toBeTruthy();
   });
 
   it("uses the same rounded card surface for every ranking row", () => {

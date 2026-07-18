@@ -225,17 +225,125 @@ Deno.test(
     assertEquals(response.data[0].groupBuyId, "group-buy-1");
     assertEquals(response.pageInfo.hasMore, true);
     assertEquals(response.pageInfo.nextCursor !== null, true);
-    assertEquals(
-      decodeRankingCursor(response.pageInfo.nextCursor!),
-      {
-        category: "all",
-        period: "weekly",
-        sort: "popular",
-        groupBuyId: "group-buy-1",
-        numericValue: 14,
-        secondaryScore: 14,
-      },
-    );
+    assertEquals(decodeRankingCursor(response.pageInfo.nextCursor!), {
+      category: "all",
+      period: "weekly",
+      sort: "popular",
+      groupBuyId: "group-buy-1",
+      numericValue: 14,
+      secondaryScore: 14,
+    });
     assertEquals(response.meta.scoreVersion, "v2");
+  },
+);
+
+Deno.test(
+  "derives the trend delta from rank movement instead of score delta",
+  () => {
+    const response = buildRankingResponse(
+      [
+        {
+          group_buy_id: "group-buy-rank-movement",
+          rank: 1,
+          previous_rank: 17,
+          trend_kind: "up",
+          trend_delta: 6,
+          product_name: "순위 이동 공구",
+          brand_name: null,
+          username: "seller-rank-movement",
+          category: "food",
+          thumbnail_url: null,
+          media_urls: [],
+          start_date: null,
+          end_date: null,
+          price_krw: null,
+          created_at: "2026-07-16T00:00:00.000Z",
+          deep_views: 1,
+          bookmarks: 0,
+          notifications: 0,
+          search_clicks: 0,
+          score: 35,
+          score_delta: 6,
+          score_version: "v2",
+        },
+      ],
+      normalizeRankingRequest({ sort: "popular" }),
+    );
+
+    assertEquals(response.data[0].previousRank, 17);
+    assertEquals(response.data[0].trend, { kind: "up", delta: 16 });
+  },
+);
+
+Deno.test("marks an item NEW when its previous score was zero", () => {
+  const response = buildRankingResponse(
+    [
+      {
+        group_buy_id: "group-buy-new",
+        rank: 1,
+        previous_rank: 1,
+        trend_kind: "new",
+        trend_delta: 54,
+        product_name: "신규 신호 공구",
+        brand_name: null,
+        username: "seller-new",
+        category: "food",
+        thumbnail_url: null,
+        media_urls: [],
+        start_date: null,
+        end_date: null,
+        price_krw: null,
+        created_at: "2026-07-16T00:00:00.000Z",
+        deep_views: 15,
+        bookmarks: 1,
+        notifications: 2,
+        search_clicks: 3,
+        score: 54,
+        score_delta: 54,
+        score_version: "v2",
+      },
+    ],
+    normalizeRankingRequest({ sort: "popular" }),
+  );
+
+  assertEquals(response.data[0].previousRank, null);
+  assertEquals(response.data[0].trend, { kind: "new" });
+});
+
+Deno.test(
+  "keeps the trend steady when rank is unchanged despite a score decrease",
+  () => {
+    const response = buildRankingResponse(
+      [
+        {
+          group_buy_id: "group-buy-steady-rank",
+          rank: 1,
+          previous_rank: 1,
+          trend_kind: "down",
+          trend_delta: 6,
+          product_name: "순위 유지 공구",
+          brand_name: null,
+          username: "seller-steady-rank",
+          category: "food",
+          thumbnail_url: null,
+          media_urls: [],
+          start_date: null,
+          end_date: null,
+          price_krw: null,
+          created_at: "2026-07-16T00:00:00.000Z",
+          deep_views: 0,
+          bookmarks: 0,
+          notifications: 0,
+          search_clicks: 0,
+          score: 0,
+          score_delta: -6,
+          score_version: "v2",
+        },
+      ],
+      normalizeRankingRequest({ sort: "popular" }),
+    );
+
+    assertEquals(response.data[0].previousRank, 1);
+    assertEquals(response.data[0].trend, { kind: "same" });
   },
 );

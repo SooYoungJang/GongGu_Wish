@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
-import { StyleSheet } from 'react-native';
+import { useMemo } from "react";
+import { StyleSheet } from "react-native";
 
-import { SText } from '../ui/SText';
-import type { CommerceColorPalette } from '../../design/commerce';
-import { useCommerceTheme } from '../../design/useCommerceTheme';
-import type { RankingTrend } from '../../features/ranking/types';
+import { SText } from "../ui/SText";
+import type { CommerceColorPalette } from "../../design/commerce";
+import { useCommerceTheme } from "../../design/useCommerceTheme";
+import type { RankingTrend } from "../../features/ranking/types";
 
 export interface RankingTrendBadgeProps {
   trend: RankingTrend;
@@ -12,14 +12,14 @@ export interface RankingTrendBadgeProps {
 
 function getTrendStyle(trend: RankingTrend, colors: CommerceColorPalette) {
   switch (trend.kind) {
-    case 'up':
-      return { label: `▲${trend.delta}`, text: colors.accent };
-    case 'down':
-      return { label: `▼${trend.delta}`, text: colors.blue };
-    case 'new':
-      return { label: 'NEW', text: colors.success };
+    case "up":
+      return { label: `▲${trend.delta}위`, text: colors.accent };
+    case "down":
+      return { label: `▼${trend.delta}위`, text: colors.blue };
+    case "new":
+      return { label: "NEW", text: colors.success };
     default:
-      return { label: '-', text: colors.weak };
+      return { label: "-", text: colors.weak };
   }
 }
 
@@ -39,9 +39,9 @@ function makeStyles() {
   return StyleSheet.create({
     text: {
       fontSize: 11,
-      fontWeight: '900',
+      fontWeight: "900",
       minWidth: 24,
-      textAlign: 'center',
+      textAlign: "center",
     },
   });
 }
