@@ -388,7 +388,7 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
     header: {
       backgroundColor: colors.bg,
       paddingHorizontal: spacing.lg,
-      paddingTop: spacing.lg,
+      paddingTop: spacing.md,
     },
     iconButton: {
       alignItems: "center",
@@ -433,10 +433,10 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       flex: 1,
     },
     selectedPeriodTab: {
-      borderBottomColor: colors.text,
+      borderBottomColor: colors.accent,
     },
     selectedPeriodText: {
-      color: colors.text,
+      color: colors.accent,
       fontWeight: "900",
     },
   });

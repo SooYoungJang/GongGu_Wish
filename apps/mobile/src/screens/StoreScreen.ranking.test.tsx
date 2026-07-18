@@ -228,9 +228,9 @@ describe("StoreScreen ranking redesign", () => {
     expect(text).toContain("업데이트");
     expect(text).not.toContain("전체 랭킹");
     expect(text).toContain("인기 공구");
-    expect(text).toContain("인기지수 안내");
-    expect(text).toContain("현재 목록 최고점=100");
-    expect(text).toContain("조회·저장·알림·상세 관심");
+    expect(text).toContain("조회·저장·알림·상세 진입 반응을 반영한 순위");
+    expect(text).not.toContain("인기지수");
+    expect(text).not.toContain("최고점=100");
     expect(
       renderer!.root.findByProps({ testID: "ranking-basis-bar" }),
     ).toBeTruthy();

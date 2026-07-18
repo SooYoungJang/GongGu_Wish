@@ -177,7 +177,7 @@ describe("RankingTopThree", () => {
     ).toBeTruthy();
   });
 
-  it("leads with product imagery and relative popularity reasons", () => {
+  it("leads with product imagery and rank movement without popularity scores", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -188,6 +188,7 @@ describe("RankingTopThree", () => {
               sampleRanking(1, {
                 thumbnailUrl: "https://example.com/leader.jpg",
                 endDate: "2099-07-31T15:00:00.000Z",
+                trend: { kind: "up", delta: 16 },
                 metrics: {
                   deepViews: 5000,
                   bookmarks: 0,
@@ -198,6 +199,7 @@ describe("RankingTopThree", () => {
                 },
               }),
               sampleRanking(2, {
+                trend: { kind: "new" },
                 metrics: {
                   deepViews: 3000,
                   bookmarks: 20,
@@ -208,6 +210,7 @@ describe("RankingTopThree", () => {
                 },
               }),
               sampleRanking(3, {
+                trend: { kind: "down", delta: 2 },
                 metrics: {
                   deepViews: 2000,
                   bookmarks: 0,
@@ -230,13 +233,11 @@ describe("RankingTopThree", () => {
     expect(
       renderer!.root.findByProps({ testID: "ranking-top-image-1" }),
     ).toBeTruthy();
-    expect(text).toContain("지금 뜨는 공구");
-    expect(text).toContain("인기지수 100");
-    expect(text).toContain("인기지수 50");
-    expect(text).toContain("인기지수 25");
-    expect(text).toContain("조회 반응 있음");
-    expect(text).toContain("저장 반응 있음");
-    expect(text).toContain("알림 관심 있음");
+    expect(text).toContain("지금 가장 인기 있는 공구");
+    expect(text).toContain("▲16위");
+    expect(text).toContain("NEW");
+    expect(text).toContain("▼2위");
+    expect(text).not.toContain("인기지수");
     expect(text).toContain("마감");
     expect(text).toContain("상품 이미지 준비 중");
   });
@@ -384,7 +385,7 @@ describe("RankingTopThree", () => {
     expect(onToggleAlert).toHaveBeenCalledWith(
       expect.objectContaining({ groupBuyId: "group-1" }),
     );
-    expect(detailAction.props.accessibilityLabel).toContain("인기지수");
+    expect(detailAction.props.accessibilityLabel).not.toContain("인기지수");
     expect(detailAction.props.accessibilityLabel).toContain("가격 정보 없음");
     expect(detailAction.props.accessibilityLabel).toContain("마감일 미정");
   });

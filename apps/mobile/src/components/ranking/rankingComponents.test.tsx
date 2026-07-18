@@ -8,7 +8,7 @@ import { RankingTrendBadge } from "./RankingTrendBadge";
 import { SellerRankingList } from "./SellerRankingList";
 import { SellerRankingRow } from "./SellerRankingRow";
 import { ThemeProvider } from "../../context/ThemeContext";
-import { commerceLightColors, commerceRadius } from "../../design/commerce";
+import { commerceLightColors } from "../../design/commerce";
 import { spacing } from "../../design/tokens";
 import type { GroupBuyRankingItem } from "../../features/ranking/types";
 import { getRankingTrend } from "../../features/ranking/types";
@@ -154,13 +154,8 @@ describe("ranking components", () => {
     const name = renderer!.root.findByProps({
       testID: "ranking-row-name-1",
     });
-    const signal = renderer!.root.findByProps({
-      testID: "ranking-row-signal-1",
-    });
-
     expect(flattenStyle(mainRow.props.style).flexDirection).toBe("column");
     expect(name.props.numberOfLines).toBeUndefined();
-    expect(signal.props.numberOfLines).toBeUndefined();
   });
 
   it("falls back gracefully when a ranking row image fails to load", () => {
@@ -522,9 +517,10 @@ describe("ranking components", () => {
     expect(onPressSeller).toHaveBeenCalledWith(item);
   });
 
-  it("shows a relative popularity reason and deadline instead of technical metrics", () => {
+  it("shows rank movement and deadline instead of popularity scores", () => {
     const item = sampleRanking({
       endDate: "2099-07-31T15:00:00.000Z",
+      trend: { kind: "up", delta: 4 },
       priceKrw: 25900,
       metrics: {
         deepViews: 12300,
@@ -544,15 +540,14 @@ describe("ranking components", () => {
             item={item}
             onPress={vi.fn()}
             onToggleAlert={vi.fn()}
-            topScore={192}
           />,
         ),
       );
     });
 
     const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
-    expect(text).toContain("인기지수 50");
-    expect(text).toContain("저장 반응 있음");
+    expect(text).toContain("▲4위");
+    expect(text).not.toContain("인기지수");
     expect(text).toContain("마감");
     expect(text).toContain("25,900원");
     expect(text).not.toContain("조회 1.2만 · 저장 7 · 알림 2");
@@ -562,11 +557,11 @@ describe("ranking components", () => {
       accessibilityHint: "공구 상세 보기",
     });
     expect(detailAction.props.accessibilityLabel).toContain("25,900원");
-    expect(detailAction.props.accessibilityLabel).toContain("인기지수 50");
+    expect(detailAction.props.accessibilityLabel).not.toContain("인기지수");
     expect(detailAction.props.accessibilityLabel).not.toContain("조회 1.2만");
   });
 
-  it("ignores a malformed score without zeroing every item index", () => {
+  it("never exposes score-derived popularity indexes", () => {
     const rankings = [
       sampleRanking({
         groupBuyId: "score-100",
@@ -595,9 +590,7 @@ describe("ranking components", () => {
     });
 
     const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
-    expect(text).toContain("인기지수 100");
-    expect(text).toContain("인기지수 0");
-    expect(text).toContain("인기지수 50");
+    expect(text).not.toContain("인기지수");
   });
 
   it("does not promote a misplaced top rank ahead of the server order", () => {
@@ -632,7 +625,7 @@ describe("ranking components", () => {
     ).toBeTruthy();
   });
 
-  it("uses the same rounded card surface for every ranking row", () => {
+  it("uses the same editorial divider treatment for every ranking row", () => {
     const rankings = [4, 5, 6, 7].map((rank) =>
       sampleRanking({ groupBuyId: `group-${rank}`, rank }),
     );
@@ -650,21 +643,19 @@ describe("ranking components", () => {
       const row = renderer!.root.findByProps({ testID: `ranking-row-${rank}` });
       const style = flattenStyle(row.props.style);
 
-      expect(style.borderRadius).toBe(commerceRadius.lg);
-      expect(style.borderCurve).toBe("continuous");
-      expect(style.backgroundColor).toBe(commerceLightColors.panelBg);
-      expect(style.borderWidth).toBe(1);
-      expect(style.borderColor).toBe(commerceLightColors.borderLight);
-      expect(style.borderBottomWidth).toBeUndefined();
+      expect(style.borderRadius).toBeUndefined();
+      expect(style.backgroundColor).toBe(commerceLightColors.bg);
+      expect(style.borderBottomWidth).toBe(1);
+      expect(style.borderBottomColor).toBe(commerceLightColors.divider);
       expect(style.overflow).toBeUndefined();
       expect(style.boxShadow).toBeUndefined();
       expect(style.shadowOpacity).toBeLessThanOrEqual(0.08);
       expect(style.elevation).toBeLessThanOrEqual(1);
-      expect(style.marginBottom).toBe(spacing.sm);
+      expect(style.marginBottom).toBe(spacing.xs);
     }
   });
 
-  it("keeps every row rounded when a filter replaces the list data", () => {
+  it("keeps every row editorial when a filter replaces the list data", () => {
     const initialRankings = [1, 2, 3, 4].map((rank) =>
       sampleRanking({ groupBuyId: `initial-group-${rank}`, rank }),
     );
@@ -697,17 +688,15 @@ describe("ranking components", () => {
       const row = renderer!.root.findByProps({ testID: `ranking-row-${rank}` });
       const style = flattenStyle(row.props.style);
 
-      expect(style.borderRadius).toBe(commerceRadius.lg);
-      expect(style.borderCurve).toBe("continuous");
-      expect(style.backgroundColor).toBe(commerceLightColors.panelBg);
-      expect(style.borderWidth).toBe(1);
-      expect(style.borderColor).toBe(commerceLightColors.borderLight);
+      expect(style.borderRadius).toBeUndefined();
+      expect(style.backgroundColor).toBe(commerceLightColors.bg);
       expect(style.overflow).toBeUndefined();
-      expect(style.borderBottomWidth).toBeUndefined();
+      expect(style.borderBottomWidth).toBe(1);
+      expect(style.borderBottomColor).toBe(commerceLightColors.divider);
     }
   });
 
-  it("renders ready ranking rows with list accessibility and compact Korean counts", () => {
+  it("renders ready ranking rows without exposing engagement counts", () => {
     const rankings = [
       sampleRanking({
         metrics: {
@@ -741,9 +730,8 @@ describe("ranking components", () => {
     expect(flatList.props.accessibilityLabel).toBe("공구 랭킹 목록");
     expect(flatList.props.showsVerticalScrollIndicator).toBe(false);
     expect(text).toContain("샘플마켓");
-    expect(text).toContain("조회");
-    expect(text).toContain("저장");
-    expect(text).toContain("7");
+    expect(text).not.toContain("조회 1.2만");
+    expect(text).not.toContain("저장 7");
   });
 
   it("forwards the shared animated scroll handler to the native list", () => {
