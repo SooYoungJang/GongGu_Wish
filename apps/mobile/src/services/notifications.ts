@@ -175,7 +175,11 @@ export async function registerForPushNotifications(
       { authToken },
     );
     return token;
-  } catch {
+  } catch (error) {
+    console.warn(
+      "[Notifications] Push token registration failed",
+      error instanceof Error ? error.message : "unknown error",
+    );
     return null;
   }
 }

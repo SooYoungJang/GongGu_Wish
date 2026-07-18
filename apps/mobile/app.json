@@ -23,6 +23,7 @@
     },
     "android": {
       "package": "com.gonggu.wish",
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize"
     },
     "web": {

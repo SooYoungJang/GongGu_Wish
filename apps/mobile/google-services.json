@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "292466162526",
+    "project_id": "gonggu-wish-7425b02f-2026",
+    "storage_bucket": "gonggu-wish-7425b02f-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:292466162526:android:ae0aedc47fa5be7d1fadcf",
+        "android_client_info": {
+          "package_name": "com.gonggu.wish"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtzc0F37PMkTUuitZiy6XaUFhPMMTGhwU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
