@@ -52,6 +52,7 @@ test("authenticated preference reads cannot mutate or leak push tokens", () => {
 });
 
 test("Android notification runtime covers consent, deep links, and persistence", () => {
+  const easConfig = JSON.parse(read("apps/mobile/eas.json"));
   const app = read("apps/mobile/src/App.tsx");
   const settings = read("apps/mobile/src/screens/SettingsScreen.tsx");
   const notifications = read("apps/mobile/src/services/notifications.ts");
@@ -68,6 +69,7 @@ test("Android notification runtime covers consent, deep links, and persistence",
   const localFixtureServer = read("scripts/mobile-e2e-api-server.mjs");
   const sharedFixtureId = "gon263-e2e-price-200000";
 
+  assert.equal(easConfig.build.development.environment, "development");
   assert.match(app, /requestPermission: false/);
   assert.match(app, /Constants\.expoConfig\?\.extra\?\.e2eSupabaseUrl/);
   assert.match(settings, /testID="push-notification-toggle"/);
