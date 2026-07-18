@@ -51,7 +51,7 @@ appId: com.gonggu.wish
     id: "fl-input-password"
 - inputText: "Gon229E2E2026!"
 - tapOn:
-    text: "로그인"
+    id: "auth-login-submit"
 - extendedWaitUntil:
     visible:
       id: "new-submission-notification-toggle"

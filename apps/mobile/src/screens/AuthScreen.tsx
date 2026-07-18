@@ -843,6 +843,7 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
             accessible
             accessibilityRole="button"
             accessibilityLabel="로그인"
+            testID="auth-login-submit"
             accessibilityState={{ disabled: submitting }}
             onPress={handleLogin}
             disabled={submitting}

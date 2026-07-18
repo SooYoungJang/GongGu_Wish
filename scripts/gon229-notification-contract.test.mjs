@@ -55,6 +55,7 @@ test("Android notification runtime covers consent, deep links, and persistence",
   const easConfig = JSON.parse(read("apps/mobile/eas.json"));
   const app = read("apps/mobile/src/App.tsx");
   const settings = read("apps/mobile/src/screens/SettingsScreen.tsx");
+  const authScreen = read("apps/mobile/src/screens/AuthScreen.tsx");
   const notifications = read("apps/mobile/src/services/notifications.ts");
   const notificationPayload = read(
     "apps/mobile/src/services/notificationPayload.ts",
@@ -88,6 +89,8 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(preferencesFlow, /text: "공구위시 로그인 화면"/);
   assert.match(preferencesFlow, /id: "fl-input-email"/);
   assert.match(preferencesFlow, /id: "fl-input-password"/);
+  assert.match(preferencesFlow, /id: "auth-login-submit"/);
+  assert.match(authScreen, /testID="auth-login-submit"/);
   assert.match(flow, /id: "follow-influencer-notifications"/);
   assert.match(flow, /text: "@gon263_price ×"/);
   assert.match(runner, /cmd statusbar expand-notifications/);
