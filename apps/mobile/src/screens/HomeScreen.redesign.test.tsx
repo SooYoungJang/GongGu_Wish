@@ -31,6 +31,10 @@ const fallbackGroupBuysMock = vi.hoisted(() => [
     },
   },
 ]);
+const nativeAdMock = vi.hoisted(() => ({
+  mountCount: 0,
+  status: 'loaded' as 'loaded' | 'loading' | 'unavailable',
+}));
 
 vi.mock('../api', () => ({
   fallbackGroupBuys: fallbackGroupBuysMock,
@@ -40,8 +44,23 @@ vi.mock('../api', () => ({
 vi.mock('../components/ads/NativeAdCard', () => {
   const ReactMock = require('react');
   return {
-    NativeAdCard: ({ testID }: { testID?: string }) =>
-      ReactMock.createElement('NativeAdCard', { testID }),
+    NativeAdCard: ({
+      onLoadStateChange,
+      testID,
+    }: {
+      onLoadStateChange?: React.Dispatch<
+        'loaded' | 'loading' | 'unavailable'
+      >;
+      testID?: string;
+    }) => {
+      ReactMock.useEffect(() => {
+        nativeAdMock.mountCount += 1;
+        onLoadStateChange?.(nativeAdMock.status);
+      }, [onLoadStateChange]);
+      return nativeAdMock.status === 'loaded'
+        ? ReactMock.createElement('NativeAdCard', { testID })
+        : null;
+    },
   };
 });
 
@@ -271,6 +290,8 @@ function findPromoBanner(
 
 beforeEach(() => {
   mockWindowDimensions.width = 393;
+  nativeAdMock.mountCount = 0;
+  nativeAdMock.status = 'loaded';
 });
 
 describe('HomeScreenContent redesign', () => {
@@ -1544,6 +1565,75 @@ describe('HomeScreenContent redesign v2', () => {
       'recommended-7',
       'recommended-8',
     ]);
+  });
+
+  it('does not expose products seven and eight while the ad is unresolved', () => {
+    nativeAdMock.status = 'loading';
+    const groupBuys = Array.from({ length: 8 }, (_, index) => ({
+      ...sampleGroupBuys[index % sampleGroupBuys.length],
+      id: `pending-${index + 1}`,
+      isHomeBanner: false,
+    }));
+    const renderer = renderHomeContent({ groupBuys });
+    const grid = renderer.root
+      .findAllByProps({ testID: 'home-recommendation-grid' })
+      .find((node) => String(node.type) === 'View')!;
+
+    expect(
+      grid.children
+        .map((child) =>
+          typeof child === 'string' ? child : child.props.item?.id,
+        )
+        .filter(Boolean),
+    ).toEqual([
+      'pending-1',
+      'pending-2',
+      'pending-3',
+      'pending-4',
+      'pending-5',
+      'pending-6',
+    ]);
+  });
+
+  it('reveals products seven and eight together when no ad is available', () => {
+    nativeAdMock.status = 'unavailable';
+    const groupBuys = Array.from({ length: 8 }, (_, index) => ({
+      ...sampleGroupBuys[index % sampleGroupBuys.length],
+      id: `fallback-${index + 1}`,
+      isHomeBanner: false,
+    }));
+    const renderer = renderHomeContent({ groupBuys });
+    const grid = renderer.root
+      .findAllByProps({ testID: 'home-recommendation-grid' })
+      .find((node) => String(node.type) === 'View')!;
+
+    expect(
+      grid.children
+        .map((child) =>
+          typeof child === 'string' ? child : child.props.item?.id,
+        )
+        .filter(Boolean),
+    ).toEqual(groupBuys.map((item) => item.id));
+    expect(
+      renderer.root.findAllByType(
+        'NativeAdCard' as unknown as React.ElementType,
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('keeps one stable ad placement when recommendation order changes', () => {
+    const first = Array.from({ length: 8 }, (_, index) => ({
+      ...sampleGroupBuys[index % sampleGroupBuys.length],
+      id: `stable-${index + 1}`,
+      isHomeBanner: false,
+    }));
+    const renderer = renderHomeContent({ groupBuys: first });
+
+    act(() => {
+      renderer.update(createHomeContent({ groupBuys: [...first].reverse() }));
+    });
+
+    expect(nativeAdMock.mountCount).toBe(1);
   });
 
   it('does not render the old weekly calendar sections', () => {

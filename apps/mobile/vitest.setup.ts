@@ -229,6 +229,7 @@ vi.mock("react-native-google-mobile-ads", () => ({
   AdsConsent: {
     gatherConsent: vi.fn(async () => ({ canRequestAds: true })),
     getConsentInfo: vi.fn(async () => ({ canRequestAds: true })),
+    showPrivacyOptionsForm: vi.fn(async () => ({ canRequestAds: true })),
   },
   NativeAd: {
     createForAdRequest: vi.fn(),
@@ -241,6 +242,13 @@ vi.mock("react-native-google-mobile-ads", () => ({
     BODY: "body",
     CALL_TO_ACTION: "callToAction",
     HEADLINE: "headline",
+    ICON: "icon",
+  },
+  NativeAdChoicesPlacement: {
+    TOP_RIGHT: 1,
+  },
+  NativeMediaAspectRatio: {
+    LANDSCAPE: 2,
   },
   TestIds: {
     NATIVE: "test-native-unit",

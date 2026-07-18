@@ -33,6 +33,7 @@ import { PriceText } from "../components/ui/PriceText";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
 import { DealCard } from "../components/DealCard";
 import { NativeAdCard } from "../components/ads/NativeAdCard";
+import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
 import { CATEGORIES } from "../components/home/CategoryRow";
 import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
@@ -713,23 +714,54 @@ function RecommendedProducts({
   s: ReturnType<typeof makeStyles>;
 }) {
   const products = groupBuys.slice(0, 8);
+  const adEligible = products.length >= 6;
+  const leadingProducts = adEligible ? products.slice(0, 6) : products;
+  const trailingProducts = adEligible ? products.slice(6) : [];
+  const [adState, setAdState] = useState<{
+    eligible: boolean;
+    status: NativeAdLoadStatus;
+  }>(() => ({ eligible: adEligible, status: "loading" }));
+  const adStatus = adState.eligible === adEligible ? adState.status : "loading";
+  const handleAdLoadStateChange = useCallback((status: NativeAdLoadStatus) => {
+    setAdState({ eligible: true, status });
+  }, []);
+
+  useEffect(() => {
+    if (!adEligible) {
+      setAdState({ eligible: false, status: "loading" });
+    }
+  }, [adEligible]);
 
   return (
     <View style={s.recommendSection}>
       {products.length > 0 ? (
         <View style={s.productGrid} testID="home-recommendation-grid">
-          {products.map((item, index) => (
-            <Fragment key={item.id}>
-              <DealCard
-                item={item}
-                onPress={() => onPressDeal(item)}
-                category={categoryForGroupBuy(item, index)}
-              />
-              {index === 5 ? (
-                <NativeAdCard testID="home-native-ad" />
-              ) : null}
-            </Fragment>
+          {leadingProducts.map((item, index) => (
+            <DealCard
+              category={categoryForGroupBuy(item, index)}
+              item={item}
+              key={item.id}
+              onPress={() => onPressDeal(item)}
+            />
           ))}
+          {adEligible ? (
+            <Fragment key="home-recommendation-ad">
+              <NativeAdCard
+                onLoadStateChange={handleAdLoadStateChange}
+                testID="home-native-ad"
+              />
+              {adStatus === "loading"
+                ? null
+                : trailingProducts.map((item, index) => (
+                    <DealCard
+                      category={categoryForGroupBuy(item, index + 6)}
+                      item={item}
+                      key={item.id}
+                      onPress={() => onPressDeal(item)}
+                    />
+                  ))}
+            </Fragment>
+          ) : null}
         </View>
       ) : (
         <View style={s.productEmpty}>
