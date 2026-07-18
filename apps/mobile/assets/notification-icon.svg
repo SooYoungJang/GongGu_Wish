@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <title>GongGu Wish notification icon</title>
+  <g fill="#ffffff">
+    <circle cx="28" cy="48" r="18" />
+    <circle cx="68" cy="48" r="18" />
+    <path d="M28 41c9 0 12 4 20 4s11-4 20-4v14c-9 0-12-4-20-4s-11 4-20 4z" />
+  </g>
+</svg>

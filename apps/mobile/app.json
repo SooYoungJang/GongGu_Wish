@@ -35,7 +35,13 @@
     "plugins": [
       "expo-secure-store",
       "expo-video",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#F0445E"
+        }
+      ]
     ]
   }
 }
