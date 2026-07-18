@@ -94,3 +94,30 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(ciWorkflow, /supabase functions deploy register-push-token/);
   assert.doesNotMatch(workflow, /gon229[^\n]*ios/i);
 });
+
+test("Android push registration is wired to Firebase and reports failures", () => {
+  const appConfig = JSON.parse(read("apps/mobile/app.json"));
+  const googleServices = JSON.parse(
+    read("apps/mobile/google-services.json"),
+  );
+  const settings = read("apps/mobile/src/screens/SettingsScreen.tsx");
+  const notifications = read("apps/mobile/src/services/notifications.ts");
+  const gitignore = read(".gitignore");
+  const androidClient = googleServices.client.find(
+    (client) =>
+      client.client_info?.android_client_info?.package_name ===
+      appConfig.expo.android.package,
+  );
+
+  assert.equal(
+    appConfig.expo.android.googleServicesFile,
+    "./google-services.json",
+  );
+  assert.equal(googleServices.project_info.project_id, "gonggu-wish-7425b02f-2026");
+  assert.ok(androidClient, "Firebase config must include com.gonggu.wish");
+  assert.match(settings, /registerForPushNotifications/);
+  assert.match(settings, /requestPermission:\s*false/);
+  assert.match(settings, /session\?\.access_token/);
+  assert.match(notifications, /console\.warn\(/);
+  assert.match(gitignore, /\*-firebase-adminsdk-\*\.json/);
+});

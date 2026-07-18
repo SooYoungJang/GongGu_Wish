@@ -25,6 +25,8 @@ ios/
 .env
 .env.*
 !.env.example
+*-firebase-adminsdk-*.json
+
 
 # Python worker
 .venv/

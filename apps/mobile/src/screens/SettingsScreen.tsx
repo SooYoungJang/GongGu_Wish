@@ -23,6 +23,7 @@ import { clearLocalUserData } from "../hooks/useLocalDeals";
 import {
   getNotificationPermissionStatus,
   IS_EXPO_GO,
+  registerForPushNotifications,
   requestNotificationPermissions,
   scheduleTestNotification,
   type NotificationPermissionStatus,
@@ -37,7 +38,8 @@ import type { RootStackParamList } from "../types";
 export function SettingsScreen() {
   const { colors, spacing, radius } = useCommerceTheme();
   const { privacyOptionsRequired, showPrivacyOptions } = useAds();
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
+  const accessToken = session?.access_token;
   const {
     error: preferencesError,
     preferences,
@@ -88,7 +90,18 @@ export function SettingsScreen() {
     }
     setPermissionStatus("granted");
     await updatePreferences({ pushEnabled: true });
-  }, [updatePreferences]);
+    if (!accessToken) return;
+
+    const token = await registerForPushNotifications(accessToken, {
+      requestPermission: false,
+    });
+    if (!token) {
+      Alert.alert(
+        "푸시 알림 등록에 실패했어요",
+        "네트워크 연결을 확인한 뒤 푸시 알림을 다시 켜주세요.",
+      );
+    }
+  }, [accessToken, updatePreferences]);
 
   const handleDeadlineChange = useCallback(
     (value: boolean) =>
