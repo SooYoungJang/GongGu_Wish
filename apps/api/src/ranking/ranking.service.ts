@@ -106,6 +106,27 @@ function toNonNegativeNumber(value: number | string, field: string): number {
   return parsed;
 }
 
+function deriveRankingTrend(
+  rank: number,
+  previousRank: number | null,
+  score: number,
+  scoreDelta: number,
+): GroupBuyRankingItem["trend"] {
+  const previousScore = score - scoreDelta;
+  if (previousScore <= 0) {
+    return score > 0 ? { kind: "new" } : { kind: "same" };
+  }
+
+  if (previousRank === null) return { kind: "new" };
+  if (previousRank > rank) {
+    return { kind: "up", delta: previousRank - rank };
+  }
+  if (previousRank < rank) {
+    return { kind: "down", delta: rank - previousRank };
+  }
+  return { kind: "same" };
+}
+
 function encodeCursor(cursor: RankingCursor): string {
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
@@ -193,11 +214,14 @@ function normalizeRequest(
 
 function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
   const rank = toPositiveInteger(row.rank, "rank");
-  const previousRank =
+  const reportedPreviousRank =
     row.previous_rank === null
       ? null
       : toPositiveInteger(row.previous_rank, "previous_rank");
-  const trendDelta = toNonNegativeInteger(row.trend_delta, "trend_delta");
+  const score = toNonNegativeNumber(row.score, "score");
+  const scoreDelta = toFiniteNumber(row.score_delta, "score_delta");
+  // The legacy RPC trend fields contain score movement; rank movement is derived here.
+  const previousRank = score - scoreDelta > 0 ? reportedPreviousRank : null;
   const mediaUrls = row.media_urls ?? [];
 
   if (
@@ -221,10 +245,7 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
     throw new Error("ranking thumbnail is invalid");
   }
 
-  const trend =
-    row.trend_kind === "up" || row.trend_kind === "down"
-      ? { kind: row.trend_kind, delta: trendDelta }
-      : { kind: row.trend_kind };
+  const trend = deriveRankingTrend(rank, previousRank, score, scoreDelta);
 
   return {
     groupBuyId: row.group_buy_id,
@@ -248,8 +269,8 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
       bookmarks: toNonNegativeInteger(row.bookmarks, "bookmarks"),
       notifications: toNonNegativeInteger(row.notifications, "notifications"),
       searchClicks: toNonNegativeInteger(row.search_clicks, "search_clicks"),
-      score: toNonNegativeNumber(row.score, "score"),
-      scoreDelta: toFiniteNumber(row.score_delta, "score_delta"),
+      score,
+      scoreDelta,
     },
     scoreVersion: row.score_version || SCORE_VERSION,
   };

@@ -270,15 +270,38 @@ function toNumber(value: number | string): number {
   return parsed;
 }
 
+function deriveRankingTrend(
+  rank: number,
+  previousRank: number | null,
+  score: number,
+  scoreDelta: number,
+): GroupBuyRankingItem["trend"] {
+  const previousScore = score - scoreDelta;
+  if (previousScore <= 0) {
+    return score > 0 ? { kind: "new" } : { kind: "same" };
+  }
+
+  if (previousRank === null) return { kind: "new" };
+  if (previousRank > rank) {
+    return { kind: "up", delta: previousRank - rank };
+  }
+  if (previousRank < rank) {
+    return { kind: "down", delta: rank - previousRank };
+  }
+  return { kind: "same" };
+}
+
 function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
   const category = normalizeRankingCategory(row.category);
   if (category === "all") throw new Error("ranking row category cannot be all");
 
-  const trendDelta = toNonNegativeInteger(row.trend_delta);
   const rank = toPositiveInteger(row.rank);
-  const previousRank = row.previous_rank === null
-    ? null
-    : toPositiveInteger(row.previous_rank);
+  const reportedPreviousRank =
+    row.previous_rank === null ? null : toPositiveInteger(row.previous_rank);
+  const score = toNumber(row.score);
+  const scoreDelta = toNumber(row.score_delta);
+  // The legacy RPC trend fields contain score movement; rank movement is derived here.
+  const previousRank = score - scoreDelta > 0 ? reportedPreviousRank : null;
   const mediaUrls = row.media_urls ?? [];
   if (!row.group_buy_id || !row.username || !row.score_version) {
     throw new Error("ranking row identity is invalid");
@@ -292,9 +315,7 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
   if (row.thumbnail_url !== null && row.thumbnail_url.length === 0) {
     throw new Error("ranking thumbnail is invalid");
   }
-  const trend = row.trend_kind === "up" || row.trend_kind === "down"
-    ? { kind: row.trend_kind, delta: trendDelta }
-    : { kind: row.trend_kind };
+  const trend = deriveRankingTrend(rank, previousRank, score, scoreDelta);
 
   return {
     groupBuyId: row.group_buy_id,
@@ -315,8 +336,8 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
       bookmarks: toNonNegativeInteger(row.bookmarks),
       notifications: toNonNegativeInteger(row.notifications),
       searchClicks: toNonNegativeInteger(row.search_clicks),
-      score: toNumber(row.score),
-      scoreDelta: toNumber(row.score_delta),
+      score,
+      scoreDelta,
     },
     scoreVersion: row.score_version || SCORE_VERSION,
   };
@@ -358,8 +379,8 @@ export function buildRankingResponse(
       hasMore,
       nextCursor: hasMore
         ? encodeRankingCursor(
-          cursorForRow(pageRows[pageRows.length - 1], request),
-        )
+            cursorForRow(pageRows[pageRows.length - 1], request),
+          )
         : null,
     },
     meta: {
