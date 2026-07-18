@@ -10,6 +10,7 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
   const seed = read("supabase/seed.sql");
   const builder = read("scripts/build-gon263-android-e2e.sh");
+  const codegen = read("scripts/generate-gon263-android-codegen.mjs");
   const runner = read("scripts/run-gon263-android-e2e.sh");
 
   assert.match(workflow, /EXPO_PUBLIC_SUPABASE_URL=http:\/\/localhost:54321/);
@@ -21,6 +22,7 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
   assert.match(builder, /-Dorg\.gradle\.workers\.max=2/);
   assert.match(builder, /-PnewArchEnabled=true/);
   assert.match(builder, /generate-gon263-android-codegen\.mjs/);
+  assert.match(codegen, /target_compile_reactnative_options/);
   assert.match(builder, /:app:generateCodegenArtifactsFromSchema/);
   assert.match(
     runner,
