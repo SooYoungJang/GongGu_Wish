@@ -63,6 +63,7 @@ test("Android notification runtime covers consent, deep links, and persistence",
   const windowsBuild = read("scripts/android-build-install.ps1");
   const orchestrator = read("scripts/run-gon263-android-e2e.sh");
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
+  const ciWorkflow = read(".github/workflows/ci.yml");
   const supabaseSeed = read("supabase/seed.sql");
   const localFixtureServer = read("scripts/mobile-e2e-api-server.mjs");
   const sharedFixtureId = "gon263-e2e-price-200000";
@@ -88,5 +89,6 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(windowsBuild, /gradlew\.bat installDebug[^\n]*--no-daemon/);
   assert.match(orchestrator, /run-gon229-android-notifications\.sh/);
   assert.match(workflow, /gon229-notification-state\.txt/);
+  assert.match(ciWorkflow, /supabase functions deploy register-push-token/);
   assert.doesNotMatch(workflow, /gon229[^\n]*ios/i);
 });
