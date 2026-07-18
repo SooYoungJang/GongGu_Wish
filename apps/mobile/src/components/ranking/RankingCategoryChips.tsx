@@ -88,7 +88,7 @@ export function RankingCategoryChips({
               <SText variant="caption" style={s.categoryTriggerText}>
                 {triggerLabel}
               </SText>
-              <Ionicons color={colors.bg} name="chevron-down" size={14} />
+              <Ionicons color={colors.text} name="chevron-down" size={14} />
             </Pressable>
           </View>
 
@@ -207,8 +207,10 @@ function makeStyles(colors: CommerceColorPalette) {
     categoryTrigger: {
       alignItems: 'center',
       alignSelf: 'flex-start',
-      backgroundColor: colors.text,
-      borderRadius: commerceRadius.sm,
+      backgroundColor: colors.bg,
+      borderColor: colors.border,
+      borderRadius: commerceRadius.full,
+      borderWidth: 1,
       flexDirection: 'row',
       gap: spacing.xs,
       minHeight: 44,
@@ -216,7 +218,7 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingVertical: spacing.xs,
     },
     categoryTriggerText: {
-      color: colors.bg,
+      color: colors.text,
       fontWeight: '900',
     },
     closeButton: {
@@ -238,8 +240,7 @@ function makeStyles(colors: CommerceColorPalette) {
       color: colors.accent,
     },
     selectedSortChip: {
-      backgroundColor: colors.accentSoft,
-      borderColor: colors.accent,
+      borderBottomColor: colors.accent,
     },
     selectedSortChipText: {
       color: colors.accent,
@@ -268,12 +269,11 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     sortChip: {
       alignItems: 'center',
-      borderColor: colors.border,
-      borderRadius: commerceRadius.full,
-      borderWidth: 1,
+      borderBottomColor: 'transparent',
+      borderBottomWidth: 2,
       justifyContent: 'center',
       minHeight: 44,
-      paddingHorizontal: spacing.sm,
+      paddingHorizontal: spacing.xs,
       paddingVertical: spacing.xs,
     },
     sortChipText: {
@@ -282,7 +282,7 @@ function makeStyles(colors: CommerceColorPalette) {
       includeFontPadding: false,
     },
     sortRow: {
-      gap: spacing.sm,
+      gap: spacing.md,
       paddingHorizontal: spacing.lg,
     },
   });

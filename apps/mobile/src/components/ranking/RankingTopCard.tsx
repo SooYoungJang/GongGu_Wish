@@ -5,13 +5,11 @@ import { useCommerceTheme } from "../../design/useCommerceTheme";
 import {
   formatRankingDeadline,
   getRankingItemAccessibilityLabel,
-  getPopularityPresentation,
 } from "../../features/ranking/popularityPresentation";
 import type {
   GroupBuyRankingItem,
   RankingListItem,
 } from "../../features/ranking/types";
-import { formatCompactCount } from "../../features/ranking/types";
 import { PriceText } from "../ui/PriceText";
 import { SText } from "../ui/SText";
 import { GroupBuyAlertButton } from "./FollowButton";
@@ -26,7 +24,6 @@ export interface RankingTopCardProps {
   onPress: RankingItemAction;
   onPressSeller?: RankingItemAction;
   onToggleAlert: RankingItemAction;
-  topScore?: number;
   variant: "hero" | "compact";
 }
 
@@ -35,7 +32,6 @@ export const RankingTopCard = memo(function RankingTopCard({
   onPress,
   onPressSeller,
   onToggleAlert,
-  topScore,
   variant,
 }: RankingTopCardProps) {
   const theme = useCommerceTheme();
@@ -51,19 +47,12 @@ export const RankingTopCard = memo(function RankingTopCard({
     [imageUrl],
   );
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const popularity = getPopularityPresentation(
-    item.metrics,
-    topScore ?? item.metrics.score,
-  );
   const deadline = formatRankingDeadline(item.endDate);
-  const proof = `조회 ${formatCompactCount(item.metrics.deepViews)} · 저장 ${formatCompactCount(item.metrics.bookmarks)} · 알림 ${formatCompactCount(item.metrics.notifications)}`;
   const detailLabel = getRankingItemAccessibilityLabel({
     rank: item.rank,
     name: displayName,
     priceKrw: item.priceKrw,
     deadline,
-    popularity,
-    metrics: isHero ? item.metrics : undefined,
   });
 
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
@@ -125,28 +114,9 @@ export const RankingTopCard = memo(function RankingTopCard({
             <RankBadge rank={item.rank} />
             <RankingTrendBadge trend={item.trend} />
           </View>
-          {isHero ? (
-            <View style={s.heroPopularityOverlay}>
-              <SText style={s.heroPopularityText} variant="caption">
-                인기지수 {popularity.index}
-              </SText>
-            </View>
-          ) : null}
         </View>
 
         <View style={isHero ? s.heroInfo : s.compactInfo}>
-          <View style={s.signalRow}>
-            {!isHero ? (
-              <View style={s.popularityPill}>
-                <SText style={s.popularityPillText} variant="caption">
-                  인기지수 {popularity.index}
-                </SText>
-              </View>
-            ) : null}
-            <SText style={s.reasonText} variant="caption">
-              {popularity.reason}
-            </SText>
-          </View>
           <SText
             numberOfLines={largeText ? undefined : 2}
             style={isHero ? s.heroName : s.compactName}
@@ -165,16 +135,6 @@ export const RankingTopCard = memo(function RankingTopCard({
               {deadline}
             </SText>
           </View>
-          {isHero ? (
-            <SText
-              numberOfLines={largeText ? undefined : 1}
-              style={s.proofText}
-              testID={`ranking-top-metrics-${item.rank}`}
-              variant="caption"
-            >
-              {proof}
-            </SText>
-          ) : null}
         </View>
       </Pressable>
 

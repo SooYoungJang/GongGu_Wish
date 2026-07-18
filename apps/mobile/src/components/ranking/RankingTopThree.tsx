@@ -2,7 +2,6 @@ import { memo, useMemo } from "react";
 import { useWindowDimensions, View } from "react-native";
 
 import { useCommerceTheme } from "../../design/useCommerceTheme";
-import { getTopPopularityScore } from "../../features/ranking/popularityPresentation";
 import type {
   GroupBuyRankingItem,
   RankingListItem,
@@ -18,7 +17,6 @@ export interface RankingTopThreeProps {
   onPress: RankingItemAction;
   onPressSeller?: RankingItemAction;
   onToggleAlert: RankingItemAction;
-  topScore?: number;
 }
 
 export const RankingTopThree = memo(function RankingTopThree({
@@ -26,7 +24,6 @@ export const RankingTopThree = memo(function RankingTopThree({
   onPress,
   onPressSeller,
   onToggleAlert,
-  topScore,
 }: RankingTopThreeProps) {
   const theme = useCommerceTheme();
   const { fontScale, width } = useWindowDimensions();
@@ -41,10 +38,6 @@ export const RankingTopThree = memo(function RankingTopThree({
   const compact = topItems.filter(
     (item) => item.rank === 2 || item.rank === 3,
   );
-  const comparisonScore =
-    topScore ??
-    getTopPopularityScore(topItems.map((item) => item.metrics.score));
-
   return (
     <View
       style={s.container}
@@ -56,10 +49,10 @@ export const RankingTopThree = memo(function RankingTopThree({
           variant="cardTitle"
           style={s.sectionTitle}
         >
-          지금 뜨는 공구
+          지금 가장 인기 있는 공구
         </SText>
         <SText variant="caption" style={s.sectionSubtitle}>
-          관심이 빠르게 모이는 상품부터 둘러보세요
+          순위 등락으로 달라진 관심을 확인해보세요
         </SText>
       </View>
       {hero ? (
@@ -68,7 +61,6 @@ export const RankingTopThree = memo(function RankingTopThree({
           onPress={onPress}
           onPressSeller={onPressSeller}
           onToggleAlert={onToggleAlert}
-          topScore={comparisonScore}
           variant="hero"
         />
       ) : null}
@@ -84,7 +76,6 @@ export const RankingTopThree = memo(function RankingTopThree({
               onPress={onPress}
               onPressSeller={onPressSeller}
               onToggleAlert={onToggleAlert}
-              topScore={comparisonScore}
               variant="compact"
             />
           ))}

@@ -11,8 +11,8 @@ import {
 import type { Ref } from "react";
 
 import { AsyncStateNotice } from "../ui/AsyncStateNotice";
+import { SText } from "../ui/SText";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
-import { getTopPopularityScore } from "../../features/ranking/popularityPresentation";
 import type {
   GroupBuyRankingItem,
   RankingListItem,
@@ -63,10 +63,7 @@ export function SellerRankingList({
     [resolvedTopInset, s.statusContainer],
   );
   const readyData = state.status === "ready" ? state.data : EMPTY_RANKINGS;
-  const { remainingItems, topScore, topThree } = useMemo(() => {
-    const comparisonScore = getTopPopularityScore(
-      readyData.map((item) => item.metrics.score),
-    );
+  const { remainingItems, topThree } = useMemo(() => {
     let leadingTopCount = 0;
     while (leadingTopCount < Math.min(3, readyData.length)) {
       const rank = readyData[leadingTopCount].rank;
@@ -75,7 +72,6 @@ export function SellerRankingList({
     }
 
     return {
-      topScore: comparisonScore,
       topThree: readyData.slice(0, leadingTopCount),
       remainingItems: readyData.slice(leadingTopCount),
     };
@@ -95,10 +91,9 @@ export function SellerRankingList({
         onPress={onPressItem ?? NOOP}
         onPressSeller={onPressSeller}
         onToggleAlert={onToggleAlert ?? NOOP}
-        topScore={topScore}
       />
     ),
-    [onPressItem, onPressSeller, onToggleAlert, topScore],
+    [onPressItem, onPressSeller, onToggleAlert],
   );
   if (state.status === "loading") {
     return (
@@ -173,8 +168,17 @@ export function SellerRankingList({
               onPress={onPressItem ?? NOOP}
               onPressSeller={onPressSeller}
               onToggleAlert={onToggleAlert ?? NOOP}
-              topScore={topScore}
             />
+          ) : null}
+          {remainingItems.length > 0 ? (
+            <View style={s.listHeading} testID="ranking-list-heading">
+              <SText accessibilityRole="header" style={s.listHeadingTitle} variant="cardTitle">
+                계속 인기 중
+              </SText>
+              <SText style={s.listHeadingCaption} variant="caption">
+                4위부터도 같은 기준으로 집계해요
+              </SText>
+            </View>
           ) : null}
         </>
       }
@@ -194,7 +198,7 @@ export function SellerRankingList({
 }
 
 function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
-  const { colors, spacing } = theme;
+  const { colors, spacing, typography } = theme;
   return StyleSheet.create({
     content: {
       paddingHorizontal: spacing.lg,
@@ -208,6 +212,18 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
     list: {
       backgroundColor: colors.bg,
       flex: 1,
+    },
+    listHeading: {
+      gap: spacing.xxs,
+      paddingBottom: spacing.sm,
+      paddingTop: spacing.xs,
+    },
+    listHeadingCaption: {
+      color: colors.muted,
+    },
+    listHeadingTitle: {
+      color: colors.text,
+      ...typography.sectionTitle,
     },
     statusContainer: {
       alignItems: "center",

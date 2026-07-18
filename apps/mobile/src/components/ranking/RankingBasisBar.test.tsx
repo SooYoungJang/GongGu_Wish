@@ -36,7 +36,7 @@ function flattenText(
 }
 
 describe("RankingBasisBar", () => {
-  it("explains the popularity signal in one consumer-friendly summary", () => {
+  it("explains the ranking inputs without exposing a popularity score", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -55,18 +55,18 @@ describe("RankingBasisBar", () => {
     const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
     const basis = renderer!.root.findByProps({ testID: "ranking-basis-bar" });
 
-    expect(text).toContain("인기지수 안내");
-    expect(text).toContain(
-      "현재 목록 최고점=100 · 조회·저장·알림·상세 관심 반영",
-    );
+    expect(text).toContain("조회·저장·알림·상세 진입 반응을 반영한 순위");
     expect(text).toContain("최근 7일 기준");
     expect(text).toContain("업데이트");
+    expect(text).not.toContain("인기지수");
+    expect(text).not.toContain("최고점");
     expect(text).not.toContain("롤링 집계");
     expect(basis.props.accessibilityLabel).toContain("최근 7일 롤링 집계");
-    expect(basis.props.accessibilityLabel).toContain("현재 목록 최고점 100");
     expect(basis.props.accessibilityLabel).toContain(
-      "조회, 저장, 알림, 상세 관심 반영",
+      "조회, 저장, 알림, 상세 진입 반응 반영",
     );
+    expect(basis.props.accessibilityLabel).not.toContain("인기지수");
+    expect(basis.props.accessibilityLabel).not.toContain("최고점");
     expect(basis.props.accessibilityLabel).toContain("업데이트");
     expect(basis.props.accessibilityLabel).toContain("전체 카테고리");
   });

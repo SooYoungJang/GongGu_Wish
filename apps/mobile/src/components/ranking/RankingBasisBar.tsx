@@ -44,7 +44,7 @@ export function RankingBasisBar({
     RANKING_SORT_CHIPS.find((chip) => chip.key === sort)?.label ?? "인기 공구";
   const categoryLabel = RANKING_CATEGORY_LABELS[category];
   const updatedLabel = formatRankingUpdatedAt(updatedAt);
-  const accessibilityLabel = `${ROLLING_WINDOW_LABELS[period]}, 현재 목록 최고점 100, 조회, 저장, 알림, 상세 관심 반영, ${RANKING_PERIOD_LABELS[period]}, ${sortLabel}, ${categoryLabel} 카테고리, ${updatedLabel}`;
+  const accessibilityLabel = `${ROLLING_WINDOW_LABELS[period]}, 조회, 저장, 알림, 상세 진입 반응 반영, ${RANKING_PERIOD_LABELS[period]}, ${sortLabel}, ${categoryLabel} 카테고리, ${updatedLabel}`;
 
   return (
     <View
@@ -54,11 +54,8 @@ export function RankingBasisBar({
       testID="ranking-basis-bar"
     >
       <View style={s.copy}>
-        <SText style={s.eyebrow} variant="caption">
-          인기지수 안내
-        </SText>
         <SText style={s.metrics} variant="caption">
-          현재 목록 최고점=100 · 조회·저장·알림·상세 관심 반영
+          조회·저장·알림·상세 진입 반응을 반영한 순위
         </SText>
       </View>
       <SText style={s.updatedAt} variant="caption">
@@ -69,32 +66,29 @@ export function RankingBasisBar({
 }
 
 function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
-  const { colors, radius, spacing, typography } = theme;
+  const { colors, radius, spacing } = theme;
   return StyleSheet.create({
     container: {
       alignItems: "center",
-      backgroundColor: colors.accentSoft,
+      backgroundColor: colors.bg,
       borderCurve: "continuous",
-      borderRadius: radius.md,
+      borderRadius: radius.sm,
       flexDirection: "row",
       flexWrap: "wrap",
       gap: spacing.xs,
       justifyContent: "space-between",
       marginHorizontal: spacing.lg,
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs,
+      paddingVertical: spacing.xxs,
     },
     copy: {
       flex: 1,
       gap: spacing.xxs,
       minWidth: 210,
     },
-    eyebrow: {
-      color: colors.accent,
-      ...typography.badge,
-    },
     metrics: {
       color: colors.muted,
+      fontWeight: "700",
       lineHeight: 16,
     },
     updatedAt: {

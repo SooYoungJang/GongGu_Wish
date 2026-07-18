@@ -11,7 +11,6 @@ import { useCommerceTheme } from "../../design/useCommerceTheme";
 import {
   formatRankingDeadline,
   getRankingItemAccessibilityLabel,
-  getPopularityPresentation,
 } from "../../features/ranking/popularityPresentation";
 import type {
   GroupBuyRankingItem,
@@ -30,7 +29,6 @@ export interface SellerRankingRowProps {
   onPress: RankingItemAction;
   onPressSeller?: RankingItemAction;
   onToggleAlert: RankingItemAction;
-  topScore?: number;
 }
 
 export const SellerRankingRow = memo(function SellerRankingRow({
@@ -38,7 +36,6 @@ export const SellerRankingRow = memo(function SellerRankingRow({
   onPress,
   onPressSeller,
   onToggleAlert,
-  topScore,
 }: SellerRankingRowProps) {
   const theme = useCommerceTheme();
   const { shadow } = theme;
@@ -54,17 +51,12 @@ export const SellerRankingRow = memo(function SellerRankingRow({
     [imageUrl],
   );
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const popularity = getPopularityPresentation(
-    item.metrics,
-    topScore ?? item.metrics.score,
-  );
   const deadline = formatRankingDeadline(item.endDate);
   const accessibilityLabel = getRankingItemAccessibilityLabel({
     rank: item.rank,
     name: displayName,
     priceKrw: item.priceKrw,
     deadline,
-    popularity,
   });
 
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
@@ -124,14 +116,6 @@ export const SellerRankingRow = memo(function SellerRankingRow({
           </View>
 
           <View style={s.infoColumn}>
-            <SText
-              numberOfLines={largeText ? undefined : 1}
-              style={s.signalText}
-              testID={`ranking-row-signal-${item.rank}`}
-              variant="caption"
-            >
-              인기지수 {popularity.index} · {popularity.reason}
-            </SText>
             <SText
               numberOfLines={largeText ? undefined : 2}
               style={s.sellerName}
@@ -210,15 +194,13 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       alignSelf: "flex-end",
     },
     cardRow: {
-      backgroundColor: colors.panelBg,
-      borderColor: colors.borderLight,
-      borderCurve: "continuous",
-      borderRadius: radius.lg,
-      borderWidth: 1,
+      backgroundColor: colors.bg,
+      borderBottomColor: colors.divider,
+      borderBottomWidth: 1,
       gap: spacing.xs,
-      marginBottom: spacing.sm,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.sm,
+      marginBottom: spacing.xs,
+      paddingHorizontal: spacing.xs,
+      paddingVertical: spacing.md,
     },
     commerceRow: {
       alignItems: "center",
@@ -266,18 +248,16 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
     media: {
       alignItems: "center",
       backgroundColor: colors.softBg,
-      borderColor: colors.borderLight,
       borderCurve: "continuous",
-      borderRadius: radius.md,
-      borderWidth: 1,
-      height: 80,
+      borderRadius: radius.lg,
+      height: 76,
       justifyContent: "center",
       overflow: "hidden",
-      width: 64,
+      width: 76,
     },
     mediaCompact: {
-      height: 72,
-      width: 56,
+      height: 68,
+      width: 68,
     },
     pressed: {
       opacity: 0.72,
@@ -308,12 +288,6 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       borderTopWidth: 1,
       justifyContent: "center",
       minHeight: 44,
-    },
-    signalText: {
-      color: colors.accent,
-      fontSize: 11,
-      fontWeight: "900",
-      lineHeight: 16,
     },
     thumbnailFallbackText: {
       color: colors.muted,

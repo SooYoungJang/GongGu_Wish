@@ -30,13 +30,11 @@ export function makeRankingTopStyles(
     },
     compactCard: {
       backgroundColor: colors.cardBg,
-      borderColor: colors.borderLight,
       borderCurve: "continuous",
-      borderRadius: radius.xl,
-      borderWidth: 1,
+      borderRadius: radius.lg,
       flex: 1,
       minWidth: 0,
-      padding: spacing.sm,
+      padding: spacing.xs,
     },
     compactGrid: {
       flexDirection: "row",
@@ -63,7 +61,7 @@ export function makeRankingTopStyles(
       aspectRatio: 1,
       backgroundColor: colors.softBg,
       borderCurve: "continuous",
-      borderRadius: radius.lg,
+      borderRadius: radius.md,
       overflow: "hidden",
       width: "100%",
     },
@@ -87,11 +85,9 @@ export function makeRankingTopStyles(
     },
     heroCard: {
       backgroundColor: colors.cardBg,
-      borderColor: colors.borderLight,
       borderCurve: "continuous",
       borderRadius: radius.xxl,
-      borderWidth: 1,
-      padding: spacing.md,
+      padding: spacing.sm,
     },
     heroInfo: {
       gap: spacing.xs,
@@ -110,26 +106,10 @@ export function makeRankingTopStyles(
     },
     heroName: {
       color: colors.text,
-      fontSize: 20,
+      fontSize: 22,
       fontWeight: "900",
-      lineHeight: 27,
+      lineHeight: 30,
       minWidth: 0,
-    },
-    heroPopularityOverlay: {
-      backgroundColor: colors.accent,
-      borderCurve: "continuous",
-      borderRadius: radius.full,
-      bottom: spacing.sm,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
-      position: "absolute",
-      right: spacing.sm,
-    },
-    heroPopularityText: {
-      color: colors.inverse,
-      fontSize: 12,
-      fontWeight: "900",
-      lineHeight: 16,
     },
     imageFallback: {
       ...StyleSheet.absoluteFillObject,
@@ -157,19 +137,6 @@ export function makeRankingTopStyles(
       ...typography.pageTitle,
       color: colors.accent,
     },
-    popularityPill: {
-      backgroundColor: colors.accentSoft,
-      borderCurve: "continuous",
-      borderRadius: radius.full,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xxs,
-    },
-    popularityPillText: {
-      color: colors.accent,
-      fontSize: 11,
-      fontWeight: "900",
-      lineHeight: 16,
-    },
     pressed: {
       opacity: 0.72,
     },
@@ -180,12 +147,6 @@ export function makeRankingTopStyles(
     productImage: {
       height: "100%",
       width: "100%",
-    },
-    proofText: {
-      color: colors.muted,
-      fontSize: 11,
-      fontWeight: "700",
-      lineHeight: 16,
     },
     rankOverlay: {
       alignItems: "center",
@@ -199,20 +160,13 @@ export function makeRankingTopStyles(
       position: "absolute",
       top: spacing.sm,
     },
-    reasonText: {
-      color: colors.accent,
-      flexShrink: 1,
-      fontSize: 12,
-      fontWeight: "900",
-      lineHeight: 17,
-    },
     sectionSubtitle: {
       color: colors.muted,
       lineHeight: 18,
     },
     sectionTitle: {
       color: colors.text,
-      fontSize: 20,
+      fontSize: 21,
       fontWeight: "900",
       lineHeight: 27,
     },
@@ -221,12 +175,6 @@ export function makeRankingTopStyles(
       justifyContent: "center",
       minHeight: 44,
       minWidth: 0,
-    },
-    signalRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: spacing.xs,
     },
     titleBlock: {
       gap: spacing.xxs,
