@@ -19,6 +19,7 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
   assert.match(builder, /-Dorg\.gradle\.jvmargs=\"-Xmx4096m/);
   assert.match(builder, /-Dorg\.gradle\.parallel=false/);
   assert.match(builder, /-Dorg\.gradle\.workers\.max=2/);
+  assert.match(builder, /-PnewArchEnabled=true/);
   assert.match(builder, /:app:generateCodegenArtifactsFromSchema/);
   assert.match(
     runner,

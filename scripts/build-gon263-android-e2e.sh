@@ -30,6 +30,7 @@ pushd apps/mobile/android >/dev/null
   -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=768m" \
   -Dorg.gradle.parallel=false \
   -Dorg.gradle.workers.max=2 \
+  -PnewArchEnabled=true \
   -PreactNativeArchitectures="$ORG_GRADLE_PROJECT_reactNativeArchitectures" \
   2>&1 | tee "$repo_root/artifacts/android/android-codegen.log"
 ./gradlew app:assembleRelease \
@@ -40,6 +41,7 @@ pushd apps/mobile/android >/dev/null
   -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=768m" \
   -Dorg.gradle.parallel=false \
   -Dorg.gradle.workers.max=2 \
+  -PnewArchEnabled=true \
   -PreactNativeArchitectures="$ORG_GRADLE_PROJECT_reactNativeArchitectures" \
   2>&1 | tee "$repo_root/artifacts/android/android-build.log"
 popd >/dev/null
