@@ -105,12 +105,18 @@ function createAdminClient() {
   });
 }
 
-function isInstagramCdnUrl(url?: string | null): boolean {
+export function isInstagramCdnUrl(url?: string | null): boolean {
   if (!url) return false;
   try {
-    return new URL(url).hostname.endsWith('.cdninstagram.com');
+    const hostname = new URL(url).hostname.toLowerCase();
+    return (
+      hostname === 'cdninstagram.com' ||
+      hostname.endsWith('.cdninstagram.com') ||
+      hostname === 'fbcdn.net' ||
+      hostname.endsWith('.fbcdn.net')
+    );
   } catch {
-    return url.includes('cdninstagram.com');
+    return false;
   }
 }
 
@@ -414,6 +420,7 @@ async function refreshRow(row: GroupBuyRow, force: boolean, refreshWindowHours: 
     .single();
 
   if (error) throw new Error(error.message);
+  const updatedRow = data as unknown as Pick<GroupBuyRow, 'thumbnail_url'>;
 
   return {
     groupBuyId: row.id,
@@ -422,7 +429,7 @@ async function refreshRow(row: GroupBuyRow, force: boolean, refreshWindowHours: 
     instagramUrl,
     media: {
       imageUrl: media.imageUrl,
-      thumbnailUrl: media.thumbnailUrl ?? data.thumbnail_url ?? null,
+      thumbnailUrl: media.thumbnailUrl ?? updatedRow.thumbnail_url ?? null,
       videoUrl: media.videoUrl,
       mediaUrls: media.mediaUrls.length
         ? media.mediaUrls
@@ -446,7 +453,7 @@ async function fetchGroupBuy(groupBuyId: string): Promise<GroupBuyRow | null> {
     throw new Error(error.message);
   }
 
-  return data as GroupBuyRow;
+  return data as unknown as GroupBuyRow;
 }
 
 async function fetchBatch(limit: number, refreshWindowHours: number): Promise<GroupBuyRow[]> {
