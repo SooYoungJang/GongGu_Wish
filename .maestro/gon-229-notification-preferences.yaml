@@ -50,6 +50,8 @@ appId: com.gonggu.wish
 - tapOn:
     id: "fl-input-password"
 - inputText: "Gon229E2E2026!"
+- hideKeyboard
+- waitForAnimationToEnd
 - tapOn:
     id: "auth-login-submit"
 - extendedWaitUntil:
