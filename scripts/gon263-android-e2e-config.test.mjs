@@ -23,6 +23,7 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
   assert.match(builder, /-PnewArchEnabled=true/);
   assert.match(builder, /generate-gon263-android-codegen\.mjs/);
   assert.match(codegen, /target_compile_reactnative_options/);
+  assert.match(codegen, /const libraryType = "all"/);
   assert.match(builder, /:app:generateCodegenArtifactsFromSchema/);
   assert.match(
     runner,

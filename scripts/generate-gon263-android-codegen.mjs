@@ -139,7 +139,10 @@ function generatePackageCodegen(packageName) {
   mkdirSync(outputDir, { recursive: true });
   const schemaPath = join(outputDir, "schema.json");
   const libraryName = codegenConfig.name ?? packageJson.name;
-  const libraryType = codegenConfig.type ?? "all";
+  // React Native's Android Gradle task invokes generate-specs-cli without a
+  // library type, which defaults to "all". Keep the preflight output identical
+  // so component libraries also receive their module headers.
+  const libraryType = "all";
   const javaPackageName =
     androidConfig.javaPackageName ?? "com.facebook.fbreact.specs";
 
