@@ -6,6 +6,16 @@ cd "$repo_root"
 artifact_dir="artifacts/android"
 mkdir -p "$artifact_dir"
 
+# A fresh local Supabase instance is started for every Android CI run. Create a
+# real account so notification and follow mutations exercise the authenticated
+# path after the flow first verifies the guest login gate.
+curl --silent --show-error --fail --output /dev/null \
+  --request POST \
+  --header "apikey: ${EXPO_PUBLIC_SUPABASE_ANON_KEY}" \
+  --header "Content-Type: application/json" \
+  --data '{"email":"gon229.e2e@example.com","password":"Gon229E2E2026!"}' \
+  "${EXPO_PUBLIC_SUPABASE_URL}/auth/v1/signup"
+
 copy_flow_evidence() {
   local prefix="$1"
   find . -maxdepth 1 -name 'gon229-android-*.png' \

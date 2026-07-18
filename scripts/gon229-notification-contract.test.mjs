@@ -60,6 +60,9 @@ test("Android notification runtime covers consent, deep links, and persistence",
     "apps/mobile/src/services/notificationPayload.ts",
   );
   const flow = read(".maestro/gon-229-notification-tap.yaml");
+  const preferencesFlow = read(
+    ".maestro/gon-229-notification-preferences.yaml",
+  );
   const runner = read("scripts/run-gon229-android-notifications.sh");
   const windowsBuild = read("scripts/android-build-install.ps1");
   const orchestrator = read("scripts/run-gon263-android-e2e.sh");
@@ -82,9 +85,14 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(notifications, /buildGroupBuyNotificationUrl/);
   assert.match(notificationPayload, /gongguwish:\/\/group-buy\//);
   assert.match(flow, /text: "\.\*푸시 테스트\.\*"/);
+  assert.match(preferencesFlow, /text: "공구위시 로그인 화면"/);
+  assert.match(preferencesFlow, /id: "fl-input-email"/);
+  assert.match(preferencesFlow, /id: "fl-input-password"/);
   assert.match(flow, /id: "follow-influencer-notifications"/);
   assert.match(flow, /text: "@gon263_price ×"/);
   assert.match(runner, /cmd statusbar expand-notifications/);
+  assert.match(runner, /auth\/v1\/signup/);
+  assert.match(runner, /gon229\.e2e@example\.com/);
   assert.match(windowsBuild, /\[switch\]\$AutomatedE2E/);
   assert.match(windowsBuild, /EXPO_PUBLIC_E2E_MODE = "true"/);
   assert.match(read("apps/mobile/app.config.js"), /e2eSupabaseUrl/);

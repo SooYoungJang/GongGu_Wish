@@ -36,21 +36,47 @@ appId: com.gonggu.wish
     id: "deadline-reminder-day-1"
 - takeScreenshot: gon229-android-01-settings-defaults
 
-# Preferences remain independently controllable.
+# Guests are routed to authentication before any preference can change.
+- tapOn:
+    id: "deadline-reminder-day-7"
+- extendedWaitUntil:
+    visible:
+      text: "공구위시 로그인 화면"
+    timeout: 30000
+- takeScreenshot: gon229-android-02-login-required
+- tapOn:
+    id: "fl-input-email"
+- inputText: "gon229.e2e@example.com"
+- tapOn:
+    id: "fl-input-password"
+- inputText: "Gon229E2E2026!"
+- tapOn:
+    text: "로그인"
+- extendedWaitUntil:
+    visible:
+      id: "new-submission-notification-toggle"
+    timeout: 30000
+
+# Authenticated preferences remain independently controllable.
 - tapOn:
     id: "deadline-reminder-day-7"
 - tapOn:
     id: "new-submission-notification-toggle"
-- takeScreenshot: gon229-android-02-custom-preferences
+- takeScreenshot: gon229-android-03-custom-preferences
 - tapOn:
     id: "new-submission-notification-toggle"
 - tapOn:
     id: "push-notification-toggle"
 - extendedWaitUntil:
     visible:
+      text: "앱과 기기에서 푸시 알림을 받을 수 있어요.*"
+    timeout: 10000
+- tapOn:
+    id: "push-notification-toggle"
+- extendedWaitUntil:
+    visible:
       text: "앱에서 푸시 수신을 중지했어요.*"
     timeout: 10000
-- takeScreenshot: gon229-android-03-push-disabled
 - tapOn:
     id: "push-notification-toggle"
 - extendedWaitUntil:
