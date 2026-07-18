@@ -234,7 +234,15 @@ describe("NativeAdCard", () => {
     const ad = { destroy } as unknown as Awaited<
       ReturnType<typeof NativeAd.createForAdRequest>
     >;
-    vi.mocked(NativeAd.createForAdRequest).mockResolvedValue(ad);
+    let resolveAd!: React.Dispatch<
+      Awaited<ReturnType<typeof NativeAd.createForAdRequest>>
+    >;
+    const pendingAd = new Promise<
+      Awaited<ReturnType<typeof NativeAd.createForAdRequest>>
+    >((resolve) => {
+      resolveAd = resolve;
+    });
+    vi.mocked(NativeAd.createForAdRequest).mockReturnValue(pendingAd);
 
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
@@ -244,10 +252,16 @@ describe("NativeAdCard", () => {
         </AdsContext.Provider>,
       );
     });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
     act(() => renderer!.unmount());
 
     await act(async () => {
+      resolveAd(ad);
       await Promise.resolve();
     });
 

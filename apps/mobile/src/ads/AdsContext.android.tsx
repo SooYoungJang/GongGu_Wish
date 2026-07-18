@@ -8,19 +8,22 @@ import {
   useMemo,
   useState,
 } from "react";
-import mobileAds, { AdsConsent, TestIds } from "react-native-google-mobile-ads";
 
 import { type AdsMode, resolveAdsRuntimeConfig } from "./adConfig";
 import {
   createGoogleMobileAdsController,
   type AdsInitializationState,
+  type GoogleMobileAdsController,
 } from "./initializeMobileAds";
 import type { AdsContextValue } from "./AdsContext.types";
+import { getGoogleMobileAdsModule } from "./loadGoogleMobileAds";
 
 export type { AdsContextValue } from "./AdsContext.types";
 
 const GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID =
   "ca-app-pub-3940256099942544~3347511713";
+const GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID =
+  "ca-app-pub-3940256099942544/2247696110";
 
 type AdsExtra = {
   automatedE2E?: boolean;
@@ -50,12 +53,21 @@ function normalizeAdsMode(mode?: string): AdsMode {
 
 export const AdsContext = createContext<AdsContextValue>(disabledAds);
 
-const adsController = createGoogleMobileAdsController({
-  gatherConsent: () => AdsConsent.gatherConsent(),
-  getConsentInfo: () => AdsConsent.getConsentInfo(),
-  showPrivacyOptionsForm: () => AdsConsent.showPrivacyOptionsForm(),
-  initialize: () => mobileAds().initialize(),
-});
+let adsControllerPromise: Promise<GoogleMobileAdsController | null> | null =
+  null;
+
+function getAdsController(): Promise<GoogleMobileAdsController | null> {
+  adsControllerPromise ??= getGoogleMobileAdsModule().then((module) => {
+    if (!module) return null;
+    return createGoogleMobileAdsController({
+      gatherConsent: () => module.AdsConsent.gatherConsent(),
+      getConsentInfo: () => module.AdsConsent.getConsentInfo(),
+      showPrivacyOptionsForm: () => module.AdsConsent.showPrivacyOptionsForm(),
+      initialize: () => module.default().initialize(),
+    });
+  });
+  return adsControllerPromise;
+}
 
 export function AdsProvider({ children }: PropsWithChildren) {
   const extra = (Constants.expoConfig?.extra ?? {}) as AdsExtra;
@@ -68,7 +80,7 @@ export function AdsProvider({ children }: PropsWithChildren) {
         androidAppId: extra.admobAndroidAppId ?? undefined,
         productionHomeNativeUnitId: extra.admobHomeNativeUnitId ?? undefined,
         testAndroidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
-        testNativeUnitId: TestIds.NATIVE,
+        testNativeUnitId: GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID,
       }),
     [
       extra.admobAndroidAppId,
@@ -91,8 +103,15 @@ export function AdsProvider({ children }: PropsWithChildren) {
 
     let mounted = true;
     setState((current) => ({ ...current, isReady: false, isSettled: false }));
-    void adsController
-      .initialize()
+    void getAdsController()
+      .then((controller) =>
+        controller
+          ? controller.initialize()
+          : {
+              isReady: false,
+              privacyOptionsRequired: false,
+            },
+      )
       .then((nextState) => {
         if (mounted) setState({ ...nextState, isSettled: true });
       })
@@ -114,7 +133,9 @@ export function AdsProvider({ children }: PropsWithChildren) {
   const showPrivacyOptions = useCallback(async () => {
     if (!config.enabled) return false;
     try {
-      const nextState = await adsController.showPrivacyOptions();
+      const controller = await getAdsController();
+      if (!controller) return false;
+      const nextState = await controller.showPrivacyOptions();
       setState({ ...nextState, isSettled: true });
       return true;
     } catch {

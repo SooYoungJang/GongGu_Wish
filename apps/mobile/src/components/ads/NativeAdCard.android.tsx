@@ -1,16 +1,11 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
-import {
-  NativeAd,
-  NativeAdChoicesPlacement,
-  NativeAdView,
-  NativeAsset,
-  NativeAssetType,
-  NativeMediaAspectRatio,
-  NativeMediaView,
-} from "react-native-google-mobile-ads";
 
 import { useAds } from "../../ads/AdsContext.android";
+import {
+  getGoogleMobileAdsModule,
+  type GoogleMobileAdsModule,
+} from "../../ads/loadGoogleMobileAds";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
 import type { NativeAdCardProps } from "./NativeAdCard.types";
 
@@ -20,6 +15,13 @@ export type {
 } from "./NativeAdCard.types";
 
 const LOAD_TIMEOUT_MS = 5_000;
+type NativeAdInstance = Awaited<
+  ReturnType<GoogleMobileAdsModule["NativeAd"]["createForAdRequest"]>
+>;
+type LoadedNativeAd = {
+  module: GoogleMobileAdsModule;
+  nativeAd: NativeAdInstance;
+};
 
 export const NativeAdCard = memo(function NativeAdCard({
   onLoadStateChange,
@@ -28,10 +30,12 @@ export const NativeAdCard = memo(function NativeAdCard({
   const { enabled, homeNativeUnitId, isReady, isSettled } = useAds();
   const theme = useCommerceTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const [nativeAd, setNativeAd] = useState<NativeAd | null>(null);
+  const [loadedNativeAd, setLoadedNativeAd] = useState<LoadedNativeAd | null>(
+    null,
+  );
 
   useEffect(() => {
-    setNativeAd(null);
+    setLoadedNativeAd(null);
     if (!enabled || !homeNativeUnitId || (isSettled && !isReady)) {
       onLoadStateChange?.("unavailable");
       return;
@@ -43,34 +47,50 @@ export const NativeAdCard = memo(function NativeAdCard({
 
     let active = true;
     let timedOut = false;
-    let loadedAd: NativeAd | null = null;
+    let loadedAd: NativeAdInstance | null = null;
     onLoadStateChange?.("loading");
 
     const timeout = setTimeout(() => {
       timedOut = true;
-      setNativeAd(null);
+      setLoadedNativeAd(null);
       onLoadStateChange?.("unavailable");
     }, LOAD_TIMEOUT_MS);
 
-    void NativeAd.createForAdRequest(homeNativeUnitId, {
-      adChoicesPlacement: NativeAdChoicesPlacement.TOP_RIGHT,
-      aspectRatio: NativeMediaAspectRatio.LANDSCAPE,
-      startVideoMuted: true,
-    })
-      .then((ad) => {
+    void getGoogleMobileAdsModule()
+      .then(async (module) => {
+        if (!module) return null;
+        const nativeAd = await module.NativeAd.createForAdRequest(
+          homeNativeUnitId,
+          {
+            adChoicesPlacement: module.NativeAdChoicesPlacement.TOP_RIGHT,
+            aspectRatio: module.NativeMediaAspectRatio.LANDSCAPE,
+            startVideoMuted: true,
+          },
+        );
+        return { module, nativeAd };
+      })
+      .then((result) => {
+        if (!result) {
+          clearTimeout(timeout);
+          if (active && !timedOut) {
+            onLoadStateChange?.("unavailable");
+          }
+          return;
+        }
+        const { module, nativeAd } = result;
         if (!active || timedOut) {
-          ad.destroy();
+          nativeAd.destroy();
           return;
         }
         clearTimeout(timeout);
-        loadedAd = ad;
-        setNativeAd(ad);
+        loadedAd = nativeAd;
+        setLoadedNativeAd({ module, nativeAd });
         onLoadStateChange?.("loaded");
       })
       .catch(() => {
         if (!active || timedOut) return;
         clearTimeout(timeout);
-        setNativeAd(null);
+        setLoadedNativeAd(null);
         onLoadStateChange?.("unavailable");
       });
 
@@ -81,8 +101,13 @@ export const NativeAdCard = memo(function NativeAdCard({
     };
   }, [enabled, homeNativeUnitId, isReady, isSettled, onLoadStateChange]);
 
-  if (!enabled || !isReady || !homeNativeUnitId || !nativeAd) return null;
+  if (!enabled || !isReady || !homeNativeUnitId || !loadedNativeAd) {
+    return null;
+  }
 
+  const { module, nativeAd } = loadedNativeAd;
+  const { NativeAdView, NativeAsset, NativeAssetType, NativeMediaView } =
+    module;
   const body = nativeAd.body?.trim();
   const callToAction = nativeAd.callToAction?.trim();
 
