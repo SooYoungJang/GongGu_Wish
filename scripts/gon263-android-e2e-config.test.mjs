@@ -25,6 +25,9 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
   assert.match(codegen, /target_compile_reactnative_options/);
   assert.match(codegen, /const libraryType = "all"/);
   assert.match(builder, /:app:generateCodegenArtifactsFromSchema/);
+  assert.match(workflow, /unzip -Z1 "\$android_apk"/);
+  assert.match(workflow, /lib\/x86_64\/.*\\\.so/);
+  assert.doesNotMatch(workflow, /Android E2E compiled an unused ABI/);
   assert.match(
     runner,
     /maestro test \.maestro\/gon-263-critical-journeys\.yaml/,
@@ -60,11 +63,27 @@ test("Android E2E config plugin enables cleartext only in generated manifest", (
 
 test("production app config keeps Android cleartext disabled", () => {
   const appConfig = require("../apps/mobile/app.config.js");
-  const previousMode = process.env.EXPO_PUBLIC_E2E_MODE;
+  const environmentKeys = [
+    "APP_VARIANT",
+    "EXPO_PUBLIC_API_PROXY_URL",
+    "EXPO_PUBLIC_E2E_MODE",
+    "EXPO_PUBLIC_SUPABASE_ANON_KEY",
+    "EXPO_PUBLIC_SUPABASE_URL",
+  ];
+  const previousEnvironment = Object.fromEntries(
+    environmentKeys.map((key) => [key, process.env[key]]),
+  );
 
   try {
+    process.env.APP_VARIANT = "production";
+    process.env.EXPO_PUBLIC_API_PROXY_URL = "https://api.gongguwish.com";
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = "production-config-test";
+    process.env.EXPO_PUBLIC_SUPABASE_URL =
+      "https://iosdoheblabfimkjnvfj.supabase.co";
     delete process.env.EXPO_PUBLIC_E2E_MODE;
-    const productionConfig = appConfig({ config: { android: {} } });
+    const productionConfig = appConfig({
+      config: { android: {}, version: "0.1.0" },
+    });
     assert.equal(productionConfig.android.usesCleartextTraffic, undefined);
     assert.equal(typeof productionConfig.mods.android.manifest, "function");
 
@@ -84,13 +103,18 @@ test("production app config keeps Android cleartext disabled", () => {
     );
 
     process.env.EXPO_PUBLIC_E2E_MODE = "true";
-    const e2eConfig = appConfig({ config: { android: {} } });
+    const e2eConfig = appConfig({
+      config: { android: {}, version: "0.1.0" },
+    });
     assert.equal(typeof e2eConfig.mods.android.manifest, "function");
   } finally {
-    if (previousMode === undefined) {
-      delete process.env.EXPO_PUBLIC_E2E_MODE;
-    } else {
-      process.env.EXPO_PUBLIC_E2E_MODE = previousMode;
+    for (const key of environmentKeys) {
+      const previousValue = previousEnvironment[key];
+      if (previousValue === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = previousValue;
+      }
     }
   }
 });

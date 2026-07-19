@@ -7,10 +7,123 @@ const GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID =
 const ADS_MODES = new Set(["off", "test", "production"]);
 const ADMOB_APP_ID_PATTERN = /^ca-app-pub-\d{16}~\d{10}$/;
 const ADMOB_UNIT_ID_PATTERN = /^ca-app-pub-\d{16}\/\d{10}$/;
+const APP_VARIANTS = Object.freeze({
+  development: Object.freeze({
+    applicationId: "com.gonggu.wish.dev",
+    key: "development",
+    name: "공구위시 Dev",
+    scheme: "gongguwish-dev",
+  }),
+  preview: Object.freeze({
+    applicationId: "com.gonggu.wish.preview",
+    key: "preview",
+    name: "공구위시 Preview",
+    scheme: "gongguwish-preview",
+  }),
+  production: Object.freeze({
+    applicationId: "com.gonggu.wish",
+    key: "production",
+    name: "공구위시",
+    scheme: "gongguwish",
+  }),
+});
+const BACKEND_ENVIRONMENTS = Object.freeze({
+  staging: Object.freeze({
+    apiProxyUrl: "https://api-staging.gongguwish.com",
+    supabaseUrl: "https://xwblovggtvbpiusjfokq.supabase.co",
+  }),
+  production: Object.freeze({
+    apiProxyUrl: "https://api.gongguwish.com",
+    supabaseUrl: "https://iosdoheblabfimkjnvfj.supabase.co",
+  }),
+});
 
 function normalizeValue(value) {
   const normalized = value?.trim();
   return normalized || undefined;
+}
+
+function resolveAppVariant(requestedVariant) {
+  const key = normalizeValue(requestedVariant) ?? "production";
+  const variant = APP_VARIANTS[key];
+  if (!variant) {
+    throw new Error("APP_VARIANT must be development, preview, or production");
+  }
+  return variant;
+}
+
+function resolveGoogleServicesFile(
+  variant,
+  configuredFile,
+  productionFallback,
+) {
+  const environmentFile = normalizeValue(configuredFile);
+  if (environmentFile) return environmentFile;
+  return variant === "production"
+    ? normalizeValue(productionFallback)
+    : undefined;
+}
+
+function requireHttpsOrigin(value, label) {
+  const normalized = normalizeValue(value);
+  if (!normalized) {
+    throw new Error(`[Environment] ${label} is required`);
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error(`[Environment] ${label} must be a valid HTTPS origin`);
+  }
+
+  const isOriginOnly =
+    !parsed.username &&
+    !parsed.password &&
+    parsed.pathname === "/" &&
+    !parsed.search &&
+    !parsed.hash;
+  if (parsed.protocol !== "https:" || !isOriginOnly) {
+    throw new Error(`[Environment] ${label} must be a valid HTTPS origin`);
+  }
+  return parsed.origin;
+}
+
+function resolveBackendEnvironment({
+  apiProxyUrl,
+  anonKey,
+  supabaseUrl,
+  variant,
+}) {
+  if (!normalizeValue(anonKey)) {
+    throw new Error("[Environment] Supabase anon key is required");
+  }
+
+  const resolvedSupabaseUrl = requireHttpsOrigin(supabaseUrl, "Supabase URL");
+  const resolvedApiProxyUrl = requireHttpsOrigin(apiProxyUrl, "API proxy URL");
+  const environmentName = variant === "production" ? "production" : "staging";
+  const expected = BACKEND_ENVIRONMENTS[environmentName];
+
+  if (
+    resolvedSupabaseUrl !== expected.supabaseUrl ||
+    resolvedApiProxyUrl !== expected.apiProxyUrl
+  ) {
+    const label = environmentName === "production" ? "Production" : "staging";
+    throw new Error(`[Environment] ${variant} must use the ${label} backend`);
+  }
+
+  return {
+    apiProxyUrl: resolvedApiProxyUrl,
+    supabaseUrl: resolvedSupabaseUrl,
+  };
+}
+
+function resolveRuntimeVersion(appVersion, variant, automatedE2E) {
+  const version = normalizeValue(appVersion);
+  if (!version) {
+    throw new Error("[Updates] Expo app version is required");
+  }
+  return `${version}-${automatedE2E ? "e2e" : variant}`;
 }
 
 function publisherPrefix(id) {
@@ -152,22 +265,50 @@ function withAutomatedE2EAndroidManifest(config) {
 }
 
 const createAppConfig = ({ config }) => {
+  const appVariant = resolveAppVariant(process.env.APP_VARIANT);
   const automatedE2E = process.env.EXPO_PUBLIC_E2E_MODE === "true";
   const ads = resolveAdsBuildConfig({
     automatedE2E,
     configuredAndroidAppId: process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID,
     configuredHomeNativeUnitId:
       process.env.EXPO_PUBLIC_ADMOB_HOME_NATIVE_UNIT_ID,
-    isProductionBuild:
-      process.env.EAS_BUILD === "true" || process.env.NODE_ENV === "production",
+    isProductionBuild: appVariant.key === "production",
     requestedMode: process.env.EXPO_PUBLIC_ADMOB_MODE,
   });
+  const productionGoogleServicesFile = config.android?.googleServicesFile;
+  const googleServicesFile = resolveGoogleServicesFile(
+    appVariant.key,
+    process.env.GOOGLE_SERVICES_JSON,
+    productionGoogleServicesFile,
+  );
+  const hasBackendConfiguration = [
+    process.env.EXPO_PUBLIC_API_PROXY_URL,
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.EXPO_PUBLIC_SUPABASE_URL,
+  ].some((value) => normalizeValue(value));
+  if (!automatedE2E && hasBackendConfiguration) {
+    resolveBackendEnvironment({
+      apiProxyUrl: process.env.EXPO_PUBLIC_API_PROXY_URL,
+      anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+      variant: appVariant.key,
+    });
+  }
 
   const resolvedConfig = withAndroidGoogleMobileAds(
     {
       ...config,
+      name: appVariant.name,
+      runtimeVersion: resolveRuntimeVersion(
+        config.version,
+        appVariant.key,
+        automatedE2E,
+      ),
+      scheme: appVariant.scheme,
       extra: {
         ...config.extra,
+        appVariant: appVariant.key,
+        authRedirectUrl: `${appVariant.scheme}://auth/callback`,
         automatedE2E,
         adsMode: ads.mode,
         admobAndroidAppId: ads.androidAppId,
@@ -185,8 +326,14 @@ const createAppConfig = ({ config }) => {
             }
           : {}),
       },
+      ios: {
+        ...config.ios,
+        bundleIdentifier: appVariant.applicationId,
+      },
       android: {
         ...config.android,
+        package: appVariant.applicationId,
+        googleServicesFile,
       },
     },
     ads.androidAppId,
@@ -208,5 +355,9 @@ createAppConfig.applyAutomatedE2EAndroidManifest =
 createAppConfig.applyGoogleMobileAdsAndroidManifest =
   applyGoogleMobileAdsAndroidManifest;
 createAppConfig.resolveAdsBuildConfig = resolveAdsBuildConfig;
+createAppConfig.resolveAppVariant = resolveAppVariant;
+createAppConfig.resolveBackendEnvironment = resolveBackendEnvironment;
+createAppConfig.resolveGoogleServicesFile = resolveGoogleServicesFile;
+createAppConfig.resolveRuntimeVersion = resolveRuntimeVersion;
 
 module.exports = createAppConfig;

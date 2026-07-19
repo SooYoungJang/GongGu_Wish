@@ -17,7 +17,7 @@ import { AdsProvider } from './ads/AdsContext';
 import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
-import { resolveDataApiUrl, resolveSupabaseUrl } from './lib/supabase-config';
+import { resolveDataApiUrl, resolveSupabaseAnonKey, resolveSupabaseUrl } from './lib/supabase-config';
 import { isAutomatedE2E } from './lib/automatedE2E';
 import { registerForPushNotifications } from './services/notifications';
 import { BackButton } from './components/BackButton';
@@ -35,9 +35,9 @@ import { notificationLinking } from './navigation/notificationLinking';
 
 // Initialize PostgREST client with the Supabase anon key
 const automatedE2E = isAutomatedE2E();
-const anonKey = automatedE2E
-  ? (Constants.expoConfig?.extra?.e2eSupabaseAnonKey ?? '')
-  : (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '');
+const anonKey = resolveSupabaseAnonKey(automatedE2E
+  ? Constants.expoConfig?.extra?.e2eSupabaseAnonKey
+  : process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
 const supabaseUrl = resolveSupabaseUrl(automatedE2E
   ? Constants.expoConfig?.extra?.e2eSupabaseUrl
   : process.env.EXPO_PUBLIC_SUPABASE_URL, {

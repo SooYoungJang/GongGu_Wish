@@ -3,6 +3,9 @@
     "name": "공구위시",
     "slug": "gonggu-wish",
     "version": "0.1.0",
+    "updates": {
+      "url": "https://u.expo.dev/7425b02f-80fe-4ccf-b7fa-c6052282fe35"
+    },
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#ffffff",
@@ -43,6 +46,12 @@
           "color": "#F0445E"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7425b02f-80fe-4ccf-b7fa-c6052282fe35"
+      }
+    },
+    "owner": "sooyoung.jang"
   }
 }

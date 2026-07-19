@@ -37,8 +37,8 @@ jobs:
     env:
       EXPO_NO_TELEMETRY: "1"
       MAESTRO_VERSION: "2.6.1"
-      # The emulator can only execute x86_64. Restricting the release build to
-      # that ABI avoids filling the runner disk with unused native artifacts.
+      # The emulator can only execute x86_64. Keep the packaged release app
+      # aligned with that ABI even if a dependency configures extra CMake tasks.
       ORG_GRADLE_PROJECT_reactNativeArchitectures: "x86_64"
 
     steps:
@@ -166,9 +166,12 @@ jobs:
             artifacts/android/android-manifest.xml
           test -s artifacts/android/android-prebuild.log
           test -s artifacts/android/android-build.log
-          if grep -Eq '\[(armeabi-v7a|arm64-v8a|x86)\]' \
-            artifacts/android/android-build.log; then
-            echo "Android E2E compiled an unused ABI" >&2
+          android_apk="apps/mobile/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$android_apk"
+          unzip -Z1 "$android_apk" | grep -Eq '^lib/x86_64/.*\.so$'
+          if unzip -Z1 "$android_apk" \
+            | grep -Eq '^lib/(armeabi-v7a|arm64-v8a|x86)/'; then
+            echo "Android E2E packaged an unused ABI" >&2
             exit 1
           fi
           test -s artifacts/android/disk-before-build.txt

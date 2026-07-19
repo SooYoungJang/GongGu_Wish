@@ -1,8 +1,33 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveDataApiUrl, resolveSupabaseUrl } from "./supabase-config";
+import {
+  resolveDataApiUrl,
+  resolveSupabaseAnonKey,
+  resolveSupabaseUrl,
+} from "./supabase-config";
+
+describe("resolveSupabaseAnonKey", () => {
+  it("requires an explicit anon key", () => {
+    expect(() => resolveSupabaseAnonKey(undefined)).toThrow(
+      "Supabase anon key must be configured",
+    );
+    expect(() => resolveSupabaseAnonKey("  ")).toThrow(
+      "Supabase anon key must be configured",
+    );
+  });
+
+  it("normalizes a configured anon key", () => {
+    expect(resolveSupabaseAnonKey(" anon-key ")).toBe("anon-key");
+  });
+});
 
 describe("resolveSupabaseUrl", () => {
+  it("requires an explicit Supabase origin for normal app builds", () => {
+    expect(() => resolveSupabaseUrl(undefined)).toThrow(
+      "Supabase origin must be configured",
+    );
+  });
+
   it("accepts simulator loopback origins for an E2E build", () => {
     expect(
       resolveSupabaseUrl("http://10.0.2.2:54321/", { requireLocal: true }),
@@ -37,10 +62,10 @@ describe("resolveDataApiUrl", () => {
     ).toBe("https://api.gongguwish.com");
   });
 
-  it("falls back to the Supabase origin when no proxy is configured", () => {
-    expect(resolveDataApiUrl("https://project.supabase.co", "  ")).toBe(
-      "https://project.supabase.co",
-    );
+  it("requires an explicit proxy for normal app builds", () => {
+    expect(() =>
+      resolveDataApiUrl("https://project.supabase.co", "  "),
+    ).toThrow("API proxy origin must be configured");
   });
 
   it("keeps the local Supabase origin for automated E2E builds", () => {
