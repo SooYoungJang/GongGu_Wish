@@ -9,11 +9,11 @@ import React, {
 import type { AuthError, Session, User } from "@supabase/supabase-js";
 import { Linking } from "react-native";
 
+import { AUTH_REDIRECT_URL } from "../lib/auth-config";
 import { getSupabase } from "../lib/supabase";
 import { setAuthToken, clearAuthToken } from "../utils/auth";
 import type { SocialAuthProvider } from "../utils/authHelpers";
 
-export const AUTH_REDIRECT_URL = "gongguwish://auth/callback";
 export const EMAIL_CODE_TTL_SECONDS = 5 * 60;
 
 // ─── Types ────────────────────────────────────────────────────────────────────

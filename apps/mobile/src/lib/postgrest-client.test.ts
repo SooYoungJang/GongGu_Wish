@@ -23,14 +23,14 @@ describe('postgrestFetch diagnostics', () => {
     expect(console.log).toHaveBeenCalledTimes(2);
 
     expect(console.log).toHaveBeenNthCalledWith(1, '[PostgREST] request', {
-      url: 'https://iosdoheblabfimkjnvfj.supabase.co/rest/v1/feed_posts',
+      url: 'https://unconfigured.invalid/rest/v1/feed_posts',
       method: 'GET',
       apikey: { exists: true, length: 25, prefix: 'sb_publi' },
       hasAuthorization: false,
     });
 
     expect(console.log).toHaveBeenNthCalledWith(2, '[PostgREST] fetch failed', {
-      url: 'https://iosdoheblabfimkjnvfj.supabase.co/rest/v1/feed_posts',
+      url: 'https://unconfigured.invalid/rest/v1/feed_posts',
       name: 'TypeError',
       message: 'Network request failed',
       cause: undefined,

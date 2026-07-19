@@ -26,6 +26,8 @@ ios/
 .env.*
 !.env.example
 *-firebase-adminsdk-*.json
+apps/mobile/google-services.dev.json
+apps/mobile/google-services.preview.json
 
 
 # Python worker

@@ -1,5 +1,3 @@
-export const DEFAULT_SUPABASE_URL = "https://iosdoheblabfimkjnvfj.supabase.co";
-
 const LOCAL_SUPABASE_HOSTS = new Set([
   "127.0.0.1",
   "localhost",
@@ -10,6 +8,14 @@ const LOCAL_SUPABASE_HOSTS = new Set([
 type ResolveSupabaseUrlOptions = {
   requireLocal?: boolean;
 };
+
+export function resolveSupabaseAnonKey(anonKey?: string): string {
+  const configuredKey = anonKey?.trim();
+  if (!configuredKey) {
+    throw new Error("Supabase anon key must be configured");
+  }
+  return configuredKey;
+}
 
 /**
  * Resolve a Supabase origin once at app startup.
@@ -23,8 +29,11 @@ export function resolveSupabaseUrl(
   if (requireLocal && !configuredUrl) {
     throw new Error("[E2E] A local Supabase origin must be configured");
   }
+  if (!configuredUrl) {
+    throw new Error("Supabase origin must be configured");
+  }
 
-  const resolved = (configuredUrl || DEFAULT_SUPABASE_URL).replace(/\/+$/, "");
+  const resolved = configuredUrl.replace(/\/+$/, "");
   if (requireLocal) {
     let parsed: URL;
     try {
@@ -55,7 +64,9 @@ export function resolveDataApiUrl(
   if (requireLocal) return resolvedSupabaseUrl;
 
   const configuredProxyUrl = apiProxyUrl?.trim();
-  if (!configuredProxyUrl) return resolvedSupabaseUrl;
+  if (!configuredProxyUrl) {
+    throw new Error("API proxy origin must be configured");
+  }
 
   let parsed: URL;
   try {

@@ -10,14 +10,15 @@
  *  - snake_case → camelCase response mapping
  */
 import { ApiError, type PaginationMeta, type PaginationParams } from './api-types';
-import { DEFAULT_SUPABASE_URL, resolveSupabaseUrl } from './supabase-config';
+import { resolveSupabaseUrl } from './supabase-config';
 
 import { mapPostgrestToApp } from '../utils/postgrest-mapper';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const REST_VERSION = '/rest/v1/';
-let _supabaseUrl = DEFAULT_SUPABASE_URL;
+const UNCONFIGURED_SUPABASE_URL = 'https://unconfigured.invalid';
+let _supabaseUrl = UNCONFIGURED_SUPABASE_URL;
 export let API_BASE_URL = `${_supabaseUrl}${REST_VERSION}`;
 
 // The anon key is configured at module init.
@@ -30,7 +31,9 @@ let _anonKey: string = '';
  */
 export function configurePostgrest(anonKey: string, supabaseUrl?: string): void {
   _anonKey = anonKey;
-  _supabaseUrl = resolveSupabaseUrl(supabaseUrl);
+  _supabaseUrl = supabaseUrl?.trim()
+    ? resolveSupabaseUrl(supabaseUrl)
+    : UNCONFIGURED_SUPABASE_URL;
   API_BASE_URL = `${_supabaseUrl}${REST_VERSION}`;
 }
 
