@@ -120,9 +120,10 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
       throw new Error("[local-supabase:setup] Fixture is unavailable");
     const recentOnlyQuery = "임의검색-최근전용";
     const selectedProductName = "선택제품-인기집계";
+    const selectedProductId = "search-popularity-contract-product";
 
     await logSearchTerm(recentOnlyQuery);
-    await logSearchTerm(selectedProductName, fixture.groupBuyIds[0]);
+    await logSearchTerm(selectedProductName, selectedProductId);
 
     const popularTerms = await fetchPopularSearchTerms(50, 24);
     expect(popularTerms.some((term) => term.keyword === recentOnlyQuery)).toBe(
