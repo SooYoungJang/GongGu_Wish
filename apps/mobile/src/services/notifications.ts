@@ -157,9 +157,7 @@ export async function registerForPushNotifications(
   if (IS_EXPO_GO) return null;
 
   try {
-    const projectId = getEasProjectId();
     if (
-      !projectId ||
       (await getNotificationAvailability(options.requestPermission !== false))
         .status !== "available"
     ) {
@@ -168,6 +166,8 @@ export async function registerForPushNotifications(
 
     let token = isAutomatedE2E() ? options.e2eTokenOverride : undefined;
     if (token === undefined) {
+      const projectId = getEasProjectId();
+      if (!projectId) return null;
       const Notifications = await getNotifications();
       if (!Notifications) return null;
       token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;

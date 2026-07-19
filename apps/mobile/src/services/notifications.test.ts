@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { callEdgeFunction } = vi.hoisted(() => ({ callEdgeFunction: vi.fn() }));
+const constantsMock = vi.hoisted(() => ({
+  appOwnership: "standalone",
+  expoConfig: {
+    extra: {
+      automatedE2E: true,
+      eas: { projectId: "project-123" } as { projectId?: string },
+    },
+  },
+}));
 const notificationMocks = vi.hoisted(() => ({
   AndroidImportance: { HIGH: 4 },
   getExpoPushTokenAsync: vi
@@ -35,15 +44,7 @@ vi.mock("react-native", () => ({
   },
 }));
 vi.mock("expo-constants", () => ({
-  default: {
-    appOwnership: "standalone",
-    expoConfig: {
-      extra: {
-        automatedE2E: true,
-        eas: { projectId: "project-123" },
-      },
-    },
-  },
+  default: constantsMock,
 }));
 vi.mock("expo-notifications", () => notificationMocks);
 
@@ -89,6 +90,7 @@ describe("registerForPushNotifications", () => {
     notificationMocks.clearLastNotificationResponseAsync
       .mockReset()
       .mockResolvedValue(undefined);
+    constantsMock.expoConfig.extra.eas.projectId = "project-123";
   });
 
   it("registers the Expo token through the authenticated Edge Function", async () => {
@@ -122,6 +124,20 @@ describe("registerForPushNotifications", () => {
       },
       { authToken: "access-token" },
     );
+  });
+
+  it("does not require an EAS project ID for an explicit E2E token", async () => {
+    delete constantsMock.expoConfig.extra.eas.projectId;
+
+    await expect(
+      registerForPushNotifications("access-token", {
+        requestPermission: false,
+        e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]",
+      }),
+    ).resolves.toBe("ExpoPushToken[gon229-local-e2e]");
+
+    expect(notificationMocks.getExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(callEdgeFunction).toHaveBeenCalledOnce();
   });
 
   it("returns an explicit scheduled result for a valid group-buy start", async () => {
