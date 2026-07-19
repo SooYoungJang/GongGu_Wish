@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "gonggu-api-proxy",
+  "main": "src/index.js",
+  "tsconfig": "./tsconfig.json",
+  "compatibility_date": "2026-07-19",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "api.gongguwish.com",
+      "custom_domain": true,
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+  "vars": {
+    "SUPABASE_ORIGIN": "https://iosdoheblabfimkjnvfj.supabase.co",
+    "ALLOWED_ORIGINS": "https://gongguwish.com,https://www.gongguwish.com",
+  },
+}

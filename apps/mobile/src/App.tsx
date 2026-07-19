@@ -17,7 +17,7 @@ import { AdsProvider } from './ads/AdsContext';
 import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
-import { resolveSupabaseUrl } from './lib/supabase-config';
+import { resolveDataApiUrl, resolveSupabaseUrl } from './lib/supabase-config';
 import { isAutomatedE2E } from './lib/automatedE2E';
 import { registerForPushNotifications } from './services/notifications';
 import { BackButton } from './components/BackButton';
@@ -43,7 +43,12 @@ const supabaseUrl = resolveSupabaseUrl(automatedE2E
   : process.env.EXPO_PUBLIC_SUPABASE_URL, {
   requireLocal: automatedE2E,
 });
-configurePostgrest(anonKey, supabaseUrl);
+const dataApiUrl = resolveDataApiUrl(
+  supabaseUrl,
+  automatedE2E ? undefined : process.env.EXPO_PUBLIC_API_PROXY_URL,
+  { requireLocal: automatedE2E },
+);
+configurePostgrest(anonKey, dataApiUrl);
 // Initialize Supabase Auth client
 configureSupabase(anonKey, supabaseUrl);
 
