@@ -1,5 +1,8 @@
 param(
   [string]$BuildRoot = "C:\codex-tools\work\GongGu_Wish",
+  [ValidateSet("Debug", "Release")]
+  [string]$BuildVariant = "Release",
+  [string]$EnvFile = "",
   [switch]$AutomatedE2E
 )
 
@@ -12,14 +15,40 @@ function Add-ToPathIfExists([string]$PathToAdd) {
 }
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-if (-not $BuildRoot.StartsWith("C:\codex-tools\work\")) {
+$allowedBuildRoot = [IO.Path]::GetFullPath("C:\codex-tools\work")
+$BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
+if (-not $BuildRoot.StartsWith("$allowedBuildRoot\", [StringComparison]::OrdinalIgnoreCase)) {
   throw "BuildRoot must stay under C:\codex-tools\work"
+}
+
+if ($EnvFile) {
+  $resolvedEnvFile = (Resolve-Path -LiteralPath $EnvFile).Path
+  foreach ($line in Get-Content -LiteralPath $resolvedEnvFile) {
+    $trimmed = $line.Trim()
+    if (-not $trimmed -or $trimmed.StartsWith("#") -or -not $trimmed.Contains("=")) {
+      continue
+    }
+    $parts = $trimmed.Split("=", 2)
+    $name = $parts[0].Trim()
+    if ($name -notmatch "^[A-Za-z_][A-Za-z0-9_]*$") {
+      throw "Invalid environment variable name in EnvFile"
+    }
+    $value = $parts[1].Trim()
+    if ($value.Length -ge 2 -and (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'")))) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+    [Environment]::SetEnvironmentVariable($name, $value, "Process")
+  }
 }
 
 if ($AutomatedE2E) {
   $env:EXPO_PUBLIC_E2E_MODE = "true"
   $env:EXPO_PUBLIC_SUPABASE_URL = "http://localhost:54321"
   $env:EXPO_PUBLIC_SUPABASE_ANON_KEY = "local-e2e-anon-key"
+}
+
+if ($BuildVariant -eq "Release" -and -not $env:NODE_ENV) {
+  $env:NODE_ENV = "production"
 }
 
 $androidSdk = $env:ANDROID_HOME
@@ -65,7 +94,11 @@ try {
   npx expo export:embed --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res
   Push-Location "android"
   try {
-    .\gradlew.bat installDebug -x lint -x test --configure-on-demand --build-cache --no-daemon -PreactNativeArchitectures=x86_64
+    $installTask = "install$BuildVariant"
+    & .\gradlew.bat $installTask -x lint -x test --configure-on-demand --build-cache --no-daemon -PreactNativeArchitectures=x86_64
+    if ($LASTEXITCODE -ne 0) {
+      throw "Gradle $installTask failed with exit code $LASTEXITCODE"
+    }
   } finally {
     Pop-Location
   }

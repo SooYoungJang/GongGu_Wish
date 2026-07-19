@@ -33,6 +33,11 @@ const ranking: GroupBuyRankingItem = {
 };
 
 const refreshRanking = vi.hoisted(() => vi.fn());
+const toggleNotificationMock = vi.hoisted(() => vi.fn());
+const authGateMock = vi.hoisted(() => ({
+  isAuthenticated: true,
+  requireAuth: vi.fn(() => true),
+}));
 
 vi.mock("react-native", () => {
   const ReactMock = require("react");
@@ -155,8 +160,11 @@ vi.mock("../hooks/useLocalDeals", () => ({
   useNotifications: () => ({
     isNotifying: () => false,
     getNotificationState: () => ({ status: "idle" }),
-    toggleNotification: vi.fn(),
+    toggleNotification: toggleNotificationMock,
   }),
+}));
+vi.mock("../hooks/useAuthGate", () => ({
+  useAuthGate: () => authGateMock,
 }));
 
 vi.mock("../api", () => ({ syncNotification: vi.fn() }));
@@ -203,6 +211,34 @@ describe("StoreScreen ranking redesign", () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    authGateMock.isAuthenticated = true;
+    authGateMock.requireAuth.mockImplementation(() => true);
+  });
+
+  it("blocks guest alert changes behind the login screen", () => {
+    authGateMock.isAuthenticated = false;
+    authGateMock.requireAuth.mockImplementation(() => false);
+    const navigation = createNavigation();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <StoreScreen
+            navigation={navigation as never}
+            route={{ key: "Store-test", name: "Store" } as never}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const alert = renderer!.root.findByProps({
+      accessibilityLabel: "여름 한정 공구 알림",
+    });
+    act(() => alert.props.onPress());
+
+    expect(authGateMock.requireAuth).toHaveBeenCalledOnce();
+    expect(toggleNotificationMock).not.toHaveBeenCalled();
   });
 
   it("shows the clean ranking header and removes the non-functional global alert action", () => {

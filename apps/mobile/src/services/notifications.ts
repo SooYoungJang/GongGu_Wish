@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 
 import { callEdgeFunction } from "../lib/postgrest-client";
+import { isAutomatedE2E } from "../lib/automatedE2E";
 import { isExpoPushToken } from "./pushToken";
 import type { NotificationReminderDay } from "./notificationPreferences";
 import {
@@ -148,25 +149,29 @@ export function getEasProjectId(): string | null {
 
 export async function registerForPushNotifications(
   authToken?: string,
-  options: { requestPermission?: boolean } = {},
+  options: {
+    requestPermission?: boolean;
+    e2eTokenOverride?: string;
+  } = {},
 ): Promise<string | null> {
   if (IS_EXPO_GO) return null;
 
   try {
-    const projectId = getEasProjectId();
     if (
-      !projectId ||
       (await getNotificationAvailability(options.requestPermission !== false))
         .status !== "available"
     ) {
       return null;
     }
 
-    const Notifications = await getNotifications();
-    if (!Notifications) return null;
-
-    const token = (await Notifications.getExpoPushTokenAsync({ projectId }))
-      .data;
+    let token = isAutomatedE2E() ? options.e2eTokenOverride : undefined;
+    if (token === undefined) {
+      const projectId = getEasProjectId();
+      if (!projectId) return null;
+      const Notifications = await getNotifications();
+      if (!Notifications) return null;
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    }
     if (!isExpoPushToken(token)) return null;
 
     await callEdgeFunction(

@@ -35,6 +35,15 @@ const queryMock = vi.hoisted(() => ({
 const recentViewsMock = vi.hoisted(() => ({
   recordView: vi.fn(),
 }));
+const localDealActionMocks = vi.hoisted(() => ({
+  toggleBookmark: vi.fn(),
+  retryNotification: vi.fn(),
+  toggleNotification: vi.fn(),
+}));
+const authGateMock = vi.hoisted(() => ({
+  isAuthenticated: true,
+  requireAuth: vi.fn(() => true),
+}));
 const notificationPreferencesMock = vi.hoisted(() => ({
   preferences: {
     pushEnabled: true,
@@ -62,7 +71,7 @@ vi.mock("../hooks/useLocalDeals", () => ({
   useBookmarks: () => ({
     bookmarks: [],
     isBookmarked: () => false,
-    toggleBookmark: vi.fn(),
+    toggleBookmark: localDealActionMocks.toggleBookmark,
     ready: true,
   }),
   useRecentViews: () => ({
@@ -74,10 +83,13 @@ vi.mock("../hooks/useLocalDeals", () => ({
     notifications: [],
     getNotificationState: () => ({ status: "idle" }),
     isNotifying: () => false,
-    retryNotification: vi.fn(),
-    toggleNotification: vi.fn(),
+    retryNotification: localDealActionMocks.retryNotification,
+    toggleNotification: localDealActionMocks.toggleNotification,
     ready: true,
   }),
+}));
+vi.mock("../hooks/useAuthGate", () => ({
+  useAuthGate: () => authGateMock,
 }));
 vi.mock("../hooks/usePlaybackLifecycle", () => ({
   usePlaybackLifecycle: () => ({
@@ -624,6 +636,11 @@ beforeEach(() => {
   queryMock.linkedIsFetching = false;
   queryMock.linkedRefetch.mockReset();
   recentViewsMock.recordView.mockReset();
+  localDealActionMocks.toggleBookmark.mockReset();
+  localDealActionMocks.retryNotification.mockReset();
+  localDealActionMocks.toggleNotification.mockReset();
+  authGateMock.isAuthenticated = true;
+  authGateMock.requireAuth.mockReset().mockReturnValue(true);
   notificationPreferencesMock.preferences.followedInfluencers = [];
   notificationPreferencesMock.preferences.followedBrands = [];
   notificationPreferencesMock.toggleInfluencer.mockReset();
@@ -676,6 +693,42 @@ describe("DetailScreen", () => {
     expect(notificationPreferencesMock.toggleBrand).toHaveBeenCalledWith(
       "퍼스트",
     );
+  });
+
+  it("blocks every guest bookmark and notification action behind login", () => {
+    authGateMock.isAuthenticated = false;
+    authGateMock.requireAuth.mockReturnValue(false);
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{
+            key: "Detail",
+            name: "Detail",
+            params: { groupBuy: baseGroupBuy },
+          } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const actions = [
+      renderer!.root.findByProps({ accessibilityLabel: "북마크" }),
+      renderer!.root.findByProps({ testID: "detail-notification-toggle" }),
+      renderer!.root.findByProps({
+        accessibilityLabel: "@hanssang_home 인플루언서 알림 설정",
+      }),
+      renderer!.root.findByProps({
+        accessibilityLabel: "퍼스트 브랜드 알림 설정",
+      }),
+    ];
+    act(() => actions.forEach((action) => action.props.onPress()));
+
+    expect(authGateMock.requireAuth).toHaveBeenCalledTimes(4);
+    expect(localDealActionMocks.toggleBookmark).not.toHaveBeenCalled();
+    expect(localDealActionMocks.toggleNotification).not.toHaveBeenCalled();
+    expect(notificationPreferencesMock.toggleInfluencer).not.toHaveBeenCalled();
+    expect(notificationPreferencesMock.toggleBrand).not.toHaveBeenCalled();
   });
 
   it("loads the canonical item for an ID-only notification route", () => {
