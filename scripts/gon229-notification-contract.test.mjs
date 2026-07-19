@@ -120,9 +120,7 @@ test("Android notification runtime covers consent, deep links, and persistence",
 
 test("Android push registration is wired to Firebase and reports failures", () => {
   const appConfig = JSON.parse(read("apps/mobile/app.json"));
-  const googleServices = JSON.parse(
-    read("apps/mobile/google-services.json"),
-  );
+  const googleServices = JSON.parse(read("apps/mobile/google-services.json"));
   const settings = read("apps/mobile/src/screens/SettingsScreen.tsx");
   const notifications = read("apps/mobile/src/services/notifications.ts");
   const gitignore = read(".gitignore");
@@ -136,19 +134,26 @@ test("Android push registration is wired to Firebase and reports failures", () =
     appConfig.expo.android.googleServicesFile,
     "./google-services.json",
   );
-  assert.equal(googleServices.project_info.project_id, "gonggu-wish-7425b02f-2026");
+  assert.equal(
+    googleServices.project_info.project_id,
+    "gonggu-wish-7425b02f-2026",
+  );
   assert.ok(androidClient, "Firebase config must include com.gonggu.wish");
   assert.match(settings, /registerForPushNotifications/);
   assert.match(settings, /requestPermission:\s*false/);
+  assert.match(
+    settings,
+    /e2eTokenOverride:\s*"ExpoPushToken\[gon229-local-e2e\]"/,
+  );
   assert.match(settings, /session\?\.access_token/);
+  assert.match(notifications, /extra\?\.automatedE2E === true/);
+  assert.match(notifications, /options\.e2eTokenOverride/);
   assert.match(notifications, /console\.warn\(/);
   assert.match(gitignore, /\*-firebase-adminsdk-\*\.json/);
 });
 
 test("notification and bookmark actions require authentication", () => {
-  const defaults = read(
-    "apps/mobile/src/services/notificationPreferences.ts",
-  );
+  const defaults = read("apps/mobile/src/services/notificationPreferences.ts");
   const edgeContract = read(
     "supabase/functions/register-push-token/contract.ts",
   );

@@ -148,7 +148,10 @@ export function getEasProjectId(): string | null {
 
 export async function registerForPushNotifications(
   authToken?: string,
-  options: { requestPermission?: boolean } = {},
+  options: {
+    requestPermission?: boolean;
+    e2eTokenOverride?: string;
+  } = {},
 ): Promise<string | null> {
   if (IS_EXPO_GO) return null;
 
@@ -162,11 +165,15 @@ export async function registerForPushNotifications(
       return null;
     }
 
-    const Notifications = await getNotifications();
-    if (!Notifications) return null;
-
-    const token = (await Notifications.getExpoPushTokenAsync({ projectId }))
-      .data;
+    let token =
+      Constants.expoConfig?.extra?.automatedE2E === true
+        ? options.e2eTokenOverride
+        : undefined;
+    if (token === undefined) {
+      const Notifications = await getNotifications();
+      if (!Notifications) return null;
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    }
     if (!isExpoPushToken(token)) return null;
 
     await callEdgeFunction(

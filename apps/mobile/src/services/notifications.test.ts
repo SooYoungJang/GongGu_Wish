@@ -37,7 +37,12 @@ vi.mock("react-native", () => ({
 vi.mock("expo-constants", () => ({
   default: {
     appOwnership: "standalone",
-    expoConfig: { extra: { eas: { projectId: "project-123" } } },
+    expoConfig: {
+      extra: {
+        automatedE2E: true,
+        eas: { projectId: "project-123" },
+      },
+    },
   },
 }));
 vi.mock("expo-notifications", () => notificationMocks);
@@ -66,6 +71,9 @@ describe("registerForPushNotifications", () => {
     notificationMocks.requestPermissionsAsync.mockReset().mockResolvedValue({
       status: "granted",
     });
+    notificationMocks.getExpoPushTokenAsync.mockReset().mockResolvedValue({
+      data: "ExpoPushToken[test-token]",
+    });
     notificationMocks.setNotificationChannelAsync
       .mockReset()
       .mockResolvedValue(undefined);
@@ -91,6 +99,25 @@ describe("registerForPushNotifications", () => {
       "register-push-token",
       {
         token: "ExpoPushToken[test-token]",
+        provider: "expo",
+      },
+      { authToken: "access-token" },
+    );
+  });
+
+  it("uses an explicit E2E token without contacting Expo", async () => {
+    await expect(
+      registerForPushNotifications("access-token", {
+        requestPermission: false,
+        e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]",
+      }),
+    ).resolves.toBe("ExpoPushToken[gon229-local-e2e]");
+
+    expect(notificationMocks.getExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(callEdgeFunction).toHaveBeenCalledWith(
+      "register-push-token",
+      {
+        token: "ExpoPushToken[gon229-local-e2e]",
         provider: "expo",
       },
       { authToken: "access-token" },

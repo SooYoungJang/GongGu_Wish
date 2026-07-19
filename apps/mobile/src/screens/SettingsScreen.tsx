@@ -73,38 +73,44 @@ export function SettingsScreen() {
     }, []),
   );
 
-  const handlePushChange = useCallback(async (value: boolean) => {
-    if (!requireAuth()) return;
-    if (!value) {
-      await updatePreferences({ pushEnabled: false });
-      return;
-    }
+  const handlePushChange = useCallback(
+    async (value: boolean) => {
+      if (!requireAuth()) return;
+      if (!value) {
+        await updatePreferences({ pushEnabled: false });
+        return;
+      }
 
-    const granted = await requestNotificationPermissions();
-    if (!granted) {
-      Alert.alert(
-        "알림을 켤 수 없어요",
-        IS_EXPO_GO
-          ? "Expo Go에서는 푸시 알림이 지원되지 않아요. 개발 빌드에서 이용 가능합니다."
-          : "기기 설정에서 알림 권한을 허용해 주세요.",
-      );
-      setPermissionStatus(IS_EXPO_GO ? "unsupported" : "denied");
-      return;
-    }
-    setPermissionStatus("granted");
-    await updatePreferences({ pushEnabled: true });
-    if (!accessToken) return;
+      const granted = await requestNotificationPermissions();
+      if (!granted) {
+        Alert.alert(
+          "알림을 켤 수 없어요",
+          IS_EXPO_GO
+            ? "Expo Go에서는 푸시 알림이 지원되지 않아요. 개발 빌드에서 이용 가능합니다."
+            : "기기 설정에서 알림 권한을 허용해 주세요.",
+        );
+        setPermissionStatus(IS_EXPO_GO ? "unsupported" : "denied");
+        return;
+      }
+      setPermissionStatus("granted");
+      await updatePreferences({ pushEnabled: true });
+      if (!accessToken) return;
 
-    const token = await registerForPushNotifications(accessToken, {
-      requestPermission: false,
-    });
-    if (!token) {
-      Alert.alert(
-        "푸시 알림 등록에 실패했어요",
-        "네트워크 연결을 확인한 뒤 푸시 알림을 다시 켜주세요.",
-      );
-    }
-  }, [accessToken, requireAuth, updatePreferences]);
+      const token = await registerForPushNotifications(accessToken, {
+        requestPermission: false,
+        ...(automatedE2E
+          ? { e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]" }
+          : {}),
+      });
+      if (!token) {
+        Alert.alert(
+          "푸시 알림 등록에 실패했어요",
+          "네트워크 연결을 확인한 뒤 푸시 알림을 다시 켜주세요.",
+        );
+      }
+    },
+    [accessToken, automatedE2E, requireAuth, updatePreferences],
+  );
 
   const handleDeadlineChange = useCallback(
     (value: boolean) => {
@@ -175,12 +181,12 @@ export function SettingsScreen() {
   const permissionCopy = !isAuthenticated
     ? "로그인 후 원하는 알림을 직접 켤 수 있어요."
     : !pushEnabled
-    ? "앱에서 푸시 수신을 중지했어요. 저장된 원격 토큰도 제거됩니다."
-    : permissionStatus === "granted"
-      ? "앱과 기기에서 푸시 알림을 받을 수 있어요."
-      : permissionStatus === "unsupported"
-        ? "개발 빌드에서 기기 알림 상태를 확인할 수 있어요."
-        : "앱 알림은 켜져 있지만 기기 권한 확인이 필요해요.";
+      ? "앱에서 푸시 수신을 중지했어요. 저장된 원격 토큰도 제거됩니다."
+      : permissionStatus === "granted"
+        ? "앱과 기기에서 푸시 알림을 받을 수 있어요."
+        : permissionStatus === "unsupported"
+          ? "개발 빌드에서 기기 알림 상태를 확인할 수 있어요."
+          : "앱 알림은 켜져 있지만 기기 권한 확인이 필요해요.";
 
   const performAccountDeletion = useCallback(async () => {
     setDeleting(true);
@@ -282,7 +288,9 @@ export function SettingsScreen() {
               accessibilityLabel="공구 마감 임박 알림"
               disabled={controlsDisabled || (isAuthenticated && !pushEnabled)}
               onValueChange={(value) => void handleDeadlineChange(value)}
-              thumbColor={deadlineRemindersEnabled ? colors.accent : colors.weak}
+              thumbColor={
+                deadlineRemindersEnabled ? colors.accent : colors.weak
+              }
               trackColor={{ false: colors.softBg, true: colors.accentSoft }}
               testID="deadline-notification-toggle"
               value={deadlineRemindersEnabled}
@@ -327,7 +335,10 @@ export function SettingsScreen() {
                   <Pressable
                     accessibilityLabel={`D-${day} 알림`}
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selected, disabled: dayDisabled }}
+                    accessibilityState={{
+                      checked: selected,
+                      disabled: dayDisabled,
+                    }}
                     disabled={dayDisabled}
                     key={day}
                     onPress={() => void handleReminderDay(day)}
@@ -370,9 +381,14 @@ export function SettingsScreen() {
                     accessibilityRole="button"
                     key={`influencer:${target}`}
                     onPress={() => handleFollowInfluencerPress(target)}
-                    style={({ pressed }) => [s.followChip, pressed && s.pressed]}
+                    style={({ pressed }) => [
+                      s.followChip,
+                      pressed && s.pressed,
+                    ]}
                   >
-                    <SText style={s.followChipText} variant="caption">@{target} ×</SText>
+                    <SText style={s.followChipText} variant="caption">
+                      @{target} ×
+                    </SText>
                   </Pressable>
                 ))}
                 {preferences.followedBrands.map((target) => (
@@ -381,9 +397,14 @@ export function SettingsScreen() {
                     accessibilityRole="button"
                     key={`brand:${target}`}
                     onPress={() => handleFollowBrandPress(target)}
-                    style={({ pressed }) => [s.followChip, pressed && s.pressed]}
+                    style={({ pressed }) => [
+                      s.followChip,
+                      pressed && s.pressed,
+                    ]}
                   >
-                    <SText style={s.followChipText} variant="caption">{target} ×</SText>
+                    <SText style={s.followChipText} variant="caption">
+                      {target} ×
+                    </SText>
                   </Pressable>
                 ))}
               </View>
@@ -391,7 +412,11 @@ export function SettingsScreen() {
           </View>
 
           {preferencesError ? (
-            <SText accessibilityRole="alert" style={s.preferenceError} variant="caption">
+            <SText
+              accessibilityRole="alert"
+              style={s.preferenceError}
+              variant="caption"
+            >
               알림 설정을 저장하지 못했어요. 다시 변경해 주세요.
             </SText>
           ) : null}
@@ -406,11 +431,18 @@ export function SettingsScreen() {
               accessible
               accessibilityRole="button"
               accessibilityLabel="테스트 알림 보내기"
-              disabled={controlsDisabled || !pushEnabled || permissionStatus !== "granted"}
+              disabled={
+                controlsDisabled ||
+                !pushEnabled ||
+                permissionStatus !== "granted"
+              }
               onPress={() => void handleTestNotification()}
               style={({ pressed }) => [
                 s.testButton,
-                (controlsDisabled || !pushEnabled || permissionStatus !== "granted") && s.disabledButton,
+                (controlsDisabled ||
+                  !pushEnabled ||
+                  permissionStatus !== "granted") &&
+                  s.disabledButton,
                 pressed && s.pressed,
               ]}
               testID="test-notification-button"
