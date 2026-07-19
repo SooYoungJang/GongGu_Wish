@@ -15,7 +15,6 @@ import {
 } from "react-native-safe-area-context";
 
 import {
-  RankingBasisBar,
   RankingCategoryChips,
   SellerRankingList,
 } from "../components/ranking";
@@ -42,8 +41,8 @@ import type { StoreScreenProps, GroupBuy } from "../types";
 // Space reserved for the floating absolute-positioned tab bar:
 // 70pt bar height + spacing.lg margin + safe area bottom + extra breathing room
 const TAB_BAR_HEIGHT = 70;
-const DEFAULT_FILTER_HEADER_HEIGHT = 184;
-const DEFAULT_COLLAPSIBLE_FILTER_HEIGHT = 132;
+const DEFAULT_FILTER_HEADER_HEIGHT = 141;
+const DEFAULT_COLLAPSIBLE_FILTER_HEIGHT = 96;
 
 type RankingItemCacheEntry = {
   source: GroupBuyRankingItem;
@@ -106,10 +105,6 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const rankingItemCacheRef = useRef(new Map<string, RankingItemCacheEntry>());
 
   const rankingState = usePopularGroupBuys(period, selectedCategory, sort);
-  const rankingUpdatedAt =
-    rankingState.status === "ready" || rankingState.status === "empty"
-      ? rankingState.updatedAt
-      : undefined;
   const { isNotifying, getNotificationState, toggleNotification } =
     useNotifications();
   const { requireAuth } = useAuthGate();
@@ -294,12 +289,6 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
             >
               {filtersCollapsed ? null : (
                 <>
-                  <RankingBasisBar
-                    category={selectedCategory}
-                    period={period}
-                    sort={sort}
-                    updatedAt={rankingUpdatedAt}
-                  />
                   <RankingCategoryChips
                     mode="sort"
                     value={selectedCategory}

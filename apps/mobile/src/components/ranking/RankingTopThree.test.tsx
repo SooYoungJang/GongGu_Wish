@@ -234,6 +234,7 @@ describe("RankingTopThree", () => {
       renderer!.root.findByProps({ testID: "ranking-top-image-1" }),
     ).toBeTruthy();
     expect(text).toContain("지금 가장 인기 있는 공구");
+    expect(text).not.toContain("순위 등락으로 달라진 관심을 확인해보세요");
     expect(text).toContain("▲16위");
     expect(text).toContain("NEW");
     expect(text).toContain("▼2위");
