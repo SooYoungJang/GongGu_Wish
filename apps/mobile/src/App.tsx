@@ -18,6 +18,7 @@ import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
 import { resolveSupabaseUrl } from './lib/supabase-config';
+import { isAutomatedE2E } from './lib/automatedE2E';
 import { registerForPushNotifications } from './services/notifications';
 import { BackButton } from './components/BackButton';
 import { getCommerceColors } from './design/commerce';
@@ -33,7 +34,7 @@ import { mobileQueryClient, syncQueryFocus } from './lib/query-client';
 import { notificationLinking } from './navigation/notificationLinking';
 
 // Initialize PostgREST client with the Supabase anon key
-const automatedE2E = Constants.expoConfig?.extra?.automatedE2E === true;
+const automatedE2E = isAutomatedE2E();
 const anonKey = automatedE2E
   ? (Constants.expoConfig?.extra?.e2eSupabaseAnonKey ?? '')
   : (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '');

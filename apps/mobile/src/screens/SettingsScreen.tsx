@@ -9,7 +9,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Constants from "expo-constants";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
@@ -21,6 +20,7 @@ import { useAuth } from "../context/AuthContext";
 import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
 import { clearLocalUserData } from "../hooks/useLocalDeals";
 import { useAuthGate } from "../hooks/useAuthGate";
+import { isAutomatedE2E } from "../lib/automatedE2E";
 import {
   getNotificationPermissionStatus,
   IS_EXPO_GO,
@@ -60,7 +60,7 @@ export function SettingsScreen() {
   const [permissionStatus, setPermissionStatus] =
     useState<NotificationPermissionStatus>("undetermined");
   const [testScheduled, setTestScheduled] = useState(false);
-  const automatedE2E = Constants.expoConfig?.extra?.automatedE2E === true;
+  const automatedE2E = isAutomatedE2E();
   const testDelaySeconds = automatedE2E ? 8 : 10;
   const [deleting, setDeleting] = useState(false);
   const [updatingAdPrivacy, setUpdatingAdPrivacy] = useState(false);

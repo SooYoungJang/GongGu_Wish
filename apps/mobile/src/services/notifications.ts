@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 
 import { callEdgeFunction } from "../lib/postgrest-client";
+import { isAutomatedE2E } from "../lib/automatedE2E";
 import { isExpoPushToken } from "./pushToken";
 import type { NotificationReminderDay } from "./notificationPreferences";
 import {
@@ -165,10 +166,7 @@ export async function registerForPushNotifications(
       return null;
     }
 
-    let token =
-      Constants.expoConfig?.extra?.automatedE2E === true
-        ? options.e2eTokenOverride
-        : undefined;
+    let token = isAutomatedE2E() ? options.e2eTokenOverride : undefined;
     if (token === undefined) {
       const Notifications = await getNotifications();
       if (!Notifications) return null;

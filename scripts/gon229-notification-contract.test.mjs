@@ -77,7 +77,11 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(app, /requestPermission: false/);
   assert.match(app, /Constants\.expoConfig\?\.extra\?\.e2eSupabaseUrl/);
   assert.match(settings, /testID="push-notification-toggle"/);
-  assert.match(settings, /Constants\.expoConfig\?\.extra\?\.automatedE2E/);
+  assert.match(settings, /isAutomatedE2E\(\)/);
+  assert.match(
+    read("apps/mobile/src/lib/automatedE2E.ts"),
+    /process\.env\.EXPO_PUBLIC_E2E_MODE === "true"/,
+  );
   assert.match(settings, new RegExp(sharedFixtureId));
   assert.match(supabaseSeed, new RegExp(sharedFixtureId));
   assert.match(localFixtureServer, new RegExp(sharedFixtureId));
@@ -146,7 +150,7 @@ test("Android push registration is wired to Firebase and reports failures", () =
     /e2eTokenOverride:\s*"ExpoPushToken\[gon229-local-e2e\]"/,
   );
   assert.match(settings, /session\?\.access_token/);
-  assert.match(notifications, /extra\?\.automatedE2E === true/);
+  assert.match(notifications, /isAutomatedE2E\(\)/);
   assert.match(notifications, /options\.e2eTokenOverride/);
   assert.match(notifications, /console\.warn\(/);
   assert.match(
