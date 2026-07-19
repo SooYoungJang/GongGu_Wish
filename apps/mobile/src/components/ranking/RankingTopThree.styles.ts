@@ -160,10 +160,6 @@ export function makeRankingTopStyles(
       position: "absolute",
       top: spacing.sm,
     },
-    sectionSubtitle: {
-      color: colors.muted,
-      lineHeight: 18,
-    },
     sectionTitle: {
       color: colors.text,
       fontSize: 21,
@@ -175,9 +171,6 @@ export function makeRankingTopStyles(
       justifyContent: "center",
       minHeight: 44,
       minWidth: 0,
-    },
-    titleBlock: {
-      gap: spacing.xxs,
     },
     username: {
       color: colors.weak,

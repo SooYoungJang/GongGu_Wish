@@ -261,15 +261,15 @@ describe("StoreScreen ranking redesign", () => {
       "Pressable" as unknown as React.ElementType,
     );
     expect(text).not.toContain("사람들이 많이 찾고 저장한 공구를 모았어요");
-    expect(text).toContain("업데이트");
+    expect(text).not.toContain("업데이트");
     expect(text).not.toContain("전체 랭킹");
     expect(text).toContain("인기 공구");
-    expect(text).toContain("조회·저장·알림·상세 진입 반응을 반영한 순위");
+    expect(text).not.toContain("조회·저장·알림·상세 진입 반응을 반영한 순위");
     expect(text).not.toContain("인기지수");
     expect(text).not.toContain("최고점=100");
     expect(
-      renderer!.root.findByProps({ testID: "ranking-basis-bar" }),
-    ).toBeTruthy();
+      renderer!.root.findAllByProps({ testID: "ranking-basis-bar" }),
+    ).toHaveLength(0);
     expect(
       pressables.filter(
         (item) => item.props.accessibilityLabel === "랭킹 검색",
@@ -285,7 +285,7 @@ describe("StoreScreen ranking redesign", () => {
     ).toHaveLength(1);
   });
 
-  it("keeps period, sort, category, and ranking basis in one sticky header", () => {
+  it("keeps period, sort, and category in one sticky header", () => {
     const navigation = createNavigation();
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -314,8 +314,8 @@ describe("StoreScreen ranking redesign", () => {
     const clip = renderer!.root.findByProps({ testID: "ranking-scroll-clip" });
     expect(flattenStyle(clip.props.style).overflow).toBe("hidden");
     expect(
-      header.findAllByProps({ testID: "ranking-basis-bar" }).length,
-    ).toBeGreaterThan(0);
+      header.findAllByProps({ testID: "ranking-basis-bar" }),
+    ).toHaveLength(0);
     expect(
       header.findAllByProps({ accessibilityLabel: "인기 공구 정렬" }).length,
     ).toBeGreaterThan(0);
@@ -400,8 +400,8 @@ describe("StoreScreen ranking redesign", () => {
         .props.accessibilityElementsHidden,
     ).toBe(false);
     expect(
-      renderer!.root.findByProps({ testID: "ranking-basis-bar" }),
-    ).toBeTruthy();
+      renderer!.root.findAllByProps({ testID: "ranking-basis-bar" }),
+    ).toHaveLength(0);
   });
 
   it("uses scalable period tabs instead of a fixed text height", () => {

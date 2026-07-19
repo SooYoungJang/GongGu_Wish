@@ -43,18 +43,13 @@ export const RankingTopThree = memo(function RankingTopThree({
       style={s.container}
       testID="ranking-top-three"
     >
-      <View style={s.titleBlock}>
-        <SText
-          accessibilityRole="header"
-          variant="cardTitle"
-          style={s.sectionTitle}
-        >
-          지금 가장 인기 있는 공구
-        </SText>
-        <SText variant="caption" style={s.sectionSubtitle}>
-          순위 등락으로 달라진 관심을 확인해보세요
-        </SText>
-      </View>
+      <SText
+        accessibilityRole="header"
+        variant="cardTitle"
+        style={s.sectionTitle}
+      >
+        지금 가장 인기 있는 공구
+      </SText>
       {hero ? (
         <RankingTopCard
           item={hero}
