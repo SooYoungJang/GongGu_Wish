@@ -17,7 +17,7 @@
   "dependencies": {
     "@gonggu/shared": "*",
     "@gonggu/ui-web": "*",
-    "@tailwindcss/postcss": "^4.3.2",
+    "@tailwindcss/postcss": "^4.3.3",
     "@tanstack/react-query": "^5.90.12",
     "lucide-react": "^1.21.0",
     "next": "^15.1.0",
