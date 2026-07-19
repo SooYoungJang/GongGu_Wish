@@ -1,32 +1,29 @@
-import React from 'react';
-import TestRenderer, { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
+import { describe, expect, it, vi } from "vitest";
 
-import { RankingCategoryChips } from './RankingCategoryChips';
-import { ThemeProvider } from '../../context/ThemeContext';
-import { RANKING_CATEGORIES, RANKING_CATEGORY_LABELS } from '../../features/ranking/types';
-import { AccessibilityInfo } from 'react-native';
+import { RankingCategoryChips } from "./RankingCategoryChips";
+import { ThemeProvider } from "../../context/ThemeContext";
+import {
+  RANKING_CATEGORIES,
+  RANKING_CATEGORY_LABELS,
+} from "../../features/ranking/types";
 
-vi.mock('react-native', () => {
-  const ReactMock = require('react');
+vi.mock("react-native", () => {
+  const ReactMock = require("react");
   const passthrough =
     (type: string) =>
     ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement(type, props, children);
 
   return {
-    AccessibilityInfo: {
-      announceForAccessibility: vi.fn(),
-    },
-    Modal: ({ children, visible, ...props }: { children?: React.ReactNode; visible?: boolean }) =>
-      visible ? ReactMock.createElement('Modal', props, children) : null,
     Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>
-      ReactMock.createElement('Pressable', props, children),
-    ScrollView: passthrough('ScrollView'),
+      ReactMock.createElement("Pressable", props, children),
+    ScrollView: passthrough("ScrollView"),
     StyleSheet: { create: (styles: unknown) => styles },
-    Text: passthrough('Text'),
-    View: passthrough('View'),
-    useColorScheme: () => 'light',
+    Text: passthrough("Text"),
+    View: passthrough("View"),
+    useColorScheme: () => "light",
   };
 });
 
@@ -34,19 +31,31 @@ function withTheme(ui: React.ReactElement) {
   return <ThemeProvider>{ui}</ThemeProvider>;
 }
 
-function flattenText(node: TestRenderer.ReactTestRendererJSON | TestRenderer.ReactTestRendererJSON[] | null): string {
-  if (!node) return '';
-  if (Array.isArray(node)) return node.map(flattenText).join(' ');
-  return node.children?.map((child) => (typeof child === 'string' ? child : flattenText(child))).join(' ') ?? '';
+function flattenText(
+  node:
+    | TestRenderer.ReactTestRendererJSON
+    | TestRenderer.ReactTestRendererJSON[]
+    | null,
+): string {
+  if (!node) return "";
+  if (Array.isArray(node)) return node.map(flattenText).join(" ");
+  return (
+    node.children
+      ?.map((child) => (typeof child === "string" ? child : flattenText(child)))
+      .join(" ") ?? ""
+  );
 }
 
 function flattenStyle(style: unknown): Record<string, unknown> {
-  if (Array.isArray(style)) return Object.assign({}, ...style.map(flattenStyle));
-  return style && typeof style === 'object' ? (style as Record<string, unknown>) : {};
+  if (Array.isArray(style))
+    return Object.assign({}, ...style.map(flattenStyle));
+  return style && typeof style === "object"
+    ? (style as Record<string, unknown>)
+    : {};
 }
 
-describe('RankingCategoryChips', () => {
-  it('keeps sort controls visible and collapses categories into a picker', () => {
+describe("RankingCategoryChips", () => {
+  it("renders every category in one horizontal rail and selects without a dialog", () => {
     const onChange = vi.fn();
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -54,6 +63,7 @@ describe('RankingCategoryChips', () => {
       renderer = TestRenderer.create(
         withTheme(
           <RankingCategoryChips
+            mode="category"
             value="all"
             categories={RANKING_CATEGORIES}
             sort="popular"
@@ -64,43 +74,32 @@ describe('RankingCategoryChips', () => {
       );
     });
 
-    const initialText = flattenText(renderer!.toJSON()).replace(/\s+/g, ' ');
-    expect(initialText).toContain('카테고리 전체');
-    expect(initialText).toContain('급상승');
-    expect(renderer!.root.findAllByType('Modal' as unknown as React.ElementType)).toHaveLength(0);
+    const initialText = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
+    expect(initialText).toContain("전체");
+    expect(initialText).toContain("뷰티");
+    expect(initialText).toContain("여행");
+    expect(
+      renderer!.root.findAllByProps({ testID: "ranking-category-dialog" }),
+    ).toHaveLength(0);
 
-    const trigger = renderer!.root.findByProps({
-      accessibilityLabel: '카테고리 전체 선택',
+    const rail = renderer!.root.findByProps({
+      testID: "ranking-category-scroll",
     });
-    act(() => trigger.props.onPress());
-
-    expect(renderer!.root.findAllByType('Modal' as unknown as React.ElementType)).toHaveLength(1);
-    expect(flattenText(renderer!.toJSON())).toContain('카테고리 선택');
-    const dialog = renderer!.root.findByProps({
-      testID: 'ranking-category-dialog',
-    });
-    expect(dialog.props.accessibilityLabel).toBe('카테고리 선택');
-    expect(dialog.props.accessibilityViewIsModal).toBe(true);
-    expect(dialog.props.importantForAccessibility).toBe('yes');
-
-    const modal = renderer!.root.findByType(
-      'Modal' as unknown as React.ElementType,
-    );
-    act(() => modal.props.onShow());
-    expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(
-      '카테고리 선택',
-    );
+    expect(rail.props.horizontal).toBe(true);
+    expect(rail.props.showsHorizontalScrollIndicator).toBe(false);
 
     const beautyOption = renderer!.root.findByProps({
-      accessibilityLabel: '뷰티 카테고리',
+      accessibilityLabel: "뷰티 카테고리",
     });
     act(() => beautyOption.props.onPress());
 
-    expect(onChange).toHaveBeenCalledWith('beauty');
-    expect(renderer!.root.findAllByType('Modal' as unknown as React.ElementType)).toHaveLength(0);
+    expect(onChange).toHaveBeenCalledWith("beauty");
+    expect(
+      renderer!.root.findAllByProps({ testID: "ranking-category-dialog" }),
+    ).toHaveLength(0);
   });
 
-  it('shows only the selected category name and keeps a scalable touch target', () => {
+  it("keeps every category visible and gives each chip a scalable touch target", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -117,20 +116,22 @@ describe('RankingCategoryChips', () => {
       );
     });
 
-    const text = flattenText(renderer!.toJSON()).replace(/\s+/g, ' ');
-    const trigger = renderer!.root.findByProps({
-      accessibilityLabel: '스포츠 선택',
+    const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
+    const sports = renderer!.root.findByProps({
+      accessibilityLabel: "스포츠 카테고리",
     });
-    const triggerStyle = flattenStyle(trigger.props.style({ pressed: false }));
+    const sportsStyle = flattenStyle(sports.props.style);
 
-    expect(text).toContain('스포츠');
-    expect(text).not.toContain('카테고리 스포츠');
-    expect(RANKING_CATEGORY_LABELS.baby).toBe('육아');
-    expect(triggerStyle.height).toBeUndefined();
-    expect(triggerStyle.minHeight).toBeGreaterThanOrEqual(44);
+    expect(text).toContain("전체");
+    expect(text).toContain("스포츠");
+    expect(text).toContain("여행");
+    expect(RANKING_CATEGORY_LABELS.baby).toBe("육아");
+    expect(sports.props.accessibilityState).toEqual({ selected: true });
+    expect(sportsStyle.height).toBeUndefined();
+    expect(sportsStyle.minHeight).toBeGreaterThanOrEqual(44);
   });
 
-  it('uses scalable sort controls instead of a fixed chip height', () => {
+  it("uses scalable sort controls instead of a fixed chip height", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -149,7 +150,7 @@ describe('RankingCategoryChips', () => {
     });
 
     const popular = renderer!.root.findByProps({
-      accessibilityLabel: '인기 공구 정렬',
+      accessibilityLabel: "인기 공구 정렬",
     });
     const style = flattenStyle(popular.props.style);
 
@@ -157,7 +158,7 @@ describe('RankingCategoryChips', () => {
     expect(style.minHeight).toBeGreaterThanOrEqual(44);
   });
 
-  it('renders sort and category controls as independent filter layers', () => {
+  it("renders sort and category controls as independent filter layers", () => {
     let sortRenderer: TestRenderer.ReactTestRenderer;
     let categoryRenderer: TestRenderer.ReactTestRenderer;
 
@@ -188,12 +189,16 @@ describe('RankingCategoryChips', () => {
       );
     });
 
-    const sortText = flattenText(sortRenderer!.toJSON()).replace(/\s+/g, ' ');
-    const categoryText = flattenText(categoryRenderer!.toJSON()).replace(/\s+/g, ' ');
+    const sortText = flattenText(sortRenderer!.toJSON()).replace(/\s+/g, " ");
+    const categoryText = flattenText(categoryRenderer!.toJSON()).replace(
+      /\s+/g,
+      " ",
+    );
 
-    expect(sortText).toContain('급상승');
-    expect(sortText).not.toContain('카테고리 전체');
-    expect(categoryText).toContain('카테고리 전체');
-    expect(categoryText).not.toContain('급상승');
+    expect(sortText).toContain("급상승");
+    expect(sortText).not.toContain("여행");
+    expect(categoryText).toContain("전체");
+    expect(categoryText).toContain("여행");
+    expect(categoryText).not.toContain("급상승");
   });
 });

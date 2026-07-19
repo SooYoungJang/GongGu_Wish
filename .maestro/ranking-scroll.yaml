@@ -11,7 +11,7 @@ name: Ranking discovery sticky period filters
     timeout: 30000
 - assertVisible: "지금 뜨는 공구"
 - assertVisible: "인기지수 100"
-- assertVisible: "카테고리 전체 선택"
+- assertVisible: "전체 카테고리"
 - assertVisible: "이번 주 랭킹 기간"
 - takeScreenshot: apps/mobile/.maestro/evidence/ranking-discovery-final-01-initial
 
@@ -24,7 +24,7 @@ name: Ranking discovery sticky period filters
 - waitForAnimationToEnd
 - assertVisible: "이번 주 랭킹 기간"
 - assertNotVisible: "인기지수 안내"
-- assertNotVisible: "카테고리 전체 선택"
+- assertNotVisible: "전체 카테고리"
 - assertVisible: "GON-263 기준 공구"
 - takeScreenshot: apps/mobile/.maestro/evidence/ranking-discovery-final-02-spotlight
 
