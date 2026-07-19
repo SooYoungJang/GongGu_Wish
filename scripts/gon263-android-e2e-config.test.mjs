@@ -25,6 +25,9 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
   assert.match(codegen, /target_compile_reactnative_options/);
   assert.match(codegen, /const libraryType = "all"/);
   assert.match(builder, /:app:generateCodegenArtifactsFromSchema/);
+  assert.match(workflow, /unzip -Z1 "\$android_apk"/);
+  assert.match(workflow, /lib\/x86_64\/.*\\\.so/);
+  assert.doesNotMatch(workflow, /Android E2E compiled an unused ABI/);
   assert.match(
     runner,
     /maestro test \.maestro\/gon-263-critical-journeys\.yaml/,

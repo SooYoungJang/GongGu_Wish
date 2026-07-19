@@ -6,7 +6,8 @@ cd "$repo_root"
 mkdir -p artifacts/android
 
 # Gradle reads ORG_GRADLE_PROJECT_* as a project property. Keep the CI release
-# build aligned with the x86_64 emulator instead of compiling four unused ABIs.
+# app output aligned with the x86_64 emulator. Some native dependencies may
+# still configure their own CMake tasks; the workflow verifies the packaged APK.
 test "${ORG_GRADLE_PROJECT_reactNativeArchitectures:-}" = "x86_64"
 printf 'reactNativeArchitectures=%s\n' \
   "$ORG_GRADLE_PROJECT_reactNativeArchitectures" \
