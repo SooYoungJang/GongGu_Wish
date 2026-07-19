@@ -149,6 +149,10 @@ test("Android push registration is wired to Firebase and reports failures", () =
   assert.match(notifications, /extra\?\.automatedE2E === true/);
   assert.match(notifications, /options\.e2eTokenOverride/);
   assert.match(notifications, /console\.warn\(/);
+  assert.match(
+    read("supabase/migrations/20260719000001_disable_notification_defaults.sql"),
+    /GRANT SELECT, INSERT, UPDATE ON TABLE public\.users TO service_role/,
+  );
   assert.match(gitignore, /\*-firebase-adminsdk-\*\.json/);
 });
 
