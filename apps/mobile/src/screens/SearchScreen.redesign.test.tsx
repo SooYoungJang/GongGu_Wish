@@ -42,6 +42,8 @@ const mocks = vi.hoisted(() => {
 	    influencersRefetch: vi.fn(),
 	    popularTerms: [{ keyword: '베개', rank: 1, count: 8 }],
 	    popularTermsRefetch: vi.fn(),
+	    logSearchTerm: vi.fn(() => Promise.resolve()),
+	    recentSetItem: vi.fn(() => Promise.resolve()),
 	    canGoBack: vi.fn(() => true),
 	    navigate: vi.fn(),
 	    goBack: vi.fn(),
@@ -52,7 +54,7 @@ vi.mock('../api', () => ({
 	  fetchGroupBuys: vi.fn(),
 	  fetchInfluencers: vi.fn(),
 	  fetchPopularSearchTerms: vi.fn(),
-	  logSearchTerm: vi.fn(() => Promise.resolve()),
+	  logSearchTerm: mocks.logSearchTerm,
 	  searchInfluencers: (influencers: Influencer[], query: string) => {
     const q = query.trim().toLowerCase().replace(/^@/, '');
     if (!q) return [];
@@ -131,7 +133,7 @@ vi.mock('@react-navigation/native', () => ({
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
     getItem: vi.fn(() => Promise.resolve(JSON.stringify(['가방']))),
-    setItem: vi.fn(() => Promise.resolve()),
+    setItem: mocks.recentSetItem,
     removeItem: vi.fn(() => Promise.resolve()),
   },
 }));
@@ -203,6 +205,10 @@ describe('SearchScreen redesign', () => {
     mocks.groupBuysRefetch.mockClear();
     mocks.influencersRefetch.mockClear();
     mocks.popularTermsRefetch.mockClear();
+	    mocks.logSearchTerm.mockClear();
+	    mocks.recentSetItem.mockClear();
+	    mocks.navigate.mockClear();
+	    mocks.goBack.mockClear();
   });
 
   it('shows a shared retry state when search sources fail without cache', async () => {
@@ -261,6 +267,54 @@ describe('SearchScreen redesign', () => {
 	    });
 
 	    expect(mocks.goBack).toHaveBeenCalledTimes(1);
+	    expect(mocks.logSearchTerm).not.toHaveBeenCalled();
 	    expect(renderer.root.findByProps({ accessibilityLabel: '검색어 지우기' })).toBeTruthy();
+	  });
+
+	  it('stores a submitted query as recent without adding it to popular searches', async () => {
+	    const renderer = await renderSearchScreen();
+	    const input = renderer.root.findByProps({ accessibilityLabel: '공구 검색' });
+
+	    await act(async () => {
+	      input.props.onChangeText('내맘대로 검색어');
+	      await Promise.resolve();
+	    });
+	    act(() => {
+	      input.props.onSubmitEditing();
+	    });
+
+	    expect(mocks.recentSetItem).toHaveBeenCalledWith(
+	      'search:recent',
+	      expect.stringContaining('내맘대로 검색어'),
+	    );
+	    expect(mocks.logSearchTerm).not.toHaveBeenCalled();
+	  });
+
+	  it('adds the selected product name to popular searches', async () => {
+	    const renderer = await renderSearchScreen();
+	    const input = renderer.root.findByProps({ accessibilityLabel: '공구 검색' });
+
+	    act(() => {
+	      input.props.onChangeText('뒤척임');
+	    });
+	    await act(async () => {
+	      await new Promise((resolve) => setTimeout(resolve, 300));
+	    });
+	    act(() => {
+	      renderer.root
+	        .findByProps({ accessibilityLabel: `${mocks.groupBuy.productName} 보기` })
+	        .props.onPress();
+	    });
+
+	    expect(mocks.logSearchTerm).toHaveBeenCalledTimes(1);
+	    expect(mocks.logSearchTerm).toHaveBeenCalledWith(
+	      mocks.groupBuy.productName,
+	      mocks.groupBuy.id,
+	    );
+	    expect(mocks.recentSetItem).toHaveBeenCalledWith(
+	      'search:recent',
+	      expect.stringContaining('뒤척임'),
+	    );
+	    expect(mocks.navigate).toHaveBeenCalledWith('Detail', { groupBuy: mocks.groupBuy });
 	  });
 });

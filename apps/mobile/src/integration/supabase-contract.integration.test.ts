@@ -11,6 +11,8 @@ import {
   fetchGroupBuyRankings,
   fetchGroupBuys,
   fetchHomeBannerGroupBuys,
+  fetchPopularSearchTerms,
+  logSearchTerm,
 } from "../api";
 import { configurePostgrest } from "../lib/postgrest-client";
 import {
@@ -111,6 +113,25 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
     });
     const homeBanners = await fetchHomeBannerGroupBuys();
     expect(homeBanners.some((item) => item.id === groupBuyId)).toBe(false);
+  });
+
+  it("ranks selected product names but excludes unselected search queries", async () => {
+    if (!fixture)
+      throw new Error("[local-supabase:setup] Fixture is unavailable");
+    const recentOnlyQuery = "임의검색-최근전용";
+    const selectedProductName = "선택제품-인기집계";
+    const selectedProductId = "search-popularity-contract-product";
+
+    await logSearchTerm(recentOnlyQuery);
+    await logSearchTerm(selectedProductName, selectedProductId);
+
+    const popularTerms = await fetchPopularSearchTerms(50, 24);
+    expect(popularTerms.some((term) => term.keyword === recentOnlyQuery)).toBe(
+      false,
+    );
+    expect(
+      popularTerms.some((term) => term.keyword === selectedProductName),
+    ).toBe(true);
   });
 
   it("keeps category, period, sort, and cursor consistent through the mobile ranking client", async () => {

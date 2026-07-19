@@ -212,7 +212,6 @@ export function SearchScreen() {
 
   const handleSubmit = useCallback(() => {
     saveRecent(query);
-    void logSearchTerm(query);
   }, [query, saveRecent]);
 
   const handleSelectInfluencer = useCallback((inf: Influencer) => {
@@ -224,11 +223,13 @@ export function SearchScreen() {
   }, [navigation, saveRecent]);
 
   const handleSelectDeal = useCallback((gb: GroupBuy) => {
-    saveRecent(gb.productName ?? gb.rawPost.influencer.instagramUsername);
-    // Record search-to-deal conversion for popularity scoring (only when a query is active).
     const activeQuery = query.trim();
     if (activeQuery) {
-      void logSearchTerm(activeQuery, gb.id);
+      saveRecent(activeQuery);
+    }
+    const selectedProductName = gb.productName?.trim();
+    if (selectedProductName) {
+      void logSearchTerm(selectedProductName, gb.id);
     }
     navigation.navigate('Detail', { groupBuy: gb });
 }, [navigation, saveRecent, query]);
@@ -241,7 +242,6 @@ export function SearchScreen() {
   const handlePopularTermTap = useCallback((text: string) => {
     setQuery(text);
     saveRecent(text);
-    void logSearchTerm(text);
     inputRef.current?.blur();
   }, [saveRecent]);
 
