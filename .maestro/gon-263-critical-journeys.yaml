@@ -29,24 +29,12 @@ appId: com.gonggu.wish
 - tapOn:
     text: "급상승 정렬"
 - tapOn:
-    text: "카테고리 전체 선택"
-- extendedWaitUntil:
-    visible:
-      text: "카테고리 선택"
-    timeout: 10000
-- tapOn:
     text: "뷰티 카테고리"
 - extendedWaitUntil:
     visible:
       id: "ranking-top-hero"
     timeout: 30000
 - takeScreenshot: gon263-critical-02-ranking-filters
-- tapOn:
-    text: "뷰티 선택"
-- extendedWaitUntil:
-    visible:
-      text: "카테고리 선택"
-    timeout: 10000
 - tapOn:
     text: "전체 카테고리"
 - tapOn:

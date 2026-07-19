@@ -1,0 +1,49 @@
+appId: com.gonggu.wish
+name: Ranking editorial screen with horizontal categories
+---
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+- extendedWaitUntil:
+    visible: "랭킹 탭"
+    timeout: 60000
+- tapOn: "랭킹 탭"
+- extendedWaitUntil:
+    visible: "인기 공구"
+    timeout: 30000
+- assertVisible: "급상승 정렬"
+- assertVisible: "전체 카테고리"
+- assertVisible: "뷰티 카테고리"
+- assertVisible: "이번 주 랭킹 기간"
+- assertVisible:
+    id: "ranking-top-hero"
+- takeScreenshot: ranking-horizontal-categories-01-initial
+
+# Selecting a visible category filters immediately without opening a dialog.
+- tapOn: "뷰티 카테고리"
+- extendedWaitUntil:
+    visible:
+      id: "ranking-top-hero"
+    timeout: 30000
+- assertNotVisible: "카테고리 선택"
+- takeScreenshot: ranking-horizontal-categories-02-beauty
+
+# The rest of the category taxonomy continues to the right in the same rail.
+- swipe:
+    start: 88%,21%
+    end: 14%,21%
+    duration: 900
+- waitForAnimationToEnd
+- swipe:
+    start: 88%,21%
+    end: 14%,21%
+    duration: 900
+- waitForAnimationToEnd
+- swipe:
+    start: 88%,21%
+    end: 14%,21%
+    duration: 900
+- waitForAnimationToEnd
+- assertVisible: "여행 카테고리"
+- takeScreenshot: ranking-horizontal-categories-03-travel

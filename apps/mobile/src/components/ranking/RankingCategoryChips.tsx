@@ -1,59 +1,70 @@
-import { useMemo, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
-import {
-  AccessibilityInfo,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { useMemo } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
-import { SText } from '../ui/SText';
-import { spacing } from '../../design/tokens';
-import { commerceRadius, type CommerceColorPalette } from '../../design/commerce';
-import { useCommerceTheme } from '../../design/useCommerceTheme';
+import { SText } from "../ui/SText";
+import { categoryColors, spacing } from "../../design/tokens";
+import {
+  commerceRadius,
+  type CommerceColorPalette,
+} from "../../design/commerce";
+import { useCommerceTheme } from "../../design/useCommerceTheme";
 import {
   RANKING_CATEGORY_LABELS,
   RANKING_SORT_CHIPS,
   type RankingCategory,
   type RankingSort,
-} from '../../features/ranking/types';
+} from "../../features/ranking/types";
 
 export interface RankingCategoryChipsProps {
   value: RankingCategory;
   categories: readonly RankingCategory[];
   sort: RankingSort;
-  mode?: 'all' | 'sort' | 'category';
+  mode?: "all" | "sort" | "category";
   onChange: (next: RankingCategory) => void;
   onChangeSort: (next: RankingSort) => void;
+}
+
+function getCategoryPalette(
+  category: RankingCategory,
+  colors: CommerceColorPalette,
+) {
+  if (category === "all") {
+    return {
+      background: colors.accentSoft,
+      border: colors.accent,
+      text: colors.accent,
+    };
+  }
+
+  const palette = categoryColors[category];
+  return {
+    background: palette.bg,
+    border: palette.border,
+    text: palette.text,
+  };
 }
 
 export function RankingCategoryChips({
   value,
   categories,
   sort,
-  mode = 'all',
+  mode = "all",
   onChange,
   onChangeSort,
 }: RankingCategoryChipsProps) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const showSort = mode !== 'category';
-  const showCategory = mode !== 'sort';
-  const categoryLabel = RANKING_CATEGORY_LABELS[value];
-  const triggerLabel = value === 'all' ? `카테고리 ${categoryLabel}` : categoryLabel;
-
-  const selectCategory = (category: RankingCategory) => {
-    onChange(category);
-    setPickerOpen(false);
-  };
+  const showSort = mode !== "category";
+  const showCategory = mode !== "sort";
 
   return (
     <View style={s.container}>
       {showSort ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.sortRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.sortRow}
+        >
           {RANKING_SORT_CHIPS.map((chip) => {
             const selected = chip.key === sort;
 
@@ -66,7 +77,10 @@ export function RankingCategoryChips({
                 onPress={() => onChangeSort(chip.key)}
                 style={[s.sortChip, selected && s.selectedSortChip]}
               >
-                <SText variant="caption" style={[s.sortChipText, selected && s.selectedSortChipText]}>
+                <SText
+                  variant="caption"
+                  style={[s.sortChipText, selected && s.selectedSortChipText]}
+                >
                   {chip.label}
                 </SText>
               </Pressable>
@@ -76,91 +90,47 @@ export function RankingCategoryChips({
       ) : null}
 
       {showCategory ? (
-        <>
-          <View style={s.categoryRow}>
-            <Pressable
-              accessibilityLabel={`${triggerLabel} 선택`}
-              accessibilityRole="button"
-              accessibilityState={{ expanded: pickerOpen }}
-              onPress={() => setPickerOpen(true)}
-              style={({ pressed }) => [s.categoryTrigger, pressed && s.pressed]}
-            >
-              <SText variant="caption" style={s.categoryTriggerText}>
-                {triggerLabel}
-              </SText>
-              <Ionicons color={colors.text} name="chevron-down" size={14} />
-            </Pressable>
-          </View>
+        <ScrollView
+          accessibilityRole="tablist"
+          contentContainerStyle={s.categoryRow}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          testID="ranking-category-scroll"
+        >
+          {categories.map((category) => {
+            const selected = category === value;
+            const palette = getCategoryPalette(category, colors);
 
-          <Modal
-            animationType="fade"
-            onRequestClose={() => setPickerOpen(false)}
-            onShow={() =>
-              AccessibilityInfo.announceForAccessibility('카테고리 선택')
-            }
-            transparent
-            visible={pickerOpen}
-          >
-            <View style={s.backdrop}>
+            return (
               <Pressable
-                accessibilityLabel="카테고리 선택창 닫기"
-                accessibilityRole="button"
-                onPress={() => setPickerOpen(false)}
-                style={s.backdropDismiss}
-              />
-              <View
-                accessibilityLabel="카테고리 선택"
-                accessibilityViewIsModal
-                importantForAccessibility="yes"
-                style={s.sheet}
-                testID="ranking-category-dialog"
+                accessibilityLabel={`${RANKING_CATEGORY_LABELS[category]} 카테고리`}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                key={category}
+                onPress={() => onChange(category)}
+                style={[
+                  s.categoryChip,
+                  {
+                    backgroundColor: selected
+                      ? palette.background
+                      : colors.surface,
+                    borderColor: selected ? palette.border : colors.border,
+                  },
+                ]}
               >
-                <View style={s.sheetHeader}>
-                  <View>
-                    <SText accessibilityRole="header" variant="cardTitle" style={s.sheetTitle}>
-                      카테고리 선택
-                    </SText>
-                    <SText variant="caption" style={s.sheetSubtitle}>
-                      보고 싶은 공구 분야를 골라주세요
-                    </SText>
-                  </View>
-                  <Pressable
-                    accessibilityLabel="카테고리 선택창 닫기"
-                    accessibilityRole="button"
-                    onPress={() => setPickerOpen(false)}
-                    style={({ pressed }) => [s.closeButton, pressed && s.pressed]}
-                  >
-                    <Ionicons color={colors.text} name="close" size={22} />
-                  </Pressable>
-                </View>
-
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.categoryGrid}>
-                  {categories.map((category) => {
-                    const selected = category === value;
-                    return (
-                      <Pressable
-                        key={category}
-                        accessibilityLabel={`${RANKING_CATEGORY_LABELS[category]} 카테고리`}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected }}
-                        onPress={() => selectCategory(category)}
-                        style={({ pressed }) => [
-                          s.categoryOption,
-                          selected && s.selectedCategoryOption,
-                          pressed && s.pressed,
-                        ]}
-                      >
-                        <SText variant="body" style={[s.categoryOptionText, selected && s.selectedCategoryOptionText]}>
-                          {RANKING_CATEGORY_LABELS[category]}
-                        </SText>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
-        </>
+                <SText
+                  variant="caption"
+                  style={[
+                    s.categoryChipText,
+                    { color: selected ? palette.text : colors.muted },
+                  ]}
+                >
+                  {RANKING_CATEGORY_LABELS[category]}
+                </SText>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       ) : null}
     </View>
   );
@@ -171,73 +141,23 @@ function makeStyles(colors: CommerceColorPalette) {
     container: {
       gap: spacing.sm,
     },
-    backdrop: {
-      backgroundColor: colors.overlay,
-      flex: 1,
-      justifyContent: 'flex-end',
-    },
-    backdropDismiss: {
-      ...StyleSheet.absoluteFillObject,
-    },
-    categoryGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: spacing.sm,
-      paddingBottom: spacing.xl,
-    },
-    categoryOption: {
-      alignItems: 'center',
-      backgroundColor: colors.softBg,
-      borderColor: colors.borderLight,
-      borderRadius: commerceRadius.sm,
+    categoryChip: {
+      alignItems: "center",
+      borderRadius: commerceRadius.full,
       borderWidth: 1,
+      justifyContent: "center",
       minHeight: 44,
-      justifyContent: 'center',
       paddingHorizontal: spacing.md,
-      width: '48%',
+      paddingVertical: spacing.xs,
     },
-    categoryOptionText: {
-      color: colors.muted,
-      fontWeight: '800',
+    categoryChipText: {
+      fontWeight: "800",
       includeFontPadding: false,
     },
     categoryRow: {
+      gap: spacing.sm,
       paddingHorizontal: spacing.lg,
-    },
-    categoryTrigger: {
-      alignItems: 'center',
-      alignSelf: 'flex-start',
-      backgroundColor: colors.bg,
-      borderColor: colors.border,
-      borderRadius: commerceRadius.full,
-      borderWidth: 1,
-      flexDirection: 'row',
-      gap: spacing.xs,
-      minHeight: 44,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
-    },
-    categoryTriggerText: {
-      color: colors.text,
-      fontWeight: '900',
-    },
-    closeButton: {
-      alignItems: 'center',
-      backgroundColor: colors.softBg,
-      borderRadius: commerceRadius.full,
-      justifyContent: 'center',
-      minHeight: 44,
-      minWidth: 44,
-    },
-    pressed: {
-      opacity: 0.72,
-    },
-    selectedCategoryOption: {
-      backgroundColor: colors.accentSoft,
-      borderColor: colors.accent,
-    },
-    selectedCategoryOptionText: {
-      color: colors.accent,
+      paddingVertical: 1,
     },
     selectedSortChip: {
       borderBottomColor: colors.accent,
@@ -245,40 +165,18 @@ function makeStyles(colors: CommerceColorPalette) {
     selectedSortChipText: {
       color: colors.accent,
     },
-    sheet: {
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: commerceRadius.xxl,
-      borderTopRightRadius: commerceRadius.xxl,
-      maxHeight: '74%',
-      paddingHorizontal: spacing.lg,
-      paddingTop: spacing.lg,
-    },
-    sheetHeader: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: spacing.lg,
-    },
-    sheetSubtitle: {
-      color: colors.muted,
-      marginTop: spacing.xs,
-    },
-    sheetTitle: {
-      color: colors.text,
-      fontWeight: '900',
-    },
     sortChip: {
-      alignItems: 'center',
-      borderBottomColor: 'transparent',
+      alignItems: "center",
+      borderBottomColor: "transparent",
       borderBottomWidth: 2,
-      justifyContent: 'center',
+      justifyContent: "center",
       minHeight: 44,
       paddingHorizontal: spacing.xs,
       paddingVertical: spacing.xs,
     },
     sortChipText: {
       color: colors.muted,
-      fontWeight: '900',
+      fontWeight: "900",
       includeFontPadding: false,
     },
     sortRow: {

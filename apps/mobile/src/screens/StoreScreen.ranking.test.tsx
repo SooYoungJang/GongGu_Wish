@@ -98,13 +98,15 @@ vi.mock("react-native", () => {
       FlatList: flatList,
       Value: AnimatedValue,
       View: passthrough("AnimatedView"),
-      event: vi.fn((mapping: any[], config: { listener?: CallableFunction }) => {
-        const value = mapping[0].nativeEvent.contentOffset.y as AnimatedValue;
-        return (event: { nativeEvent: { contentOffset: { y: number } } }) => {
-          value.value = event.nativeEvent.contentOffset.y;
-          config.listener?.(event);
-        };
-      }),
+      event: vi.fn(
+        (mapping: any[], config: { listener?: CallableFunction }) => {
+          const value = mapping[0].nativeEvent.contentOffset.y as AnimatedValue;
+          return (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+            value.value = event.nativeEvent.contentOffset.y;
+            config.listener?.(event);
+          };
+        },
+      ),
       timing: vi.fn((value: AnimatedValue, config: { toValue: number }) => ({
         start: () => {
           value.value = config.toValue;
@@ -313,15 +315,24 @@ describe("StoreScreen ranking redesign", () => {
     });
     const clip = renderer!.root.findByProps({ testID: "ranking-scroll-clip" });
     expect(flattenStyle(clip.props.style).overflow).toBe("hidden");
-    expect(
-      header.findAllByProps({ testID: "ranking-basis-bar" }),
-    ).toHaveLength(0);
+    expect(header.findAllByProps({ testID: "ranking-basis-bar" })).toHaveLength(
+      0,
+    );
     expect(
       header.findAllByProps({ accessibilityLabel: "인기 공구 정렬" }).length,
     ).toBeGreaterThan(0);
+    const categoryRail = header.findByProps({
+      testID: "ranking-category-scroll",
+    });
+    expect(categoryRail.props.horizontal).toBe(true);
     expect(
-      header.findAllByProps({ accessibilityLabel: "카테고리 전체 선택" })
-        .length,
+      header.findAllByProps({ accessibilityLabel: "전체 카테고리" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      header.findAllByProps({ accessibilityLabel: "뷰티 카테고리" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      header.findAllByProps({ accessibilityLabel: "여행 카테고리" }).length,
     ).toBeGreaterThan(0);
 
     expect(
@@ -372,14 +383,12 @@ describe("StoreScreen ranking redesign", () => {
     }>;
 
     expect(transform[0].translateY.__getValue()).toBe(-132);
+    expect(header.findByProps({ testID: "ranking-period-tabs" })).toBeTruthy();
+    expect(header.findAllByProps({ testID: "ranking-basis-bar" })).toHaveLength(
+      0,
+    );
     expect(
-      header.findByProps({ testID: "ranking-period-tabs" }),
-    ).toBeTruthy();
-    expect(
-      header.findAllByProps({ testID: "ranking-basis-bar" }),
-    ).toHaveLength(0);
-    expect(
-      header.findAllByProps({ accessibilityLabel: "카테고리 전체 선택" }),
+      header.findAllByProps({ testID: "ranking-category-scroll" }),
     ).toHaveLength(0);
     expect(
       header.findByProps({ testID: "ranking-collapsible-filters" }).props
@@ -443,7 +452,9 @@ describe("StoreScreen ranking redesign", () => {
       );
     });
 
-    const search = renderer!.root.findByProps({ accessibilityLabel: "랭킹 검색" });
+    const search = renderer!.root.findByProps({
+      accessibilityLabel: "랭킹 검색",
+    });
     const style = flattenStyle(search.props.style({ pressed: false }));
     expect(style.width).toBeGreaterThanOrEqual(44);
     expect(style.height).toBeGreaterThanOrEqual(44);
