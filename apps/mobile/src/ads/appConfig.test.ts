@@ -31,19 +31,11 @@ const baseInput = {
 describe("resolveAppVariant", () => {
   it.each([
     [
-      "development",
-      {
-        applicationId: "com.gonggu.wish.dev",
-        name: "공구위시 Dev",
-        scheme: "gongguwish-dev",
-      },
-    ],
-    [
-      "preview",
+      "staging",
       {
         applicationId: "com.gonggu.wish.preview",
-        name: "공구위시 Preview",
-        scheme: "gongguwish-preview",
+        name: "공구위시 Staging",
+        scheme: "gongguwish-staging",
       },
     ],
     [
@@ -58,25 +50,28 @@ describe("resolveAppVariant", () => {
     expect(resolveAppVariant(variant)).toEqual({ key: variant, ...expected });
   });
 
-  it("uses Production only when APP_VARIANT is absent or blank", () => {
-    expect(resolveAppVariant(undefined).key).toBe("production");
-    expect(resolveAppVariant("  ").key).toBe("production");
+  it("uses Staging when APP_VARIANT is absent or blank", () => {
+    expect(resolveAppVariant(undefined).key).toBe("staging");
+    expect(resolveAppVariant("  ").key).toBe("staging");
   });
 
-  it("rejects an unknown explicit variant", () => {
-    expect(() => resolveAppVariant("staging")).toThrow(/APP_VARIANT/);
-  });
+  it.each(["development", "preview", "unknown"])(
+    "rejects the legacy or unknown %s variant",
+    (variant) => {
+      expect(() => resolveAppVariant(variant)).toThrow(/APP_VARIANT/);
+    },
+  );
 });
 
 describe("resolveGoogleServicesFile", () => {
   it("uses an environment-scoped Firebase file when configured", () => {
     expect(
       resolveGoogleServicesFile(
-        "preview",
-        " C:/eas/google-services-preview.json ",
+        "staging",
+        " C:/eas/google-services-staging.json ",
         "./google-services.json",
       ),
-    ).toBe("C:/eas/google-services-preview.json");
+    ).toBe("C:/eas/google-services-staging.json");
   });
 
   it("keeps the existing Firebase file only for Production", () => {
@@ -89,7 +84,7 @@ describe("resolveGoogleServicesFile", () => {
     ).toBe("./google-services.json");
     expect(
       resolveGoogleServicesFile(
-        "development",
+        "staging",
         undefined,
         "./google-services.json",
       ),
@@ -98,22 +93,19 @@ describe("resolveGoogleServicesFile", () => {
 });
 
 describe("resolveBackendEnvironment", () => {
-  it.each(["development", "preview"])(
-    "accepts only the staging backend for %s",
-    (variant) => {
-      expect(
-        resolveBackendEnvironment({
-          apiProxyUrl: `${stagingApiProxyUrl}/`,
-          anonKey: "staging-anon-key",
-          supabaseUrl: `${stagingSupabaseUrl}/`,
-          variant,
-        }),
-      ).toEqual({
-        apiProxyUrl: stagingApiProxyUrl,
-        supabaseUrl: stagingSupabaseUrl,
-      });
-    },
-  );
+  it("accepts only the staging backend for Staging", () => {
+    expect(
+      resolveBackendEnvironment({
+        apiProxyUrl: `${stagingApiProxyUrl}/`,
+        anonKey: "staging-anon-key",
+        supabaseUrl: `${stagingSupabaseUrl}/`,
+        variant: "staging",
+      }),
+    ).toEqual({
+      apiProxyUrl: stagingApiProxyUrl,
+      supabaseUrl: stagingSupabaseUrl,
+    });
+  });
 
   it("accepts only the Production backend for Production", () => {
     expect(
@@ -129,15 +121,15 @@ describe("resolveBackendEnvironment", () => {
     });
   });
 
-  it("rejects Preview paired with Production data", () => {
+  it("rejects Staging paired with Production data", () => {
     expect(() =>
       resolveBackendEnvironment({
         apiProxyUrl: productionApiProxyUrl,
         anonKey: "production-anon-key",
         supabaseUrl: productionSupabaseUrl,
-        variant: "preview",
+        variant: "staging",
       }),
-    ).toThrow(/preview.*staging backend/i);
+    ).toThrow(/staging.*staging backend/i);
   });
 
   it("rejects Production paired with staging data", () => {
@@ -161,29 +153,15 @@ describe("resolveBackendEnvironment", () => {
         apiProxyUrl,
         anonKey,
         supabaseUrl,
-        variant: "preview",
+        variant: "staging",
       }),
     ).toThrow(/required/i);
   });
 });
 
 describe("resolveRuntimeVersion", () => {
-  it("isolates updates by app version and variant", () => {
-    expect(resolveRuntimeVersion("0.1.0", "development", false)).toBe(
-      "0.1.0-development",
-    );
-    expect(resolveRuntimeVersion("0.1.0", "preview", false)).toBe(
-      "0.1.0-preview",
-    );
-    expect(resolveRuntimeVersion("0.1.0", "production", false)).toBe(
-      "0.1.0-production",
-    );
-  });
-
-  it("isolates automated E2E updates from all release lanes", () => {
-    expect(resolveRuntimeVersion("0.1.0", "production", true)).toBe(
-      "0.1.0-e2e",
-    );
+  it("uses Expo Fingerprint for native compatibility", () => {
+    expect(resolveRuntimeVersion()).toEqual({ policy: "fingerprint" });
   });
 });
 
