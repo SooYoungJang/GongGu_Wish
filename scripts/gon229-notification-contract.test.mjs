@@ -73,7 +73,9 @@ test("Android notification runtime covers consent, deep links, and persistence",
   const localFixtureServer = read("scripts/mobile-e2e-api-server.mjs");
   const sharedFixtureId = "gon263-e2e-price-200000";
 
-  assert.equal(easConfig.build.development.environment, "development");
+  assert.equal(easConfig.build.preview.environment, "preview");
+  assert.equal(easConfig.build.preview.channel, "preview");
+  assert.equal(easConfig.build.preview.env.APP_VARIANT, "preview");
   assert.match(app, /requestPermission: false/);
   assert.match(app, /Constants\.expoConfig\?\.extra\?\.e2eSupabaseUrl/);
   assert.match(settings, /testID="push-notification-toggle"/);
@@ -88,7 +90,8 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(settings, /testID=\{`deadline-reminder-day-\$\{day\}`\}/);
   assert.match(notifications, /clearLastNotificationResponseAsync/);
   assert.match(notifications, /buildGroupBuyNotificationUrl/);
-  assert.match(notificationPayload, /gongguwish:\/\/group-buy\//);
+  assert.match(notificationPayload, /AUTH_REDIRECT_URL/);
+  assert.match(notificationPayload, /NOTIFICATION_URL_PREFIX/);
   assert.match(flow, /text: "\.\*푸시 테스트\.\*"/);
   assert.match(preferencesFlow, /text: "공구위시 로그인 화면"/);
   assert.match(preferencesFlow, /id: "fl-input-email"/);
@@ -154,7 +157,9 @@ test("Android push registration is wired to Firebase and reports failures", () =
   assert.match(notifications, /options\.e2eTokenOverride/);
   assert.match(notifications, /console\.warn\(/);
   assert.match(
-    read("supabase/migrations/20260719000001_disable_notification_defaults.sql"),
+    read(
+      "supabase/migrations/20260719000001_disable_notification_defaults.sql",
+    ),
     /GRANT SELECT, INSERT, UPDATE ON TABLE public\.users TO service_role/,
   );
   assert.match(gitignore, /\*-firebase-adminsdk-\*\.json/);

@@ -1,4 +1,4 @@
-appId: com.gonggu.wish
+appId: com.gonggu.wish.preview
 ---
 # GON-264 Android-only evidence: the runner enables font scale 2.0 and dark
 # mode before this flow. Selectors intentionally use the same accessibility

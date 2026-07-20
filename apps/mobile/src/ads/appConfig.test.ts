@@ -15,8 +15,8 @@ const {
 
 const productionAndroidAppId = "ca-app-pub-1111111111111111~2222222222";
 const productionNativeUnitId = "ca-app-pub-1111111111111111/3333333333";
-const stagingSupabaseUrl = "https://xwblovggtvbpiusjfokq.supabase.co";
-const stagingApiProxyUrl = "https://api-staging.gongguwish.com";
+const previewSupabaseUrl = "https://xwblovggtvbpiusjfokq.supabase.co";
+const previewApiProxyUrl = "https://api-preview.gongguwish.com";
 const productionSupabaseUrl = "https://iosdoheblabfimkjnvfj.supabase.co";
 const productionApiProxyUrl = "https://api.gongguwish.com";
 
@@ -30,14 +30,6 @@ const baseInput = {
 
 describe("resolveAppVariant", () => {
   it.each([
-    [
-      "development",
-      {
-        applicationId: "com.gonggu.wish.dev",
-        name: "공구위시 Dev",
-        scheme: "gongguwish-dev",
-      },
-    ],
     [
       "preview",
       {
@@ -58,14 +50,17 @@ describe("resolveAppVariant", () => {
     expect(resolveAppVariant(variant)).toEqual({ key: variant, ...expected });
   });
 
-  it("uses Production only when APP_VARIANT is absent or blank", () => {
-    expect(resolveAppVariant(undefined).key).toBe("production");
-    expect(resolveAppVariant("  ").key).toBe("production");
+  it("uses Preview when APP_VARIANT is absent or blank", () => {
+    expect(resolveAppVariant(undefined).key).toBe("preview");
+    expect(resolveAppVariant("  ").key).toBe("preview");
   });
 
-  it("rejects an unknown explicit variant", () => {
-    expect(() => resolveAppVariant("staging")).toThrow(/APP_VARIANT/);
-  });
+  it.each(["development", "staging", "unknown"])(
+    "rejects the legacy or unknown %s variant",
+    (variant) => {
+      expect(() => resolveAppVariant(variant)).toThrow(/APP_VARIANT/);
+    },
+  );
 });
 
 describe("resolveGoogleServicesFile", () => {
@@ -88,32 +83,25 @@ describe("resolveGoogleServicesFile", () => {
       ),
     ).toBe("./google-services.json");
     expect(
-      resolveGoogleServicesFile(
-        "development",
-        undefined,
-        "./google-services.json",
-      ),
+      resolveGoogleServicesFile("preview", undefined, "./google-services.json"),
     ).toBeUndefined();
   });
 });
 
 describe("resolveBackendEnvironment", () => {
-  it.each(["development", "preview"])(
-    "accepts only the staging backend for %s",
-    (variant) => {
-      expect(
-        resolveBackendEnvironment({
-          apiProxyUrl: `${stagingApiProxyUrl}/`,
-          anonKey: "staging-anon-key",
-          supabaseUrl: `${stagingSupabaseUrl}/`,
-          variant,
-        }),
-      ).toEqual({
-        apiProxyUrl: stagingApiProxyUrl,
-        supabaseUrl: stagingSupabaseUrl,
-      });
-    },
-  );
+  it("accepts only the preview backend for Preview", () => {
+    expect(
+      resolveBackendEnvironment({
+        apiProxyUrl: `${previewApiProxyUrl}/`,
+        anonKey: "preview-anon-key",
+        supabaseUrl: `${previewSupabaseUrl}/`,
+        variant: "preview",
+      }),
+    ).toEqual({
+      apiProxyUrl: previewApiProxyUrl,
+      supabaseUrl: previewSupabaseUrl,
+    });
+  });
 
   it("accepts only the Production backend for Production", () => {
     expect(
@@ -137,24 +125,24 @@ describe("resolveBackendEnvironment", () => {
         supabaseUrl: productionSupabaseUrl,
         variant: "preview",
       }),
-    ).toThrow(/preview.*staging backend/i);
+    ).toThrow(/preview.*preview backend/i);
   });
 
-  it("rejects Production paired with staging data", () => {
+  it("rejects Production paired with preview data", () => {
     expect(() =>
       resolveBackendEnvironment({
-        apiProxyUrl: stagingApiProxyUrl,
-        anonKey: "staging-anon-key",
-        supabaseUrl: stagingSupabaseUrl,
+        apiProxyUrl: previewApiProxyUrl,
+        anonKey: "preview-anon-key",
+        supabaseUrl: previewSupabaseUrl,
         variant: "production",
       }),
     ).toThrow(/production.*production backend/i);
   });
 
   it.each([
-    ["Supabase URL", undefined, stagingApiProxyUrl, "staging-anon-key"],
-    ["API proxy URL", stagingSupabaseUrl, undefined, "staging-anon-key"],
-    ["Supabase anon key", stagingSupabaseUrl, stagingApiProxyUrl, undefined],
+    ["Supabase URL", undefined, previewApiProxyUrl, "preview-anon-key"],
+    ["API proxy URL", previewSupabaseUrl, undefined, "preview-anon-key"],
+    ["Supabase anon key", previewSupabaseUrl, previewApiProxyUrl, undefined],
   ])("rejects a missing %s", (_label, supabaseUrl, apiProxyUrl, anonKey) => {
     expect(() =>
       resolveBackendEnvironment({
@@ -168,22 +156,8 @@ describe("resolveBackendEnvironment", () => {
 });
 
 describe("resolveRuntimeVersion", () => {
-  it("isolates updates by app version and variant", () => {
-    expect(resolveRuntimeVersion("0.1.0", "development", false)).toBe(
-      "0.1.0-development",
-    );
-    expect(resolveRuntimeVersion("0.1.0", "preview", false)).toBe(
-      "0.1.0-preview",
-    );
-    expect(resolveRuntimeVersion("0.1.0", "production", false)).toBe(
-      "0.1.0-production",
-    );
-  });
-
-  it("isolates automated E2E updates from all release lanes", () => {
-    expect(resolveRuntimeVersion("0.1.0", "production", true)).toBe(
-      "0.1.0-e2e",
-    );
+  it("uses Expo Fingerprint for native compatibility", () => {
+    expect(resolveRuntimeVersion()).toEqual({ policy: "fingerprint" });
   });
 });
 

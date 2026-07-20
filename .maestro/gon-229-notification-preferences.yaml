@@ -1,4 +1,4 @@
-appId: com.gonggu.wish
+appId: com.gonggu.wish.preview
 ---
 # GON-229 Android: verify notification controls and schedule a real local push.
 - launchApp:

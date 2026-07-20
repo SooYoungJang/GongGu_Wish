@@ -35,6 +35,8 @@ concurrency:
 
 env:
   NODE_VERSION: "20"
+  # React Native 0.83.6 default from node_modules/react-native/gradle/libs.versions.toml.
+  ANDROID_NDK_VERSION: "27.1.12297006"
   SUPABASE_PROJECT_REF: ${{ github.ref == 'refs/heads/main' && 'iosdoheblabfimkjnvfj' || 'xwblovggtvbpiusjfokq' }}
   TURBO_TELEMETRY_DISABLED: 1
 
@@ -59,6 +61,8 @@ jobs:
       - run: npm run db:generate
       - run: npm run lint
       - run: npm run typecheck
+      - name: Test mobile deployment decision logic
+        run: bash apps/mobile/scripts/ci-deploy-android.test.sh
 
   # ── Build ─────────────────────────────────────────────────────────────────
   build:
@@ -180,7 +184,7 @@ jobs:
     name: Supabase DB Migration
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests]
     if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' }}
     outputs:
@@ -233,7 +237,7 @@ jobs:
     name: Supabase Edge Functions
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [rls-audit]
     if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.rls-audit.result == 'success' }}
     steps:
@@ -330,65 +334,12 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-  # ── Admin Dashboard Deploy (Vercel) ──────────────────────────────────────
-  deploy-admin:
-    name: Deploy Admin Dashboard
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-    needs: [rls-audit]
-    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.rls-audit.result == 'success' }}
-    defaults:
-      run:
-        working-directory: ./
-    steps:
-      - name: Check Vercel deployment credentials
-        id: credentials
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          if [[ -z "$VERCEL_TOKEN" || -z "$VERCEL_ORG_ID" || -z "$VERCEL_PROJECT_ID" ]]; then
-            echo "deployment_enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Vercel deployment skipped because production credentials are not configured."
-            {
-              echo "## Vercel deployment skipped"
-              echo ""
-              echo "Set `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` in the production environment to enable deployment."
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "deployment_enabled=true" >> "$GITHUB_OUTPUT"
-          fi
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        if: steps.credentials.outputs.deployment_enabled == 'true'
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: steps.credentials.outputs.deployment_enabled == 'true'
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-      - run: npm ci
-        if: steps.credentials.outputs.deployment_enabled == 'true'
-      - run: npm run build --workspace=@gonggu/admin
-        if: steps.credentials.outputs.deployment_enabled == 'true'
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@de09aeac2ace6599ec9b11ef87558759a496bac4 # v42.3.0
-        if: steps.credentials.outputs.deployment_enabled == 'true'
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: ${{ github.ref == 'refs/heads/main' && '--prod' || '' }}
-          working-directory: ./apps/admin
-
   # ── Cloudflare Worker Deploy ─────────────────────────────────────────────
   deploy-worker:
     name: Deploy Cloudflare Worker
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests]
     if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' }}
     defaults:
@@ -397,9 +348,11 @@ jobs:
     steps:
       - name: Check Cloudflare credentials
         id: credentials
+        working-directory: .
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
         run: |
           if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_ACCOUNT_ID" ]]; then
             echo "deployment_enabled=false" >> "$GITHUB_OUTPUT"
@@ -407,7 +360,7 @@ jobs:
             {
               echo "## Cloudflare Worker deployment skipped"
               echo ""
-              echo "Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in the ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }} environment to enable deployment."
+              echo "Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in the ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} environment to enable deployment."
             } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "deployment_enabled=true" >> "$GITHUB_OUTPUT"
@@ -419,7 +372,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         if: steps.credentials.outputs.deployment_enabled == 'true'
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: "22"
       - name: Install Worker dependencies
         if: steps.credentials.outputs.deployment_enabled == 'true'
         run: npm ci
@@ -429,8 +382,72 @@ jobs:
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             npm run deploy:production
           else
-            npm run deploy:staging
+            npm run deploy:preview
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # ── Expo Mobile Deploy ───────────────────────────────────────────────────
+  deploy-mobile:
+    name: Deploy Mobile (OTA or Local APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    needs: [lint, build, test, edge-tests, supabase-functions, deploy-worker]
+    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' && needs.deploy-worker.result == 'success' }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+      - run: npm ci
+      - name: Set up EAS CLI
+        uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
+        with:
+          eas-version: latest
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.1.0
+        with:
+          distribution: "temurin"
+          java-version: "17"
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - name: Install required Android NDK
+        run: |
+          sdkmanager "ndk;${ANDROID_NDK_VERSION}"
+          ndk_path="${ANDROID_SDK_ROOT}/ndk/${ANDROID_NDK_VERSION}"
+          test -x "$ndk_path/ndk-build"
+          echo "ANDROID_NDK_HOME=$ndk_path" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ndk_path" >> "$GITHUB_ENV"
+      - name: Run fingerprint-aware local Android deployment
+        id: mobile-deploy
+        working-directory: ./apps/mobile
+        run: bash scripts/ci-deploy-android.sh
+      - name: Upload local APK artifact
+        id: upload-apk
+        if: steps.mobile-deploy.outputs.mode == 'build'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gonggu-wish-${{ steps.mobile-deploy.outputs.environment }}-${{ github.sha }}
+          path: ${{ steps.mobile-deploy.outputs.apk-path }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Report local APK artifact
+        if: steps.mobile-deploy.outputs.mode == 'build'
+        env:
+          GITHUB_ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+          EXPO_DOWNLOAD_URL: ${{ steps.mobile-deploy.outputs.expo-url }}
+        run: |
+          {
+            echo ""
+            echo "### Download links"
+            echo "- GitHub Actions artifact: $GITHUB_ARTIFACT_URL"
+            if [[ -n "$EXPO_DOWNLOAD_URL" ]]; then
+              echo "- Expo download: $EXPO_DOWNLOAD_URL"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

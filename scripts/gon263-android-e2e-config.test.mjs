@@ -12,7 +12,18 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
   const builder = read("scripts/build-gon263-android-e2e.sh");
   const codegen = read("scripts/generate-gon263-android-codegen.mjs");
   const runner = read("scripts/run-gon263-android-e2e.sh");
+  const activeFlows = [
+    ".maestro/gon-263-critical-journeys.yaml",
+    ".maestro/gon-263-reels-lifecycle.yaml",
+    ".maestro/gon-264-android-accessibility.yaml",
+    ".maestro/gon-229-notification-preferences.yaml",
+    ".maestro/gon-229-notification-tap.yaml",
+  ];
 
+  assert.match(workflow, /APP_VARIANT: "preview"/);
+  for (const flowPath of activeFlows) {
+    assert.match(read(flowPath), /^appId: com\.gonggu\.wish\.preview$/m);
+  }
   assert.match(workflow, /EXPO_PUBLIC_SUPABASE_URL=http:\/\/localhost:54321/);
   assert.doesNotMatch(seed, /127\.0\.0\.1:58080/);
   assert.match(seed, /http:\/\/localhost:58080\/media\/fixture\.mp4/);
@@ -133,6 +144,7 @@ test("GON-264 Android E2E exercises large text and the accessibility tree", () =
   );
   assert.match(accessibilityRunner, /settings put system font_scale 2\.0/);
   assert.match(accessibilityRunner, /cmd uimode night yes/);
+  assert.match(accessibilityRunner, /force-stop com\.gonggu\.wish\.preview/);
   assert.match(
     accessibilityRunner,
     /maestro test \.maestro\/gon-264-android-accessibility\.yaml/,

@@ -1,11 +1,10 @@
 import Constants from "expo-constants";
 
-export const DEFAULT_AUTH_REDIRECT_URL = "gongguwish://auth/callback";
+export const DEFAULT_AUTH_REDIRECT_URL = "gongguwish-preview://auth/callback";
 
 const ALLOWED_AUTH_REDIRECT_URLS = new Set([
   DEFAULT_AUTH_REDIRECT_URL,
-  "gongguwish-dev://auth/callback",
-  "gongguwish-preview://auth/callback",
+  "gongguwish://auth/callback",
 ]);
 
 type ExpoExtra = Record<string, unknown> | null | undefined;

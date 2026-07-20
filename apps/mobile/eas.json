@@ -3,18 +3,6 @@
     "appVersionSource": "remote"
   },
   "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "environment": "development",
-      "channel": "development",
-      "env": {
-        "APP_VARIANT": "development"
-      },
-      "android": {
-        "buildType": "apk"
-      }
-    },
     "preview": {
       "distribution": "internal",
       "environment": "preview",
@@ -25,6 +13,10 @@
       "android": {
         "buildType": "apk"
       }
+    },
+    "preview-development": {
+      "extends": "preview",
+      "developmentClient": true
     },
     "production": {
       "environment": "production",

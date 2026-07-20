@@ -12,16 +12,16 @@ describe("notification linking", () => {
     const linking = createNotificationLinking({
       getInitialLinkingUrl: vi
         .fn()
-        .mockResolvedValue("gongguwish://group-buy/os-link"),
+        .mockResolvedValue("gongguwish-preview://group-buy/os-link"),
       getLastNotificationUrl: vi
         .fn()
-        .mockResolvedValue("gongguwish://group-buy/push-link"),
+        .mockResolvedValue("gongguwish-preview://group-buy/push-link"),
       subscribeLinkingUrls: vi.fn(() => vi.fn()),
       subscribeNotificationUrls: vi.fn(() => vi.fn()),
     });
 
     await expect(linking.getInitialURL()).resolves.toBe(
-      "gongguwish://group-buy/os-link",
+      "gongguwish-preview://group-buy/os-link",
     );
   });
 
@@ -30,13 +30,13 @@ describe("notification linking", () => {
       getInitialLinkingUrl: vi.fn().mockResolvedValue(null),
       getLastNotificationUrl: vi
         .fn()
-        .mockResolvedValue("gongguwish://group-buy/push-link"),
+        .mockResolvedValue("gongguwish-preview://group-buy/push-link"),
       subscribeLinkingUrls: vi.fn(() => vi.fn()),
       subscribeNotificationUrls: vi.fn(() => vi.fn()),
     });
 
     await expect(linking.getInitialURL()).resolves.toBe(
-      "gongguwish://group-buy/push-link",
+      "gongguwish-preview://group-buy/push-link",
     );
   });
 
@@ -60,11 +60,11 @@ describe("notification linking", () => {
     const listener = vi.fn();
 
     const unsubscribe = linking.subscribe(listener);
-    linkListeners[0]?.("gongguwish://group-buy/link");
-    notificationListeners[0]?.("gongguwish://group-buy/notification");
+    linkListeners[0]?.("gongguwish-preview://group-buy/link");
+    notificationListeners[0]?.("gongguwish-preview://group-buy/notification");
     expect(listener.mock.calls).toEqual([
-      ["gongguwish://group-buy/link"],
-      ["gongguwish://group-buy/notification"],
+      ["gongguwish-preview://group-buy/link"],
+      ["gongguwish-preview://group-buy/notification"],
     ]);
 
     unsubscribe();

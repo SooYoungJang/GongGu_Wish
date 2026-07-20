@@ -8,13 +8,9 @@ const ADS_MODES = new Set(["off", "test", "production"]);
 const ADMOB_APP_ID_PATTERN = /^ca-app-pub-\d{16}~\d{10}$/;
 const ADMOB_UNIT_ID_PATTERN = /^ca-app-pub-\d{16}\/\d{10}$/;
 const APP_VARIANTS = Object.freeze({
-  development: Object.freeze({
-    applicationId: "com.gonggu.wish.dev",
-    key: "development",
-    name: "공구위시 Dev",
-    scheme: "gongguwish-dev",
-  }),
   preview: Object.freeze({
+    // Keep the existing internal app ID so installed Preview builds can be
+    // upgraded in place.
     applicationId: "com.gonggu.wish.preview",
     key: "preview",
     name: "공구위시 Preview",
@@ -28,8 +24,8 @@ const APP_VARIANTS = Object.freeze({
   }),
 });
 const BACKEND_ENVIRONMENTS = Object.freeze({
-  staging: Object.freeze({
-    apiProxyUrl: "https://api-staging.gongguwish.com",
+  preview: Object.freeze({
+    apiProxyUrl: "https://api-preview.gongguwish.com",
     supabaseUrl: "https://xwblovggtvbpiusjfokq.supabase.co",
   }),
   production: Object.freeze({
@@ -44,10 +40,10 @@ function normalizeValue(value) {
 }
 
 function resolveAppVariant(requestedVariant) {
-  const key = normalizeValue(requestedVariant) ?? "production";
+  const key = normalizeValue(requestedVariant) ?? "preview";
   const variant = APP_VARIANTS[key];
   if (!variant) {
-    throw new Error("APP_VARIANT must be development, preview, or production");
+    throw new Error("APP_VARIANT must be preview or production");
   }
   return variant;
 }
@@ -101,14 +97,14 @@ function resolveBackendEnvironment({
 
   const resolvedSupabaseUrl = requireHttpsOrigin(supabaseUrl, "Supabase URL");
   const resolvedApiProxyUrl = requireHttpsOrigin(apiProxyUrl, "API proxy URL");
-  const environmentName = variant === "production" ? "production" : "staging";
+  const environmentName = variant === "production" ? "production" : "preview";
   const expected = BACKEND_ENVIRONMENTS[environmentName];
 
   if (
     resolvedSupabaseUrl !== expected.supabaseUrl ||
     resolvedApiProxyUrl !== expected.apiProxyUrl
   ) {
-    const label = environmentName === "production" ? "Production" : "staging";
+    const label = environmentName === "production" ? "Production" : "Preview";
     throw new Error(`[Environment] ${variant} must use the ${label} backend`);
   }
 
@@ -118,12 +114,8 @@ function resolveBackendEnvironment({
   };
 }
 
-function resolveRuntimeVersion(appVersion, variant, automatedE2E) {
-  const version = normalizeValue(appVersion);
-  if (!version) {
-    throw new Error("[Updates] Expo app version is required");
-  }
-  return `${version}-${automatedE2E ? "e2e" : variant}`;
+function resolveRuntimeVersion() {
+  return { policy: "fingerprint" };
 }
 
 function publisherPrefix(id) {
@@ -299,11 +291,7 @@ const createAppConfig = ({ config }) => {
     {
       ...config,
       name: appVariant.name,
-      runtimeVersion: resolveRuntimeVersion(
-        config.version,
-        appVariant.key,
-        automatedE2E,
-      ),
+      runtimeVersion: resolveRuntimeVersion(),
       scheme: appVariant.scheme,
       extra: {
         ...config.extra,
