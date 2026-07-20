@@ -20,7 +20,7 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
     ".maestro/gon-229-notification-tap.yaml",
   ];
 
-  assert.match(workflow, /APP_VARIANT: "staging"/);
+  assert.match(workflow, /APP_VARIANT: "preview"/);
   for (const flowPath of activeFlows) {
     assert.match(read(flowPath), /^appId: com\.gonggu\.wish\.preview$/m);
   }

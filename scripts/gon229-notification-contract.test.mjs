@@ -73,9 +73,9 @@ test("Android notification runtime covers consent, deep links, and persistence",
   const localFixtureServer = read("scripts/mobile-e2e-api-server.mjs");
   const sharedFixtureId = "gon263-e2e-price-200000";
 
-  assert.equal(easConfig.build.staging.environment, "preview");
-  assert.equal(easConfig.build.staging.channel, "staging");
-  assert.equal(easConfig.build.staging.env.APP_VARIANT, "staging");
+  assert.equal(easConfig.build.preview.environment, "preview");
+  assert.equal(easConfig.build.preview.channel, "preview");
+  assert.equal(easConfig.build.preview.env.APP_VARIANT, "preview");
   assert.match(app, /requestPermission: false/);
   assert.match(app, /Constants\.expoConfig\?\.extra\?\.e2eSupabaseUrl/);
   assert.match(settings, /testID="push-notification-toggle"/);

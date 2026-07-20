@@ -21,7 +21,7 @@
     "db:migrate": "turbo run db:migrate --filter=@gonggu/api",
     "api:dev": "turbo run dev --filter=@gonggu/api",
     "mobile:start": "turbo run start --filter=@gonggu/mobile",
-    "mobile:dev": "npm run start:staging --workspace=@gonggu/mobile",
+    "mobile:dev": "npm run start:preview --workspace=@gonggu/mobile",
     "web:dev": "turbo run dev --filter=@gonggu/web",
     "admin:dev": "turbo run dev --filter=@gonggu/admin",
     "admin:build": "turbo run build --filter=@gonggu/admin",

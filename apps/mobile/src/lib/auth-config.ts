@@ -1,7 +1,6 @@
 import Constants from "expo-constants";
 
-export const DEFAULT_AUTH_REDIRECT_URL =
-  "gongguwish-staging://auth/callback";
+export const DEFAULT_AUTH_REDIRECT_URL = "gongguwish-preview://auth/callback";
 
 const ALLOWED_AUTH_REDIRECT_URLS = new Set([
   DEFAULT_AUTH_REDIRECT_URL,

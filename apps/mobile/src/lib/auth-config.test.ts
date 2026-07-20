@@ -9,9 +9,9 @@ describe("resolveAuthRedirectUrl", () => {
   it("uses the build variant callback from Expo extra config", () => {
     expect(
       resolveAuthRedirectUrl({
-        authRedirectUrl: "gongguwish-staging://auth/callback",
+        authRedirectUrl: "gongguwish-preview://auth/callback",
       }),
-    ).toBe("gongguwish-staging://auth/callback");
+    ).toBe("gongguwish-preview://auth/callback");
     expect(
       resolveAuthRedirectUrl({
         authRedirectUrl: "gongguwish://auth/callback",
@@ -19,7 +19,7 @@ describe("resolveAuthRedirectUrl", () => {
     ).toBe("gongguwish://auth/callback");
   });
 
-  it("uses the Staging callback as the safe fallback", () => {
+  it("uses the Preview callback as the safe fallback", () => {
     expect(resolveAuthRedirectUrl(undefined)).toBe(DEFAULT_AUTH_REDIRECT_URL);
     expect(resolveAuthRedirectUrl({ authRedirectUrl: "  " })).toBe(
       DEFAULT_AUTH_REDIRECT_URL,
@@ -29,7 +29,7 @@ describe("resolveAuthRedirectUrl", () => {
   it("rejects legacy variants, web origins, and unexpected callback paths", () => {
     for (const legacyUrl of [
       "gongguwish-dev://auth/callback",
-      "gongguwish-preview://auth/callback",
+      "gongguwish-staging://auth/callback",
     ]) {
       expect(() =>
         resolveAuthRedirectUrl({ authRedirectUrl: legacyUrl }),
@@ -42,7 +42,7 @@ describe("resolveAuthRedirectUrl", () => {
     ).toThrow(/redirect URL/);
     expect(() =>
       resolveAuthRedirectUrl({
-        authRedirectUrl: "gongguwish-staging://other/path",
+        authRedirectUrl: "gongguwish-preview://other/path",
       }),
     ).toThrow(/redirect URL/);
   });

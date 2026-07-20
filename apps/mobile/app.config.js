@@ -8,13 +8,13 @@ const ADS_MODES = new Set(["off", "test", "production"]);
 const ADMOB_APP_ID_PATTERN = /^ca-app-pub-\d{16}~\d{10}$/;
 const ADMOB_UNIT_ID_PATTERN = /^ca-app-pub-\d{16}\/\d{10}$/;
 const APP_VARIANTS = Object.freeze({
-  staging: Object.freeze({
+  preview: Object.freeze({
     // Keep the existing internal app ID so installed Preview builds can be
-    // upgraded in place while the deployment lane is renamed to Staging.
+    // upgraded in place.
     applicationId: "com.gonggu.wish.preview",
-    key: "staging",
-    name: "공구위시 Staging",
-    scheme: "gongguwish-staging",
+    key: "preview",
+    name: "공구위시 Preview",
+    scheme: "gongguwish-preview",
   }),
   production: Object.freeze({
     applicationId: "com.gonggu.wish",
@@ -24,8 +24,8 @@ const APP_VARIANTS = Object.freeze({
   }),
 });
 const BACKEND_ENVIRONMENTS = Object.freeze({
-  staging: Object.freeze({
-    apiProxyUrl: "https://api-staging.gongguwish.com",
+  preview: Object.freeze({
+    apiProxyUrl: "https://api-preview.gongguwish.com",
     supabaseUrl: "https://xwblovggtvbpiusjfokq.supabase.co",
   }),
   production: Object.freeze({
@@ -40,10 +40,10 @@ function normalizeValue(value) {
 }
 
 function resolveAppVariant(requestedVariant) {
-  const key = normalizeValue(requestedVariant) ?? "staging";
+  const key = normalizeValue(requestedVariant) ?? "preview";
   const variant = APP_VARIANTS[key];
   if (!variant) {
-    throw new Error("APP_VARIANT must be staging or production");
+    throw new Error("APP_VARIANT must be preview or production");
   }
   return variant;
 }
@@ -97,14 +97,14 @@ function resolveBackendEnvironment({
 
   const resolvedSupabaseUrl = requireHttpsOrigin(supabaseUrl, "Supabase URL");
   const resolvedApiProxyUrl = requireHttpsOrigin(apiProxyUrl, "API proxy URL");
-  const environmentName = variant === "production" ? "production" : "staging";
+  const environmentName = variant === "production" ? "production" : "preview";
   const expected = BACKEND_ENVIRONMENTS[environmentName];
 
   if (
     resolvedSupabaseUrl !== expected.supabaseUrl ||
     resolvedApiProxyUrl !== expected.apiProxyUrl
   ) {
-    const label = environmentName === "production" ? "Production" : "staging";
+    const label = environmentName === "production" ? "Production" : "Preview";
     throw new Error(`[Environment] ${variant} must use the ${label} backend`);
   }
 

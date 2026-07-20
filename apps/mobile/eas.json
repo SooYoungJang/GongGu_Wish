@@ -3,19 +3,19 @@
     "appVersionSource": "remote"
   },
   "build": {
-    "staging": {
+    "preview": {
       "distribution": "internal",
       "environment": "preview",
-      "channel": "staging",
+      "channel": "preview",
       "env": {
-        "APP_VARIANT": "staging"
+        "APP_VARIANT": "preview"
       },
       "android": {
         "buildType": "apk"
       }
     },
-    "staging-development": {
-      "extends": "staging",
+    "preview-development": {
+      "extends": "preview",
       "developmentClient": true
     },
     "production": {

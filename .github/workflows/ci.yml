@@ -180,7 +180,7 @@ jobs:
     name: Supabase DB Migration
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests]
     if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' }}
     outputs:
@@ -233,7 +233,7 @@ jobs:
     name: Supabase Edge Functions
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [rls-audit]
     if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.rls-audit.result == 'success' }}
     steps:
@@ -335,7 +335,7 @@ jobs:
     name: Deploy Cloudflare Worker
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests]
     if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' }}
     defaults:
@@ -356,7 +356,7 @@ jobs:
             {
               echo "## Cloudflare Worker deployment skipped"
               echo ""
-              echo "Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in the ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }} environment to enable deployment."
+              echo "Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in the ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} environment to enable deployment."
             } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "deployment_enabled=true" >> "$GITHUB_OUTPUT"
@@ -378,7 +378,7 @@ jobs:
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             npm run deploy:production
           else
-            npm run deploy:staging
+            npm run deploy:preview
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -389,7 +389,7 @@ jobs:
     name: Deploy Expo Mobile
     runs-on: ubuntu-latest
     timeout-minutes: 180
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests, supabase-functions, deploy-worker]
     if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' && needs.deploy-worker.result == 'success' }}
     steps:
@@ -413,6 +413,6 @@ jobs:
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             workflow="production.yml"
           else
-            workflow="staging.yml"
+            workflow="preview.yml"
           fi
           eas workflow:run ".eas/workflows/$workflow" --wait --non-interactive
