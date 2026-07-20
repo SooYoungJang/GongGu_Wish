@@ -412,7 +412,7 @@ describe('AuthScreen', () => {
       email: 'new@example.com',
       password: 'password123',
       options: {
-        emailRedirectTo: 'gongguwish://auth/callback',
+        emailRedirectTo: 'gongguwish-staging://auth/callback',
         data: {
           nickname: '공구러',
           marketing_opt_in: true,
@@ -451,7 +451,7 @@ describe('AuthScreen', () => {
     expect(mockSignInWithOAuth).toHaveBeenCalledWith({
       provider: 'kakao',
       options: {
-        redirectTo: 'gongguwish://auth/callback',
+        redirectTo: 'gongguwish-staging://auth/callback',
         skipBrowserRedirect: true,
       },
     });
@@ -471,7 +471,7 @@ describe('AuthScreen', () => {
     expect(mockSignInWithOAuth).toHaveBeenCalledWith({
       provider: 'apple',
       options: {
-        redirectTo: 'gongguwish://auth/callback',
+        redirectTo: 'gongguwish-staging://auth/callback',
         skipBrowserRedirect: true,
       },
     });
