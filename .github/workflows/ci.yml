@@ -420,7 +420,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         if: steps.credentials.outputs.deployment_enabled == 'true'
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: "22"
       - name: Install Worker dependencies
         if: steps.credentials.outputs.deployment_enabled == 'true'
         run: npm ci
