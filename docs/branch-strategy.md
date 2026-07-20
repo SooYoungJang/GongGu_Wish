@@ -20,9 +20,9 @@ only to production after a final review.
 
 1. Branch from `develop` for each feature: `git checkout -b feature/my-feature develop`
 2. Open a PR targeting `develop`. CI runs lint, typecheck, build, tests, edge function tests, and local Supabase integration contracts.
-3. After review and merge into `develop`, CI automatically deploys to staging: staging Supabase DB migrations, staging Edge Functions, staging Cloudflare Worker, and Vercel preview deployment.
+3. After review and merge into `develop`, GitHub Actions deploys staging Supabase DB migrations, staging Edge Functions, and the staging Cloudflare Worker. The Vercel Git integration creates the Admin preview deployment from the same push.
 4. When staging is validated, open a PR from `develop` to `main`. CI runs the same quality gates plus production-specific checks.
-5. After review and merge into `main`, CI deploys to production: production Supabase DB, production Edge Functions, production Cloudflare Worker, and Vercel production (`--prod`).
+5. After review and merge into `main`, GitHub Actions deploys the production Supabase DB, production Edge Functions, and the production Cloudflare Worker. The Vercel Git integration creates the Admin production deployment from the same push.
 
 ## Mobile App Variants
 
@@ -52,7 +52,7 @@ Development and Preview both use the staging backend (`api-staging.gongguwish.co
 - Deploy staging Edge Functions
 - RLS policy audit on staging
 - Deploy staging Cloudflare Worker (`deploy:staging`)
-- Deploy Vercel preview (no `--prod`)
+- Vercel Git integration creates the Admin preview deployment outside GitHub Actions
 
 ### `develop` to `main` PR
 
@@ -67,7 +67,7 @@ Development and Preview both use the staging backend (`api-staging.gongguwish.co
 - Deploy production Edge Functions
 - RLS policy audit on production
 - Deploy production Cloudflare Worker (`deploy:production`)
-- Deploy Vercel production (`--prod`)
+- Vercel Git integration creates the Admin production deployment outside GitHub Actions
 
 ## GitHub Environments
 
@@ -80,9 +80,9 @@ Each environment should have its own set of secrets:
 
 - `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`
 - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-- `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
 
 Staging secrets must point to the staging Supabase project and staging Cloudflare Worker. Production secrets must point to production resources.
+Vercel credentials and environment variables are managed by the Vercel project because deployments use the repository's Git integration.
 
 ## Safety Rules
 
@@ -95,7 +95,7 @@ Staging secrets must point to the staging Supabase project and staging Cloudflar
 
 - [x] Mobile app variants defined (PR #242)
 - [x] Staging Cloudflare Worker config (`wrangler.staging.jsonc`)
-- [ ] Create `develop` branch from `main`
-- [ ] Configure GitHub `staging` environment with staging secrets
-- [ ] Protect `main` and `develop` branches with required reviews and status checks
-- [ ] Configure Vercel preview project or branch alias for `develop` if needed
+- [x] Create `develop` branch from `main`
+- [x] Configure GitHub `staging` environment with staging secrets
+- [x] Protect `main` and `develop` branches with required reviews and status checks
+- [x] Connect the Vercel Admin project to the repository for preview and production deployments
