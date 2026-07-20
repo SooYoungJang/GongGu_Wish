@@ -2,7 +2,7 @@ name: Mobile E2E
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main]
     paths:
       - ".github/workflows/mobile-ios-e2e.yml"
       - ".maestro/gon-263-*.yaml"
