@@ -10,11 +10,11 @@ only to production after a final review.
 
 ## Branch Roles
 
-| Branch | Role | Supabase | Cloudflare Worker | Vercel Admin | Mobile EAS Channel |
-| --- | --- | --- | --- | --- | --- |
-| `main` | Production release | production (`iosdoheblabfimkjnvfj`) | `api.gongguwish.com` | production (`--prod`) | `production` |
-| `develop` | Staging integration | staging (`xwblovggtvbpiusjfokq`) | `api-staging.gongguwish.com` | staging (Vercel Preview type) | `staging` |
-| `feature/*` | Individual work | local Supabase | n/a | n/a | local Metro |
+| Branch      | Role                | Supabase                            | Cloudflare Worker            | Vercel Admin                  | Mobile EAS Channel |
+| ----------- | ------------------- | ----------------------------------- | ---------------------------- | ----------------------------- | ------------------ |
+| `main`      | Production release  | production (`iosdoheblabfimkjnvfj`) | `api.gongguwish.com`         | production (`--prod`)         | `production`       |
+| `develop`   | Staging integration | staging (`xwblovggtvbpiusjfokq`)    | `api-staging.gongguwish.com` | staging (Vercel Preview type) | `staging`          |
+| `feature/*` | Individual work     | local Supabase                      | n/a                          | n/a                           | local Metro        |
 
 ## Workflow
 
@@ -29,15 +29,18 @@ only to production after a final review.
 The mobile app defines exactly two deployment environments in
 `apps/mobile/app.config.js`:
 
-| Variant | Application ID | Backend | EAS Channel |
-| --- | --- | --- | --- |
-| Staging | `com.gonggu.wish.preview` | staging | `staging` |
-| Production | `com.gonggu.wish` | production | `production` |
+| Variant    | Application ID            | Backend    | EAS Channel  |
+| ---------- | ------------------------- | ---------- | ------------ |
+| Staging    | `com.gonggu.wish.preview` | staging    | `staging`    |
+| Production | `com.gonggu.wish`         | production | `production` |
 
 The Staging application keeps the existing `com.gonggu.wish.preview`
 identifier so previously installed internal builds can be upgraded in place.
 Its visible name, scheme, app variant, EAS build profile, and EAS channel are all
 named Staging. Production uses the production backend and identity.
+Authentication callbacks, notification deep links, and the active Maestro E2E
+flows derive from the same environment scheme, so Staging cannot launch or
+accept Production app links and vice versa.
 
 Expo custom environment-variable bucket names require a paid plan. Therefore,
 the fixed Expo `preview` bucket stores Staging credentials, while
