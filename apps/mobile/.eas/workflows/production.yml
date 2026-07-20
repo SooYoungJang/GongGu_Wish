@@ -12,7 +12,7 @@ jobs:
     type: get-build
     params:
       platform: android
-      profile: production
+      profile: production-apk
       channel: production
       fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
       wait_for_in_progress: true
@@ -24,7 +24,7 @@ jobs:
     type: build
     params:
       platform: android
-      profile: production
+      profile: production-apk
 
   update_android:
     name: Publish Production Android OTA update

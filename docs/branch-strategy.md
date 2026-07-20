@@ -13,7 +13,7 @@ only to production after a final review.
 | Branch | Role | Supabase | Cloudflare Worker | Vercel Admin | Mobile EAS Channel |
 | --- | --- | --- | --- | --- | --- |
 | `main` | Production release | production (`iosdoheblabfimkjnvfj`) | `api.gongguwish.com` | production (`--prod`) | `production` |
-| `develop` | Staging integration | staging (`xwblovggtvbpiusjfokq`) | `api-staging.gongguwish.com` | preview deployment | `staging` |
+| `develop` | Staging integration | staging (`xwblovggtvbpiusjfokq`) | `api-staging.gongguwish.com` | staging (Vercel Preview type) | `staging` |
 | `feature/*` | Individual work | local Supabase | n/a | n/a | local Metro |
 
 ## Workflow
@@ -54,8 +54,10 @@ with the same profile, channel, and fingerprint:
 
 Android is automated. iOS remains disabled until Apple signing credentials are
 configured. Google Play submission remains disabled because the existing Play
-developer account is terminated; Production native builds are still created
-and Production OTA updates remain automated.
+developer account is terminated; native changes create an installable
+Production APK through the `production-apk` profile, and Production OTA updates
+remain automated. Restore the store account before switching the workflow to
+the `production` AAB profile and enabling EAS Submit.
 
 ## CI Behavior by Branch
 
@@ -73,7 +75,7 @@ and Production OTA updates remain automated.
 - Deploy staging Edge Functions
 - RLS policy audit on staging
 - Deploy staging Cloudflare Worker (`deploy:staging`)
-- Vercel Git integration creates the Admin preview deployment outside GitHub Actions
+- Vercel Git integration creates the Admin Staging deployment outside GitHub Actions (Vercel's provider-level deployment type remains `Preview`)
 - After backend deployment success, run the Android Staging Fingerprint workflow
 - Build a new Staging APK when native inputs changed; otherwise publish a Staging OTA update
 
@@ -92,7 +94,7 @@ and Production OTA updates remain automated.
 - Deploy production Cloudflare Worker (`deploy:production`)
 - Vercel Git integration creates the Admin production deployment outside GitHub Actions
 - After backend deployment success, run the Android Production Fingerprint workflow
-- Build a new Production artifact when native inputs changed; otherwise publish a Production OTA update
+- Build a new installable Production APK when native inputs changed; otherwise publish a Production OTA update
 
 ## GitHub Environments
 
