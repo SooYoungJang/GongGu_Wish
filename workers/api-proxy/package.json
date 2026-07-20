@@ -6,11 +6,11 @@
   "scripts": {
     "test": "node --test",
     "check": "node --check src/index.js && npm test",
-    "check:staging": "wrangler deploy --dry-run --config wrangler.staging.jsonc",
+    "check:preview": "wrangler deploy --dry-run --config wrangler.preview.jsonc",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "deploy:production": "wrangler deploy --config wrangler.jsonc",
-    "deploy:staging": "wrangler deploy --config wrangler.staging.jsonc"
+    "deploy:preview": "wrangler deploy --config wrangler.preview.jsonc"
   },
   "devDependencies": {
     "wrangler": "4.112.0"

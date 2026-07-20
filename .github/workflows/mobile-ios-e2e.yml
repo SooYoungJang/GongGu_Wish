@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      APP_VARIANT: "staging"
+      APP_VARIANT: "preview"
       EXPO_NO_TELEMETRY: "1"
       MAESTRO_VERSION: "2.6.1"
       # The emulator can only execute x86_64. Keep the packaged release app
@@ -210,7 +210,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     env:
-      APP_VARIANT: "staging"
+      APP_VARIANT: "preview"
       EXPO_NO_TELEMETRY: "1"
       EXPO_PUBLIC_E2E_MODE: "true"
       EXPO_PUBLIC_SUPABASE_ANON_KEY: "local-e2e-anon-key"

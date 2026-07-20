@@ -1,39 +1,37 @@
-name: Deploy mobile to staging
+name: Deploy mobile to Preview
 
 jobs:
   fingerprint:
-    name: Fingerprint Staging app
+    name: Fingerprint Preview app
     type: fingerprint
-    # Expo custom environment names require a paid plan. The fixed preview
-    # variable bucket stores Staging values; the app/profile/channel are Staging.
     environment: preview
 
   get_android_build:
-    name: Find compatible Staging Android build
+    name: Find compatible Preview Android build
     needs: [fingerprint]
     type: get-build
     params:
       platform: android
-      profile: staging
-      channel: staging
+      profile: preview
+      channel: preview
       fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
       wait_for_in_progress: true
 
   build_android:
-    name: Build Staging Android app
+    name: Build Preview Android app
     needs: [get_android_build]
     if: ${{ !needs.get_android_build.outputs.build_id }}
     type: build
     params:
       platform: android
-      profile: staging
+      profile: preview
 
   update_android:
-    name: Publish Staging Android OTA update
+    name: Publish Preview Android OTA update
     needs: [get_android_build]
     if: ${{ needs.get_android_build.outputs.build_id }}
     type: update
     environment: preview
     params:
-      channel: staging
+      channel: preview
       platform: android
