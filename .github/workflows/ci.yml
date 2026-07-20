@@ -381,7 +381,6 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           vercel-args: ${{ github.ref == 'refs/heads/main' && '--prod' || '' }}
-          working-directory: ./apps/admin
 
   # ── Cloudflare Worker Deploy ─────────────────────────────────────────────
   deploy-worker:
