@@ -1,4 +1,4 @@
-export const REEL_PAGE_WINDOW_SIZE = 7;
+export const REEL_PAGE_WINDOW_SIZE = 11;
 export const REEL_PAGE_WINDOW_EDGE = 2;
 
 export type ReelWindow<T> = {
@@ -58,11 +58,11 @@ export function moveReelWindow<T>(
   let activeIndex = boundedIndex;
 
   if (boundedIndex > forwardAnchor) {
-    sourceStart = logicalTarget - forwardAnchor;
-    activeIndex = forwardAnchor;
-  } else if (boundedIndex < backwardAnchor) {
     sourceStart = logicalTarget - backwardAnchor;
     activeIndex = backwardAnchor;
+  } else if (boundedIndex < backwardAnchor) {
+    sourceStart = logicalTarget - forwardAnchor;
+    activeIndex = forwardAnchor;
   }
 
   return {
