@@ -348,6 +348,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
         run: |
           if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_ACCOUNT_ID" ]]; then
             echo "deployment_enabled=false" >> "$GITHUB_OUTPUT"
@@ -382,3 +383,36 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # ── Expo Mobile Deploy ───────────────────────────────────────────────────
+  deploy-mobile:
+    name: Deploy Expo Mobile
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    needs: [lint, build, test, edge-tests, supabase-functions, deploy-worker]
+    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' && needs.deploy-worker.result == 'success' }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+      - run: npm ci
+      - name: Set up EAS CLI
+        uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
+        with:
+          eas-version: latest
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Run Fingerprint-aware EAS deployment
+        working-directory: ./apps/mobile
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            workflow="production.yml"
+          else
+            workflow="staging.yml"
+          fi
+          eas workflow:run ".eas/workflows/$workflow" --wait --non-interactive

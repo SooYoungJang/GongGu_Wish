@@ -1,4 +1,4 @@
-appId: com.gonggu.wish
+appId: com.gonggu.wish.preview
 ---
 # The runner has backgrounded the app and expanded Android notifications.
 - extendedWaitUntil:

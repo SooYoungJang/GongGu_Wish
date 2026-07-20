@@ -6,6 +6,7 @@ import {
 } from "../services/notifications";
 import {
   buildGroupBuyNotificationUrl,
+  NOTIFICATION_URL_PREFIX,
   parseGroupBuyNotificationUrl,
 } from "../services/notificationPayload";
 
@@ -39,7 +40,7 @@ export function createNotificationLinking(
   dependencies: NotificationLinkingDependencies = defaultDependencies,
 ) {
   return {
-    prefixes: ["gongguwish://"],
+    prefixes: [NOTIFICATION_URL_PREFIX],
     config: {
       screens: {
         Detail: "group-buy/:groupBuyId",
