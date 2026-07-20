@@ -35,6 +35,8 @@ concurrency:
 
 env:
   NODE_VERSION: "20"
+  # React Native 0.83.6 default from node_modules/react-native/gradle/libs.versions.toml.
+  ANDROID_NDK_VERSION: "27.1.12297006"
   SUPABASE_PROJECT_REF: ${{ github.ref == 'refs/heads/main' && 'iosdoheblabfimkjnvfj' || 'xwblovggtvbpiusjfokq' }}
   TURBO_TELEMETRY_DISABLED: 1
 
@@ -59,6 +61,8 @@ jobs:
       - run: npm run db:generate
       - run: npm run lint
       - run: npm run typecheck
+      - name: Test mobile deployment decision logic
+        run: bash apps/mobile/scripts/ci-deploy-android.test.sh
 
   # ── Build ─────────────────────────────────────────────────────────────────
   build:
@@ -386,7 +390,7 @@ jobs:
 
   # ── Expo Mobile Deploy ───────────────────────────────────────────────────
   deploy-mobile:
-    name: Deploy Expo Mobile
+    name: Deploy Mobile (OTA or Local APK)
     runs-on: ubuntu-latest
     timeout-minutes: 180
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
@@ -407,12 +411,43 @@ jobs:
           eas-version: latest
           packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Run Fingerprint-aware EAS deployment
-        working-directory: ./apps/mobile
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.1.0
+        with:
+          distribution: "temurin"
+          java-version: "17"
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - name: Install required Android NDK
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            workflow="production.yml"
-          else
-            workflow="preview.yml"
-          fi
-          eas workflow:run ".eas/workflows/$workflow" --wait --non-interactive
+          sdkmanager "ndk;${ANDROID_NDK_VERSION}"
+          ndk_path="${ANDROID_SDK_ROOT}/ndk/${ANDROID_NDK_VERSION}"
+          test -x "$ndk_path/ndk-build"
+          echo "ANDROID_NDK_HOME=$ndk_path" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ndk_path" >> "$GITHUB_ENV"
+      - name: Run fingerprint-aware local Android deployment
+        id: mobile-deploy
+        working-directory: ./apps/mobile
+        run: bash scripts/ci-deploy-android.sh
+      - name: Upload local APK artifact
+        id: upload-apk
+        if: steps.mobile-deploy.outputs.mode == 'build'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gonggu-wish-${{ steps.mobile-deploy.outputs.environment }}-${{ github.sha }}
+          path: ${{ steps.mobile-deploy.outputs.apk-path }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Report local APK artifact
+        if: steps.mobile-deploy.outputs.mode == 'build'
+        env:
+          GITHUB_ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+          EXPO_DOWNLOAD_URL: ${{ steps.mobile-deploy.outputs.expo-url }}
+        run: |
+          {
+            echo ""
+            echo "### Download links"
+            echo "- GitHub Actions artifact: $GITHUB_ARTIFACT_URL"
+            if [[ -n "$EXPO_DOWNLOAD_URL" ]]; then
+              echo "- Expo download: $EXPO_DOWNLOAD_URL"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
