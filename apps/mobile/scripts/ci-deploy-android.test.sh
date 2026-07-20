@@ -46,6 +46,15 @@ case "$command_name" in
   update)
     ;;
   build)
+    : "${GRADLE_USER_HOME:?GRADLE_USER_HOME is required for local builds}"
+    grep -Fxq \
+      'org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8' \
+      "$GRADLE_USER_HOME/gradle.properties"
+    grep -Fxq 'org.gradle.workers.max=2' \
+      "$GRADLE_USER_HOME/gradle.properties"
+    grep -Fxq \
+      'kotlin.daemon.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=1g' \
+      "$GRADLE_USER_HOME/gradle.properties"
     output=""
     while [[ $# -gt 0 ]]; do
       if [[ "$1" == "--output" ]]; then
@@ -107,6 +116,8 @@ fi
 run_deployment "preview-build" "refs/heads/develop" "false"
 grep -Fxq "mode=build" "$test_directory/preview-build/output"
 grep -Fq "build --platform android --profile preview --local" "$test_directory/preview-build/eas.log"
+grep -Fxq 'org.gradle.parallel=false' \
+  "$test_directory/preview-build/runner/gradle-user-home/gradle.properties"
 
 run_deployment "production-ota" "refs/heads/main" "true"
 grep -Fxq "mode=ota" "$test_directory/production-ota/output"

@@ -119,6 +119,16 @@ if [[ -n "$compatible_build_id" ]]; then
   exit 0
 fi
 
+gradle_user_home="$RUNNER_TEMP/gradle-user-home"
+mkdir -p "$gradle_user_home"
+printf '%s\n' \
+  'org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8' \
+  'org.gradle.workers.max=2' \
+  'org.gradle.parallel=false' \
+  'kotlin.daemon.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=1g' \
+  >"$gradle_user_home/gradle.properties"
+export GRADLE_USER_HOME="$gradle_user_home"
+
 artifact_directory="$RUNNER_TEMP/mobile-apk"
 apk_path="$artifact_directory/gonggu-wish-$environment-${GITHUB_SHA:-local}.apk"
 mkdir -p "$artifact_directory"
