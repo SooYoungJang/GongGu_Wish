@@ -3,6 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { SupabaseJwtStrategy } from '../auth/supabase-jwt.strategy';
 import { SupabaseService } from './supabase.service';
 
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => ({
+    auth: { getUser: jest.fn() },
+  })),
+}));
+
 describe('SupabaseService configuration', () => {
   it('fails closed when SUPABASE_URL is missing', () => {
     const configService = new ConfigService({
