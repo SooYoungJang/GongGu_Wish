@@ -129,6 +129,10 @@ Cloudflare credentials differ by tier:
 - `Preview`: `CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL` only
 - `Production`: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 
+The Preview environment also stores `VERCEL_PREVIEW_DEPLOY_HOOK_URL`, created
+for the Admin project's `develop` branch. It is project/repository/branch scoped
+and is used only after the backend and mobile jobs succeed.
+
 The Preview environment also defines `PREVIEW_HIKER_SMOKE_URL` for the remote
 Hiker smoke test. Missing or malformed deployment credentials fail the workflow;
 deployment jobs must never report success after skipping a component.
@@ -142,9 +146,11 @@ conditions:
 Preview secrets must point to the Preview Supabase project and Preview Cloudflare Worker. Production secrets must point to production resources.
 Vercel credentials and environment variables are managed by the Vercel project because deployments use the repository's Git integration.
 The Vercel project's `Skip deployments when there are no changes to the root
-directory or its dependencies` option must remain disabled. Otherwise a
-documentation-only `develop` SHA can receive a successful skipped status without
-an immutable Admin deployment, which violates the same-SHA release contract.
+directory or its dependencies` option must remain disabled. Create one Deploy
+Hook named `github-preview-green` for branch `develop` and store it as
+`VERCEL_PREVIEW_DEPLOY_HOOK_URL` in GitHub Preview. `Preview Green` invokes it
+before polling the exact-SHA deployment. This covers both path-based skips and
+missed Git webhooks without granting GitHub a team-wide Vercel token.
 
 ## Credential Isolation Contract
 
@@ -173,8 +179,9 @@ Run `CI/CD — Supabase + API` manually with
 `audit_preview_credentials=true` after creating or rotating Preview deployment
 credentials. The read-only audit must show exactly one visible Supabase project,
 a valid Preview Deploy Hook, and no broad Cloudflare account credential in the
-Preview environment. Normal deployment jobs repeat these checks before making
-any remote mutation.
+Preview environment, plus the Admin project's `develop`-scoped Vercel Deploy
+Hook. Normal deployment jobs repeat these checks before making any remote
+mutation.
 
 Configure Workers Builds for `gonggu-api-proxy-preview` with repository
 `SooYoungJang/GongGu_Wish`, production branch `develop`, root directory
@@ -230,6 +237,7 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 - [x] Make missing Supabase and Cloudflare deployment credentials fail closed
 - [x] Add read-only credential-scope audits before remote mutations
 - [x] Disable Vercel affected-project deployment skipping so every `develop` SHA gets an Admin identity
+- [ ] Create the Admin `develop` Vercel Deploy Hook and store it only in GitHub Preview
 - [ ] Replace the Preview Supabase PAT with a Preview-project-only credential
 - [ ] Configure the Preview Worker `develop` Deploy Hook, store it in GitHub Preview, and remove the broad Cloudflare token/account secrets from Preview
 - [ ] Revoke exposed Hiker keys, create one fresh Preview key, sync it to GitHub Preview and Preview Supabase, and pass the real lookup smoke test

@@ -124,6 +124,9 @@ test("develop publishes a green same-SHA Preview release gate", () => {
   assert.match(releaseGate, /refs\/heads\/develop/);
   assert.match(releaseGate, /github\.sha/);
   assert.match(releaseGate, /vercel/i);
+  assert.match(releaseGate, /VERCEL_PREVIEW_DEPLOY_HOOK_URL/);
+  assert.match(releaseGate, /integrations\/deploy/);
+  assert.match(releaseGate, /prj_w8Jh6jcev9yQxWGeYvHMbEoRrro3/);
   assert.match(releaseGate, /preview[-_ ]green/i);
   assert.match(releaseGate, /release-identity\.json/);
   assert.match(releaseGate, /xwblovggtvbpiusjfokq/);
@@ -202,4 +205,6 @@ test("Preview deployment credentials are denied Production targets", () => {
   assert.match(credentialAudit, /Preview-only Supabase access/);
   assert.match(credentialAudit, /Preview-only Cloudflare deploy hook/);
   assert.match(credentialAudit, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
+  assert.match(credentialAudit, /Preview-only Vercel deploy hook/);
+  assert.match(credentialAudit, /VERCEL_PREVIEW_DEPLOY_HOOK_URL/);
 });

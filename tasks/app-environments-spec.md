@@ -101,6 +101,8 @@ return {
   Cloudflare resources.
 - GitHub Preview triggers Cloudflare through a Preview Worker/develop-only Deploy
   Hook and stores no account-wide Worker write token.
+- GitHub Preview triggers Admin redeployment through a project/develop-scoped
+  Vercel Deploy Hook and validates the immutable deployment's exact SHA.
 - No Production update or store release occurs as part of this change.
 
 ## External Account Follow-ups

@@ -45,11 +45,13 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL }}
+          VERCEL_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_PREVIEW_DEPLOY_HOOK_URL }}
         run: |
           set -euo pipefail
           for name in \
             SUPABASE_ACCESS_TOKEN \
-            CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL; do
+            CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL \
+            VERCEL_PREVIEW_DEPLOY_HOOK_URL; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::$name is not configured for the Preview credential audit."
               exit 1
@@ -93,14 +95,27 @@ jobs:
             exit 1
           fi
 
+      - name: Require Preview-only Vercel deploy hook
+        id: vercel-isolation-audit
+        continue-on-error: true
+        env:
+          VERCEL_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_PREVIEW_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$VERCEL_PREVIEW_DEPLOY_HOOK_URL" =~ ^https://api\.vercel\.com/v1/integrations/deploy/prj_w8Jh6jcev9yQxWGeYvHMbEoRrro3/[A-Za-z0-9_-]+$ ]]; then
+            echo "::error::The Preview Vercel credential must be the develop Deploy Hook for the Admin project."
+            exit 1
+          fi
+
       - name: Require every Preview credential boundary
         if: ${{ always() }}
         env:
           SUPABASE_AUDIT: ${{ steps.supabase-isolation-audit.outcome }}
           CLOUDFLARE_AUDIT: ${{ steps.cloudflare-isolation-audit.outcome }}
+          VERCEL_AUDIT: ${{ steps.vercel-isolation-audit.outcome }}
         run: |
-          if [[ "$SUPABASE_AUDIT" != "success" || "$CLOUDFLARE_AUDIT" != "success" ]]; then
-            echo "::error::Preview credential isolation failed (Supabase=$SUPABASE_AUDIT, Cloudflare=$CLOUDFLARE_AUDIT)."
+          if [[ "$SUPABASE_AUDIT" != "success" || "$CLOUDFLARE_AUDIT" != "success" || "$VERCEL_AUDIT" != "success" ]]; then
+            echo "::error::Preview credential isolation failed (Supabase=$SUPABASE_AUDIT, Cloudflare=$CLOUDFLARE_AUDIT, Vercel=$VERCEL_AUDIT)."
             exit 1
           fi
 
@@ -695,6 +710,29 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Trigger the Vercel Preview deployment for this SHA
+        env:
+          VERCEL_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_PREVIEW_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$VERCEL_PREVIEW_DEPLOY_HOOK_URL" ]]; then
+            echo "::error::VERCEL_PREVIEW_DEPLOY_HOOK_URL is not configured in the Preview environment."
+            exit 1
+          fi
+          if [[ ! "$VERCEL_PREVIEW_DEPLOY_HOOK_URL" =~ ^https://api\.vercel\.com/v1/integrations/deploy/prj_w8Jh6jcev9yQxWGeYvHMbEoRrro3/[A-Za-z0-9_-]+$ ]]; then
+            echo "::error::The Preview Vercel credential must be the develop Deploy Hook for the Admin project."
+            exit 1
+          fi
+          response="$(mktemp)"
+          trap 'rm -f "$response"' EXIT
+          curl --fail --silent --show-error \
+            --request POST \
+            --output "$response" \
+            "$VERCEL_PREVIEW_DEPLOY_HOOK_URL"
+          jq -e '
+            .job.id | type == "string" and length > 0
+          ' "$response" > /dev/null
 
       - name: Require the Vercel Preview deployment for this SHA
         env:
