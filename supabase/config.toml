@@ -222,6 +222,11 @@ web3 = 30
 # PostgREST. Mobile callers may be signed out, so no user JWT is required.
 verify_jwt = false
 
+[functions.public-submission]
+# Public submission intake uses the service role key internally; no user JWT
+# is required, so callers without an auth session can still submit.
+verify_jwt = false
+
 [functions.hiker-lookup]
 # UMANS_API_KEY: umans.ai API key for LLM-based product-name inference.
 # Set via: supabase secrets set UMANS_API_KEY=sk-...
