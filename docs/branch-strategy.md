@@ -20,8 +20,8 @@ only to production after a final review.
 
 1. Branch from `develop` for each feature: `git checkout -b feature/my-feature develop`
 2. Open a PR targeting `develop`. CI runs lint, typecheck, build, tests, edge function tests, and local Supabase integration contracts.
-3. After review and merge into `develop`, GitHub Actions deploys Preview Supabase DB migrations, Preview Edge Functions, and the Preview Cloudflare Worker. The Vercel Git integration creates the Admin Preview deployment from the same push. After the backend deployment succeeds, the mobile workflow publishes to the `preview` channel.
-4. When Preview is validated, open a PR from `develop` to `main`. CI runs the same quality gates plus production-specific checks.
+3. After review and merge into `develop`, GitHub Actions deploys Preview Supabase DB migrations, Preview Edge Functions, the Preview Cloudflare Worker, and the Preview mobile app. The Vercel Git integration creates the Admin Preview deployment from the same SHA. `Preview Green` succeeds only after every deployment and the remote API, Admin, and Hiker smoke tests pass.
+4. When Preview is validated, open a PR from `develop` to `main`. `Preview Promotion Gate` requires the PR head to be the latest `develop` SHA and requires that exact SHA's successful `Preview Green` run.
 5. After review and merge into `main`, GitHub Actions deploys the production Supabase DB, production Edge Functions, and the production Cloudflare Worker. The Vercel Git integration creates the Admin production deployment from the same push. After the backend deployment succeeds, the mobile workflow publishes to the `production` channel.
 
 ## Mobile App Environments
@@ -79,11 +79,16 @@ the `production` AAB profile and enabling EAS Submit.
 - Vercel Git integration creates the Admin Preview deployment outside GitHub Actions
 - After backend deployment success, run the Android Preview Fingerprint workflow
 - Build a new Preview APK when native inputs changed; otherwise publish a Preview OTA update
+- Require the Vercel deployment to match the merge SHA
+- Smoke test the Preview API, stable Admin branch alias, immutable Vercel deployment URL, and real Hiker lookup
+- Publish a `preview-release-<sha>` manifest only when every component is green
 
 ### `develop` to `main` PR
 
 - Same quality gates
 - Dependency review
+- Require the PR to originate from the repository's latest `develop` SHA
+- Require a successful `Preview Green` job from the successful `develop` push workflow for that SHA
 - No deployment (PR only)
 
 ### `main` push (merge)
@@ -109,6 +114,17 @@ Each environment should have its own set of secrets:
 - `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`
 - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 - `EXPO_TOKEN`
+- `HIKER_API_KEY`
+
+The Preview environment also defines `PREVIEW_HIKER_SMOKE_URL` for the remote
+Hiker smoke test. Missing or malformed deployment credentials fail the workflow;
+deployment jobs must never report success after skipping a component.
+
+Deployment branch policies are enforced by GitHub in addition to workflow
+conditions:
+
+- `Preview`: only `develop`
+- `Production`: only `main`
 
 Preview secrets must point to the Preview Supabase project and Preview Cloudflare Worker. Production secrets must point to production resources.
 Vercel credentials and environment variables are managed by the Vercel project because deployments use the repository's Git integration.
@@ -118,8 +134,10 @@ Vercel credentials and environment variables are managed by the Vercel project b
 - Never push directly to `main` or `develop`. All changes go through PRs.
 - `main` and `develop` branches should be protected with required status checks and code review.
 - Merging `develop` authorizes the Preview mobile deployment; merging `main` authorizes the Production mobile deployment.
+- Production promotion PRs must come from the latest `develop` SHA with a successful same-SHA `Preview Green` run.
+- Preview database rows and Auth users are never copied to Production. Versioned migrations are code and run against Production only after their merge into `main`.
+- Missing deployment credentials fail closed. A skipped DB, Edge Function, Worker, Admin, mobile, or smoke-test step must never produce a green release.
 - Store submission is not part of the pipeline until an active store account and submission credentials exist.
-- If Preview secrets are missing, Preview deployments are skipped with a warning rather than failing the build.
 
 ## Setup Checklist
 
@@ -131,5 +149,9 @@ Vercel credentials and environment variables are managed by the Vercel project b
 - [x] Connect the Vercel Admin project to the repository for preview and production deployments
 - [x] Configure GitHub `preview` and `Production` environments with `EXPO_TOKEN`
 - [x] Add Android Preview and Production Fingerprint workflows
+- [x] Restrict GitHub `Preview` deployments to `develop` and `Production` deployments to `main`
+- [x] Sync `HIKER_API_KEY` before the normal Edge Function deployment
+- [x] Add same-SHA `Preview Green` and `Preview Promotion Gate` checks
+- [x] Make missing Supabase and Cloudflare deployment credentials fail closed
 - [ ] Configure Apple signing credentials before enabling iOS jobs
 - [ ] Create an active Google Play developer account and EAS Submit service account before enabling store submission
