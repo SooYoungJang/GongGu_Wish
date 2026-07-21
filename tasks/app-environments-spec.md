@@ -99,6 +99,8 @@ return {
   the Admin, API, database, Edge Functions, Worker, mobile app, and Hiker lookup.
 - Preview deployment credentials cannot list or mutate Production Supabase or
   Cloudflare resources.
+- GitHub Preview triggers Cloudflare through a Preview Worker/develop-only Deploy
+  Hook and stores no account-wide Worker write token.
 - No Production update or store release occurs as part of this change.
 
 ## External Account Follow-ups

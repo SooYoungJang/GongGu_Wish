@@ -183,24 +183,23 @@ test("Admin deployments publish an exact environment and commit identity", () =>
 test("Preview deployment credentials are denied Production targets", () => {
   const supabaseJob = job("supabase-db");
   const workerJob = job("deploy-worker");
+  const credentialAudit = job("audit-preview-credentials");
 
   assert.match(supabaseJob, /api\.supabase\.com\/v1\/projects/);
   assert.match(supabaseJob, /iosdoheblabfimkjnvfj/);
   assert.match(supabaseJob, /expected.*inaccessible/is);
-  assert.match(workerJob, /gonggu-api-proxy-preview/);
-  assert.match(workerJob, /gonggu-api-proxy/);
-  assert.match(workerJob, /PRODUCTION_CLOUDFLARE_ACCOUNT_ID/);
-  assert.match(workerJob, /expected.*inaccessible/is);
+  assert.match(workerJob, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
+  assert.match(workerJob, /workers\/builds\/deploy_hooks/);
+  assert.match(workerJob, /broad.*credential.*must not/is);
+  assert.match(workerJob, /api-preview\.gongguwish\.com\/health/);
+  assert.match(workerJob, /\.commitSha == \$sha/);
+  assert.match(workerJob, /deploy:production/);
+  assert.doesNotMatch(workerJob, /deploy:preview/);
   assert.match(
     job("deploy-hiker-lookup"),
     /Verify Supabase credential isolation/,
   );
-  assert.match(
-    job("audit-preview-credentials"),
-    /Preview-only Supabase access/,
-  );
-  assert.match(
-    job("audit-preview-credentials"),
-    /Production Worker access to be denied/,
-  );
+  assert.match(credentialAudit, /Preview-only Supabase access/);
+  assert.match(credentialAudit, /Preview-only Cloudflare deploy hook/);
+  assert.match(credentialAudit, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
 });

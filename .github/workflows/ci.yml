@@ -41,19 +41,15 @@ jobs:
     environment: preview
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.audit_preview_credentials == true }}
     steps:
-      - name: Require Preview credentials and opposite-tier account identity
+      - name: Require Preview credential audit inputs
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PRODUCTION_CLOUDFLARE_ACCOUNT_ID: ${{ vars.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL }}
         run: |
           set -euo pipefail
           for name in \
             SUPABASE_ACCESS_TOKEN \
-            CLOUDFLARE_API_TOKEN \
-            CLOUDFLARE_ACCOUNT_ID \
-            PRODUCTION_CLOUDFLARE_ACCOUNT_ID; do
+            CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::$name is not configured for the Preview credential audit."
               exit 1
@@ -79,31 +75,21 @@ jobs:
             (map(.ref) | index("iosdoheblabfimkjnvfj") | not)
           ' "$projects" > /dev/null
 
-      - name: Require Production Worker access to be denied
+      - name: Require Preview-only Cloudflare deploy hook
         id: cloudflare-isolation-audit
         continue-on-error: true
         env:
+          CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PRODUCTION_CLOUDFLARE_ACCOUNT_ID: ${{ vars.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          workers="$(mktemp)"
-          forbidden_worker="$(mktemp)"
-          trap 'rm -f "$workers" "$forbidden_worker"' EXIT
-          curl --fail --silent --show-error \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            --output "$workers" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts"
-          jq -e '.result | map(.id) == ["gonggu-api-proxy-preview"]' \
-            "$workers" > /dev/null
-          status="$(curl --silent --show-error \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            --output "$forbidden_worker" \
-            --write-out '%{http_code}' \
-            "https://api.cloudflare.com/client/v4/accounts/$PRODUCTION_CLOUDFLARE_ACCOUNT_ID/workers/scripts/gonggu-api-proxy")"
-          if [[ "$status" != "403" && "$status" != "404" ]]; then
-            echo "::error::Preview Cloudflare token can reach Production (HTTP $status)."
+          if [[ -n "$CLOUDFLARE_API_TOKEN" || -n "$CLOUDFLARE_ACCOUNT_ID" ]]; then
+            echo "::error::A broad Cloudflare account credential must not be configured in the Preview environment."
+            exit 1
+          fi
+          if [[ ! "$CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL" =~ ^https://api\.cloudflare\.com/client/v4/workers/builds/deploy_hooks/[A-Za-z0-9_-]+$ ]]; then
+            echo "::error::The Preview Cloudflare credential must be a Workers Builds deploy hook URL."
             exit 1
           fi
 
@@ -483,7 +469,7 @@ jobs:
   deploy-worker:
     name: Deploy Cloudflare Worker
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests, supabase-functions]
     if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' }}
@@ -494,79 +480,110 @@ jobs:
       - name: Check Cloudflare credentials
         working-directory: .
         env:
+          CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
         run: |
           set -euo pipefail
-          if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_ACCOUNT_ID" ]]; then
-            echo "::error::Cloudflare Worker credentials are not configured in the selected GitHub environment."
-            exit 1
+          if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            if [[ -z "$CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL" ]]; then
+              echo "::error::CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL is not configured in the Preview environment."
+              exit 1
+            fi
+            if [[ -n "$CLOUDFLARE_API_TOKEN" || -n "$CLOUDFLARE_ACCOUNT_ID" ]]; then
+              echo "::error::A broad Cloudflare account credential must not be configured in the Preview environment."
+              exit 1
+            fi
+            if [[ ! "$CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL" =~ ^https://api\.cloudflare\.com/client/v4/workers/builds/deploy_hooks/[A-Za-z0-9_-]+$ ]]; then
+              echo "::error::The Preview Cloudflare credential must be a Workers Builds deploy hook URL."
+              exit 1
+            fi
+          else
+            if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_ACCOUNT_ID" ]]; then
+              echo "::error::Production Cloudflare Worker credentials are not configured."
+              exit 1
+            fi
           fi
-      - name: Verify Cloudflare credential isolation
+      - name: Verify Production Cloudflare target
+        if: ${{ github.ref == 'refs/heads/main' }}
         working-directory: .
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          EXPECTED_WORKER: ${{ github.ref == 'refs/heads/main' && 'gonggu-api-proxy' || 'gonggu-api-proxy-preview' }}
-          FORBIDDEN_WORKER: ${{ github.ref == 'refs/heads/main' && 'gonggu-api-proxy-preview' || 'gonggu-api-proxy' }}
-          FORBIDDEN_ACCOUNT_ID: ${{ github.ref == 'refs/heads/main' && vars.PREVIEW_CLOUDFLARE_ACCOUNT_ID || vars.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          if [[ -z "$FORBIDDEN_ACCOUNT_ID" ]]; then
-            echo "::error::The opposite-tier Cloudflare account ID is not configured."
-            exit 1
-          fi
           workers="$(mktemp)"
-          forbidden_worker="$(mktemp)"
-          trap 'rm -f "$workers" "$forbidden_worker"' EXIT
+          trap 'rm -f "$workers"' EXIT
           curl --fail --silent --show-error \
             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             --output "$workers" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts"
-
-          if ! jq -e --arg expected "$EXPECTED_WORKER" \
-            '.result[] | select(.id == $expected)' "$workers" > /dev/null; then
-            echo "::error::The selected Cloudflare credential cannot access the expected Worker $EXPECTED_WORKER."
-            exit 1
-          fi
-          if jq -e --arg forbidden "$FORBIDDEN_WORKER" \
-            '.result[] | select(.id == $forbidden)' "$workers" > /dev/null; then
-            echo "::error::Expected the opposite-tier Worker $FORBIDDEN_WORKER to be inaccessible."
-            exit 1
-          fi
-
-          forbidden_status="$(curl --silent --show-error \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            --output "$forbidden_worker" \
-            --write-out '%{http_code}' \
-            "https://api.cloudflare.com/client/v4/accounts/$FORBIDDEN_ACCOUNT_ID/workers/scripts/$FORBIDDEN_WORKER")"
-          if [[ "$forbidden_status" == "200" ]]; then
-            echo "::error::Expected the opposite-tier Cloudflare account and Worker to be inaccessible."
-            exit 1
-          fi
-          if [[ "$forbidden_status" != "403" && "$forbidden_status" != "404" ]]; then
-            echo "::error::Unable to prove Cloudflare credential isolation (HTTP $forbidden_status)."
+          if ! jq -e '.result[] | select(.id == "gonggu-api-proxy")' "$workers" > /dev/null; then
+            echo "::error::The Production Cloudflare credential cannot access gonggu-api-proxy."
             exit 1
           fi
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        if: ${{ github.ref == 'refs/heads/main' }}
         with:
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: ${{ github.ref == 'refs/heads/main' }}
         with:
           node-version: "22"
       - name: Install Worker dependencies
+        if: ${{ github.ref == 'refs/heads/main' }}
         run: npm ci
-      - name: Deploy Worker
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            npm run deploy:production -- --tag "$GITHUB_SHA" --message "GitHub $GITHUB_SHA"
-          else
-            npm run deploy:preview -- --tag "$GITHUB_SHA" --message "GitHub $GITHUB_SHA"
-          fi
+      - name: Deploy Production Worker
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: npm run deploy:production -- --tag "$GITHUB_SHA" --message "GitHub $GITHUB_SHA"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Trigger Preview Worker build
+        if: ${{ github.ref == 'refs/heads/develop' }}
+        working-directory: .
+        env:
+          CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          response="$(mktemp)"
+          trap 'rm -f "$response"' EXIT
+          curl --fail --silent --show-error \
+            --request POST \
+            --output "$response" \
+            "$CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL"
+          jq -e '
+            .success == true and
+            (.result.build_uuid | type == "string" and length > 0)
+          ' "$response" > /dev/null
+          build_uuid="$(jq -r '.result.build_uuid' "$response")"
+          echo "Triggered the Preview Worker build $build_uuid for $GITHUB_SHA." >> "$GITHUB_STEP_SUMMARY"
+      - name: Require exact Preview Worker deployment
+        if: ${{ github.ref == 'refs/heads/develop' }}
+        working-directory: .
+        run: |
+          set -euo pipefail
+          response="$(mktemp)"
+          trap 'rm -f "$response"' EXIT
+          for attempt in {1..40}; do
+            status="$(curl --silent --show-error \
+              --output "$response" \
+              --write-out '%{http_code}' \
+              https://api-preview.gongguwish.com/health)"
+            if [[ "$status" == "200" ]] && jq -e --arg sha "$GITHUB_SHA" '
+              .status == "ok" and
+              .environment == "preview" and
+              .commitSha == $sha and
+              .supabaseProjectRef == "xwblovggtvbpiusjfokq"
+            ' "$response" > /dev/null; then
+              exit 0
+            fi
+            if [[ "$attempt" == "40" ]]; then
+              echo "::error::Preview Worker did not publish the exact SHA $GITHUB_SHA."
+              exit 1
+            fi
+            sleep 15
+          done
 
   # ── Expo Mobile Deploy ───────────────────────────────────────────────────
   deploy-mobile:
