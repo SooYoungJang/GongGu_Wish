@@ -43,10 +43,12 @@ VITE_SUPABASE_ANON_KEY="..."
 
 ## Supabase Edge Function
 
-관리자 콘솔은 아래 함수가 배포되어 있어야 합니다.
+관리자 콘솔은 `admin-api`와 `hiker-lookup` 함수가 배포되어 있어야 합니다.
 
 ```sh
 supabase functions deploy admin-api --project-ref iosdoheblabfimkjnvfj --use-api
 ```
 
 `admin-api`는 요청자의 Supabase JWT를 검증하고 admin role일 때만 service role 작업을 실행합니다.
+
+Hiker 조회에 필요한 `HIKER_API_KEY`는 Vercel 환경 변수가 아니라 Supabase Edge Function secret입니다. GitHub의 `production` environment에 `HIKER_API_KEY` secret을 등록한 뒤 Actions의 `CI/CD — Supabase + API` workflow를 `deploy_hiker_lookup=true`로 실행하면, workflow가 해당 값을 Supabase에 동기화하고 `hiker-lookup`을 배포합니다. `VITE_` 접두사로 웹앱에 키를 노출하지 않습니다.
