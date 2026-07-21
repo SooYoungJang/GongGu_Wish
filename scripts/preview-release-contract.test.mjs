@@ -128,6 +128,12 @@ test("develop publishes a green same-SHA Preview release gate", () => {
   assert.match(releaseGate, /release-identity\.json/);
   assert.match(releaseGate, /xwblovggtvbpiusjfokq/);
   assert.match(releaseGate, /GITHUB_SHA/);
+  assert.match(
+    releaseGate,
+    /deployments\?sha=\$GITHUB_SHA&environment=Preview/,
+  );
+  assert.doesNotMatch(releaseGate, /deployments\?[^\n"]*&ref=develop/);
+  assert.match(releaseGate, /\.ref == \$sha/);
   assert.match(releaseGate, /\.gitRef == "develop"/);
   assert.match(releaseGate, /http_code/);
   assert.match(releaseGate, /"200"/);
