@@ -1,4 +1,4 @@
-﻿-- Allow anonymous (anon role) inserts on gonggu_submissions so the
+-- Allow anonymous (anon role) inserts on gonggu_submissions so the
 -- public-submission edge function can write without relying on the
 -- SUPABASE_SERVICE_ROLE_KEY secret being configured remotely.
 -- The edge function still validates all input before inserting.
