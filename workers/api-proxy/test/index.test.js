@@ -19,10 +19,10 @@ function env(overrides = {}) {
   };
 }
 
-function request(path, init = {}) {
+function request(path, init = {}, envOverrides = {}) {
   return worker.fetch(
     new Request(`https://api.gongguwish.com${path}`, init),
-    env(),
+    env(envOverrides),
   );
 }
 
@@ -134,6 +134,42 @@ describe("gonggu API proxy", () => {
       "https://gongguwish.com",
     );
     assert.equal(response.headers.get("cache-control"), "no-store");
+  });
+
+  it("refuses to proxy when Preview points at the Production Supabase origin", async () => {
+    let called = false;
+    globalThis.fetch = async () => {
+      called = true;
+      return Response.json([]);
+    };
+
+    const response = await request(
+      "/rest/v1/group_buys",
+      { headers: { apikey: "public-key" } },
+      { SUPABASE_ORIGIN: "https://iosdoheblabfimkjnvfj.supabase.co" },
+    );
+
+    assert.equal(response.status, 500);
+    assert.equal((await response.json()).error.code, "PROXY_MISCONFIGURED");
+    assert.equal(called, false);
+  });
+
+  it("refuses to proxy without an exact deployed commit identity", async () => {
+    let called = false;
+    globalThis.fetch = async () => {
+      called = true;
+      return Response.json([]);
+    };
+
+    const response = await request(
+      "/rest/v1/group_buys",
+      { headers: { apikey: "public-key" } },
+      { CF_VERSION_METADATA: { tag: "latest" } },
+    );
+
+    assert.equal(response.status, 500);
+    assert.equal((await response.json()).error.code, "PROXY_MISCONFIGURED");
+    assert.equal(called, false);
   });
 
   it("forwards allowlisted Edge Function POST bodies and authorization", async () => {

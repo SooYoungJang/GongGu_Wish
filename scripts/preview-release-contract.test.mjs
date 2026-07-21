@@ -128,6 +128,7 @@ test("develop publishes a green same-SHA Preview release gate", () => {
   assert.match(releaseGate, /release-identity\.json/);
   assert.match(releaseGate, /xwblovggtvbpiusjfokq/);
   assert.match(releaseGate, /GITHUB_SHA/);
+  assert.match(releaseGate, /\.gitRef == "develop"/);
   assert.match(releaseGate, /http_code/);
   assert.match(releaseGate, /"200"/);
 });
@@ -167,7 +168,9 @@ test("Admin deployments publish an exact environment and commit identity", () =>
   assert.match(adminEnvironmentContract, /iosdoheblabfimkjnvfj/);
   assert.match(adminEnvironmentContract, /VITE_APP_ENV/);
   assert.match(adminEnvironmentContract, /VITE_COMMIT_SHA/);
+  assert.match(adminEnvironmentContract, /VITE_GIT_REF/);
   assert.match(adminViteConfig, /VERCEL_GIT_COMMIT_SHA/);
+  assert.match(adminViteConfig, /VERCEL_GIT_COMMIT_REF/);
   assert.match(adminViteConfig, /release-identity\.json/);
 });
 
@@ -180,5 +183,18 @@ test("Preview deployment credentials are denied Production targets", () => {
   assert.match(supabaseJob, /expected.*inaccessible/is);
   assert.match(workerJob, /gonggu-api-proxy-preview/);
   assert.match(workerJob, /gonggu-api-proxy/);
+  assert.match(workerJob, /PRODUCTION_CLOUDFLARE_ACCOUNT_ID/);
   assert.match(workerJob, /expected.*inaccessible/is);
+  assert.match(
+    job("deploy-hiker-lookup"),
+    /Verify Supabase credential isolation/,
+  );
+  assert.match(
+    job("audit-preview-credentials"),
+    /Preview-only Supabase access/,
+  );
+  assert.match(
+    job("audit-preview-credentials"),
+    /Production Worker access to be denied/,
+  );
 });

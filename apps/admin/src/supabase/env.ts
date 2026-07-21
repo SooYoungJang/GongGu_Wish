@@ -16,6 +16,7 @@ export type AdminAppEnvironment =
 export type SupabaseEnv = {
   VITE_APP_ENV?: string;
   VITE_COMMIT_SHA?: string;
+  VITE_GIT_REF?: string;
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_ANON_KEY?: string;
 };
@@ -25,6 +26,7 @@ export function getSupabaseConfig(env: SupabaseEnv) {
     | AdminAppEnvironment
     | undefined;
   const commitSha = env.VITE_COMMIT_SHA?.trim();
+  const gitRef = env.VITE_GIT_REF?.trim();
   const supabaseUrl = env.VITE_SUPABASE_URL?.trim().replace(/\/+$/, "");
   const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY?.trim();
 
@@ -63,6 +65,15 @@ export function getSupabaseConfig(env: SupabaseEnv) {
         `${label} Admin requires an exact 40-character commit SHA`,
       );
     }
+    if (!gitRef) {
+      throw new Error(`${label} Admin requires an exact Git ref`);
+    }
+    if (appEnvironment === "production" && gitRef !== "main") {
+      throw new Error("Production Admin must be built from the main branch");
+    }
+    if (appEnvironment === "preview" && gitRef === "main") {
+      throw new Error("Preview Admin must not be built from the main branch");
+    }
     projectRef = expected.projectRef;
   }
 
@@ -71,6 +82,7 @@ export function getSupabaseConfig(env: SupabaseEnv) {
     supabaseAnonKey,
     appEnvironment,
     commitSha: commitSha || "local",
+    gitRef: gitRef || "local",
     projectRef,
     adminApiOrigin: `${supabaseUrl}/functions/v1/admin-api`,
   };

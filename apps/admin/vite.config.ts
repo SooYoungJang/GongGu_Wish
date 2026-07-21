@@ -25,9 +25,13 @@ export default defineConfig(({ mode }) => {
   const commitSha = isVercel
     ? env.VERCEL_GIT_COMMIT_SHA
     : env.VITE_COMMIT_SHA || env.GITHUB_SHA || "local";
+  const gitRef = isVercel
+    ? env.VERCEL_GIT_COMMIT_REF
+    : env.VITE_GIT_REF || env.GITHUB_REF_NAME || "local";
   const runtimeConfig = getSupabaseConfig({
     VITE_APP_ENV: appEnvironment,
     VITE_COMMIT_SHA: commitSha,
+    VITE_GIT_REF: gitRef,
     VITE_SUPABASE_URL:
       env.VITE_SUPABASE_URL ||
       (isVercel ? undefined : "http://127.0.0.1:54321"),
@@ -43,12 +47,14 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_COMMIT_SHA": JSON.stringify(
         runtimeConfig.commitSha,
       ),
+      "import.meta.env.VITE_GIT_REF": JSON.stringify(runtimeConfig.gitRef),
     },
     plugins: [
       react(),
       releaseIdentityPlugin({
         environment: runtimeConfig.appEnvironment,
         commitSha: runtimeConfig.commitSha,
+        gitRef: runtimeConfig.gitRef,
         supabaseProjectRef: runtimeConfig.projectRef,
         supabaseOrigin: runtimeConfig.supabaseUrl,
         adminApiOrigin: runtimeConfig.adminApiOrigin,

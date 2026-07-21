@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      audit_preview_credentials:
+        description: "Read-only audit of Preview credential isolation"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -28,6 +33,76 @@ env:
   TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
+  # ── Manual Preview Credential Audit ─────────────────────────────────────
+  audit-preview-credentials:
+    name: Audit Preview Credential Isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: preview
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.audit_preview_credentials == true }}
+    steps:
+      - name: Require Preview credentials and opposite-tier account identity
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PRODUCTION_CLOUDFLARE_ACCOUNT_ID: ${{ vars.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          for name in \
+            SUPABASE_ACCESS_TOKEN \
+            CLOUDFLARE_API_TOKEN \
+            CLOUDFLARE_ACCOUNT_ID \
+            PRODUCTION_CLOUDFLARE_ACCOUNT_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::$name is not configured for the Preview credential audit."
+              exit 1
+            fi
+          done
+
+      - name: Require Preview-only Supabase access
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          projects="$(mktemp)"
+          trap 'rm -f "$projects"' EXIT
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --output "$projects" \
+            https://api.supabase.com/v1/projects
+          jq -e '
+            length == 1 and
+            .[0].ref == "xwblovggtvbpiusjfokq" and
+            (map(.ref) | index("iosdoheblabfimkjnvfj") | not)
+          ' "$projects" > /dev/null
+
+      - name: Require Production Worker access to be denied
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PRODUCTION_CLOUDFLARE_ACCOUNT_ID: ${{ vars.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          workers="$(mktemp)"
+          forbidden_worker="$(mktemp)"
+          trap 'rm -f "$workers" "$forbidden_worker"' EXIT
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --output "$workers" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts"
+          jq -e '.result | map(.id) == ["gonggu-api-proxy-preview"]' \
+            "$workers" > /dev/null
+          status="$(curl --silent --show-error \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --output "$forbidden_worker" \
+            --write-out '%{http_code}' \
+            "https://api.cloudflare.com/client/v4/accounts/$PRODUCTION_CLOUDFLARE_ACCOUNT_ID/workers/scripts/gonggu-api-proxy")"
+          if [[ "$status" != "403" && "$status" != "404" ]]; then
+            echo "::error::Preview Cloudflare token can reach Production (HTTP $status)."
+            exit 1
+          fi
+
   # ── Lint & Typecheck ──────────────────────────────────────────────────────
   lint:
     name: Lint & Typecheck
@@ -155,6 +230,29 @@ jobs:
       - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
         with:
           version: latest
+      - name: Verify Supabase credential isolation
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EXPECTED_PROJECT_REF: ${{ env.SUPABASE_PROJECT_REF }}
+          FORBIDDEN_PROJECT_REF: ${{ github.ref == 'refs/heads/main' && 'xwblovggtvbpiusjfokq' || 'iosdoheblabfimkjnvfj' }}
+        run: |
+          set -euo pipefail
+          projects="$(mktemp)"
+          trap 'rm -f "$projects"' EXIT
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --output "$projects" \
+            https://api.supabase.com/v1/projects
+          if ! jq -e --arg expected "$EXPECTED_PROJECT_REF" \
+            'length == 1 and .[0].ref == $expected' "$projects" > /dev/null; then
+            echo "::error::The selected Supabase credential must access only the expected project $EXPECTED_PROJECT_REF."
+            exit 1
+          fi
+          if jq -e --arg forbidden "$FORBIDDEN_PROJECT_REF" \
+            '.[] | select(.ref == $forbidden)' "$projects" > /dev/null; then
+            echo "::error::Expected the opposite-tier Supabase project $FORBIDDEN_PROJECT_REF to be inaccessible."
+            exit 1
+          fi
       - name: Configure Hiker API secret
         env:
           HIKER_API_KEY: ${{ secrets.HIKER_API_KEY }}
@@ -397,10 +495,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           EXPECTED_WORKER: ${{ github.ref == 'refs/heads/main' && 'gonggu-api-proxy' || 'gonggu-api-proxy-preview' }}
           FORBIDDEN_WORKER: ${{ github.ref == 'refs/heads/main' && 'gonggu-api-proxy-preview' || 'gonggu-api-proxy' }}
+          FORBIDDEN_ACCOUNT_ID: ${{ github.ref == 'refs/heads/main' && vars.PREVIEW_CLOUDFLARE_ACCOUNT_ID || vars.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
+          if [[ -z "$FORBIDDEN_ACCOUNT_ID" ]]; then
+            echo "::error::The opposite-tier Cloudflare account ID is not configured."
+            exit 1
+          fi
           workers="$(mktemp)"
-          trap 'rm -f "$workers"' EXIT
+          forbidden_worker="$(mktemp)"
+          trap 'rm -f "$workers" "$forbidden_worker"' EXIT
           curl --fail --silent --show-error \
             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             --output "$workers" \
@@ -414,6 +518,20 @@ jobs:
           if jq -e --arg forbidden "$FORBIDDEN_WORKER" \
             '.result[] | select(.id == $forbidden)' "$workers" > /dev/null; then
             echo "::error::Expected the opposite-tier Worker $FORBIDDEN_WORKER to be inaccessible."
+            exit 1
+          fi
+
+          forbidden_status="$(curl --silent --show-error \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --output "$forbidden_worker" \
+            --write-out '%{http_code}' \
+            "https://api.cloudflare.com/client/v4/accounts/$FORBIDDEN_ACCOUNT_ID/workers/scripts/$FORBIDDEN_WORKER")"
+          if [[ "$forbidden_status" == "200" ]]; then
+            echo "::error::Expected the opposite-tier Cloudflare account and Worker to be inaccessible."
+            exit 1
+          fi
+          if [[ "$forbidden_status" != "403" && "$forbidden_status" != "404" ]]; then
+            echo "::error::Unable to prove Cloudflare credential isolation (HTTP $forbidden_status)."
             exit 1
           fi
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -627,6 +745,7 @@ jobs:
             jq -e --arg sha "$GITHUB_SHA" '
               .environment == "preview" and
               .commitSha == $sha and
+              .gitRef == "develop" and
               .supabaseProjectRef == "xwblovggtvbpiusjfokq" and
               .supabaseOrigin == "https://xwblovggtvbpiusjfokq.supabase.co" and
               .adminApiOrigin == "https://xwblovggtvbpiusjfokq.supabase.co/functions/v1/admin-api"

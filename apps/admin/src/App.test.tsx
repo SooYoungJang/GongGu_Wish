@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/supabase/client", () => ({
+  adminRuntimeConfig: {
+    supabaseUrl: "https://example.supabase.co",
+    supabaseAnonKey: "test-anon-key",
+  },
+  supabase: {},
+}));
 
 import { formToPreviewDeal } from "./App";
 import { assertPersistedPriceMatches } from "./lib/priceKrw";

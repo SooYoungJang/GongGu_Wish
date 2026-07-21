@@ -112,6 +112,28 @@ function resolveUpstreamOrigin(rawOrigin) {
   return url.origin;
 }
 
+function resolveDeploymentIdentity(env) {
+  const environment = String(env.APP_ENV ?? "");
+  const commitSha = String(env.CF_VERSION_METADATA?.tag ?? "");
+  const supabaseOrigin = resolveUpstreamOrigin(env.SUPABASE_ORIGIN);
+  const expectedOrigins = {
+    preview: "https://xwblovggtvbpiusjfokq.supabase.co",
+    production: "https://iosdoheblabfimkjnvfj.supabase.co",
+  };
+  if (
+    expectedOrigins[environment] !== supabaseOrigin ||
+    !/^[0-9a-f]{40}$/.test(commitSha)
+  ) {
+    throw new Error("Invalid deployment identity");
+  }
+  return {
+    environment,
+    commitSha,
+    supabaseOrigin,
+    supabaseProjectRef: new URL(supabaseOrigin).hostname.split(".")[0],
+  };
+}
+
 function forwardedHeaders(request, requestId) {
   const headers = new Headers();
   for (const name of FORWARDED_REQUEST_HEADERS) {
@@ -194,11 +216,9 @@ function healthResponse(request, env, requestId) {
 
   const headers = applyCors(securityHeaders(), request, env);
   headers.set("Content-Type", "application/json; charset=utf-8");
-  const environment = String(env.APP_ENV ?? "");
-  const commitSha = String(env.CF_VERSION_METADATA?.tag ?? "");
-  let supabaseOrigin;
+  let identity;
   try {
-    supabaseOrigin = resolveUpstreamOrigin(env.SUPABASE_ORIGIN);
+    identity = resolveDeploymentIdentity(env);
   } catch {
     return errorResponse(
       request,
@@ -209,32 +229,14 @@ function healthResponse(request, env, requestId) {
       "Invalid deployment identity",
     );
   }
-  const expectedOrigins = {
-    preview: "https://xwblovggtvbpiusjfokq.supabase.co",
-    production: "https://iosdoheblabfimkjnvfj.supabase.co",
-  };
-  if (
-    expectedOrigins[environment] !== supabaseOrigin ||
-    !/^[0-9a-f]{40}$/.test(commitSha)
-  ) {
-    return errorResponse(
-      request,
-      env,
-      requestId,
-      500,
-      "INVALID_DEPLOYMENT_IDENTITY",
-      "Invalid deployment identity",
-    );
-  }
-  const supabaseProjectRef = new URL(supabaseOrigin).hostname.split(".")[0];
   const body =
     request.method === "HEAD"
       ? null
       : JSON.stringify({
           status: "ok",
-          environment,
-          commitSha,
-          supabaseProjectRef,
+          environment: identity.environment,
+          commitSha: identity.commitSha,
+          supabaseProjectRef: identity.supabaseProjectRef,
         });
   return withRequestId(new Response(body, { status: 200, headers }), requestId);
 }
@@ -263,9 +265,9 @@ async function proxyRequest(request, env, url, requestId) {
     );
   }
 
-  let upstreamOrigin;
+  let identity;
   try {
-    upstreamOrigin = resolveUpstreamOrigin(env.SUPABASE_ORIGIN);
+    identity = resolveDeploymentIdentity(env);
   } catch {
     return errorResponse(
       request,
@@ -277,7 +279,7 @@ async function proxyRequest(request, env, url, requestId) {
     );
   }
 
-  const upstreamUrl = `${upstreamOrigin}${url.pathname}${url.search}`;
+  const upstreamUrl = `${identity.supabaseOrigin}${url.pathname}${url.search}`;
   const upstreamRequest = new Request(upstreamUrl, {
     method: request.method,
     headers: forwardedHeaders(request, requestId),
