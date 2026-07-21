@@ -19,7 +19,11 @@ const enabledAds = {
   enabled: true,
   isReady: true,
   isSettled: true,
-  homeNativeUnitId: "home-native-unit",
+  nativeUnitIds: {
+    detail: "detail-native-unit",
+    home: "home-native-unit",
+    reels: "reels-native-unit",
+  },
   privacyOptionsRequired: false,
   showPrivacyOptions: vi.fn(async () => false),
 };
@@ -54,7 +58,7 @@ describe("NativeAdCard", () => {
             enabled: false,
             isReady: false,
             isSettled: true,
-            homeNativeUnitId: null,
+            nativeUnitIds: { detail: null, home: null, reels: null },
             privacyOptionsRequired: false,
             showPrivacyOptions: vi.fn(async () => false),
           }}
@@ -154,6 +158,45 @@ describe("NativeAdCard", () => {
 
     expect(renderer!.toJSON()).toBeNull();
     expect(onLoadStateChange).toHaveBeenLastCalledWith("unavailable");
+  });
+
+  it("requests the unit assigned to the requested placement", async () => {
+    const ad = {
+      advertiser: null,
+      body: null,
+      callToAction: null,
+      destroy: vi.fn(),
+      headline: "상세 광고",
+      icon: null,
+      mediaContent: null,
+    } as unknown as Awaited<ReturnType<typeof NativeAd.createForAdRequest>>;
+    vi.mocked(NativeAd.createForAdRequest).mockResolvedValue(ad);
+
+    await act(async () => {
+      TestRenderer.create(
+        <AdsContext.Provider value={enabledAds}>
+          <NativeAdCard placement="detail" />
+        </AdsContext.Provider>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledWith(
+      "detail-native-unit",
+      expect.any(Object),
+    );
+  });
+
+  it("does not request while a Reels ad page is outside the load window", () => {
+    act(() => {
+      TestRenderer.create(
+        <AdsContext.Provider value={enabledAds}>
+          <NativeAdCard loadEnabled={false} placement="reels" variant="reel" />
+        </AdsContext.Provider>,
+      );
+    });
+
+    expect(NativeAd.createForAdRequest).not.toHaveBeenCalled();
   });
 
   it("omits optional icon, media, body, advertiser, and empty CTA assets", async () => {

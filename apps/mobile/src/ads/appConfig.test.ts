@@ -4,8 +4,11 @@ import createAppConfig from "../../app.config.js";
 
 const {
   GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
+  GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
   GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID,
+  GOOGLE_MOBILE_ADS_TEST_NATIVE_VIDEO_UNIT_ID,
   applyGoogleMobileAdsAndroidManifest,
+  applyGoogleMobileAdsIosInfoPlist,
   resolveBackendEnvironment,
   resolveAdsBuildConfig,
   resolveAppVariant,
@@ -14,7 +17,12 @@ const {
 } = createAppConfig;
 
 const productionAndroidAppId = "ca-app-pub-1111111111111111~2222222222";
-const productionNativeUnitId = "ca-app-pub-1111111111111111/3333333333";
+const productionIosAppId = "ca-app-pub-1111111111111111~6666666666";
+const productionNativeUnitIds = {
+  detail: "ca-app-pub-1111111111111111/3333333333",
+  home: "ca-app-pub-1111111111111111/4444444444",
+  reels: "ca-app-pub-1111111111111111/5555555555",
+};
 const previewSupabaseUrl = "https://xwblovggtvbpiusjfokq.supabase.co";
 const previewApiProxyUrl = "https://api-preview.gongguwish.com";
 const productionSupabaseUrl = "https://iosdoheblabfimkjnvfj.supabase.co";
@@ -23,7 +31,9 @@ const productionApiProxyUrl = "https://api.gongguwish.com";
 const baseInput = {
   automatedE2E: false,
   configuredAndroidAppId: undefined,
-  configuredHomeNativeUnitId: undefined,
+  configuredAndroidNativeUnitIds: {},
+  configuredIosAppId: undefined,
+  configuredIosNativeUnitIds: {},
   isProductionBuild: true,
   requestedMode: undefined,
 };
@@ -162,11 +172,17 @@ describe("resolveRuntimeVersion", () => {
 });
 
 describe("resolveAdsBuildConfig", () => {
-  it("defaults store-like builds to off with the Google test app ID", () => {
+  const disabledNativeUnitIds = {
+    android: null,
+    ios: null,
+  };
+
+  it("defaults store-like builds to off with safe sample app IDs", () => {
     expect(resolveAdsBuildConfig(baseInput)).toEqual({
       androidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
-      homeNativeUnitId: null,
+      iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode: "off",
+      nativeUnitIds: disabledNativeUnitIds,
     });
   });
 
@@ -175,8 +191,9 @@ describe("resolveAdsBuildConfig", () => {
       resolveAdsBuildConfig({ ...baseInput, isProductionBuild: false }),
     ).toEqual({
       androidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
-      homeNativeUnitId: null,
+      iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode: "test",
+      nativeUnitIds: disabledNativeUnitIds,
     });
   });
 
@@ -187,54 +204,114 @@ describe("resolveAdsBuildConfig", () => {
           ...baseInput,
           requestedMode: mode,
           configuredAndroidAppId: productionAndroidAppId,
-          configuredHomeNativeUnitId: productionNativeUnitId,
+          configuredAndroidNativeUnitIds: productionNativeUnitIds,
+          configuredIosAppId: productionIosAppId,
+          configuredIosNativeUnitIds: productionNativeUnitIds,
         }),
       ).toMatchObject({
         androidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
-        homeNativeUnitId: null,
+        iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
         mode,
+        nativeUnitIds: disabledNativeUnitIds,
       });
     }
   });
 
-  it("accepts matching production app and native unit IDs", () => {
+  it("accepts matching production IDs for both platforms", () => {
     expect(
       resolveAdsBuildConfig({
         ...baseInput,
         requestedMode: "production",
         configuredAndroidAppId: productionAndroidAppId,
-        configuredHomeNativeUnitId: productionNativeUnitId,
+        configuredAndroidNativeUnitIds: productionNativeUnitIds,
+        configuredIosAppId: productionIosAppId,
+        configuredIosNativeUnitIds: productionNativeUnitIds,
       }),
     ).toEqual({
       androidAppId: productionAndroidAppId,
-      homeNativeUnitId: productionNativeUnitId,
+      iosAppId: productionIosAppId,
       mode: "production",
+      nativeUnitIds: {
+        android: productionNativeUnitIds,
+        ios: productionNativeUnitIds,
+      },
     });
   });
 
+  it("allows Android production ads while iOS stays safely disabled", () => {
+    expect(
+      resolveAdsBuildConfig({
+        ...baseInput,
+        requestedMode: "production",
+        configuredAndroidAppId: productionAndroidAppId,
+        configuredAndroidNativeUnitIds: productionNativeUnitIds,
+      }),
+    ).toEqual({
+      androidAppId: productionAndroidAppId,
+      iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
+      mode: "production",
+      nativeUnitIds: {
+        android: productionNativeUnitIds,
+        ios: null,
+      },
+    });
+  });
+
+  it.each(["home", "reels", "detail"])(
+    "rejects a partially configured platform missing %s",
+    (placement) => {
+      expect(() =>
+        resolveAdsBuildConfig({
+          ...baseInput,
+          requestedMode: "production",
+          configuredAndroidAppId: productionAndroidAppId,
+          configuredAndroidNativeUnitIds: {
+            ...productionNativeUnitIds,
+            [placement]: undefined,
+          },
+        }),
+      ).toThrow(/AdMob/);
+    },
+  );
+
   it.each([
-    ["missing IDs", undefined, undefined],
-    ["blank IDs", "  ", "  "],
-    ["malformed IDs", "bad-app-id", "bad-unit-id"],
-    ["swapped IDs", productionNativeUnitId, productionAndroidAppId],
+    ["malformed app ID", "bad-app-id", productionNativeUnitIds],
+    [
+      "swapped IDs",
+      productionNativeUnitIds.home,
+      productionNativeUnitIds,
+    ],
     [
       "different publishers",
       productionAndroidAppId,
-      "ca-app-pub-9999999999999999/3333333333",
+      {
+        ...productionNativeUnitIds,
+        reels: "ca-app-pub-9999999999999999/3333333333",
+      },
     ],
     [
       "Google test IDs",
       GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
-      GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID,
+      {
+        detail: GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID,
+        home: GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID,
+        reels: GOOGLE_MOBILE_ADS_TEST_NATIVE_VIDEO_UNIT_ID,
+      },
     ],
-  ])("rejects production mode with %s", (_label, appId, unitId) => {
+  ])("rejects production mode with %s", (_label, appId, unitIds) => {
     expect(() =>
       resolveAdsBuildConfig({
         ...baseInput,
         requestedMode: "production",
         configuredAndroidAppId: appId,
-        configuredHomeNativeUnitId: unitId,
+        configuredAndroidNativeUnitIds: unitIds,
       }),
+    ).toThrow(/AdMob/);
+  });
+
+  it("rejects production mode when neither platform is configured", () => {
+    expect(() =>
+      resolveAdsBuildConfig({ ...baseInput, requestedMode: "production" }),
     ).toThrow(/AdMob/);
   });
 
@@ -245,12 +322,13 @@ describe("resolveAdsBuildConfig", () => {
         automatedE2E: true,
         requestedMode: "production",
         configuredAndroidAppId: "bad-app-id",
-        configuredHomeNativeUnitId: "bad-unit-id",
+        configuredAndroidNativeUnitIds: { home: "bad-unit-id" },
       }),
     ).toEqual({
       androidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
-      homeNativeUnitId: null,
+      iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode: "off",
+      nativeUnitIds: disabledNativeUnitIds,
     });
   });
 
@@ -289,6 +367,37 @@ describe("applyGoogleMobileAdsAndroidManifest", () => {
       "com.google.android.gms.ads.DELAY_APP_MEASUREMENT_INIT": "true",
       "com.google.android.gms.ads.flag.OPTIMIZE_INITIALIZATION": "true",
       "com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING": "true",
+    });
+  });
+});
+
+describe("applyGoogleMobileAdsIosInfoPlist", () => {
+  it("writes the iOS app ID and preserves existing SKAdNetwork entries", () => {
+    const existingNetworks = [
+      { SKAdNetworkIdentifier: "existing.skadnetwork" },
+    ];
+
+    expect(
+      applyGoogleMobileAdsIosInfoPlist(
+        { SKAdNetworkItems: existingNetworks },
+        GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
+      ),
+    ).toMatchObject({
+      GADApplicationIdentifier: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
+      SKAdNetworkItems: existingNetworks,
+    });
+  });
+
+  it("adds Google's SKAdNetwork identifier when none exists", () => {
+    expect(
+      applyGoogleMobileAdsIosInfoPlist(
+        {},
+        GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
+      ),
+    ).toMatchObject({
+      SKAdNetworkItems: [
+        { SKAdNetworkIdentifier: "cstr6suwn9.skadnetwork" },
+      ],
     });
   });
 });

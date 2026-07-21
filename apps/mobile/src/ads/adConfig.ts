@@ -1,73 +1,97 @@
 type SupportedPlatform = "android" | "ios" | "web" | "windows" | "macos";
 
 export type AdsMode = "off" | "test" | "production";
+export type NativeAdPlacement = "home" | "reels" | "detail";
+
+export type NativeAdUnitIds = Record<NativeAdPlacement, string>;
+export type ResolvedNativeAdUnitIds = Record<NativeAdPlacement, string | null>;
 
 export type AdsRuntimeConfigInput = {
   platform: SupportedPlatform;
+  adAccessResolved: boolean;
+  adsRemoved: boolean;
   automatedE2E: boolean;
   mode: AdsMode;
-  androidAppId?: string;
-  productionHomeNativeUnitId?: string;
-  testAndroidAppId: string;
-  testNativeUnitId: string;
+  appId?: string;
+  productionNativeUnitIds: Partial<NativeAdUnitIds>;
+  testAppId: string;
+  testNativeUnitIds: NativeAdUnitIds;
 };
 
 export type AdsRuntimeConfig = {
   enabled: boolean;
-  homeNativeUnitId: string | null;
+  nativeUnitIds: ResolvedNativeAdUnitIds;
 };
 
 const APP_ID_PATTERN = /^ca-app-pub-\d{16}~\d{10}$/;
 const UNIT_ID_PATTERN = /^ca-app-pub-\d{16}\/\d{10}$/;
+const NATIVE_AD_PLACEMENTS: NativeAdPlacement[] = [
+  "home",
+  "reels",
+  "detail",
+];
 const disabledConfig: AdsRuntimeConfig = {
   enabled: false,
-  homeNativeUnitId: null,
+  nativeUnitIds: {
+    detail: null,
+    home: null,
+    reels: null,
+  },
 };
 
 function publisherPrefix(id: string): string {
   return id.split(/[~/]/, 1)[0];
 }
 
+function isSupportedNativePlatform(
+  platform: SupportedPlatform,
+): platform is "android" | "ios" {
+  return platform === "android" || platform === "ios";
+}
+
 export function resolveAdsRuntimeConfig(
   input: AdsRuntimeConfigInput,
 ): AdsRuntimeConfig {
   if (
-    input.platform !== "android" ||
+    !isSupportedNativePlatform(input.platform) ||
+    !input.adAccessResolved ||
+    input.adsRemoved ||
     input.automatedE2E ||
     input.mode === "off"
   ) {
     return disabledConfig;
   }
 
-  const androidAppId = input.androidAppId?.trim();
+  const appId = input.appId?.trim();
   if (input.mode === "test") {
-    if (androidAppId !== input.testAndroidAppId) return disabledConfig;
+    if (appId !== input.testAppId) return disabledConfig;
     return {
       enabled: true,
-      homeNativeUnitId: input.testNativeUnitId,
+      nativeUnitIds: input.testNativeUnitIds,
     };
   }
 
-  const productionUnitId = input.productionHomeNativeUnitId?.trim();
   const validAppId =
-    Boolean(androidAppId) &&
-    APP_ID_PATTERN.test(androidAppId!) &&
-    androidAppId !== input.testAndroidAppId;
-  const validUnitId =
-    Boolean(productionUnitId) &&
-    UNIT_ID_PATTERN.test(productionUnitId!) &&
-    productionUnitId !== input.testNativeUnitId;
-  const matchingPublisher =
-    validAppId &&
-    validUnitId &&
-    publisherPrefix(androidAppId!) === publisherPrefix(productionUnitId!);
+    Boolean(appId) &&
+    APP_ID_PATTERN.test(appId!) &&
+    appId !== input.testAppId;
+  if (!validAppId) return disabledConfig;
 
-  if (!validAppId || !validUnitId || !matchingPublisher) {
-    return disabledConfig;
+  const appPublisher = publisherPrefix(appId!);
+  const productionNativeUnitIds = {} as NativeAdUnitIds;
+  for (const placement of NATIVE_AD_PLACEMENTS) {
+    const unitId = input.productionNativeUnitIds[placement]?.trim();
+    const validUnitId =
+      Boolean(unitId) &&
+      UNIT_ID_PATTERN.test(unitId!) &&
+      unitId !== input.testNativeUnitIds[placement] &&
+      publisherPrefix(unitId!) === appPublisher;
+    if (!validUnitId) return disabledConfig;
+    productionNativeUnitIds[placement] = unitId!;
   }
 
   return {
     enabled: true,
-    homeNativeUnitId: productionUnitId!,
+    nativeUnitIds: productionNativeUnitIds,
   };
 }

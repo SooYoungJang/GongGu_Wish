@@ -54,6 +54,7 @@ import { fetchGroupBuyById, fetchGroupBuys, logDeepView } from "../api";
 import { Ionicons } from "@expo/vector-icons";
 import { BackButton } from "../components/BackButton";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
+import { NativeAdCard } from "../components/ads/NativeAdCard";
 import { PriceText } from "../components/ui/PriceText";
 import {
   useBookmarks,
@@ -880,6 +881,7 @@ export type ProductReelPageProps = {
   bottomInset: number;
   onBack: () => void;
   showBackButton?: boolean;
+  showDetailAd?: boolean;
   onCloseSearchSheet?: () => void;
   muted?: boolean;
   onMutedChange?: (muted: boolean) => void;
@@ -904,6 +906,7 @@ function ProductReelPageComponent({
   bottomInset,
   onBack,
   showBackButton = true,
+  showDetailAd = false,
   onCloseSearchSheet,
   muted,
   onMutedChange,
@@ -2100,6 +2103,14 @@ function ProductReelPageComponent({
                 <SText variant="body" style={s.summarySheetText}>
                   {summary}
                 </SText>
+                {showDetailAd && isActive ? (
+                  <View style={s.summarySheetAd}>
+                    <NativeAdCard
+                      placement="detail"
+                      testID="detail-native-ad"
+                    />
+                  </View>
+                ) : null}
               </GestureScrollView>
             </GestureDetector>
           </Reanimated.View>
@@ -2471,6 +2482,7 @@ function DetailScreenContent({
         topInset={insets.top}
         bottomInset={insets.bottom}
         onBack={handleBack}
+        showDetailAd
         onCloseSearchSheet={closeSearchSheet}
         onPlaybackStateChange={handlePlaybackStateChange}
         onSummarySheetStateChange={handleSummarySheetStateChange}
@@ -3236,6 +3248,9 @@ export function makeStyles(
       fontWeight: "500",
       lineHeight: 22,
       paddingBottom: spacing.xl,
+    },
+    summarySheetAd: {
+      paddingBottom: spacing.lg,
     },
     pressed: { opacity: 0.72 },
   });
