@@ -3,7 +3,10 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DatePickerField } from "./DatePickerField";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("DatePickerField", () => {
   it("renders the entire field as a button without a native date input", () => {
@@ -198,6 +201,7 @@ describe("DatePickerField", () => {
   });
 
   it("supports Today, Clear, Close, and min/max disabled dates", async () => {
+    vi.setSystemTime(new Date(2026, 6, 15, 12, 0, 0));
     const user = userEvent.setup();
     const onChange = vi.fn();
     const { rerender } = render(

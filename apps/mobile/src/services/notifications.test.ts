@@ -157,7 +157,7 @@ describe("registerForPushNotifications", () => {
         content: expect.objectContaining({
           data: {
             groupBuyId: "group-buy-1",
-            url: "gongguwish://group-buy/group-buy-1",
+            url: "gongguwish-preview://group-buy/group-buy-1",
           },
         }),
       }),
@@ -269,7 +269,7 @@ describe("registerForPushNotifications", () => {
         request: {
           content: {
             data: {
-              url: "gongguwish://group-buy/group-buy-1",
+              url: "gongguwish-preview://group-buy/group-buy-1",
             },
           },
         },
@@ -277,7 +277,7 @@ describe("registerForPushNotifications", () => {
     });
 
     await expect(getLastNotificationResponseUrl()).resolves.toBe(
-      "gongguwish://group-buy/group-buy-1",
+      "gongguwish-preview://group-buy/group-buy-1",
     );
     expect(
       notificationMocks.clearLastNotificationResponseAsync,
@@ -294,7 +294,7 @@ describe("registerForPushNotifications", () => {
           groupBuyId: "group-buy-1",
           notificationType: "general",
           test: true,
-          url: "gongguwish://group-buy/group-buy-1",
+          url: "gongguwish-preview://group-buy/group-buy-1",
         },
       }),
       trigger: expect.objectContaining({ seconds: 3 }),
@@ -352,7 +352,7 @@ describe("registerForPushNotifications", () => {
           data: {
             groupBuyId: "group-buy-1",
             notificationType: "deadline",
-            url: "gongguwish://group-buy/group-buy-1",
+            url: "gongguwish-preview://group-buy/group-buy-1",
           },
         }),
         trigger: expect.objectContaining({

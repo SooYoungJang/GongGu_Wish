@@ -1,4 +1,4 @@
-appId: com.gonggu.wish
+appId: com.gonggu.wish.preview
 ---
 # GON-263: Reels remains bounded and responsive across overlay Back,
 # 100 vertical swipes, background/resume, and tab-root Android Back.

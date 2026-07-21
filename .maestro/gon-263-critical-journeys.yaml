@@ -1,4 +1,4 @@
-appId: com.gonggu.wish
+appId: com.gonggu.wish.preview
 ---
 # GON-263: canonical data survives ranking -> recent views -> detail, while
 # home -> calendar -> detail keeps Android overlay and stack Back priority.

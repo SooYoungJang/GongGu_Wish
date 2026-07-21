@@ -3,6 +3,10 @@ import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReelsScreen } from "./ReelsScreen";
+import {
+  REEL_PAGE_WINDOW_EDGE,
+  REEL_PAGE_WINDOW_SIZE,
+} from "./reelWindow";
 
 const appStateMock = vi.hoisted(() => ({
   currentState: "active",
@@ -363,13 +367,19 @@ describe("ReelsScreen player lifecycle", () => {
 
     for (let index = 0; index < 100; index += 1) {
       act(() => {
-        findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
+        findPager().props.onPageSelected({
+          nativeEvent: {
+            position: REEL_PAGE_WINDOW_SIZE - REEL_PAGE_WINDOW_EDGE,
+          },
+        });
       });
 
       const children = findPager().props.children as unknown[];
-      expect(children).toHaveLength(7);
+      expect(children).toHaveLength(REEL_PAGE_WINDOW_SIZE);
       expect(findPager().props.initialPage).toBeGreaterThanOrEqual(0);
-      expect(findPager().props.initialPage).toBeLessThan(7);
+      expect(findPager().props.initialPage).toBeLessThan(
+        REEL_PAGE_WINDOW_SIZE,
+      );
     }
 
     act(() => {
@@ -389,11 +399,17 @@ describe("ReelsScreen player lifecycle", () => {
 
     expect(pagerViewMock.mounts).toBe(1);
     act(() => {
-      findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
+      findPager().props.onPageSelected({
+        nativeEvent: {
+          position: REEL_PAGE_WINDOW_SIZE - REEL_PAGE_WINDOW_EDGE,
+        },
+      });
     });
 
     expect(pagerViewMock.mounts).toBe(1);
-    expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledWith(4);
+    expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledWith(
+      REEL_PAGE_WINDOW_EDGE,
+    );
 
     act(() => {
       renderer!.unmount();
