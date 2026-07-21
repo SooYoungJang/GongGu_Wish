@@ -6,6 +6,15 @@ const workflow = readFileSync(".github/workflows/ci.yml", "utf8").replace(
   /\r\n/g,
   "\n",
 );
+const supabaseContractsWorkflow = readFileSync(
+  ".github/workflows/supabase-integration.yml",
+  "utf8",
+).replace(/\r\n/g, "\n");
+const adminEnvironmentContract = readFileSync(
+  "apps/admin/src/supabase/env.ts",
+  "utf8",
+);
+const adminViteConfig = readFileSync("apps/admin/vite.config.ts", "utf8");
 
 function job(jobId) {
   const marker = `  ${jobId}:\n`;
@@ -108,6 +117,7 @@ test("develop publishes a green same-SHA Preview release gate", () => {
     "supabase-functions",
     "deploy-worker",
     "deploy-mobile",
+    "local-supabase-contracts",
   ]) {
     assert.match(needs, new RegExp(`\\b${dependency}\\b`));
   }
@@ -115,6 +125,11 @@ test("develop publishes a green same-SHA Preview release gate", () => {
   assert.match(releaseGate, /github\.sha/);
   assert.match(releaseGate, /vercel/i);
   assert.match(releaseGate, /preview[-_ ]green/i);
+  assert.match(releaseGate, /release-identity\.json/);
+  assert.match(releaseGate, /xwblovggtvbpiusjfokq/);
+  assert.match(releaseGate, /GITHUB_SHA/);
+  assert.match(releaseGate, /http_code/);
+  assert.match(releaseGate, /"200"/);
 });
 
 test("main pull requests require the latest develop Preview-green SHA", () => {
@@ -127,4 +142,43 @@ test("main pull requests require the latest develop Preview-green SHA", () => {
   assert.match(promotionGate, /head_sha/);
   assert.match(promotionGate, /github\.event\.pull_request\.head\.sha/);
   assert.match(promotionGate, /success/);
+  assert.match(promotionGate, /compare\//);
+  assert.match(promotionGate, /\.status/);
+  assert.match(promotionGate, /\.tree\.sha/);
+});
+
+test("every develop SHA runs the complete Preview contract", () => {
+  const pushTrigger = workflow.slice(
+    workflow.indexOf("  push:\n"),
+    workflow.indexOf("  pull_request:\n"),
+  );
+
+  assert.doesNotMatch(pushTrigger, /\n\s+paths:/);
+  assert.match(workflow, /local-supabase-contracts:/);
+  assert.match(
+    workflow,
+    /uses:\s*\.\/\.github\/workflows\/supabase-integration\.yml/,
+  );
+  assert.match(supabaseContractsWorkflow, /workflow_call:/);
+});
+
+test("Admin deployments publish an exact environment and commit identity", () => {
+  assert.match(adminEnvironmentContract, /xwblovggtvbpiusjfokq/);
+  assert.match(adminEnvironmentContract, /iosdoheblabfimkjnvfj/);
+  assert.match(adminEnvironmentContract, /VITE_APP_ENV/);
+  assert.match(adminEnvironmentContract, /VITE_COMMIT_SHA/);
+  assert.match(adminViteConfig, /VERCEL_GIT_COMMIT_SHA/);
+  assert.match(adminViteConfig, /release-identity\.json/);
+});
+
+test("Preview deployment credentials are denied Production targets", () => {
+  const supabaseJob = job("supabase-db");
+  const workerJob = job("deploy-worker");
+
+  assert.match(supabaseJob, /api\.supabase\.com\/v1\/projects/);
+  assert.match(supabaseJob, /iosdoheblabfimkjnvfj/);
+  assert.match(supabaseJob, /expected.*inaccessible/is);
+  assert.match(workerJob, /gonggu-api-proxy-preview/);
+  assert.match(workerJob, /gonggu-api-proxy/);
+  assert.match(workerJob, /expected.*inaccessible/is);
 });

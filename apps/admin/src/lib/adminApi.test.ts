@@ -8,6 +8,10 @@ vi.hoisted(() => {
 const getSession = vi.hoisted(() => vi.fn());
 
 vi.mock("@/supabase/client", () => ({
+  adminRuntimeConfig: {
+    adminApiOrigin: "https://example.supabase.co/functions/v1/admin-api",
+    supabaseAnonKey: "test-anon-key",
+  },
   supabase: {
     auth: { getSession },
   },

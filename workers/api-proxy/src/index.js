@@ -194,8 +194,48 @@ function healthResponse(request, env, requestId) {
 
   const headers = applyCors(securityHeaders(), request, env);
   headers.set("Content-Type", "application/json; charset=utf-8");
+  const environment = String(env.APP_ENV ?? "");
+  const commitSha = String(env.CF_VERSION_METADATA?.tag ?? "");
+  let supabaseOrigin;
+  try {
+    supabaseOrigin = resolveUpstreamOrigin(env.SUPABASE_ORIGIN);
+  } catch {
+    return errorResponse(
+      request,
+      env,
+      requestId,
+      500,
+      "INVALID_DEPLOYMENT_IDENTITY",
+      "Invalid deployment identity",
+    );
+  }
+  const expectedOrigins = {
+    preview: "https://xwblovggtvbpiusjfokq.supabase.co",
+    production: "https://iosdoheblabfimkjnvfj.supabase.co",
+  };
+  if (
+    expectedOrigins[environment] !== supabaseOrigin ||
+    !/^[0-9a-f]{40}$/.test(commitSha)
+  ) {
+    return errorResponse(
+      request,
+      env,
+      requestId,
+      500,
+      "INVALID_DEPLOYMENT_IDENTITY",
+      "Invalid deployment identity",
+    );
+  }
+  const supabaseProjectRef = new URL(supabaseOrigin).hostname.split(".")[0];
   const body =
-    request.method === "HEAD" ? null : JSON.stringify({ status: "ok" });
+    request.method === "HEAD"
+      ? null
+      : JSON.stringify({
+          status: "ok",
+          environment,
+          commitSha,
+          supabaseProjectRef,
+        });
   return withRequestId(new Response(body, { status: 200, headers }), requestId);
 }
 

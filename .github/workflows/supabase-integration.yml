@@ -1,20 +1,7 @@
 name: Supabase Integration Contracts
 
 on:
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - "apps/mobile/**"
-      - "packages/shared/**"
-      - "supabase/**"
-      - ".github/workflows/supabase-integration.yml"
-  push:
-    branches: [main, develop]
-    paths:
-      - "apps/mobile/**"
-      - "packages/shared/**"
-      - "supabase/**"
-      - ".github/workflows/supabase-integration.yml"
+  workflow_call:
   workflow_dispatch:
 
 permissions:

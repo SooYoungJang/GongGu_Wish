@@ -3,19 +3,6 @@ name: CI/CD — Supabase + API
 on:
   push:
     branches: [main, develop]
-    paths:
-      - "apps/api/**"
-      - "apps/admin/**"
-      - "apps/mobile/**"
-      - "apps/web/**"
-      - "supabase/**"
-      - "packages/**"
-      - "scripts/**"
-      - "workers/**"
-      - ".github/**"
-      - "package.json"
-      - "package-lock.json"
-      - "turbo.json"
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
@@ -148,6 +135,11 @@ jobs:
           deno-version: v2.x
       - run: deno test --allow-net supabase/functions
 
+  # ── Local Supabase Contracts ─────────────────────────────────────────────
+  local-supabase-contracts:
+    name: Local Supabase Contracts
+    uses: ./.github/workflows/supabase-integration.yml
+
   # ── Targeted Hiker Function Deploy ───────────────────────────────────────
   deploy-hiker-lookup:
     name: Deploy Hiker Edge Function
@@ -198,8 +190,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-    needs: [lint, build, test, edge-tests]
-    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' }}
+    needs: [lint, build, test, edge-tests, local-supabase-contracts]
+    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.local-supabase-contracts.result == 'success' }}
     steps:
       - name: Check Supabase deployment credentials
         env:
@@ -213,6 +205,30 @@ jobs:
           fi
           if [[ "$SUPABASE_ACCESS_TOKEN" != sbp_* ]]; then
             echo "::error::SUPABASE_ACCESS_TOKEN must be a Supabase personal access token (sbp_...)."
+            exit 1
+          fi
+      - name: Verify Supabase credential isolation
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EXPECTED_PROJECT_REF: ${{ env.SUPABASE_PROJECT_REF }}
+          FORBIDDEN_PROJECT_REF: ${{ github.ref == 'refs/heads/main' && 'xwblovggtvbpiusjfokq' || 'iosdoheblabfimkjnvfj' }}
+        run: |
+          set -euo pipefail
+          projects="$(mktemp)"
+          trap 'rm -f "$projects"' EXIT
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --output "$projects" \
+            https://api.supabase.com/v1/projects
+
+          if ! jq -e --arg expected "$EXPECTED_PROJECT_REF" \
+            'length == 1 and .[0].ref == $expected' "$projects" > /dev/null; then
+            echo "::error::The selected Supabase credential must access only the expected project $EXPECTED_PROJECT_REF."
+            exit 1
+          fi
+          if jq -e --arg forbidden "$FORBIDDEN_PROJECT_REF" \
+            '.[] | select(.ref == $forbidden)' "$projects" > /dev/null; then
+            echo "::error::Expected the opposite-tier Supabase project $FORBIDDEN_PROJECT_REF to be inaccessible."
             exit 1
           fi
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -374,6 +390,32 @@ jobs:
             echo "::error::Cloudflare Worker credentials are not configured in the selected GitHub environment."
             exit 1
           fi
+      - name: Verify Cloudflare credential isolation
+        working-directory: .
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          EXPECTED_WORKER: ${{ github.ref == 'refs/heads/main' && 'gonggu-api-proxy' || 'gonggu-api-proxy-preview' }}
+          FORBIDDEN_WORKER: ${{ github.ref == 'refs/heads/main' && 'gonggu-api-proxy-preview' || 'gonggu-api-proxy' }}
+        run: |
+          set -euo pipefail
+          workers="$(mktemp)"
+          trap 'rm -f "$workers"' EXIT
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --output "$workers" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts"
+
+          if ! jq -e --arg expected "$EXPECTED_WORKER" \
+            '.result[] | select(.id == $expected)' "$workers" > /dev/null; then
+            echo "::error::The selected Cloudflare credential cannot access the expected Worker $EXPECTED_WORKER."
+            exit 1
+          fi
+          if jq -e --arg forbidden "$FORBIDDEN_WORKER" \
+            '.result[] | select(.id == $forbidden)' "$workers" > /dev/null; then
+            echo "::error::Expected the opposite-tier Worker $FORBIDDEN_WORKER to be inaccessible."
+            exit 1
+          fi
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
@@ -385,9 +427,9 @@ jobs:
       - name: Deploy Worker
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            npm run deploy:production
+            npm run deploy:production -- --tag "$GITHUB_SHA" --message "GitHub $GITHUB_SHA"
           else
-            npm run deploy:preview
+            npm run deploy:preview -- --tag "$GITHUB_SHA" --message "GitHub $GITHUB_SHA"
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -462,7 +504,15 @@ jobs:
     name: Preview Green
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [supabase-db, rls-audit, supabase-functions, deploy-worker, deploy-mobile]
+    needs:
+      [
+        local-supabase-contracts,
+        supabase-db,
+        rls-audit,
+        supabase-functions,
+        deploy-worker,
+        deploy-mobile,
+      ]
     if: ${{ always() && github.ref == 'refs/heads/develop' }}
     environment:
       name: preview
@@ -474,6 +524,7 @@ jobs:
       - name: Require every Preview component deployment
         env:
           SUPABASE_DB_RESULT: ${{ needs.supabase-db.result }}
+          LOCAL_SUPABASE_RESULT: ${{ needs.local-supabase-contracts.result }}
           RLS_AUDIT_RESULT: ${{ needs.rls-audit.result }}
           SUPABASE_FUNCTIONS_RESULT: ${{ needs.supabase-functions.result }}
           WORKER_RESULT: ${{ needs.deploy-worker.result }}
@@ -481,6 +532,7 @@ jobs:
         run: |
           set -euo pipefail
           for component in \
+            "Local Supabase contracts:$LOCAL_SUPABASE_RESULT" \
             "Supabase DB:$SUPABASE_DB_RESULT" \
             "RLS audit:$RLS_AUDIT_RESULT" \
             "Supabase Edge Functions:$SUPABASE_FUNCTIONS_RESULT" \
@@ -501,7 +553,7 @@ jobs:
           set -euo pipefail
           for attempt in {1..20}; do
             deployment_id="$(
-              gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$GITHUB_SHA&per_page=100" \
+              gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$GITHUB_SHA&ref=develop&environment=Preview&per_page=100" \
                 --jq '[.[] | select(.environment == "Preview" and .creator.login == "vercel[bot]")] | sort_by(.created_at) | last | .id // empty'
             )"
 
@@ -539,12 +591,53 @@ jobs:
             exit 1
           fi
 
-          curl --fail --silent --show-error https://api-preview.gongguwish.com/health > /dev/null
-          curl --fail --silent --show-error https://gong-gu-wish-admin-git-develop-jsy10835.vercel.app > /dev/null
-          curl --fail --silent --show-error "$VERCEL_PREVIEW_URL" > /dev/null
-
+          api_response="$(mktemp)"
+          stable_identity="$(mktemp)"
+          immutable_identity="$(mktemp)"
           response_file="$(mktemp)"
-          trap 'rm -f "$response_file"' EXIT
+          trap 'rm -f "$api_response" "$stable_identity" "$immutable_identity" "$response_file"' EXIT
+
+          api_status="$(curl --silent --show-error \
+            --output "$api_response" \
+            --write-out '%{http_code}' \
+            https://api-preview.gongguwish.com/health)"
+          if [[ "$api_status" != "200" ]]; then
+            echo "::error::Preview API health returned HTTP $api_status."
+            exit 1
+          fi
+          jq -e --arg sha "$GITHUB_SHA" '
+            .status == "ok" and
+            .environment == "preview" and
+            .commitSha == $sha and
+            .supabaseProjectRef == "xwblovggtvbpiusjfokq"
+          ' "$api_response" > /dev/null
+
+          verify_admin_identity() {
+            local base_url="$1"
+            local output_file="$2"
+            local status
+            status="$(curl --silent --show-error \
+              --output "$output_file" \
+              --write-out '%{http_code}' \
+              "${base_url%/}/release-identity.json")"
+            if [[ "$status" != "200" ]]; then
+              echo "::error::Admin release identity at $base_url returned HTTP $status."
+              exit 1
+            fi
+            jq -e --arg sha "$GITHUB_SHA" '
+              .environment == "preview" and
+              .commitSha == $sha and
+              .supabaseProjectRef == "xwblovggtvbpiusjfokq" and
+              .supabaseOrigin == "https://xwblovggtvbpiusjfokq.supabase.co" and
+              .adminApiOrigin == "https://xwblovggtvbpiusjfokq.supabase.co/functions/v1/admin-api"
+            ' "$output_file" > /dev/null
+          }
+
+          verify_admin_identity \
+            "https://gong-gu-wish-admin-git-develop-jsy10835.vercel.app" \
+            "$stable_identity"
+          verify_admin_identity "$VERCEL_PREVIEW_URL" "$immutable_identity"
+
           status="$(curl --silent --show-error \
             --output "$response_file" \
             --write-out '%{http_code}' \
@@ -564,8 +657,8 @@ jobs:
             (
               ((.imageUrl // "") != "") or
               ((.videoUrl // "") != "") or
-              (((.imageUrls // []) | length) > 0) or
-              (((.carouselMedia // []) | length) > 0)
+              (((.mediaUrls // []) | length) > 0) or
+              (((.mediaItems // []) | length) > 0)
             )
           ' "$response_file" > /dev/null
 
@@ -610,6 +703,8 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           if [[ "$HEAD_REPO" != "$GITHUB_REPOSITORY" || "$HEAD_REF" != "develop" ]]; then
@@ -620,6 +715,25 @@ jobs:
           develop_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/develop" --jq '.object.sha')"
           if [[ "$HEAD_SHA" != "$develop_sha" ]]; then
             echo "::error::PR head $HEAD_SHA is not the latest develop SHA $develop_sha."
+            exit 1
+          fi
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$BASE_SHA" != "$main_sha" ]]; then
+            echo "::error::PR base $BASE_SHA is not the latest main SHA $main_sha. Update the branch first."
+            exit 1
+          fi
+
+          compare_status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE_SHA...$HEAD_SHA" --jq '.status')"
+          if [[ "$compare_status" != "ahead" && "$compare_status" != "identical" ]]; then
+            echo "::error::main and develop have diverged ($compare_status); the Preview-green tree cannot be promoted unchanged."
+            exit 1
+          fi
+
+          head_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$HEAD_SHA" --jq '.tree.sha')"
+          merge_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$MERGE_SHA" --jq '.tree.sha')"
+          if [[ "$merge_tree" != "$head_tree" ]]; then
+            echo "::error::The tested PR merge tree differs from the Preview-green develop tree."
             exit 1
           fi
 

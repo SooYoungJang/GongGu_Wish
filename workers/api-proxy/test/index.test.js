@@ -11,7 +11,9 @@ afterEach(() => {
 
 function env(overrides = {}) {
   return {
-    SUPABASE_ORIGIN: "https://project.supabase.co",
+    APP_ENV: "preview",
+    CF_VERSION_METADATA: { tag: "a".repeat(40) },
+    SUPABASE_ORIGIN: "https://xwblovggtvbpiusjfokq.supabase.co",
     ALLOWED_ORIGINS: "https://gongguwish.com,https://www.gongguwish.com",
     ...overrides,
   };
@@ -35,7 +37,12 @@ describe("gonggu API proxy", () => {
     const response = await request("/health");
 
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { status: "ok" });
+    assert.deepEqual(await response.json(), {
+      status: "ok",
+      environment: "preview",
+      commitSha: "a".repeat(40),
+      supabaseProjectRef: "xwblovggtvbpiusjfokq",
+    });
     assert.equal(called, false);
   });
 
@@ -113,7 +120,7 @@ describe("gonggu API proxy", () => {
 
     assert.equal(
       upstreamRequest.url,
-      "https://project.supabase.co/rest/v1/group_buys?select=id",
+      "https://xwblovggtvbpiusjfokq.supabase.co/rest/v1/group_buys?select=id",
     );
     assert.equal(upstreamRequest.method, "GET");
     assert.equal(upstreamRequest.headers.get("apikey"), "public-key");
@@ -148,7 +155,7 @@ describe("gonggu API proxy", () => {
 
     assert.equal(
       upstreamRequest.url,
-      "https://project.supabase.co/functions/v1/register-push-token",
+      "https://xwblovggtvbpiusjfokq.supabase.co/functions/v1/register-push-token",
     );
     assert.equal(
       upstreamRequest.headers.get("authorization"),
