@@ -8,7 +8,9 @@
       "environment": "preview",
       "channel": "preview",
       "env": {
-        "APP_VARIANT": "preview"
+        "APP_VARIANT": "preview",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://xwblovggtvbpiusjfokq.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh3YmxvdmdndHZicGl1c2pmb2txIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0NjE3OTYsImV4cCI6MjEwMDAzNzc5Nn0.HCUbWmoheuD1oecIb7zETsh3iYDznd-Ku_ne_9f42YA"
       },
       "android": {
         "buildType": "apk"
