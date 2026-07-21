@@ -20,9 +20,10 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy, 'supabase-jw
     private readonly supabaseService: SupabaseService,
     configService: ConfigService,
   ) {
-    const supabaseUrl =
-      configService.get<string>('SUPABASE_URL') ??
-      'https://iosdoheblabfimkjnvfj.supabase.co';
+    const supabaseUrl = configService.get<string>('SUPABASE_URL')?.trim();
+    if (!supabaseUrl) {
+      throw new Error('SUPABASE_URL is required');
+    }
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
