@@ -24,6 +24,11 @@ only to production after a final review.
 4. When Preview is validated, open a PR from `develop` to `main`. `Preview Promotion Gate` requires the PR head to be the latest `develop` SHA and requires that exact SHA's successful `Preview Green` run.
 5. After review and merge into `main`, GitHub Actions deploys the production Supabase DB, production Edge Functions, and the production Cloudflare Worker. The Vercel Git integration creates the Admin production deployment from the same push. After the backend deployment succeeds, the mobile workflow publishes to the `production` channel.
 
+Promotion copies Git-tracked code only. Preview database rows, Auth users, object
+storage, provider secrets, deployment credentials, and generated build artifacts
+are never promoted to Production. Production migrations execute only after the
+corresponding code is merged into `main`.
+
 ## Mobile App Environments
 
 The mobile app defines exactly two deployment environments in
@@ -83,6 +88,10 @@ the `production` AAB profile and enabling EAS Submit.
 - Smoke test the Preview API, stable Admin branch alias, immutable Vercel deployment URL, and real Hiker lookup
 - Publish a `preview-release-<sha>` manifest only when every component is green
 
+Every `develop` push runs this contract, even when only documentation or CI
+files changed. Path filters must not leave a `develop` SHA without a complete
+Preview result.
+
 ### `develop` to `main` PR
 
 - Same quality gates
@@ -129,6 +138,50 @@ conditions:
 Preview secrets must point to the Preview Supabase project and Preview Cloudflare Worker. Production secrets must point to production resources.
 Vercel credentials and environment variables are managed by the Vercel project because deployments use the repository's Git integration.
 
+## Credential Isolation Contract
+
+Different resource URLs are necessary but not sufficient. A Preview deployment
+credential must also be unable to list, read, update, deploy, or delete the
+corresponding Production resource.
+
+- The Preview Supabase token must belong to a user with a project-scoped role
+  for `xwblovggtvbpiusjfokq` only. A PAT created by an organization owner that
+  can also see `iosdoheblabfimkjnvfj` is not a Preview-only credential.
+- Cloudflare `Workers Scripts Write` is account-scoped. The Preview Worker must
+  therefore live in an account that does not contain the Production Worker,
+  and its token must be restricted to that Preview account. The Preview
+  environment stores the Production account ID only as a non-secret negative
+  test target.
+- Preview and Production use separate Hiker API keys. Hiker keys are stored only
+  in their GitHub environment and corresponding Supabase Edge Function secret;
+  they are never exposed through a `VITE_` variable or committed file. A key
+  disclosed in logs, chat, screenshots, or browser automation is revoked before
+  release.
+- Expo/EAS credentials and variables remain environment-scoped. Preview builds
+  use only the `preview` profile, channel, and environment.
+
+Run `CI/CD — Supabase + API` manually with
+`audit_preview_credentials=true` after creating or rotating Preview deployment
+credentials. The read-only audit must show exactly one visible Supabase project,
+exactly the Preview Worker in the selected Cloudflare account, and a denied
+request to the Production account. Normal deployment jobs repeat these checks
+before making any remote mutation.
+
+## Release Identity Contract
+
+`Preview Green` proves that all deployed surfaces identify as the same exact
+40-character Git SHA and as the Preview tier:
+
+- Admin `release-identity.json`: `environment=preview`, `gitRef=develop`, exact
+  SHA, Preview Supabase project, Preview API origin
+- Worker `/health`: `environment=preview`, exact SHA from Cloudflare version
+  metadata, Preview upstream origin
+- Vercel deployment lookup: Preview environment, `develop` ref, exact SHA
+- Supabase DB, RLS, Edge Functions, Worker, mobile, Admin, and Hiker smoke tests:
+  all successful in the same `develop` workflow
+
+An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
+
 ## Safety Rules
 
 - Never push directly to `main` or `develop`. All changes go through PRs.
@@ -153,5 +206,9 @@ Vercel credentials and environment variables are managed by the Vercel project b
 - [x] Sync `HIKER_API_KEY` before the normal Edge Function deployment
 - [x] Add same-SHA `Preview Green` and `Preview Promotion Gate` checks
 - [x] Make missing Supabase and Cloudflare deployment credentials fail closed
+- [x] Add read-only credential-scope audits before remote mutations
+- [ ] Replace the Preview Supabase PAT with a Preview-project-only credential
+- [ ] Move the Preview Worker to a separate Cloudflare account and restrict its token to that account
+- [ ] Revoke exposed Hiker keys, create one fresh Preview key, sync it to GitHub Preview and Preview Supabase, and pass the real lookup smoke test
 - [ ] Configure Apple signing credentials before enabling iOS jobs
 - [ ] Create an active Google Play developer account and EAS Submit service account before enabling store submission

@@ -69,6 +69,8 @@ return {
 - Reject any variant whose Supabase/API origins do not match its fixed backend contract.
 - Include the variant in `runtimeVersion` so a wrong channel/environment pairing cannot cross-install an OTA update.
 - Never embed service-role keys, database passwords, signing credentials, or private production data.
+- Treat credentials as isolated only when a read-only negative test proves the
+  Preview credential cannot reach the corresponding Production resource.
 
 ## Testing Strategy
 
@@ -93,6 +95,10 @@ return {
 - Preview is installable by two testers without Metro and receives only `preview` updates.
 - Preview supports email/social sign-in, Apple sign-in on iOS, FCM/APNs push notifications, and notification deep links.
 - Unit tests, config validation, typecheck, lint, and required CI checks pass.
+- Every `develop` SHA has one complete, same-SHA `Preview Green` result covering
+  the Admin, API, database, Edge Functions, Worker, mobile app, and Hiker lookup.
+- Preview deployment credentials cannot list or mutate Production Supabase or
+  Cloudflare resources.
 - No Production update or store release occurs as part of this change.
 
 ## External Account Follow-ups
