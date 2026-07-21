@@ -22,7 +22,10 @@ import PagerView from "react-native-pager-view";
 
 import { fetchGroupBuys } from "../api";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
+import { NativeAdCard } from "../components/ads/NativeAdCard";
+import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
 import { logDeepView } from "../api";
+import { useAds } from "../ads/AdsContext";
 import { useRecentViews } from "../hooks/useLocalDeals";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useTabReselect } from "../hooks/useTabReselect";
@@ -44,6 +47,11 @@ import {
   DEEP_VIEW_THRESHOLD_MS,
   isPlaybackEligible,
 } from "./playbackEligibility";
+import {
+  insertReelsAdSlots,
+  isReelsContentItem,
+  type ReelsFeedItem,
+} from "./reelsAdPlacement";
 
 const REELS_TAB_BAR_OVERLAY_OFFSET = 40;
 const REEL_PAGE_RENDER_RADIUS = 1;
@@ -74,12 +82,17 @@ export function ReelsScreen({
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+  const {
+    enabled: adsEnabled,
+    isReady: adsReady,
+    nativeUnitIds,
+  } = useAds();
   const pagerRef = useRef<PagerView>(null);
   const [replayKey, setReplayKey] = useState(0);
   const [reelDirection, setReelDirection] = useState<1 | -1>(1);
-  const [reelWindow, setReelWindow] = useState<ReelWindow<GroupBuy>>(() =>
-    createReelWindow([]),
-  );
+  const [reelWindow, setReelWindow] = useState<
+    ReelWindow<ReelsFeedItem<GroupBuy>>
+  >(() => createReelWindow([]));
   const { activeIndex, items: reelItems } = reelWindow;
   const [summarySheetGate, setSummarySheetGate] = useState({
     isOpen: false,
@@ -93,6 +106,7 @@ export function ReelsScreen({
   } = usePlaybackLifecycle();
   const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
   const [isReelsMuted, setReelsMuted] = useState(false);
+  const [reelsAdsUnavailable, setReelsAdsUnavailable] = useState(false);
   const { recordView } = useRecentViews();
 
   useEffect(() => {
@@ -105,24 +119,65 @@ export function ReelsScreen({
   });
 
   // Base shuffled batch, refreshed each time data arrives.
-  const baseBatch = useMemo<GroupBuy[]>(() => {
+  const shuffledGroupBuys = useMemo<GroupBuy[]>(() => {
     return shuffle(data ?? []);
   }, [data]);
+  const canShowReelsAds =
+    adsEnabled &&
+    adsReady &&
+    Boolean(nativeUnitIds.reels) &&
+    !reelsAdsUnavailable;
+  const baseBatch = useMemo(
+    () =>
+      insertReelsAdSlots(shuffledGroupBuys, {
+        enabled: canShowReelsAds,
+      }),
+    [canShowReelsAds, shuffledGroupBuys],
+  );
   const reelPagerKey = useMemo(
-    () => baseBatch.map((item) => item.id).join("|"),
+    () => baseBatch.map((item) => item.key).join("|"),
     [baseBatch],
   );
 
   useEffect(() => {
     if (baseBatch.length === 0) return;
-    setReelWindow(createReelWindow(baseBatch));
+    setReelWindow((current) => {
+      const activeItem = current.items[current.activeIndex];
+      const nearbyContent = activeItem
+        ? [
+            activeItem,
+            ...current.items.slice(current.activeIndex + 1),
+            ...current.items.slice(0, current.activeIndex),
+          ].find(isReelsContentItem)
+        : undefined;
+      const preservedIndex = nearbyContent
+        ? baseBatch.findIndex(
+            (item) =>
+              isReelsContentItem(item) &&
+              item.content.id === nearbyContent.content.id,
+          )
+        : -1;
+      return createReelWindow(baseBatch, Math.max(0, preservedIndex));
+    });
     setReelDirection(1);
   }, [baseBatch]);
 
   const handleReelsTabReselect = useCallback(() => {
     if (reelItems.length === 0) return;
 
-    const nextIndex = getRandomReelIndex(reelItems.length, activeIndex);
+    const contentIndexes = reelItems.flatMap((item, index) =>
+      isReelsContentItem(item) ? [index] : [],
+    );
+    if (contentIndexes.length === 0) return;
+    const currentContentPosition = Math.max(
+      0,
+      contentIndexes.indexOf(activeIndex),
+    );
+    const nextContentPosition = getRandomReelIndex(
+      contentIndexes.length,
+      currentContentPosition,
+    );
+    const nextIndex = contentIndexes[nextContentPosition];
     setReelDirection(nextIndex >= activeIndex ? 1 : -1);
     const nextWindow = moveReelWindow(reelWindow, baseBatch, nextIndex);
     setReelWindow(nextWindow);
@@ -134,7 +189,11 @@ export function ReelsScreen({
 
   useTabReselect(navigation, handleReelsTabReselect);
 
-  const activeReelItem = reelItems[activeIndex];
+  const activeFeedItem = reelItems[activeIndex];
+  const activeReelItem =
+    activeFeedItem && isReelsContentItem(activeFeedItem)
+      ? activeFeedItem.content
+      : undefined;
   const hasPlayableActiveMedia = hasPlayableVideoMedia(activeReelItem);
   const activeReelItemIdRef = useRef<string | undefined>(activeReelItem?.id);
   useLayoutEffect(() => {
@@ -258,6 +317,22 @@ export function ReelsScreen({
       screenWidth,
     ],
   );
+  const handleReelsAdLoadStateChange = useCallback(
+    (status: NativeAdLoadStatus) => {
+      if (status === "unavailable") setReelsAdsUnavailable(true);
+    },
+    [],
+  );
+  const organicReelItems = useMemo(
+    () =>
+      reelItems.flatMap((item) =>
+        isReelsContentItem(item) ? [item.content] : [],
+      ),
+    [reelItems],
+  );
+  const activeOrganicIndex = activeReelItem
+    ? organicReelItems.findIndex((item) => item.id === activeReelItem.id)
+    : -1;
 
   if (reelItems.length === 0) {
     return (
@@ -332,11 +407,34 @@ export function ReelsScreen({
 
           return (
             <View
-              key={`${item.id}-${reelWindow.sourceStart + index}`}
+              key={`${item.key}-${reelWindow.sourceStart + index}`}
               collapsable={false}
               style={[s.verticalPagerPage, { height: screenHeight }]}
             >
-              {shouldRenderPage ? renderReelItem(item, index) : null}
+              {shouldRenderPage ? (
+                isReelsContentItem(item) ? (
+                  renderReelItem(item.content, index)
+                ) : (
+                  <View style={styles.adPage}>
+                    <View
+                      accessibilityLiveRegion="polite"
+                      style={styles.adLoading}
+                    >
+                      <Text style={styles.adLoadingLabel}>광고</Text>
+                      <Text style={styles.adLoadingText}>
+                        광고를 불러오는 중이에요
+                      </Text>
+                    </View>
+                    <NativeAdCard
+                      onLoadStateChange={handleReelsAdLoadStateChange}
+                      placement="reels"
+                      testID={`reels-native-ad-${item.sequence}`}
+                      variant="reel"
+                      visible={index === activeIndex}
+                    />
+                  </View>
+                )
+              ) : null}
             </View>
           );
         })}
@@ -344,10 +442,14 @@ export function ReelsScreen({
       {/* Keep the lifecycle-owned distant preloader mounted while Reels is focused. */}
       {Platform.OS !== "web" && isTabFocused ? (
         <ReelVideoPreloader
-          items={reelItems}
-          activeIndex={activeIndex}
+          items={organicReelItems}
+          activeIndex={activeOrganicIndex}
           direction={reelDirection}
-          enabled={isPlaybackActive && !summarySheetGate.isOpen}
+          enabled={
+            activeOrganicIndex >= 0 &&
+            isPlaybackActive &&
+            !summarySheetGate.isOpen
+          }
         />
       ) : null}
     </View>
@@ -355,6 +457,31 @@ export function ReelsScreen({
 }
 
 const styles = StyleSheet.create({
+  adPage: {
+    backgroundColor: "#05070A",
+    flex: 1,
+  },
+  adLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  adLoadingLabel: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 4,
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 12,
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  adLoadingText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 14,
+    fontWeight: "500",
+  },
   empty: {
     alignItems: "center",
     flex: 1,

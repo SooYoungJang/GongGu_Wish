@@ -41,7 +41,11 @@ const settingsPreferenceMocks = vi.hoisted(() => ({
 vi.mock('../ads/AdsContext', () => ({
   useAds: () => ({
     enabled: true,
-    homeNativeUnitId: 'test-native-unit',
+    nativeUnitIds: {
+      detail: 'test-native-unit',
+      home: 'test-native-unit',
+      reels: 'test-native-unit',
+    },
     isReady: true,
     isSettled: true,
     privacyOptionsRequired: adsMocks.privacyOptionsRequired,
