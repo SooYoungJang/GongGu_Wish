@@ -63,6 +63,8 @@ jobs:
       - run: npm run typecheck
       - name: Test mobile deployment decision logic
         run: bash apps/mobile/scripts/ci-deploy-android.test.sh
+      - name: Test Preview release contracts
+        run: node --test scripts/preview-release-contract.test.mjs
 
   # ── Build ─────────────────────────────────────────────────────────────────
   build:
@@ -198,38 +200,30 @@ jobs:
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests]
     if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' }}
-    outputs:
-      deployment_enabled: ${{ steps.credentials.outputs.deployment_enabled }}
     steps:
       - name: Check Supabase deployment credentials
-        id: credentials
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
+          set -euo pipefail
           if [[ -z "$SUPABASE_ACCESS_TOKEN" || -z "$SUPABASE_DB_PASSWORD" ]]; then
-            echo "deployment_enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Supabase deployment skipped because production credentials are not configured."
-            {
-              echo "## Supabase deployment skipped"
-              echo ""
-              echo "Set `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` in the production environment to enable migrations."
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "deployment_enabled=true" >> "$GITHUB_OUTPUT"
+            echo "::error::Supabase deployment credentials are not configured in the selected GitHub environment."
+            exit 1
+          fi
+          if [[ "$SUPABASE_ACCESS_TOKEN" != sbp_* ]]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN must be a Supabase personal access token (sbp_...)."
+            exit 1
           fi
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        if: steps.credentials.outputs.deployment_enabled == 'true'
         with:
           persist-credentials: false
       - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
-        if: steps.credentials.outputs.deployment_enabled == 'true'
         with:
           version: latest
 
       # Link the project
       - run: supabase link --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        if: steps.credentials.outputs.deployment_enabled == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -238,7 +232,6 @@ jobs:
       # the Supabase folder while their schema already existed remotely. Allow
       # Supabase CLI to apply those historical files before newer remote rows.
       - run: supabase db push --include-all
-        if: steps.credentials.outputs.deployment_enabled == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -258,6 +251,18 @@ jobs:
       - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
         with:
           version: latest
+
+      - name: Configure Hiker API secret
+        env:
+          HIKER_API_KEY: ${{ secrets.HIKER_API_KEY }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$HIKER_API_KEY" ]]; then
+            echo "::error::HIKER_API_KEY is not configured in the selected GitHub environment."
+            exit 1
+          fi
+          supabase secrets set HIKER_API_KEY="$HIKER_API_KEY" --project-ref ${{ env.SUPABASE_PROJECT_REF }}
 
       # Deploy all Edge Functions
       - run: supabase functions deploy health --project-ref ${{ env.SUPABASE_PROJECT_REF }}
@@ -302,7 +307,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [supabase-db]
-    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.supabase-db.result == 'success' && needs.supabase-db.outputs.deployment_enabled == 'true' }}
+    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.supabase-db.result == 'success' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -351,44 +356,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-    needs: [lint, build, test, edge-tests]
-    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' }}
+    needs: [lint, build, test, edge-tests, supabase-functions]
+    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' }}
     defaults:
       run:
         working-directory: ./workers/api-proxy
     steps:
       - name: Check Cloudflare credentials
-        id: credentials
         working-directory: .
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
         run: |
+          set -euo pipefail
           if [[ -z "$CLOUDFLARE_API_TOKEN" || -z "$CLOUDFLARE_ACCOUNT_ID" ]]; then
-            echo "deployment_enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Cloudflare Worker deployment skipped because credentials are not configured."
-            {
-              echo "## Cloudflare Worker deployment skipped"
-              echo ""
-              echo "Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in the ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} environment to enable deployment."
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "deployment_enabled=true" >> "$GITHUB_OUTPUT"
+            echo "::error::Cloudflare Worker credentials are not configured in the selected GitHub environment."
+            exit 1
           fi
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        if: steps.credentials.outputs.deployment_enabled == 'true'
         with:
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: steps.credentials.outputs.deployment_enabled == 'true'
         with:
           node-version: "22"
       - name: Install Worker dependencies
-        if: steps.credentials.outputs.deployment_enabled == 'true'
         run: npm ci
       - name: Deploy Worker
-        if: steps.credentials.outputs.deployment_enabled == 'true'
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             npm run deploy:production
@@ -461,4 +455,194 @@ jobs:
             if [[ -n "$EXPO_DOWNLOAD_URL" ]]; then
               echo "- Expo download: $EXPO_DOWNLOAD_URL"
             fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Preview Release Gate ─────────────────────────────────────────────────
+  preview-release-gate:
+    name: Preview Green
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [supabase-db, rls-audit, supabase-functions, deploy-worker, deploy-mobile]
+    if: ${{ always() && github.ref == 'refs/heads/develop' }}
+    environment:
+      name: preview
+      url: https://gong-gu-wish-admin-git-develop-jsy10835.vercel.app
+    permissions:
+      contents: read
+      deployments: read
+    steps:
+      - name: Require every Preview component deployment
+        env:
+          SUPABASE_DB_RESULT: ${{ needs.supabase-db.result }}
+          RLS_AUDIT_RESULT: ${{ needs.rls-audit.result }}
+          SUPABASE_FUNCTIONS_RESULT: ${{ needs.supabase-functions.result }}
+          WORKER_RESULT: ${{ needs.deploy-worker.result }}
+          MOBILE_RESULT: ${{ needs.deploy-mobile.result }}
+        run: |
+          set -euo pipefail
+          for component in \
+            "Supabase DB:$SUPABASE_DB_RESULT" \
+            "RLS audit:$RLS_AUDIT_RESULT" \
+            "Supabase Edge Functions:$SUPABASE_FUNCTIONS_RESULT" \
+            "Cloudflare Worker:$WORKER_RESULT" \
+            "React Native:$MOBILE_RESULT"; do
+            name="${component%%:*}"
+            result="${component#*:}"
+            if [[ "$result" != "success" ]]; then
+              echo "::error::$name Preview deployment result is $result, expected success."
+              exit 1
+            fi
+          done
+
+      - name: Require the Vercel Preview deployment for this SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..20}; do
+            deployment_id="$(
+              gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$GITHUB_SHA&per_page=100" \
+                --jq '[.[] | select(.environment == "Preview" and .creator.login == "vercel[bot]")] | sort_by(.created_at) | last | .id // empty'
+            )"
+
+            if [[ -n "$deployment_id" ]]; then
+              state="$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" --jq '.[0].state // ""')"
+              if [[ "$state" == "success" ]]; then
+                deployment_url="$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" --jq '.[0].environment_url // ""')"
+                if [[ -z "$deployment_url" ]]; then
+                  echo "::error::The Vercel Preview deployment has no environment URL."
+                  exit 1
+                fi
+                echo "VERCEL_PREVIEW_URL=$deployment_url" >> "$GITHUB_ENV"
+                break
+              fi
+              if [[ "$state" == "failure" || "$state" == "error" || "$state" == "inactive" ]]; then
+                echo "::error::Vercel Preview deployment for $GITHUB_SHA ended with $state."
+                exit 1
+              fi
+            fi
+
+            if [[ "$attempt" == "20" ]]; then
+              echo "::error::No successful Vercel Preview deployment found for $GITHUB_SHA."
+              exit 1
+            fi
+            sleep 15
+          done
+
+      - name: Smoke test the complete Preview environment
+        env:
+          HIKER_SMOKE_URL: ${{ vars.PREVIEW_HIKER_SMOKE_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$HIKER_SMOKE_URL" ]]; then
+            echo "::error::PREVIEW_HIKER_SMOKE_URL is not configured in the Preview environment."
+            exit 1
+          fi
+
+          curl --fail --silent --show-error https://api-preview.gongguwish.com/health > /dev/null
+          curl --fail --silent --show-error https://gong-gu-wish-admin-git-develop-jsy10835.vercel.app > /dev/null
+          curl --fail --silent --show-error "$VERCEL_PREVIEW_URL" > /dev/null
+
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "$(jq -nc --arg url "$HIKER_SMOKE_URL" '{url: $url}')" \
+            https://xwblovggtvbpiusjfokq.supabase.co/functions/v1/hiker-lookup)"
+
+          if [[ "$status" != "200" ]]; then
+            error_message="$(jq -r '.error // "unknown Hiker lookup failure"' "$response_file" 2>/dev/null || true)"
+            echo "::error::Preview hiker-lookup returned HTTP $status: $error_message"
+            exit 1
+          fi
+          jq -e '
+            type == "object" and
+            (has("error") | not) and
+            (
+              ((.imageUrl // "") != "") or
+              ((.videoUrl // "") != "") or
+              (((.imageUrls // []) | length) > 0) or
+              (((.carouselMedia // []) | length) > 0)
+            )
+          ' "$response_file" > /dev/null
+
+      - name: Create same-SHA Preview release manifest
+        env:
+          RELEASE_MANIFEST: ${{ runner.temp }}/preview-release.json
+        run: |
+          jq -n \
+            --arg sha "${{ github.sha }}" \
+            --arg status "preview-green" \
+            --arg adminUrl "$VERCEL_PREVIEW_URL" \
+            --arg apiUrl "https://api-preview.gongguwish.com" \
+            '{sha: $sha, status: $status, adminUrl: $adminUrl, apiUrl: $apiUrl}' \
+            > "$RELEASE_MANIFEST"
+          {
+            echo "## Preview Green"
+            echo ""
+            echo "All Preview components and remote smoke tests passed for `${{ github.sha }}`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Preview release manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preview-release-${{ github.sha }}
+          path: ${{ runner.temp }}/preview-release.json
+          if-no-files-found: error
+          retention-days: 30
+
+  # ── Production Promotion Gate ────────────────────────────────────────────
+  promotion-gate:
+    name: Preview Promotion Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Require the latest develop Preview-green SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$HEAD_REPO" != "$GITHUB_REPOSITORY" || "$HEAD_REF" != "develop" ]]; then
+            echo "::error::Production promotion PRs must come from this repository's develop branch."
+            exit 1
+          fi
+
+          develop_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/develop" --jq '.object.sha')"
+          if [[ "$HEAD_SHA" != "$develop_sha" ]]; then
+            echo "::error::PR head $HEAD_SHA is not the latest develop SHA $develop_sha."
+            exit 1
+          fi
+
+          run_id="$(
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=develop&event=push&status=success&per_page=100" \
+              --jq "[.workflow_runs[] | select(.head_sha == \"$HEAD_SHA\" and .conclusion == \"success\")] | sort_by(.created_at) | last | .id // empty"
+          )"
+          if [[ -z "$run_id" ]]; then
+            echo "::error::No successful develop push workflow exists for $HEAD_SHA."
+            exit 1
+          fi
+
+          preview_green_job="$(
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
+              --jq '[.jobs[] | select(.name == "Preview Green" and .conclusion == "success")] | last | .id // empty'
+          )"
+          if [[ -z "$preview_green_job" ]]; then
+            echo "::error::The successful develop workflow has no successful Preview Green job."
+            exit 1
+          fi
+
+          {
+            echo "## Preview promotion approved"
+            echo ""
+            echo "Latest develop SHA `$HEAD_SHA` has a successful Preview-green release gate."
           } >> "$GITHUB_STEP_SUMMARY"
