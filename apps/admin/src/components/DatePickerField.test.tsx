@@ -228,8 +228,6 @@ describe("DatePickerField", () => {
         label="End date"
         value=""
         onChange={onChange}
-        min="2026-07-10"
-        max="2026-07-20"
       />
     );
     await user.click(screen.getByRole("button", { name: /End date 날짜 미선택/i }));
