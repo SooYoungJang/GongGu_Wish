@@ -137,6 +137,10 @@ conditions:
 
 Preview secrets must point to the Preview Supabase project and Preview Cloudflare Worker. Production secrets must point to production resources.
 Vercel credentials and environment variables are managed by the Vercel project because deployments use the repository's Git integration.
+The Vercel project's `Skip deployments when there are no changes to the root
+directory or its dependencies` option must remain disabled. Otherwise a
+documentation-only `develop` SHA can receive a successful skipped status without
+an immutable Admin deployment, which violates the same-SHA release contract.
 
 ## Credential Isolation Contract
 
@@ -207,6 +211,7 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 - [x] Add same-SHA `Preview Green` and `Preview Promotion Gate` checks
 - [x] Make missing Supabase and Cloudflare deployment credentials fail closed
 - [x] Add read-only credential-scope audits before remote mutations
+- [x] Disable Vercel affected-project deployment skipping so every `develop` SHA gets an Admin identity
 - [ ] Replace the Preview Supabase PAT with a Preview-project-only credential
 - [ ] Move the Preview Worker to a separate Cloudflare account and restrict its token to that account
 - [ ] Revoke exposed Hiker keys, create one fresh Preview key, sync it to GitHub Preview and Preview Supabase, and pass the real lookup smoke test
