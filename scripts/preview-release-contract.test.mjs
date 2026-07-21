@@ -50,6 +50,24 @@ test("missing Preview or Production deployment credentials fail closed", () => {
   }
 });
 
+test("runtime clients never fall back to the Production Supabase project", () => {
+  const productionProjectRef = "iosdoheblabfimkjnvfj";
+  const runtimeClients = [
+    "apps/api/src/supabase/supabase.service.ts",
+    "apps/api/src/auth/supabase-jwt.strategy.ts",
+    "packages/shared/src/utils/postgrest-client.ts",
+  ];
+
+  for (const file of runtimeClients) {
+    const source = readFileSync(file, "utf8");
+    assert.doesNotMatch(
+      source,
+      new RegExp(productionProjectRef),
+      `${file} must require an explicit environment origin`,
+    );
+  }
+});
+
 test("the regular Supabase deployment syncs HIKER_API_KEY before hiker-lookup", () => {
   const functionsJob = job("supabase-functions");
   const syncIndex = functionsJob.indexOf(
