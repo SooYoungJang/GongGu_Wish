@@ -151,7 +151,7 @@ jobs:
     name: Deploy Hiker Edge Function
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: production
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests]
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_hiker_lookup == true }}
     steps:
@@ -167,7 +167,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           if [[ -z "$HIKER_API_KEY" ]]; then
-            echo "::error::HIKER_API_KEY is not configured in the production environment."
+            echo "::error::HIKER_API_KEY is not configured in the selected GitHub environment."
             exit 1
           fi
 

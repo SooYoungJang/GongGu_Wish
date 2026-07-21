@@ -51,4 +51,4 @@ supabase functions deploy admin-api --project-ref iosdoheblabfimkjnvfj --use-api
 
 `admin-api`는 요청자의 Supabase JWT를 검증하고 admin role일 때만 service role 작업을 실행합니다.
 
-Hiker 조회에 필요한 `HIKER_API_KEY`는 Vercel 환경 변수가 아니라 Supabase Edge Function secret입니다. GitHub의 `production` environment에 `HIKER_API_KEY` secret을 등록한 뒤 Actions의 `CI/CD — Supabase + API` workflow를 `deploy_hiker_lookup=true`로 실행하면, workflow가 해당 값을 Supabase에 동기화하고 `hiker-lookup`을 배포합니다. `VITE_` 접두사로 웹앱에 키를 노출하지 않습니다.
+Hiker 조회에 필요한 `HIKER_API_KEY`는 Vercel 환경 변수가 아니라 Supabase Edge Function secret입니다. GitHub의 `preview`(`develop`) 또는 `production`(`main`) environment에 `HIKER_API_KEY` secret을 등록한 뒤, 대상 브랜치에서 Actions의 `CI/CD — Supabase + API` workflow를 `deploy_hiker_lookup=true`로 실행하면 workflow가 해당 값을 대응하는 Supabase 프로젝트에 동기화하고 `hiker-lookup`을 배포합니다. `VITE_` 접두사로 웹앱에 키를 노출하지 않습니다.
