@@ -269,7 +269,7 @@ export function formToPreviewDeal(
         ?.label ?? "카테고리 미지정",
     startDate: form.startDate || "미정",
     endDate: form.endDate || "미정",
-    discountInfo: form.discountInfo.trim() || "혜택 정보 미입력",
+    discountInfo: form.discountInfo.trim(),
     priceKrw,
     summary: form.summary.trim() || "요약을 입력하면 상세 화면에 표시됩니다.",
     imageUrl,
