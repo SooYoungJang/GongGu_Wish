@@ -190,6 +190,9 @@ corresponding Production resource.
   Integration is bound to `xwblovggtvbpiusjfokq`, and CI requires its
   `Supabase Preview` check for the exact `develop` SHA and expected project URL.
   Any `SUPABASE_ACCESS_TOKEN` configured in GitHub Preview fails the audit.
+  Every `supabase/functions/*/index.ts` entrypoint is declared in
+  `supabase/config.toml`; the release contract enforces this so the integration
+  deploys the database migration and its matching Edge Function together.
 - Cloudflare `Workers Scripts Write` is account-scoped, so the GitHub Preview
   environment must not contain an API token or account ID with that permission.
   `gonggu-api-proxy-preview` instead uses its connected Git production trigger,
@@ -273,7 +276,7 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 - [x] Add read-only credential-scope audits before remote mutations
 - [x] Configure the Admin Ignored Build Step so only Admin and dependency changes get a new identity
 - [x] Create the Admin `develop` Vercel Deploy Hook and store it only in GitHub Preview
-- [x] Bind the Supabase GitHub Integration to the Preview project and reject Preview PATs
+- [x] Bind the Supabase GitHub Integration to the Preview project, reject Preview PATs, and declare every Edge Function in `supabase/config.toml`
 - [x] Configure the Preview Worker connected Git build for `develop` and remove broad Cloudflare credentials and Deploy Hooks from GitHub Preview
 - [ ] Set the Preview Worker build watch include path to `workers/api-proxy/*` in Cloudflare Settings > Build
 - [x] Add affected-path CI planning, component-specific deployment gates, and documentation-only no-op releases
