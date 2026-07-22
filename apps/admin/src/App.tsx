@@ -51,6 +51,7 @@ type TabKey =
 type SubmissionForm = {
   productName: string;
   brandName: string;
+  instagramUsername: string;
   category: string;
   startDate: string;
   endDate: string;
@@ -72,6 +73,7 @@ type SubmissionForm = {
 type GroupBuyForm = {
   productName: string;
   brandName: string;
+  instagramUsername: string;
   category: string;
   startDate: string;
   endDate: string;
@@ -263,7 +265,8 @@ export function formToPreviewDeal(
 
   return canonicalizeHomeBannerForm({
     productName: form.productName.trim() || "상품명을 입력해주세요",
-    brandName: form.brandName.trim() || "브랜드/계정 미지정",
+    brandName: form.brandName.trim() || "브랜드 미지정",
+    instagramUsername: form.instagramUsername?.trim() ?? "",
     category:
       CATEGORY_OPTIONS.find((option) => option.value === form.category)
         ?.label ?? "카테고리 미지정",
@@ -293,6 +296,7 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
   return canonicalizeHomeBannerForm({
     productName: text(item.productName),
     brandName: text(item.brandName),
+    instagramUsername: text(item.instagramUsername),
     category: text(item.category),
     startDate: dateInput(item.startDate),
     endDate: dateInput(item.endDate),
@@ -319,6 +323,7 @@ function groupBuyToForm(item: GroupBuy): GroupBuyForm {
   return canonicalizeHomeBannerForm({
     productName: text(item.productName),
     brandName: text(item.brandName),
+    instagramUsername: text(item.instagramUsername),
     category: text(item.category),
     startDate: dateInput(item.startDate),
     endDate: dateInput(item.endDate),
@@ -357,6 +362,7 @@ function submissionPayload(form: SubmissionForm) {
   return {
     productName: form.productName,
     brandName: form.brandName,
+    instagramUsername: form.instagramUsername,
     category: form.category,
     startDate: form.startDate,
     endDate: form.endDate,
@@ -387,6 +393,7 @@ function groupBuyPayload(form: GroupBuyForm) {
   return {
     productName: form.productName,
     brandName: form.brandName,
+    instagramUsername: form.instagramUsername,
     category: form.category,
     startDate: form.startDate,
     endDate: form.endDate,
@@ -1766,7 +1773,11 @@ function applyHikerResult(
     brandName:
       isLlm && suggestions.brandName
         ? suggestions.brandName
-        : form.brandName || result.username || "",
+        : form.brandName || "",
+    instagramUsername:
+      isLlm && suggestions.brandName
+        ? ""
+        : form.instagramUsername || result.username || "",
     discountInfo:
       isLlm && suggestions.discountInfo
         ? suggestions.discountInfo
@@ -2490,9 +2501,14 @@ function SubmissionEditor(props: {
           onChange={(value) => setField("category", value)}
         />
         <TextField
-          label="브랜드/계정"
+          label="브랜드명"
           value={form.brandName}
           onChange={(value) => setField("brandName", value)}
+        />
+        <TextField
+          label="인스타 계정"
+          value={form.instagramUsername}
+          onChange={(value) => setField("instagramUsername", value)}
         />
         <TextField
           label="구매 URL"
@@ -2903,9 +2919,14 @@ function GroupBuyEditor(props: {
           onChange={(value) => setField("category", value)}
         />
         <TextField
-          label="브랜드/계정"
+          label="브랜드명"
           value={form.brandName}
           onChange={(value) => setField("brandName", value)}
+        />
+        <TextField
+          label="인스타 계정"
+          value={form.instagramUsername}
+          onChange={(value) => setField("instagramUsername", value)}
         />
         <TextField
           label="구매 URL"

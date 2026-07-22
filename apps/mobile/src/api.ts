@@ -217,6 +217,8 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
             item.rawPostId?.influencerId?.instagramUsername ??
             item.raw_post_id?.influencer_id?.instagramUsername ??
             item.raw_post_id?.influencer_id?.instagram_username ??
+            item.instagramUsername ??
+            item.instagram_username ??
             "",
         },
       },

@@ -10,6 +10,7 @@ type PreviewTab = "home" | "card" | "detail";
 export interface AppLivePreviewDeal {
   productName: string;
   brandName: string;
+  instagramUsername: string;
   category: string;
   startDate: string;
   endDate: string;
@@ -382,6 +383,7 @@ function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
       <div className="app-live-preview__deal-card-content">
         <p className="app-live-preview__deal-card-brand">
           {deal.brandName || "브랜드 미지정"}
+          {deal.instagramUsername ? ` · @${deal.instagramUsername.replace(/^@/, "")}` : ""}
         </p>
         <h3 className="app-live-preview__deal-card-title">
           {deal.productName}
@@ -412,7 +414,7 @@ function DetailScreenPreview({
       <PreviewImage deal={deal} className="app-live-preview__detail-media" />
       <div className="app-live-preview__detail-body">
         <div className="app-live-preview__detail-meta">
-          <span>{deal.brandName}</span>
+          <span>{deal.brandName}{deal.instagramUsername ? ` · @${deal.instagramUsername.replace(/^@/, "")}` : ""}</span>
           <span>{deal.category}</span>
           <span>미디어 {deal.mediaCount}개</span>
         </div>
