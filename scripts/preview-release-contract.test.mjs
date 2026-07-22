@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 const workflow = readFileSync(".github/workflows/ci.yml", "utf8").replace(
@@ -508,6 +508,31 @@ test("every configured Edge Function has a real entrypoint", () => {
       existsSync(`supabase/functions/${functionName}/index.ts`),
       true,
       `${functionName} is configured without supabase/functions/${functionName}/index.ts`,
+    );
+  }
+});
+
+test("every Edge Function entrypoint is configured for Git deployment", () => {
+  const configuredFunctions = new Set(
+    [...supabaseConfig.matchAll(/^\[functions\.([^\]]+)\]$/gm)].map(
+      (match) => match[1],
+    ),
+  );
+  const functionDirectories = readdirSync("supabase/functions", {
+    withFileTypes: true,
+  })
+    .filter(
+      (entry) =>
+        entry.isDirectory() &&
+        existsSync(`supabase/functions/${entry.name}/index.ts`),
+    )
+    .map((entry) => entry.name);
+
+  for (const functionName of functionDirectories) {
+    assert.equal(
+      configuredFunctions.has(functionName),
+      true,
+      `${functionName} has an entrypoint but is missing from supabase/config.toml`,
     );
   }
 });
