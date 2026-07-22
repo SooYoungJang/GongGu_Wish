@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const workflow = readFileSync(".github/workflows/ci.yml", "utf8").replace(
@@ -10,6 +10,7 @@ const supabaseContractsWorkflow = readFileSync(
   ".github/workflows/supabase-integration.yml",
   "utf8",
 ).replace(/\r\n/g, "\n");
+const supabaseConfig = readFileSync("supabase/config.toml", "utf8");
 const adminEnvironmentContract = readFileSync(
   "apps/admin/src/supabase/env.ts",
   "utf8",
@@ -288,6 +289,20 @@ test("local Supabase boots every Edge Function before Preview deployment", () =>
   assert.match(supabaseContractsWorkflow, /\/functions\/v1\/\$function_name/);
   assert.match(supabaseContractsWorkflow, /BOOT_ERROR/);
   assert.match(supabaseContractsWorkflow, /Failed to boot \$function_name/);
+});
+
+test("every configured Edge Function has a real entrypoint", () => {
+  const configuredFunctions = [
+    ...supabaseConfig.matchAll(/^\[functions\.([^\]]+)\]$/gm),
+  ].map((match) => match[1]);
+
+  for (const functionName of configuredFunctions) {
+    assert.equal(
+      existsSync(`supabase/functions/${functionName}/index.ts`),
+      true,
+      `${functionName} is configured without supabase/functions/${functionName}/index.ts`,
+    );
+  }
 });
 
 test("develop delegates Supabase deployment to the exact Preview integration", () => {
