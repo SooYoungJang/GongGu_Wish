@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { classifyChangedFiles } from "./ci-change-plan.mjs";
@@ -157,4 +158,19 @@ test("An empty push fails safe by selecting every component", () => {
     "admin",
     "mobile",
   ]);
+});
+
+test("Windows policy workarounds remain actionable for future agents", () => {
+  const agents = readFileSync(new URL("../AGENTS.md", import.meta.url), "utf8");
+  const gitNetwork = readFileSync(
+    new URL("./git-network.ps1", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(agents, /scripts\/git-network\.ps1 fetch develop/);
+  assert.match(agents, /scripts\/git-network\.ps1 push codex\/<task-name>/);
+  assert.match(agents, /Rollup.*GitHub Actions.*Linux CI/s);
+  assert.match(gitNetwork, /isomorphic-git@\$isomorphicGitVersion/);
+  assert.match(gitNetwork, /\["auth", "token"\]/);
+  assert.match(gitNetwork, /--ignore-scripts/);
 });
