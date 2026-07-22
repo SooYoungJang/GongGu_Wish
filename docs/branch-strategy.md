@@ -6,7 +6,7 @@ GongGu Wish uses a two-tier branch strategy that separates Preview
 validation from production releases. The `develop` branch is the
 integration branch where feature work is validated against the Preview
 backend. The `main` branch is the protected release branch that deploys
-only to production after a final review.
+only after an explicit Production request and successful release gates.
 
 ## Branch Roles
 
@@ -33,13 +33,23 @@ or force-merging failed checks. Production promotion always uses the latest
 `develop` branch; individual feature branches are never merged or
 cherry-picked directly to `main`.
 
+## Merge Authorization Model
+
+This repository has one collaborator, so both `develop` and `main` require zero
+human GitHub approvals. Required status checks remain strict, and force pushes,
+branch deletion, admin bypasses, and forced merges remain prohibited. A normal
+task authorizes the agent to merge only into `develop` after required checks.
+An explicit Production request in the current user message is the human
+authorization for the agent to open and merge the latest `develop → main` PR,
+but only after `Preview Promotion Gate` and every affected required check pass.
+
 ## Workflow
 
 1. Fetch the remote and branch from the latest `origin/develop` for each task: `git switch -c codex/my-task origin/develop`.
 2. Open a PR targeting `develop`. CI classifies the diff and runs only the affected workspace, Edge Function, Supabase, Worker, Admin, and Mobile checks.
 3. After all required checks pass, merge into `develop` without bypassing branch protection. In this single-collaborator repository, `develop` requires zero human approvals because an author cannot approve their own PR; required status checks remain mandatory. `Change Plan & Policy` then classifies the changed paths. Only affected Preview components are tested and deployed. `Preview Green` records the source SHA plus the affected-component set; every affected component must pass its exact-SHA deployment or smoke contract, while unchanged components reuse their last verified deployment.
 4. Only after an explicit Production request, open a PR from the latest `develop` to `main`. `Preview Promotion Gate` requires the PR head to be the latest `develop` SHA and requires that exact SHA's successful `Preview Green` run.
-5. After review and merge into `main`, the same classifier evaluates the complete `main...develop` promotion diff and runs only the affected Production DB, Edge Functions, Worker, Admin, and Mobile stages.
+5. After all required checks pass, merge normally into `main`. The same classifier evaluates the complete `main...develop` promotion diff and runs only the affected Production DB, Edge Functions, Worker, Admin, and Mobile stages.
 
 Promotion copies Git-tracked code only. Preview database rows, Auth users, object
 storage, provider secrets, deployment credentials, and generated build artifacts
@@ -237,7 +247,7 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 - Never push directly to `main` or `develop`. All changes go through PRs.
 - Normal development work branches from the latest `origin/develop` and targets `develop`; it never targets `main`.
 - `develop` requires strict status checks and zero human approvals for the single-collaborator workflow. Never bypass or force-merge failed required checks.
-- `main` requires its status checks plus one human approval before Production promotion.
+- `main` requires zero GitHub human approvals in the single-collaborator workflow; the user's explicit current Production request is the human authorization, while all required status checks remain mandatory.
 - Merging `develop` authorizes the Preview mobile deployment; merging `main` authorizes the Production mobile deployment.
 - Create and merge a `develop → main` PR only after an explicit Production request. Never promote an individual task branch directly to `main`.
 - Production promotion PRs must come from the latest `develop` SHA with a successful affected-components `Preview Green` run for that source SHA.
@@ -252,7 +262,7 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 - [x] Create `develop` branch from `main`
 - [x] Configure GitHub `preview` environment with Preview secrets
 - [x] Protect `develop` with required status checks and zero required human approvals for the single-collaborator workflow
-- [x] Protect `main` with required status checks and one required human approval
+- [x] Protect `main` with required status checks and zero required human approvals; explicit current user authorization gates Production promotion
 - [x] Connect the Vercel Admin project to the repository for preview and production deployments
 - [x] Configure GitHub `preview` and `Production` environments with `EXPO_TOKEN`
 - [x] Add Android Preview and Production Fingerprint workflows

@@ -348,6 +348,24 @@ test("repository rules require affected-only CI and documentation no-op releases
   assert.match(branchStrategy, /without rebuilding Production applications/);
 });
 
+test("repository rules persist the solo-collaborator merge authorization model", () => {
+  assert.match(
+    agentRules,
+    /`develop`과 `main`의 필수 사람 승인 수는 모두 0으로 유지한다/,
+  );
+  assert.match(
+    agentRules,
+    /현재 요청에서 “프로덕션 배포해” 또는 “main에 올려”라고 명시한 경우에만/,
+  );
+  assert.match(agentRules, /관리자 우회나 강제 머지는 사용하지 않는다/);
+  assert.match(
+    branchStrategy,
+    /both `develop` and `main` require zero\s+human GitHub approvals/,
+  );
+  assert.match(branchStrategy, /explicit Production request/);
+  assert.match(branchStrategy, /Preview Promotion Gate/);
+});
+
 test("manual Preview operations never trigger the full deployment pipeline", () => {
   for (const jobId of [
     "supabase-preview",
