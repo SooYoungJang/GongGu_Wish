@@ -161,6 +161,19 @@ test("develop publishes a green same-SHA Preview release gate", () => {
   assert.match(releaseGate, /"200"/);
 });
 
+test("Preview Green summary renders the SHA without shell command substitution", () => {
+  const releaseGate = job("preview-release-gate");
+
+  assert.doesNotMatch(
+    releaseGate,
+    /echo\s+"[^"\n]*`\$\{\{\s*github\.sha\s*\}\}`[^"\n]*"/,
+  );
+  assert.match(
+    releaseGate,
+    /printf\s+'All Preview components[^'\n]*`%s`[^'\n]*\\n'\s+"\$\{\{\s*github\.sha\s*\}\}"/,
+  );
+});
+
 test("main pull requests require the latest develop Preview-green SHA", () => {
   const promotionGate = job("promotion-gate");
 
