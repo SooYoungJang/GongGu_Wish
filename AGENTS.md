@@ -23,6 +23,38 @@ C:\Users\장수영\Documents\my_llm_wiki
 
 [@wiki](plugin://wiki@llm-wiki)
 
+## Windows Application Control 대응 규칙 (필수)
+
+이 저장소를 다루는 Windows 환경에서는 Application Control이 허용되지 않은 native executable 또는 DLL을 차단할 수 있다. `Program ... was blocked by your system administrator` 또는 `An Application Control policy has blocked this file`이 확인되면 같은 native 명령을 반복하지 말고 아래 경로로 전환한다. 이 제약만으로 작업을 blocked 처리하지 않는다.
+
+### Git 네트워크
+
+- `git status`, `git diff`, `git add`, `git commit`, `git worktree`, `git rev-parse`처럼 네트워크를 사용하지 않는 Git 작업은 기존 `git`을 사용한다.
+- native Git의 `fetch`, `pull`, `push`가 `libcurl` 정책으로 차단되면 순수 JavaScript Git helper를 사용한다. helper는 고정 버전 `isomorphic-git`을 `%LOCALAPPDATA%\gonggu-wish-tools`에 설치하며 install script를 실행하지 않는다.
+
+```powershell
+# 최신 develop 가져오기
+powershell -ExecutionPolicy Bypass -File scripts/git-network.ps1 fetch develop
+
+# 현재 codex 작업 브랜치 push
+powershell -ExecutionPolicy Bypass -File scripts/git-network.ps1 push codex/<task-name>
+```
+
+- helper는 `gh auth token`을 Node 프로세스 내부에서만 읽는다. token을 명령 인자, 로그, 파일, 답변에 출력하지 않는다.
+- PR 생성·조회·검사·머지는 GitHub API를 사용하는 `gh pr create`, `gh pr checks`, `gh run view`, `gh pr merge`로 수행한다.
+- native Git 네트워크 실패를 이유로 직접 보호 브랜치에 push하거나 force push, 관리자 우회, 필수 CI 생략을 하지 않는다.
+
+### Rollup/Vitest native binding
+
+- Vitest/Vite 실행이 `@rollup/rollup-win32-*`, `esbuild.exe` 등 native binding의 Application Control 차단으로 중단되면 제품 테스트 실패와 환경 차단을 구분한다.
+- 실행 가능한 순수 Node 계약 테스트와 lint/typecheck를 먼저 수행하되, 임의 native binary 교체, `node_modules` 직접 patch, lockfile을 오염시키는 임시 dependency 설치는 하지 않는다.
+- 로컬 Rollup 실행이 불가능한 경우에도 위 Git helper로 브랜치를 push하고 PR을 만든 뒤 GitHub Actions의 Linux CI에서 해당 Vitest, build, lint/typecheck를 실행한다. 관련 필수 CI가 성공하기 전에는 검증 완료 또는 머지 완료로 간주하지 않는다.
+- Linux CI의 실제 테스트 실패는 환경 문제로 치부하지 않고 원인을 수정한다. 테스트 skip, 실패 무시, 강제 머지는 허용하지 않는다.
+
+### 보조 CLI
+
+`rtk`나 `rg` 자체가 Application Control로 차단된 경우에만 raw 명령과 PowerShell의 `Get-ChildItem`, `Select-String`으로 대체할 수 있다. 차단 메시지를 확인하지 않은 채 기본 도구를 임의로 우회하지 않는다.
+
 ## 브랜치 및 배포 흐름 (필수)
 
 ### 미래 작업의 고정 운영 계약 (최우선)
