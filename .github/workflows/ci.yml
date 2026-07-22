@@ -702,39 +702,51 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in {1..20}; do
-            deployment_id="$(
-              gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$GITHUB_SHA&environment=Preview&per_page=100" |
+            mapfile -t deployment_ids < <(
+              gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$GITHUB_SHA&environment=preview&per_page=100" |
                 jq -r --arg sha "$GITHUB_SHA" '
                   [
                     .[] |
                     select(
-                      .environment == "Preview" and
-                      .creator.login == "vercel[bot]" and
+                      ((.environment // "") | ascii_downcase) == "preview" and
                       .sha == $sha and
-                      .ref == $sha
+                      .ref == "develop"
                     )
                   ] |
                   sort_by(.created_at) |
-                  last |
-                  .id // empty
+                  reverse |
+                  .[].id
                 '
-            )"
+            )
 
-            if [[ -n "$deployment_id" ]]; then
-              state="$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" --jq '.[0].state // ""')"
-              if [[ "$state" == "success" ]]; then
-                deployment_url="$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" --jq '.[0].environment_url // ""')"
-                if [[ -z "$deployment_url" ]]; then
-                  echo "::error::The Vercel Preview deployment has no environment URL."
-                  exit 1
-                fi
-                echo "VERCEL_PREVIEW_URL=$deployment_url" >> "$GITHUB_ENV"
+            deployment_url=""
+            for deployment_id in "${deployment_ids[@]}"; do
+              deployment_url="$(
+                gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" |
+                  jq -r '
+                    [
+                      .[] |
+                      select(
+                        .creator.login == "vercel[bot]" and
+                        ((.environment // "") | ascii_downcase) == "preview" and
+                        .state == "success" and
+                        ((.environment_url // "") |
+                          test("^https://gong-gu-wish-admin-[a-z0-9-]+-jsy10835\\.vercel\\.app/?$"))
+                      )
+                    ] |
+                    sort_by(.created_at) |
+                    last |
+                    .environment_url // empty
+                  '
+              )"
+              if [[ -n "$deployment_url" ]]; then
                 break
               fi
-              if [[ "$state" == "failure" || "$state" == "error" || "$state" == "inactive" ]]; then
-                echo "::error::Vercel Preview deployment for $GITHUB_SHA ended with $state."
-                exit 1
-              fi
+            done
+
+            if [[ -n "$deployment_url" ]]; then
+              echo "VERCEL_PREVIEW_URL=$deployment_url" >> "$GITHUB_ENV"
+              break
             fi
 
             if [[ "$attempt" == "20" ]]; then
