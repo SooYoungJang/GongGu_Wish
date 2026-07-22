@@ -37,7 +37,7 @@ cherry-picked directly to `main`.
 
 1. Fetch the remote and branch from the latest `origin/develop` for each task: `git switch -c codex/my-task origin/develop`.
 2. Open a PR targeting `develop`. CI classifies the diff and runs only the affected workspace, Edge Function, Supabase, Worker, Admin, and Mobile checks.
-3. After review and merge into `develop`, `Change Plan & Policy` classifies the changed paths. Only affected Preview components are tested and deployed. `Preview Green` records the source SHA plus the affected-component set; every affected component must pass its exact-SHA deployment or smoke contract, while unchanged components reuse their last verified deployment.
+3. After all required checks pass, merge into `develop` without bypassing branch protection. In this single-collaborator repository, `develop` requires zero human approvals because an author cannot approve their own PR; required status checks remain mandatory. `Change Plan & Policy` then classifies the changed paths. Only affected Preview components are tested and deployed. `Preview Green` records the source SHA plus the affected-component set; every affected component must pass its exact-SHA deployment or smoke contract, while unchanged components reuse their last verified deployment.
 4. Only after an explicit Production request, open a PR from the latest `develop` to `main`. `Preview Promotion Gate` requires the PR head to be the latest `develop` SHA and requires that exact SHA's successful `Preview Green` run.
 5. After review and merge into `main`, the same classifier evaluates the complete `main...develop` promotion diff and runs only the affected Production DB, Edge Functions, Worker, Admin, and Mobile stages.
 
@@ -236,7 +236,8 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 
 - Never push directly to `main` or `develop`. All changes go through PRs.
 - Normal development work branches from the latest `origin/develop` and targets `develop`; it never targets `main`.
-- `main` and `develop` branches should be protected with required status checks and code review.
+- `develop` requires strict status checks and zero human approvals for the single-collaborator workflow. Never bypass or force-merge failed required checks.
+- `main` requires its status checks plus one human approval before Production promotion.
 - Merging `develop` authorizes the Preview mobile deployment; merging `main` authorizes the Production mobile deployment.
 - Create and merge a `develop → main` PR only after an explicit Production request. Never promote an individual task branch directly to `main`.
 - Production promotion PRs must come from the latest `develop` SHA with a successful affected-components `Preview Green` run for that source SHA.
@@ -250,7 +251,8 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 - [x] Preview Cloudflare Worker config (`wrangler.preview.jsonc`)
 - [x] Create `develop` branch from `main`
 - [x] Configure GitHub `preview` environment with Preview secrets
-- [x] Protect `main` and `develop` branches with required reviews and status checks
+- [x] Protect `develop` with required status checks and zero required human approvals for the single-collaborator workflow
+- [x] Protect `main` with required status checks and one required human approval
 - [x] Connect the Vercel Admin project to the repository for preview and production deployments
 - [x] Configure GitHub `preview` and `Production` environments with `EXPO_TOKEN`
 - [x] Add Android Preview and Production Fingerprint workflows

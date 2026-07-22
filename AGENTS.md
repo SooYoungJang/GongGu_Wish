@@ -40,6 +40,8 @@ C:\Users\장수영\Documents\my_llm_wiki
 
 일반 개발 요청은 `main` 대상 PR 생성, `main` 머지 또는 Production 배포를 승인하지 않는다.
 
+단독 collaborator 운영에서는 작성자가 자기 PR을 승인할 수 없으므로 `develop`의 필수 사람 승인 수는 0으로 유지한다. 대신 `Change Plan & Policy`, `Lint & Typecheck`, `Build`, `Tests`, `Edge Function Tests` 등 branch protection에 등록된 필수 CI가 모두 성공해야만 정상 PR 머지를 수행하며 관리자 우회나 강제 머지는 사용하지 않는다. `main`은 Production 최종 검토를 위해 필수 사람 승인 1명을 유지한다.
+
 ### Production 승격
 
 `develop`을 `main`으로 승격하는 작업은 사용자가 현재 요청에서 “프로덕션 배포해”, “main에 올려”처럼 명시적으로 요청한 경우에만 수행한다. 이 명령은 정상적인 `develop → main` PR·머지와 기존 Production 배포 파이프라인 실행을 승인한다.
