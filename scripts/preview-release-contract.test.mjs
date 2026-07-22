@@ -265,3 +265,16 @@ test("Supabase isolation checks expected and forbidden projects independently", 
     );
   }
 });
+
+test("CI bundle-checks every Edge Function entrypoint", () => {
+  const edgeTests = job("edge-tests");
+
+  assert.match(edgeTests, /supabase\/functions\/\*\/index\.ts/);
+  assert.match(edgeTests, /deno check "\$entrypoint"/);
+});
+
+test("local Supabase contracts reject public tables without RLS", () => {
+  assert.match(supabaseContractsWorkflow, /rowsecurity = false/);
+  assert.match(supabaseContractsWorkflow, /RLS disabled on:/);
+  assert.match(supabaseContractsWorkflow, /supabase db query/);
+});
