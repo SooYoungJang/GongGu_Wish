@@ -43,6 +43,37 @@ jobs:
           test -n "$LOCAL_SUPABASE_ANON_KEY"
           test -n "$LOCAL_SUPABASE_SERVICE_ROLE_KEY"
           npm run test:integration:supabase --workspace=@gonggu/mobile
+      - name: Audit local RLS policies
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db query "DO \$\$
+          DECLARE
+            unprotected_tables text;
+          BEGIN
+            SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
+              INTO unprotected_tables
+            FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename NOT IN ('_prisma_migrations', 'schema_migrations')
+              AND rowsecurity = false;
+
+            IF unprotected_tables IS NOT NULL THEN
+              RAISE EXCEPTION 'RLS disabled on: %', unprotected_tables;
+            END IF;
+          END
+          \$\$;"
+      - name: Print Edge Runtime logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="$(docker ps -a --filter 'name=supabase_edge_runtime_' --format '{{.ID}}' | head -n 1)"
+          if [[ -z "$container" ]]; then
+            echo "::warning::Supabase Edge Runtime container was not found."
+            exit 0
+          fi
+          docker logs "$container" 2>&1 | tail -n 300
       - name: Stop isolated Supabase stack
         if: always()
         run: supabase stop

@@ -11,6 +11,10 @@ import {
   normalizeCommercePatch,
   normalizePersistedPriceKrw,
 } from "./commerceFields.ts";
+import {
+  type CdnRefreshStatusRow,
+  mapCdnRefreshStatusRow,
+} from "./cdnRefreshStatus.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
 import { sendPushNotification } from "./pushNotifications.ts";
 import { mapAdminUser } from "./userContract.ts";
@@ -748,21 +752,6 @@ async function updateUser(
   return mapAdminUser(data);
 }
 
-type CdnRefreshStatusRow = {
-  id: string;
-  productName: string | null;
-  brandName: string | null;
-  category: string | null;
-  videoUrl: string | null;
-  thumbnailUrl: string | null;
-  endDate: string | null;
-  updatedAt: string;
-  mediaRefreshedAt: string | null;
-  cdnExpiresAt: string | null;
-  refreshStatus: "expired" | "expiring" | "healthy" | "unknown" | "no_cdn";
-  instagramUrl: string | null;
-};
-
 type CdnRefreshStatusResponse = {
   items: CdnRefreshStatusRow[];
   summary: {
@@ -774,23 +763,6 @@ type CdnRefreshStatusResponse = {
     noCdn: number;
   };
 };
-
-function mapCdnRow(row: Record<string, unknown>): CdnRefreshStatusRow {
-  return {
-    id: row.id,
-    productName: row.product_name,
-    brandName: row.brand_name,
-    category: row.category,
-    videoUrl: row.video_url,
-    thumbnailUrl: row.thumbnail_url,
-    endDate: row.end_date,
-    updatedAt: row.updated_at,
-    mediaRefreshedAt: row.media_refreshed_at,
-    cdnExpiresAt: row.cdn_expires_at,
-    refreshStatus: row.refresh_status,
-    instagramUrl: row.instagram_url,
-  };
-}
 
 async function listCdnRefreshStatus(
   supabase: AdminClient,
@@ -811,7 +783,7 @@ async function listCdnRefreshStatus(
   if (error) throw new Error(error.message);
 
   const rows = (data ?? []) as Record<string, unknown>[];
-  const items = rows.map((row) => mapCdnRow(row));
+  const items = rows.map((row) => mapCdnRefreshStatusRow(row));
 
   // Most recent media_refreshed_at across all approved VIDEO group buys,
   // representing the last time the hourly batch actually refreshed a CDN URL.

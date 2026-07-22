@@ -77,7 +77,7 @@ test("runtime clients never fall back to the Production Supabase project", () =>
   }
 });
 
-test("the regular Supabase deployment syncs HIKER_API_KEY before hiker-lookup", () => {
+test("the Production Supabase deployment syncs HIKER_API_KEY before hiker-lookup", () => {
   const functionsJob = job("supabase-functions");
   const syncIndex = functionsJob.indexOf(
     'supabase secrets set HIKER_API_KEY="$HIKER_API_KEY"',
@@ -97,14 +97,20 @@ test("the regular Supabase deployment syncs HIKER_API_KEY before hiker-lookup", 
     functionsJob.slice(0, deployIndex),
     /HIKER_API_KEY:\s*\$\{\{\s*secrets\.HIKER_API_KEY\s*\}\}/,
   );
+  assert.match(functionsJob, /github\.ref == 'refs\/heads\/main'/);
+  assert.doesNotMatch(functionsJob, /refs\/heads\/develop/);
 });
 
-test("the Worker deploy waits for DB, RLS, and Edge Functions", () => {
+test("the Worker deploy waits for the branch-specific Supabase gate", () => {
   const workerJob = job("deploy-worker");
   const needs = workerJob.match(/^    needs:\s*\[([^\]]+)\]/m)?.[1] ?? "";
 
   assert.match(needs, /supabase-functions/);
+  assert.match(needs, /supabase-preview/);
   assert.match(workerJob, /needs\.supabase-functions\.result == 'success'/);
+  assert.match(workerJob, /needs\.supabase-preview\.result == 'success'/);
+  assert.match(workerJob, /refs\/heads\/main/);
+  assert.match(workerJob, /refs\/heads\/develop/);
 });
 
 test("JavaScript Worker deploys do not depend on a custom tsconfig", () => {
@@ -126,9 +132,7 @@ test("develop publishes a green same-SHA Preview release gate", () => {
   const needs = releaseGate.match(/^    needs:\s*\[([^\]]+)\]/m)?.[1] ?? "";
 
   for (const dependency of [
-    "supabase-db",
-    "rls-audit",
-    "supabase-functions",
+    "supabase-preview",
     "deploy-worker",
     "deploy-mobile",
     "local-supabase-contracts",
@@ -188,6 +192,7 @@ test("every develop SHA runs the complete Preview contract", () => {
 
 test("manual Preview operations never trigger the full deployment pipeline", () => {
   for (const jobId of [
+    "supabase-preview",
     "supabase-db",
     "rls-audit",
     "supabase-functions",
@@ -230,38 +235,77 @@ test("Preview deployment credentials are denied Production targets", () => {
   assert.match(workerJob, /deploy:production/);
   assert.doesNotMatch(workerJob, /deploy:preview/);
   assert.match(
-    job("deploy-hiker-lookup"),
-    /Verify Supabase credential isolation/,
+    credentialAudit,
+    /Reject broad Supabase account credentials in Preview/,
   );
-  assert.match(credentialAudit, /Supabase Preview access without Production/);
+  assert.match(credentialAudit, /SUPABASE_ACCESS_TOKEN must not be configured/);
+  assert.doesNotMatch(credentialAudit, /api\.supabase\.com\/v1\/projects/);
   assert.match(credentialAudit, /Preview-only Cloudflare deploy hook/);
   assert.match(credentialAudit, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
   assert.match(credentialAudit, /Preview-only Vercel deploy hook/);
   assert.match(credentialAudit, /VERCEL_PREVIEW_DEPLOY_HOOK_URL/);
 });
 
-test("Supabase isolation checks expected and forbidden projects independently", () => {
-  for (const jobId of [
-    "audit-preview-credentials",
-    "deploy-hiker-lookup",
-    "supabase-db",
-  ]) {
-    const body = job(jobId);
+test("Production Supabase credentials reject the Preview project", () => {
+  const body = job("supabase-db");
 
-    assert.doesNotMatch(
-      body,
-      /length == 1/,
-      `${jobId} must not reject harmless unrelated projects`,
-    );
-    assert.match(
-      body,
-      /if ! jq[\s\S]*select\(\.ref == \$expected\)/,
-      `${jobId} must require access to its expected project`,
-    );
-    assert.match(
-      body,
-      /if jq[\s\S]*select\(\.ref == \$forbidden\)/,
-      `${jobId} must independently reject the opposite-tier project`,
-    );
+  assert.doesNotMatch(
+    body,
+    /length == 1/,
+    "supabase-db must not reject harmless unrelated projects",
+  );
+  assert.match(
+    body,
+    /if ! jq[\s\S]*select\(\.ref == \$expected\)/,
+    "supabase-db must require access to its Production project",
+  );
+  assert.match(
+    body,
+    /if jq[\s\S]*select\(\.ref == \$forbidden\)/,
+    "supabase-db must independently reject the Preview project",
+  );
+  assert.match(body, /FORBIDDEN_PROJECT_REF: xwblovggtvbpiusjfokq/);
+});
+
+test("CI bundle-checks every Edge Function entrypoint", () => {
+  const edgeTests = job("edge-tests");
+
+  assert.match(edgeTests, /supabase\/functions\/\*\/index\.ts/);
+  assert.match(edgeTests, /deno check "\$entrypoint"/);
+});
+
+test("local Supabase contracts reject public tables without RLS", () => {
+  assert.match(supabaseContractsWorkflow, /rowsecurity = false/);
+  assert.match(supabaseContractsWorkflow, /RLS disabled on:/);
+  assert.match(supabaseContractsWorkflow, /supabase db query/);
+});
+
+test("develop delegates Supabase deployment to the exact Preview integration", () => {
+  const previewIntegration = job("supabase-preview");
+
+  assert.match(previewIntegration, /github\.ref == 'refs\/heads\/develop'/);
+  assert.match(previewIntegration, /commits\/\$GITHUB_SHA\/check-runs/);
+  assert.match(previewIntegration, /\.app\.slug == "supabase"/);
+  assert.match(previewIntegration, /\.name == "Supabase Preview"/);
+  assert.match(previewIntegration, /xwblovggtvbpiusjfokq/);
+  assert.match(previewIntegration, /\.conclusion == "success"/);
+  assert.doesNotMatch(previewIntegration, /SUPABASE_ACCESS_TOKEN/);
+
+  for (const productionJob of [
+    "supabase-db",
+    "rls-audit",
+    "supabase-functions",
+  ]) {
+    const body = job(productionJob);
+    assert.match(body, /github\.ref == 'refs\/heads\/main'/);
+    assert.doesNotMatch(body, /refs\/heads\/develop/);
+  }
+
+  for (const consumer of [
+    "deploy-worker",
+    "deploy-mobile",
+    "preview-release-gate",
+  ]) {
+    assert.match(job(consumer), /supabase-preview/);
   }
 });
