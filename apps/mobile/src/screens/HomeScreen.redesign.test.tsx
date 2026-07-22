@@ -1029,7 +1029,7 @@ describe('HomeScreenContent redesign', () => {
       .join(' ');
     expect(bannerText).not.toContain('30%');
     expect(bannerText).toContain('공구 진행 중');
-    expect(bannerText).toContain('상세에서 가격 확인');
+    expect(bannerText).toContain('가격 미정');
   });
 
   it('does not mistake a leading natural-content percentage for a discount', () => {
@@ -1093,7 +1093,7 @@ describe('HomeScreenContent redesign', () => {
       .flatMap((node) => node.props.children ?? [])
       .join(' ');
     expect(bannerText).toContain('30%');
-    expect(bannerText).toContain('상세에서 가격 확인');
+    expect(bannerText).toContain('가격 미정');
     expect(bannerText).not.toContain('30원');
   });
 
@@ -1213,7 +1213,7 @@ describe('HomeScreenContent redesign', () => {
       .join(' ');
     expect(bannerText).toContain('이미지 준비 중');
     expect(bannerText).toContain('공구 진행 중');
-    expect(bannerText).toContain('상세에서 가격 확인');
+    expect(bannerText).toContain('가격 미정');
     expect(bannerText).not.toMatch(/(^|\s)@(\s|$)/);
     expect(bannerText).not.toContain('혜택 확인');
   });
@@ -1297,7 +1297,7 @@ describe('HomeScreenContent redesign', () => {
 
     const text = flattenText(renderer.toJSON());
     expect(text).toContain('30%');
-    expect(text).toContain('상세에서 가격 확인');
+    expect(text).toContain('가격 미정');
     expect(text).not.toContain('시작일');
     expect(text).not.toContain('마감일');
 
@@ -1373,7 +1373,7 @@ describe('HomeScreenContent redesign', () => {
 
     const text = flattenText(renderer.toJSON());
     expect(text).toContain('공구 진행 중');
-    expect(text).toContain('상세에서 가격 확인');
+    expect(text).toContain('가격 미정');
     expect(text).not.toContain('시작일');
     expect(text).not.toContain('마감일');
     expect(
