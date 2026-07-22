@@ -216,6 +216,8 @@ web3 = 30
 # provider = "hcaptcha"
 # secret = ""
 
+[functions.admin-api]
+[functions.health]
 [functions.refresh-instagram-media]
 [functions.seller-rankings]
 # Rankings expose only the same approved rows available through public
@@ -240,6 +242,8 @@ verify_jwt = true
 
 [functions.register-push-token]
 verify_jwt = true
+
+[functions.webhook-handler]
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
