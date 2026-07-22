@@ -305,7 +305,7 @@ jobs:
     timeout-minutes: 15
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests, local-supabase-contracts]
-    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.local-supabase-contracts.result == 'success' }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.local-supabase-contracts.result == 'success' }}
     steps:
       - name: Check Supabase deployment credentials
         env:
@@ -373,7 +373,7 @@ jobs:
     timeout-minutes: 15
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [rls-audit]
-    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.rls-audit.result == 'success' }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.rls-audit.result == 'success' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -437,7 +437,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [supabase-db]
-    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.supabase-db.result == 'success' }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.supabase-db.result == 'success' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -487,7 +487,7 @@ jobs:
     timeout-minutes: 15
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests, supabase-functions]
-    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' }}
     defaults:
       run:
         working-directory: ./workers/api-proxy
@@ -607,7 +607,7 @@ jobs:
     timeout-minutes: 180
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs: [lint, build, test, edge-tests, supabase-functions, deploy-worker]
-    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' && needs.deploy-worker.result == 'success' }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' && needs.deploy-worker.result == 'success' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -678,7 +678,7 @@ jobs:
         deploy-worker,
         deploy-mobile,
       ]
-    if: ${{ always() && github.ref == 'refs/heads/develop' }}
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     environment:
       name: preview
       url: https://gong-gu-wish-admin-git-develop-jsy10835.vercel.app

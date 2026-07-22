@@ -172,6 +172,23 @@ test("every develop SHA runs the complete Preview contract", () => {
   assert.match(supabaseContractsWorkflow, /workflow_call:/);
 });
 
+test("manual Preview operations never trigger the full deployment pipeline", () => {
+  for (const jobId of [
+    "supabase-db",
+    "rls-audit",
+    "supabase-functions",
+    "deploy-worker",
+    "deploy-mobile",
+    "preview-release-gate",
+  ]) {
+    assert.match(
+      job(jobId),
+      /github\.event_name == 'push'/,
+      `${jobId} must deploy only for branch push events`,
+    );
+  }
+});
+
 test("Admin deployments publish an exact environment and commit identity", () => {
   assert.match(adminEnvironmentContract, /xwblovggtvbpiusjfokq/);
   assert.match(adminEnvironmentContract, /iosdoheblabfimkjnvfj/);
