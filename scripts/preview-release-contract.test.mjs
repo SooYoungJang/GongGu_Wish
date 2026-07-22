@@ -16,6 +16,10 @@ const adminEnvironmentContract = readFileSync(
   "utf8",
 );
 const adminViteConfig = readFileSync("apps/admin/vite.config.ts", "utf8");
+const adminVercelConfig = readFileSync("apps/admin/vercel.json", "utf8");
+const adminIgnoreCommand = JSON.parse(adminVercelConfig).ignoreCommand;
+const agentRules = readFileSync("AGENTS.md", "utf8");
+const branchStrategy = readFileSync("docs/branch-strategy.md", "utf8");
 
 function job(jobId) {
   const marker = `  ${jobId}:\n`;
@@ -26,6 +30,17 @@ function job(jobId) {
   const remaining = workflow.slice(bodyStart);
   const nextJob = remaining.search(/^  [a-z][a-z0-9-]*:\n/m);
   return nextJob === -1 ? remaining : remaining.slice(0, nextJob);
+}
+
+function declaredNeeds(jobBody) {
+  const inline = jobBody.match(/^    needs:\s*\[([^\]]*)\]/m)?.[1];
+  const block = jobBody.match(/^    needs:\s*\n\s*\[([\s\S]*?)\n\s*\]/m)?.[1];
+  return new Set(
+    (inline ?? block ?? "")
+      .split(/[\s,]+/)
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
 }
 
 function missingCredentialGuard(jobId, firstVariable, secondVariable) {
@@ -128,12 +143,15 @@ test("JavaScript Worker deploys do not depend on a custom tsconfig", () => {
   }
 });
 
-test("develop publishes a green same-SHA Preview release gate", () => {
+test("develop publishes a green affected-components Preview release gate", () => {
   const releaseGate = job("preview-release-gate");
-  const needs = releaseGate.match(/^    needs:\s*\[([^\]]+)\]/m)?.[1] ?? "";
+  const needs =
+    releaseGate.match(/^    needs:\s*\n\s*\[([\s\S]*?)\n\s*\]/m)?.[1] ?? "";
 
   for (const dependency of [
+    "change-plan",
     "supabase-preview",
+    "worker-tests",
     "deploy-worker",
     "deploy-mobile",
     "local-supabase-contracts",
@@ -159,6 +177,12 @@ test("develop publishes a green same-SHA Preview release gate", () => {
   assert.match(releaseGate, /\.gitRef == "develop"/);
   assert.match(releaseGate, /http_code/);
   assert.match(releaseGate, /"200"/);
+  assert.match(releaseGate, /needs\.change-plan\.outputs\.admin == 'true'/);
+  assert.match(releaseGate, /needs\.change-plan\.outputs\.supabase == 'true'/);
+  assert.match(releaseGate, /needs\.change-plan\.outputs\.worker == 'true'/);
+  assert.match(releaseGate, /affected:/);
+  assert.match(releaseGate, /docsOnly:/);
+  assert.match(releaseGate, /unchanged components were reused/);
 });
 
 test("Preview Green summary renders the SHA without shell command substitution", () => {
@@ -170,7 +194,7 @@ test("Preview Green summary renders the SHA without shell command substitution",
   );
   assert.match(
     releaseGate,
-    /printf\s+'All Preview components[^'\n]*`%s`[^'\n]*\\n'\s+"\$\{\{\s*github\.sha\s*\}\}"/,
+    /printf\s+'All affected Preview checks[^'\n]*`%s`[^'\n]*\\n'\s+"\$\{\{\s*github\.sha\s*\}\}"/,
   );
 });
 
@@ -189,19 +213,134 @@ test("main pull requests require the latest develop Preview-green SHA", () => {
   assert.match(promotionGate, /\.tree\.sha/);
 });
 
-test("every develop SHA runs the complete Preview contract", () => {
+test("every develop SHA runs a lightweight change plan and Preview gate", () => {
   const pushTrigger = workflow.slice(
     workflow.indexOf("  push:\n"),
     workflow.indexOf("  pull_request:\n"),
   );
+  const changePlan = job("change-plan");
+  const releaseGate = job("preview-release-gate");
 
   assert.doesNotMatch(pushTrigger, /\n\s+paths:/);
-  assert.match(workflow, /local-supabase-contracts:/);
+  assert.match(changePlan, /ci-change-plan\.mjs/);
+  assert.match(changePlan, /ci-change-plan\.test\.mjs/);
+  assert.match(changePlan, /preview-release-contract\.test\.mjs/);
+  assert.match(changePlan, /github\.event\.pull_request\.base\.sha/);
+  assert.match(changePlan, /github\.event\.pull_request\.head\.sha/);
+  assert.match(changePlan, /git merge-base/);
+  assert.match(changePlan, /github\.event\.before/);
+  assert.match(releaseGate, /always\(\)/);
+  assert.match(releaseGate, /refs\/heads\/develop/);
+  assert.match(releaseGate, /needs\.change-plan\.result/);
+  assert.match(releaseGate, /Require every affected Preview component/);
+});
+
+test("heavy jobs are conditional on their affected component", () => {
+  const expectations = {
+    lint: "quality",
+    build: "build",
+    test: "test",
+    "api-tests": "api",
+    "edge-tests": "edge_tests",
+    "local-supabase-contracts": "local_supabase",
+    "supabase-preview": "supabase",
+    "worker-tests": "worker_tests",
+    "deploy-worker": "worker",
+    "deploy-mobile": "mobile",
+  };
+
+  for (const [jobId, output] of Object.entries(expectations)) {
+    const body = job(jobId);
+    assert.match(body, /change-plan/);
+    assert.match(
+      body,
+      new RegExp(`needs\\.change-plan\\.outputs\\.${output}`),
+      `${jobId} must use the ${output} change-plan output`,
+    );
+  }
+});
+
+test("change planning includes deletions and both sides of renames", () => {
+  const changePlan = job("change-plan");
+
+  assert.match(changePlan, /git diff --no-renames --name-only/);
+  assert.doesNotMatch(changePlan, /--diff-filter=ACMR/);
   assert.match(
-    workflow,
-    /uses:\s*\.\/\.github\/workflows\/supabase-integration\.yml/,
+    adminIgnoreCommand,
+    /git diff --no-renames --name-only "\$VERCEL_GIT_PREVIOUS_SHA" "\$\{VERCEL_GIT_COMMIT_SHA:-HEAD\}"/,
   );
-  assert.match(supabaseContractsWorkflow, /workflow_call:/);
+});
+
+test("Admin builds fail safe when Vercel has no previous successful SHA", () => {
+  assert.match(adminIgnoreCommand, /VERCEL_GIT_PREVIOUS_SHA/);
+  assert.match(adminIgnoreCommand, /-z "\$VERCEL_GIT_PREVIOUS_SHA"/);
+  assert.match(adminIgnoreCommand, /exit 1/);
+});
+
+test("PostgreSQL starts only for API tests", () => {
+  const workspaceTests = job("test");
+  const apiTests = job("api-tests");
+
+  assert.doesNotMatch(workspaceTests, /services:\s*\n\s*postgres:/);
+  assert.match(apiTests, /services:\s*\n\s*postgres:/);
+  assert.match(apiTests, /--filter=@gonggu\/api/);
+});
+
+test("workspace filters cross the expression boundary through environment data", () => {
+  const outputByJob = {
+    lint: "workspace_filters",
+    build: "workspace_filters",
+    test: "workspace_test_filters",
+  };
+
+  for (const [jobId, output] of Object.entries(outputByJob)) {
+    const body = job(jobId);
+    assert.match(
+      body,
+      new RegExp(
+        `WORKSPACE_FILTERS:\\s*\\$\\{\\{ needs\\.change-plan\\.outputs\\.${output} \\}\\}`,
+      ),
+    );
+    assert.doesNotMatch(
+      body,
+      /run:\s+npm (?:run )?\w+ -- \$\{\{ needs\.change-plan\.outputs\.workspace_filters \}\}/,
+    );
+  }
+});
+
+test("every needs context reference declares its job dependency", () => {
+  const jobIds = Array.from(
+    workflow.matchAll(/^  ([A-Za-z][A-Za-z0-9_-]*):\n/gm),
+    (match) => match[1],
+  );
+
+  for (const jobId of jobIds) {
+    const body = job(jobId);
+    const dependencies = declaredNeeds(body);
+    for (const match of body.matchAll(/needs\.([A-Za-z][A-Za-z0-9_-]*)/g)) {
+      assert.ok(
+        dependencies.has(match[1]),
+        `${jobId} references needs.${match[1]} without declaring it`,
+      );
+    }
+  }
+});
+
+test("Production jobs use component-specific main promotion conditions", () => {
+  assert.match(job("supabase-db"), /outputs\.database == 'true'/);
+  assert.match(job("supabase-functions"), /outputs\.functions == 'true'/);
+  assert.match(job("deploy-worker"), /outputs\.worker == 'true'/);
+  assert.match(job("deploy-mobile"), /outputs\.mobile == 'true'/);
+});
+
+test("repository rules require affected-only CI and documentation no-op releases", () => {
+  for (const document of [agentRules, branchStrategy]) {
+    assert.match(document, /문서-only|Markdown-only/i);
+    assert.match(document, /affected|영향/);
+    assert.match(document, /develop.*main|develop → main/s);
+  }
+  assert.match(agentRules, /앱·DB·API를 빌드하거나 배포하지 않는다/);
+  assert.match(branchStrategy, /without rebuilding Production applications/);
 });
 
 test("manual Preview operations never trigger the full deployment pipeline", () => {
@@ -231,6 +370,13 @@ test("Admin deployments publish an exact environment and commit identity", () =>
   assert.match(adminViteConfig, /VERCEL_GIT_COMMIT_SHA/);
   assert.match(adminViteConfig, /VERCEL_GIT_COMMIT_REF/);
   assert.match(adminViteConfig, /release-identity\.json/);
+  assert.match(adminVercelConfig, /"ignoreCommand"/);
+  assert.match(
+    adminIgnoreCommand,
+    /git diff --no-renames --name-only "\$VERCEL_GIT_PREVIOUS_SHA" "\$\{VERCEL_GIT_COMMIT_SHA:-HEAD\}"/,
+  );
+  assert.match(adminIgnoreCommand, /ci-change-plan\.mjs/);
+  assert.match(adminIgnoreCommand, /--exit-for admin/);
 });
 
 test("Preview deployment credentials are denied Production targets", () => {

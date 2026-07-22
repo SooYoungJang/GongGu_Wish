@@ -23,7 +23,7 @@ configuration, and documentation change starts from the latest
 `origin/develop` on a short-lived `codex/<task-name>` branch or isolated
 worktree. The agent opens a PR to `develop`, fixes required CI failures, merges
 the PR when all required checks pass, and verifies the merged SHA through the
-complete Preview deployment. Normal work never opens a PR to `main`.
+complete affected-component Preview contract. Normal work never opens a PR to `main`.
 
 Production promotion requires an explicit current request such as
 “프로덕션 배포해” or “main에 올려”. That request authorizes the ordinary
@@ -36,10 +36,10 @@ cherry-picked directly to `main`.
 ## Workflow
 
 1. Fetch the remote and branch from the latest `origin/develop` for each task: `git switch -c codex/my-task origin/develop`.
-2. Open a PR targeting `develop`. CI runs lint, typecheck, build, tests, edge function tests, and local Supabase integration contracts.
-3. After review and merge into `develop`, the project-bound Supabase GitHub Integration deploys Preview migrations and Edge Functions, while the connected Cloudflare Workers Build deploys the Preview Worker. GitHub Actions waits for those exact-SHA deployments, deploys the Preview mobile app, and verifies the Vercel Admin deployment. `Preview Green` succeeds only after every deployment and the remote API, Admin, and Hiker smoke tests pass.
+2. Open a PR targeting `develop`. CI classifies the diff and runs only the affected workspace, Edge Function, Supabase, Worker, Admin, and Mobile checks.
+3. After review and merge into `develop`, `Change Plan & Policy` classifies the changed paths. Only affected Preview components are tested and deployed. `Preview Green` records the source SHA plus the affected-component set; every affected component must pass its exact-SHA deployment or smoke contract, while unchanged components reuse their last verified deployment.
 4. Only after an explicit Production request, open a PR from the latest `develop` to `main`. `Preview Promotion Gate` requires the PR head to be the latest `develop` SHA and requires that exact SHA's successful `Preview Green` run.
-5. After review and merge into `main`, GitHub Actions deploys the production Supabase DB, production Edge Functions, and the production Cloudflare Worker. The Vercel Git integration creates the Admin production deployment from the same push. After the backend deployment succeeds, the mobile workflow publishes to the `production` channel.
+5. After review and merge into `main`, the same classifier evaluates the complete `main...develop` promotion diff and runs only the affected Production DB, Edge Functions, Worker, Admin, and Mobile stages.
 
 Promotion copies Git-tracked code only. Preview database rows, Auth users, object
 storage, provider secrets, deployment credentials, and generated build artifacts
@@ -93,20 +93,14 @@ the `production` AAB profile and enabling EAS Submit.
 
 ### `develop` push (merge)
 
-- Same quality gates
-- Run the local migration, Edge boot, and RLS contracts
-- Require the project-bound Supabase integration to apply Preview migrations and Edge Functions for the exact SHA
-- Wait for the project-bound `gonggu-api-proxy-preview` Workers Build triggered by the `develop` push and require the exact SHA
-- Vercel Git integration creates the Admin Preview deployment outside GitHub Actions
-- After backend deployment success, run the Android Preview Fingerprint workflow
-- Build a new Preview APK when native inputs changed; otherwise publish a Preview OTA update
-- Require the Vercel deployment to match the merge SHA
-- Smoke test the Preview API, stable Admin branch alias, immutable Vercel deployment URL, and real Hiker lookup
-- Publish a `preview-release-<sha>` manifest only when every component is green
-
-Every `develop` push runs this contract, even when only documentation or CI
-files changed. Path filters must not leave a `develop` SHA without a complete
-Preview result.
+- Always run the dependency-free change classifier and policy contract tests.
+- Markdown-only changes run no app build, Supabase, Worker, Vercel, or Mobile deployment.
+- Run lint, typecheck, build, and tests only for affected workspaces and their known dependents.
+- Start PostgreSQL and generate the Prisma test client only when the API workspace is affected; non-API workspace tests run without the database service.
+- Run local Supabase, Edge Function, Worker, Admin, and Mobile jobs only when their paths or shared dependencies changed.
+- Require an exact merge SHA only from affected deployed components; unchanged components retain their previous verified SHA.
+- Run remote API/Admin/Hiker smoke checks only when the corresponding component changed.
+- Always publish a `preview-release-<sha>` manifest containing the affected-component map so `Preview Promotion Gate` has a result for every `develop` SHA.
 
 ### `develop` to `main` PR
 
@@ -118,14 +112,14 @@ Preview result.
 
 ### `main` push (merge)
 
-- Same quality gates
-- Deploy to production Supabase DB
-- Deploy production Edge Functions
-- RLS policy audit on production
-- Deploy production Cloudflare Worker (`deploy:production`)
-- Vercel Git integration creates the Admin production deployment outside GitHub Actions
-- After backend deployment success, run the Android Production Fingerprint workflow
-- Build a new installable Production APK when native inputs changed; otherwise publish a Production OTA update
+- Recompute affected paths across the complete promoted `main...develop` diff.
+- Run workspace quality gates only for affected packages and dependents.
+- Deploy Production Supabase DB/RLS only for migration or config changes.
+- Deploy Production Edge Functions only for function or config changes.
+- Deploy the Production Cloudflare Worker only for `workers/api-proxy` changes.
+- Let Vercel build Admin only for Admin, shared-package, or root dependency changes.
+- Run Android Production Build/OTA only for Mobile, shared-package, or root dependency changes.
+- A documentation-only promotion updates Git history without rebuilding Production applications.
 
 ## GitHub Environments
 
@@ -168,12 +162,13 @@ Preview integration bindings and runtime secrets must point to the Preview
 Supabase project and Preview Cloudflare Worker. Production secrets must point
 to production resources.
 Vercel credentials and environment variables are managed by the Vercel project because deployments use the repository's Git integration.
-The Vercel project's `Skip deployments when there are no changes to the root
-directory or its dependencies` option must remain disabled. Create one Deploy
-Hook named `github-preview-green` for branch `develop` and store it as
+The Admin `vercel.json` defines an Ignored Build Step for `apps/admin`,
+`packages/shared`, and root dependency files so unrelated commits do not consume
+a build. It compares the branch's last successful Vercel deployment SHA with the
+current commit and fails safe to a build when no previous SHA exists. Create one Deploy Hook named `github-preview-green` for branch `develop` and store it as
 `VERCEL_PREVIEW_DEPLOY_HOOK_URL` in GitHub Preview. `Preview Green` invokes it
-before polling the exact-SHA deployment. This covers both path-based skips and
-missed Git webhooks without granting GitHub a team-wide Vercel token.
+only when Admin is affected, before polling the exact-SHA deployment. This
+covers missed Git webhooks without granting GitHub a team-wide Vercel token.
 
 ## Credential Isolation Contract
 
@@ -209,29 +204,31 @@ checks before making any remote mutation.
 
 Configure Workers Builds for `gonggu-api-proxy-preview` with repository
 `SooYoungJang/GongGu_Wish`, production branch `develop`, root directory
-`workers/api-proxy`, and deploy command:
+`workers/api-proxy`, build watch include path `workers/api-proxy/*`, and deploy command:
 
 ```sh
 npx wrangler deploy --config wrangler.preview.jsonc --tag "$(git rev-parse HEAD)" --message "Cloudflare $(git rev-parse HEAD)"
 ```
 
 Do not create or call a Cloudflare Deploy Hook from GitHub Actions. The connected
-Git provider triggers this build on each `develop` push. The GitHub job does not
-complete until `https://api-preview.gongguwish.com/health` reports the same SHA,
-Preview environment, and Preview Supabase project.
+Git provider triggers a build only when the Worker watch path changed. The
+GitHub Worker job then requires `https://api-preview.gongguwish.com/health` to
+report the same SHA, Preview environment, and Preview Supabase project.
 
 ## Release Identity Contract
 
-`Preview Green` proves that all deployed surfaces identify as the same exact
-40-character Git SHA and as the Preview tier:
+`Preview Green` records the current 40-character source SHA and an affected map.
+Every affected deployed surface must identify as that SHA and the Preview tier:
 
 - Admin `release-identity.json`: `environment=preview`, `gitRef=develop`, exact
   SHA, Preview Supabase project, Preview API origin
 - Worker `/health`: `environment=preview`, exact SHA from Cloudflare version
   metadata, Preview upstream origin
 - Vercel deployment lookup: Preview environment, `develop` ref, exact SHA
-- Supabase DB, RLS, Edge Functions, Worker, mobile, Admin, and Hiker smoke tests:
-  all successful in the same `develop` workflow
+- Supabase, Worker, mobile, Admin, and Hiker smoke tests: required only when the
+  classifier marks the corresponding component affected
+- Unaffected surfaces: reused from their last verified Preview deployment and
+  not falsely labeled as the current SHA
 
 An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 
@@ -242,9 +239,9 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 - `main` and `develop` branches should be protected with required status checks and code review.
 - Merging `develop` authorizes the Preview mobile deployment; merging `main` authorizes the Production mobile deployment.
 - Create and merge a `develop → main` PR only after an explicit Production request. Never promote an individual task branch directly to `main`.
-- Production promotion PRs must come from the latest `develop` SHA with a successful same-SHA `Preview Green` run.
+- Production promotion PRs must come from the latest `develop` SHA with a successful affected-components `Preview Green` run for that source SHA.
 - Preview database rows and Auth users are never copied to Production. Versioned migrations are code and run against Production only after their merge into `main`.
-- Missing deployment credentials fail closed. A skipped DB, Edge Function, Worker, Admin, mobile, or smoke-test step must never produce a green release.
+- Missing deployment credentials fail closed for affected components. An unaffected job may skip, but an affected DB, Edge Function, Worker, Admin, mobile, or smoke-test step must never produce a green release.
 - Store submission is not part of the pipeline until an active store account and submission credentials exist.
 
 ## Setup Checklist
@@ -259,13 +256,15 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 - [x] Add Android Preview and Production Fingerprint workflows
 - [x] Restrict GitHub `Preview` deployments to `develop` and `Production` deployments to `main`
 - [x] Sync `HIKER_API_KEY` before the normal Edge Function deployment
-- [x] Add same-SHA `Preview Green` and `Preview Promotion Gate` checks
+- [x] Add affected-components `Preview Green` and `Preview Promotion Gate` checks
 - [x] Make missing Supabase and Cloudflare deployment credentials fail closed
 - [x] Add read-only credential-scope audits before remote mutations
-- [x] Disable Vercel affected-project deployment skipping so every `develop` SHA gets an Admin identity
+- [x] Configure the Admin Ignored Build Step so only Admin and dependency changes get a new identity
 - [x] Create the Admin `develop` Vercel Deploy Hook and store it only in GitHub Preview
 - [x] Bind the Supabase GitHub Integration to the Preview project and reject Preview PATs
 - [x] Configure the Preview Worker connected Git build for `develop` and remove broad Cloudflare credentials and Deploy Hooks from GitHub Preview
+- [ ] Set the Preview Worker build watch include path to `workers/api-proxy/*` in Cloudflare Settings > Build
+- [x] Add affected-path CI planning, component-specific deployment gates, and documentation-only no-op releases
 - [ ] Revoke any previously exposed Preview Hiker key, set a fresh key only in Preview Supabase, and pass the real lookup smoke test
 - [ ] Configure Apple signing credentials before enabling iOS jobs
 - [ ] Create an active Google Play developer account and EAS Submit service account before enabling store submission
