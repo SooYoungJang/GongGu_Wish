@@ -221,7 +221,7 @@ test("Preview deployment credentials are denied Production targets", () => {
 
   assert.match(supabaseJob, /api\.supabase\.com\/v1\/projects/);
   assert.match(supabaseJob, /iosdoheblabfimkjnvfj/);
-  assert.match(supabaseJob, /expected.*inaccessible/is);
+  assert.match(supabaseJob, /forbidden.*opposite-tier project/is);
   assert.match(workerJob, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
   assert.match(workerJob, /workers\/builds\/deploy_hooks/);
   assert.match(workerJob, /broad.*credential.*must not/is);
@@ -233,9 +233,35 @@ test("Preview deployment credentials are denied Production targets", () => {
     job("deploy-hiker-lookup"),
     /Verify Supabase credential isolation/,
   );
-  assert.match(credentialAudit, /Preview-only Supabase access/);
+  assert.match(credentialAudit, /Supabase Preview access without Production/);
   assert.match(credentialAudit, /Preview-only Cloudflare deploy hook/);
   assert.match(credentialAudit, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
   assert.match(credentialAudit, /Preview-only Vercel deploy hook/);
   assert.match(credentialAudit, /VERCEL_PREVIEW_DEPLOY_HOOK_URL/);
+});
+
+test("Supabase isolation checks expected and forbidden projects independently", () => {
+  for (const jobId of [
+    "audit-preview-credentials",
+    "deploy-hiker-lookup",
+    "supabase-db",
+  ]) {
+    const body = job(jobId);
+
+    assert.doesNotMatch(
+      body,
+      /length == 1/,
+      `${jobId} must not reject harmless unrelated projects`,
+    );
+    assert.match(
+      body,
+      /if ! jq[\s\S]*select\(\.ref == \$expected\)/,
+      `${jobId} must require access to its expected project`,
+    );
+    assert.match(
+      body,
+      /if jq[\s\S]*select\(\.ref == \$forbidden\)/,
+      `${jobId} must independently reject the opposite-tier project`,
+    );
+  }
 });
