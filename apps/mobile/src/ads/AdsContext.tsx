@@ -10,14 +10,19 @@ export const disabledAds: AdsContextValue = {
   enabled: false,
   isReady: false,
   isSettled: true,
-  homeNativeUnitId: null,
+  nativeUnitIds: { detail: null, home: null, reels: null },
   privacyOptionsRequired: false,
   showPrivacyOptions: showNoPrivacyOptions,
 };
 
 export const AdsContext = createContext<AdsContextValue>(disabledAds);
 
-export function AdsProvider({ children }: PropsWithChildren) {
+export function AdsProvider({
+  children,
+}: PropsWithChildren<{
+  adAccessResolved?: boolean;
+  adsRemoved?: boolean;
+}>) {
   return (
     <AdsContext.Provider value={disabledAds}>{children}</AdsContext.Provider>
   );

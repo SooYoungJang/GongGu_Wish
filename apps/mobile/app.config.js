@@ -2,8 +2,19 @@ const { AndroidConfig, withAndroidManifest } = require("expo/config-plugins");
 
 const GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID =
   "ca-app-pub-3940256099942544~3347511713";
+const GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID =
+  "ca-app-pub-3940256099942544~1458002511";
 const GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID =
   "ca-app-pub-3940256099942544/2247696110";
+const GOOGLE_MOBILE_ADS_TEST_NATIVE_VIDEO_UNIT_ID =
+  "ca-app-pub-3940256099942544/1044960115";
+const GOOGLE_MOBILE_ADS_TEST_UNIT_IDS = new Set([
+  GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID,
+  GOOGLE_MOBILE_ADS_TEST_NATIVE_VIDEO_UNIT_ID,
+  "ca-app-pub-3940256099942544/3986624511",
+  "ca-app-pub-3940256099942544/2521693316",
+]);
+const NATIVE_AD_PLACEMENTS = ["home", "reels", "detail"];
 const ADS_MODES = new Set(["off", "test", "production"]);
 const ADMOB_APP_ID_PATTERN = /^ca-app-pub-\d{16}~\d{10}$/;
 const ADMOB_UNIT_ID_PATTERN = /^ca-app-pub-\d{16}\/\d{10}$/;
@@ -122,18 +133,65 @@ function publisherPrefix(id) {
   return id.split(/[~/]/, 1)[0];
 }
 
+function resolveProductionAdPlatform({ appId, label, nativeUnitIds, testAppId }) {
+  const normalizedAppId = normalizeValue(appId);
+  const normalizedUnitIds = Object.fromEntries(
+    NATIVE_AD_PLACEMENTS.map((placement) => [
+      placement,
+      normalizeValue(nativeUnitIds?.[placement]),
+    ]),
+  );
+  const hasAnyValue =
+    Boolean(normalizedAppId) ||
+    NATIVE_AD_PLACEMENTS.some((placement) => normalizedUnitIds[placement]);
+  if (!hasAnyValue) return null;
+
+  const validAppId =
+    normalizedAppId &&
+    ADMOB_APP_ID_PATTERN.test(normalizedAppId) &&
+    normalizedAppId !== testAppId;
+  const appPublisher = validAppId
+    ? publisherPrefix(normalizedAppId)
+    : undefined;
+  const validUnitIds = NATIVE_AD_PLACEMENTS.every((placement) => {
+    const unitId = normalizedUnitIds[placement];
+    return (
+      unitId &&
+      ADMOB_UNIT_ID_PATTERN.test(unitId) &&
+      !GOOGLE_MOBILE_ADS_TEST_UNIT_IDS.has(unitId) &&
+      publisherPrefix(unitId) === appPublisher
+    );
+  });
+
+  if (!validAppId || !validUnitIds) {
+    throw new Error(
+      `[AdMob] production ${label} ads require one non-test App ID and ` +
+        "matching home, reels, and detail native ad unit IDs",
+    );
+  }
+
+  return {
+    appId: normalizedAppId,
+    nativeUnitIds: normalizedUnitIds,
+  };
+}
+
 function resolveAdsBuildConfig({
   automatedE2E,
   configuredAndroidAppId,
-  configuredHomeNativeUnitId,
+  configuredAndroidNativeUnitIds,
+  configuredIosAppId,
+  configuredIosNativeUnitIds,
   isProductionBuild,
   requestedMode,
 }) {
+  const disabledNativeUnitIds = { android: null, ios: null };
   if (automatedE2E) {
     return {
       androidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
-      homeNativeUnitId: null,
+      iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode: "off",
+      nativeUnitIds: disabledNativeUnitIds,
     };
   }
 
@@ -148,34 +206,40 @@ function resolveAdsBuildConfig({
   if (mode !== "production") {
     return {
       androidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
-      homeNativeUnitId: null,
+      iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode,
+      nativeUnitIds: disabledNativeUnitIds,
     };
   }
 
-  const androidAppId = normalizeValue(configuredAndroidAppId);
-  const homeNativeUnitId = normalizeValue(configuredHomeNativeUnitId);
-  const validAppId =
-    androidAppId &&
-    ADMOB_APP_ID_PATTERN.test(androidAppId) &&
-    androidAppId !== GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID;
-  const validUnitId =
-    homeNativeUnitId &&
-    ADMOB_UNIT_ID_PATTERN.test(homeNativeUnitId) &&
-    homeNativeUnitId !== GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID;
-  const matchingPublisher =
-    validAppId &&
-    validUnitId &&
-    publisherPrefix(androidAppId) === publisherPrefix(homeNativeUnitId);
-
-  if (!validAppId || !validUnitId || !matchingPublisher) {
+  const android = resolveProductionAdPlatform({
+    appId: configuredAndroidAppId,
+    label: "Android",
+    nativeUnitIds: configuredAndroidNativeUnitIds,
+    testAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
+  });
+  const ios = resolveProductionAdPlatform({
+    appId: configuredIosAppId,
+    label: "iOS",
+    nativeUnitIds: configuredIosNativeUnitIds,
+    testAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
+  });
+  if (!android && !ios) {
     throw new Error(
-      "[AdMob] production mode requires matching, non-test Android App ID " +
-        "and native ad unit ID",
+      "[AdMob] production mode requires a complete Android or iOS ad configuration",
     );
   }
 
-  return { androidAppId, homeNativeUnitId, mode };
+  return {
+    androidAppId:
+      android?.appId ?? GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
+    iosAppId: ios?.appId ?? GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
+    mode,
+    nativeUnitIds: {
+      android: android?.nativeUnitIds ?? null,
+      ios: ios?.nativeUnitIds ?? null,
+    },
+  };
 }
 
 function setAndroidMetadata(androidManifest, name, value) {
@@ -236,6 +300,17 @@ function withAndroidGoogleMobileAds(config, androidAppId) {
   });
 }
 
+function applyGoogleMobileAdsIosInfoPlist(infoPlist, iosAppId) {
+  // https://developers.google.com/admob/ios/quick-start#update_your_infoplist
+  return {
+    ...infoPlist,
+    GADApplicationIdentifier: iosAppId,
+    SKAdNetworkItems: infoPlist?.SKAdNetworkItems ?? [
+      { SKAdNetworkIdentifier: "cstr6suwn9.skadnetwork" },
+    ],
+  };
+}
+
 function applyAutomatedE2EAndroidManifest(androidManifest) {
   const application = androidManifest.manifest.application?.[0];
   if (!application) {
@@ -262,8 +337,17 @@ const createAppConfig = ({ config }) => {
   const ads = resolveAdsBuildConfig({
     automatedE2E,
     configuredAndroidAppId: process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID,
-    configuredHomeNativeUnitId:
-      process.env.EXPO_PUBLIC_ADMOB_HOME_NATIVE_UNIT_ID,
+    configuredAndroidNativeUnitIds: {
+      detail: process.env.EXPO_PUBLIC_ADMOB_DETAIL_NATIVE_UNIT_ID,
+      home: process.env.EXPO_PUBLIC_ADMOB_HOME_NATIVE_UNIT_ID,
+      reels: process.env.EXPO_PUBLIC_ADMOB_REELS_NATIVE_UNIT_ID,
+    },
+    configuredIosAppId: process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID,
+    configuredIosNativeUnitIds: {
+      detail: process.env.EXPO_PUBLIC_ADMOB_IOS_DETAIL_NATIVE_UNIT_ID,
+      home: process.env.EXPO_PUBLIC_ADMOB_IOS_HOME_NATIVE_UNIT_ID,
+      reels: process.env.EXPO_PUBLIC_ADMOB_IOS_REELS_NATIVE_UNIT_ID,
+    },
     isProductionBuild: appVariant.key === "production",
     requestedMode: process.env.EXPO_PUBLIC_ADMOB_MODE,
   });
@@ -300,8 +384,12 @@ const createAppConfig = ({ config }) => {
         automatedE2E,
         adsMode: ads.mode,
         admobAndroidAppId: ads.androidAppId,
-        ...(ads.homeNativeUnitId
-          ? { admobHomeNativeUnitId: ads.homeNativeUnitId }
+        admobIosAppId: ads.iosAppId,
+        ...(ads.nativeUnitIds.android
+          ? { admobAndroidNativeUnitIds: ads.nativeUnitIds.android }
+          : {}),
+        ...(ads.nativeUnitIds.ios
+          ? { admobIosNativeUnitIds: ads.nativeUnitIds.ios }
           : {}),
         ...(automatedE2E
           ? {
@@ -317,6 +405,10 @@ const createAppConfig = ({ config }) => {
       ios: {
         ...config.ios,
         bundleIdentifier: appVariant.applicationId,
+        infoPlist: applyGoogleMobileAdsIosInfoPlist(
+          config.ios?.infoPlist,
+          ads.iosAppId,
+        ),
       },
       android: {
         ...config.android,
@@ -336,12 +428,18 @@ const createAppConfig = ({ config }) => {
 
 createAppConfig.GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID =
   GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID;
+createAppConfig.GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID =
+  GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID;
 createAppConfig.GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID =
   GOOGLE_MOBILE_ADS_TEST_NATIVE_UNIT_ID;
+createAppConfig.GOOGLE_MOBILE_ADS_TEST_NATIVE_VIDEO_UNIT_ID =
+  GOOGLE_MOBILE_ADS_TEST_NATIVE_VIDEO_UNIT_ID;
 createAppConfig.applyAutomatedE2EAndroidManifest =
   applyAutomatedE2EAndroidManifest;
 createAppConfig.applyGoogleMobileAdsAndroidManifest =
   applyGoogleMobileAdsAndroidManifest;
+createAppConfig.applyGoogleMobileAdsIosInfoPlist =
+  applyGoogleMobileAdsIosInfoPlist;
 createAppConfig.resolveAdsBuildConfig = resolveAdsBuildConfig;
 createAppConfig.resolveAppVariant = resolveAppVariant;
 createAppConfig.resolveBackendEnvironment = resolveBackendEnvironment;
