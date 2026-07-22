@@ -852,7 +852,7 @@ jobs:
           {
             echo "## Preview Green"
             echo ""
-            echo "All Preview components and remote smoke tests passed for `${{ github.sha }}`."
+            printf 'All Preview components and remote smoke tests passed for `%s`.\n' "${{ github.sha }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Preview release manifest

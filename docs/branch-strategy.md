@@ -20,7 +20,7 @@ only to production after a final review.
 
 1. Branch from `develop` for each feature: `git checkout -b feature/my-feature develop`
 2. Open a PR targeting `develop`. CI runs lint, typecheck, build, tests, edge function tests, and local Supabase integration contracts.
-3. After review and merge into `develop`, GitHub Actions deploys Preview Supabase DB migrations, Preview Edge Functions, the Preview Cloudflare Worker, and the Preview mobile app. The Vercel Git integration creates the Admin Preview deployment from the same SHA. `Preview Green` succeeds only after every deployment and the remote API, Admin, and Hiker smoke tests pass.
+3. After review and merge into `develop`, the project-bound Supabase GitHub Integration deploys Preview migrations and Edge Functions, while the connected Cloudflare Workers Build deploys the Preview Worker. GitHub Actions waits for those exact-SHA deployments, deploys the Preview mobile app, and verifies the Vercel Admin deployment. `Preview Green` succeeds only after every deployment and the remote API, Admin, and Hiker smoke tests pass.
 4. When Preview is validated, open a PR from `develop` to `main`. `Preview Promotion Gate` requires the PR head to be the latest `develop` SHA and requires that exact SHA's successful `Preview Green` run.
 5. After review and merge into `main`, GitHub Actions deploys the production Supabase DB, production Edge Functions, and the production Cloudflare Worker. The Vercel Git integration creates the Admin production deployment from the same push. After the backend deployment succeeds, the mobile workflow publishes to the `production` channel.
 
@@ -77,10 +77,9 @@ the `production` AAB profile and enabling EAS Submit.
 ### `develop` push (merge)
 
 - Same quality gates
-- Deploy to Preview Supabase DB (`supabase db push`)
-- Deploy Preview Edge Functions
-- RLS policy audit on Preview
-- Trigger the `gonggu-api-proxy-preview` Workers Builds Deploy Hook and wait for the exact SHA
+- Run the local migration, Edge boot, and RLS contracts
+- Require the project-bound Supabase integration to apply Preview migrations and Edge Functions for the exact SHA
+- Wait for the project-bound `gonggu-api-proxy-preview` Workers Build triggered by the `develop` push and require the exact SHA
 - Vercel Git integration creates the Admin Preview deployment outside GitHub Actions
 - After backend deployment success, run the Android Preview Fingerprint workflow
 - Build a new Preview APK when native inputs changed; otherwise publish a Preview OTA update
@@ -118,16 +117,21 @@ Two GitHub environments are used in Actions:
 - `production`: protects production secrets. Required for all `main` deployments.
 - `preview`: protects Preview secrets. Required for all `develop` deployments.
 
-Each environment should have its own set of secrets:
+The `preview` environment stores only credentials that GitHub Actions must use:
 
-- `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`
 - `EXPO_TOKEN`
-- `HIKER_API_KEY`
+- `VERCEL_PREVIEW_DEPLOY_HOOK_URL`
 
-Cloudflare credentials differ by tier:
+It must not contain `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
+`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, or a Cloudflare Deploy Hook.
+The project-bound Supabase and Cloudflare Git integrations own `develop`
+deployments without exposing account-wide credentials to GitHub Actions. The
+Preview `HIKER_API_KEY` is a runtime secret stored directly in the Preview
+Supabase project and remains in place when the integration deploys the function.
 
-- `Preview`: `CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL` only
-- `Production`: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
+The `production` environment stores `SUPABASE_ACCESS_TOKEN`,
+`SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+`EXPO_TOKEN`, and `HIKER_API_KEY` for the explicit `main` deployment jobs.
 
 The Preview environment also stores `VERCEL_PREVIEW_DEPLOY_HOOK_URL`, created
 for the Admin project's `develop` branch. It is project/repository/branch scoped
@@ -143,7 +147,9 @@ conditions:
 - `Preview`: only `develop`
 - `Production`: only `main`
 
-Preview secrets must point to the Preview Supabase project and Preview Cloudflare Worker. Production secrets must point to production resources.
+Preview integration bindings and runtime secrets must point to the Preview
+Supabase project and Preview Cloudflare Worker. Production secrets must point
+to production resources.
 Vercel credentials and environment variables are managed by the Vercel project because deployments use the repository's Git integration.
 The Vercel project's `Skip deployments when there are no changes to the root
 directory or its dependencies` option must remain disabled. Create one Deploy
@@ -158,43 +164,44 @@ Different resource URLs are necessary but not sufficient. A Preview deployment
 credential must also be unable to list, read, update, deploy, or delete the
 corresponding Production resource.
 
-- The Preview Supabase token must belong to a user with a project-scoped role
-  for `xwblovggtvbpiusjfokq` only. A PAT created by an organization owner that
-  can also see `iosdoheblabfimkjnvfj` is not a Preview-only credential.
+- Preview does not use a Supabase PAT or database password. The Supabase GitHub
+  Integration is bound to `xwblovggtvbpiusjfokq`, and CI requires its
+  `Supabase Preview` check for the exact `develop` SHA and expected project URL.
+  Any `SUPABASE_ACCESS_TOKEN` configured in GitHub Preview fails the audit.
 - Cloudflare `Workers Scripts Write` is account-scoped, so the GitHub Preview
   environment must not contain an API token or account ID with that permission.
-  It uses a Workers Builds Deploy Hook created inside
-  `gonggu-api-proxy-preview` and tied to `develop`; that opaque hook can trigger
-  only the selected Worker build. Production keeps its account token in the
-  GitHub Production environment.
-- Preview and Production use separate Hiker API keys. Hiker keys are stored only
-  in their GitHub environment and corresponding Supabase Edge Function secret;
-  they are never exposed through a `VITE_` variable or committed file. A key
-  disclosed in logs, chat, screenshots, or browser automation is revoked before
-  release.
+  `gonggu-api-proxy-preview` instead uses its connected Git production trigger,
+  bound to `develop`; GitHub Actions observes `/health` until the exact SHA is
+  active and never retriggers the build. Production keeps its account token in
+  the GitHub Production environment.
+- Preview and Production use separate Hiker API keys. The Preview key is stored
+  only as a Preview Supabase runtime secret. The Production key is stored in the
+  GitHub Production environment and synced to the Production Supabase runtime
+  secret during deployment. Neither key is exposed through a `VITE_` variable
+  or committed file. A key disclosed in logs, chat, screenshots, or browser
+  automation is revoked before release.
 - Expo/EAS credentials and variables remain environment-scoped. Preview builds
   use only the `preview` profile, channel, and environment.
 
 Run `CI/CD — Supabase + API` manually with
-`audit_preview_credentials=true` after creating or rotating Preview deployment
-credentials. The read-only audit must show exactly one visible Supabase project,
-a valid Preview Deploy Hook, and no broad Cloudflare account credential in the
-Preview environment, plus the Admin project's `develop`-scoped Vercel Deploy
-Hook. Normal deployment jobs repeat these checks before making any remote
-mutation.
+`audit_preview_credentials=true` after changing Preview integration or
+deployment settings. The audit rejects a Supabase PAT, Cloudflare API token, or
+Cloudflare account ID in Preview and requires the Admin project's
+`develop`-scoped Vercel Deploy Hook. Normal deployment jobs repeat the relevant
+checks before making any remote mutation.
 
 Configure Workers Builds for `gonggu-api-proxy-preview` with repository
 `SooYoungJang/GongGu_Wish`, production branch `develop`, root directory
 `workers/api-proxy`, and deploy command:
 
 ```sh
-npx wrangler deploy --config wrangler.preview.jsonc --tag "$WORKERS_CI_COMMIT_SHA" --message "Cloudflare $WORKERS_CI_COMMIT_SHA"
+npx wrangler deploy --config wrangler.preview.jsonc --tag "$(git rev-parse HEAD)" --message "Cloudflare $(git rev-parse HEAD)"
 ```
 
-Create a Deploy Hook for that `develop` build and store its URL only as the
-Preview environment secret `CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL`. The GitHub job
-does not complete until `https://api-preview.gongguwish.com/health` reports the
-same SHA, Preview environment, and Preview Supabase project.
+Do not create or call a Cloudflare Deploy Hook from GitHub Actions. The connected
+Git provider triggers this build on each `develop` push. The GitHub job does not
+complete until `https://api-preview.gongguwish.com/health` reports the same SHA,
+Preview environment, and Preview Supabase project.
 
 ## Release Identity Contract
 
@@ -237,9 +244,9 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 - [x] Make missing Supabase and Cloudflare deployment credentials fail closed
 - [x] Add read-only credential-scope audits before remote mutations
 - [x] Disable Vercel affected-project deployment skipping so every `develop` SHA gets an Admin identity
-- [ ] Create the Admin `develop` Vercel Deploy Hook and store it only in GitHub Preview
-- [ ] Replace the Preview Supabase PAT with a Preview-project-only credential
-- [ ] Configure the Preview Worker `develop` Deploy Hook, store it in GitHub Preview, and remove the broad Cloudflare token/account secrets from Preview
-- [ ] Revoke exposed Hiker keys, create one fresh Preview key, sync it to GitHub Preview and Preview Supabase, and pass the real lookup smoke test
+- [x] Create the Admin `develop` Vercel Deploy Hook and store it only in GitHub Preview
+- [x] Bind the Supabase GitHub Integration to the Preview project and reject Preview PATs
+- [x] Configure the Preview Worker connected Git build for `develop` and remove broad Cloudflare credentials and Deploy Hooks from GitHub Preview
+- [ ] Revoke any previously exposed Preview Hiker key, set a fresh key only in Preview Supabase, and pass the real lookup smoke test
 - [ ] Configure Apple signing credentials before enabling iOS jobs
 - [ ] Create an active Google Play developer account and EAS Submit service account before enabling store submission
