@@ -107,6 +107,20 @@ test("the Worker deploy waits for DB, RLS, and Edge Functions", () => {
   assert.match(workerJob, /needs\.supabase-functions\.result == 'success'/);
 });
 
+test("JavaScript Worker deploys do not depend on a custom tsconfig", () => {
+  for (const file of [
+    "workers/api-proxy/wrangler.jsonc",
+    "workers/api-proxy/wrangler.preview.jsonc",
+  ]) {
+    const source = readFileSync(file, "utf8");
+    assert.doesNotMatch(
+      source,
+      /"tsconfig"\s*:/,
+      `${file} must not require Wrangler to resolve a custom tsconfig`,
+    );
+  }
+});
+
 test("develop publishes a green same-SHA Preview release gate", () => {
   const releaseGate = job("preview-release-gate");
   const needs = releaseGate.match(/^    needs:\s*\[([^\]]+)\]/m)?.[1] ?? "";

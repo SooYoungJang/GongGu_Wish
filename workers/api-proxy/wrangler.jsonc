@@ -2,7 +2,6 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "gonggu-api-proxy",
   "main": "src/index.js",
-  "tsconfig": "./tsconfig.json",
   "compatibility_date": "2026-07-19",
   "workers_dev": false,
   "preview_urls": false,
