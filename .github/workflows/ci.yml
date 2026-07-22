@@ -7,11 +7,6 @@ on:
     branches: [main, develop]
   workflow_dispatch:
     inputs:
-      deploy_hiker_lookup:
-        description: "Deploy only the hiker-lookup Edge Function"
-        required: false
-        type: boolean
-        default: false
       audit_preview_credentials:
         description: "Read-only audit of Preview credential isolation"
         required: false
@@ -43,13 +38,11 @@ jobs:
     steps:
       - name: Require Preview credential audit inputs
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL }}
           VERCEL_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_PREVIEW_DEPLOY_HOOK_URL }}
         run: |
           set -euo pipefail
           for name in \
-            SUPABASE_ACCESS_TOKEN \
             CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL \
             VERCEL_PREVIEW_DEPLOY_HOOK_URL; do
             if [[ -z "${!name:-}" ]]; then
@@ -58,29 +51,15 @@ jobs:
             fi
           done
 
-      - name: Require Supabase Preview access without Production
+      - name: Reject broad Supabase account credentials in Preview
         id: supabase-isolation-audit
         continue-on-error: true
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          EXPECTED_PROJECT_REF: xwblovggtvbpiusjfokq
-          FORBIDDEN_PROJECT_REF: iosdoheblabfimkjnvfj
         run: |
           set -euo pipefail
-          projects="$(mktemp)"
-          trap 'rm -f "$projects"' EXIT
-          curl --fail --silent --show-error \
-            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            --output "$projects" \
-            https://api.supabase.com/v1/projects
-          if ! jq -e --arg expected "$EXPECTED_PROJECT_REF" \
-            '.[] | select(.ref == $expected)' "$projects" > /dev/null; then
-            echo "::error::The Preview Supabase credential cannot access the expected project $EXPECTED_PROJECT_REF."
-            exit 1
-          fi
-          if jq -e --arg forbidden "$FORBIDDEN_PROJECT_REF" \
-            '.[] | select(.ref == $forbidden)' "$projects" > /dev/null; then
-            echo "::error::The Preview Supabase credential can access the Production project $FORBIDDEN_PROJECT_REF. Replace it with a Preview-only credential."
+          if [[ -n "$SUPABASE_ACCESS_TOKEN" ]]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN must not be configured in Preview. The project-bound Supabase GitHub Integration owns develop deployments."
             exit 1
           fi
 
@@ -244,58 +223,64 @@ jobs:
     name: Local Supabase Contracts
     uses: ./.github/workflows/supabase-integration.yml
 
-  # ── Targeted Hiker Function Deploy ───────────────────────────────────────
-  deploy-hiker-lookup:
-    name: Deploy Hiker Edge Function
+  # ── Supabase Preview Integration ────────────────────────────────────────
+  supabase-preview:
+    name: Supabase Preview Integration
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-    needs: [lint, build, test, edge-tests]
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_hiker_lookup == true }}
+    timeout-minutes: 15
+    needs: [lint, build, test, edge-tests, local-supabase-contracts]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.local-supabase-contracts.result == 'success' }}
+    permissions:
+      checks: read
+      contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
-        with:
-          version: latest
-      - name: Verify Supabase credential isolation
+      - name: Require exact Preview project deployment
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          EXPECTED_PROJECT_REF: ${{ env.SUPABASE_PROJECT_REF }}
-          FORBIDDEN_PROJECT_REF: ${{ github.ref == 'refs/heads/main' && 'xwblovggtvbpiusjfokq' || 'iosdoheblabfimkjnvfj' }}
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_DETAILS_URL: https://supabase.com/dashboard/project/xwblovggtvbpiusjfokq
         run: |
           set -euo pipefail
-          projects="$(mktemp)"
-          trap 'rm -f "$projects"' EXIT
-          curl --fail --silent --show-error \
-            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            --output "$projects" \
-            https://api.supabase.com/v1/projects
-          if ! jq -e --arg expected "$EXPECTED_PROJECT_REF" \
-            '.[] | select(.ref == $expected)' "$projects" > /dev/null; then
-            echo "::error::The selected Supabase credential cannot access the expected project $EXPECTED_PROJECT_REF."
-            exit 1
-          fi
-          if jq -e --arg forbidden "$FORBIDDEN_PROJECT_REF" \
-            '.[] | select(.ref == $forbidden)' "$projects" > /dev/null; then
-            echo "::error::The selected Supabase credential can access the forbidden opposite-tier project $FORBIDDEN_PROJECT_REF."
-            exit 1
-          fi
-      - name: Configure Hiker API secret
-        env:
-          HIKER_API_KEY: ${{ secrets.HIKER_API_KEY }}
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          if [[ -z "$HIKER_API_KEY" ]]; then
-            echo "::error::HIKER_API_KEY is not configured in the selected GitHub environment."
-            exit 1
-          fi
+          response="$(mktemp)"
+          check="$(mktemp)"
+          trap 'rm -f "$response" "$check"' EXIT
 
-          supabase secrets set HIKER_API_KEY="$HIKER_API_KEY" --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-      - run: supabase functions deploy hiker-lookup --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          for attempt in {1..40}; do
+            gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100&filter=latest" > "$response"
+            jq --arg sha "$GITHUB_SHA" '
+              [
+                .check_runs[] |
+                select(
+                  .head_sha == $sha and
+                  .app.slug == "supabase" and
+                  .name == "Supabase Preview"
+                )
+              ] |
+              sort_by(.started_at) |
+              last // empty
+            ' "$response" > "$check"
+
+            if [[ -s "$check" ]]; then
+              details_url="$(jq -r '.details_url // ""' "$check")"
+              if [[ "$details_url" != "$EXPECTED_DETAILS_URL"* ]]; then
+                echo "::error::Supabase Preview reported an unexpected project URL: $details_url"
+                exit 1
+              fi
+              if jq -e '.status == "completed" and .conclusion == "success"' "$check" > /dev/null; then
+                exit 0
+              fi
+              if jq -e '.status == "completed"' "$check" > /dev/null; then
+                conclusion="$(jq -r '.conclusion // "missing"' "$check")"
+                echo "::error::Supabase Preview deployment for $GITHUB_SHA concluded with $conclusion."
+                exit 1
+              fi
+            fi
+
+            if [[ "$attempt" == "40" ]]; then
+              echo "::error::Supabase Preview did not complete for exact SHA $GITHUB_SHA."
+              exit 1
+            fi
+            sleep 15
+          done
 
   # ── Dependency Review ────────────────────────────────────────────────────
   dependency-review:
@@ -316,9 +301,9 @@ jobs:
     name: Supabase DB Migration
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    environment: production
     needs: [lint, build, test, edge-tests, local-supabase-contracts]
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.local-supabase-contracts.result == 'success' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.local-supabase-contracts.result == 'success' }}
     steps:
       - name: Check Supabase deployment credentials
         env:
@@ -337,8 +322,8 @@ jobs:
       - name: Verify Supabase credential isolation
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          EXPECTED_PROJECT_REF: ${{ env.SUPABASE_PROJECT_REF }}
-          FORBIDDEN_PROJECT_REF: ${{ github.ref == 'refs/heads/main' && 'xwblovggtvbpiusjfokq' || 'iosdoheblabfimkjnvfj' }}
+          EXPECTED_PROJECT_REF: iosdoheblabfimkjnvfj
+          FORBIDDEN_PROJECT_REF: xwblovggtvbpiusjfokq
         run: |
           set -euo pipefail
           projects="$(mktemp)"
@@ -384,9 +369,9 @@ jobs:
     name: Supabase Edge Functions
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    environment: production
     needs: [rls-audit]
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.rls-audit.result == 'success' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.rls-audit.result == 'success' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -449,8 +434,9 @@ jobs:
     name: RLS Policy Audit
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: production
     needs: [supabase-db]
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.supabase-db.result == 'success' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.supabase-db.result == 'success' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -499,8 +485,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-    needs: [lint, build, test, edge-tests, supabase-functions]
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' }}
+    needs: [lint, build, test, edge-tests, supabase-preview, supabase-functions]
+    if: ${{ always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && ((github.ref == 'refs/heads/main' && needs.supabase-functions.result == 'success') || (github.ref == 'refs/heads/develop' && needs.supabase-preview.result == 'success')) }}
     defaults:
       run:
         working-directory: ./workers/api-proxy
@@ -619,8 +605,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-    needs: [lint, build, test, edge-tests, supabase-functions, deploy-worker]
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.supabase-functions.result == 'success' && needs.deploy-worker.result == 'success' }}
+    needs:
+      [
+        lint,
+        build,
+        test,
+        edge-tests,
+        supabase-preview,
+        supabase-functions,
+        deploy-worker,
+      ]
+    if: ${{ always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.deploy-worker.result == 'success' && ((github.ref == 'refs/heads/main' && needs.supabase-functions.result == 'success') || (github.ref == 'refs/heads/develop' && needs.supabase-preview.result == 'success')) }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -683,14 +678,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs:
-      [
-        local-supabase-contracts,
-        supabase-db,
-        rls-audit,
-        supabase-functions,
-        deploy-worker,
-        deploy-mobile,
-      ]
+      [local-supabase-contracts, supabase-preview, deploy-worker, deploy-mobile]
     if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     environment:
       name: preview
@@ -701,19 +689,15 @@ jobs:
     steps:
       - name: Require every Preview component deployment
         env:
-          SUPABASE_DB_RESULT: ${{ needs.supabase-db.result }}
           LOCAL_SUPABASE_RESULT: ${{ needs.local-supabase-contracts.result }}
-          RLS_AUDIT_RESULT: ${{ needs.rls-audit.result }}
-          SUPABASE_FUNCTIONS_RESULT: ${{ needs.supabase-functions.result }}
+          SUPABASE_PREVIEW_RESULT: ${{ needs.supabase-preview.result }}
           WORKER_RESULT: ${{ needs.deploy-worker.result }}
           MOBILE_RESULT: ${{ needs.deploy-mobile.result }}
         run: |
           set -euo pipefail
           for component in \
             "Local Supabase contracts:$LOCAL_SUPABASE_RESULT" \
-            "Supabase DB:$SUPABASE_DB_RESULT" \
-            "RLS audit:$RLS_AUDIT_RESULT" \
-            "Supabase Edge Functions:$SUPABASE_FUNCTIONS_RESULT" \
+            "Supabase Preview integration:$SUPABASE_PREVIEW_RESULT" \
             "Cloudflare Worker:$WORKER_RESULT" \
             "React Native:$MOBILE_RESULT"; do
             name="${component%%:*}"
