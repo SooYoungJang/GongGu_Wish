@@ -56,7 +56,7 @@ describe("AppLivePreview", () => {
     });
     expect(
       dealCard.querySelector(".app-live-preview__deal-card-brand")?.textContent,
-    ).toBe("귤밭상회");
+    ).toBe("귤밭상회 · @gyulbbad");
     expect(
       dealCard.querySelector(".app-live-preview__deal-card-deadline-badge")
         ?.textContent,

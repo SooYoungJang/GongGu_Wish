@@ -266,7 +266,7 @@ export function formToPreviewDeal(
   return canonicalizeHomeBannerForm({
     productName: form.productName.trim() || "상품명을 입력해주세요",
     brandName: form.brandName.trim() || "브랜드 미지정",
-    instagramUsername: form.instagramUsername.trim(),
+    instagramUsername: form.instagramUsername?.trim() ?? "",
     category:
       CATEGORY_OPTIONS.find((option) => option.value === form.category)
         ?.label ?? "카테고리 미지정",

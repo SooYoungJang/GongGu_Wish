@@ -773,23 +773,6 @@ type CdnRefreshStatusResponse = {
   };
 };
 
-function mapCdnRow(row: Record<string, unknown>): CdnRefreshStatusRow {
-  return {
-    id: row.id,
-    productName: row.product_name,
-    brandName: row.brand_name,
-    category: row.category,
-    videoUrl: row.video_url,
-    thumbnailUrl: row.thumbnail_url,
-    endDate: row.end_date,
-    updatedAt: row.updated_at,
-    mediaRefreshedAt: row.media_refreshed_at,
-    cdnExpiresAt: row.cdn_expires_at,
-    refreshStatus: row.refresh_status,
-    instagramUrl: row.instagram_url,
-  };
-}
-
 async function listCdnRefreshStatus(
   supabase: AdminClient,
   params: AdminRequest["params"],
