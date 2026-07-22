@@ -50,4 +50,41 @@ describe("getHomeBannerStatusCopy", () => {
       ).priceKrw,
     ).toBe(179000);
   });
+
+  it("shows 가격 미정 when no price is available", () => {
+    expect(
+      getHomeBannerStatusCopy(
+        {
+          priceKrw: null,
+          discountInfo: null,
+          startDate: "2026-07-01",
+          endDate: "2026-07-31",
+        },
+        new Date("2026-07-15T12:00:00"),
+      ),
+    ).toMatchObject({
+      accentLabel: "공구 진행 중",
+      detailLabel: "가격 미정",
+      priceKrw: null,
+    });
+  });
+
+  it("shows 가격 미정 when discount percent exists but no price", () => {
+    expect(
+      getHomeBannerStatusCopy(
+        {
+          priceKrw: null,
+          discountInfo: "22% 할인",
+          startDate: "2026-07-01",
+          endDate: "2026-07-31",
+        },
+        new Date("2026-07-15T12:00:00"),
+      ),
+    ).toMatchObject({
+      accentLabel: "22%",
+      detailLabel: "가격 미정",
+      priceKrw: null,
+    });
+  });
+
 });
