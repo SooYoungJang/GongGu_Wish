@@ -98,11 +98,81 @@ jobs:
             exit 1
           fi
 
+  # ── Change Plan & Lightweight Policy ─────────────────────────────────────
+  change-plan:
+    name: Change Plan & Policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.plan.outputs.docs_only }}
+      ci: ${{ steps.plan.outputs.ci }}
+      quality: ${{ steps.plan.outputs.quality }}
+      build: ${{ steps.plan.outputs.build }}
+      test: ${{ steps.plan.outputs.test }}
+      api: ${{ steps.plan.outputs.api }}
+      edge_tests: ${{ steps.plan.outputs.edge_tests }}
+      local_supabase: ${{ steps.plan.outputs.local_supabase }}
+      worker_tests: ${{ steps.plan.outputs.worker_tests }}
+      dependency_review: ${{ steps.plan.outputs.dependency_review }}
+      supabase: ${{ steps.plan.outputs.supabase }}
+      database: ${{ steps.plan.outputs.database }}
+      functions: ${{ steps.plan.outputs.functions }}
+      worker: ${{ steps.plan.outputs.worker }}
+      admin: ${{ steps.plan.outputs.admin }}
+      mobile: ${{ steps.plan.outputs.mobile }}
+      workspace_filters: ${{ steps.plan.outputs.workspace_filters }}
+      workspace_test_filters: ${{ steps.plan.outputs.workspace_test_filters }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test CI change and release policy
+        run: node --test scripts/ci-change-plan.test.mjs scripts/preview-release-contract.test.mjs
+      - name: Classify changed files
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          changed_files="$(mktemp)"
+          trap 'rm -f "$changed_files"' EXIT
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            head="$HEAD_SHA"
+            base="$(git merge-base "$BASE_SHA" "$head")"
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            base="$BEFORE_SHA"
+            head="$HEAD_SHA"
+            if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+              base="$(git rev-parse "$head^" 2>/dev/null || true)"
+            fi
+          else
+            base=""
+            head="$HEAD_SHA"
+            printf '%s\n' 'scripts/ci-change-plan.mjs' > "$changed_files"
+          fi
+
+          if [[ -n "$base" && -n "$head" ]]; then
+            git diff --no-renames --name-only "$base" "$head" > "$changed_files"
+          fi
+          node scripts/ci-change-plan.mjs \
+            --files "$changed_files" \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Test mobile deployment decision logic
+        if: ${{ steps.plan.outputs.mobile == 'true' || steps.plan.outputs.ci == 'true' }}
+        run: bash apps/mobile/scripts/ci-deploy-android.test.sh
+
   # ── Lint & Typecheck ──────────────────────────────────────────────────────
   lint:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: [change-plan]
+    if: ${{ needs.change-plan.outputs.quality == 'true' }}
     defaults:
       run:
         working-directory: ./
@@ -116,18 +186,29 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run db:generate
-      - run: npm run lint
-      - run: npm run typecheck
-      - name: Test mobile deployment decision logic
-        run: bash apps/mobile/scripts/ci-deploy-android.test.sh
-      - name: Test Preview release contracts
-        run: node --test scripts/preview-release-contract.test.mjs
+        if: ${{ needs.change-plan.outputs.api == 'true' }}
+      - name: Lint affected workspaces
+        env:
+          WORKSPACE_FILTERS: ${{ needs.change-plan.outputs.workspace_filters }}
+        run: |
+          set -euo pipefail
+          read -r -a workspace_filters <<< "$WORKSPACE_FILTERS"
+          npm run lint -- "${workspace_filters[@]}"
+      - name: Typecheck affected workspaces
+        env:
+          WORKSPACE_FILTERS: ${{ needs.change-plan.outputs.workspace_filters }}
+        run: |
+          set -euo pipefail
+          read -r -a workspace_filters <<< "$WORKSPACE_FILTERS"
+          npm run typecheck -- "${workspace_filters[@]}"
 
   # ── Build ─────────────────────────────────────────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: [change-plan]
+    if: ${{ needs.change-plan.outputs.build == 'true' }}
     defaults:
       run:
         working-directory: ./
@@ -141,16 +222,50 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run db:generate
-      - run: npm run build
+        if: ${{ needs.change-plan.outputs.api == 'true' }}
+      - name: Build affected workspaces
+        env:
+          WORKSPACE_FILTERS: ${{ needs.change-plan.outputs.workspace_filters }}
+        run: |
+          set -euo pipefail
+          read -r -a workspace_filters <<< "$WORKSPACE_FILTERS"
+          npm run build -- "${workspace_filters[@]}"
 
   # ── Tests ─────────────────────────────────────────────────────────────────
   test:
     name: Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: [change-plan]
+    if: ${{ needs.change-plan.outputs.test == 'true' }}
     defaults:
       run:
         working-directory: ./
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+      - run: npm ci
+
+      - name: Test affected non-API workspaces
+        env:
+          WORKSPACE_FILTERS: ${{ needs.change-plan.outputs.workspace_test_filters }}
+        run: |
+          set -euo pipefail
+          read -r -a workspace_filters <<< "$WORKSPACE_FILTERS"
+          npm test -- "${workspace_filters[@]}"
+
+  # ── API Tests (PostgreSQL) ────────────────────────────────────────────────
+  api-tests:
+    name: API Tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [change-plan]
+    if: ${{ needs.change-plan.outputs.api == 'true' }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -174,12 +289,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
       - run: npm ci
-
-      # Generate Prisma client
       - run: npm run db:generate
-
-      # Run tests
-      - run: npm test
+      - run: npm test -- --filter=@gonggu/api
         env:
           DATABASE_URL: postgresql://gonggu:gonggu@localhost:5432/gonggu_wish_test?schema=public
           JWT_SECRET: test-secret
@@ -191,6 +302,8 @@ jobs:
     name: Edge Function Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: [change-plan]
+    if: ${{ needs.change-plan.outputs.edge_tests == 'true' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -214,6 +327,8 @@ jobs:
   # ── Local Supabase Contracts ─────────────────────────────────────────────
   local-supabase-contracts:
     name: Local Supabase Contracts
+    needs: [change-plan]
+    if: ${{ needs.change-plan.outputs.local_supabase == 'true' }}
     uses: ./.github/workflows/supabase-integration.yml
 
   # ── Supabase Preview Integration ────────────────────────────────────────
@@ -221,8 +336,8 @@ jobs:
     name: Supabase Preview Integration
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [lint, build, test, edge-tests, local-supabase-contracts]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.local-supabase-contracts.result == 'success' }}
+    needs: [change-plan, edge-tests, local-supabase-contracts]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' && needs.change-plan.outputs.supabase == 'true' && needs.local-supabase-contracts.result == 'success' && (needs.change-plan.outputs.edge_tests != 'true' || needs.edge-tests.result == 'success') }}
     permissions:
       checks: read
       contents: read
@@ -278,7 +393,8 @@ jobs:
   # ── Dependency Review ────────────────────────────────────────────────────
   dependency-review:
     name: Dependency Review
-    if: ${{ github.event_name == 'pull_request' }}
+    needs: [change-plan]
+    if: ${{ github.event_name == 'pull_request' && needs.change-plan.outputs.dependency_review == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -295,8 +411,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
-    needs: [lint, build, test, edge-tests, local-supabase-contracts]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.local-supabase-contracts.result == 'success' }}
+    needs: [change-plan, local-supabase-contracts]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-plan.outputs.database == 'true' && needs.local-supabase-contracts.result == 'success' }}
     steps:
       - name: Check Supabase deployment credentials
         env:
@@ -363,8 +479,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
-    needs: [rls-audit]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.rls-audit.result == 'success' }}
+    needs:
+      [
+        change-plan,
+        edge-tests,
+        local-supabase-contracts,
+        supabase-db,
+        rls-audit,
+      ]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-plan.outputs.functions == 'true' && needs.edge-tests.result == 'success' && needs.local-supabase-contracts.result == 'success' && (needs.change-plan.outputs.database != 'true' || needs.rls-audit.result == 'success') }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -428,8 +551,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
-    needs: [supabase-db]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.supabase-db.result == 'success' }}
+    needs: [change-plan, supabase-db]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-plan.outputs.database == 'true' && needs.supabase-db.result == 'success' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -472,14 +595,44 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
+  # ── Cloudflare Worker Checks ─────────────────────────────────────────────
+  worker-tests:
+    name: Cloudflare Worker Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [change-plan]
+    if: ${{ needs.change-plan.outputs.worker_tests == 'true' }}
+    defaults:
+      run:
+        working-directory: ./workers/api-proxy
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: workers/api-proxy/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run check:preview
+
   # ── Cloudflare Worker Deploy ─────────────────────────────────────────────
   deploy-worker:
     name: Deploy Cloudflare Worker
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-    needs: [lint, build, test, edge-tests, supabase-preview, supabase-functions]
-    if: ${{ always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && ((github.ref == 'refs/heads/main' && needs.supabase-functions.result == 'success') || (github.ref == 'refs/heads/develop' && needs.supabase-preview.result == 'success')) }}
+    needs:
+      [
+        change-plan,
+        worker-tests,
+        supabase-preview,
+        rls-audit,
+        supabase-functions,
+      ]
+    if: ${{ always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.change-plan.outputs.worker == 'true' && needs.worker-tests.result == 'success' && ((github.ref == 'refs/heads/main' && (needs.change-plan.outputs.database != 'true' || needs.rls-audit.result == 'success') && (needs.change-plan.outputs.functions != 'true' || needs.supabase-functions.result == 'success')) || (github.ref == 'refs/heads/develop' && (needs.change-plan.outputs.supabase != 'true' || needs.supabase-preview.result == 'success'))) }}
     defaults:
       run:
         working-directory: ./workers/api-proxy
@@ -572,15 +725,17 @@ jobs:
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
     needs:
       [
+        change-plan,
         lint,
         build,
         test,
-        edge-tests,
+        api-tests,
         supabase-preview,
+        rls-audit,
         supabase-functions,
         deploy-worker,
       ]
-    if: ${{ always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.edge-tests.result == 'success' && needs.deploy-worker.result == 'success' && ((github.ref == 'refs/heads/main' && needs.supabase-functions.result == 'success') || (github.ref == 'refs/heads/develop' && needs.supabase-preview.result == 'success')) }}
+    if: ${{ always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.change-plan.outputs.mobile == 'true' && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && (needs.change-plan.outputs.api != 'true' || needs.api-tests.result == 'success') && ((github.ref == 'refs/heads/main' && (needs.change-plan.outputs.database != 'true' || needs.rls-audit.result == 'success') && (needs.change-plan.outputs.functions != 'true' || needs.supabase-functions.result == 'success') && (needs.change-plan.outputs.worker != 'true' || needs.deploy-worker.result == 'success')) || (github.ref == 'refs/heads/develop' && (needs.change-plan.outputs.supabase != 'true' || needs.supabase-preview.result == 'success') && (needs.change-plan.outputs.worker != 'true' || needs.deploy-worker.result == 'success'))) }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -643,7 +798,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs:
-      [local-supabase-contracts, supabase-preview, deploy-worker, deploy-mobile]
+      [
+        change-plan,
+        lint,
+        build,
+        test,
+        api-tests,
+        edge-tests,
+        local-supabase-contracts,
+        supabase-preview,
+        worker-tests,
+        deploy-worker,
+        deploy-mobile,
+      ]
     if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     environment:
       name: preview
@@ -652,28 +819,64 @@ jobs:
       contents: read
       deployments: read
     steps:
-      - name: Require every Preview component deployment
+      - name: Require every affected Preview component
         env:
+          PLAN_RESULT: ${{ needs.change-plan.result }}
+          QUALITY_REQUIRED: ${{ needs.change-plan.outputs.quality }}
+          TEST_REQUIRED: ${{ needs.change-plan.outputs.test }}
+          API_REQUIRED: ${{ needs.change-plan.outputs.api }}
+          EDGE_REQUIRED: ${{ needs.change-plan.outputs.edge_tests }}
+          LOCAL_SUPABASE_REQUIRED: ${{ needs.change-plan.outputs.local_supabase }}
+          SUPABASE_REQUIRED: ${{ needs.change-plan.outputs.supabase }}
+          WORKER_REQUIRED: ${{ needs.change-plan.outputs.worker }}
+          MOBILE_REQUIRED: ${{ needs.change-plan.outputs.mobile }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          API_TEST_RESULT: ${{ needs.api-tests.result }}
+          EDGE_RESULT: ${{ needs.edge-tests.result }}
           LOCAL_SUPABASE_RESULT: ${{ needs.local-supabase-contracts.result }}
           SUPABASE_PREVIEW_RESULT: ${{ needs.supabase-preview.result }}
+          WORKER_TEST_RESULT: ${{ needs.worker-tests.result }}
           WORKER_RESULT: ${{ needs.deploy-worker.result }}
           MOBILE_RESULT: ${{ needs.deploy-mobile.result }}
         run: |
           set -euo pipefail
-          for component in \
-            "Local Supabase contracts:$LOCAL_SUPABASE_RESULT" \
-            "Supabase Preview integration:$SUPABASE_PREVIEW_RESULT" \
-            "Cloudflare Worker:$WORKER_RESULT" \
-            "React Native:$MOBILE_RESULT"; do
-            name="${component%%:*}"
-            result="${component#*:}"
-            if [[ "$result" != "success" ]]; then
-              echo "::error::$name Preview deployment result is $result, expected success."
-              exit 1
+          if [[ "$PLAN_RESULT" != "success" ]]; then
+            echo "::error::Change Plan & Policy result is $PLAN_RESULT, expected success."
+            exit 1
+          fi
+
+          require_result() {
+            local required="$1"
+            local name="$2"
+            shift 2
+            if [[ "$required" != "true" ]]; then
+              return
             fi
-          done
+            for result in "$@"; do
+              if [[ "$result" != "success" ]]; then
+                echo "::error::$name result is $result, expected success."
+                exit 1
+              fi
+            done
+          }
+
+          require_result "$QUALITY_REQUIRED" "Workspace quality" \
+            "$LINT_RESULT" "$BUILD_RESULT"
+          require_result "$TEST_REQUIRED" "Workspace tests" "$TEST_RESULT"
+          require_result "$API_REQUIRED" "API tests" "$API_TEST_RESULT"
+          require_result "$EDGE_REQUIRED" "Edge Function tests" "$EDGE_RESULT"
+          require_result "$LOCAL_SUPABASE_REQUIRED" "Local Supabase contracts" \
+            "$LOCAL_SUPABASE_RESULT"
+          require_result "$SUPABASE_REQUIRED" "Supabase Preview integration" \
+            "$SUPABASE_PREVIEW_RESULT"
+          require_result "$WORKER_REQUIRED" "Cloudflare Worker" \
+            "$WORKER_TEST_RESULT" "$WORKER_RESULT"
+          require_result "$MOBILE_REQUIRED" "React Native" "$MOBILE_RESULT"
 
       - name: Trigger the Vercel Preview deployment for this SHA
+        if: ${{ needs.change-plan.outputs.admin == 'true' }}
         env:
           VERCEL_PREVIEW_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_PREVIEW_DEPLOY_HOOK_URL }}
         run: |
@@ -697,6 +900,7 @@ jobs:
           ' "$response" > /dev/null
 
       - name: Require the Vercel Preview deployment for this SHA
+        if: ${{ needs.change-plan.outputs.admin == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -756,12 +960,16 @@ jobs:
             sleep 15
           done
 
-      - name: Smoke test the complete Preview environment
+      - name: Smoke test affected Preview components
+        if: ${{ needs.change-plan.outputs.supabase == 'true' || needs.change-plan.outputs.worker == 'true' || needs.change-plan.outputs.admin == 'true' }}
         env:
+          SUPABASE_REQUIRED: ${{ needs.change-plan.outputs.supabase }}
+          WORKER_REQUIRED: ${{ needs.change-plan.outputs.worker }}
+          ADMIN_REQUIRED: ${{ needs.change-plan.outputs.admin }}
           HIKER_SMOKE_URL: ${{ vars.PREVIEW_HIKER_SMOKE_URL }}
         run: |
           set -euo pipefail
-          if [[ -z "$HIKER_SMOKE_URL" ]]; then
+          if [[ "$SUPABASE_REQUIRED" == "true" && -z "$HIKER_SMOKE_URL" ]]; then
             echo "::error::PREVIEW_HIKER_SMOKE_URL is not configured in the Preview environment."
             exit 1
           fi
@@ -780,12 +988,15 @@ jobs:
             echo "::error::Preview API health returned HTTP $api_status."
             exit 1
           fi
-          jq -e --arg sha "$GITHUB_SHA" '
+          jq -e '
             .status == "ok" and
             .environment == "preview" and
-            .commitSha == $sha and
             .supabaseProjectRef == "xwblovggtvbpiusjfokq"
           ' "$api_response" > /dev/null
+          if [[ "$WORKER_REQUIRED" == "true" ]]; then
+            jq -e --arg sha "$GITHUB_SHA" '.commitSha == $sha' \
+              "$api_response" > /dev/null
+          fi
 
           verify_admin_identity() {
             local base_url="$1"
@@ -809,50 +1020,78 @@ jobs:
             ' "$output_file" > /dev/null
           }
 
-          verify_admin_identity \
-            "https://gong-gu-wish-admin-git-develop-jsy10835.vercel.app" \
-            "$stable_identity"
-          verify_admin_identity "$VERCEL_PREVIEW_URL" "$immutable_identity"
-
-          status="$(curl --silent --show-error \
-            --output "$response_file" \
-            --write-out '%{http_code}' \
-            --request POST \
-            --header 'Content-Type: application/json' \
-            --data "$(jq -nc --arg url "$HIKER_SMOKE_URL" '{url: $url}')" \
-            https://xwblovggtvbpiusjfokq.supabase.co/functions/v1/hiker-lookup)"
-
-          if [[ "$status" != "200" ]]; then
-            error_message="$(jq -r '.error // "unknown Hiker lookup failure"' "$response_file" 2>/dev/null || true)"
-            echo "::error::Preview hiker-lookup returned HTTP $status: $error_message"
-            exit 1
+          if [[ "$ADMIN_REQUIRED" == "true" ]]; then
+            verify_admin_identity \
+              "https://gong-gu-wish-admin-git-develop-jsy10835.vercel.app" \
+              "$stable_identity"
+            verify_admin_identity "$VERCEL_PREVIEW_URL" "$immutable_identity"
           fi
-          jq -e '
-            type == "object" and
-            (has("error") | not) and
-            (
-              ((.imageUrl // "") != "") or
-              ((.videoUrl // "") != "") or
-              (((.mediaUrls // []) | length) > 0) or
-              (((.mediaItems // []) | length) > 0)
-            )
-          ' "$response_file" > /dev/null
 
-      - name: Create same-SHA Preview release manifest
+          if [[ "$SUPABASE_REQUIRED" == "true" ]]; then
+            status="$(curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header 'Content-Type: application/json' \
+              --data "$(jq -nc --arg url "$HIKER_SMOKE_URL" '{url: $url}')" \
+              https://xwblovggtvbpiusjfokq.supabase.co/functions/v1/hiker-lookup)"
+
+            if [[ "$status" != "200" ]]; then
+              error_message="$(jq -r '.error // "unknown Hiker lookup failure"' "$response_file" 2>/dev/null || true)"
+              echo "::error::Preview hiker-lookup returned HTTP $status: $error_message"
+              exit 1
+            fi
+            jq -e '
+              type == "object" and
+              (has("error") | not) and
+              (
+                ((.imageUrl // "") != "") or
+                ((.videoUrl // "") != "") or
+                (((.mediaUrls // []) | length) > 0) or
+                (((.mediaItems // []) | length) > 0)
+              )
+            ' "$response_file" > /dev/null
+          fi
+
+      - name: Create affected-components Preview release manifest
         env:
           RELEASE_MANIFEST: ${{ runner.temp }}/preview-release.json
+          DOCS_ONLY: ${{ needs.change-plan.outputs.docs_only }}
+          SUPABASE_REQUIRED: ${{ needs.change-plan.outputs.supabase }}
+          WORKER_REQUIRED: ${{ needs.change-plan.outputs.worker }}
+          ADMIN_REQUIRED: ${{ needs.change-plan.outputs.admin }}
+          MOBILE_REQUIRED: ${{ needs.change-plan.outputs.mobile }}
         run: |
+          admin_url="${VERCEL_PREVIEW_URL:-https://gong-gu-wish-admin-git-develop-jsy10835.vercel.app}"
           jq -n \
             --arg sha "${{ github.sha }}" \
             --arg status "preview-green" \
-            --arg adminUrl "$VERCEL_PREVIEW_URL" \
+            --arg adminUrl "$admin_url" \
             --arg apiUrl "https://api-preview.gongguwish.com" \
-            '{sha: $sha, status: $status, adminUrl: $adminUrl, apiUrl: $apiUrl}' \
+            --argjson docsOnly "$DOCS_ONLY" \
+            --argjson supabase "$SUPABASE_REQUIRED" \
+            --argjson worker "$WORKER_REQUIRED" \
+            --argjson admin "$ADMIN_REQUIRED" \
+            --argjson mobile "$MOBILE_REQUIRED" \
+            '{
+              sha: $sha,
+              status: $status,
+              docsOnly: $docsOnly,
+              affected: {
+                supabase: $supabase,
+                worker: $worker,
+                admin: $admin,
+                mobile: $mobile
+              },
+              adminUrl: $adminUrl,
+              apiUrl: $apiUrl
+            }' \
             > "$RELEASE_MANIFEST"
           {
             echo "## Preview Green"
             echo ""
-            printf 'All Preview components and remote smoke tests passed for `%s`.\n' "${{ github.sha }}"
+            printf 'All affected Preview checks passed for `%s`; unchanged components were reused.\n' "${{ github.sha }}"
+            echo "Docs-only: $DOCS_ONLY; affected: Supabase=$SUPABASE_REQUIRED, Worker=$WORKER_REQUIRED, Admin=$ADMIN_REQUIRED, Mobile=$MOBILE_REQUIRED"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Preview release manifest
