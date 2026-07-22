@@ -63,6 +63,17 @@ jobs:
             END IF;
           END
           \$\$;"
+      - name: Print Edge Runtime logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="$(docker ps -a --filter 'name=supabase_edge_runtime_' --format '{{.ID}}' | head -n 1)"
+          if [[ -z "$container" ]]; then
+            echo "::warning::Supabase Edge Runtime container was not found."
+            exit 0
+          fi
+          docker logs "$container" 2>&1 | tail -n 300
       - name: Stop isolated Supabase stack
         if: always()
         run: supabase stop
