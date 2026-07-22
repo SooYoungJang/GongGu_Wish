@@ -1,4 +1,4 @@
-import { supabase } from "@/supabase/client";
+import { adminRuntimeConfig, supabase } from "@/supabase/client";
 import type {
   AppUser,
   CdnRefreshResult,
@@ -42,10 +42,7 @@ export class AdminApiContractError extends Error {
   }
 }
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as
-  | string
-  | undefined;
+const { adminApiOrigin, supabaseAnonKey } = adminRuntimeConfig;
 
 async function getAccessToken() {
   const { data, error } = await supabase.auth.getSession();
@@ -63,15 +60,8 @@ async function requestAdmin<T>(
     body?: Record<string, unknown>;
   } = {},
 ): Promise<T> {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new AdminApiError(
-      "Vercel 환경 변수 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY가 필요합니다.",
-      500,
-    );
-  }
-
   const token = await getAccessToken();
-  const response = await fetch(`${supabaseUrl}/functions/v1/admin-api`, {
+  const response = await fetch(adminApiOrigin, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

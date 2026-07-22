@@ -1,11 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   configurePostgrest,
+  getPostgrestUrl,
   postgrestGet,
   postgrestPost,
   postgrestPatch,
   postgrestDelete,
 } from './postgrest-client';
+
+describe('PostgREST configuration', () => {
+  it('fails closed before a Supabase origin is configured', async () => {
+    vi.resetModules();
+    const unconfiguredClient = await import('./postgrest-client');
+
+    expect(() => unconfiguredClient.getPostgrestUrl()).toThrow(
+      /Supabase origin must be configured/,
+    );
+  });
+
+  it('rejects an empty Supabase origin', () => {
+    expect(() => configurePostgrest('  ', 'test-anon-key')).toThrow(
+      /Supabase origin must be configured/,
+    );
+    expect(() => getPostgrestUrl()).toThrow(
+      /Supabase origin must be configured/,
+    );
+  });
+});
 
 describe('PostgREST Client', () => {
   const baseUrl = 'https://test.supabase.co';
@@ -46,7 +67,9 @@ describe('PostgREST Client', () => {
     });
     vi.stubGlobal('fetch', mockFetch);
 
-    const result = await postgrestGet('/feed_posts', { pagination: { page: 1, limit: 10 } });
+    const result = await postgrestGet('/feed_posts', {
+      pagination: { page: 1, limit: 10 },
+    });
 
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/feed_posts'),
