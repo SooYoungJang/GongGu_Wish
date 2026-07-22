@@ -773,7 +773,7 @@ describe("CalendarScreen", () => {
     });
     expect(text).toContain("오늘의 딜");
     expect(text).toContain("뷰티");
-    expect(text).toContain("@ daily_deal");
+    expect(text).toContain("@daily_deal");
     expect(text).toContain("30% 할인");
 
     const dealButton = renderer.root.find(
