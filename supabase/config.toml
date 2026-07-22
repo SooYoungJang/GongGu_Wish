@@ -235,9 +235,6 @@ verify_jwt = false
 # function silently falls back to client-side rule-based inference.
 verify_jwt = false
 
-[functions.naver-auth]
-verify_jwt = false
-
 [functions.delete-account]
 verify_jwt = true
 
