@@ -1333,15 +1333,15 @@ describe('HomeScreenContent redesign', () => {
     ).not.toHaveLength(0);
   });
 
-  it('keeps account metadata out of the reference-style image overlay', () => {
+  it('shows the Instagram account in the promo image overlay', () => {
     const renderer = renderHomeContent({
       groupBuys: [sampleGroupBuys[0]],
     });
 
     const text = flattenText(renderer.toJSON());
-    expect(text).not.toContain('@beauty_pick');
+    expect(text).toContain('@beauty_pick');
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
-    expect(banner!.props.accessibilityLabel).not.toContain('@beauty_pick');
+    expect(banner!.props.accessibilityLabel).toContain('@beauty_pick');
   });
 
   it('keeps a centered, partially peeking promo card inside a 320px viewport', () => {

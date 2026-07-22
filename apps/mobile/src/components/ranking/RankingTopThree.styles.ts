@@ -7,6 +7,9 @@ export function makeRankingTopStyles(
 ) {
   const { colors, radius, spacing, typography } = theme;
   return StyleSheet.create({
+    alertAction: {
+      marginLeft: "auto",
+    },
     cardFooter: {
       alignItems: "center",
       borderTopColor: colors.divider,

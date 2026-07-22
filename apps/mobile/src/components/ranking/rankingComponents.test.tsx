@@ -517,6 +517,75 @@ describe("ranking components", () => {
     expect(onPressSeller).toHaveBeenCalledWith(item);
   });
 
+  it("does not render the legacy unknown account placeholder", () => {
+    const item = sampleRanking({
+      groupBuyId: "group-without-account",
+      rank: 4,
+      username: "unknown",
+    });
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingRow
+            item={item}
+            onPress={vi.fn()}
+            onPressSeller={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />,
+        ),
+      );
+    });
+
+    expect(flattenText(renderer!.toJSON())).not.toContain("@unknown");
+    expect(
+      renderer!.root.findAllByProps({ testID: "ranking-row-seller-4" }),
+    ).toHaveLength(0);
+  });
+
+  it("keeps the legacy unknown placeholder out of top-ranking card footers", () => {
+    const item = sampleRanking({ rank: 1, username: "unknown" });
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList
+            onPressSeller={vi.fn()}
+            state={{ status: "ready", data: [item] }}
+          />,
+        ),
+      );
+    });
+
+    expect(flattenText(renderer!.toJSON())).not.toContain("@unknown");
+    expect(
+      renderer!.root.findAllByProps({ testID: "ranking-top-seller-1" }),
+    ).toHaveLength(0);
+  });
+
+  it("shows the ranking seller account in the top-card footer", () => {
+    const item = sampleRanking({ rank: 1, username: "ranked.shop" });
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList
+            onPressSeller={vi.fn()}
+            state={{ status: "ready", data: [item] }}
+          />,
+        ),
+      );
+    });
+
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-top-seller-1" }).props
+        .children,
+    ).toBe("@ranked.shop");
+  });
+
   it("shows rank movement and deadline instead of popularity scores", () => {
     const item = sampleRanking({
       endDate: "2099-07-31T15:00:00.000Z",

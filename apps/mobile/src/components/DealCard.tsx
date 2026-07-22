@@ -11,6 +11,7 @@ import { formatPriceKrw } from "../utils/price";
 import { isGroupBuyExpired } from "../utils/groupBuyDates";
 import type { CategoryColorName } from "../design/tokens";
 import type { GroupBuy } from "../types";
+import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
 
 type DealCardProps = {
   item: GroupBuy;
@@ -60,12 +61,11 @@ export function buildDealCardAccessibilityLabel(
   const productName = item.productName?.trim() || "공동구매 상품";
   const price = formatPriceKrw(item.priceKrw) ?? "미정";
   const sellerName = item.brandName?.trim();
-  const username = item.rawPost.influencer.instagramUsername
-    ?.trim()
-    .replace(/^@\s*/, "");
+  const instagramHandle = formatInstagramHandle(
+    item.rawPost.influencer.instagramUsername,
+  );
   const seller =
-    [sellerName, username ? `@${username}` : null].filter(Boolean).join(" ") ||
-    "정보 미정";
+    [sellerName, instagramHandle].filter(Boolean).join(" ") || "정보 미정";
 
   return [
     productName,
@@ -86,7 +86,9 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
     item.mediaUrls?.[0] ??
     null;
   const fallbackLabel = CATEGORY_LABELS[category];
-  const username = item.rawPost.influencer.instagramUsername?.trim();
+  const instagramHandle = formatInstagramHandle(
+    item.rawPost.influencer.instagramUsername,
+  );
   const brandLabel = item.brandName?.trim() || fallbackLabel;
 
   return (
@@ -128,7 +130,7 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
         </View>
       </View>
       <SText variant="body" numberOfLines={1} style={s.brand}>
-        {username ? `${brandLabel} · @ ${username}` : brandLabel}
+        {instagramHandle ? `${brandLabel} · ${instagramHandle}` : brandLabel}
       </SText>
       <SText variant="caption" numberOfLines={2} style={s.title}>
         {item.productName ?? "공동구매 상품"}

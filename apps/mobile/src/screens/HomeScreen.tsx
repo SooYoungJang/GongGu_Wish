@@ -42,6 +42,7 @@ import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { getHomeBannerStatusCopy } from "@gonggu/shared/utils/homeBannerPresentation";
 import { getHomeBannerDateKey } from "@gonggu/shared/utils/homeBanner";
+import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
 import { borderRadius, spacing } from "../design/tokens";
 import type { CategoryColorName } from "../design/tokens";
 import { isGroupBuyActiveOnDate } from "../utils/groupBuyDates";
@@ -521,12 +522,18 @@ function PromoBanner({
       {loopingPromoItems.map(({ item, index, clone }, renderIndex) => {
         const visual = getPromoVisual(item);
         const productName = item.productName?.trim() || "공동구매 상품";
+        const instagramHandle = formatInstagramHandle(
+          item.rawPost.influencer.instagramUsername,
+        );
         const statusCopy = getHomeBannerStatusCopy(item);
         const accessibilityLabel = [
           productName,
+          instagramHandle,
           statusCopy.accessibilityLabel,
           "상세 열기",
-        ].join(", ");
+        ]
+          .filter((label): label is string => Boolean(label))
+          .join(", ");
         return (
           <Pressable
             accessibilityElementsHidden={clone}
@@ -577,6 +584,16 @@ function PromoBanner({
               style={s.promoOverlay}
               testID={clone ? undefined : `promo-overlay-${item.id}`}
             >
+              {instagramHandle ? (
+                <SText
+                  numberOfLines={1}
+                  style={s.promoAccount}
+                  testID={clone ? undefined : `promo-account-${item.id}`}
+                  variant="caption"
+                >
+                  {instagramHandle}
+                </SText>
+              ) : null}
               <SText variant="cardTitle" numberOfLines={2} style={s.promoTitle}>
                 {productName}
               </SText>
@@ -1112,6 +1129,17 @@ function makeStyles(colors: CommerceColorPalette) {
       textShadowColor: "rgba(0, 0, 0, 0.38)",
       textShadowOffset: { height: 1, width: 0 },
       textShadowRadius: 4,
+    },
+    promoAccount: {
+      color: "rgba(255, 255, 255, 0.9)",
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0,
+      lineHeight: 17,
+      marginBottom: 3,
+      textShadowColor: "rgba(0, 0, 0, 0.38)",
+      textShadowOffset: { height: 1, width: 0 },
+      textShadowRadius: 3,
     },
     promoImage: { ...StyleSheet.absoluteFillObject },
     promoImagePending: { opacity: 0 },

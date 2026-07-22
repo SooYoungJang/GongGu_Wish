@@ -17,6 +17,7 @@ import {
   groupBuyRankingResponseSchema,
 } from "@gonggu/shared/schemas/ranking";
 import { getHomeBannerDateKey } from "@gonggu/shared/utils/homeBanner";
+import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagram";
 
 import type {
   GroupBuyRankingItem as SharedGroupBuyRankingItem,
@@ -175,6 +176,19 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
       item.homeBannerEndDate !== undefined
         ? item.homeBannerEndDate
         : item.home_banner_end_date;
+    const directInstagramUsername =
+      normalizeOptionalInstagramUsername(item.instagramUsername) ??
+      normalizeOptionalInstagramUsername(item.instagram_username);
+    const legacyInstagramUsername =
+      normalizeOptionalInstagramUsername(
+        item.rawPostId?.influencerId?.instagramUsername,
+      ) ??
+      normalizeOptionalInstagramUsername(
+        item.raw_post_id?.influencer_id?.instagramUsername,
+      ) ??
+      normalizeOptionalInstagramUsername(
+        item.raw_post_id?.influencer_id?.instagram_username,
+      );
 
     return {
       id: item.id,
@@ -214,12 +228,7 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
           "",
         influencer: {
           instagramUsername:
-            item.rawPostId?.influencerId?.instagramUsername ??
-            item.raw_post_id?.influencer_id?.instagramUsername ??
-            item.raw_post_id?.influencer_id?.instagram_username ??
-            item.instagramUsername ??
-            item.instagram_username ??
-            "",
+            directInstagramUsername ?? legacyInstagramUsername ?? "",
         },
       },
     };
@@ -568,16 +577,43 @@ export async function fetchPopularGroupBuysWithDetail(
 
 /**
  * Fetch group buys filtered by influencer username.
- * Uses PostgREST with embedded filter on raw_post -> influencer.
+ * Queries both the current group-buy field and the legacy raw-post relation.
  */
 export async function fetchGroupBuysByInfluencer(
   instagramUsername: string,
 ): Promise<GroupBuy[]> {
-  const normalizedUsername = instagramUsername.replace(/^@/, "").toLowerCase();
-  const { data } = await postgrestGet<any[]>(
-    `group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&raw_post_id.influencer_id.instagram_username=eq.${encodeURIComponent(normalizedUsername)}&order=created_at.desc`,
+  const normalizedUsername =
+    normalizeOptionalInstagramUsername(instagramUsername);
+  if (!normalizedUsername) return [];
+
+  const encodedUsername = encodeURIComponent(normalizedUsername);
+  const encodedUsernameWithAt = encodeURIComponent(`@${normalizedUsername}`);
+  const directQueryPrefix =
+    "group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED";
+  const legacyQueryPrefix =
+    "group_buys?select=*,raw_post_id!inner(*,influencer_id!inner(*))&status=eq.APPROVED";
+  const [directResponse, legacyResponse] = await Promise.all([
+    postgrestGet<any[]>(
+      `${directQueryPrefix}&or=(instagram_username.ilike.${encodedUsername},instagram_username.ilike.${encodedUsernameWithAt})&order=created_at.desc`,
+    ),
+    postgrestGet<any[]>(
+      `${legacyQueryPrefix}&raw_post_id.influencer_id.instagram_username=ilike.${encodedUsername}&order=created_at.desc`,
+    ),
+  ]);
+  const rowsById = new Map<string, any>();
+  for (const row of [
+    ...(directResponse.data ?? []),
+    ...(legacyResponse.data ?? []),
+  ]) {
+    if (row?.id && !rowsById.has(row.id)) rowsById.set(row.id, row);
+  }
+  const rows = [...rowsById.values()].sort((left, right) =>
+    String(right.created_at ?? right.createdAt ?? "").localeCompare(
+      String(left.created_at ?? left.createdAt ?? ""),
+    ),
   );
-  return filterActiveGroupBuys(mapGroupBuyRows(data || []));
+
+  return filterActiveGroupBuys(mapGroupBuyRows(rows));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

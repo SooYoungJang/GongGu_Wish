@@ -275,6 +275,40 @@ Deno.test(
   },
 );
 
+Deno.test("normalizes an unavailable ranking Instagram account to null", () => {
+  const response = buildRankingResponse(
+    [
+      {
+        group_buy_id: "group-buy-without-account",
+        rank: 1,
+        previous_rank: null,
+        trend_kind: "new",
+        trend_delta: 0,
+        product_name: "계정 없는 공구",
+        brand_name: null,
+        username: "unknown",
+        category: "food",
+        thumbnail_url: null,
+        media_urls: [],
+        start_date: null,
+        end_date: null,
+        price_krw: null,
+        created_at: "2026-07-16T00:00:00.000Z",
+        deep_views: 1,
+        bookmarks: 0,
+        notifications: 0,
+        search_clicks: 0,
+        score: 3,
+        score_delta: 3,
+        score_version: "v2",
+      },
+    ],
+    normalizeRankingRequest({ sort: "popular" }),
+  );
+
+  assertEquals(response.data[0].username, null);
+});
+
 Deno.test("marks an item NEW when its previous score was zero", () => {
   const response = buildRankingResponse(
     [

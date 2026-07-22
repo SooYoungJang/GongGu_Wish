@@ -5,3 +5,5 @@ export * from "./postgrest-client";
 export * from "./postgrest-mapper";
 export * from "./homeBannerPresentation";
 export * from "./homeBanner";
+export * from "./instagram";
+export * from "./groupBuyCategory";
