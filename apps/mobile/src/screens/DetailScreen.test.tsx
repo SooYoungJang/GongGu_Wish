@@ -229,7 +229,7 @@ vi.mock("react-native-pager-view", () => {
 });
 
 import React, { type ReactNode } from "react";
-import { Alert, Animated, Linking } from "react-native";
+import { Alert, Animated, Linking, Share } from "react-native";
 import { withTiming } from "react-native-reanimated";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -650,6 +650,7 @@ beforeEach(() => {
   pagerViewMock.setPageWithoutAnimation.mockClear();
   (Alert.alert as any).mockClear();
   (Linking.openURL as any).mockClear();
+  (Share.share as any).mockClear();
   (Animated.timing as any).mockClear();
   (Animated.spring as any).mockClear();
 });
@@ -657,6 +658,60 @@ beforeEach(() => {
 describe("DetailScreen", () => {
   it("memoizes product pages to avoid parent bookkeeping rerenders", () => {
     expect((ProductReelPage as any).$$typeof).toBe(Symbol.for("react.memo"));
+  });
+
+  it("shows the Instagram handle and a Korean category label on reel details", () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      category: "beauty",
+      rawPost: {
+        ...baseGroupBuy.rawPost,
+        influencer: { instagramUsername: "@hanssang_home" },
+      },
+    };
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const text = flattenText(renderer!.toJSON());
+    expect(text).toContain("@hanssang_home");
+    expect(text).toContain("뷰티");
+    expect(text).not.toContain("beauty");
+  });
+
+  it("omits an unknown Instagram account from the detail and share text", async () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      rawPost: {
+        ...baseGroupBuy.rawPost,
+        influencer: { instagramUsername: "unknown" },
+      },
+    };
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    expect(flattenText(renderer!.toJSON())).not.toContain("@unknown");
+    await act(async () => {
+      renderer!.root.findByProps({ accessibilityLabel: "공유" }).props.onPress();
+    });
+    expect(Share.share).toHaveBeenCalledWith({
+      message: "퍼스트 바이크\nhttps://example.com/buy",
+    });
   });
 
   it("connects influencer and brand follow controls to notification preferences", () => {

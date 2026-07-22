@@ -141,6 +141,34 @@ describe("AppLivePreview", () => {
     expect(screen.getByText("25,900원")).toBeTruthy();
   });
 
+  it("shows the Instagram handle across previews and localizes the category", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppLivePreview
+        deal={{
+          ...activeDeal,
+          instagramUsername: "@gyulbbad",
+          category: "beauty",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("article", { name: "홈 배너 미리보기" }).textContent,
+    ).toContain("@gyulbbad");
+
+    await user.click(screen.getByRole("tab", { name: "공구 카드" }));
+    expect(
+      screen.getByRole("article", { name: "공구 카드 미리보기" }).textContent,
+    ).toContain("@gyulbbad");
+
+    await user.click(screen.getByRole("tab", { name: "상세 화면" }));
+    const detail = screen.getByRole("article", { name: "상세 화면 미리보기" });
+    expect(detail.textContent).toContain("@gyulbbad");
+    expect(detail.textContent).toContain("뷰티");
+    expect(detail.textContent).not.toContain("beauty");
+  });
+
   it("uses the RN discount rule instead of treating product composition as a sale", () => {
     render(
       <AppLivePreview

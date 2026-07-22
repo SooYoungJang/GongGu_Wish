@@ -30,6 +30,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { FlashList } from "@shopify/flash-list";
+import { getGroupBuyCategoryLabel } from "@gonggu/shared/utils/groupBuyCategory";
+import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagram";
 import { VideoView, useVideoPlayer, type VideoPlayerStatus } from "expo-video";
 import PagerView from "react-native-pager-view";
 import {
@@ -798,8 +800,13 @@ function DetailSearchSheet({
               }
               renderItem={({ item }) => {
                 const thumb = getGroupBuyThumb(item);
-                const sellerName =
-                  item.rawPost.influencer.instagramUsername.replace(/^@/, "");
+                const sellerName = normalizeOptionalInstagramUsername(
+                  item.rawPost.influencer.instagramUsername,
+                );
+                const sellerLabel =
+                  [item.brandName?.trim(), sellerName ? `@${sellerName}` : null]
+                    .filter((label): label is string => Boolean(label))
+                    .join(" · ") || "판매자 정보 미정";
                 return (
                   <Pressable
                     accessibilityLabel={`${item.productName ?? "상품"} 보기`}
@@ -838,8 +845,7 @@ function DetailSearchSheet({
                         style={s.detailSearchResultMeta}
                         numberOfLines={1}
                       >
-                        {item.brandName ?? `@${sellerName}`} ·{" "}
-                        {formatEndDate(item.endDate)}
+                        {sellerLabel} · {formatEndDate(item.endDate)}
                       </SText>
                     </View>
                     <Ionicons
@@ -996,10 +1002,12 @@ function ProductReelPageComponent({
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
   const isUrgent = daysRemaining >= 0 && daysRemaining <= 3;
-  const sellerName = groupBuy.rawPost.influencer.instagramUsername.replace(
-    /^@/,
-    "",
-  );
+  const sellerName =
+    normalizeOptionalInstagramUsername(
+      groupBuy.rawPost.influencer.instagramUsername,
+    ) ?? "";
+  const sellerHandle = sellerName ? `@${sellerName}` : null;
+  const categoryLabel = getGroupBuyCategoryLabel(groupBuy.category);
   const isInfluencerFollowed = isAuthenticated && preferences.followedInfluencers.some(
     (target) =>
       target.toLocaleLowerCase("en-US") ===
@@ -1574,9 +1582,10 @@ function ProductReelPageComponent({
 
   const handleShare = async () => {
     const productName = groupBuy.productName ?? "공동구매";
+    const sellerSuffix = sellerHandle ? ` (${sellerHandle})` : "";
     try {
       await Share.share({
-        message: `${productName} (@${sellerName})\n${groupBuy.purchaseUrl ?? groupBuy.rawPost.postUrl}`,
+        message: `${productName}${sellerSuffix}\n${groupBuy.purchaseUrl ?? groupBuy.rawPost.postUrl}`,
       });
     } catch {
       Alert.alert("오류", "공유에 실패했습니다.");
@@ -1868,16 +1877,18 @@ function ProductReelPageComponent({
           ]}
         >
           <View style={s.bottomInfoScrim} pointerEvents="none" />
-          <View style={s.sellerRow}>
-            <View style={s.avatar}>
-              <SText variant="caption" style={s.avatarText}>
-                {sellerName.slice(0, 1).toUpperCase()}
+          {sellerHandle ? (
+            <View style={s.sellerRow}>
+              <View style={s.avatar}>
+                <SText variant="caption" style={s.avatarText}>
+                  {sellerName.slice(0, 1).toUpperCase()}
+                </SText>
+              </View>
+              <SText variant="cardTitle" style={s.sellerName} numberOfLines={1}>
+                {sellerHandle}
               </SText>
             </View>
-            <SText variant="cardTitle" style={s.sellerName} numberOfLines={1}>
-              {sellerName}
-            </SText>
-          </View>
+          ) : null}
 
           <View style={s.followTargetRow}>
             {sellerName ? (
@@ -1989,10 +2000,10 @@ function ProductReelPageComponent({
                 {isExpired ? "마감" : isUrgent ? "마감 임박" : deadlineLabel}
               </SText>
             </View>
-            {groupBuy.category ? (
+            {categoryLabel ? (
               <View style={s.metaPill}>
                 <SText variant="caption" style={s.metaPillText}>
-                  {groupBuy.category}
+                  {categoryLabel}
                 </SText>
               </View>
             ) : null}
@@ -2041,19 +2052,23 @@ function ProductReelPageComponent({
                 </View>
                 <View style={s.summarySheetHeader}>
                   <View style={s.summarySheetSeller}>
-                    <View style={s.summarySheetAvatar}>
-                      <SText variant="caption" style={s.avatarText}>
-                        {sellerName.slice(0, 1).toUpperCase()}
-                      </SText>
-                    </View>
+                    {sellerHandle ? (
+                      <View style={s.summarySheetAvatar}>
+                        <SText variant="caption" style={s.avatarText}>
+                          {sellerName.slice(0, 1).toUpperCase()}
+                        </SText>
+                      </View>
+                    ) : null}
                     <View style={s.summarySheetTitleBlock}>
-                      <SText
-                        variant="cardTitle"
-                        style={s.summarySheetSellerName}
-                        numberOfLines={1}
-                      >
-                        {sellerName}
-                      </SText>
+                      {sellerHandle ? (
+                        <SText
+                          variant="cardTitle"
+                          style={s.summarySheetSellerName}
+                          numberOfLines={1}
+                        >
+                          {sellerHandle}
+                        </SText>
+                      ) : null}
                       <SText
                         variant="caption"
                         style={s.summarySheetProductName}

@@ -13,6 +13,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagram";
 
 import {
   RankingCategoryChips,
@@ -55,7 +56,7 @@ type RankingItemCacheEntry = {
 // startDate/endDate가 있으면 시작 1시간 전 푸시가 예약되고, 없어도 알림 항목은
 // 마이페이지·릴스가 읽는 공유 스토어에 저장된다.
 function rankingToGroupBuy(item: GroupBuyRankingItem): GroupBuy {
-  const displayName = item.productName ?? item.brandName ?? item.username;
+  const username = normalizeOptionalInstagramUsername(item.username);
   return {
     id: item.groupBuyId,
     productName: item.productName,
@@ -74,7 +75,7 @@ function rankingToGroupBuy(item: GroupBuyRankingItem): GroupBuy {
     mediaType: null,
     rawPost: {
       postUrl: "",
-      influencer: { instagramUsername: item.username || displayName },
+      influencer: { instagramUsername: username ?? "" },
     },
   };
 }
@@ -228,8 +229,11 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
 
   const handlePressSeller = useCallback(
     (item: GroupBuyRankingItem) => {
+      const username = normalizeOptionalInstagramUsername(item.username);
+      if (!username) return;
+
       navigation.navigate("InfluencerGroupBuys", {
-        influencerUsername: item.username,
+        influencerUsername: username,
         influencerDisplayName: item.brandName,
       });
     },

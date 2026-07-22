@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { useCommerceTheme } from "../../design/useCommerceTheme";
+import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
 import {
   formatRankingDeadline,
   getRankingItemAccessibilityLabel,
@@ -43,8 +44,9 @@ export const SellerRankingRow = memo(function SellerRankingRow({
   const s = useMemo(() => makeStyles(theme), [theme]);
   const compact = width <= 360;
   const largeText = fontScale >= 1.3;
+  const instagramHandle = formatInstagramHandle(item.username);
   const displayName =
-    (item.productName ?? item.brandName ?? item.username) || "공구";
+    (item.productName ?? item.brandName ?? instagramHandle) || "공구";
   const imageUrl = item.thumbnailUrl ?? item.mediaUrls[0] ?? null;
   const imageSource = useMemo(
     () => (imageUrl ? { uri: imageUrl } : null),
@@ -147,38 +149,40 @@ export const SellerRankingRow = memo(function SellerRankingRow({
         </View>
       </View>
 
-      <View style={s.sellerRow}>
-        {onPressSeller ? (
-          <Pressable
-            accessibilityHint="판매자의 공구 목록 보기"
-            accessibilityLabel={`@${item.username} 판매자 공구 보기`}
-            accessibilityRole="button"
-            onPress={handlePressSeller}
-            style={({ pressed }) => [
-              s.sellerAction,
-              pressed ? s.pressed : null,
-            ]}
-          >
+      {instagramHandle ? (
+        <View style={s.sellerRow}>
+          {onPressSeller ? (
+            <Pressable
+              accessibilityHint="판매자의 공구 목록 보기"
+              accessibilityLabel={`${instagramHandle} 판매자 공구 보기`}
+              accessibilityRole="button"
+              onPress={handlePressSeller}
+              style={({ pressed }) => [
+                s.sellerAction,
+                pressed ? s.pressed : null,
+              ]}
+            >
+              <SText
+                numberOfLines={largeText ? undefined : 1}
+                style={s.username}
+                testID={`ranking-row-seller-${item.rank}`}
+                variant="caption"
+              >
+                {instagramHandle}
+              </SText>
+            </Pressable>
+          ) : (
             <SText
               numberOfLines={largeText ? undefined : 1}
               style={s.username}
               testID={`ranking-row-seller-${item.rank}`}
               variant="caption"
             >
-              @{item.username}
+              {instagramHandle}
             </SText>
-          </Pressable>
-        ) : (
-          <SText
-            numberOfLines={largeText ? undefined : 1}
-            style={s.username}
-            testID={`ranking-row-seller-${item.rank}`}
-            variant="caption"
-          >
-            @{item.username}
-          </SText>
-        )}
-      </View>
+          )}
+        </View>
+      ) : null}
     </View>
   );
 });

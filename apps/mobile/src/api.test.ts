@@ -4,6 +4,7 @@ import {
   fetchHomeBannerGroupBuys,
   fetchGroupBuyRankings,
   fetchGroupBuys,
+  fetchGroupBuysByInfluencer,
   lookupInstagramUrl,
   postPublicJson,
   refreshGroupBuyMedia,
@@ -120,6 +121,74 @@ describe("public data fetch diagnostics", () => {
     const [item] = await fetchGroupBuys();
 
     expect(item.isHomeBanner).toBe(false);
+  });
+
+  it("prefers the Instagram account saved on the group buy", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [
+        {
+          id: "group-buy-with-account",
+          product_name: "계정 우선순위 공구",
+          instagram_username: "saved_shop",
+          confidence: 0,
+          media_urls: [],
+          media_items: [],
+          media_type: null,
+          raw_post_id: {
+            post_url: "https://instagram.com/p/legacy",
+            influencer_id: { instagram_username: "legacy_shop" },
+          },
+        },
+      ],
+    }) as unknown as typeof fetch;
+
+    const [item] = await fetchGroupBuys();
+
+    expect(item.rawPost.influencer.instagramUsername).toBe("saved_shop");
+  });
+
+  it("finds both current and legacy group buys for an Instagram account", async () => {
+    const row = (id: string) => ({
+      id,
+      product_name: `${id} 공구`,
+      instagram_username: "saved_shop",
+      confidence: 0,
+      media_urls: [],
+      media_items: [],
+      media_type: null,
+      raw_post_id: null,
+    });
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => [row("current")],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => [row("current"), row("legacy")],
+      }) as unknown as typeof fetch;
+
+    const result = await fetchGroupBuysByInfluencer("@Saved_Shop");
+
+    expect(result.map((item) => item.id)).toEqual(["current", "legacy"]);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(String(vi.mocked(global.fetch).mock.calls[0]?.[0])).toContain(
+      "instagram_username.ilike.Saved_Shop",
+    );
+    expect(String(vi.mocked(global.fetch).mock.calls[1]?.[0])).toContain(
+      "raw_post_id!inner(*,influencer_id!inner(*))",
+    );
+    expect(String(vi.mocked(global.fetch).mock.calls[1]?.[0])).toContain(
+      "instagram_username=ilike.Saved_Shop",
+    );
   });
 
   it("asks PostgREST for only approved, active home banners", async () => {

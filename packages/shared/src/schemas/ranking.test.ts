@@ -60,6 +60,15 @@ describe("group buy ranking contract", () => {
     ).toThrow();
   });
 
+  it("allows a ranking item to omit an unavailable Instagram account", () => {
+    expect(
+      groupBuyRankingItemSchema.parse({
+        ...rankingItem,
+        username: null,
+      }).username,
+    ).toBeNull();
+  });
+
   it("rejects the legacy representativeGroupBuyId contract", () => {
     expect(() =>
       groupBuyRankingItemSchema.parse({

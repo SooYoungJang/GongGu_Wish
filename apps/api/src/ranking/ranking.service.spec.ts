@@ -85,6 +85,24 @@ describe("RankingService", () => {
     ).rejects.toBeInstanceOf(BadGatewayException);
   });
 
+  it("maps unavailable Instagram placeholders to null", async () => {
+    const rpc = jest.fn().mockResolvedValue({
+      data: [
+        { ...rankingRow("group-without-account", 40), username: "unknown" },
+      ],
+      error: null,
+    });
+    const service = new RankingService({ admin: { rpc } } as never);
+
+    const response = await service.list({
+      category: "all" as never,
+      period: "weekly" as never,
+      sort: "popular" as never,
+    });
+
+    expect(response.data[0].username).toBeNull();
+  });
+
   it("reports rank movement instead of the score delta in the trend badge", async () => {
     const row = {
       ...rankingRow("group-rank-movement", 40),

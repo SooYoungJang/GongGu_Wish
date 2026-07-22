@@ -1,5 +1,7 @@
 import { Component, type KeyboardEvent } from "react";
+import { getGroupBuyCategoryLabel } from "@gonggu/shared/utils/groupBuyCategory";
 import { isHomeBannerEligible } from "@gonggu/shared/utils/homeBanner";
+import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
 import {
   getHomeBannerStatusCopy,
   type HomeBannerStatusCopy,
@@ -303,6 +305,8 @@ function HomeBannerPreview({
   bannerPeriodStatus: string;
   copy: HomeBannerStatusCopy;
 }) {
+  const instagramHandle = formatInstagramHandle(deal.instagramUsername);
+
   return (
     <article
       className="app-live-preview__home-banner"
@@ -318,6 +322,11 @@ function HomeBannerPreview({
       />
       <span className="app-live-preview__home-banner-counter">1 / 1</span>
       <div className="app-live-preview__home-banner-content">
+        {instagramHandle ? (
+          <p className="app-live-preview__home-banner-account">
+            {instagramHandle}
+          </p>
+        ) : null}
         <h3 className="app-live-preview__home-banner-title">
           {deal.productName}
         </h3>
@@ -359,6 +368,7 @@ function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
     0,
     2,
   );
+  const instagramHandle = formatInstagramHandle(deal.instagramUsername);
 
   return (
     <article
@@ -383,7 +393,7 @@ function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
       <div className="app-live-preview__deal-card-content">
         <p className="app-live-preview__deal-card-brand">
           {deal.brandName || "브랜드 미지정"}
-          {deal.instagramUsername ? ` · @${deal.instagramUsername.replace(/^@/, "")}` : ""}
+          {instagramHandle ? ` · ${instagramHandle}` : ""}
         </p>
         <h3 className="app-live-preview__deal-card-title">
           {deal.productName}
@@ -406,6 +416,12 @@ function DetailScreenPreview({
   deal: AppLivePreviewDeal;
   activeTabLabel: string;
 }) {
+  const instagramHandle = formatInstagramHandle(deal.instagramUsername);
+  const categoryLabel = getGroupBuyCategoryLabel(deal.category);
+  const sellerLabel = [deal.brandName.trim(), instagramHandle]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <article
       className="app-live-preview__detail"
@@ -414,8 +430,8 @@ function DetailScreenPreview({
       <PreviewImage deal={deal} className="app-live-preview__detail-media" />
       <div className="app-live-preview__detail-body">
         <div className="app-live-preview__detail-meta">
-          <span>{deal.brandName}{deal.instagramUsername ? ` · @${deal.instagramUsername.replace(/^@/, "")}` : ""}</span>
-          <span>{deal.category}</span>
+          {sellerLabel ? <span>{sellerLabel}</span> : null}
+          {categoryLabel ? <span>{categoryLabel}</span> : null}
           <span>미디어 {deal.mediaCount}개</span>
         </div>
         <h3 className="app-live-preview__detail-title">{deal.productName}</h3>
