@@ -7,13 +7,11 @@ case "${GITHUB_REF:-}" in
     environment="production"
     profile="production-apk"
     channel="production"
-    app_identifier="com.gonggu.wish"
     ;;
   refs/heads/develop)
     environment="preview"
     profile="preview"
     channel="preview"
-    app_identifier="com.gonggu.wish.preview"
     ;;
   *)
     echo "::error::Android deployment only supports main and develop."
@@ -71,12 +69,12 @@ fingerprint_hash="$(
   ' <<<"$fingerprint_json"
 )"
 
+# Android APK uploads retain the fingerprint but not the app identifier metadata.
 compatible_builds_json="$(
   eas build:list \
     --platform android \
     --status finished \
     --fingerprint-hash "$fingerprint_hash" \
-    --app-identifier "$app_identifier" \
     --limit 1 \
     --json \
     --non-interactive
