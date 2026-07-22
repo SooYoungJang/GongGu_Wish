@@ -25,6 +25,17 @@ C:\Users\장수영\Documents\my_llm_wiki
 
 ## 브랜치 및 배포 흐름 (필수)
 
+### 미래 작업의 고정 운영 계약 (최우선)
+
+이 절은 대화, 작업, 에이전트가 바뀌어도 모든 변경에 우선 적용한다. 아래 정책을 바꾸려면 사용자의 새로운 명시적 승인이 필요하다.
+
+1. 일반 작업은 항상 최신 `origin/develop`에서 `codex/<task-name>` 브랜치를 만들고 `develop` 대상 PR로 전달한다.
+2. 변경 영향도에 해당하는 CI와 Preview 배포만 실행하고, 모든 필수 검사가 성공하면 사용자에게 매번 머지 허락을 다시 묻지 않고 정상 PR 방식으로 `develop`에 머지한다.
+3. 단독 collaborator 저장소이므로 `develop`과 `main`의 필수 사람 승인 수는 모두 0으로 유지한다. 대신 branch protection의 필수 status check, strict 모드, force-push·branch deletion 금지를 유지하며 관리자 우회나 강제 머지는 사용하지 않는다.
+4. 일반 작업은 `main`과 Production을 절대 변경하지 않는다. 사용자가 현재 요청에서 “프로덕션 배포해” 또는 “main에 올려”라고 명시한 경우에만 그 요청을 Production 승격의 사람 승인으로 간주하고 최신 `develop → main` PR을 만든다.
+5. Production 승격도 `Preview Promotion Gate`와 영향받은 모든 필수 CI가 성공해야 정상 머지한다. 개별 작업 브랜치를 `main`으로 직접 보내거나 실패한 검사를 우회하지 않는다.
+6. 승격하는 것은 Git에 추적된 코드와 migration뿐이다. Preview 데이터 행, Auth 사용자, Storage 객체, secret, credential, build artifact는 Production으로 복사하지 않는다.
+
 ### 기본 개발 작업
 
 사용자가 별도 흐름을 명시하지 않은 모든 기능 추가, 버그 수정, 리팩터링, 설정 및 문서 변경은 다음 순서를 따른다.
@@ -39,8 +50,6 @@ C:\Users\장수영\Documents\my_llm_wiki
 8. Preview 실패를 우회하거나 건너뛰어 `main`에 반영하지 않는다.
 
 일반 개발 요청은 `main` 대상 PR 생성, `main` 머지 또는 Production 배포를 승인하지 않는다.
-
-단독 collaborator 운영에서는 작성자가 자기 PR을 승인할 수 없으므로 `develop`의 필수 사람 승인 수는 0으로 유지한다. 대신 `Change Plan & Policy`, `Lint & Typecheck`, `Build`, `Tests`, `Edge Function Tests` 등 branch protection에 등록된 필수 CI가 모두 성공해야만 정상 PR 머지를 수행하며 관리자 우회나 강제 머지는 사용하지 않는다. `main`은 Production 최종 검토를 위해 필수 사람 승인 1명을 유지한다.
 
 ### Production 승격
 
