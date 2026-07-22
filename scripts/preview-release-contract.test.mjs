@@ -280,6 +280,16 @@ test("local Supabase contracts reject public tables without RLS", () => {
   assert.match(supabaseContractsWorkflow, /supabase db query/);
 });
 
+test("local Supabase boots every Edge Function before Preview deployment", () => {
+  assert.match(
+    supabaseContractsWorkflow,
+    /for entrypoint in supabase\/functions\/\*\/index\.ts/,
+  );
+  assert.match(supabaseContractsWorkflow, /\/functions\/v1\/\$function_name/);
+  assert.match(supabaseContractsWorkflow, /BOOT_ERROR/);
+  assert.match(supabaseContractsWorkflow, /Failed to boot \$function_name/);
+});
+
 test("develop delegates Supabase deployment to the exact Preview integration", () => {
   const previewIntegration = job("supabase-preview");
 

@@ -32,6 +32,34 @@ jobs:
         run: >-
           supabase start
           -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
+      - name: Boot every Edge Function
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          anon_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+          test -n "$anon_key"
+          response="$(mktemp)"
+          trap 'rm -f "$response"' EXIT
+
+          for entrypoint in supabase/functions/*/index.ts; do
+            function_name="$(basename "$(dirname "$entrypoint")")"
+            http_code="$(curl --silent --show-error \
+              --max-time 90 \
+              --request OPTIONS \
+              --header "apikey: $anon_key" \
+              --header "Authorization: Bearer $anon_key" \
+              --output "$response" \
+              --write-out '%{http_code}' \
+              "$API_URL/functions/v1/$function_name")"
+
+            if grep -q '"code":"BOOT_ERROR"' "$response"; then
+              echo "::error::Failed to boot $function_name (HTTP $http_code)."
+              sed -n '1,20p' "$response"
+              exit 1
+            fi
+            echo "Booted $function_name (HTTP $http_code)."
+          done
       - name: Verify Admin, PostgREST, mobile, and ranking contracts
         shell: bash
         run: |
