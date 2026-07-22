@@ -190,4 +190,25 @@ describe("AppLivePreview", () => {
     expect(screen.getByText("홈에 노출되지 않음")).toBeTruthy();
     expect(screen.getByText("배너 예약")).toBeTruthy();
   });
+
+  it("hides the sale badge when discountInfo is empty, matching the RN app", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppLivePreview
+        deal={{
+          ...activeDeal,
+          discountInfo: "",
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "공구 카드" }));
+    const dealCard = screen.getByRole("article", {
+      name: "공구 카드 미리보기",
+    });
+    expect(
+      dealCard.querySelector(".app-live-preview__deal-card-sale-badge"),
+    ).toBeNull();
+  });
+
 });
