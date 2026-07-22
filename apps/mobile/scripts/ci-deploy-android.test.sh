@@ -129,7 +129,10 @@ grep -Fxq 'org.gradle.parallel=false' \
 run_deployment "production-ota" "refs/heads/main" "true"
 grep -Fxq "mode=ota" "$test_directory/production-ota/output"
 grep -Fq "update --channel production --environment production" "$test_directory/production-ota/eas.log"
-grep -Fq -- "--app-identifier com.gonggu.wish" "$test_directory/production-ota/eas.log"
+if grep -Fq -- "--app-identifier" "$test_directory/production-ota/eas.log"; then
+  echo "Android uploaded builds must be looked up without an app identifier filter" >&2
+  exit 1
+fi
 
 run_deployment "production-build" "refs/heads/main" "false"
 grep -Fxq "mode=build" "$test_directory/production-build/output"
