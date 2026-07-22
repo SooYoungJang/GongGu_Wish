@@ -228,8 +228,8 @@ test("Preview deployment credentials are denied Production targets", () => {
   assert.match(supabaseJob, /api\.supabase\.com\/v1\/projects/);
   assert.match(supabaseJob, /iosdoheblabfimkjnvfj/);
   assert.match(supabaseJob, /forbidden.*opposite-tier project/is);
-  assert.match(workerJob, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
-  assert.match(workerJob, /workers\/builds\/deploy_hooks/);
+  assert.doesNotMatch(workerJob, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
+  assert.doesNotMatch(workerJob, /workers\/builds\/deploy_hooks/);
   assert.match(workerJob, /broad.*credential.*must not/is);
   assert.match(workerJob, /api-preview\.gongguwish\.com\/health/);
   assert.match(workerJob, /\.commitSha == \$sha/);
@@ -241,8 +241,11 @@ test("Preview deployment credentials are denied Production targets", () => {
   );
   assert.match(credentialAudit, /SUPABASE_ACCESS_TOKEN must not be configured/);
   assert.doesNotMatch(credentialAudit, /api\.supabase\.com\/v1\/projects/);
-  assert.match(credentialAudit, /Preview-only Cloudflare deploy hook/);
-  assert.match(credentialAudit, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
+  assert.match(
+    credentialAudit,
+    /Reject broad Cloudflare account credentials in Preview/,
+  );
+  assert.doesNotMatch(credentialAudit, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
   assert.match(credentialAudit, /Preview-only Vercel deploy hook/);
   assert.match(credentialAudit, /VERCEL_PREVIEW_DEPLOY_HOOK_URL/);
 });
@@ -273,6 +276,17 @@ test("CI bundle-checks every Edge Function entrypoint", () => {
 
   assert.match(edgeTests, /supabase\/functions\/\*\/index\.ts/);
   assert.match(edgeTests, /deno check "\$entrypoint"/);
+});
+
+test("develop observes the project-bound Cloudflare Git build without retriggering it", () => {
+  const workerJob = job("deploy-worker");
+
+  assert.doesNotMatch(workerJob, /Trigger Preview Worker build/);
+  assert.doesNotMatch(workerJob, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
+  assert.match(workerJob, /Require exact Preview Worker deployment/);
+  assert.match(workerJob, /api-preview\.gongguwish\.com\/health/);
+  assert.match(workerJob, /\.commitSha == \$sha/);
+  assert.match(workerJob, /\.supabaseProjectRef == "xwblovggtvbpiusjfokq"/);
 });
 
 test("local Supabase contracts reject public tables without RLS", () => {
