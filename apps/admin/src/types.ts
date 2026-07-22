@@ -12,6 +12,7 @@ export type GongguSubmission = {
   id: string;
   productName: string | null;
   brandName: string | null;
+  instagramUsername: string | null;
   category: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -42,6 +43,7 @@ export type GroupBuy = {
   id: string;
   productName: string | null;
   brandName: string | null;
+  instagramUsername: string | null;
   category: string | null;
   startDate: string | null;
   endDate: string | null;

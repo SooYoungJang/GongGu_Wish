@@ -52,6 +52,7 @@ const SUBMISSION_SELECT = `
   id,
   product_name,
   brand_name,
+  instagram_username,
   category,
   start_date,
   end_date,
@@ -82,6 +83,7 @@ const GROUP_BUY_SELECT = `
   id,
   product_name,
   brand_name,
+  instagram_username,
   category,
   start_date,
   end_date,
@@ -259,6 +261,7 @@ function normalizeSubmissionPatch(
 
   if (hasOwn(body, "productName")) patch.product_name = str(body.productName);
   if (hasOwn(body, "brandName")) patch.brand_name = str(body.brandName);
+  if (hasOwn(body, "instagramUsername")) patch.instagram_username = str(body.instagramUsername);
   if (hasOwn(body, "category")) patch.category = str(body.category);
   if (hasOwn(body, "startDate")) patch.start_date = str(body.startDate);
   if (hasOwn(body, "endDate")) patch.end_date = str(body.endDate);
@@ -288,6 +291,7 @@ function normalizeGroupBuyPatch(
 
   if (hasOwn(body, "productName")) patch.product_name = str(body.productName);
   if (hasOwn(body, "brandName")) patch.brand_name = str(body.brandName);
+  if (hasOwn(body, "instagramUsername")) patch.instagram_username = str(body.instagramUsername);
   if (hasOwn(body, "category")) patch.category = str(body.category);
   if (hasOwn(body, "startDate")) patch.start_date = str(body.startDate);
   if (hasOwn(body, "endDate")) patch.end_date = str(body.endDate);
@@ -329,6 +333,7 @@ function mapSubmission(row: Record<string, unknown>) {
     id: row.id,
     productName: row.product_name,
     brandName: row.brand_name,
+    instagramUsername: row.instagram_username,
     category: row.category,
     startDate: row.start_date,
     endDate: row.end_date,
@@ -361,6 +366,7 @@ function mapGroupBuy(row: Record<string, unknown>) {
     id: row.id,
     productName: row.product_name,
     brandName: row.brand_name,
+    instagramUsername: row.instagram_username,
     category: row.category,
     startDate: row.start_date,
     endDate: row.end_date,
@@ -591,6 +597,9 @@ async function approveSubmission(
     brand_name: hasOwn(body, "brandName")
       ? str(body.brandName)
       : existing.brand_name,
+    instagram_username: hasOwn(body, "instagramUsername")
+      ? str(body.instagramUsername)
+      : existing.instagram_username,
     category: hasOwn(body, "category") ? str(body.category) : existing.category,
     start_date: hasOwn(body, "startDate")
       ? str(body.startDate)
@@ -763,6 +772,23 @@ type CdnRefreshStatusResponse = {
     noCdn: number;
   };
 };
+
+function mapCdnRow(row: Record<string, unknown>): CdnRefreshStatusRow {
+  return {
+    id: row.id,
+    productName: row.product_name,
+    brandName: row.brand_name,
+    category: row.category,
+    videoUrl: row.video_url,
+    thumbnailUrl: row.thumbnail_url,
+    endDate: row.end_date,
+    updatedAt: row.updated_at,
+    mediaRefreshedAt: row.media_refreshed_at,
+    cdnExpiresAt: row.cdn_expires_at,
+    refreshStatus: row.refresh_status,
+    instagramUrl: row.instagram_url,
+  };
+}
 
 async function listCdnRefreshStatus(
   supabase: AdminClient,

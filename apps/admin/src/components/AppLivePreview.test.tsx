@@ -6,6 +6,7 @@ import { AppLivePreview, type AppLivePreviewDeal } from "./AppLivePreview";
 const activeDeal: AppLivePreviewDeal = {
   productName: "제주 감귤 3kg",
   brandName: "귤밭상회",
+  instagramUsername: "gyulbbad",
   category: "과일",
   startDate: "2000-01-01",
   endDate: "2099-12-31",
