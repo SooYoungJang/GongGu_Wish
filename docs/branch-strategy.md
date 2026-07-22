@@ -10,18 +10,35 @@ only to production after a final review.
 
 ## Branch Roles
 
-| Branch      | Role                | Supabase                            | Cloudflare Worker            | Vercel Admin          | Mobile EAS Channel |
-| ----------- | ------------------- | ----------------------------------- | ---------------------------- | --------------------- | ------------------ |
-| `main`      | Production release  | production (`iosdoheblabfimkjnvfj`) | `api.gongguwish.com`         | production (`--prod`) | `production`       |
-| `develop`   | Preview integration | preview (`xwblovggtvbpiusjfokq`)    | `api-preview.gongguwish.com` | Preview               | `preview`          |
-| `feature/*` | Individual work     | local Supabase                      | n/a                          | n/a                   | local Metro        |
+| Branch    | Role                | Supabase                            | Cloudflare Worker            | Vercel Admin          | Mobile EAS Channel |
+| --------- | ------------------- | ----------------------------------- | ---------------------------- | --------------------- | ------------------ |
+| `main`    | Production release  | production (`iosdoheblabfimkjnvfj`) | `api.gongguwish.com`         | production (`--prod`) | `production`       |
+| `develop` | Preview integration | preview (`xwblovggtvbpiusjfokq`)    | `api-preview.gongguwish.com` | Preview               | `preview`          |
+| `codex/*` | Individual work     | local Supabase                      | n/a                          | n/a                   | local Metro        |
+
+## Agent Operating Rules
+
+Unless the user explicitly requests a different safe workflow, every code,
+configuration, and documentation change starts from the latest
+`origin/develop` on a short-lived `codex/<task-name>` branch or isolated
+worktree. The agent opens a PR to `develop`, fixes required CI failures, merges
+the PR when all required checks pass, and verifies the merged SHA through the
+complete Preview deployment. Normal work never opens a PR to `main`.
+
+Production promotion requires an explicit current request such as
+“프로덕션 배포해” or “main에 올려”. That request authorizes the ordinary
+`develop → main` PR, merge, and existing Production deployment pipeline. It
+does not authorize destructive migrations, data deletion, credential changes,
+or force-merging failed checks. Production promotion always uses the latest
+`develop` branch; individual feature branches are never merged or
+cherry-picked directly to `main`.
 
 ## Workflow
 
-1. Branch from `develop` for each feature: `git checkout -b feature/my-feature develop`
+1. Fetch the remote and branch from the latest `origin/develop` for each task: `git switch -c codex/my-task origin/develop`.
 2. Open a PR targeting `develop`. CI runs lint, typecheck, build, tests, edge function tests, and local Supabase integration contracts.
 3. After review and merge into `develop`, the project-bound Supabase GitHub Integration deploys Preview migrations and Edge Functions, while the connected Cloudflare Workers Build deploys the Preview Worker. GitHub Actions waits for those exact-SHA deployments, deploys the Preview mobile app, and verifies the Vercel Admin deployment. `Preview Green` succeeds only after every deployment and the remote API, Admin, and Hiker smoke tests pass.
-4. When Preview is validated, open a PR from `develop` to `main`. `Preview Promotion Gate` requires the PR head to be the latest `develop` SHA and requires that exact SHA's successful `Preview Green` run.
+4. Only after an explicit Production request, open a PR from the latest `develop` to `main`. `Preview Promotion Gate` requires the PR head to be the latest `develop` SHA and requires that exact SHA's successful `Preview Green` run.
 5. After review and merge into `main`, GitHub Actions deploys the production Supabase DB, production Edge Functions, and the production Cloudflare Worker. The Vercel Git integration creates the Admin production deployment from the same push. After the backend deployment succeeds, the mobile workflow publishes to the `production` channel.
 
 Promotion copies Git-tracked code only. Preview database rows, Auth users, object
@@ -67,7 +84,7 @@ the `production` AAB profile and enabling EAS Submit.
 
 ## CI Behavior by Branch
 
-### `feature/*` to `develop` PR
+### `codex/*` to `develop` PR
 
 - Lint, typecheck, build, unit tests, edge function tests
 - Local Supabase integration contracts (in-container)
@@ -221,8 +238,10 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 ## Safety Rules
 
 - Never push directly to `main` or `develop`. All changes go through PRs.
+- Normal development work branches from the latest `origin/develop` and targets `develop`; it never targets `main`.
 - `main` and `develop` branches should be protected with required status checks and code review.
 - Merging `develop` authorizes the Preview mobile deployment; merging `main` authorizes the Production mobile deployment.
+- Create and merge a `develop → main` PR only after an explicit Production request. Never promote an individual task branch directly to `main`.
 - Production promotion PRs must come from the latest `develop` SHA with a successful same-SHA `Preview Green` run.
 - Preview database rows and Auth users are never copied to Production. Versioned migrations are code and run against Production only after their merge into `main`.
 - Missing deployment credentials fail closed. A skipped DB, Edge Function, Worker, Admin, mobile, or smoke-test step must never produce a green release.
