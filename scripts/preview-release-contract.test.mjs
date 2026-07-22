@@ -18,6 +18,7 @@ const adminEnvironmentContract = readFileSync(
 const adminViteConfig = readFileSync("apps/admin/vite.config.ts", "utf8");
 const adminVercelConfig = readFileSync("apps/admin/vercel.json", "utf8");
 const adminIgnoreCommand = JSON.parse(adminVercelConfig).ignoreCommand;
+const ciChangePlanSource = readFileSync("scripts/ci-change-plan.mjs", "utf8");
 const agentRules = readFileSync("AGENTS.md", "utf8");
 const branchStrategy = readFileSync("docs/branch-strategy.md", "utf8");
 
@@ -265,16 +266,20 @@ test("change planning includes deletions and both sides of renames", () => {
 
   assert.match(changePlan, /git diff --no-renames --name-only/);
   assert.doesNotMatch(changePlan, /--diff-filter=ACMR/);
-  assert.match(
-    adminIgnoreCommand,
-    /git diff --no-renames --name-only "\$VERCEL_GIT_PREVIOUS_SHA" "\$\{VERCEL_GIT_COMMIT_SHA:-HEAD\}"/,
-  );
+  assert.match(ciChangePlanSource, /execFileSync\(\s*"git"/);
+  assert.match(ciChangePlanSource, /"--no-renames"/);
+  assert.match(ciChangePlanSource, /"--name-only"/);
 });
 
 test("Admin builds fail safe when Vercel has no previous successful SHA", () => {
-  assert.match(adminIgnoreCommand, /VERCEL_GIT_PREVIOUS_SHA/);
-  assert.match(adminIgnoreCommand, /-z "\$VERCEL_GIT_PREVIOUS_SHA"/);
-  assert.match(adminIgnoreCommand, /exit 1/);
+  assert.equal(
+    adminIgnoreCommand,
+    "node ../../scripts/ci-change-plan.mjs --vercel-admin",
+  );
+  assert.ok(adminIgnoreCommand.length <= 256);
+  assert.match(ciChangePlanSource, /VERCEL_GIT_PREVIOUS_SHA/);
+  assert.match(ciChangePlanSource, /VERCEL_GIT_COMMIT_SHA/);
+  assert.match(ciChangePlanSource, /process\.exitCode = 1/);
 });
 
 test("PostgreSQL starts only for API tests", () => {
@@ -371,12 +376,9 @@ test("Admin deployments publish an exact environment and commit identity", () =>
   assert.match(adminViteConfig, /VERCEL_GIT_COMMIT_REF/);
   assert.match(adminViteConfig, /release-identity\.json/);
   assert.match(adminVercelConfig, /"ignoreCommand"/);
-  assert.match(
-    adminIgnoreCommand,
-    /git diff --no-renames --name-only "\$VERCEL_GIT_PREVIOUS_SHA" "\$\{VERCEL_GIT_COMMIT_SHA:-HEAD\}"/,
-  );
+  assert.match(adminIgnoreCommand, /--vercel-admin/);
   assert.match(adminIgnoreCommand, /ci-change-plan\.mjs/);
-  assert.match(adminIgnoreCommand, /--exit-for admin/);
+  assert.match(adminIgnoreCommand, /--vercel-admin/);
 });
 
 test("Preview deployment credentials are denied Production targets", () => {

@@ -1,7 +1,7 @@
 {
   "framework": "vite",
   "buildCommand": "npm run build",
-  "ignoreCommand": "if [ -z \"$VERCEL_GIT_PREVIOUS_SHA\" ]; then exit 1; fi; git diff --no-renames --name-only \"$VERCEL_GIT_PREVIOUS_SHA\" \"${VERCEL_GIT_COMMIT_SHA:-HEAD}\" > /tmp/gonggu-admin-changes && node ../../scripts/ci-change-plan.mjs --files /tmp/gonggu-admin-changes --exit-for admin",
+  "ignoreCommand": "node ../../scripts/ci-change-plan.mjs --vercel-admin",
   "outputDirectory": "dist",
   "rewrites": [
     {

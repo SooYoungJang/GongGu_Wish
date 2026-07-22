@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -217,18 +218,51 @@ function toOutputs(plan) {
   };
 }
 
+function readVercelAdminFiles() {
+  const previousSha = process.env.VERCEL_GIT_PREVIOUS_SHA;
+  const currentSha = process.env.VERCEL_GIT_COMMIT_SHA || "HEAD";
+
+  if (!previousSha) {
+    process.stdout.write(
+      "No previous successful Vercel SHA is available; building Admin fail-safe.\n",
+    );
+    process.exitCode = 1;
+    return null;
+  }
+
+  try {
+    return execFileSync(
+      "git",
+      ["diff", "--no-renames", "--name-only", previousSha, currentSha],
+      { encoding: "utf8" },
+    ).split(/\r?\n/);
+  } catch {
+    process.stderr.write(
+      "Unable to compare Vercel SHAs; building Admin fail-safe.\n",
+    );
+    process.exitCode = 1;
+    return null;
+  }
+}
+
 function runCli() {
   const args = process.argv.slice(2);
   const filesIndex = args.indexOf("--files");
   const outputIndex = args.indexOf("--github-output");
   const exitIndex = args.indexOf("--exit-for");
-  if (filesIndex === -1 || !args[filesIndex + 1]) {
+  const vercelAdmin = args.includes("--vercel-admin");
+
+  if (!vercelAdmin && (filesIndex === -1 || !args[filesIndex + 1])) {
     throw new Error(
-      "Usage: node scripts/ci-change-plan.mjs --files <path> [--github-output <path>]",
+      "Usage: node scripts/ci-change-plan.mjs (--files <path> [--github-output <path>] | --vercel-admin)",
     );
   }
 
-  const files = readFileSync(args[filesIndex + 1], "utf8").split(/\r?\n/);
+  const files = vercelAdmin
+    ? readVercelAdminFiles()
+    : readFileSync(args[filesIndex + 1], "utf8").split(/\r?\n/);
+  if (!files) return;
+
   const plan = classifyChangedFiles(files);
   const outputs = toOutputs(plan);
 
@@ -243,8 +277,10 @@ function runCli() {
     `${JSON.stringify({ files: files.filter(Boolean), ...outputs }, null, 2)}\n`,
   );
 
-  if (exitIndex !== -1 && args[exitIndex + 1]) {
-    const component = args[exitIndex + 1];
+  let component;
+  if (vercelAdmin) component = "admin";
+  else if (exitIndex !== -1) component = args[exitIndex + 1];
+  if (component) {
     if (!(component in plan)) {
       throw new Error(`Unknown component for --exit-for: ${component}`);
     }
