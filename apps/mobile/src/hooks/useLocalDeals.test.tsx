@@ -64,6 +64,7 @@ const storage = vi.hoisted(() => ({
     snapshot: string | null;
     gate: Promise<void>;
   }>,
+  nextGetItemError: null as Error | null,
   writeGate: null as Promise<void> | null,
   writeAttempts: 0,
 }));
@@ -71,6 +72,11 @@ const storage = vi.hoisted(() => ({
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {
     getItem: vi.fn(async (key: string) => {
+      if (storage.nextGetItemError) {
+        const error = storage.nextGetItemError;
+        storage.nextGetItemError = null;
+        throw error;
+      }
       const plannedRead = storage.readPlans.shift();
       const value = plannedRead
         ? plannedRead.snapshot
@@ -123,6 +129,7 @@ describe("useNotifications", () => {
   beforeEach(() => {
     storage.values.clear();
     storage.readPlans.length = 0;
+    storage.nextGetItemError = null;
     storage.writeGate = null;
     storage.writeAttempts = 0;
     apiMocks.fetchGroupBuysByIds.mockReset().mockResolvedValue([]);
@@ -523,6 +530,45 @@ describe("useNotifications", () => {
         ).map((deal) => deal.id),
       ).toEqual(expectedIds);
     });
+  });
+
+  it("기록 전 저장소 읽기가 실패하면 기존 기록을 덮지 않는다", async () => {
+    const storedDealA = {
+      ...GROUP_BUY,
+      id: "group-buy-a",
+      productName: "공구 A",
+    };
+    const viewedDealB = {
+      ...GROUP_BUY,
+      id: "group-buy-b",
+      productName: "공구 B",
+    };
+    storage.values.set(
+      "@gonggu/recent-views/v1",
+      JSON.stringify([storedDealA]),
+    );
+    const recentViews = renderHook(() => useRecentViews());
+    await waitFor(() => {
+      expect(recentViews.result.current.ready).toBe(true);
+    });
+
+    storage.nextGetItemError = new Error("temporary read failure");
+    await act(async () => {
+      recentViews.result.current.recordView(viewedDealB);
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(storage.nextGetItemError).toBeNull();
+    expect(
+      (
+        JSON.parse(
+          storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+        ) as Array<{ id: string }>
+      ).map((deal) => deal.id),
+    ).toEqual(["group-buy-a"]);
+    expect(
+      recentViews.result.current.recentViews.map((deal) => deal.id),
+    ).toEqual(["group-buy-b", "group-buy-a"]);
   });
 
   it("기존 활동 데이터도 최신 가격과 할인정보로 보강한다", async () => {
