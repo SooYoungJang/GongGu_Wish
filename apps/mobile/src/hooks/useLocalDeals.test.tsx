@@ -239,6 +239,55 @@ describe("useNotifications", () => {
     });
   });
 
+  it("최근 본 공구를 중복 없이 최신순 10개까지만 저장한다", async () => {
+    const storedDeals = Array.from({ length: 10 }, (_, index) => ({
+      ...GROUP_BUY,
+      id: `group-buy-${index}`,
+      productName: `공구 ${index}`,
+    }));
+    storage.values.set("@gonggu/recent-views/v1", JSON.stringify(storedDeals));
+    const recentViews = renderHook(() => useRecentViews());
+
+    await waitFor(() => {
+      expect(recentViews.result.current.ready).toBe(true);
+    });
+    act(() => {
+      recentViews.result.current.recordView(storedDeals[5]);
+    });
+    act(() => {
+      recentViews.result.current.recordView({
+        ...GROUP_BUY,
+        id: "group-buy-new",
+        productName: "새 공구",
+      });
+    });
+
+    const expectedIds = [
+      "group-buy-new",
+      "group-buy-5",
+      "group-buy-0",
+      "group-buy-1",
+      "group-buy-2",
+      "group-buy-3",
+      "group-buy-4",
+      "group-buy-6",
+      "group-buy-7",
+      "group-buy-8",
+    ];
+    expect(
+      recentViews.result.current.recentViews.map((deal) => deal.id),
+    ).toEqual(expectedIds);
+    await waitFor(() => {
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(expectedIds);
+    });
+  });
+
   it("기존 활동 데이터도 최신 가격과 할인정보로 보강한다", async () => {
     const legacyStoredDeal = {
       ...GROUP_BUY,

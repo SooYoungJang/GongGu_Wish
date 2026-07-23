@@ -230,6 +230,23 @@ function toNotificationDealFields(item: GroupBuy): NotificationDealFields {
   };
 }
 
+function mergeRecentViews(
+  newest: StoredGroupBuy[],
+  existing: StoredGroupBuy[],
+): StoredGroupBuy[] {
+  const seen = new Set<string>();
+  const merged: StoredGroupBuy[] = [];
+
+  for (const item of [...newest, ...existing]) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    merged.push(item);
+    if (merged.length === MAX_RECENT) break;
+  }
+
+  return merged;
+}
+
 function needsStoredDealHydration(item: StoredGroupBuy) {
   return (
     item.priceKrw === undefined ||
@@ -818,11 +835,24 @@ export function useBookmarks() {
 export function useRecentViews() {
   const [recentViews, setRecentViews] = useState<StoredGroupBuy[]>([]);
   const [ready, setReady] = useState(false);
+  const readyRef = useRef(false);
+  const pendingViewsRef = useRef<StoredGroupBuy[]>([]);
 
   const refresh = useCallback(() => {
+    readyRef.current = false;
+    setReady(false);
     readJSON<StoredGroupBuy[]>(RECENT_KEY, []).then(async (value) => {
-      const hydrated = await hydrateStoredDeals(RECENT_KEY, value);
-      setRecentViews(hydrated);
+      let next = await hydrateStoredDeals(RECENT_KEY, value);
+
+      while (pendingViewsRef.current.length > 0) {
+        const pending = pendingViewsRef.current;
+        pendingViewsRef.current = [];
+        next = mergeRecentViews(pending, next);
+        await writeJSON(RECENT_KEY, next);
+      }
+
+      readyRef.current = true;
+      setRecentViews(next);
       setReady(true);
     });
   }, []);
@@ -832,9 +862,19 @@ export function useRecentViews() {
   }, [refresh]);
 
   const recordView = useCallback((item: GroupBuy) => {
+    const stored = toStored(item);
+
+    if (!readyRef.current) {
+      pendingViewsRef.current = mergeRecentViews(
+        [stored],
+        pendingViewsRef.current,
+      );
+      setRecentViews((current) => mergeRecentViews([stored], current));
+      return;
+    }
+
     setRecentViews((current) => {
-      const filtered = current.filter((entry) => entry.id !== item.id);
-      const next = [toStored(item), ...filtered].slice(0, MAX_RECENT);
+      const next = mergeRecentViews([stored], current);
       void writeJSON(RECENT_KEY, next);
       return next;
     });
