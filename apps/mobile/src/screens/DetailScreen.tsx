@@ -57,6 +57,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { BackButton } from "../components/BackButton";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { NativeAdCard } from "../components/ads/NativeAdCard";
+import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
+import { useAds } from "../ads/AdsContext";
+import {
+  insertReelsAdSlots,
+  isReelsContentItem,
+  type ReelsFeedItem,
+} from "./reelsAdPlacement";
 import { PriceText } from "../components/ui/PriceText";
 import {
   useBookmarks,
@@ -2284,10 +2291,47 @@ function DetailScreenContent({
     );
     return currentIndex >= 0 ? currentIndex : initialReelIndex;
   }, [activeProductId, initialReelIndex, reelItems]);
+  // Interleave native-ad pages into the detail pager (same pattern as Reels).
+  // When ads are disabled, insertReelsAdSlots returns a 1:1 content-only feed.
+  const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
+  const [detailAdsUnavailable, setDetailAdsUnavailable] = useState(false);
+  const canShowDetailAds =
+    adsEnabled &&
+    adsReady &&
+    Boolean(nativeUnitIds.detail) &&
+    !detailAdsUnavailable;
+  const feedItems = useMemo(
+    () => insertReelsAdSlots(reelItems, { enabled: canShowDetailAds }),
+    [canShowDetailAds, reelItems],
+  );
+  const handleDetailAdLoadStateChange = useCallback(
+    (status: NativeAdLoadStatus) => {
+      if (status === "unavailable") setDetailAdsUnavailable(true);
+    },
+    [],
+  );
+  // Map the active organic product index to its position in the ad-interleaved
+  // feed, so the pager opens on the right page even when ad breaks precede it.
+  const activeDisplayIndex = useMemo(() => {
+    let organicCount = 0;
+    for (let i = 0; i < feedItems.length; i++) {
+      const entry = feedItems[i];
+      if (isReelsContentItem(entry)) {
+        if (organicCount === activeProductIndex) return i;
+        organicCount++;
+      }
+    }
+    return initialReelIndex;
+  }, [feedItems, activeProductIndex, initialReelIndex]);
+  const [isOnAdPage, setIsOnAdPage] = useState(false);
   const [canonicalAlignedRouteId, setCanonicalAlignedRouteId] = useState<
     string | null
   >(null);
-  const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
+  // No product is "active" while the user rests on a sponsored page, so
+  // playback tracking and deep-view timers pause until they swipe back.
+  const activeGroupBuy = isOnAdPage
+    ? groupBuy
+    : reelItems[activeProductIndex] ?? groupBuy;
   const hasCanonicalRouteGroupBuy = Boolean(
     groupBuys?.some((item) => item.id === groupBuy.id),
   );
@@ -2452,11 +2496,12 @@ function DetailScreenContent({
   useEffect(() => {
     if (!hasCanonicalRouteGroupBuy) return;
     setActiveProductId(groupBuy.id);
-    verticalPagerRef.current?.setPageWithoutAnimation?.(initialReelIndex);
+    verticalPagerRef.current?.setPageWithoutAnimation?.(activeDisplayIndex);
     setCanonicalAlignedRouteId(groupBuy.id);
   }, [
     groupBuy.id,
     hasCanonicalRouteGroupBuy,
+    activeDisplayIndex,
     initialReelIndex,
     reelItems.length,
   ]);
@@ -2469,68 +2514,82 @@ function DetailScreenContent({
       setSummarySheetGate({ isOpen: false, canSwipeReel: true });
       if (nextIndex >= 0) {
         setActiveProductId(item.id);
-        verticalPagerRef.current?.setPage?.(nextIndex);
+        const nextDisplayIndex = feedItems.findIndex(
+          (entry) => isReelsContentItem(entry) && entry.content.id === item.id,
+        );
+        verticalPagerRef.current?.setPage?.(
+          nextDisplayIndex >= 0 ? nextDisplayIndex : activeDisplayIndex,
+        );
         return;
       }
       navigation.push("Detail", { groupBuy: item });
     },
-    [navigation, reelItems, resetSearchSheetClosed],
+    [navigation, reelItems, feedItems, activeDisplayIndex, resetSearchSheetClosed],
   );
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
-  const renderReelItem = useCallback(
-    ({ item, index }: { item: GroupBuy; index: number }) => (
-      <ProductReelPage
-        key={item.id}
-        groupBuy={item}
-        isActive={isScreenFocused && index === activeProductIndex}
-        playbackAllowed={
+ const renderReelItem = useCallback(
+   ({ item, index }: { item: GroupBuy; index: number }) => (
+     <ProductReelPage
+       key={item.id}
+       groupBuy={item}
+        isActive={isScreenFocused && index === activeProductIndex && !isOnAdPage}
+       playbackAllowed={
           isPlaybackActive &&
-          index === activeProductIndex
-        }
-        isSearchSheetVisible={isSearchSheetVisible}
-        searchSheetMetrics={searchSheetMetrics}
-        shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
-        bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
-        pageHeight={screenHeight}
-        mediaWidth={screenWidth}
-        topInset={insets.top}
-        bottomInset={insets.bottom}
-        onBack={handleBack}
-        showDetailAd
-        onCloseSearchSheet={closeSearchSheet}
-        onPlaybackStateChange={handlePlaybackStateChange}
-        onSummarySheetStateChange={handleSummarySheetStateChange}
-        s={s}
-      />
-    ),
-    [
-      activeProductIndex,
-      closeSearchSheet,
-      handleSummarySheetStateChange,
-      handlePlaybackStateChange,
-      handleBack,
-      insets.bottom,
-      insets.top,
-      isPlaybackActive,
-      isSearchSheetVisible,
-      navigation,
-      s,
-      searchSheetMetrics,
-      screenHeight,
-      screenWidth,
-    ],
-  );
+          index === activeProductIndex &&
+          !isOnAdPage
+       }
+       isSearchSheetVisible={isSearchSheetVisible}
+       searchSheetMetrics={searchSheetMetrics}
+       shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
+       bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
+       pageHeight={screenHeight}
+       mediaWidth={screenWidth}
+       topInset={insets.top}
+       bottomInset={insets.bottom}
+       onBack={handleBack}
+       showDetailAd
+       onCloseSearchSheet={closeSearchSheet}
+       onPlaybackStateChange={handlePlaybackStateChange}
+       onSummarySheetStateChange={handleSummarySheetStateChange}
+       s={s}
+     />
+   ),
+   [
+     activeProductIndex,
+     closeSearchSheet,
+     handleSummarySheetStateChange,
+     handlePlaybackStateChange,
+     handleBack,
+     insets.bottom,
+     insets.top,
+      isOnAdPage,
+     isPlaybackActive,
+     isSearchSheetVisible,
+     navigation,
+     s,
+     searchSheetMetrics,
+     screenHeight,
+     screenWidth,
+   ],
+ );
 
   return (
     <View style={s.safeArea}>
       <StatusBar barStyle="light-content" />
       <PagerView
         ref={verticalPagerRef}
-        initialPage={initialReelIndex}
+        initialPage={activeDisplayIndex}
         offscreenPageLimit={1}
         onPageSelected={(event) => {
-          const nextIndex = event.nativeEvent.position;
+          const nextDisplay = event.nativeEvent.position;
+          const entry = feedItems[nextDisplay];
+          if (entry && !isReelsContentItem(entry)) {
+            setIsOnAdPage(true);
+            return;
+          }
+          setIsOnAdPage(false);
+          const nextIndex = entry ? reelItems.indexOf(entry.content) : -1;
           if (
             nextIndex !== activeProductIndex &&
             nextIndex >= 0 &&
@@ -2543,15 +2602,45 @@ function DetailScreenContent({
         overdrag
         scrollEnabled={
           screenHeight > 0 &&
-          reelItems.length > 1 &&
+          feedItems.length > 1 &&
           !summarySheetGate.isOpen &&
           !isSearchSheetVisible
         }
         style={s.verticalPager}
       >
-        {reelItems.map((item, index) => (
+        {feedItems.map((entry, index) => {
+          if (!isReelsContentItem(entry)) {
+            return (
+              <View
+                key={entry.key}
+                collapsable={false}
+                style={[s.verticalPagerPage, { height: screenHeight }]}
+              >
+                <View style={s.reelAdPage}>
+                  <View
+                    accessibilityLiveRegion="polite"
+                    style={s.reelAdLoading}
+                  >
+                    <SText style={s.reelAdLoadingLabel}>광고</SText>
+                    <SText variant="body" style={s.reelAdLoadingText}>
+                      광고를 불러오는 중이에요
+                    </SText>
+                  </View>
+                  <NativeAdCard
+                    onLoadStateChange={handleDetailAdLoadStateChange}
+                    placement="detail"
+                    testID={`detail-native-ad-${entry.sequence}`}
+                    variant="reel"
+                    visible={index === activeDisplayIndex}
+                  />
+                </View>
+              </View>
+            );
+          }
+          const item = entry.content;
+          const organicIndex = reelItems.indexOf(item);
           <View
-            key={item.id}
+            key={entry.key}
             collapsable={false}
             style={[
               s.verticalPagerPage,
@@ -2560,9 +2649,9 @@ function DetailScreenContent({
               },
             ]}
           >
-            {renderReelItem({ item, index })}
+            {renderReelItem({ item, index: organicIndex })}
           </View>
-        ))}
+        })}
       </PagerView>
       {!summarySheetGate.isOpen && !isSearchSheetVisible ? (
         <DetailSearchDock
@@ -2604,6 +2693,31 @@ export function makeStyles(
     verticalPagerPage: {
       backgroundColor: "#05070A",
       width: "100%",
+    },
+    reelAdPage: {
+      backgroundColor: "#05070A",
+      flex: 1,
+    },
+    reelAdLoading: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    reelAdLoadingLabel: {
+      backgroundColor: "rgba(255,255,255,0.12)",
+      borderRadius: 4,
+      color: "rgba(255,255,255,0.72)",
+      fontSize: 12,
+      fontWeight: "700",
+      marginBottom: 12,
+      overflow: "hidden",
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    reelAdLoadingText: {
+      color: "rgba(255,255,255,0.72)",
+      fontSize: 14,
+      fontWeight: "500",
     },
     detailSearchDock: {
       bottom: 0,
