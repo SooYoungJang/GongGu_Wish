@@ -17,6 +17,9 @@ import { useAds } from "../../ads/AdsContext";
 import {
   insertReelsAdSlots,
   isReelsContentItem,
+  REELS_AD_GAP_MAX,
+  REELS_AD_GAP_MIN,
+  seedAdRandomFromIds,
   type ReelsFeedItem,
 } from "../../screens/reelsAdPlacement";
 import { SText } from "../ui/SText";
@@ -103,11 +106,30 @@ export function SellerRankingList({
     Boolean(nativeUnitIds.home) &&
     !rankingAdsUnavailable;
   const feedItems = useMemo<RankingFeedItem[]>(
-    () =>
-      insertReelsAdSlots(wrapForAdInsertion(remainingItems), {
+    () => {
+      const rankingIds = readyData.map((item) => item.groupBuyId);
+      const random = seedAdRandomFromIds(rankingIds);
+      const smallestFirstGap = Math.max(REELS_AD_GAP_MIN, topThree.length);
+      const largestFirstGap = Math.min(REELS_AD_GAP_MAX, readyData.length);
+      const firstAdAfter =
+        largestFirstGap >= smallestFirstGap
+          ? Math.floor(
+              random() * (largestFirstGap - smallestFirstGap + 1),
+            ) + smallestFirstGap
+          : undefined;
+      const topThreeIds = new Set(topThree.map((item) => item.groupBuyId));
+      return insertReelsAdSlots(wrapForAdInsertion(readyData.slice()), {
         enabled: canShowRankingAds,
-      }),
-    [canShowRankingAds, remainingItems],
+        firstAdAfter,
+        includeTrailingAd: true,
+        random,
+      }).filter(
+        (item) =>
+          !isReelsContentItem(item) ||
+          !topThreeIds.has(item.content.groupBuyId),
+      );
+    },
+    [canShowRankingAds, readyData, topThree],
   );
   const handleRankingAdLoadStateChange = useCallback(
     (status: NativeAdLoadStatus) => {

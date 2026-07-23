@@ -1539,6 +1539,29 @@ describe('HomeScreenContent redesign v2', () => {
     ).toHaveLength(0);
   });
 
+  it('shows a trailing native ad after a two-product home feed', () => {
+    const renderer = renderHomeContent({
+      groupBuys: sampleGroupBuys.slice(0, 2),
+    });
+
+    expect(
+      renderer.root.findAllByProps({ testID: 'home-native-ad' }),
+    ).toHaveLength(1);
+  });
+
+  it('fits the first random gap so a short three-product home feed still shows an ad', () => {
+    const groupBuys = Array.from({ length: 3 }, (_, index) => ({
+      ...sampleGroupBuys[index % sampleGroupBuys.length],
+      id: `bounded-home-${index + 1}`,
+      isHomeBanner: false,
+    }));
+    const renderer = renderHomeContent({ groupBuys });
+
+    expect(
+      renderer.root.findAllByProps({ testID: 'home-native-ad' }),
+    ).toHaveLength(1);
+  });
+
   it('places at least one native ad among eight recommended products', () => {
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],

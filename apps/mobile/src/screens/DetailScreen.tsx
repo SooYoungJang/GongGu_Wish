@@ -62,6 +62,7 @@ import { useAds } from "../ads/AdsContext";
 import {
   insertReelsAdSlots,
   isReelsContentItem,
+  seedAdRandomFromIds,
   type ReelsFeedItem,
 } from "./reelsAdPlacement";
 import { PriceText } from "../components/ui/PriceText";
@@ -2125,7 +2126,7 @@ function ProductReelPageComponent({
                 <SText variant="body" style={s.summarySheetText}>
                   {summary}
                 </SText>
-                {showDetailAd && isActive ? (
+                {showDetailAd && isActive && isSummaryVisible ? (
                   <View style={s.summarySheetAd}>
                     <NativeAdCard
                       placement="detail"
@@ -2223,6 +2224,10 @@ function DetailScreenContent({
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const verticalPagerRef = useRef<PagerView>(null);
+  const hasDepartedRouteRef = useRef(false);
+  useEffect(() => {
+    hasDepartedRouteRef.current = false;
+  }, [groupBuy.id]);
   const [summarySheetGate, setSummarySheetGate] = useState({
     isOpen: false,
     canSwipeReel: true,
@@ -2301,14 +2306,13 @@ function DetailScreenContent({
     Boolean(nativeUnitIds.detail) &&
     !detailAdsUnavailable;
   const feedItems = useMemo(
-    () => insertReelsAdSlots(reelItems, { enabled: canShowDetailAds }),
+    () =>
+      insertReelsAdSlots(reelItems, {
+        boundFirstGapToFeed: true,
+        enabled: canShowDetailAds,
+        random: seedAdRandomFromIds(reelItems.map((item) => item.id)),
+      }),
     [canShowDetailAds, reelItems],
-  );
-  const handleDetailAdLoadStateChange = useCallback(
-    (status: NativeAdLoadStatus) => {
-      if (status === "unavailable") setDetailAdsUnavailable(true);
-    },
-    [],
   );
   // Map the active organic product index to its position in the ad-interleaved
   // feed, so the pager opens on the right page even when ad breaks precede it.
@@ -2323,10 +2327,41 @@ function DetailScreenContent({
     }
     return initialReelIndex;
   }, [feedItems, activeProductIndex, initialReelIndex]);
+  const detailPagerKey = useMemo(
+    () => feedItems.map((entry) => entry.key).join("|"),
+    [feedItems],
+  );
+  const [activePagerIndex, setActivePagerIndex] = useState(activeDisplayIndex);
   const [isOnAdPage, setIsOnAdPage] = useState(false);
   const [canonicalAlignedRouteId, setCanonicalAlignedRouteId] = useState<
     string | null
   >(null);
+  const feedItemsRef = useRef(feedItems);
+  const activePagerIndexRef = useRef(activePagerIndex);
+  feedItemsRef.current = feedItems;
+  activePagerIndexRef.current = activePagerIndex;
+  const handleDetailAdLoadStateChange = useCallback(
+    (status: NativeAdLoadStatus) => {
+      if (status !== "unavailable") return;
+
+      const currentFeed = feedItemsRef.current;
+      const selectedIndex = activePagerIndexRef.current;
+      const selectedEntry = currentFeed[selectedIndex];
+      if (selectedEntry && !isReelsContentItem(selectedEntry)) {
+        const nextEntry = currentFeed
+          .slice(selectedIndex + 1)
+          .find(isReelsContentItem);
+        const fallbackEntry = [...currentFeed.slice(0, selectedIndex)]
+          .reverse()
+          .find(isReelsContentItem);
+        const recoveryEntry = nextEntry ?? fallbackEntry;
+        if (recoveryEntry) setActiveProductId(recoveryEntry.content.id);
+        setIsOnAdPage(false);
+      }
+      setDetailAdsUnavailable(true);
+    },
+    [],
+  );
   // No product is "active" while the user rests on a sponsored page, so
   // playback tracking and deep-view timers pause until they swipe back.
   const activeGroupBuy = isOnAdPage
@@ -2370,7 +2405,11 @@ function DetailScreenContent({
       .slice(0, 30);
   }, [groupBuy, searchItems, debouncedQuery]);
   useEffect(() => {
-    if (canonicalAlignedRouteId !== groupBuy.id || !hasCanonicalActiveGroupBuy)
+    if (
+      isOnAdPage ||
+      canonicalAlignedRouteId !== groupBuy.id ||
+      !hasCanonicalActiveGroupBuy
+    )
       return;
     recordView(activeGroupBuy);
   }, [
@@ -2378,6 +2417,7 @@ function DetailScreenContent({
     canonicalAlignedRouteId,
     groupBuy.id,
     hasCanonicalActiveGroupBuy,
+    isOnAdPage,
     recordView,
   ]);
   useEffect(() => {
@@ -2494,17 +2534,43 @@ function DetailScreenContent({
   }, [activeProductIndex]);
 
   useEffect(() => {
-    if (!hasCanonicalRouteGroupBuy) return;
-    setActiveProductId(groupBuy.id);
-    verticalPagerRef.current?.setPageWithoutAnimation?.(activeDisplayIndex);
+    if (
+      !hasCanonicalRouteGroupBuy ||
+      canonicalAlignedRouteId === groupBuy.id
+    ) {
+      return;
+    }
+    if (!hasDepartedRouteRef.current) {
+      const routeDisplayIndex = feedItems.findIndex(
+        (entry) =>
+          isReelsContentItem(entry) && entry.content.id === groupBuy.id,
+      );
+      if (routeDisplayIndex < 0) return;
+      setActiveProductId(groupBuy.id);
+      setActivePagerIndex(routeDisplayIndex);
+      setIsOnAdPage(false);
+      verticalPagerRef.current?.setPageWithoutAnimation?.(routeDisplayIndex);
+    }
     setCanonicalAlignedRouteId(groupBuy.id);
   }, [
+    canonicalAlignedRouteId,
+    feedItems,
     groupBuy.id,
     hasCanonicalRouteGroupBuy,
-    activeDisplayIndex,
-    initialReelIndex,
-    reelItems.length,
   ]);
+
+  useEffect(() => {
+    const selectedEntry = feedItems[activePagerIndex];
+    if (
+      isOnAdPage &&
+      selectedEntry &&
+      !isReelsContentItem(selectedEntry)
+    ) {
+      return;
+    }
+    setIsOnAdPage(false);
+    setActivePagerIndex(activeDisplayIndex);
+  }, [activeDisplayIndex, activePagerIndex, feedItems, isOnAdPage]);
 
   const handleSelectSearchResult = useCallback(
     (item: GroupBuy) => {
@@ -2513,18 +2579,30 @@ function DetailScreenContent({
       setSearchQuery("");
       setSummarySheetGate({ isOpen: false, canSwipeReel: true });
       if (nextIndex >= 0) {
+        if (item.id !== groupBuy.id) hasDepartedRouteRef.current = true;
         setActiveProductId(item.id);
         const nextDisplayIndex = feedItems.findIndex(
           (entry) => isReelsContentItem(entry) && entry.content.id === item.id,
         );
+        const targetDisplayIndex =
+          nextDisplayIndex >= 0 ? nextDisplayIndex : activeDisplayIndex;
+        setActivePagerIndex(targetDisplayIndex);
+        setIsOnAdPage(false);
         verticalPagerRef.current?.setPage?.(
-          nextDisplayIndex >= 0 ? nextDisplayIndex : activeDisplayIndex,
+          targetDisplayIndex,
         );
         return;
       }
       navigation.push("Detail", { groupBuy: item });
     },
-    [navigation, reelItems, feedItems, activeDisplayIndex, resetSearchSheetClosed],
+    [
+      navigation,
+      reelItems,
+      feedItems,
+      activeDisplayIndex,
+      groupBuy.id,
+      resetSearchSheetClosed,
+    ],
   );
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
@@ -2578,12 +2656,20 @@ function DetailScreenContent({
     <View style={s.safeArea}>
       <StatusBar barStyle="light-content" />
       <PagerView
+        key={detailPagerKey}
         ref={verticalPagerRef}
         initialPage={activeDisplayIndex}
         offscreenPageLimit={1}
         onPageSelected={(event) => {
           const nextDisplay = event.nativeEvent.position;
+          setActivePagerIndex(nextDisplay);
           const entry = feedItems[nextDisplay];
+          if (
+            entry &&
+            (!isReelsContentItem(entry) || entry.content.id !== groupBuy.id)
+          ) {
+            hasDepartedRouteRef.current = true;
+          }
           if (entry && !isReelsContentItem(entry)) {
             setIsOnAdPage(true);
             return;
@@ -2627,11 +2713,12 @@ function DetailScreenContent({
                     </SText>
                   </View>
                   <NativeAdCard
+                    loadEnabled={Math.abs(index - activePagerIndex) <= 1}
                     onLoadStateChange={handleDetailAdLoadStateChange}
                     placement="detail"
                     testID={`detail-native-ad-${entry.sequence}`}
                     variant="reel"
-                    visible={index === activeDisplayIndex}
+                    visible={index === activePagerIndex}
                   />
                 </View>
               </View>

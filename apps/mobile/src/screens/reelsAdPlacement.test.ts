@@ -5,6 +5,7 @@ import {
   isReelsContentItem,
   REELS_AD_GAP_MAX,
   REELS_AD_GAP_MIN,
+  seedAdRandomFromIds,
 } from "./reelsAdPlacement";
 
 const items = Array.from({ length: 30 }, (_, index) => ({
@@ -72,6 +73,29 @@ describe("insertReelsAdSlots", () => {
     expect(result).toHaveLength(12);
   });
 
+  it("fits the first random gap when a finite surface opts into bounding", () => {
+    const result = insertReelsAdSlots(items.slice(0, 8), {
+      boundFirstGapToFeed: true,
+      enabled: true,
+      random: sequenceRandom([0.999]),
+    });
+
+    const adIndexes = result.flatMap((item, index) =>
+      item.kind === "ad" ? [index] : [],
+    );
+    expect(adIndexes).toEqual([7]);
+    expect(result.filter(isReelsContentItem)).toHaveLength(8);
+  });
+
+  it("keeps the full random range for an unbounded Reels feed", () => {
+    const result = insertReelsAdSlots(items.slice(0, 8), {
+      enabled: true,
+      random: sequenceRandom([0.999]),
+    });
+
+    expect(result.every(isReelsContentItem)).toBe(true);
+  });
+
   it("never inserts an ad after the final reel", () => {
     const result = insertReelsAdSlots(items.slice(0, 2), {
       enabled: true,
@@ -80,6 +104,32 @@ describe("insertReelsAdSlots", () => {
 
     expect(result.every(isReelsContentItem)).toBe(true);
     expect(result).toHaveLength(2);
+  });
+
+  it("can include a trailing ad for a finite two-item surface", () => {
+    const result = insertReelsAdSlots(items.slice(0, 2), {
+      boundFirstGapToFeed: true,
+      enabled: true,
+      includeTrailingAd: true,
+      random: sequenceRandom([0.999]),
+    });
+
+    expect(result.map((item) => item.kind)).toEqual([
+      "content",
+      "content",
+      "ad",
+    ]);
+  });
+
+  it("seeds stable random sequences from the same content ids", () => {
+    const first = seedAdRandomFromIds(["one", "two", "three"]);
+    const second = seedAdRandomFromIds(["one", "two", "three"]);
+
+    expect([first(), first(), first()]).toEqual([
+      second(),
+      second(),
+      second(),
+    ]);
   });
 
   it("lets callers pin fixed gaps with firstAdAfter and interval", () => {

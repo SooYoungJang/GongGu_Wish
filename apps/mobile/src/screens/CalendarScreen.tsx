@@ -19,14 +19,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchGroupBuys } from "../api";
+import { useAds } from "../ads/AdsContext";
 import { BackButton } from "../components/BackButton";
 import {
   CalendarDateRow,
-  calendarDateGroupKey,
-  getCalendarDateGroupLayout,
   getCalendarLayoutMetrics,
   type CalendarDateGroup,
 } from "../components/calendar/CalendarDateRow";
+import { NativeAdCard } from "../components/ads/NativeAdCard";
+import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
 import {
   CalendarPickerModal,
   type CalendarGrid,
@@ -44,6 +45,12 @@ import {
 import { useTheme } from "../context/ThemeContext";
 import type { ColorPalette } from "../context/ThemeContext";
 import { useBookmarks, useNotifications } from "../hooks/useLocalDeals";
+import {
+  insertReelsAdSlots,
+  isReelsContentItem,
+  seedAdRandomFromIds,
+  type ReelsFeedItem,
+} from "./reelsAdPlacement";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -59,6 +66,39 @@ const CALENDAR_FILTER_OPTIONS: Array<{
   { value: "notified", label: "알림", summaryLabel: "알림" },
 ];
 const CALENDAR_ALL_FILTER_LABEL = "전체 보기";
+const CALENDAR_NATIVE_AD_MIN_HEIGHT = 360;
+
+type CalendarTimelineDateGroup = CalendarDateGroup & { id: string };
+type CalendarTimelineItem = ReelsFeedItem<CalendarTimelineDateGroup>;
+
+function calendarTimelineItemKey(item: CalendarTimelineItem) {
+  return item.key;
+}
+
+function getCalendarTimelineItemLayout(
+  data: ArrayLike<CalendarTimelineItem> | null | undefined,
+  index: number,
+  dateSectionHeight: number,
+  adSectionHeight: number,
+) {
+  let offset = 0;
+  for (let itemIndex = 0; itemIndex < index; itemIndex++) {
+    const item = data?.[itemIndex];
+    offset +=
+      item && !isReelsContentItem(item)
+        ? adSectionHeight
+        : dateSectionHeight;
+  }
+  const item = data?.[index];
+  return {
+    index,
+    length:
+      item && !isReelsContentItem(item)
+        ? adSectionHeight
+        : dateSectionHeight,
+    offset,
+  };
+}
 
 export function filterGroupBuysByActivity(
   groupBuys: GroupBuy[],
@@ -342,6 +382,12 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     () => getCalendarLayoutMetrics(fontScale),
     [fontScale],
   );
+  const calendarAdRowHeight = Math.max(
+    CALENDAR_NATIVE_AD_MIN_HEIGHT,
+    calendarLayoutMetrics.sectionHeight,
+  );
+  const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
+  const [calendarAdsUnavailable, setCalendarAdsUnavailable] = useState(false);
 
   const initialParam = route.params?.initialDate;
   const initialDate =
@@ -355,7 +401,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     bookmarked: false,
     notified: false,
   });
-  const dateListRef = useRef<FlatList<CalendarDateGroup> | null>(null);
+  const dateListRef = useRef<FlatList<CalendarTimelineItem> | null>(null);
   const pendingScrollDateKeyRef = useRef<string | null>(null);
   const { bookmarks } = useBookmarks();
   const { notifications } = useNotifications();
@@ -425,6 +471,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
       .map((dateKey) => ({
         date: parseDateKey(dateKey)!,
         dateKey,
+        id: dateKey,
         items: groupBuysByDate.get(dateKey) ?? [],
       }));
   }, [
@@ -434,10 +481,51 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     selectedDate,
     selectedDateKey,
   ]);
-  const selectedDateIndex = useMemo(
-    () => dateGroups.findIndex((group) => group.dateKey === selectedDateKey),
-    [dateGroups, selectedDateKey],
+  const canShowCalendarAds =
+    adsEnabled &&
+    adsReady &&
+    Boolean(nativeUnitIds.home) &&
+    !calendarAdsUnavailable;
+  const timelineItems = useMemo<CalendarTimelineItem[]>(
+    () =>
+      insertReelsAdSlots(dateGroups, {
+        boundFirstGapToFeed: true,
+        enabled: canShowCalendarAds,
+        includeTrailingAd: true,
+        random: seedAdRandomFromIds(dateGroups.map((group) => group.id)),
+      }),
+    [canShowCalendarAds, dateGroups],
   );
+  const selectedDateIndex = useMemo(
+    () =>
+      timelineItems.findIndex(
+        (item) =>
+          isReelsContentItem(item) &&
+          item.content.dateKey === selectedDateKey,
+      ),
+    [selectedDateKey, timelineItems],
+  );
+  const timelineLayoutSignature =
+    `${canShowCalendarAds}:` +
+    `${calendarLayoutMetrics.sectionHeight}:${calendarAdRowHeight}`;
+  const previousTimelineLayoutSignatureRef = useRef(timelineLayoutSignature);
+  useEffect(() => {
+    const layoutChanged =
+      previousTimelineLayoutSignatureRef.current !== timelineLayoutSignature;
+    previousTimelineLayoutSignatureRef.current = timelineLayoutSignature;
+    if (
+      !layoutChanged ||
+      pendingScrollDateKeyRef.current ||
+      selectedDateIndex < 0
+    ) {
+      return;
+    }
+    dateListRef.current?.scrollToIndex({
+      animated: false,
+      index: selectedDateIndex,
+      viewPosition: 0,
+    });
+  }, [selectedDateIndex, timelineLayoutSignature]);
   const calendarFilterLabel = useMemo(
     () => getCalendarFilterLabel(calendarFilter),
     [calendarFilter],
@@ -517,8 +605,9 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   useEffect(() => {
     const pendingDateKey = pendingScrollDateKeyRef.current;
     if (!pendingDateKey) return;
-    const index = dateGroups.findIndex(
-      (group) => group.dateKey === pendingDateKey,
+    const index = timelineItems.findIndex(
+      (item) =>
+        isReelsContentItem(item) && item.content.dateKey === pendingDateKey,
     );
     if (index < 0) return;
 
@@ -528,46 +617,99 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
       viewPosition: 0,
     });
     pendingScrollDateKeyRef.current = null;
-  }, [dateGroups]);
+  }, [timelineItems]);
 
   const openDealDetail = useCallback(
     (item: GroupBuy) => navigation.navigate("Detail", { groupBuy: item }),
     [navigation],
   );
+  const handleCalendarAdLoadStateChange = useCallback(
+    (status: NativeAdLoadStatus) => {
+      if (status === "unavailable") setCalendarAdsUnavailable(true);
+    },
+    [],
+  );
   const renderDateGroup = useCallback(
-    ({ item }: { item: CalendarDateGroup }) => (
-      <CalendarDateRow
-        {...item}
-        filterLabel={calendarFilterLabel}
-        isSelected={item.dateKey === selectedDateKey}
-        layoutMetrics={calendarLayoutMetrics}
-        onDealPress={openDealDetail}
-      />
-    ),
+    ({ item }: { item: CalendarTimelineItem }) => {
+      if (!isReelsContentItem(item)) {
+        return (
+          <View
+            style={[s.calendarAdSlot, { height: calendarAdRowHeight }]}
+            testID={`calendar-native-ad-slot-${item.sequence}`}
+          >
+            <View
+              accessibilityLiveRegion="polite"
+              style={s.calendarAdLoading}
+            >
+              <SText variant="caption" style={s.calendarAdLoadingLabel}>
+                광고
+              </SText>
+              <SText variant="body" style={s.calendarAdLoadingText}>
+                광고를 불러오는 중이에요
+              </SText>
+            </View>
+            <NativeAdCard
+              onLoadStateChange={handleCalendarAdLoadStateChange}
+              placement="home"
+              style={s.calendarNativeAdCard}
+              testID={`calendar-native-ad-${item.sequence}`}
+            />
+          </View>
+        );
+      }
+      const dateGroup = item.content;
+      return (
+        <CalendarDateRow
+          date={dateGroup.date}
+          dateKey={dateGroup.dateKey}
+          filterLabel={calendarFilterLabel}
+          isSelected={dateGroup.dateKey === selectedDateKey}
+          items={dateGroup.items}
+          layoutMetrics={calendarLayoutMetrics}
+          onDealPress={openDealDetail}
+        />
+      );
+    },
     [
+      calendarAdRowHeight,
       calendarFilterLabel,
       calendarLayoutMetrics,
+      handleCalendarAdLoadStateChange,
       openDealDetail,
+      s.calendarAdLoading,
+      s.calendarAdLoadingLabel,
+      s.calendarAdLoadingText,
+      s.calendarAdSlot,
+      s.calendarNativeAdCard,
       selectedDateKey,
     ],
   );
   const getDateGroupLayout = useCallback(
-    (data: ArrayLike<CalendarDateGroup> | null | undefined, index: number) =>
-      getCalendarDateGroupLayout(
+    (
+      data: ArrayLike<CalendarTimelineItem> | null | undefined,
+      index: number,
+    ) =>
+      getCalendarTimelineItemLayout(
         data,
         index,
         calendarLayoutMetrics.sectionHeight,
+        calendarAdRowHeight,
       ),
-    [calendarLayoutMetrics.sectionHeight],
+    [calendarAdRowHeight, calendarLayoutMetrics.sectionHeight],
   );
   const handleScrollToIndexFailed = useCallback(
     ({ index }: { index: number }) => {
       dateListRef.current?.scrollToOffset({
         animated: true,
-        offset: calendarLayoutMetrics.sectionHeight * index,
+        offset: getCalendarTimelineItemLayout(
+          timelineItems,
+          index,
+          calendarLayoutMetrics.sectionHeight,
+          calendarAdRowHeight,
+        ).offset,
       });
     },
-    [calendarLayoutMetrics.sectionHeight],
+    [calendarAdRowHeight, calendarLayoutMetrics.sectionHeight, timelineItems],
   );
   const renderEmptyTimeline = useCallback(
     () =>
@@ -653,18 +795,18 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         ) : null}
 
         {/*
-          One visible month has at most 31 deterministically measured rows.
-          The shared font-scale metrics keep rendered height, fallback offsets,
-          and getItemLayout aligned while Dynamic Type changes.
+          One visible month has at most 31 date rows plus fixed-height ad rows.
+          Shared font-scale metrics keep rendered height, fallback offsets, and
+          getItemLayout aligned while Dynamic Type changes.
         */}
         <FlatList
           contentContainerStyle={s.dateListContent}
-          data={isError && groupBuys.length === 0 ? [] : dateGroups}
+          data={isError && groupBuys.length === 0 ? [] : timelineItems}
           getItemLayout={getDateGroupLayout}
           initialScrollIndex={
             selectedDateIndex >= 0 ? selectedDateIndex : undefined
           }
-          keyExtractor={calendarDateGroupKey}
+          keyExtractor={calendarTimelineItemKey}
           ListEmptyComponent={renderEmptyTimeline}
           onScrollToIndexFailed={handleScrollToIndexFailed}
           ref={dateListRef}
@@ -792,6 +934,33 @@ function makeStyles(colors: ColorPalette) {
     },
     dateListContent: {
       paddingBottom: spacing["2xl"],
+    },
+    calendarAdSlot: {
+      backgroundColor: colors.panelBg,
+      borderRadius: commerceRadius.lg,
+      justifyContent: "center",
+      overflow: "hidden",
+      paddingVertical: spacing.sm,
+      position: "relative",
+    },
+    calendarAdLoading: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.lg,
+    },
+    calendarAdLoadingLabel: {
+      color: colors.textSecondary,
+      fontWeight: "800",
+      marginBottom: spacing.xs,
+    },
+    calendarAdLoadingText: {
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
+    calendarNativeAdCard: {
+      flex: 1,
+      marginBottom: 0,
     },
     emptyDateTitle: {
       color: colors.textPrimary,
