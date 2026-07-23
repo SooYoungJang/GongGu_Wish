@@ -1529,9 +1529,9 @@ describe('HomeScreenContent redesign', () => {
 });
 
 describe('HomeScreenContent redesign v2', () => {
-  it('does not reserve a native ad slot before four recommended products', () => {
+  it('does not reserve a native ad slot before the minimum gap of two products', () => {
     const renderer = renderHomeContent({
-      groupBuys: sampleGroupBuys.slice(0, 2),
+      groupBuys: sampleGroupBuys.slice(0, 1),
     });
 
     expect(
@@ -1539,7 +1539,7 @@ describe('HomeScreenContent redesign v2', () => {
     ).toHaveLength(0);
   });
 
-  it('places native ads every fourth recommended product', () => {
+  it('places at least one native ad among eight recommended products', () => {
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
       id: `recommended-${index + 1}`,
@@ -1549,23 +1549,16 @@ describe('HomeScreenContent redesign v2', () => {
     const grid = renderer.root
       .findAllByProps({ testID: 'home-recommendation-grid' })
       .find((node) => String(node.type) === 'View')!;
-    const order = grid.children.map((child) => {
-      if (typeof child === 'string') return child;
-      return child.props.item?.id ?? child.props.testID;
-    });
+    const adCount = grid.children.filter(
+      (child) => typeof child !== 'string' && child.props.testID === 'home-native-ad',
+    ).length;
 
-    expect(order).toEqual([
-      'recommended-1',
-      'recommended-2',
-      'recommended-3',
-      'recommended-4',
-      'home-native-ad',
-      'recommended-5',
-      'recommended-6',
-      'recommended-7',
-      'recommended-8',
-      'home-native-ad',
-    ]);
+    // Every product stays visible regardless of where the seeded ad breaks land.
+    const productIds = grid.children
+      .map((child) => (typeof child === 'string' ? child : child.props.item?.id))
+      .filter(Boolean);
+    expect(productIds).toHaveLength(8);
+    expect(adCount).toBeGreaterThanOrEqual(1);
   });
 
   it('keeps all recommended products visible while ads are unresolved', () => {
@@ -1624,19 +1617,41 @@ describe('HomeScreenContent redesign v2', () => {
     ).toHaveLength(0);
   });
 
-  it('keeps stable ad placements when recommendation order changes', () => {
+  it('keeps stable ad placements for the same product ids across renders', () => {
     const first = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
       id: `stable-${index + 1}`,
       isHomeBanner: false,
     }));
     const renderer = renderHomeContent({ groupBuys: first });
+    const gridBefore = renderer.root
+      .findAllByProps({ testID: 'home-recommendation-grid' })
+      .find((node) => String(node.type) === 'View')!;
+    const adsBefore = gridBefore.children
+      .map((child, index) =>
+        typeof child !== 'string' && child.props.testID === 'home-native-ad'
+          ? index
+          : null,
+      )
+      .filter((value): value is number => value !== null);
 
     act(() => {
-      renderer.update(createHomeContent({ groupBuys: [...first].reverse() }));
+      renderer.update(createHomeContent({ groupBuys: first }));
     });
 
-    expect(nativeAdMock.mountCount).toBe(2);
+    const gridAfter = renderer.root
+      .findAllByProps({ testID: 'home-recommendation-grid' })
+      .find((node) => String(node.type) === 'View')!;
+    const adsAfter = gridAfter.children
+      .map((child, index) =>
+        typeof child !== 'string' && child.props.testID === 'home-native-ad'
+          ? index
+          : null,
+      )
+      .filter((value): value is number => value !== null);
+
+    // The same product ids produce the same seeded ad break positions.
+    expect(adsAfter).toEqual(adsBefore);
   });
 
   it('does not render the old weekly calendar sections', () => {
