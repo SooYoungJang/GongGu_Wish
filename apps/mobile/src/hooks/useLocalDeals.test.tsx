@@ -122,8 +122,9 @@ const GROUP_BUY: GroupBuy = {
 };
 
 describe("useNotifications", () => {
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
+    await clearLocalUserData();
   });
 
   beforeEach(() => {
@@ -532,7 +533,7 @@ describe("useNotifications", () => {
     });
   });
 
-  it("기록 전 저장소 읽기가 실패하면 기존 기록을 덮지 않는다", async () => {
+  it("기록 전 저장소 읽기가 실패해도 다음 화면에서 복구한다", async () => {
     const storedDealA = {
       ...GROUP_BUY,
       id: "group-buy-a",
@@ -569,6 +570,23 @@ describe("useNotifications", () => {
     expect(
       recentViews.result.current.recentViews.map((deal) => deal.id),
     ).toEqual(["group-buy-b", "group-buy-a"]);
+
+    recentViews.unmount();
+    const remountedRecentViews = renderHook(() => useRecentViews());
+
+    await waitFor(() => {
+      expect(remountedRecentViews.result.current.ready).toBe(true);
+      expect(
+        remountedRecentViews.result.current.recentViews.map((deal) => deal.id),
+      ).toEqual(["group-buy-b", "group-buy-a"]);
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(["group-buy-b", "group-buy-a"]);
+    });
   });
 
   it("기존 활동 데이터도 최신 가격과 할인정보로 보강한다", async () => {
