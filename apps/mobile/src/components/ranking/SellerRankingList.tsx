@@ -50,11 +50,6 @@ type RankingFeedItem = ReelsFeedItem<RankingListItem>;
 
 const FEED_KEY_EXTRACTOR = (item: RankingFeedItem) => item.key;
 
-const RANKING_AD_PLACEMENT: RankingListItem & { id: string } = {
-  groupBuyId: "__ranking-ad__",
-  id: "__ranking-ad__",
-} as RankingListItem & { id: string };
-
 function wrapForAdInsertion(
   items: RankingListItem[],
 ): (RankingListItem & { id: string })[] {

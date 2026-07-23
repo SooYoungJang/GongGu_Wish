@@ -2637,20 +2637,22 @@ function DetailScreenContent({
               </View>
             );
           }
-          const item = entry.content;
-          const organicIndex = reelItems.indexOf(item);
-          <View
-            key={entry.key}
-            collapsable={false}
-            style={[
-              s.verticalPagerPage,
-              {
-                height: screenHeight,
-              },
-            ]}
-          >
-            {renderReelItem({ item, index: organicIndex })}
-          </View>
+         const item = entry.content;
+         const organicIndex = reelItems.indexOf(item);
+          return (
+         <View
+           key={entry.key}
+           collapsable={false}
+           style={[
+             s.verticalPagerPage,
+             {
+               height: screenHeight,
+             },
+           ]}
+         >
+           {renderReelItem({ item, index: organicIndex })}
+         </View>
+          );
         })}
       </PagerView>
       {!summarySheetGate.isOpen && !isSearchSheetVisible ? (
