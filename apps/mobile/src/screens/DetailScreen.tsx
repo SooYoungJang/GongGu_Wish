@@ -2621,7 +2621,7 @@ function DetailScreenContent({
                     accessibilityLiveRegion="polite"
                     style={s.reelAdLoading}
                   >
-                    <SText style={s.reelAdLoadingLabel}>광고</SText>
+                    <SText variant="caption" style={s.reelAdLoadingLabel}>광고</SText>
                     <SText variant="body" style={s.reelAdLoadingText}>
                       광고를 불러오는 중이에요
                     </SText>

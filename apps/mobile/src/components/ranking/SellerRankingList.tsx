@@ -46,14 +46,15 @@ export interface SellerRankingListProps {
 const NOOP = () => undefined;
 const EMPTY_RANKINGS: readonly RankingListItem[] = [];
 
-type RankingFeedItem = ReelsFeedItem<RankingListItem>;
+// insertReelsAdSlots requires { id: string }; RankingListItem uses groupBuyId.
+type RankingAdItem = { id: string } & RankingListItem;
+type RankingFeedItem = ReelsFeedItem<RankingAdItem>;
 
 const FEED_KEY_EXTRACTOR = (item: RankingFeedItem) => item.key;
 
 function wrapForAdInsertion(
   items: RankingListItem[],
-): (RankingListItem & { id: string })[] {
-  // insertReelsAdSlots requires { id: string }; RankingListItem uses groupBuyId.
+): RankingAdItem[] {
   return items.map((item) => ({ ...item, id: item.groupBuyId }));
 }
 
@@ -249,7 +250,7 @@ export function SellerRankingList({
 }
 
 function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
-  const { colors, spacing, typography } = theme;
+  const { colors, radius, spacing, typography } = theme;
   return StyleSheet.create({
     adCard: {
       backgroundColor: colors.cardBg,
