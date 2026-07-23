@@ -72,7 +72,9 @@ export const NativeAdCard = memo(function NativeAdCard({
           aspectRatio:
             variant === "reel"
               ? module.NativeMediaAspectRatio.PORTRAIT
-              : module.NativeMediaAspectRatio.LANDSCAPE,
+              : variant === "tile" || variant === "row"
+                ? module.NativeMediaAspectRatio.SQUARE
+                : module.NativeMediaAspectRatio.LANDSCAPE,
           startVideoMuted: true,
         });
         return { module, nativeAd };
@@ -126,54 +128,110 @@ export const NativeAdCard = memo(function NativeAdCard({
     module;
   const body = nativeAd.body?.trim();
   const callToAction = nativeAd.callToAction?.trim();
+  const hasMedia = Boolean(nativeAd.mediaContent);
   const isReel = variant === "reel";
+  const isRow = variant === "row";
+  const isTile = variant === "tile";
+  const isCompact = isRow || isTile;
+  const containerStyle = isReel
+    ? styles.reel
+    : isRow
+      ? styles.row
+      : isTile
+        ? styles.tile
+        : styles.card;
+  const mediaFrameStyle = isReel
+    ? styles.reelMediaFrame
+    : isRow
+      ? styles.rowMediaFrame
+      : isTile
+        ? styles.tileMediaFrame
+        : styles.cardMediaFrame;
+  const mediaStyle = isReel
+    ? styles.reelMedia
+    : isCompact
+      ? styles.compactMedia
+      : styles.cardMedia;
+  const contentStyle = isReel
+    ? styles.reelContent
+    : isRow
+      ? styles.rowContent
+      : isTile
+        ? styles.tileContent
+        : styles.cardContent;
 
   return (
     <NativeAdView
       accessibilityLabel={`광고, ${nativeAd.headline}`}
       nativeAd={nativeAd}
-      style={[isReel ? styles.reel : styles.card, style]}
+      style={[containerStyle, style]}
       testID={testID}
     >
-      <View style={isReel ? styles.reelLabelRow : styles.cardLabelRow}>
-        <Text accessibilityLabel="광고" style={styles.adLabel}>
-          광고
-        </Text>
-      </View>
-
-      {nativeAd.mediaContent ? (
-        <View
-          style={isReel ? styles.reelMediaFrame : styles.cardMediaFrame}
-        >
-          <NativeMediaView
-            resizeMode="contain"
-            style={isReel ? styles.reelMedia : styles.cardMedia}
-          />
+      {isCompact && hasMedia ? (
+        <View style={styles.compactMediaLabelRow}>
+          <Text accessibilityLabel="광고" style={styles.adLabel}>
+            광고
+          </Text>
+        </View>
+      ) : !isCompact ? (
+        <View style={isReel ? styles.reelLabelRow : styles.cardLabelRow}>
+          <Text accessibilityLabel="광고" style={styles.adLabel}>
+            광고
+          </Text>
         </View>
       ) : null}
 
-      <View style={isReel ? styles.reelContent : styles.cardContent}>
-        <View style={styles.titleRow}>
+      {hasMedia ? (
+        <View style={mediaFrameStyle}>
+          <NativeMediaView resizeMode="contain" style={mediaStyle} />
+        </View>
+      ) : null}
+
+      <View style={contentStyle}>
+        {isCompact && !hasMedia ? (
+          <View style={styles.compactLabelRow}>
+            <Text accessibilityLabel="광고" style={styles.adLabel}>
+              광고
+            </Text>
+          </View>
+        ) : null}
+        <View style={isCompact ? styles.compactTitleRow : styles.titleRow}>
           {nativeAd.icon?.url ? (
             <NativeAsset assetType={NativeAssetType.ICON}>
               <Image
                 accessibilityIgnoresInvertColors
                 source={{ uri: nativeAd.icon.url }}
-                style={styles.icon}
+                style={isCompact ? styles.compactIcon : styles.icon}
               />
             </NativeAsset>
           ) : null}
-          <View style={styles.titleCopy}>
+          <View style={isCompact ? styles.compactTitleCopy : styles.titleCopy}>
             <NativeAsset assetType={NativeAssetType.HEADLINE}>
               <Text
-                style={isReel ? styles.reelHeadline : styles.cardHeadline}
+                numberOfLines={isCompact ? 2 : undefined}
+                style={
+                  isReel
+                    ? styles.reelHeadline
+                    : isCompact
+                      ? styles.compactHeadline
+                      : styles.cardHeadline
+                }
               >
                 {nativeAd.headline}
               </Text>
             </NativeAsset>
             {body ? (
               <NativeAsset assetType={NativeAssetType.BODY}>
-                <Text style={isReel ? styles.reelBody : styles.cardBody}>
+                <Text
+                  numberOfLines={isCompact ? 1 : undefined}
+                  style={
+                    isReel
+                      ? styles.reelBody
+                      : isCompact
+                        ? styles.compactBody
+                        : styles.cardBody
+                  }
+                >
                   {body}
                 </Text>
               </NativeAsset>
@@ -182,12 +240,17 @@ export const NativeAdCard = memo(function NativeAdCard({
         </View>
 
         {nativeAd.advertiser || callToAction ? (
-          <View style={styles.footer}>
+          <View style={isCompact ? styles.compactFooter : styles.footer}>
             {nativeAd.advertiser ? (
               <NativeAsset assetType={NativeAssetType.ADVERTISER}>
                 <Text
+                  numberOfLines={1}
                   style={
-                    isReel ? styles.reelAdvertiser : styles.cardAdvertiser
+                    isReel
+                      ? styles.reelAdvertiser
+                      : isCompact
+                        ? styles.compactAdvertiser
+                        : styles.cardAdvertiser
                   }
                 >
                   {nativeAd.advertiser}
@@ -198,7 +261,13 @@ export const NativeAdCard = memo(function NativeAdCard({
             )}
             {callToAction ? (
               <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
-                <Text accessibilityRole="button" style={styles.callToAction}>
+                <Text
+                  accessibilityRole="button"
+                  numberOfLines={1}
+                  style={
+                    isCompact ? styles.compactCallToAction : styles.callToAction
+                  }
+                >
                   {callToAction}
                 </Text>
               </NativeAsset>

@@ -2131,6 +2131,7 @@ function ProductReelPageComponent({
                     <NativeAdCard
                       placement="detail"
                       testID="detail-native-ad"
+                      variant="row"
                     />
                   </View>
                 ) : null}

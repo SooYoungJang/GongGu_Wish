@@ -10,6 +10,6 @@ export type NativeAdCardProps = {
   placement?: NativeAdPlacement;
   style?: StyleProp<ViewStyle>;
   testID?: string;
-  variant?: "card" | "reel";
+  variant?: "card" | "reel" | "row" | "tile";
   visible?: boolean;
 };

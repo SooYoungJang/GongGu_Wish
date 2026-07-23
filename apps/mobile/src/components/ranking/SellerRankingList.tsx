@@ -154,6 +154,7 @@ export function SellerRankingList({
               onLoadStateChange={handleRankingAdLoadStateChange}
               placement="home"
               testID={`ranking-native-ad-${item.sequence}`}
+              variant="row"
             />
           </View>
         );
@@ -272,16 +273,10 @@ export function SellerRankingList({
 }
 
 function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
-  const { colors, radius, spacing, typography } = theme;
+  const { colors, spacing, typography } = theme;
   return StyleSheet.create({
     adCard: {
-      backgroundColor: colors.cardBg,
-      borderColor: colors.border,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      marginHorizontal: spacing.lg,
       marginVertical: spacing.sm,
-      overflow: "hidden",
     },
     content: {
       paddingHorizontal: spacing.lg,

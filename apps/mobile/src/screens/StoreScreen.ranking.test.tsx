@@ -272,10 +272,9 @@ describe("StoreScreen ranking redesign", () => {
       );
     });
 
-    expect(
-      renderer!.root.findByProps({ testID: "ranking-native-ad-1" }).props
-        .placement,
-    ).toBe("home");
+    const ad = renderer!.root.findByProps({ testID: "ranking-native-ad-1" });
+    expect(ad.props.placement).toBe("home");
+    expect(ad.props.variant).toBe("row");
   });
 
   it("shows a trailing native ad when only the top two rankings exist", () => {

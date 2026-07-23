@@ -1,7 +1,10 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NativeAd } from "react-native-google-mobile-ads";
+import {
+  NativeAd,
+  NativeMediaAspectRatio,
+} from "react-native-google-mobile-ads";
 
 import { AdsContext } from "../../ads/AdsContext.android";
 import { NativeAdCard } from "./NativeAdCard.android";
@@ -219,6 +222,82 @@ describe("NativeAdCard", () => {
     );
   });
 
+  it.each([
+    {
+      containerStyle: {
+        flexBasis: "47%",
+        flexGrow: 1,
+        maxWidth: "47%",
+        minHeight: 206,
+      },
+      expectedAspectRatio: NativeMediaAspectRatio.SQUARE,
+      mediaStyle: { aspectRatio: 1, width: "100%" },
+      variant: "tile" as const,
+    },
+    {
+      containerStyle: { flexDirection: "row", minHeight: 124 },
+      expectedAspectRatio: NativeMediaAspectRatio.SQUARE,
+      mediaStyle: { width: 120 },
+      variant: "row" as const,
+    },
+  ])(
+    "uses commerce-card proportions for the $variant variant",
+    async ({ containerStyle, expectedAspectRatio, mediaStyle, variant }) => {
+      const ad = {
+        advertiser: "공구 파트너",
+        body: "추천 상품",
+        callToAction: "보기",
+        destroy: vi.fn(),
+        headline: "맥락에 맞는 광고",
+        icon: { scale: 1, url: "https://example.com/icon.png" },
+        mediaContent: {
+          aspectRatio: 1,
+          duration: 0,
+          hasVideoContent: false,
+        },
+      } as unknown as Awaited<ReturnType<typeof NativeAd.createForAdRequest>>;
+      vi.mocked(NativeAd.createForAdRequest).mockResolvedValue(ad);
+
+      let renderer: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        renderer = TestRenderer.create(
+          <AdsContext.Provider value={enabledAds}>
+            <NativeAdCard variant={variant} />
+          </AdsContext.Provider>,
+        );
+        await Promise.resolve();
+      });
+
+      const nativeAdView = renderer!.root.findByType(
+        "NativeAdView" as unknown as React.ElementType,
+      );
+      const mediaFrame = renderer!.root
+        .findAllByType("View" as unknown as React.ElementType)
+        .find((node) =>
+          Object.entries(mediaStyle).every(
+            ([property, value]) => node.props.style?.[property] === value,
+          ),
+        );
+      const callToAction = renderer!.root.find(
+        (node) => node.props.accessibilityRole === "button",
+      );
+
+      expect(nativeAdView.props.style).toEqual(
+        expect.arrayContaining([expect.objectContaining(containerStyle)]),
+      );
+      expect(NativeAd.createForAdRequest).toHaveBeenCalledWith(
+        "home-native-unit",
+        expect.objectContaining({ aspectRatio: expectedAspectRatio }),
+      );
+      expect(mediaFrame?.props.style).toEqual(
+        expect.objectContaining(mediaStyle),
+      );
+      expect(callToAction.props.style).toEqual(
+        expect.objectContaining({ minHeight: 36 }),
+      );
+    },
+  );
+
   it("does not request while a Reels ad page is outside the load window", () => {
     act(() => {
       TestRenderer.create(
@@ -247,13 +326,18 @@ describe("NativeAdCard", () => {
     await act(async () => {
       renderer = TestRenderer.create(
         <AdsContext.Provider value={enabledAds}>
-          <NativeAdCard />
+          <NativeAdCard variant="tile" />
         </AdsContext.Provider>,
       );
       await Promise.resolve();
     });
 
     expect(flattenText(renderer!.toJSON())).toContain("소재가 적은 광고");
+    expect(
+      renderer!.root
+        .findAllByType("View" as unknown as React.ElementType)
+        .filter((node) => node.props.style?.position === "absolute"),
+    ).toHaveLength(0);
     expect(
       renderer!.root.findAllByType(
         "NativeMediaView" as unknown as React.ElementType,
