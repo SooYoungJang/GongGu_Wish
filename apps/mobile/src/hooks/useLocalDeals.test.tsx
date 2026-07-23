@@ -60,15 +60,21 @@ vi.mock("../services/notifications", () => notificationServiceMocks);
 
 const storage = vi.hoisted(() => ({
   values: new Map<string, string>(),
-  readGate: null as Promise<void> | null,
+  readPlans: [] as Array<{
+    snapshot: string | null;
+    gate: Promise<void>;
+  }>,
   writeGate: null as Promise<void> | null,
 }));
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {
     getItem: vi.fn(async (key: string) => {
-      const value = storage.values.get(key) ?? null;
-      if (storage.readGate) await storage.readGate;
+      const plannedRead = storage.readPlans.shift();
+      const value = plannedRead
+        ? plannedRead.snapshot
+        : (storage.values.get(key) ?? null);
+      if (plannedRead) await plannedRead.gate;
       return value;
     }),
     setItem: vi.fn(async (key: string, value: string) => {
@@ -114,7 +120,7 @@ describe("useNotifications", () => {
 
   beforeEach(() => {
     storage.values.clear();
-    storage.readGate = null;
+    storage.readPlans.length = 0;
     storage.writeGate = null;
     apiMocks.fetchGroupBuysByIds.mockReset().mockResolvedValue([]);
     apiMocks.syncBookmark.mockReset().mockResolvedValue(undefined);
@@ -198,7 +204,7 @@ describe("useNotifications", () => {
 
   it("마운트 직후 기록해도 저장된 최근 본 공구를 유실하지 않는다", async () => {
     let releaseRead!: () => void;
-    storage.readGate = new Promise<void>((resolve) => {
+    const readGate = new Promise<void>((resolve) => {
       releaseRead = resolve;
     });
     const storedDeal = {
@@ -212,6 +218,10 @@ describe("useNotifications", () => {
       productName: "새 공구",
     };
     storage.values.set("@gonggu/recent-views/v1", JSON.stringify([storedDeal]));
+    storage.readPlans.push({
+      snapshot: JSON.stringify([storedDeal]),
+      gate: readGate,
+    });
 
     const recentViews = renderHook(() => useRecentViews());
 
@@ -285,6 +295,115 @@ describe("useNotifications", () => {
           ) as Array<{ id: string }>
         ).map((deal) => deal.id),
       ).toEqual(expectedIds);
+    });
+  });
+
+  it("동시에 마운트된 화면들의 최근 본 공구를 저장소에 모두 누적한다", async () => {
+    const storedDealA = {
+      ...GROUP_BUY,
+      id: "group-buy-a",
+      productName: "공구 A",
+    };
+    const viewedDealB = {
+      ...GROUP_BUY,
+      id: "group-buy-b",
+      productName: "공구 B",
+    };
+    const viewedDealC = {
+      ...GROUP_BUY,
+      id: "group-buy-c",
+      productName: "공구 C",
+    };
+    storage.values.set(
+      "@gonggu/recent-views/v1",
+      JSON.stringify([storedDealA]),
+    );
+    const firstScreen = renderHook(() => useRecentViews());
+    const secondScreen = renderHook(() => useRecentViews());
+
+    await waitFor(() => {
+      expect(firstScreen.result.current.ready).toBe(true);
+      expect(secondScreen.result.current.ready).toBe(true);
+    });
+    act(() => {
+      firstScreen.result.current.recordView(viewedDealB);
+    });
+    act(() => {
+      secondScreen.result.current.recordView(viewedDealC);
+    });
+
+    await waitFor(() => {
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(["group-buy-c", "group-buy-b", "group-buy-a"]);
+    });
+  });
+
+  it("늦게 끝난 이전 refresh 응답이 최신 최근 본 공구를 덮지 않는다", async () => {
+    const storedDealA = {
+      ...GROUP_BUY,
+      id: "group-buy-a",
+      productName: "공구 A",
+    };
+    const latestDealB = {
+      ...GROUP_BUY,
+      id: "group-buy-b",
+      productName: "공구 B",
+    };
+    storage.values.set(
+      "@gonggu/recent-views/v1",
+      JSON.stringify([storedDealA]),
+    );
+    const recentViews = renderHook(() => useRecentViews());
+    await waitFor(() => {
+      expect(recentViews.result.current.ready).toBe(true);
+    });
+
+    let releaseStaleRead!: () => void;
+    let releaseLatestRead!: () => void;
+    const staleReadGate = new Promise<void>((resolve) => {
+      releaseStaleRead = resolve;
+    });
+    const latestReadGate = new Promise<void>((resolve) => {
+      releaseLatestRead = resolve;
+    });
+    storage.readPlans.push(
+      {
+        snapshot: JSON.stringify([storedDealA]),
+        gate: staleReadGate,
+      },
+      {
+        snapshot: JSON.stringify([latestDealB, storedDealA]),
+        gate: latestReadGate,
+      },
+    );
+
+    act(() => {
+      recentViews.result.current.refresh();
+      recentViews.result.current.refresh();
+    });
+    await waitFor(() => {
+      expect(storage.readPlans).toHaveLength(1);
+    });
+
+    await act(async () => {
+      releaseStaleRead();
+    });
+    await waitFor(() => {
+      expect(storage.readPlans).toHaveLength(0);
+    });
+
+    await act(async () => {
+      releaseLatestRead();
+    });
+    await waitFor(() => {
+      expect(
+        recentViews.result.current.recentViews.map((deal) => deal.id),
+      ).toEqual(["group-buy-b", "group-buy-a"]);
     });
   });
 
