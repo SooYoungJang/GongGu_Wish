@@ -47,8 +47,8 @@ const NOOP = () => undefined;
 const EMPTY_RANKINGS: readonly RankingListItem[] = [];
 
 // insertReelsAdSlots requires { id: string }; RankingListItem uses groupBuyId.
-type RankingAdItem = { id: string } & RankingListItem;
-type RankingFeedItem = ReelsFeedItem<RankingAdItem>;
+export type RankingAdItem = { id: string } & RankingListItem;
+export type RankingFeedItem = ReelsFeedItem<RankingAdItem>;
 
 const FEED_KEY_EXTRACTOR = (item: RankingFeedItem) => item.key;
 

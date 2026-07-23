@@ -18,6 +18,7 @@ import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagr
 import {
   RankingCategoryChips,
   SellerRankingList,
+  type RankingFeedItem,
 } from "../components/ranking";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
 import { SText } from "../components/ui/SText";
@@ -101,7 +102,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
     DEFAULT_COLLAPSIBLE_FILTER_HEIGHT,
   );
   const rankingScrollY = useRef(new Animated.Value(0)).current;
-  const rankingListRef = useRef<FlatList<RankingListItem>>(null);
+  const rankingListRef = useRef<FlatList<RankingFeedItem>>(null);
   const filtersCollapsedRef = useRef(false);
   const rankingItemCacheRef = useRef(new Map<string, RankingItemCacheEntry>());
 
