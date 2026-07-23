@@ -2717,6 +2717,7 @@ function DetailScreenContent({
                     loadEnabled={Math.abs(index - activePagerIndex) <= 1}
                     onLoadStateChange={handleDetailAdLoadStateChange}
                     placement="detail"
+                    reelBottomInset={insets.bottom + DETAIL_SEARCH_CHROME_OFFSET}
                     testID={`detail-native-ad-${entry.sequence}`}
                     variant="reel"
                     visible={index === activePagerIndex}

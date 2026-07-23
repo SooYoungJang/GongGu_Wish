@@ -1356,6 +1356,7 @@ describe("DetailScreen", () => {
     });
 
     const ad = renderer!.root.findByProps({ testID: "detail-native-ad-1" });
+    expect(ad.props.reelBottomInset).toBe(72);
     expect(ad.props.variant).toBe("reel");
     expect(ad.props.visible).toBe(false);
 

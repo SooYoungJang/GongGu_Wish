@@ -1,5 +1,5 @@
-import { memo, useEffect, useMemo, useState } from "react";
-import { Image, Text, View } from "react-native";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { Image, Text, View, type LayoutChangeEvent } from "react-native";
 
 import { useAds } from "../../ads/AdsContext.native";
 import {
@@ -23,11 +23,33 @@ type LoadedNativeAd = {
   module: GoogleMobileAdsModule;
   nativeAd: NativeAdInstance;
 };
+type ReelLayout = { height: number; width: number };
+
+function getContainedMediaSize(
+  frameWidth: number,
+  frameHeight: number,
+  aspectRatio: number | null | undefined,
+): ReelLayout | null {
+  if (frameWidth <= 0 || frameHeight <= 0) return null;
+
+  const validAspectRatio =
+    typeof aspectRatio === "number" &&
+    Number.isFinite(aspectRatio) &&
+    aspectRatio > 0
+      ? aspectRatio
+      : 9 / 16;
+  const widthAtFullHeight = frameHeight * validAspectRatio;
+
+  return widthAtFullHeight <= frameWidth
+    ? { height: frameHeight, width: widthAtFullHeight }
+    : { height: frameWidth / validAspectRatio, width: frameWidth };
+}
 
 export const NativeAdCard = memo(function NativeAdCard({
   loadEnabled = true,
   onLoadStateChange,
   placement = "home",
+  reelBottomInset = 0,
   style,
   testID,
   variant = "card",
@@ -37,9 +59,22 @@ export const NativeAdCard = memo(function NativeAdCard({
   const unitId = nativeUnitIds[placement];
   const theme = useCommerceTheme();
   const styles = useMemo(() => makeNativeAdStyles(theme), [theme]);
+  const isReel = variant === "reel";
   const [loadedNativeAd, setLoadedNativeAd] = useState<LoadedNativeAd | null>(
     null,
   );
+  const [reelLayout, setReelLayout] = useState<ReelLayout>({
+    height: 0,
+    width: 0,
+  });
+  const handleReelLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height, width } = event.nativeEvent.layout;
+    setReelLayout((current) =>
+      current.height === height && current.width === width
+        ? current
+        : { height, width },
+    );
+  }, []);
 
   useEffect(() => {
     setLoadedNativeAd(null);
@@ -129,7 +164,6 @@ export const NativeAdCard = memo(function NativeAdCard({
   const body = nativeAd.body?.trim();
   const callToAction = nativeAd.callToAction?.trim();
   const hasMedia = Boolean(nativeAd.mediaContent);
-  const isReel = variant === "reel";
   const isRow = variant === "row";
   const isTile = variant === "tile";
   const isCompact = isRow || isTile;
@@ -159,11 +193,29 @@ export const NativeAdCard = memo(function NativeAdCard({
       : isTile
         ? styles.tileContent
         : styles.cardContent;
+  const requestedReelBottomInset =
+    Number.isFinite(reelBottomInset) && reelBottomInset > 0
+      ? reelBottomInset
+      : 0;
+  const resolvedReelBottomInset = isReel
+    ? reelLayout.height > 0
+      ? Math.min(requestedReelBottomInset, reelLayout.height - 1)
+      : requestedReelBottomInset
+    : 0;
+  const reelMediaSize = isReel
+    ? getContainedMediaSize(
+        reelLayout.width,
+        reelLayout.height - resolvedReelBottomInset,
+        nativeAd.mediaContent?.aspectRatio,
+      )
+    : null;
+  const shouldRenderMedia = hasMedia && (!isReel || reelMediaSize !== null);
 
   return (
     <NativeAdView
       accessibilityLabel={`광고, ${nativeAd.headline}`}
       nativeAd={nativeAd}
+      onLayout={isReel ? handleReelLayout : undefined}
       style={[containerStyle, style]}
       testID={testID}
     >
@@ -181,13 +233,28 @@ export const NativeAdCard = memo(function NativeAdCard({
         </View>
       ) : null}
 
-      {hasMedia ? (
-        <View style={mediaFrameStyle}>
-          <NativeMediaView resizeMode="contain" style={mediaStyle} />
+      {shouldRenderMedia ? (
+        <View
+          style={
+            isReel
+              ? [mediaFrameStyle, { bottom: resolvedReelBottomInset }]
+              : mediaFrameStyle
+          }
+        >
+          <NativeMediaView
+            resizeMode="contain"
+            style={isReel ? [mediaStyle, reelMediaSize] : mediaStyle}
+          />
         </View>
       ) : null}
 
-      <View style={contentStyle}>
+      <View
+        style={
+          isReel
+            ? [contentStyle, { bottom: resolvedReelBottomInset }]
+            : contentStyle
+        }
+      >
         {isCompact && !hasMedia ? (
           <View style={styles.compactLabelRow}>
             <Text accessibilityLabel="광고" style={styles.adLabel}>

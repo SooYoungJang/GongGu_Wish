@@ -77,7 +77,10 @@ export function makeNativeAdStyles(theme: ReturnType<typeof useCommerceTheme>) {
     },
     reelMediaFrame: {
       ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
       backgroundColor: "#000000",
+      justifyContent: "center",
+      overflow: "hidden",
     },
     tileMediaFrame: {
       aspectRatio: 1,
@@ -97,8 +100,7 @@ export function makeNativeAdStyles(theme: ReturnType<typeof useCommerceTheme>) {
       width: "100%",
     },
     reelMedia: {
-      flex: 1,
-      width: "100%",
+      backgroundColor: "#000000",
     },
     compactMedia: {
       flex: 1,
