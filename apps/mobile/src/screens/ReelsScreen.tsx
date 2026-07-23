@@ -428,6 +428,9 @@ export function ReelsScreen({
                     <NativeAdCard
                       onLoadStateChange={handleReelsAdLoadStateChange}
                       placement="reels"
+                      reelBottomInset={
+                        insets.bottom + REELS_TAB_BAR_OVERLAY_OFFSET
+                      }
                       testID={`reels-native-ad-${item.sequence}`}
                       variant="reel"
                       visible={index === activeIndex}

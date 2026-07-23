@@ -310,6 +310,81 @@ describe("NativeAdCard", () => {
     expect(NativeAd.createForAdRequest).not.toHaveBeenCalled();
   });
 
+  it("contains reel video inside the GNB-aware media viewport", async () => {
+    const ad = {
+      advertiser: "공구 파트너",
+      body: "가로형 영상 광고",
+      callToAction: "보기",
+      destroy: vi.fn(),
+      headline: "화면 안에 보이는 광고",
+      icon: null,
+      mediaContent: {
+        aspectRatio: 16 / 9,
+        duration: 15,
+        hasVideoContent: true,
+      },
+    } as unknown as Awaited<ReturnType<typeof NativeAd.createForAdRequest>>;
+    vi.mocked(NativeAd.createForAdRequest).mockResolvedValue(ad);
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <AdsContext.Provider value={enabledAds}>
+          <NativeAdCard placement="reels" reelBottomInset={64} variant="reel" />
+        </AdsContext.Provider>,
+      );
+      await Promise.resolve();
+    });
+
+    const nativeAdView = renderer!.root.findByType(
+      "NativeAdView" as unknown as React.ElementType,
+    );
+    expect(
+      renderer!.root.findAllByType(
+        "NativeMediaView" as unknown as React.ElementType,
+      ),
+    ).toHaveLength(0);
+    expect(
+      renderer!.root
+        .findAllByType("View" as unknown as React.ElementType)
+        .filter(
+          (node) =>
+            Array.isArray(node.props.style) &&
+            node.props.style.some((style: Record<string, unknown>) =>
+              style ? style.bottom === 64 : false,
+            ),
+        ),
+    ).toHaveLength(1);
+
+    act(() => {
+      nativeAdView.props.onLayout({
+        nativeEvent: {
+          layout: { height: 720, width: 360, x: 0, y: 0 },
+        },
+      });
+    });
+
+    const nativeMediaView = renderer!.root.findByType(
+      "NativeMediaView" as unknown as React.ElementType,
+    );
+    const chromeAwareViews = renderer!.root
+      .findAllByType("View" as unknown as React.ElementType)
+      .filter(
+        (node) =>
+          Array.isArray(node.props.style) &&
+          node.props.style.some((style: Record<string, unknown>) =>
+            style ? style.bottom === 64 : false,
+          ),
+      );
+
+    expect(nativeMediaView.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ height: 202.5, width: 360 }),
+      ]),
+    );
+    expect(chromeAwareViews).toHaveLength(2);
+  });
+
   it("omits optional icon, media, body, advertiser, and empty CTA assets", async () => {
     const ad = {
       advertiser: null,

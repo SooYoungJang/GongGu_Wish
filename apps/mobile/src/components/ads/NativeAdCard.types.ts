@@ -8,6 +8,7 @@ export type NativeAdCardProps = {
   loadEnabled?: boolean;
   onLoadStateChange?: Dispatch<NativeAdLoadStatus>;
   placement?: NativeAdPlacement;
+  reelBottomInset?: number;
   style?: StyleProp<ViewStyle>;
   testID?: string;
   variant?: "card" | "reel" | "row" | "tile";

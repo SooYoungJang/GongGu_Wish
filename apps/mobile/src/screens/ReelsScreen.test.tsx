@@ -36,6 +36,11 @@ const pagerViewMock = vi.hoisted(() => ({
   mounts: 0,
   setPageWithoutAnimation: vi.fn(),
 }));
+const adsMock = vi.hoisted(() => ({
+  enabled: false,
+  isReady: false,
+  nativeUnitIds: { detail: null, home: null, reels: null as string | null },
+}));
 
 const groupBuys = [0, 1, 2].map((index) => ({
   id: `reel-${index}`,
@@ -136,6 +141,18 @@ vi.mock("../hooks/useTabReselect", () => ({
   useTabReselect: vi.fn(),
 }));
 
+vi.mock("../ads/AdsContext", () => ({
+  useAds: () => adsMock,
+}));
+
+vi.mock("../components/ads/NativeAdCard", () => {
+  const ReactMock = require("react");
+  return {
+    NativeAdCard: (props: Record<string, unknown>) =>
+      ReactMock.createElement("NativeAdCard", props),
+  };
+});
+
 vi.mock("../context/ThemeContext", () => ({
   useTheme: () => themeMock,
 }));
@@ -186,6 +203,35 @@ describe("ReelsScreen player lifecycle", () => {
     queryResultMock.refetch.mockClear();
     pagerViewMock.mounts = 0;
     pagerViewMock.setPageWithoutAnimation.mockClear();
+    adsMock.enabled = false;
+    adsMock.isReady = false;
+    adsMock.nativeUnitIds.reels = null;
+  });
+
+  it("keeps a native ad above the Reels tab bar chrome", () => {
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+    randomSpy.mockRestore();
+
+    act(() => {
+      renderer!.root
+        .find((node) => String(node.type) === "PagerView")
+        .props.onPageSelected({ nativeEvent: { position: 1 } });
+    });
+
+    const ad = renderer!.root.findByProps({ testID: "reels-native-ad-1" });
+    expect(ad.props.reelBottomInset).toBe(40);
+
+    act(() => {
+      renderer!.unmount();
+    });
   });
 
   it("shows an accessible retry state when reels fail without cache", () => {
