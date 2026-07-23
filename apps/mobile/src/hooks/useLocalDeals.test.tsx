@@ -60,12 +60,17 @@ vi.mock("../services/notifications", () => notificationServiceMocks);
 
 const storage = vi.hoisted(() => ({
   values: new Map<string, string>(),
+  readGate: null as Promise<void> | null,
   writeGate: null as Promise<void> | null,
 }));
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {
-    getItem: vi.fn(async (key: string) => storage.values.get(key) ?? null),
+    getItem: vi.fn(async (key: string) => {
+      const value = storage.values.get(key) ?? null;
+      if (storage.readGate) await storage.readGate;
+      return value;
+    }),
     setItem: vi.fn(async (key: string, value: string) => {
       if (storage.writeGate) await storage.writeGate;
       storage.values.set(key, value);
@@ -109,6 +114,7 @@ describe("useNotifications", () => {
 
   beforeEach(() => {
     storage.values.clear();
+    storage.readGate = null;
     storage.writeGate = null;
     apiMocks.fetchGroupBuysByIds.mockReset().mockResolvedValue([]);
     apiMocks.syncBookmark.mockReset().mockResolvedValue(undefined);
@@ -187,6 +193,49 @@ describe("useNotifications", () => {
           storage.values.get("@gonggu/notifications/v2/guest") ?? "[]",
         )[0].priceKrw,
       ).toBe(200000);
+    });
+  });
+
+  it("마운트 직후 기록해도 저장된 최근 본 공구를 유실하지 않는다", async () => {
+    let releaseRead!: () => void;
+    storage.readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const storedDeal = {
+      ...GROUP_BUY,
+      id: "group-buy-existing",
+      productName: "기존 공구",
+    };
+    const newlyViewedDeal = {
+      ...GROUP_BUY,
+      id: "group-buy-new",
+      productName: "새 공구",
+    };
+    storage.values.set("@gonggu/recent-views/v1", JSON.stringify([storedDeal]));
+
+    const recentViews = renderHook(() => useRecentViews());
+
+    act(() => {
+      recentViews.result.current.recordView(newlyViewedDeal);
+    });
+    await act(async () => {
+      releaseRead();
+    });
+    await waitFor(() => {
+      expect(recentViews.result.current.ready).toBe(true);
+    });
+
+    expect(
+      recentViews.result.current.recentViews.map((deal) => deal.id),
+    ).toEqual(["group-buy-new", "group-buy-existing"]);
+    await waitFor(() => {
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(["group-buy-new", "group-buy-existing"]);
     });
   });
 
