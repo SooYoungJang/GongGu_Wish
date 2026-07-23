@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -11,6 +11,14 @@ import {
 import type { Ref } from "react";
 
 import { AsyncStateNotice } from "../ui/AsyncStateNotice";
+import { NativeAdCard } from "../ads/NativeAdCard";
+import type { NativeAdLoadStatus } from "../ads/NativeAdCard.types";
+import { useAds } from "../../ads/AdsContext";
+import {
+  insertReelsAdSlots,
+  isReelsContentItem,
+  type ReelsFeedItem,
+} from "../../screens/reelsAdPlacement";
 import { SText } from "../ui/SText";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
 import type {
@@ -32,12 +40,23 @@ export interface SellerRankingListProps {
   onToggleAlert?: RankingItemAction;
   topInset?: number;
   onScroll?: FlatListProps<RankingListItem>["onScroll"];
-  listRef?: Ref<FlatList<RankingListItem>>;
+  listRef?: Ref<FlatList<RankingFeedItem>>;
 }
 
 const NOOP = () => undefined;
-const KEY_EXTRACTOR = (item: RankingListItem) => item.groupBuyId;
 const EMPTY_RANKINGS: readonly RankingListItem[] = [];
+
+// insertReelsAdSlots requires { id: string }; RankingListItem uses groupBuyId.
+export type RankingAdItem = { id: string } & RankingListItem;
+export type RankingFeedItem = ReelsFeedItem<RankingAdItem>;
+
+const FEED_KEY_EXTRACTOR = (item: RankingFeedItem) => item.key;
+
+function wrapForAdInsertion(
+  items: RankingListItem[],
+): RankingAdItem[] {
+  return items.map((item) => ({ ...item, id: item.groupBuyId }));
+}
 
 export function SellerRankingList({
   state,
@@ -76,6 +95,26 @@ export function SellerRankingList({
       remainingItems: readyData.slice(leadingTopCount),
     };
   }, [readyData]);
+  const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
+  const [rankingAdsUnavailable, setRankingAdsUnavailable] = useState(false);
+  const canShowRankingAds =
+    adsEnabled &&
+    adsReady &&
+    Boolean(nativeUnitIds.home) &&
+    !rankingAdsUnavailable;
+  const feedItems = useMemo<RankingFeedItem[]>(
+    () =>
+      insertReelsAdSlots(wrapForAdInsertion(remainingItems), {
+        enabled: canShowRankingAds,
+      }),
+    [canShowRankingAds, remainingItems],
+  );
+  const handleRankingAdLoadStateChange = useCallback(
+    (status: NativeAdLoadStatus) => {
+      if (status === "unavailable") setRankingAdsUnavailable(true);
+    },
+    [],
+  );
   const footerStyle = useMemo(
     () => [s.footer, { height: bottomPadding }],
     [bottomPadding, s.footer],
@@ -84,16 +123,29 @@ export function SellerRankingList({
     () => ({ bottom: bottomPadding }),
     [bottomPadding],
   );
-  const renderItem: ListRenderItem<RankingListItem> = useCallback(
-    ({ item }) => (
-      <SellerRankingRow
-        item={item}
-        onPress={onPressItem ?? NOOP}
-        onPressSeller={onPressSeller}
-        onToggleAlert={onToggleAlert ?? NOOP}
-      />
-    ),
-    [onPressItem, onPressSeller, onToggleAlert],
+  const renderItem: ListRenderItem<RankingFeedItem> = useCallback(
+    ({ item }) => {
+      if (!isReelsContentItem(item)) {
+        return (
+          <View style={s.adCard}>
+            <NativeAdCard
+              onLoadStateChange={handleRankingAdLoadStateChange}
+              placement="home"
+              testID={`ranking-native-ad-${item.sequence}`}
+            />
+          </View>
+        );
+      }
+      return (
+        <SellerRankingRow
+          item={item.content}
+          onPress={onPressItem ?? NOOP}
+          onPressSeller={onPressSeller}
+          onToggleAlert={onToggleAlert ?? NOOP}
+        />
+      );
+    },
+    [handleRankingAdLoadStateChange, onPressItem, onPressSeller, onToggleAlert],
   );
   if (state.status === "loading") {
     return (
@@ -149,8 +201,8 @@ export function SellerRankingList({
       accessibilityRole="list"
       alwaysBounceVertical={false}
       contentContainerStyle={contentContainerStyle}
-      data={remainingItems}
-      keyExtractor={KEY_EXTRACTOR}
+      data={feedItems}
+      keyExtractor={FEED_KEY_EXTRACTOR}
       ListHeaderComponent={
         <>
           {state.refreshError ? (
@@ -198,8 +250,17 @@ export function SellerRankingList({
 }
 
 function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
-  const { colors, spacing, typography } = theme;
+  const { colors, radius, spacing, typography } = theme;
   return StyleSheet.create({
+    adCard: {
+      backgroundColor: colors.cardBg,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      marginHorizontal: spacing.lg,
+      marginVertical: spacing.sm,
+      overflow: "hidden",
+    },
     content: {
       paddingHorizontal: spacing.lg,
     },
