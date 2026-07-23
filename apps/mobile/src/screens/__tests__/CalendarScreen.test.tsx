@@ -679,10 +679,15 @@ describe("CalendarScreen", () => {
     const renderer = renderCalendar({ initialDate: dateKeys[2] });
 
     const ad = renderer.root.findByProps({ testID: "calendar-native-ad-1" });
+    const adSlot = renderer.root.findByProps({
+      testID: "calendar-native-ad-slot-1",
+    });
     const dateList = renderer.root.findByProps({
       testID: "calendar-date-list",
     });
     expect(ad.props.placement).toBe("home");
+    expect(ad.props.variant).toBe("row");
+    expect(flattenStyle(adSlot.props.style).height).toBe(152);
     expect(dateList.props.initialScrollIndex).toBe(3);
   });
 
@@ -724,6 +729,13 @@ describe("CalendarScreen", () => {
       index: 3,
       viewPosition: 0,
     });
+    expect(
+      flattenStyle(
+        renderer.root.findByProps({
+          testID: "calendar-native-ad-slot-1",
+        }).props.style,
+      ).height,
+    ).toBe(224);
   });
 
   it("keeps the calendar grid compact inside the picker modal", () => {

@@ -786,7 +786,7 @@ function RecommendedProducts({
     [productIds],
   );
 
-  // Insert a full-width native ad at each seeded random break. Ad slots
+  // Insert a product-sized native ad at each seeded random break. Ad slots
   // render null while loading/unavailable, so products always stay visible
   // and no blank space is reserved.
   const gridChildren: ReactNode[] = [];
@@ -804,6 +804,7 @@ function RecommendedProducts({
         <NativeAdCard
           key={`home-recommendation-ad-after-${index}`}
           testID="home-native-ad"
+          variant="tile"
         />,
       );
     }

@@ -47,18 +47,20 @@ vi.mock('../components/ads/NativeAdCard', () => {
     NativeAdCard: ({
       onLoadStateChange,
       testID,
+      variant,
     }: {
       onLoadStateChange?: React.Dispatch<
         'loaded' | 'loading' | 'unavailable'
       >;
       testID?: string;
+      variant?: string;
     }) => {
       ReactMock.useEffect(() => {
         nativeAdMock.mountCount += 1;
         onLoadStateChange?.(nativeAdMock.status);
       }, [onLoadStateChange]);
       return nativeAdMock.status === 'loaded'
-        ? ReactMock.createElement('NativeAdCard', { testID })
+        ? ReactMock.createElement('NativeAdCard', { testID, variant })
         : null;
     },
   };
@@ -1555,6 +1557,9 @@ describe('HomeScreenContent redesign v2', () => {
     });
 
     expect(countHomeNativeAds(renderer)).toBe(1);
+    expect(
+      renderer.root.findByProps({ testID: 'home-native-ad' }).props.variant,
+    ).toBe('tile');
   });
 
   it('fits the first random gap so a short three-product home feed still shows an ad', () => {

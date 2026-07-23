@@ -66,7 +66,8 @@ const CALENDAR_FILTER_OPTIONS: Array<{
   { value: "notified", label: "알림", summaryLabel: "알림" },
 ];
 const CALENDAR_ALL_FILTER_LABEL = "전체 보기";
-const CALENDAR_NATIVE_AD_MIN_HEIGHT = 360;
+const CALENDAR_NATIVE_AD_BASE_HEIGHT = 152;
+const CALENDAR_NATIVE_AD_SCALE_DELTA = 72;
 
 type CalendarTimelineDateGroup = CalendarDateGroup & { id: string };
 type CalendarTimelineItem = ReelsFeedItem<CalendarTimelineDateGroup>;
@@ -382,10 +383,12 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     () => getCalendarLayoutMetrics(fontScale),
     [fontScale],
   );
-  const calendarAdRowHeight = Math.max(
-    CALENDAR_NATIVE_AD_MIN_HEIGHT,
-    calendarLayoutMetrics.sectionHeight,
-  );
+  const normalizedAdFontScale = Number.isFinite(fontScale)
+    ? Math.min(2, Math.max(1, fontScale))
+    : 1;
+  const calendarAdRowHeight =
+    CALENDAR_NATIVE_AD_BASE_HEIGHT +
+    Math.round((normalizedAdFontScale - 1) * CALENDAR_NATIVE_AD_SCALE_DELTA);
   const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
   const [calendarAdsUnavailable, setCalendarAdsUnavailable] = useState(false);
 
@@ -653,6 +656,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
               placement="home"
               style={s.calendarNativeAdCard}
               testID={`calendar-native-ad-${item.sequence}`}
+              variant="row"
             />
           </View>
         );
@@ -936,10 +940,8 @@ function makeStyles(colors: ColorPalette) {
       paddingBottom: spacing["2xl"],
     },
     calendarAdSlot: {
-      backgroundColor: colors.panelBg,
-      borderRadius: commerceRadius.lg,
       justifyContent: "center",
-      overflow: "hidden",
+      paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
       position: "relative",
     },
