@@ -39,7 +39,8 @@ describe("insertReelsAdSlots", () => {
   });
 
   it("places the first ad after the minimum gap of 2 reels", () => {
-    // floor(0 * 9) + 2 = 2 -> first break after reel 2, then again after reel 2.
+    // floor(0 * 9) + 2 = 2 -> breaks after reel 2, then after reel 4; reel 6 is
+    // the final reel so no trailing ad, leaving 6 content + 2 ads = 8 entries.
     const result = insertReelsAdSlots(items.slice(0, 6), {
       enabled: true,
       random: sequenceRandom([0]),
@@ -52,6 +53,7 @@ describe("insertReelsAdSlots", () => {
       "content",
       "content",
       "ad",
+      "content",
       "content",
     ]);
   });
