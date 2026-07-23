@@ -1529,7 +1529,7 @@ describe('HomeScreenContent redesign', () => {
 });
 
 describe('HomeScreenContent redesign v2', () => {
-  it('does not reserve a native ad slot before six recommended products', () => {
+  it('does not reserve a native ad slot before four recommended products', () => {
     const renderer = renderHomeContent({
       groupBuys: sampleGroupBuys.slice(0, 2),
     });
@@ -1539,7 +1539,7 @@ describe('HomeScreenContent redesign v2', () => {
     ).toHaveLength(0);
   });
 
-  it('places one native ad after the sixth recommended product', () => {
+  it('places native ads every fourth recommended product', () => {
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
       id: `recommended-${index + 1}`,
@@ -1559,15 +1559,16 @@ describe('HomeScreenContent redesign v2', () => {
       'recommended-2',
       'recommended-3',
       'recommended-4',
+      'home-native-ad',
       'recommended-5',
       'recommended-6',
-      'home-native-ad',
       'recommended-7',
       'recommended-8',
+      'home-native-ad',
     ]);
   });
 
-  it('does not expose products seven and eight while the ad is unresolved', () => {
+  it('keeps all recommended products visible while ads are unresolved', () => {
     nativeAdMock.status = 'loading';
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
@@ -1592,10 +1593,12 @@ describe('HomeScreenContent redesign v2', () => {
       'pending-4',
       'pending-5',
       'pending-6',
+      'pending-7',
+      'pending-8',
     ]);
   });
 
-  it('reveals products seven and eight together when no ad is available', () => {
+  it('renders all products with no ad element when ads are unavailable', () => {
     nativeAdMock.status = 'unavailable';
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
@@ -1621,7 +1624,7 @@ describe('HomeScreenContent redesign v2', () => {
     ).toHaveLength(0);
   });
 
-  it('keeps one stable ad placement when recommendation order changes', () => {
+  it('keeps stable ad placements when recommendation order changes', () => {
     const first = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
       id: `stable-${index + 1}`,
@@ -1633,7 +1636,7 @@ describe('HomeScreenContent redesign v2', () => {
       renderer.update(createHomeContent({ groupBuys: [...first].reverse() }));
     });
 
-    expect(nativeAdMock.mountCount).toBe(1);
+    expect(nativeAdMock.mountCount).toBe(2);
   });
 
   it('does not render the old weekly calendar sections', () => {
