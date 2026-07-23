@@ -65,6 +65,7 @@ const storage = vi.hoisted(() => ({
     gate: Promise<void>;
   }>,
   writeGate: null as Promise<void> | null,
+  writeAttempts: 0,
 }));
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
@@ -78,6 +79,7 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
       return value;
     }),
     setItem: vi.fn(async (key: string, value: string) => {
+      storage.writeAttempts += 1;
       if (storage.writeGate) await storage.writeGate;
       storage.values.set(key, value);
     }),
@@ -122,6 +124,7 @@ describe("useNotifications", () => {
     storage.values.clear();
     storage.readPlans.length = 0;
     storage.writeGate = null;
+    storage.writeAttempts = 0;
     apiMocks.fetchGroupBuysByIds.mockReset().mockResolvedValue([]);
     apiMocks.syncBookmark.mockReset().mockResolvedValue(undefined);
     apiMocks.syncNotification.mockReset().mockResolvedValue(undefined);
@@ -404,6 +407,121 @@ describe("useNotifications", () => {
       expect(
         recentViews.result.current.recentViews.map((deal) => deal.id),
       ).toEqual(["group-buy-b", "group-buy-a"]);
+    });
+  });
+
+  it("초기 로드 중 화면이 사라져도 다음 화면의 기록을 보존한다", async () => {
+    const storedDeal = {
+      ...GROUP_BUY,
+      id: "group-buy-existing",
+      productName: "기존 공구",
+    };
+    const newlyViewedDeal = {
+      ...GROUP_BUY,
+      id: "group-buy-new",
+      productName: "새 공구",
+    };
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    storage.values.set("@gonggu/recent-views/v1", JSON.stringify([storedDeal]));
+    storage.readPlans.push({
+      snapshot: JSON.stringify([storedDeal]),
+      gate: readGate,
+    });
+
+    const firstScreen = renderHook(() => useRecentViews());
+    await waitFor(() => {
+      expect(storage.readPlans).toHaveLength(0);
+    });
+    firstScreen.unmount();
+
+    const secondScreen = renderHook(() => useRecentViews());
+    act(() => {
+      secondScreen.result.current.recordView(newlyViewedDeal);
+    });
+    await act(async () => {
+      releaseRead();
+    });
+
+    await waitFor(() => {
+      expect(secondScreen.result.current.ready).toBe(true);
+      expect(
+        secondScreen.result.current.recentViews.map((deal) => deal.id),
+      ).toEqual(["group-buy-new", "group-buy-existing"]);
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(["group-buy-new", "group-buy-existing"]);
+    });
+  });
+
+  it("지연된 쓰기 중 다른 화면의 기록도 최신순으로 보존한다", async () => {
+    const storedDealA = {
+      ...GROUP_BUY,
+      id: "group-buy-a",
+      productName: "공구 A",
+    };
+    const viewedDealB = {
+      ...GROUP_BUY,
+      id: "group-buy-b",
+      productName: "공구 B",
+    };
+    const viewedDealC = {
+      ...GROUP_BUY,
+      id: "group-buy-c",
+      productName: "공구 C",
+    };
+    storage.values.set(
+      "@gonggu/recent-views/v1",
+      JSON.stringify([storedDealA]),
+    );
+    const firstScreen = renderHook(() => useRecentViews());
+    const secondScreen = renderHook(() => useRecentViews());
+    await waitFor(() => {
+      expect(firstScreen.result.current.ready).toBe(true);
+      expect(secondScreen.result.current.ready).toBe(true);
+    });
+
+    let releaseWrite!: () => void;
+    storage.writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    const writesBeforeRecord = storage.writeAttempts;
+    act(() => {
+      firstScreen.result.current.recordView(viewedDealB);
+    });
+    await waitFor(() => {
+      expect(storage.writeAttempts).toBe(writesBeforeRecord + 1);
+    });
+
+    act(() => {
+      secondScreen.result.current.recordView(viewedDealC);
+    });
+    await act(async () => {
+      releaseWrite();
+      storage.writeGate = null;
+    });
+
+    await waitFor(() => {
+      const expectedIds = ["group-buy-c", "group-buy-b", "group-buy-a"];
+      expect(
+        firstScreen.result.current.recentViews.map((deal) => deal.id),
+      ).toEqual(expectedIds);
+      expect(
+        secondScreen.result.current.recentViews.map((deal) => deal.id),
+      ).toEqual(expectedIds);
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(expectedIds);
     });
   });
 

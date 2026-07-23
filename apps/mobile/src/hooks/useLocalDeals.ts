@@ -247,6 +247,16 @@ function mergeRecentViews(
   return merged;
 }
 
+function hasSameRecentViewOrder(
+  left: StoredGroupBuy[],
+  right: StoredGroupBuy[],
+) {
+  return (
+    left.length === right.length &&
+    left.every((item, index) => item.id === right[index]?.id)
+  );
+}
+
 function needsStoredDealHydration(item: StoredGroupBuy) {
   return (
     item.priceKrw === undefined ||
@@ -343,6 +353,98 @@ async function writeJSON(key: string, value: unknown): Promise<void> {
   } catch {
     // ignore storage failures
   }
+}
+
+type RecentViewsListener = (entries: StoredGroupBuy[]) => void;
+
+const recentViewsListeners = new Set<RecentViewsListener>();
+let recentViewsSnapshot: StoredGroupBuy[] = [];
+let recentViewsRevision = 0;
+let recentViewsOperation: Promise<unknown> = Promise.resolve();
+
+function getRecentViewsSnapshot() {
+  return recentViewsSnapshot;
+}
+
+function publishRecentViews(entries: StoredGroupBuy[]) {
+  recentViewsSnapshot = entries;
+  recentViewsListeners.forEach((listener) => listener(entries));
+}
+
+function subscribeRecentViews(listener: RecentViewsListener) {
+  if (recentViewsListeners.size === 0) recentViewsSnapshot = [];
+  recentViewsListeners.add(listener);
+  return () => {
+    recentViewsListeners.delete(listener);
+    if (recentViewsListeners.size === 0) recentViewsSnapshot = [];
+  };
+}
+
+function enqueueRecentViewsOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  const next = recentViewsOperation.catch(() => undefined).then(operation);
+  recentViewsOperation = next;
+  return next;
+}
+
+function refreshRecentViewsStore(): Promise<StoredGroupBuy[]> {
+  const revision = recentViewsRevision;
+
+  return enqueueRecentViewsOperation(async () => {
+    const stored = await readJSON<StoredGroupBuy[]>(RECENT_KEY, []);
+    const normalized = mergeRecentViews([], stored);
+    let hydrated = normalized;
+    try {
+      hydrated = await hydrateStoredDeals(RECENT_KEY, normalized);
+    } catch {
+      // Keep locally stored history when server-side enrichment is unavailable.
+    }
+    const next = mergeRecentViews([], hydrated);
+    if (!hasSameRecentViewOrder(stored, next)) {
+      await writeJSON(RECENT_KEY, next);
+    }
+
+    const visible =
+      revision === recentViewsRevision
+        ? next
+        : mergeRecentViews(recentViewsSnapshot, next);
+    publishRecentViews(visible);
+    return visible;
+  });
+}
+
+function recordRecentViewStore(
+  item: StoredGroupBuy,
+): Promise<StoredGroupBuy[]> {
+  const revision = ++recentViewsRevision;
+  publishRecentViews(mergeRecentViews([item], recentViewsSnapshot));
+
+  return enqueueRecentViewsOperation(async () => {
+    const stored = await readJSON<StoredGroupBuy[]>(RECENT_KEY, []);
+    const next = mergeRecentViews([item], stored);
+    await writeJSON(RECENT_KEY, next);
+
+    const visible =
+      revision === recentViewsRevision
+        ? next
+        : mergeRecentViews(recentViewsSnapshot, next);
+    publishRecentViews(visible);
+    return visible;
+  });
+}
+
+function clearRecentViewsStore(): Promise<void> {
+  const revision = ++recentViewsRevision;
+
+  return enqueueRecentViewsOperation(async () => {
+    try {
+      await AsyncStorage.removeItem(RECENT_KEY);
+    } catch {
+      // Local storage cleanup is best-effort after the server deletion.
+    }
+    if (revision === recentViewsRevision) publishRecentViews([]);
+  });
 }
 
 async function readNotificationEntries(
@@ -761,17 +863,16 @@ export async function clearLocalUserData(
   ];
   if (namespace === GUEST_NAMESPACE) notificationKeys.push(NOTI_KEY);
 
-  await Promise.all(
-    [BOOKMARK_KEY, RECENT_KEY, ...notificationKeys, WISH_ITEM_KEY].map(
-      async (key) => {
-        try {
-          await AsyncStorage.removeItem(key);
-        } catch {
-          // Local storage cleanup is best-effort after the server deletion.
-        }
-      },
-    ),
-  );
+  await Promise.all([
+    clearRecentViewsStore(),
+    ...[BOOKMARK_KEY, ...notificationKeys, WISH_ITEM_KEY].map(async (key) => {
+      try {
+        await AsyncStorage.removeItem(key);
+      } catch {
+        // Local storage cleanup is best-effort after the server deletion.
+      }
+    }),
+  ]);
   publishNotifications(namespace, []);
 }
 
@@ -833,51 +934,36 @@ export function useBookmarks() {
 }
 
 export function useRecentViews() {
-  const [recentViews, setRecentViews] = useState<StoredGroupBuy[]>([]);
+  const [recentViews, setRecentViews] = useState<StoredGroupBuy[]>(
+    getRecentViewsSnapshot,
+  );
   const [ready, setReady] = useState(false);
-  const readyRef = useRef(false);
-  const pendingViewsRef = useRef<StoredGroupBuy[]>([]);
+  const mountedRef = useRef(false);
+  const refreshVersionRef = useRef(0);
 
   const refresh = useCallback(() => {
-    readyRef.current = false;
+    const version = ++refreshVersionRef.current;
     setReady(false);
-    readJSON<StoredGroupBuy[]>(RECENT_KEY, []).then(async (value) => {
-      let next = await hydrateStoredDeals(RECENT_KEY, value);
-
-      while (pendingViewsRef.current.length > 0) {
-        const pending = pendingViewsRef.current;
-        pendingViewsRef.current = [];
-        next = mergeRecentViews(pending, next);
-        await writeJSON(RECENT_KEY, next);
+    void refreshRecentViewsStore().then(() => {
+      if (mountedRef.current && refreshVersionRef.current === version) {
+        setReady(true);
       }
-
-      readyRef.current = true;
-      setRecentViews(next);
-      setReady(true);
     });
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
+    const unsubscribe = subscribeRecentViews(setRecentViews);
+    setRecentViews(getRecentViewsSnapshot());
     refresh();
+    return () => {
+      mountedRef.current = false;
+      unsubscribe();
+    };
   }, [refresh]);
 
   const recordView = useCallback((item: GroupBuy) => {
-    const stored = toStored(item);
-
-    if (!readyRef.current) {
-      pendingViewsRef.current = mergeRecentViews(
-        [stored],
-        pendingViewsRef.current,
-      );
-      setRecentViews((current) => mergeRecentViews([stored], current));
-      return;
-    }
-
-    setRecentViews((current) => {
-      const next = mergeRecentViews([stored], current);
-      void writeJSON(RECENT_KEY, next);
-      return next;
-    });
+    void recordRecentViewStore(toStored(item));
   }, []);
 
   return { recentViews, recordView, refresh, ready };
