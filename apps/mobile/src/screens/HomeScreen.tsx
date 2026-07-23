@@ -722,7 +722,51 @@ function WeeklyGroupBuysSection({
 
 // Insert a native ad every HOME_NATIVE_AD_INTERVAL recommended products so the
 // home grid surfaces ads more often than the previous single post-6 placement.
-const HOME_NATIVE_AD_INTERVAL = 4;
+// Ads land on natural-feeling, unpredictable breaks: every gap is drawn
+// uniformly from [HOME_AD_GAP_MIN, HOME_AD_GAP_MAX] = [2, 10] products. The
+// gap sequence is seeded from the recommended product ids so the same batch
+// always shows ads at the same indices (no layout jump on re-render), while a
+// refreshed batch surfaces fresh ad positions.
+const HOME_AD_GAP_MIN = 2;
+const HOME_AD_GAP_MAX = 10;
+
+function seedRandomFromIds(ids: string[]): () => number {
+  let h = 1779033703 ^ ids.length;
+  for (const id of ids) {
+    for (let i = 0; i < id.length; i++) {
+      h = Math.imul(h ^ id.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+  }
+  return function () {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Returns the 0-based product indices after which a full-width native ad
+ * should be inserted, using seeded random gaps in [HOME_AD_GAP_MIN,
+ * HOME_AD_GAP_MAX]. The final product never gets a trailing ad.
+ */
+function buildHomeAdInsertionPoints(ids: string[]): Set<number> {
+  const points = new Set<number>();
+  if (ids.length < HOME_AD_GAP_MIN) return points;
+  const random = seedRandomFromIds(ids);
+  const randomGap = () =>
+    Math.floor(random() * (HOME_AD_GAP_MAX - HOME_AD_GAP_MIN + 1)) +
+    HOME_AD_GAP_MIN;
+  let gap = randomGap();
+  let index = gap - 1;
+  while (index < ids.length - 1) {
+    points.add(index);
+    gap = randomGap();
+    index += gap;
+  }
+  return points;
+}
 
 function RecommendedProducts({
   groupBuys,
@@ -734,11 +778,15 @@ function RecommendedProducts({
   s: ReturnType<typeof makeStyles>;
 }) {
   const products = groupBuys.slice(0, 8);
-  const adEligible = products.length >= HOME_NATIVE_AD_INTERVAL;
+  const productIds = products.map((item) => item.id);
+  const adInsertionPoints = useMemo(
+    () => buildHomeAdInsertionPoints(productIds),
+    [productIds],
+  );
 
-  // Insert a full-width native ad every HOME_NATIVE_AD_INTERVAL products. Ad
-  // slots render null while loading/unavailable, so products always stay
-  // visible and no blank space is reserved.
+  // Insert a full-width native ad at each seeded random break. Ad slots
+  // render null while loading/unavailable, so products always stay visible
+  // and no blank space is reserved.
   const gridChildren: ReactNode[] = [];
   products.forEach((item, index) => {
     gridChildren.push(
@@ -749,10 +797,10 @@ function RecommendedProducts({
         onPress={() => onPressDeal(item)}
       />,
     );
-    if (adEligible && (index + 1) % HOME_NATIVE_AD_INTERVAL === 0) {
+    if (adInsertionPoints.has(index)) {
       gridChildren.push(
         <NativeAdCard
-          key={`home-recommendation-ad-${index + 1}`}
+          key={`home-recommendation-ad-after-${index}`}
           testID="home-native-ad"
         />,
       );
