@@ -28,16 +28,36 @@ export function isReelsContentItem<T extends { id: string }>(
 export const REELS_AD_GAP_MIN = 2;
 export const REELS_AD_GAP_MAX = 10;
 
+export function seedAdRandomFromIds(ids: string[]): () => number {
+  let hash = 1779033703 ^ ids.length;
+  for (const id of ids) {
+    for (let index = 0; index < id.length; index++) {
+      hash = Math.imul(hash ^ id.charCodeAt(index), 3432918353);
+      hash = (hash << 13) | (hash >>> 19);
+    }
+  }
+  return () => {
+    hash = Math.imul(hash ^ (hash >>> 16), 2246822507);
+    hash = Math.imul(hash ^ (hash >>> 13), 3266489909);
+    hash ^= hash >>> 16;
+    return (hash >>> 0) / 4294967296;
+  };
+}
+
 export function insertReelsAdSlots<T extends { id: string }>(
   items: T[],
   {
+    boundFirstGapToFeed = false,
     enabled,
     firstAdAfter,
+    includeTrailingAd = false,
     interval,
     random = Math.random,
   }: {
+    boundFirstGapToFeed?: boolean;
     enabled: boolean;
     firstAdAfter?: number;
+    includeTrailingAd?: boolean;
     interval?: number;
     random?: () => number;
   },
@@ -53,13 +73,26 @@ export function insertReelsAdSlots<T extends { id: string }>(
 
   const feed: ReelsFeedItem<T>[] = [];
   let adSequence = 0;
-  let gapToNextAd = firstAdAfter ?? randomGap(REELS_AD_GAP_MIN, REELS_AD_GAP_MAX);
+  const largestAvailableGap =
+    items.length - (includeTrailingAd ? 0 : 1);
+  const largestFirstGap = boundFirstGapToFeed
+    ? Math.min(REELS_AD_GAP_MAX, largestAvailableGap)
+    : REELS_AD_GAP_MAX;
+  let gapToNextAd =
+    firstAdAfter ??
+    (largestFirstGap >= REELS_AD_GAP_MIN
+      ? randomGap(REELS_AD_GAP_MIN, largestFirstGap)
+      : Number.POSITIVE_INFINITY);
   const fixedGap = interval ?? null;
 
   items.forEach((content, index) => {
     feed.push({ content, key: `content:${content.id}`, kind: "content" });
     const organicCount = index + 1;
-    if (!enabled || organicCount >= items.length || organicCount < gapToNextAd) {
+    if (
+      !enabled ||
+      (!includeTrailingAd && organicCount >= items.length) ||
+      organicCount < gapToNextAd
+    ) {
       return;
     }
 
@@ -69,7 +102,9 @@ export function insertReelsAdSlots<T extends { id: string }>(
       kind: "ad",
       sequence: adSequence,
     });
-    gapToNextAd = organicCount + (fixedGap ?? randomGap(REELS_AD_GAP_MIN, REELS_AD_GAP_MAX));
+    gapToNextAd =
+      organicCount +
+      (fixedGap ?? randomGap(REELS_AD_GAP_MIN, REELS_AD_GAP_MAX));
   });
 
   return feed;

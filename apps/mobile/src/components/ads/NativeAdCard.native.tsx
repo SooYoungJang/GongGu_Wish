@@ -28,6 +28,7 @@ export const NativeAdCard = memo(function NativeAdCard({
   loadEnabled = true,
   onLoadStateChange,
   placement = "home",
+  style,
   testID,
   variant = "card",
   visible = true,
@@ -131,7 +132,7 @@ export const NativeAdCard = memo(function NativeAdCard({
     <NativeAdView
       accessibilityLabel={`광고, ${nativeAd.headline}`}
       nativeAd={nativeAd}
-      style={isReel ? styles.reel : styles.card}
+      style={[isReel ? styles.reel : styles.card, style]}
       testID={testID}
     >
       <View style={isReel ? styles.reelLabelRow : styles.cardLabelRow}>

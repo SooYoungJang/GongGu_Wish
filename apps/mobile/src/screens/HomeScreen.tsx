@@ -749,18 +749,20 @@ function seedRandomFromIds(ids: string[]): () => number {
 /**
  * Returns the 0-based product indices after which a full-width native ad
  * should be inserted, using seeded random gaps in [HOME_AD_GAP_MIN,
- * HOME_AD_GAP_MAX]. The final product never gets a trailing ad.
+ * HOME_AD_GAP_MAX]. Short finite lists may place the ad after the final
+ * product so the two-product minimum can still produce a break.
  */
 function buildHomeAdInsertionPoints(ids: string[]): Set<number> {
   const points = new Set<number>();
-  if (ids.length < HOME_AD_GAP_MIN) return points;
+  const largestFirstGap = Math.min(HOME_AD_GAP_MAX, ids.length);
+  if (largestFirstGap < HOME_AD_GAP_MIN) return points;
   const random = seedRandomFromIds(ids);
-  const randomGap = () =>
-    Math.floor(random() * (HOME_AD_GAP_MAX - HOME_AD_GAP_MIN + 1)) +
+  const randomGap = (max = HOME_AD_GAP_MAX) =>
+    Math.floor(random() * (max - HOME_AD_GAP_MIN + 1)) +
     HOME_AD_GAP_MIN;
-  let gap = randomGap();
+  let gap = randomGap(largestFirstGap);
   let index = gap - 1;
-  while (index < ids.length - 1) {
+  while (index < ids.length) {
     points.add(index);
     gap = randomGap();
     index += gap;

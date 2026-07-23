@@ -187,6 +187,38 @@ describe("NativeAdCard", () => {
     );
   });
 
+  it("merges a screen-specific layout style into the loaded card", async () => {
+    const ad = {
+      advertiser: null,
+      body: null,
+      callToAction: null,
+      destroy: vi.fn(),
+      headline: "캘린더 광고",
+      icon: null,
+      mediaContent: null,
+    } as unknown as Awaited<ReturnType<typeof NativeAd.createForAdRequest>>;
+    vi.mocked(NativeAd.createForAdRequest).mockResolvedValue(ad);
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <AdsContext.Provider value={enabledAds}>
+          <NativeAdCard style={{ height: 360, marginBottom: 0 }} />
+        </AdsContext.Provider>,
+      );
+      await Promise.resolve();
+    });
+
+    const nativeAdView = renderer!.root.findByType(
+      "NativeAdView" as unknown as React.ElementType,
+    );
+    expect(nativeAdView.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ height: 360, marginBottom: 0 }),
+      ]),
+    );
+  });
+
   it("does not request while a Reels ad page is outside the load window", () => {
     act(() => {
       TestRenderer.create(
