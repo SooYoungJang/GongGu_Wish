@@ -1,11 +1,11 @@
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 import {
@@ -33,7 +33,6 @@ import { PriceText } from "../components/ui/PriceText";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
 import { DealCard } from "../components/DealCard";
 import { NativeAdCard } from "../components/ads/NativeAdCard";
-import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
 import { CATEGORIES } from "../components/home/CategoryRow";
 import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
@@ -721,6 +720,10 @@ function WeeklyGroupBuysSection({
   );
 }
 
+// Insert a native ad every HOME_NATIVE_AD_INTERVAL recommended products so the
+// home grid surfaces ads more often than the previous single post-6 placement.
+const HOME_NATIVE_AD_INTERVAL = 4;
+
 function RecommendedProducts({
   groupBuys,
   onPressDeal,
@@ -731,54 +734,36 @@ function RecommendedProducts({
   s: ReturnType<typeof makeStyles>;
 }) {
   const products = groupBuys.slice(0, 8);
-  const adEligible = products.length >= 6;
-  const leadingProducts = adEligible ? products.slice(0, 6) : products;
-  const trailingProducts = adEligible ? products.slice(6) : [];
-  const [adState, setAdState] = useState<{
-    eligible: boolean;
-    status: NativeAdLoadStatus;
-  }>(() => ({ eligible: adEligible, status: "loading" }));
-  const adStatus = adState.eligible === adEligible ? adState.status : "loading";
-  const handleAdLoadStateChange = useCallback((status: NativeAdLoadStatus) => {
-    setAdState({ eligible: true, status });
-  }, []);
+  const adEligible = products.length >= HOME_NATIVE_AD_INTERVAL;
 
-  useEffect(() => {
-    if (!adEligible) {
-      setAdState({ eligible: false, status: "loading" });
+  // Insert a full-width native ad every HOME_NATIVE_AD_INTERVAL products. Ad
+  // slots render null while loading/unavailable, so products always stay
+  // visible and no blank space is reserved.
+  const gridChildren: ReactNode[] = [];
+  products.forEach((item, index) => {
+    gridChildren.push(
+      <DealCard
+        category={categoryForGroupBuy(item, index)}
+        item={item}
+        key={item.id}
+        onPress={() => onPressDeal(item)}
+      />,
+    );
+    if (adEligible && (index + 1) % HOME_NATIVE_AD_INTERVAL === 0) {
+      gridChildren.push(
+        <NativeAdCard
+          key={`home-recommendation-ad-${index + 1}`}
+          testID="home-native-ad"
+        />,
+      );
     }
-  }, [adEligible]);
+  });
 
   return (
     <View style={s.recommendSection}>
       {products.length > 0 ? (
         <View style={s.productGrid} testID="home-recommendation-grid">
-          {leadingProducts.map((item, index) => (
-            <DealCard
-              category={categoryForGroupBuy(item, index)}
-              item={item}
-              key={item.id}
-              onPress={() => onPressDeal(item)}
-            />
-          ))}
-          {adEligible ? (
-            <Fragment key="home-recommendation-ad">
-              <NativeAdCard
-                onLoadStateChange={handleAdLoadStateChange}
-                testID="home-native-ad"
-              />
-              {adStatus === "loading"
-                ? null
-                : trailingProducts.map((item, index) => (
-                    <DealCard
-                      category={categoryForGroupBuy(item, index + 6)}
-                      item={item}
-                      key={item.id}
-                      onPress={() => onPressDeal(item)}
-                    />
-                  ))}
-            </Fragment>
-          ) : null}
+          {gridChildren}
         </View>
       ) : (
         <View style={s.productEmpty}>
