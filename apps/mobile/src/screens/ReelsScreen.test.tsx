@@ -218,6 +218,13 @@ describe("ReelsScreen player lifecycle", () => {
     act(() => {
       renderer = TestRenderer.create(<ReelsScreen />);
     });
+    randomSpy.mockRestore();
+
+    act(() => {
+      renderer!.root
+        .find((node) => String(node.type) === "PagerView")
+        .props.onPageSelected({ nativeEvent: { position: 1 } });
+    });
 
     const ad = renderer!.root.findByProps({ testID: "reels-native-ad-1" });
     expect(ad.props.reelBottomInset).toBe(40);
@@ -225,7 +232,6 @@ describe("ReelsScreen player lifecycle", () => {
     act(() => {
       renderer!.unmount();
     });
-    randomSpy.mockRestore();
   });
 
   it("shows an accessible retry state when reels fail without cache", () => {
