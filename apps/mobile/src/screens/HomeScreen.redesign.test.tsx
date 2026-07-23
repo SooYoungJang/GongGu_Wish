@@ -1528,6 +1528,16 @@ describe('HomeScreenContent redesign', () => {
   });
 });
 
+function countHomeNativeAds(renderer: TestRenderer.ReactTestRenderer) {
+  const grid = renderer.root
+    .findAllByProps({ testID: 'home-recommendation-grid' })
+    .find((node) => String(node.type) === 'View')!;
+  return grid.children.filter(
+    (child) =>
+      typeof child !== 'string' && child.props.testID === 'home-native-ad',
+  ).length;
+}
+
 describe('HomeScreenContent redesign v2', () => {
   it('does not reserve a native ad slot before the minimum gap of two products', () => {
     const renderer = renderHomeContent({
@@ -1544,9 +1554,7 @@ describe('HomeScreenContent redesign v2', () => {
       groupBuys: sampleGroupBuys.slice(0, 2),
     });
 
-    expect(
-      renderer.root.findAllByProps({ testID: 'home-native-ad' }),
-    ).toHaveLength(1);
+    expect(countHomeNativeAds(renderer)).toBe(1);
   });
 
   it('fits the first random gap so a short three-product home feed still shows an ad', () => {
@@ -1557,9 +1565,7 @@ describe('HomeScreenContent redesign v2', () => {
     }));
     const renderer = renderHomeContent({ groupBuys });
 
-    expect(
-      renderer.root.findAllByProps({ testID: 'home-native-ad' }),
-    ).toHaveLength(1);
+    expect(countHomeNativeAds(renderer)).toBe(1);
   });
 
   it('places at least one native ad among eight recommended products', () => {
