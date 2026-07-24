@@ -2,12 +2,15 @@ import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -20,6 +23,7 @@ import { useAuth } from "../context/AuthContext";
 import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
 import { clearLocalUserData } from "../hooks/useLocalDeals";
 import { useAuthGate } from "../hooks/useAuthGate";
+import { resolveAppInfo } from "../lib/app-info";
 import { isAutomatedE2E } from "../lib/automatedE2E";
 import {
   getNotificationPermissionStatus,
@@ -35,6 +39,14 @@ import {
 } from "../services/notificationPreferences";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import type { RootStackParamList } from "../types";
+import bundledAppConfig from "../../app.json";
+
+const APP_INFO = resolveAppInfo({
+  configuredVersion: Constants.expoConfig?.version,
+  fallbackVersion: bundledAppConfig.expo.version,
+  privacyPolicyUrl: process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL,
+  termsOfServiceUrl: process.env.EXPO_PUBLIC_TERMS_OF_SERVICE_URL,
+});
 
 export function SettingsScreen() {
   const { colors, spacing, radius } = useCommerceTheme();
@@ -238,6 +250,28 @@ export function SettingsScreen() {
     }
   }, [showPrivacyOptions, updatingAdPrivacy]);
 
+  const handleOpenLegalDocument = useCallback(
+    async (title: string, url: string | null) => {
+      if (!url) {
+        Alert.alert(
+          `${title}을 준비 중이에요`,
+          "공식 문서가 게시되면 이 버튼에서 바로 확인할 수 있어요.",
+        );
+        return;
+      }
+
+      try {
+        await Linking.openURL(url);
+      } catch {
+        Alert.alert(
+          `${title}을 열지 못했어요`,
+          "네트워크 연결을 확인한 뒤 다시 시도해주세요.",
+        );
+      }
+    },
+    [],
+  );
+
   return (
     <SafeAreaView edges={["bottom"]} style={s.container}>
       <ScrollView
@@ -245,7 +279,7 @@ export function SettingsScreen() {
         contentContainerStyle={s.scrollContent}
       >
         <SText variant="subtitle" style={s.intro}>
-          알림과 화면 테마를 편하게 설정해보세요.
+          알림과 화면 테마, 앱 정보를 편하게 확인해보세요.
         </SText>
 
         <View style={s.sectionCard}>
@@ -470,6 +504,97 @@ export function SettingsScreen() {
           <ThemeToggle />
         </View>
 
+        <View style={s.accountCard}>
+          <SText variant="cardTitle" style={s.sectionTitle}>
+            앱 정보
+          </SText>
+          <View style={s.infoList}>
+            <Pressable
+              accessibilityHint="개인정보 처리방침 문서를 엽니다"
+              accessibilityLabel="개인정보 처리방침"
+              accessibilityRole="button"
+              onPress={() =>
+                void handleOpenLegalDocument(
+                  "개인정보 처리방침",
+                  APP_INFO.privacyPolicyUrl,
+                )
+              }
+              style={({ pressed }) => [s.infoRow, pressed && s.pressed]}
+            >
+              <View style={s.infoRowLeading}>
+                <View style={s.infoIcon}>
+                  <Ionicons
+                    color={colors.accent}
+                    name="shield-checkmark-outline"
+                    size={20}
+                  />
+                </View>
+                <SText style={s.infoRowLabel} variant="body">
+                  개인정보 처리방침
+                </SText>
+              </View>
+              <Ionicons
+                color={colors.weak}
+                name="chevron-forward"
+                size={20}
+              />
+            </Pressable>
+
+            <Pressable
+              accessibilityHint="서비스 이용약관 문서를 엽니다"
+              accessibilityLabel="서비스 이용약관"
+              accessibilityRole="button"
+              onPress={() =>
+                void handleOpenLegalDocument(
+                  "서비스 이용약관",
+                  APP_INFO.termsOfServiceUrl,
+                )
+              }
+              style={({ pressed }) => [s.infoRow, pressed && s.pressed]}
+            >
+              <View style={s.infoRowLeading}>
+                <View style={s.infoIcon}>
+                  <Ionicons
+                    color={colors.accent}
+                    name="document-text-outline"
+                    size={20}
+                  />
+                </View>
+                <SText style={s.infoRowLabel} variant="body">
+                  서비스 이용약관
+                </SText>
+              </View>
+              <Ionicons
+                color={colors.weak}
+                name="chevron-forward"
+                size={20}
+              />
+            </Pressable>
+
+            <View
+              accessibilityLabel={`앱 버전 ${APP_INFO.version}`}
+              accessible
+              style={[s.infoRow, s.infoRowLast]}
+            >
+              <View style={s.infoRowLeading}>
+                <View style={s.infoIcon}>
+                  <Ionicons
+                    color={colors.accent}
+                    name="information-circle-outline"
+                    size={20}
+                  />
+                </View>
+                <SText style={s.infoRowLabel} variant="body">
+                  앱 버전
+                </SText>
+              </View>
+              <SText style={s.infoRowValue} variant="caption">
+                {APP_INFO.version}
+              </SText>
+            </View>
+          </View>
+        </View>
+
         {privacyOptionsRequired ? (
           <View style={s.accountCard}>
             <SText variant="cardTitle" style={s.sectionTitle}>
@@ -561,6 +686,34 @@ function makeStyles(
       borderWidth: 1,
       padding: spacing.lg,
     },
+    infoList: { marginTop: spacing.sm },
+    infoRow: {
+      alignItems: "center",
+      borderBottomColor: colors.borderLight,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      minHeight: 56,
+      paddingVertical: spacing.sm,
+    },
+    infoRowLast: { borderBottomWidth: 0 },
+    infoRowLeading: {
+      alignItems: "center",
+      flex: 1,
+      flexDirection: "row",
+      gap: spacing.md,
+      paddingRight: spacing.md,
+    },
+    infoIcon: {
+      alignItems: "center",
+      backgroundColor: colors.accentSoft,
+      borderRadius: radius.md,
+      height: 36,
+      justifyContent: "center",
+      width: 36,
+    },
+    infoRowLabel: { color: colors.text, fontWeight: "800" },
+    infoRowValue: { color: colors.weak, fontWeight: "800" },
     switchRow: {
       alignItems: "center",
       borderBottomColor: colors.borderLight,
