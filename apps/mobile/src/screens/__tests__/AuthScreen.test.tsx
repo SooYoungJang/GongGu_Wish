@@ -293,10 +293,13 @@ describe('AuthScreen', () => {
 
   it('renders the app name in the shared navigation header', () => {
     const renderer = createTestRenderer();
-    const title = renderer.root.findByProps({ testID: 'auth-navigation-header-title' });
+    const title = renderer.root
+      .findAllByProps({ testID: 'auth-navigation-header-title' })
+      .find((node) => node.type === Text);
 
-    expect(title.props.children).toBe('공구위시');
-    expect(title.props.accessibilityRole).toBe('header');
+    expect(title).toBeDefined();
+    expect(title!.props.children).toBe('공구위시');
+    expect(title!.props.accessibilityRole).toBe('header');
   });
 
   it('renders welcome message', () => {
