@@ -384,15 +384,9 @@ function publishRecentViews(entries: StoredGroupBuy[]) {
 }
 
 function subscribeRecentViews(listener: RecentViewsListener) {
-  if (recentViewsListeners.size === 0) {
-    recentViewsSnapshot = getPendingRecentViewItems();
-  }
   recentViewsListeners.add(listener);
   return () => {
     recentViewsListeners.delete(listener);
-    if (recentViewsListeners.size === 0) {
-      recentViewsSnapshot = getPendingRecentViewItems();
-    }
   };
 }
 
