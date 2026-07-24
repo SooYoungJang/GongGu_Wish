@@ -358,6 +358,27 @@ describe('MyPageScreen', () => {
     expect(renderer.toJSON()).toBeTruthy();
   });
 
+  it('renders a Kakao user without an email instead of throwing', async () => {
+    authMocks.session = {
+      access_token: 'kakao-access-token',
+      user: {
+        id: 'kakao-user',
+        email: '',
+        created_at: '2026-07-25T00:00:00.000Z',
+        app_metadata: { provider: 'kakao' },
+        user_metadata: { name: '카카오 사용자' },
+      },
+    };
+
+    const renderer = renderMyPageScreen();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('카카오 사용자');
+  });
+
   it('explains that guest bookmarks and notifications require login', async () => {
     const renderer = renderMyPageScreen();
     await act(async () => {
