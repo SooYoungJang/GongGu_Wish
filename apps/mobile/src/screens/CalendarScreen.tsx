@@ -337,7 +337,6 @@ function CalendarHeader({
         style={s.titleRow}
         testID="calendar-navigation-header"
         title="공구 캘린더"
-        titleStyle={s.screenTitle}
       />
 
       <View style={s.monthRow} testID="calendar-month-row">
@@ -843,13 +842,6 @@ function makeStyles(colors: ColorPalette) {
     titleRow: {
       marginBottom: spacing.sm,
       paddingHorizontal: 0,
-    },
-    screenTitle: {
-      color: colors.textPrimary,
-      flex: 1,
-      fontSize: 22,
-      fontWeight: "900",
-      textAlign: "center",
     },
     monthRow: {
       alignItems: "center",

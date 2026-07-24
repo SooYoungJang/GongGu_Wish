@@ -4,13 +4,46 @@ import {
   Text,
   View,
   type StyleProp,
-  type TextStyle,
   type ViewStyle,
 } from "react-native";
 
 import { BackButton } from "./BackButton";
 import { spacing } from "../design/tokens";
 import { useCommerceTheme } from "../design/useCommerceTheme";
+
+export type NavigationHeaderTitleVariant = "default" | "overlay";
+
+export interface NavigationHeaderTitleProps {
+  fill?: boolean;
+  testID?: string;
+  title: string;
+  variant?: NavigationHeaderTitleVariant;
+}
+
+export function NavigationHeaderTitle({
+  fill = false,
+  testID,
+  title,
+  variant = "default",
+}: NavigationHeaderTitleProps) {
+  const { colors } = useCommerceTheme();
+
+  return (
+    <Text
+      accessibilityRole="header"
+      numberOfLines={1}
+      style={[
+        styles.title,
+        fill && styles.titleFill,
+        { color: colors.text },
+        variant === "overlay" && styles.titleOverlay,
+      ]}
+      testID={testID}
+    >
+      {title}
+    </Text>
+  );
+}
 
 export interface CenteredBackHeaderProps {
   backButtonAccessibilityLabel?: string;
@@ -22,7 +55,7 @@ export interface CenteredBackHeaderProps {
   style?: StyleProp<ViewStyle>;
   testID?: string;
   title: string;
-  titleStyle?: StyleProp<TextStyle>;
+  titleVariant?: NavigationHeaderTitleVariant;
 }
 
 /**
@@ -39,10 +72,8 @@ export function CenteredBackHeader({
   style,
   testID = "centered-back-header",
   title,
-  titleStyle,
+  titleVariant,
 }: CenteredBackHeaderProps) {
-  const { colors } = useCommerceTheme();
-
   return (
     <View style={[styles.header, style]} testID={testID}>
       <View style={styles.side} testID={`${testID}-leading`}>
@@ -55,14 +86,12 @@ export function CenteredBackHeader({
           />
         ) : null}
       </View>
-      <Text
-        accessibilityRole="header"
-        numberOfLines={1}
-        style={[styles.title, { color: colors.text }, titleStyle]}
+      <NavigationHeaderTitle
+        fill
         testID={`${testID}-title`}
-      >
-        {title}
-      </Text>
+        title={title}
+        variant={titleVariant}
+      />
       <View style={styles.side} testID={`${testID}-trailing`}>
         {right}
       </View>
@@ -85,11 +114,20 @@ const styles = StyleSheet.create({
     width: 44,
   },
   title: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "800",
     letterSpacing: 0,
-    lineHeight: 22,
+    lineHeight: 26,
+    maxWidth: "100%",
     textAlign: "center",
+  },
+  titleFill: {
+    flex: 1,
+  },
+  titleOverlay: {
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0,0,0,0.36)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });

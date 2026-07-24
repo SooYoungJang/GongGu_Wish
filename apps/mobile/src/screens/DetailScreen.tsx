@@ -1781,7 +1781,7 @@ function ProductReelPageComponent({
           style={s.reelHeader}
           testID="detail-navigation-header"
           title="릴스"
-          titleStyle={s.reelsTitle}
+          titleVariant="overlay"
         />
       </Reanimated.View>
 
@@ -3085,14 +3085,6 @@ export function makeStyles(
     },
     reelHeader: {
       flex: 1,
-    },
-    reelsTitle: {
-      color: "#FFFFFF",
-      fontSize: 20,
-      fontWeight: "800",
-      textShadowColor: "rgba(0,0,0,0.36)",
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 4,
     },
     mediaDots: {
       alignItems: "center",

@@ -66,6 +66,10 @@ describe("CenteredBackHeader", () => {
     expect(title.props.accessibilityRole).toBe("header");
     expect(flattenStyle(title.props.style)).toMatchObject({
       flex: 1,
+      fontSize: 20,
+      fontWeight: "800",
+      letterSpacing: 0,
+      lineHeight: 26,
       textAlign: "center",
     });
 
@@ -74,5 +78,34 @@ describe("CenteredBackHeader", () => {
     });
 
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps overlay titles on the shared typography scale", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <CenteredBackHeader
+            testID="overlay-navigation-header"
+            title="릴스"
+            titleVariant="overlay"
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const title = renderer!.root.findByProps({
+      testID: "overlay-navigation-header-title",
+    });
+
+    expect(flattenStyle(title.props.style)).toMatchObject({
+      color: "#FFFFFF",
+      fontSize: 20,
+      fontWeight: "800",
+      letterSpacing: 0,
+      lineHeight: 26,
+      textShadowColor: "rgba(0,0,0,0.36)",
+    });
   });
 });

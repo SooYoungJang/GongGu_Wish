@@ -21,6 +21,7 @@ import { resolveDataApiUrl, resolveSupabaseAnonKey, resolveSupabaseUrl } from '.
 import { isAutomatedE2E } from './lib/automatedE2E';
 import { registerForPushNotifications } from './services/notifications';
 import { BackButton } from './components/BackButton';
+import { NavigationHeaderTitle } from './components/CenteredBackHeader';
 import { getCommerceColors } from './design/commerce';
 import { spacing } from './design/tokens';
 import {
@@ -413,8 +414,8 @@ function ThemedStackNavigator() {
         contentStyle: { backgroundColor: colors.bg },
         headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.text,
+        headerTitle: ({ children }) => <NavigationHeaderTitle title={children} />,
         headerTitleAlign: 'center',
-        headerTitleStyle: { color: colors.text },
         headerShadowVisible: false,
       }}
     >
