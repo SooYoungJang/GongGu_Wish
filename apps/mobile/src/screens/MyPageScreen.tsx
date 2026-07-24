@@ -30,6 +30,7 @@ import { useTabReselect } from '../hooks/useTabReselect';
 import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
 import { spacing } from '../design/tokens';
 import type { GroupBuy, MainTabParamList, RootStackParamList } from '../types';
+import { resolveAuthUserPresentation } from '../utils/userPresentation';
 
 type PublicWishSubmissionResponse = {
   alreadyRegistered?: boolean;
@@ -166,6 +167,9 @@ export function notificationEntryToGroupBuy(entry: NotificationEntry): GroupBuy 
 export function MyPageScreen() {
   const { colors } = useCommerceTheme();
   const { user, isLoading: authLoading, signOut } = useAuth();
+  const userPresentation = user
+    ? resolveAuthUserPresentation(user)
+    : { avatarInitial: '?', label: '사용자' };
   const { requireAuth } = useAuthGate();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
@@ -369,9 +373,9 @@ export function MyPageScreen() {
         {user ? (
           <View style={s.profileCard}>
             <View style={s.avatarCircle}>
-              <SText variant="title" style={s.avatarText}>{(user.email ?? '?')[0].toUpperCase()}</SText>
+              <SText variant="title" style={s.avatarText}>{userPresentation.avatarInitial}</SText>
             </View>
-            <SText variant="cardTitle" style={s.profileEmail}>{user.email}</SText>
+            <SText variant="cardTitle" style={s.profileEmail}>{userPresentation.label}</SText>
             <SText variant="caption" style={s.profileJoined}>
               가입일: {user.created_at ? new Date(user.created_at).toLocaleDateString('ko-KR') : '알 수 없음'}
             </SText>
