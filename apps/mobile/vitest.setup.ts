@@ -249,8 +249,6 @@ vi.mock("react-native-google-mobile-ads", () => ({
   },
   NativeMediaAspectRatio: {
     LANDSCAPE: 2,
-    PORTRAIT: 3,
-    SQUARE: 4,
   },
   TestIds: {
     NATIVE: "test-native-unit",

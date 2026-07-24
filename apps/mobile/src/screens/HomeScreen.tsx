@@ -1,11 +1,11 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   type Dispatch,
-  type ReactNode,
   type SetStateAction,
 } from "react";
 import {
@@ -33,6 +33,7 @@ import { PriceText } from "../components/ui/PriceText";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
 import { DealCard } from "../components/DealCard";
 import { NativeAdCard } from "../components/ads/NativeAdCard";
+import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
 import { CATEGORIES } from "../components/home/CategoryRow";
 import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
@@ -720,56 +721,6 @@ function WeeklyGroupBuysSection({
   );
 }
 
-// Insert a native ad every HOME_NATIVE_AD_INTERVAL recommended products so the
-// home grid surfaces ads more often than the previous single post-6 placement.
-// Ads land on natural-feeling, unpredictable breaks: every gap is drawn
-// uniformly from [HOME_AD_GAP_MIN, HOME_AD_GAP_MAX] = [2, 10] products. The
-// gap sequence is seeded from the recommended product ids so the same batch
-// always shows ads at the same indices (no layout jump on re-render), while a
-// refreshed batch surfaces fresh ad positions.
-const HOME_AD_GAP_MIN = 2;
-const HOME_AD_GAP_MAX = 10;
-
-function seedRandomFromIds(ids: string[]): () => number {
-  let h = 1779033703 ^ ids.length;
-  for (const id of ids) {
-    for (let i = 0; i < id.length; i++) {
-      h = Math.imul(h ^ id.charCodeAt(i), 3432918353);
-      h = (h << 13) | (h >>> 19);
-    }
-  }
-  return function () {
-    h = Math.imul(h ^ (h >>> 16), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    h ^= h >>> 16;
-    return (h >>> 0) / 4294967296;
-  };
-}
-
-/**
- * Returns the 0-based product indices after which a full-width native ad
- * should be inserted, using seeded random gaps in [HOME_AD_GAP_MIN,
- * HOME_AD_GAP_MAX]. Short finite lists may place the ad after the final
- * product so the two-product minimum can still produce a break.
- */
-function buildHomeAdInsertionPoints(ids: string[]): Set<number> {
-  const points = new Set<number>();
-  const largestFirstGap = Math.min(HOME_AD_GAP_MAX, ids.length);
-  if (largestFirstGap < HOME_AD_GAP_MIN) return points;
-  const random = seedRandomFromIds(ids);
-  const randomGap = (max = HOME_AD_GAP_MAX) =>
-    Math.floor(random() * (max - HOME_AD_GAP_MIN + 1)) +
-    HOME_AD_GAP_MIN;
-  let gap = randomGap(largestFirstGap);
-  let index = gap - 1;
-  while (index < ids.length) {
-    points.add(index);
-    gap = randomGap();
-    index += gap;
-  }
-  return points;
-}
-
 function RecommendedProducts({
   groupBuys,
   onPressDeal,
@@ -780,41 +731,54 @@ function RecommendedProducts({
   s: ReturnType<typeof makeStyles>;
 }) {
   const products = groupBuys.slice(0, 8);
-  const productIds = products.map((item) => item.id);
-  const adInsertionPoints = useMemo(
-    () => buildHomeAdInsertionPoints(productIds),
-    [productIds],
-  );
+  const adEligible = products.length >= 6;
+  const leadingProducts = adEligible ? products.slice(0, 6) : products;
+  const trailingProducts = adEligible ? products.slice(6) : [];
+  const [adState, setAdState] = useState<{
+    eligible: boolean;
+    status: NativeAdLoadStatus;
+  }>(() => ({ eligible: adEligible, status: "loading" }));
+  const adStatus = adState.eligible === adEligible ? adState.status : "loading";
+  const handleAdLoadStateChange = useCallback((status: NativeAdLoadStatus) => {
+    setAdState({ eligible: true, status });
+  }, []);
 
-  // Insert a product-sized native ad at each seeded random break. Ad slots
-  // render null while loading/unavailable, so products always stay visible
-  // and no blank space is reserved.
-  const gridChildren: ReactNode[] = [];
-  products.forEach((item, index) => {
-    gridChildren.push(
-      <DealCard
-        category={categoryForGroupBuy(item, index)}
-        item={item}
-        key={item.id}
-        onPress={() => onPressDeal(item)}
-      />,
-    );
-    if (adInsertionPoints.has(index)) {
-      gridChildren.push(
-        <NativeAdCard
-          key={`home-recommendation-ad-after-${index}`}
-          testID="home-native-ad"
-          variant="tile"
-        />,
-      );
+  useEffect(() => {
+    if (!adEligible) {
+      setAdState({ eligible: false, status: "loading" });
     }
-  });
+  }, [adEligible]);
 
   return (
     <View style={s.recommendSection}>
       {products.length > 0 ? (
         <View style={s.productGrid} testID="home-recommendation-grid">
-          {gridChildren}
+          {leadingProducts.map((item, index) => (
+            <DealCard
+              category={categoryForGroupBuy(item, index)}
+              item={item}
+              key={item.id}
+              onPress={() => onPressDeal(item)}
+            />
+          ))}
+          {adEligible ? (
+            <Fragment key="home-recommendation-ad">
+              <NativeAdCard
+                onLoadStateChange={handleAdLoadStateChange}
+                testID="home-native-ad"
+              />
+              {adStatus === "loading"
+                ? null
+                : trailingProducts.map((item, index) => (
+                    <DealCard
+                      category={categoryForGroupBuy(item, index + 6)}
+                      item={item}
+                      key={item.id}
+                      onPress={() => onPressDeal(item)}
+                    />
+                  ))}
+            </Fragment>
+          ) : null}
         </View>
       ) : (
         <View style={s.productEmpty}>

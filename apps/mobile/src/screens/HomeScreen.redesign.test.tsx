@@ -47,20 +47,18 @@ vi.mock('../components/ads/NativeAdCard', () => {
     NativeAdCard: ({
       onLoadStateChange,
       testID,
-      variant,
     }: {
       onLoadStateChange?: React.Dispatch<
         'loaded' | 'loading' | 'unavailable'
       >;
       testID?: string;
-      variant?: string;
     }) => {
       ReactMock.useEffect(() => {
         nativeAdMock.mountCount += 1;
         onLoadStateChange?.(nativeAdMock.status);
       }, [onLoadStateChange]);
       return nativeAdMock.status === 'loaded'
-        ? ReactMock.createElement('NativeAdCard', { testID, variant })
+        ? ReactMock.createElement('NativeAdCard', { testID })
         : null;
     },
   };
@@ -1530,20 +1528,10 @@ describe('HomeScreenContent redesign', () => {
   });
 });
 
-function countHomeNativeAds(renderer: TestRenderer.ReactTestRenderer) {
-  const grid = renderer.root
-    .findAllByProps({ testID: 'home-recommendation-grid' })
-    .find((node) => String(node.type) === 'View')!;
-  return grid.children.filter(
-    (child) =>
-      typeof child !== 'string' && child.props.testID === 'home-native-ad',
-  ).length;
-}
-
 describe('HomeScreenContent redesign v2', () => {
-  it('does not reserve a native ad slot before the minimum gap of two products', () => {
+  it('does not reserve a native ad slot before six recommended products', () => {
     const renderer = renderHomeContent({
-      groupBuys: sampleGroupBuys.slice(0, 1),
+      groupBuys: sampleGroupBuys.slice(0, 2),
     });
 
     expect(
@@ -1551,29 +1539,7 @@ describe('HomeScreenContent redesign v2', () => {
     ).toHaveLength(0);
   });
 
-  it('shows a trailing native ad after a two-product home feed', () => {
-    const renderer = renderHomeContent({
-      groupBuys: sampleGroupBuys.slice(0, 2),
-    });
-
-    expect(countHomeNativeAds(renderer)).toBe(1);
-    expect(
-      renderer.root.findByProps({ testID: 'home-native-ad' }).props.variant,
-    ).toBe('tile');
-  });
-
-  it('fits the first random gap so a short three-product home feed still shows an ad', () => {
-    const groupBuys = Array.from({ length: 3 }, (_, index) => ({
-      ...sampleGroupBuys[index % sampleGroupBuys.length],
-      id: `bounded-home-${index + 1}`,
-      isHomeBanner: false,
-    }));
-    const renderer = renderHomeContent({ groupBuys });
-
-    expect(countHomeNativeAds(renderer)).toBe(1);
-  });
-
-  it('places at least one native ad among eight recommended products', () => {
+  it('places one native ad after the sixth recommended product', () => {
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
       id: `recommended-${index + 1}`,
@@ -1583,19 +1549,25 @@ describe('HomeScreenContent redesign v2', () => {
     const grid = renderer.root
       .findAllByProps({ testID: 'home-recommendation-grid' })
       .find((node) => String(node.type) === 'View')!;
-    const adCount = grid.children.filter(
-      (child) => typeof child !== 'string' && child.props.testID === 'home-native-ad',
-    ).length;
+    const order = grid.children.map((child) => {
+      if (typeof child === 'string') return child;
+      return child.props.item?.id ?? child.props.testID;
+    });
 
-    // Every product stays visible regardless of where the seeded ad breaks land.
-    const productIds = grid.children
-      .map((child) => (typeof child === 'string' ? child : child.props.item?.id))
-      .filter(Boolean);
-    expect(productIds).toHaveLength(8);
-    expect(adCount).toBeGreaterThanOrEqual(1);
+    expect(order).toEqual([
+      'recommended-1',
+      'recommended-2',
+      'recommended-3',
+      'recommended-4',
+      'recommended-5',
+      'recommended-6',
+      'home-native-ad',
+      'recommended-7',
+      'recommended-8',
+    ]);
   });
 
-  it('keeps all recommended products visible while ads are unresolved', () => {
+  it('does not expose products seven and eight while the ad is unresolved', () => {
     nativeAdMock.status = 'loading';
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
@@ -1620,12 +1592,10 @@ describe('HomeScreenContent redesign v2', () => {
       'pending-4',
       'pending-5',
       'pending-6',
-      'pending-7',
-      'pending-8',
     ]);
   });
 
-  it('renders all products with no ad element when ads are unavailable', () => {
+  it('reveals products seven and eight together when no ad is available', () => {
     nativeAdMock.status = 'unavailable';
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
@@ -1651,41 +1621,19 @@ describe('HomeScreenContent redesign v2', () => {
     ).toHaveLength(0);
   });
 
-  it('keeps stable ad placements for the same product ids across renders', () => {
+  it('keeps one stable ad placement when recommendation order changes', () => {
     const first = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
       id: `stable-${index + 1}`,
       isHomeBanner: false,
     }));
     const renderer = renderHomeContent({ groupBuys: first });
-    const gridBefore = renderer.root
-      .findAllByProps({ testID: 'home-recommendation-grid' })
-      .find((node) => String(node.type) === 'View')!;
-    const adsBefore = gridBefore.children
-      .map((child, index) =>
-        typeof child !== 'string' && child.props.testID === 'home-native-ad'
-          ? index
-          : null,
-      )
-      .filter((value): value is number => value !== null);
 
     act(() => {
-      renderer.update(createHomeContent({ groupBuys: first }));
+      renderer.update(createHomeContent({ groupBuys: [...first].reverse() }));
     });
 
-    const gridAfter = renderer.root
-      .findAllByProps({ testID: 'home-recommendation-grid' })
-      .find((node) => String(node.type) === 'View')!;
-    const adsAfter = gridAfter.children
-      .map((child, index) =>
-        typeof child !== 'string' && child.props.testID === 'home-native-ad'
-          ? index
-          : null,
-      )
-      .filter((value): value is number => value !== null);
-
-    // The same product ids produce the same seeded ad break positions.
-    expect(adsAfter).toEqual(adsBefore);
+    expect(nativeAdMock.mountCount).toBe(1);
   });
 
   it('does not render the old weekly calendar sections', () => {

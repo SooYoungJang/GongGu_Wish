@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Image, Text, View, type LayoutChangeEvent } from "react-native";
+import { memo, useEffect, useMemo, useState } from "react";
+import { Image, Text, View } from "react-native";
 
 import { useAds } from "../../ads/AdsContext.native";
 import {
@@ -23,34 +23,11 @@ type LoadedNativeAd = {
   module: GoogleMobileAdsModule;
   nativeAd: NativeAdInstance;
 };
-type ReelLayout = { height: number; width: number };
-
-function getContainedMediaSize(
-  frameWidth: number,
-  frameHeight: number,
-  aspectRatio: number | null | undefined,
-): ReelLayout | null {
-  if (frameWidth <= 0 || frameHeight <= 0) return null;
-
-  const validAspectRatio =
-    typeof aspectRatio === "number" &&
-    Number.isFinite(aspectRatio) &&
-    aspectRatio > 0
-      ? aspectRatio
-      : 9 / 16;
-  const widthAtFullHeight = frameHeight * validAspectRatio;
-
-  return widthAtFullHeight <= frameWidth
-    ? { height: frameHeight, width: widthAtFullHeight }
-    : { height: frameWidth / validAspectRatio, width: frameWidth };
-}
 
 export const NativeAdCard = memo(function NativeAdCard({
   loadEnabled = true,
   onLoadStateChange,
   placement = "home",
-  reelBottomInset = 0,
-  style,
   testID,
   variant = "card",
   visible = true,
@@ -59,22 +36,9 @@ export const NativeAdCard = memo(function NativeAdCard({
   const unitId = nativeUnitIds[placement];
   const theme = useCommerceTheme();
   const styles = useMemo(() => makeNativeAdStyles(theme), [theme]);
-  const isReel = variant === "reel";
   const [loadedNativeAd, setLoadedNativeAd] = useState<LoadedNativeAd | null>(
     null,
   );
-  const [reelLayout, setReelLayout] = useState<ReelLayout>({
-    height: 0,
-    width: 0,
-  });
-  const handleReelLayout = useCallback((event: LayoutChangeEvent) => {
-    const { height, width } = event.nativeEvent.layout;
-    setReelLayout((current) =>
-      current.height === height && current.width === width
-        ? current
-        : { height, width },
-    );
-  }, []);
 
   useEffect(() => {
     setLoadedNativeAd(null);
@@ -107,9 +71,7 @@ export const NativeAdCard = memo(function NativeAdCard({
           aspectRatio:
             variant === "reel"
               ? module.NativeMediaAspectRatio.PORTRAIT
-              : variant === "tile" || variant === "row"
-                ? module.NativeMediaAspectRatio.SQUARE
-                : module.NativeMediaAspectRatio.LANDSCAPE,
+              : module.NativeMediaAspectRatio.LANDSCAPE,
           startVideoMuted: true,
         });
         return { module, nativeAd };
@@ -163,142 +125,54 @@ export const NativeAdCard = memo(function NativeAdCard({
     module;
   const body = nativeAd.body?.trim();
   const callToAction = nativeAd.callToAction?.trim();
-  const hasMedia = Boolean(nativeAd.mediaContent);
-  const isRow = variant === "row";
-  const isTile = variant === "tile";
-  const isCompact = isRow || isTile;
-  const containerStyle = isReel
-    ? styles.reel
-    : isRow
-      ? styles.row
-      : isTile
-        ? styles.tile
-        : styles.card;
-  const mediaFrameStyle = isReel
-    ? styles.reelMediaFrame
-    : isRow
-      ? styles.rowMediaFrame
-      : isTile
-        ? styles.tileMediaFrame
-        : styles.cardMediaFrame;
-  const mediaStyle = isReel
-    ? styles.reelMedia
-    : isCompact
-      ? styles.compactMedia
-      : styles.cardMedia;
-  const contentStyle = isReel
-    ? styles.reelContent
-    : isRow
-      ? styles.rowContent
-      : isTile
-        ? styles.tileContent
-        : styles.cardContent;
-  const requestedReelBottomInset =
-    Number.isFinite(reelBottomInset) && reelBottomInset > 0
-      ? reelBottomInset
-      : 0;
-  const resolvedReelBottomInset = isReel
-    ? reelLayout.height > 0
-      ? Math.min(requestedReelBottomInset, reelLayout.height - 1)
-      : requestedReelBottomInset
-    : 0;
-  const reelMediaSize = isReel
-    ? getContainedMediaSize(
-        reelLayout.width,
-        reelLayout.height - resolvedReelBottomInset,
-        nativeAd.mediaContent?.aspectRatio,
-      )
-    : null;
-  const shouldRenderMedia = hasMedia && (!isReel || reelMediaSize !== null);
+  const isReel = variant === "reel";
 
   return (
     <NativeAdView
       accessibilityLabel={`광고, ${nativeAd.headline}`}
       nativeAd={nativeAd}
-      onLayout={isReel ? handleReelLayout : undefined}
-      style={[containerStyle, style]}
+      style={isReel ? styles.reel : styles.card}
       testID={testID}
     >
-      {isCompact && hasMedia ? (
-        <View style={styles.compactMediaLabelRow}>
-          <Text accessibilityLabel="광고" style={styles.adLabel}>
-            광고
-          </Text>
-        </View>
-      ) : !isCompact ? (
-        <View style={isReel ? styles.reelLabelRow : styles.cardLabelRow}>
-          <Text accessibilityLabel="광고" style={styles.adLabel}>
-            광고
-          </Text>
-        </View>
-      ) : null}
+      <View style={isReel ? styles.reelLabelRow : styles.cardLabelRow}>
+        <Text accessibilityLabel="광고" style={styles.adLabel}>
+          광고
+        </Text>
+      </View>
 
-      {shouldRenderMedia ? (
+      {nativeAd.mediaContent ? (
         <View
-          style={
-            isReel
-              ? [mediaFrameStyle, { bottom: resolvedReelBottomInset }]
-              : mediaFrameStyle
-          }
+          style={isReel ? styles.reelMediaFrame : styles.cardMediaFrame}
         >
           <NativeMediaView
             resizeMode="contain"
-            style={isReel ? [mediaStyle, reelMediaSize] : mediaStyle}
+            style={isReel ? styles.reelMedia : styles.cardMedia}
           />
         </View>
       ) : null}
 
-      <View
-        style={
-          isReel
-            ? [contentStyle, { bottom: resolvedReelBottomInset }]
-            : contentStyle
-        }
-      >
-        {isCompact && !hasMedia ? (
-          <View style={styles.compactLabelRow}>
-            <Text accessibilityLabel="광고" style={styles.adLabel}>
-              광고
-            </Text>
-          </View>
-        ) : null}
-        <View style={isCompact ? styles.compactTitleRow : styles.titleRow}>
+      <View style={isReel ? styles.reelContent : styles.cardContent}>
+        <View style={styles.titleRow}>
           {nativeAd.icon?.url ? (
             <NativeAsset assetType={NativeAssetType.ICON}>
               <Image
                 accessibilityIgnoresInvertColors
                 source={{ uri: nativeAd.icon.url }}
-                style={isCompact ? styles.compactIcon : styles.icon}
+                style={styles.icon}
               />
             </NativeAsset>
           ) : null}
-          <View style={isCompact ? styles.compactTitleCopy : styles.titleCopy}>
+          <View style={styles.titleCopy}>
             <NativeAsset assetType={NativeAssetType.HEADLINE}>
               <Text
-                numberOfLines={isCompact ? 2 : undefined}
-                style={
-                  isReel
-                    ? styles.reelHeadline
-                    : isCompact
-                      ? styles.compactHeadline
-                      : styles.cardHeadline
-                }
+                style={isReel ? styles.reelHeadline : styles.cardHeadline}
               >
                 {nativeAd.headline}
               </Text>
             </NativeAsset>
             {body ? (
               <NativeAsset assetType={NativeAssetType.BODY}>
-                <Text
-                  numberOfLines={isCompact ? 1 : undefined}
-                  style={
-                    isReel
-                      ? styles.reelBody
-                      : isCompact
-                        ? styles.compactBody
-                        : styles.cardBody
-                  }
-                >
+                <Text style={isReel ? styles.reelBody : styles.cardBody}>
                   {body}
                 </Text>
               </NativeAsset>
@@ -307,17 +181,12 @@ export const NativeAdCard = memo(function NativeAdCard({
         </View>
 
         {nativeAd.advertiser || callToAction ? (
-          <View style={isCompact ? styles.compactFooter : styles.footer}>
+          <View style={styles.footer}>
             {nativeAd.advertiser ? (
               <NativeAsset assetType={NativeAssetType.ADVERTISER}>
                 <Text
-                  numberOfLines={1}
                   style={
-                    isReel
-                      ? styles.reelAdvertiser
-                      : isCompact
-                        ? styles.compactAdvertiser
-                        : styles.cardAdvertiser
+                    isReel ? styles.reelAdvertiser : styles.cardAdvertiser
                   }
                 >
                   {nativeAd.advertiser}
@@ -328,13 +197,7 @@ export const NativeAdCard = memo(function NativeAdCard({
             )}
             {callToAction ? (
               <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
-                <Text
-                  accessibilityRole="button"
-                  numberOfLines={1}
-                  style={
-                    isCompact ? styles.compactCallToAction : styles.callToAction
-                  }
-                >
+                <Text accessibilityRole="button" style={styles.callToAction}>
                   {callToAction}
                 </Text>
               </NativeAsset>

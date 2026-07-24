@@ -57,14 +57,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { BackButton } from "../components/BackButton";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { NativeAdCard } from "../components/ads/NativeAdCard";
-import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
-import { useAds } from "../ads/AdsContext";
-import {
-  insertReelsAdSlots,
-  isReelsContentItem,
-  seedAdRandomFromIds,
-  type ReelsFeedItem,
-} from "./reelsAdPlacement";
 import { PriceText } from "../components/ui/PriceText";
 import {
   useBookmarks,
@@ -2126,12 +2118,11 @@ function ProductReelPageComponent({
                 <SText variant="body" style={s.summarySheetText}>
                   {summary}
                 </SText>
-                {showDetailAd && isActive && isSummaryVisible ? (
+                {showDetailAd && isActive ? (
                   <View style={s.summarySheetAd}>
                     <NativeAdCard
                       placement="detail"
                       testID="detail-native-ad"
-                      variant="row"
                     />
                   </View>
                 ) : null}
@@ -2225,10 +2216,6 @@ function DetailScreenContent({
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const verticalPagerRef = useRef<PagerView>(null);
-  const hasDepartedRouteRef = useRef(false);
-  useEffect(() => {
-    hasDepartedRouteRef.current = false;
-  }, [groupBuy.id]);
   const [summarySheetGate, setSummarySheetGate] = useState({
     isOpen: false,
     canSwipeReel: true,
@@ -2297,77 +2284,10 @@ function DetailScreenContent({
     );
     return currentIndex >= 0 ? currentIndex : initialReelIndex;
   }, [activeProductId, initialReelIndex, reelItems]);
-  // Interleave native-ad pages into the detail pager (same pattern as Reels).
-  // When ads are disabled, insertReelsAdSlots returns a 1:1 content-only feed.
-  const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
-  const [detailAdsUnavailable, setDetailAdsUnavailable] = useState(false);
-  const canShowDetailAds =
-    adsEnabled &&
-    adsReady &&
-    Boolean(nativeUnitIds.detail) &&
-    !detailAdsUnavailable;
-  const feedItems = useMemo(
-    () =>
-      insertReelsAdSlots(reelItems, {
-        boundFirstGapToFeed: true,
-        enabled: canShowDetailAds,
-        random: seedAdRandomFromIds(reelItems.map((item) => item.id)),
-      }),
-    [canShowDetailAds, reelItems],
-  );
-  // Map the active organic product index to its position in the ad-interleaved
-  // feed, so the pager opens on the right page even when ad breaks precede it.
-  const activeDisplayIndex = useMemo(() => {
-    let organicCount = 0;
-    for (let i = 0; i < feedItems.length; i++) {
-      const entry = feedItems[i];
-      if (isReelsContentItem(entry)) {
-        if (organicCount === activeProductIndex) return i;
-        organicCount++;
-      }
-    }
-    return initialReelIndex;
-  }, [feedItems, activeProductIndex, initialReelIndex]);
-  const detailPagerKey = useMemo(
-    () => feedItems.map((entry) => entry.key).join("|"),
-    [feedItems],
-  );
-  const [activePagerIndex, setActivePagerIndex] = useState(activeDisplayIndex);
-  const [isOnAdPage, setIsOnAdPage] = useState(false);
   const [canonicalAlignedRouteId, setCanonicalAlignedRouteId] = useState<
     string | null
   >(null);
-  const feedItemsRef = useRef(feedItems);
-  const activePagerIndexRef = useRef(activePagerIndex);
-  feedItemsRef.current = feedItems;
-  activePagerIndexRef.current = activePagerIndex;
-  const handleDetailAdLoadStateChange = useCallback(
-    (status: NativeAdLoadStatus) => {
-      if (status !== "unavailable") return;
-
-      const currentFeed = feedItemsRef.current;
-      const selectedIndex = activePagerIndexRef.current;
-      const selectedEntry = currentFeed[selectedIndex];
-      if (selectedEntry && !isReelsContentItem(selectedEntry)) {
-        const nextEntry = currentFeed
-          .slice(selectedIndex + 1)
-          .find(isReelsContentItem);
-        const fallbackEntry = [...currentFeed.slice(0, selectedIndex)]
-          .reverse()
-          .find(isReelsContentItem);
-        const recoveryEntry = nextEntry ?? fallbackEntry;
-        if (recoveryEntry) setActiveProductId(recoveryEntry.content.id);
-        setIsOnAdPage(false);
-      }
-      setDetailAdsUnavailable(true);
-    },
-    [],
-  );
-  // No product is "active" while the user rests on a sponsored page, so
-  // playback tracking and deep-view timers pause until they swipe back.
-  const activeGroupBuy = isOnAdPage
-    ? groupBuy
-    : reelItems[activeProductIndex] ?? groupBuy;
+  const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
   const hasCanonicalRouteGroupBuy = Boolean(
     groupBuys?.some((item) => item.id === groupBuy.id),
   );
@@ -2406,11 +2326,7 @@ function DetailScreenContent({
       .slice(0, 30);
   }, [groupBuy, searchItems, debouncedQuery]);
   useEffect(() => {
-    if (
-      isOnAdPage ||
-      canonicalAlignedRouteId !== groupBuy.id ||
-      !hasCanonicalActiveGroupBuy
-    )
+    if (canonicalAlignedRouteId !== groupBuy.id || !hasCanonicalActiveGroupBuy)
       return;
     recordView(activeGroupBuy);
   }, [
@@ -2418,7 +2334,6 @@ function DetailScreenContent({
     canonicalAlignedRouteId,
     groupBuy.id,
     hasCanonicalActiveGroupBuy,
-    isOnAdPage,
     recordView,
   ]);
   useEffect(() => {
@@ -2535,43 +2450,16 @@ function DetailScreenContent({
   }, [activeProductIndex]);
 
   useEffect(() => {
-    if (
-      !hasCanonicalRouteGroupBuy ||
-      canonicalAlignedRouteId === groupBuy.id
-    ) {
-      return;
-    }
-    if (!hasDepartedRouteRef.current) {
-      const routeDisplayIndex = feedItems.findIndex(
-        (entry) =>
-          isReelsContentItem(entry) && entry.content.id === groupBuy.id,
-      );
-      if (routeDisplayIndex < 0) return;
-      setActiveProductId(groupBuy.id);
-      setActivePagerIndex(routeDisplayIndex);
-      setIsOnAdPage(false);
-      verticalPagerRef.current?.setPageWithoutAnimation?.(routeDisplayIndex);
-    }
+    if (!hasCanonicalRouteGroupBuy) return;
+    setActiveProductId(groupBuy.id);
+    verticalPagerRef.current?.setPageWithoutAnimation?.(initialReelIndex);
     setCanonicalAlignedRouteId(groupBuy.id);
   }, [
-    canonicalAlignedRouteId,
-    feedItems,
     groupBuy.id,
     hasCanonicalRouteGroupBuy,
+    initialReelIndex,
+    reelItems.length,
   ]);
-
-  useEffect(() => {
-    const selectedEntry = feedItems[activePagerIndex];
-    if (
-      isOnAdPage &&
-      selectedEntry &&
-      !isReelsContentItem(selectedEntry)
-    ) {
-      return;
-    }
-    setIsOnAdPage(false);
-    setActivePagerIndex(activeDisplayIndex);
-  }, [activeDisplayIndex, activePagerIndex, feedItems, isOnAdPage]);
 
   const handleSelectSearchResult = useCallback(
     (item: GroupBuy) => {
@@ -2580,103 +2468,69 @@ function DetailScreenContent({
       setSearchQuery("");
       setSummarySheetGate({ isOpen: false, canSwipeReel: true });
       if (nextIndex >= 0) {
-        if (item.id !== groupBuy.id) hasDepartedRouteRef.current = true;
         setActiveProductId(item.id);
-        const nextDisplayIndex = feedItems.findIndex(
-          (entry) => isReelsContentItem(entry) && entry.content.id === item.id,
-        );
-        const targetDisplayIndex =
-          nextDisplayIndex >= 0 ? nextDisplayIndex : activeDisplayIndex;
-        setActivePagerIndex(targetDisplayIndex);
-        setIsOnAdPage(false);
-        verticalPagerRef.current?.setPage?.(
-          targetDisplayIndex,
-        );
+        verticalPagerRef.current?.setPage?.(nextIndex);
         return;
       }
       navigation.push("Detail", { groupBuy: item });
     },
-    [
-      navigation,
-      reelItems,
-      feedItems,
-      activeDisplayIndex,
-      groupBuy.id,
-      resetSearchSheetClosed,
-    ],
+    [navigation, reelItems, resetSearchSheetClosed],
   );
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
- const renderReelItem = useCallback(
-   ({ item, index }: { item: GroupBuy; index: number }) => (
-     <ProductReelPage
-       key={item.id}
-       groupBuy={item}
-        isActive={isScreenFocused && index === activeProductIndex && !isOnAdPage}
-       playbackAllowed={
+  const renderReelItem = useCallback(
+    ({ item, index }: { item: GroupBuy; index: number }) => (
+      <ProductReelPage
+        key={item.id}
+        groupBuy={item}
+        isActive={isScreenFocused && index === activeProductIndex}
+        playbackAllowed={
           isPlaybackActive &&
-          index === activeProductIndex &&
-          !isOnAdPage
-       }
-       isSearchSheetVisible={isSearchSheetVisible}
-       searchSheetMetrics={searchSheetMetrics}
-       shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
-       bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
-       pageHeight={screenHeight}
-       mediaWidth={screenWidth}
-       topInset={insets.top}
-       bottomInset={insets.bottom}
-       onBack={handleBack}
-       showDetailAd
-       onCloseSearchSheet={closeSearchSheet}
-       onPlaybackStateChange={handlePlaybackStateChange}
-       onSummarySheetStateChange={handleSummarySheetStateChange}
-       s={s}
-     />
-   ),
-   [
-     activeProductIndex,
-     closeSearchSheet,
-     handleSummarySheetStateChange,
-     handlePlaybackStateChange,
-     handleBack,
-     insets.bottom,
-     insets.top,
-      isOnAdPage,
-     isPlaybackActive,
-     isSearchSheetVisible,
-     navigation,
-     s,
-     searchSheetMetrics,
-     screenHeight,
-     screenWidth,
-   ],
- );
+          index === activeProductIndex
+        }
+        isSearchSheetVisible={isSearchSheetVisible}
+        searchSheetMetrics={searchSheetMetrics}
+        shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
+        bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
+        pageHeight={screenHeight}
+        mediaWidth={screenWidth}
+        topInset={insets.top}
+        bottomInset={insets.bottom}
+        onBack={handleBack}
+        showDetailAd
+        onCloseSearchSheet={closeSearchSheet}
+        onPlaybackStateChange={handlePlaybackStateChange}
+        onSummarySheetStateChange={handleSummarySheetStateChange}
+        s={s}
+      />
+    ),
+    [
+      activeProductIndex,
+      closeSearchSheet,
+      handleSummarySheetStateChange,
+      handlePlaybackStateChange,
+      handleBack,
+      insets.bottom,
+      insets.top,
+      isPlaybackActive,
+      isSearchSheetVisible,
+      navigation,
+      s,
+      searchSheetMetrics,
+      screenHeight,
+      screenWidth,
+    ],
+  );
 
   return (
     <View style={s.safeArea}>
       <StatusBar barStyle="light-content" />
       <PagerView
-        key={detailPagerKey}
         ref={verticalPagerRef}
-        initialPage={activeDisplayIndex}
+        initialPage={initialReelIndex}
         offscreenPageLimit={1}
         onPageSelected={(event) => {
-          const nextDisplay = event.nativeEvent.position;
-          setActivePagerIndex(nextDisplay);
-          const entry = feedItems[nextDisplay];
-          if (
-            entry &&
-            (!isReelsContentItem(entry) || entry.content.id !== groupBuy.id)
-          ) {
-            hasDepartedRouteRef.current = true;
-          }
-          if (entry && !isReelsContentItem(entry)) {
-            setIsOnAdPage(true);
-            return;
-          }
-          setIsOnAdPage(false);
-          const nextIndex = entry ? reelItems.indexOf(entry.content) : -1;
+          const nextIndex = event.nativeEvent.position;
           if (
             nextIndex !== activeProductIndex &&
             nextIndex >= 0 &&
@@ -2689,60 +2543,26 @@ function DetailScreenContent({
         overdrag
         scrollEnabled={
           screenHeight > 0 &&
-          feedItems.length > 1 &&
+          reelItems.length > 1 &&
           !summarySheetGate.isOpen &&
           !isSearchSheetVisible
         }
         style={s.verticalPager}
       >
-        {feedItems.map((entry, index) => {
-          if (!isReelsContentItem(entry)) {
-            return (
-              <View
-                key={entry.key}
-                collapsable={false}
-                style={[s.verticalPagerPage, { height: screenHeight }]}
-              >
-                <View style={s.reelAdPage}>
-                  <View
-                    accessibilityLiveRegion="polite"
-                    style={s.reelAdLoading}
-                  >
-                    <SText variant="caption" style={s.reelAdLoadingLabel}>광고</SText>
-                    <SText variant="body" style={s.reelAdLoadingText}>
-                      광고를 불러오는 중이에요
-                    </SText>
-                  </View>
-                  <NativeAdCard
-                    loadEnabled={Math.abs(index - activePagerIndex) <= 1}
-                    onLoadStateChange={handleDetailAdLoadStateChange}
-                    placement="detail"
-                    reelBottomInset={insets.bottom + DETAIL_SEARCH_CHROME_OFFSET}
-                    testID={`detail-native-ad-${entry.sequence}`}
-                    variant="reel"
-                    visible={index === activePagerIndex}
-                  />
-                </View>
-              </View>
-            );
-          }
-         const item = entry.content;
-         const organicIndex = reelItems.indexOf(item);
-          return (
-         <View
-           key={entry.key}
-           collapsable={false}
-           style={[
-             s.verticalPagerPage,
-             {
-               height: screenHeight,
-             },
-           ]}
-         >
-           {renderReelItem({ item, index: organicIndex })}
-         </View>
-          );
-        })}
+        {reelItems.map((item, index) => (
+          <View
+            key={item.id}
+            collapsable={false}
+            style={[
+              s.verticalPagerPage,
+              {
+                height: screenHeight,
+              },
+            ]}
+          >
+            {renderReelItem({ item, index })}
+          </View>
+        ))}
       </PagerView>
       {!summarySheetGate.isOpen && !isSearchSheetVisible ? (
         <DetailSearchDock
@@ -2784,31 +2604,6 @@ export function makeStyles(
     verticalPagerPage: {
       backgroundColor: "#05070A",
       width: "100%",
-    },
-    reelAdPage: {
-      backgroundColor: "#05070A",
-      flex: 1,
-    },
-    reelAdLoading: {
-      ...StyleSheet.absoluteFillObject,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    reelAdLoadingLabel: {
-      backgroundColor: "rgba(255,255,255,0.12)",
-      borderRadius: 4,
-      color: "rgba(255,255,255,0.72)",
-      fontSize: 12,
-      fontWeight: "700",
-      marginBottom: 12,
-      overflow: "hidden",
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-    },
-    reelAdLoadingText: {
-      color: "rgba(255,255,255,0.72)",
-      fontSize: 14,
-      fontWeight: "500",
     },
     detailSearchDock: {
       bottom: 0,

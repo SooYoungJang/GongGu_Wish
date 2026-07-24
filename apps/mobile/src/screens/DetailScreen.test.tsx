@@ -56,28 +56,6 @@ const notificationPreferencesMock = vi.hoisted(() => ({
   toggleInfluencer: vi.fn(),
   toggleBrand: vi.fn(),
 }));
-const adsMock = vi.hoisted(() => ({
-  enabled: false,
-  isReady: false,
-  isSettled: true,
-  nativeUnitIds: {
-    detail: null as string | null,
-    home: null as string | null,
-    reels: null as string | null,
-  },
-  privacyOptionsRequired: false,
-  showPrivacyOptions: vi.fn(async () => false),
-}));
-vi.mock("../ads/AdsContext", () => ({
-  useAds: () => adsMock,
-}));
-vi.mock("../components/ads/NativeAdCard", () => {
-  const ReactMock = require("react");
-  return {
-    NativeAdCard: (props: Record<string, unknown>) =>
-      adsMock.enabled ? ReactMock.createElement("NativeAdCard", props) : null,
-  };
-});
 vi.mock("../context/NotificationPreferencesContext", () => ({
   useNotificationPreferences: () => ({
     preferences: notificationPreferencesMock.preferences,
@@ -657,13 +635,6 @@ beforeEach(() => {
   queryMock.linkedIsError = false;
   queryMock.linkedIsFetching = false;
   queryMock.linkedRefetch.mockReset();
-  adsMock.enabled = false;
-  adsMock.isReady = false;
-  adsMock.isSettled = true;
-  adsMock.nativeUnitIds.detail = null;
-  adsMock.nativeUnitIds.home = null;
-  adsMock.nativeUnitIds.reels = null;
-  adsMock.showPrivacyOptions.mockClear();
   recentViewsMock.recordView.mockReset();
   localDealActionMocks.toggleBookmark.mockReset();
   localDealActionMocks.retryNotification.mockReset();
@@ -1270,153 +1241,7 @@ describe("DetailScreen", () => {
       verticalPager.props.onPageSelected({ nativeEvent: { position: 1 } });
     });
 
-    const activePage = findProductReelPages(renderer!).find(
-      (node) => node.props.isActive,
-    );
-    expect(activePage?.props.groupBuy.id).toBe(nextGroupBuy.id);
     expect(flattenText(renderer!.toJSON())).toContain("다음 공구");
-  });
-
-  it("does not snap back when a late query adds the route product", () => {
-    const nextGroupBuy: GroupBuy = {
-      ...baseGroupBuy,
-      id: "late-query-next",
-      productName: "늦은 쿼리 다음 공구",
-    };
-    queryMock.groupBuys = [nextGroupBuy];
-
-    let renderer: TestRenderer.ReactTestRenderer;
-    const detailElement = () => (
-      <DetailScreen
-        route={
-          {
-            key: "Detail",
-            name: "Detail",
-            params: { groupBuy: baseGroupBuy },
-          } as any
-        }
-        navigation={
-          { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
-        }
-      />
-    );
-    act(() => {
-      renderer = TestRenderer.create(detailElement());
-    });
-    act(() => {
-      findVerticalPager(renderer!).props.onPageSelected({
-        nativeEvent: { position: 1 },
-      });
-    });
-
-    queryMock.groupBuys = [baseGroupBuy, nextGroupBuy];
-    act(() => {
-      renderer!.update(detailElement());
-    });
-
-    const activePage = findProductReelPages(renderer!).find(
-      (node) => node.props.isActive,
-    );
-    expect(activePage?.props.groupBuy.id).toBe(nextGroupBuy.id);
-    expect(pagerViewMock.setPageWithoutAnimation).not.toHaveBeenCalled();
-  });
-
-  it("shows the selected native ad page and recovers to the following product", () => {
-    const secondGroupBuy: GroupBuy = {
-      ...baseGroupBuy,
-      id: "group-buy-2",
-      productName: "두 번째 공구",
-    };
-    const thirdGroupBuy: GroupBuy = {
-      ...baseGroupBuy,
-      id: "candidate-3",
-      productName: "세 번째 공구",
-    };
-    queryMock.groupBuys = [baseGroupBuy, secondGroupBuy, thirdGroupBuy];
-    adsMock.enabled = true;
-    adsMock.isReady = true;
-    adsMock.nativeUnitIds.detail = "detail-native-unit";
-
-    let renderer: TestRenderer.ReactTestRenderer;
-    act(() => {
-      renderer = TestRenderer.create(
-        <DetailScreen
-          route={
-            {
-              key: "Detail",
-              name: "Detail",
-              params: { groupBuy: baseGroupBuy },
-            } as any
-          }
-          navigation={
-            { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
-          }
-        />,
-      );
-    });
-
-    const ad = renderer!.root.findByProps({ testID: "detail-native-ad-1" });
-    expect(ad.props.reelBottomInset).toBe(34 + 72);
-    expect(ad.props.variant).toBe("reel");
-    expect(ad.props.visible).toBe(false);
-
-    act(() => {
-      findVerticalPager(renderer!).props.onPageSelected({
-        nativeEvent: { position: 2 },
-      });
-    });
-    expect(
-      renderer!.root.findByProps({ testID: "detail-native-ad-1" }).props.visible,
-    ).toBe(true);
-
-    act(() => {
-      findVerticalPager(renderer!).props.onPageSelected({
-        nativeEvent: { position: 3 },
-      });
-    });
-    const activePage = findProductReelPages(renderer!).find(
-      (node) => node.props.isActive,
-    );
-    expect(activePage?.props.groupBuy.id).toBe(thirdGroupBuy.id);
-
-    act(() => {
-      renderer!.unmount();
-    });
-    act(() => {
-      renderer = TestRenderer.create(
-        <DetailScreen
-          route={
-            {
-              key: "Detail",
-              name: "Detail",
-              params: { groupBuy: baseGroupBuy },
-            } as any
-          }
-          navigation={
-            { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
-          }
-        />,
-      );
-    });
-    act(() => {
-      findVerticalPager(renderer!).props.onPageSelected({
-        nativeEvent: { position: 2 },
-      });
-    });
-    const selectedAd = renderer!.root.findByProps({
-      testID: "detail-native-ad-1",
-    });
-    act(() => {
-      selectedAd.props.onLoadStateChange("unavailable");
-    });
-
-    const recoveredPage = findProductReelPages(renderer!).find(
-      (node) => node.props.isActive,
-    );
-    expect(recoveredPage?.props.groupBuy.id).toBe(thirdGroupBuy.id);
-    expect(
-      renderer!.root.findAllByProps({ testID: "detail-native-ad-1" }),
-    ).toHaveLength(0);
   });
 
   it("keeps the playback callback stable across detail page changes", () => {
