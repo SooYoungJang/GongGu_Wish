@@ -17,6 +17,18 @@ function flattenStyle(style: unknown): Record<string, unknown> {
   }, {});
 }
 
+function findTextByTestID(
+  renderer: TestRenderer.ReactTestRenderer,
+  testID: string,
+) {
+  const text = renderer.root
+    .findAllByProps({ testID })
+    .find((node) => node.type === Text);
+
+  if (!text) throw new Error(`Text node not found for ${testID}`);
+  return text;
+}
+
 describe("CenteredBackHeader", () => {
   it("keeps the back button inset while centering the title between equal side slots", () => {
     const onBack = vi.fn();
@@ -37,9 +49,10 @@ describe("CenteredBackHeader", () => {
     const header = renderer!.root
       .findAllByProps({ testID: "shared-navigation-header" })
       .find((node) => node.type === View);
-    const title = renderer!.root.findByProps({
-      testID: "shared-navigation-header-title",
-    });
+    const title = findTextByTestID(
+      renderer!,
+      "shared-navigation-header-title",
+    );
     const leading = renderer!.root.findByProps({
       testID: "shared-navigation-header-leading",
     });
@@ -66,6 +79,10 @@ describe("CenteredBackHeader", () => {
     expect(title.props.accessibilityRole).toBe("header");
     expect(flattenStyle(title.props.style)).toMatchObject({
       flex: 1,
+      fontSize: 20,
+      fontWeight: "800",
+      letterSpacing: 0,
+      lineHeight: 26,
       textAlign: "center",
     });
 
@@ -74,5 +91,35 @@ describe("CenteredBackHeader", () => {
     });
 
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps overlay titles on the shared typography scale", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <CenteredBackHeader
+            testID="overlay-navigation-header"
+            title="릴스"
+            titleVariant="overlay"
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const title = findTextByTestID(
+      renderer!,
+      "overlay-navigation-header-title",
+    );
+
+    expect(flattenStyle(title.props.style)).toMatchObject({
+      color: "#FFFFFF",
+      fontSize: 20,
+      fontWeight: "800",
+      letterSpacing: 0,
+      lineHeight: 26,
+      textShadowColor: "rgba(0,0,0,0.36)",
+    });
   });
 });
