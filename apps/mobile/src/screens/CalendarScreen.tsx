@@ -20,7 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchGroupBuys } from "../api";
 import { useAds } from "../ads/AdsContext";
-import { BackButton } from "../components/BackButton";
+import { CenteredBackHeader } from "../components/CenteredBackHeader";
 import {
   CalendarDateRow,
   getCalendarLayoutMetrics,
@@ -331,18 +331,14 @@ function CalendarHeader({
   const s = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={s.header} testID="calendar-header">
-      <View style={s.titleRow}>
-        <BackButton
-          accessibilityLabel="뒤로가기"
-          onPress={onGoBack}
-          style={s.backButton}
-          testID="calendar-back-button"
-        />
-        <SText variant="cardTitle" style={s.screenTitle}>
-          공구 캘린더
-        </SText>
-        <View style={s.titleSpacer} />
-      </View>
+      <CenteredBackHeader
+        backButtonTestID="calendar-back-button"
+        onBack={onGoBack}
+        style={s.titleRow}
+        testID="calendar-navigation-header"
+        title="공구 캘린더"
+        titleStyle={s.screenTitle}
+      />
 
       <View style={s.monthRow} testID="calendar-month-row">
         <Pressable
@@ -845,14 +841,8 @@ function makeStyles(colors: ColorPalette) {
       marginTop: spacing.sm,
     },
     titleRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      justifyContent: "space-between",
       marginBottom: spacing.sm,
-    },
-    backButton: {
-      height: 44,
-      width: 44,
+      paddingHorizontal: 0,
     },
     screenTitle: {
       color: colors.textPrimary,
@@ -860,9 +850,6 @@ function makeStyles(colors: ColorPalette) {
       fontSize: 22,
       fontWeight: "900",
       textAlign: "center",
-    },
-    titleSpacer: {
-      width: 44,
     },
     monthRow: {
       alignItems: "center",

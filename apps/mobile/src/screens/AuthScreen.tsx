@@ -33,7 +33,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EMAIL_CODE_TTL_SECONDS, useAuth } from '../context/AuthContext';
-import { BackButton } from '../components/BackButton';
+import { CenteredBackHeader } from '../components/CenteredBackHeader';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import {
@@ -101,20 +101,8 @@ const makeStyles = (colors: CommerceColorPalette) =>
     flex: {
       flex: 1,
     },
-    backButton: {
-      marginLeft: -4,
-    },
     topBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      height: 44,
       marginBottom: 8,
-    },
-    topBarTitle: {
-      fontWeight: '700',
-      fontSize: 17,
-      color: colors.text,
-      letterSpacing: -0.3,
     },
     authScrollContent: {
       paddingHorizontal: 24,
@@ -529,10 +517,11 @@ export function AuthScreen(_props: AuthScreenProps) {
       testID={`auth-screen-${authRuntimeMarker}`}
     >
       <View style={[styles.flex, { paddingTop: insets.top }]}>
-        <View style={styles.topBar}>
-          <BackButton style={styles.backButton} />
-          <Text style={styles.topBarTitle}>공구위시</Text>
-        </View>
+        <CenteredBackHeader
+          style={styles.topBar}
+          testID="auth-navigation-header"
+          title="공구위시"
+        />
         <KeyboardFormScreen
           footer={stickyFooter}
           contentContainerStyle={styles.authScrollContent}
@@ -552,14 +541,14 @@ export function AuthScreen(_props: AuthScreenProps) {
   );
 }
 
-// ─── Header: App Name + Welcome ─────────────────────────────────────────────
+// ─── Welcome ────────────────────────────────────────────────────────────────
 
 function AuthHeader() {
   const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
-    <View style={styles.header} accessible accessibilityLabel="공구위시">
+    <View style={styles.header}>
       <Text style={styles.welcomeText}>함께 사면 더 즐거운 공동구매</Text>
     </View>
   );

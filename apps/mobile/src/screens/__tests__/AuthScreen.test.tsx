@@ -3,7 +3,7 @@
  *
  * Covers:
  *  - Screen renders without crashing
- *  - Header with app name
+ *  - Centered navigation header with app name
  *  - Social login buttons
  *  - Login form fields
  *  - Signup tab present
@@ -291,9 +291,12 @@ describe('AuthScreen', () => {
     expect(findAllText(renderer, '비밀번호 확인').length).toBeGreaterThan(0);
   });
 
-  it('renders app name', () => {
+  it('renders the app name in the shared navigation header', () => {
     const renderer = createTestRenderer();
-    expect(findAllText(renderer, '공구').length).toBeGreaterThan(0);
+    const title = renderer.root.findByProps({ testID: 'auth-navigation-header-title' });
+
+    expect(title.props.children).toBe('공구위시');
+    expect(title.props.accessibilityRole).toBe('header');
   });
 
   it('renders welcome message', () => {
