@@ -53,7 +53,6 @@ import {
   type SocialAuthProvider,
 } from '../utils/authHelpers';
 import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
-import { spacing } from '../design/tokens';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -103,8 +102,19 @@ const makeStyles = (colors: CommerceColorPalette) =>
       flex: 1,
     },
     backButton: {
-      position: 'absolute',
-      zIndex: 10,
+      marginLeft: -4,
+    },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      height: 44,
+      marginBottom: 8,
+    },
+    topBarTitle: {
+      fontWeight: '700',
+      fontSize: 17,
+      color: colors.text,
+      letterSpacing: -0.3,
     },
     authScrollContent: {
       paddingHorizontal: 24,
@@ -126,24 +136,13 @@ const makeStyles = (colors: CommerceColorPalette) =>
     // Header — refined coral wave
     header: {
       alignItems: 'center',
-      marginBottom: 32,
-    },
-    appName: {
-      fontWeight: '800',
-      fontSize: 22,
-      color: colors.text,
-      letterSpacing: -0.5,
-    },
-    appNameAccent: {
-      color: colors.accent,
-      fontWeight: '800',
-      fontSize: 22,
+      marginBottom: 24,
     },
     welcomeText: {
       fontWeight: '400',
       fontSize: 14,
       color: colors.muted,
-      marginTop: 6,
+      marginTop: 0,
       letterSpacing: -0.2,
     },
 
@@ -529,10 +528,11 @@ export function AuthScreen(_props: AuthScreenProps) {
       accessibilityLabel="공구위시 로그인 화면"
       testID={`auth-screen-${authRuntimeMarker}`}
     >
-      <BackButton
-        style={[styles.backButton, { left: spacing.xs, top: insets.top + spacing.xs }]}
-      />
       <View style={[styles.flex, { paddingTop: insets.top }]}>
+        <View style={styles.topBar}>
+          <BackButton style={styles.backButton} />
+          <Text style={styles.topBarTitle}>공구위시</Text>
+        </View>
         <KeyboardFormScreen
           footer={stickyFooter}
           contentContainerStyle={styles.authScrollContent}
@@ -560,9 +560,6 @@ function AuthHeader() {
 
   return (
     <View style={styles.header} accessible accessibilityLabel="공구위시">
-      <Text style={styles.appName}>
-        공구<Text style={styles.appNameAccent}>위시</Text>
-      </Text>
       <Text style={styles.welcomeText}>함께 사면 더 즐거운 공동구매</Text>
     </View>
   );
