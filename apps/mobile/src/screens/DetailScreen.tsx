@@ -54,7 +54,7 @@ import Reanimated, {
 
 import { fetchGroupBuyById, fetchGroupBuys, logDeepView } from "../api";
 import { Ionicons } from "@expo/vector-icons";
-import { BackButton } from "../components/BackButton";
+import { CenteredBackHeader } from "../components/CenteredBackHeader";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { NativeAdCard } from "../components/ads/NativeAdCard";
 import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
@@ -1773,22 +1773,16 @@ function ProductReelPageComponent({
           reelChromeStyle,
         ]}
       >
-        {showBackButton ? (
-          <BackButton
-            color="#FFFFFF"
-            onPress={onBack}
-            style={s.topIconButton}
-            testID="detail-back-button"
-          />
-        ) : (
-          <View style={s.topIconButton} />
-        )}
-        <View style={s.reelsTitleRow}>
-          <SText variant="cardTitle" style={s.reelsTitle}>
-            릴스
-          </SText>
-        </View>
-        <View style={s.topIconButton} />
+        <CenteredBackHeader
+          backButtonColor="#FFFFFF"
+          backButtonTestID="detail-back-button"
+          onBack={onBack}
+          showBackButton={showBackButton}
+          style={s.reelHeader}
+          testID="detail-navigation-header"
+          title="릴스"
+          titleStyle={s.reelsTitle}
+        />
       </Reanimated.View>
 
       {mediaItems.length > 1 ? (
@@ -2170,7 +2164,11 @@ function NotificationLinkedDetail({
 
   return (
     <SafeAreaView style={{ backgroundColor: colors.bg, flex: 1 }}>
-      <BackButton onPress={() => navigation.goBack()} />
+      <CenteredBackHeader
+        onBack={() => navigation.goBack()}
+        testID="notification-detail-navigation-header"
+        title="공구 상세"
+      />
       <View
         style={{ flex: 1, justifyContent: "center", padding: spacing.lg }}
         testID={isError ? "notification-linked-detail-error" : "notification-linked-detail-loading"}
@@ -3081,21 +3079,12 @@ export function makeStyles(
       flexDirection: "row",
       justifyContent: "space-between",
       left: 0,
-      paddingHorizontal: spacing.lg,
       position: "absolute",
       right: 0,
       top: 0,
     },
-    topIconButton: {
-      alignItems: "center",
-      height: 44,
-      justifyContent: "center",
-      width: 44,
-    },
-    reelsTitleRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: spacing.xl,
+    reelHeader: {
+      flex: 1,
     },
     reelsTitle: {
       color: "#FFFFFF",

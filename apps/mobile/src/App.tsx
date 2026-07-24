@@ -22,6 +22,7 @@ import { isAutomatedE2E } from './lib/automatedE2E';
 import { registerForPushNotifications } from './services/notifications';
 import { BackButton } from './components/BackButton';
 import { getCommerceColors } from './design/commerce';
+import { spacing } from './design/tokens';
 import {
   decideMainTabsBack,
   useFocusedAndroidBackHandler,
@@ -412,6 +413,7 @@ function ThemedStackNavigator() {
         contentStyle: { backgroundColor: colors.bg },
         headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.text,
+        headerTitleAlign: 'center',
         headerTitleStyle: { color: colors.text },
         headerShadowVisible: false,
       }}
@@ -432,7 +434,7 @@ function ThemedStackNavigator() {
           headerShown: true,
           title: '설정',
           headerBackVisible: false,
-          headerLeft: () => <BackButton />,
+          headerLeft: () => <BackButton style={styles.stackHeaderBackButton} />,
         }}
       />
     </Stack.Navigator>
@@ -468,6 +470,9 @@ export default function App() {
 const styles = StyleSheet.create({
   appRoot: {
     flex: 1,
+  },
+  stackHeaderBackButton: {
+    marginLeft: spacing.sm,
   },
   tabBar: {
     borderTopLeftRadius: 20,
