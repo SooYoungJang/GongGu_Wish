@@ -134,7 +134,12 @@ vi.mock('@react-navigation/native', () => ({
 }));
 
 // Mock expo-constants / expo-modules-core so useLocalDeals (IS_EXPO_GO) loads
-vi.mock('expo-constants', () => ({ default: { appOwnership: 'expo' } }));
+vi.mock('expo-constants', () => ({
+  default: {
+    appOwnership: 'expo',
+    expoConfig: { extra: {}, version: '0.1.0' },
+  },
+}));
 vi.mock('expo-modules-core', () => ({}));
 vi.mock('expo-notifications', () => ({
   scheduleNotificationAsync: vi.fn(),
@@ -426,6 +431,33 @@ describe('MyPageScreen', () => {
     expect(rendered).toContain('D-7');
     expect(rendered).toContain('@seller.one');
     expect(rendered).toContain('Brand A');
+  });
+
+  it('shows legal document buttons and the app version in settings', async () => {
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('앱 정보');
+    expect(rendered).toContain('개인정보 처리방침');
+    expect(rendered).toContain('서비스 이용약관');
+    expect(rendered).toContain('앱 버전');
+    expect(rendered).toContain('0.1.0');
+
+    const privacyPolicyButton = renderer.root.findByProps({
+      accessibilityLabel: '개인정보 처리방침',
+    });
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '서비스 이용약관' }),
+    ).toBeDefined();
+
+    await act(async () => {
+      await privacyPolicyButton.props.onPress();
+    });
+
+    expect(alertMocks.alert).toHaveBeenCalledWith(
+      '개인정보 처리방침을 준비 중이에요',
+      expect.stringContaining('공식 문서'),
+    );
   });
 
   it('opens required Google ad privacy options from settings', async () => {
