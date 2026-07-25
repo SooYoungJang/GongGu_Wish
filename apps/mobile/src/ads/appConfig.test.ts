@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
 
 import createAppConfig from "../../app.config.js";
 
@@ -14,7 +18,16 @@ const {
   resolveAppVariant,
   resolveGoogleServicesFile,
   resolveRuntimeVersion,
+  validateGoogleServicesFile,
 } = createAppConfig;
+
+const temporaryDirectories: string[] = [];
+
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
 
 const productionAndroidAppId = "ca-app-pub-1111111111111111~2222222222";
 const productionIosAppId = "ca-app-pub-1111111111111111~6666666666";
@@ -95,6 +108,65 @@ describe("resolveGoogleServicesFile", () => {
     expect(
       resolveGoogleServicesFile("preview", undefined, "./google-services.json"),
     ).toBeUndefined();
+  });
+});
+
+describe("validateGoogleServicesFile", () => {
+  function writeGoogleServicesFile(packageName: string) {
+    const directory = mkdtempSync(join(tmpdir(), "gonggu-firebase-"));
+    temporaryDirectories.push(directory);
+    const filePath = join(directory, "google-services.json");
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        project_info: { project_id: "gonggu-test" },
+        client: [
+          {
+            client_info: {
+              mobilesdk_app_id: "1:123456789012:android:test",
+              android_client_info: { package_name: packageName },
+            },
+          },
+        ],
+      }),
+    );
+    return filePath;
+  }
+
+  it.each(["com.gonggu.wish.preview", "com.gonggu.wish"])(
+    "accepts a Firebase file for %s",
+    (applicationId) => {
+      const filePath = writeGoogleServicesFile(applicationId);
+
+      expect(
+        validateGoogleServicesFile(applicationId, filePath, true),
+      ).toBe(filePath);
+    },
+  );
+
+  it("rejects a Firebase file for a different package", () => {
+    const filePath = writeGoogleServicesFile("com.gonggu.wish");
+
+    expect(() =>
+      validateGoogleServicesFile("com.gonggu.wish.preview", filePath, true),
+    ).toThrow(/com\.gonggu\.wish\.preview/);
+  });
+
+  it("requires an environment file for native release builds", () => {
+    expect(() =>
+      validateGoogleServicesFile("com.gonggu.wish.preview", undefined, true),
+    ).toThrow(/GOOGLE_SERVICES_JSON/);
+  });
+
+  it("rejects malformed Firebase JSON", () => {
+    const directory = mkdtempSync(join(tmpdir(), "gonggu-firebase-"));
+    temporaryDirectories.push(directory);
+    const filePath = join(directory, "google-services.json");
+    writeFileSync(filePath, "not-json");
+
+    expect(() =>
+      validateGoogleServicesFile("com.gonggu.wish.preview", filePath, true),
+    ).toThrow(/readable JSON/);
   });
 });
 

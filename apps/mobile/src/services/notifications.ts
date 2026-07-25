@@ -46,6 +46,22 @@ export type NotificationPermissionFailureReason =
   | "permission-denied"
   | "permission-request-failed";
 
+export type PushRegistrationResult =
+  | { status: "registered"; token: string }
+  | { status: "unsupported"; reason: "expo-go" | "native-module" }
+  | {
+      status: "unavailable";
+      reason: NotificationPermissionFailureReason;
+    }
+  | {
+      status: "failed";
+      reason:
+        | "missing-project-id"
+        | "token-request-failed"
+        | "invalid-token"
+        | "backend-registration-failed";
+    };
+
 export type GroupBuyStartUnavailableReason =
   | "missing-start-date"
   | "invalid-start-date"
@@ -153,39 +169,49 @@ export async function registerForPushNotifications(
     requestPermission?: boolean;
     e2eTokenOverride?: string;
   } = {},
-): Promise<string | null> {
-  if (IS_EXPO_GO) return null;
+): Promise<PushRegistrationResult> {
+  if (IS_EXPO_GO) return { status: "unsupported", reason: "expo-go" };
+
+  const availability = await getNotificationAvailability(
+    options.requestPermission !== false,
+  );
+  if (availability.status !== "available") return availability;
+
+  let token = isAutomatedE2E() ? options.e2eTokenOverride : undefined;
+  if (token === undefined) {
+    const projectId = getEasProjectId();
+    if (!projectId) return { status: "failed", reason: "missing-project-id" };
+    const Notifications = await getNotifications();
+    if (!Notifications) {
+      return { status: "unsupported", reason: "native-module" };
+    }
+    try {
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    } catch (error) {
+      console.warn(
+        "[Notifications] Expo push token request failed",
+        error instanceof Error ? error.message : "unknown error",
+      );
+      return { status: "failed", reason: "token-request-failed" };
+    }
+  }
+  if (!isExpoPushToken(token)) {
+    return { status: "failed", reason: "invalid-token" };
+  }
 
   try {
-    if (
-      (await getNotificationAvailability(options.requestPermission !== false))
-        .status !== "available"
-    ) {
-      return null;
-    }
-
-    let token = isAutomatedE2E() ? options.e2eTokenOverride : undefined;
-    if (token === undefined) {
-      const projectId = getEasProjectId();
-      if (!projectId) return null;
-      const Notifications = await getNotifications();
-      if (!Notifications) return null;
-      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-    }
-    if (!isExpoPushToken(token)) return null;
-
     await callEdgeFunction(
       "register-push-token",
       { token, provider: "expo" },
       { authToken },
     );
-    return token;
+    return { status: "registered", token };
   } catch (error) {
     console.warn(
       "[Notifications] Push token registration failed",
       error instanceof Error ? error.message : "unknown error",
     );
-    return null;
+    return { status: "failed", reason: "backend-registration-failed" };
   }
 }
 

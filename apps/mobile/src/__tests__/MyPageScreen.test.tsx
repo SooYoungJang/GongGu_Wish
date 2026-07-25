@@ -19,6 +19,14 @@ const authMocks = vi.hoisted(() => ({
   signOut: vi.fn().mockResolvedValue(undefined),
 }));
 const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
+const notificationMocks = vi.hoisted(() => ({
+  getNotificationPermissionStatus: vi.fn(async () => 'granted'),
+  registerForPushNotifications: vi.fn(async (): Promise<any> => ({
+    status: 'registered',
+    token: 'ExpoPushToken[test-token]',
+  })),
+  scheduleTestNotification: vi.fn(async () => 'scheduled-test'),
+}));
 const dealCardMock = vi.hoisted(() => vi.fn());
 const adsMocks = vi.hoisted(() => ({
   privacyOptionsRequired: false,
@@ -63,6 +71,14 @@ vi.mock('../context/NotificationPreferencesContext', () => ({
     toggleInfluencer: settingsPreferenceMocks.toggleInfluencer,
     toggleBrand: settingsPreferenceMocks.toggleBrand,
   }),
+}));
+
+vi.mock('../services/notifications', () => ({
+  IS_EXPO_GO: false,
+  getNotificationPermissionStatus:
+    notificationMocks.getNotificationPermissionStatus,
+  registerForPushNotifications: notificationMocks.registerForPushNotifications,
+  scheduleTestNotification: notificationMocks.scheduleTestNotification,
 }));
 
 vi.mock('../components/DealCard', () => ({
@@ -240,6 +256,12 @@ beforeEach(() => {
   settingsPreferenceMocks.updatePreferences.mockClear();
   settingsPreferenceMocks.toggleInfluencer.mockClear();
   settingsPreferenceMocks.toggleBrand.mockClear();
+  notificationMocks.getNotificationPermissionStatus.mockClear();
+  notificationMocks.registerForPushNotifications.mockReset().mockResolvedValue({
+    status: 'registered',
+    token: 'ExpoPushToken[test-token]',
+  });
+  notificationMocks.scheduleTestNotification.mockClear();
   adsMocks.privacyOptionsRequired = false;
   adsMocks.showPrivacyOptions.mockClear();
 });
@@ -543,6 +565,62 @@ describe('MyPageScreen', () => {
     expect(navigationMocks.navigate).toHaveBeenCalledWith('Login');
     expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
     expect(push.props.value).toBe(false);
+  });
+
+  it('enables push preferences only after token registration succeeds', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const push = renderer.root.findByProps({ accessibilityLabel: '푸시 알림' });
+
+    await act(async () => {
+      await push.props.onValueChange(true);
+    });
+
+    expect(notificationMocks.registerForPushNotifications).toHaveBeenCalledWith(
+      'access-token',
+      { requestPermission: true },
+    );
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
+  });
+
+  it('keeps push preferences off and explains a native token failure', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    notificationMocks.registerForPushNotifications.mockResolvedValueOnce({
+      status: 'failed',
+      reason: 'token-request-failed',
+    });
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const push = renderer.root.findByProps({ accessibilityLabel: '푸시 알림' });
+
+    await act(async () => {
+      await push.props.onValueChange(true);
+    });
+
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
+    expect(alertMocks.alert).toHaveBeenCalledWith(
+      '푸시 알림 등록에 실패했어요',
+      expect.stringContaining('앱 설정'),
+    );
   });
 
   it('places account deletion at the bottom and asks for confirmation', async () => {
