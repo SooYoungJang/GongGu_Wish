@@ -23,7 +23,10 @@ import { useAuth } from "../context/AuthContext";
 import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
 import { clearLocalUserData } from "../hooks/useLocalDeals";
 import { useAuthGate } from "../hooks/useAuthGate";
-import { resolveAppInfo } from "../lib/app-info";
+import {
+  DEFAULT_TERMS_OF_SERVICE_URL,
+  resolveAppInfo,
+} from "../lib/app-info";
 import { isAutomatedE2E } from "../lib/automatedE2E";
 import {
   getNotificationPermissionStatus,
@@ -45,7 +48,9 @@ const APP_INFO = resolveAppInfo({
   configuredVersion: Constants.expoConfig?.version,
   fallbackVersion: bundledAppConfig.expo.version,
   privacyPolicyUrl: process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL,
-  termsOfServiceUrl: process.env.EXPO_PUBLIC_TERMS_OF_SERVICE_URL,
+  termsOfServiceUrl:
+    process.env.EXPO_PUBLIC_TERMS_OF_SERVICE_URL?.trim() ||
+    DEFAULT_TERMS_OF_SERVICE_URL,
 });
 
 export function SettingsScreen() {

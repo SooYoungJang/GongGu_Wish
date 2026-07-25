@@ -7,7 +7,7 @@ import { DealShelf, MyPageScreen, notificationEntryToGroupBuy } from '../screens
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, Linking } from 'react-native';
 
 const navigationMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -221,6 +221,7 @@ function renderMyPageScreen() {
 
 beforeEach(() => {
   vi.mocked(AccessibilityInfo.announceForAccessibility).mockClear();
+  vi.mocked(Linking.openURL).mockClear();
   authMocks.session = null;
   authMocks.signOut.mockClear();
   alertMocks.alert.mockClear();
@@ -446,9 +447,9 @@ describe('MyPageScreen', () => {
     const privacyPolicyButton = renderer.root.findByProps({
       accessibilityLabel: '개인정보 처리방침',
     });
-    expect(
-      renderer.root.findByProps({ accessibilityLabel: '서비스 이용약관' }),
-    ).toBeDefined();
+    const termsOfServiceButton = renderer.root.findByProps({
+      accessibilityLabel: '서비스 이용약관',
+    });
 
     await act(async () => {
       await privacyPolicyButton.props.onPress();
@@ -457,6 +458,14 @@ describe('MyPageScreen', () => {
     expect(alertMocks.alert).toHaveBeenCalledWith(
       '개인정보 처리방침을 준비 중이에요',
       expect.stringContaining('공식 문서'),
+    );
+
+    await act(async () => {
+      await termsOfServiceButton.props.onPress();
+    });
+
+    expect(Linking.openURL).toHaveBeenCalledWith(
+      'https://separate-bank-636.notion.site/3a78f7ccc9f180469a4acff0c62efce7',
     );
   });
 
