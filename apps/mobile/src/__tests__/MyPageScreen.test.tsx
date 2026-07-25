@@ -586,7 +586,10 @@ describe('MyPageScreen', () => {
 
     expect(notificationMocks.registerForPushNotifications).toHaveBeenCalledWith(
       'access-token',
-      { requestPermission: true },
+      expect.objectContaining({
+        refreshAuthToken: expect.any(Function),
+        requestPermission: true,
+      }),
     );
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       pushEnabled: true,

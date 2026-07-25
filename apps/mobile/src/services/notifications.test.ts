@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { callEdgeFunction } = vi.hoisted(() => ({ callEdgeFunction: vi.fn() }));
 const constantsMock = vi.hoisted(() => ({
   appOwnership: "standalone",
+  easConfig: {} as { projectId?: string },
   expoConfig: {
     extra: {
       automatedE2E: true,
@@ -91,6 +92,7 @@ describe("registerForPushNotifications", () => {
       .mockReset()
       .mockResolvedValue(undefined);
     constantsMock.expoConfig.extra.eas.projectId = "project-123";
+    delete constantsMock.easConfig.projectId;
   });
 
   it("registers the Expo token through the authenticated Edge Function", async () => {
@@ -255,6 +257,62 @@ describe("registerForPushNotifications", () => {
     expect(callEdgeFunction).not.toHaveBeenCalled();
   });
 
+  it("uses the native EAS project ID when the update manifest omits it", async () => {
+    delete constantsMock.expoConfig.extra.eas.projectId;
+    constantsMock.easConfig.projectId = "native-project-456";
+
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "registered",
+        token: "ExpoPushToken[test-token]",
+      },
+    );
+    expect(notificationMocks.getExpoPushTokenAsync).toHaveBeenCalledWith({
+      projectId: "native-project-456",
+    });
+  });
+
+  it("retries Expo token acquisition while a new install is still connecting", async () => {
+    notificationMocks.getExpoPushTokenAsync
+      .mockRejectedValueOnce(new Error("SERVICE_NOT_AVAILABLE"))
+      .mockResolvedValueOnce({ data: "ExpoPushToken[retry-token]" });
+
+    await expect(
+      registerForPushNotifications("access-token", { retryDelaysMs: [0] }),
+    ).resolves.toEqual({
+      status: "registered",
+      token: "ExpoPushToken[retry-token]",
+    });
+    expect(notificationMocks.getExpoPushTokenAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes an expired Supabase session before retrying backend registration", async () => {
+    callEdgeFunction
+      .mockRejectedValueOnce(
+        Object.assign(new Error("session expired"), { status: 401 }),
+      )
+      .mockResolvedValueOnce({
+        data: { registered: true, provider: "expo" },
+      });
+    const refreshAuthToken = vi.fn().mockResolvedValue("fresh-access-token");
+
+    await expect(
+      registerForPushNotifications("expired-access-token", {
+        refreshAuthToken,
+      }),
+    ).resolves.toEqual({
+      status: "registered",
+      token: "ExpoPushToken[test-token]",
+    });
+    expect(refreshAuthToken).toHaveBeenCalledOnce();
+    expect(callEdgeFunction).toHaveBeenNthCalledWith(
+      2,
+      "register-push-token",
+      { token: "ExpoPushToken[test-token]", provider: "expo" },
+      { authToken: "fresh-access-token" },
+    );
+  });
+
   it("rejects an invalid Expo token before backend registration", async () => {
     notificationMocks.getExpoPushTokenAsync.mockResolvedValueOnce({
       data: "not-an-expo-token",
@@ -274,12 +332,12 @@ describe("registerForPushNotifications", () => {
       new Error("FCM is unavailable"),
     );
 
-    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
-      {
-        status: "failed",
-        reason: "token-request-failed",
-      },
-    );
+    await expect(
+      registerForPushNotifications("access-token", { retryDelaysMs: [] }),
+    ).resolves.toEqual({
+      status: "failed",
+      reason: "token-request-failed",
+    });
     expect(callEdgeFunction).not.toHaveBeenCalled();
 
     callEdgeFunction.mockRejectedValueOnce(new Error("request failed"));
