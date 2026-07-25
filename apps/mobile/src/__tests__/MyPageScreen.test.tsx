@@ -140,6 +140,10 @@ vi.mock('expo-constants', () => ({
     expoConfig: { extra: {}, version: '0.1.0' },
   },
 }));
+vi.mock('expo-application', () => ({
+  nativeApplicationVersion: '2.3.4',
+  nativeBuildVersion: '42',
+}));
 vi.mock('expo-modules-core', () => ({}));
 vi.mock('expo-notifications', () => ({
   scheduleNotificationAsync: vi.fn(),
@@ -442,7 +446,7 @@ describe('MyPageScreen', () => {
     expect(rendered).toContain('개인정보 처리방침');
     expect(rendered).toContain('서비스 이용약관');
     expect(rendered).toContain('앱 버전');
-    expect(rendered).toContain('0.1.0');
+    expect(rendered).toContain('2.3.4 (42)');
 
     const privacyPolicyButton = renderer.root.findByProps({
       accessibilityLabel: '개인정보 처리방침',
