@@ -24,6 +24,7 @@ import { useNotificationPreferences } from "../context/NotificationPreferencesCo
 import { clearLocalUserData } from "../hooks/useLocalDeals";
 import { useAuthGate } from "../hooks/useAuthGate";
 import {
+  DEFAULT_PRIVACY_POLICY_URL,
   DEFAULT_TERMS_OF_SERVICE_URL,
   resolveAppInfo,
 } from "../lib/app-info";
@@ -47,7 +48,9 @@ import bundledAppConfig from "../../app.json";
 const APP_INFO = resolveAppInfo({
   configuredVersion: Constants.expoConfig?.version,
   fallbackVersion: bundledAppConfig.expo.version,
-  privacyPolicyUrl: process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL,
+  privacyPolicyUrl:
+    process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL?.trim() ||
+    DEFAULT_PRIVACY_POLICY_URL,
   termsOfServiceUrl:
     process.env.EXPO_PUBLIC_TERMS_OF_SERVICE_URL?.trim() ||
     DEFAULT_TERMS_OF_SERVICE_URL,
