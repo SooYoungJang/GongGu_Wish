@@ -72,6 +72,10 @@ case "$command_name" in
     printf 'test-apk' >"$output"
     ;;
   upload)
+    if [[ "${MOCK_UPLOAD_FAIL:-false}" == "true" ]]; then
+      echo "EAS upload quota exhausted" >&2
+      exit 1
+    fi
     printf '{"id":"uploaded-build-id","url":"https://expo.dev/artifacts/test.apk"}\n'
     ;;
   *)
@@ -88,6 +92,7 @@ run_deployment() {
   local name="$1"
   local ref="$2"
   local compatible_build="$3"
+  local upload_fail="${4:-false}"
   local case_directory="$test_directory/$name"
   mkdir -p "$case_directory/runner"
 
@@ -103,6 +108,7 @@ run_deployment() {
     EXPO_PUBLIC_SUPABASE_ANON_KEY="test-anon-key" \
     EXPO_PUBLIC_SUPABASE_URL="https://supabase.example.test" \
     MOCK_COMPATIBLE_BUILD="$compatible_build" \
+    MOCK_UPLOAD_FAIL="$upload_fail" \
     MOCK_EAS_LOG="$case_directory/eas.log" \
     "$bash_command" "$script_directory/ci-deploy-android.sh"
 }
@@ -126,6 +132,12 @@ grep -Fq "build --platform android --profile preview --local" "$test_directory/p
 grep -Fxq 'org.gradle.parallel=false' \
   "$test_directory/preview-build/runner/gradle-user-home/gradle.properties"
 
+run_deployment "preview-build-upload-fallback" "refs/heads/develop" "false" "true"
+grep -Fxq "mode=build" "$test_directory/preview-build-upload-fallback/output"
+grep -Fxq "expo-url=" "$test_directory/preview-build-upload-fallback/output"
+grep -Fq "Expo upload: unavailable" \
+  "$test_directory/preview-build-upload-fallback/summary"
+
 run_deployment "production-ota" "refs/heads/main" "true"
 grep -Fxq "mode=ota" "$test_directory/production-ota/output"
 grep -Fq "update --channel production --environment production" "$test_directory/production-ota/eas.log"
@@ -140,6 +152,15 @@ grep -Fxq "environment=production" "$test_directory/production-build/output"
 grep -Fq "build --platform android --profile production-apk --local" "$test_directory/production-build/eas.log"
 grep -Fq "upload --platform android" "$test_directory/production-build/eas.log"
 grep -Fq "expo-url=https://expo.dev/artifacts/test.apk" "$test_directory/production-build/output"
+
+if run_deployment \
+  "production-build-upload-failure" \
+  "refs/heads/main" \
+  "false" \
+  "true"; then
+  echo "Production unexpectedly tolerated an EAS upload failure" >&2
+  exit 1
+fi
 
 apk_path="$(grep '^apk-path=' "$test_directory/production-build/output" | cut -d= -f2-)"
 [[ -s "$apk_path" ]]
