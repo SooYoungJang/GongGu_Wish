@@ -21,9 +21,9 @@
     "ra-supabase": "^3.5.2",
     "ra-supabase-language-english": "^3.5.0",
     "ra-supabase-ui-materialui": "^3.5.2",
-    "react": "^19.2.7",
+    "react": "^19.2.8",
     "react-admin": "^5.15.1",
-    "react-dom": "^19.2.7",
+    "react-dom": "^19.2.8",
     "recharts": "^3.9.0"
   },
   "devDependencies": {
