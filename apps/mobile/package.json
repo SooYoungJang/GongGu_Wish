@@ -39,7 +39,7 @@
     "expo-constants": "~55.0.17",
     "expo-dev-client": "~55.0.37",
     "expo-notifications": "~55.0.24",
-    "expo-secure-store": "~55.0.15",
+    "expo-secure-store": "~55.0.16",
     "expo-system-ui": "~55.0.19",
     "expo-updates": "~55.0.26",
     "expo-video": "~55.0.18",
