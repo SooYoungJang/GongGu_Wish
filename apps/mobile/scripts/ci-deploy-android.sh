@@ -144,7 +144,8 @@ if [[ ! -s "$apk_path" ]]; then
   exit 1
 fi
 
-upload_json="$(
+eas_upload_available="true"
+if upload_json="$(
   # Uploading registers the locally built APK and its fingerprint. It does not
   # invoke an EAS cloud build, and it gives testers a shareable download link.
   eas upload \
@@ -153,7 +154,16 @@ upload_json="$(
     --fingerprint "$fingerprint_hash" \
     --json \
     --non-interactive
-)"
+)"; then
+  :
+elif [[ "$environment" == "preview" ]]; then
+  eas_upload_available="false"
+  upload_json='{}'
+  echo "::warning::EAS upload failed; preserving the Preview APK as a GitHub Actions artifact."
+else
+  echo "::error::EAS upload failed for the Production APK."
+  exit 1
+fi
 
 expo_url="$(
   node -e '
@@ -213,5 +223,8 @@ expo_url="$(
   echo "- Fingerprint: \`$fingerprint_hash\`"
   if [[ -n "$expo_url" ]]; then
     echo "- Expo download: $expo_url"
+  fi
+  if [[ "$eas_upload_available" == "false" ]]; then
+    echo "- Expo upload: unavailable; use the GitHub Actions artifact"
   fi
 } >>"$GITHUB_STEP_SUMMARY"
