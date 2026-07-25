@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -46,6 +47,8 @@ import type { RootStackParamList } from "../types";
 import bundledAppConfig from "../../app.json";
 
 const APP_INFO = resolveAppInfo({
+  nativeApplicationVersion: Application.nativeApplicationVersion,
+  nativeBuildVersion: Application.nativeBuildVersion,
   configuredVersion: Constants.expoConfig?.version,
   fallbackVersion: bundledAppConfig.expo.version,
   privacyPolicyUrl:

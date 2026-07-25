@@ -10,6 +10,8 @@ export const DEFAULT_TERMS_OF_SERVICE_URL =
   "https://separate-bank-636.notion.site/3a78f7ccc9f180469a4acff0c62efce7";
 
 type ResolveAppInfoInput = {
+  nativeApplicationVersion?: unknown;
+  nativeBuildVersion?: unknown;
   configuredVersion?: unknown;
   fallbackVersion?: unknown;
   privacyPolicyUrl?: unknown;
@@ -35,7 +37,17 @@ function optionalHttpsUrl(value: unknown): string | null {
   }
 }
 
+function nativeVersionLabel(version: unknown, build: unknown): string | null {
+  const appVersion = nonBlankString(version);
+  if (!appVersion) return null;
+
+  const buildVersion = nonBlankString(build);
+  return buildVersion ? `${appVersion} (${buildVersion})` : appVersion;
+}
+
 export function resolveAppInfo({
+  nativeApplicationVersion,
+  nativeBuildVersion,
   configuredVersion,
   fallbackVersion,
   privacyPolicyUrl,
@@ -45,6 +57,7 @@ export function resolveAppInfo({
     privacyPolicyUrl: optionalHttpsUrl(privacyPolicyUrl),
     termsOfServiceUrl: optionalHttpsUrl(termsOfServiceUrl),
     version:
+      nativeVersionLabel(nativeApplicationVersion, nativeBuildVersion) ??
       nonBlankString(configuredVersion) ??
       nonBlankString(fallbackVersion) ??
       "알 수 없음",
