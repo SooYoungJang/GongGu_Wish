@@ -4,6 +4,8 @@ export type AppInfo = {
   version: string;
 };
 
+export const DEFAULT_PRIVACY_POLICY_URL =
+  "https://separate-bank-636.notion.site/3a88f7ccc9f180768dbcdd7871d4aaab";
 export const DEFAULT_TERMS_OF_SERVICE_URL =
   "https://separate-bank-636.notion.site/3a78f7ccc9f180469a4acff0c62efce7";
 

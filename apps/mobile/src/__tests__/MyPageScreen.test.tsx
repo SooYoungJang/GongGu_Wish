@@ -455,16 +455,17 @@ describe('MyPageScreen', () => {
       await privacyPolicyButton.props.onPress();
     });
 
-    expect(alertMocks.alert).toHaveBeenCalledWith(
-      '개인정보 처리방침을 준비 중이에요',
-      expect.stringContaining('공식 문서'),
+    expect(Linking.openURL).toHaveBeenNthCalledWith(
+      1,
+      'https://separate-bank-636.notion.site/3a88f7ccc9f180768dbcdd7871d4aaab',
     );
 
     await act(async () => {
       await termsOfServiceButton.props.onPress();
     });
 
-    expect(Linking.openURL).toHaveBeenCalledWith(
+    expect(Linking.openURL).toHaveBeenNthCalledWith(
+      2,
       'https://separate-bank-636.notion.site/3a78f7ccc9f180469a4acff0c62efce7',
     );
   });
