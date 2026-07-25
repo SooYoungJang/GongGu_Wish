@@ -438,6 +438,43 @@ describe("registerForPushNotifications", () => {
     ]);
   });
 
+  it("catches up the nearest selected D-day for a newly tracked short deal", () => {
+    const now = Date.parse("2026-07-10T12:00:00.000Z");
+
+    expect(
+      buildGroupBuyReminderDates("2026-07-13T12:00:00.000Z", [1, 3, 7], {
+        now,
+        catchUp: true,
+      }).map((item) => ({
+        day: item.reminderDay,
+        date: item.triggerDate.toISOString(),
+        catchUp: item.catchUp ?? false,
+      })),
+    ).toEqual([
+      {
+        day: 3,
+        date: "2026-07-10T12:00:01.000Z",
+        catchUp: true,
+      },
+      {
+        day: 1,
+        date: "2026-07-12T12:00:00.000Z",
+        catchUp: false,
+      },
+    ]);
+  });
+
+  it("does not catch up reminders after a deal has ended", () => {
+    const now = Date.parse("2026-07-14T12:00:00.000Z");
+
+    expect(
+      buildGroupBuyReminderDates("2026-07-13T12:00:00.000Z", [1, 3, 7], {
+        now,
+        catchUp: true,
+      }),
+    ).toEqual([]);
+  });
+
   it("schedules every selected future deadline reminder with a canonical URL", async () => {
     notificationMocks.scheduleNotificationAsync
       .mockResolvedValueOnce("deadline-7")

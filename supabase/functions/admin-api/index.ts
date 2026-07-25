@@ -16,6 +16,7 @@ import {
   mapCdnRefreshStatusRow,
 } from "./cdnRefreshStatus.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
+import { queueNewSubmissionPush } from "./newSubmissionPush.ts";
 import { sendPushNotification } from "./pushNotifications.ts";
 import { mapAdminUser } from "./userContract.ts";
 
@@ -676,6 +677,10 @@ async function approveSubmission(
     await supabase.from("group_buys").delete().eq("id", groupBuy.id);
     throw new Error(submissionError.message);
   }
+  queueNewSubmissionPush(supabase, {
+    id: groupBuy.id,
+    product_name: groupBuy.product_name,
+  });
   return {
     submission: mapSubmission(submission),
     groupBuy: mapGroupBuy(groupBuy),

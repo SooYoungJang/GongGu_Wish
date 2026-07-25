@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -82,6 +82,11 @@ export function SettingsScreen() {
   );
   const [permissionStatus, setPermissionStatus] =
     useState<NotificationPermissionStatus>("undetermined");
+  const [pendingPushEnabled, setPendingPushEnabled] = useState<boolean | null>(
+    null,
+  );
+  const [updatingPush, setUpdatingPush] = useState(false);
+  const pushChangeInFlight = useRef(false);
   const [testScheduled, setTestScheduled] = useState(false);
   const automatedE2E = isAutomatedE2E();
   const testDelaySeconds = automatedE2E ? 8 : 10;
@@ -98,68 +103,84 @@ export function SettingsScreen() {
 
   const handlePushChange = useCallback(
     async (value: boolean) => {
-      if (!requireAuth()) return;
-      if (!value) {
-        await updatePreferences({ pushEnabled: false });
-        return;
-      }
+      if (!requireAuth() || pushChangeInFlight.current) return;
 
-      if (!accessToken) {
+      pushChangeInFlight.current = true;
+      setPendingPushEnabled(value);
+      setUpdatingPush(true);
+      try {
+        if (!value) {
+          await updatePreferences({ pushEnabled: false });
+          return;
+        }
+
+        if (!accessToken) {
+          Alert.alert(
+            "로그인 정보를 확인해 주세요",
+            "다시 로그인한 뒤 푸시 알림을 켜주세요.",
+          );
+          return;
+        }
+
+        const result = await registerForPushNotifications(accessToken, {
+          requestPermission: true,
+          refreshAuthToken: async () => {
+            const { data, error } = await getSupabase().auth.refreshSession();
+            return error ? null : (data.session?.access_token ?? null);
+          },
+          ...(automatedE2E
+            ? { e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]" }
+            : {}),
+        });
+        if (result.status === "registered") {
+          setPermissionStatus("granted");
+          await updatePreferences({ pushEnabled: true });
+          return;
+        }
+
+        if (result.status === "unsupported") {
+          setPermissionStatus("unsupported");
+          Alert.alert(
+            "알림을 켤 수 없어요",
+            result.reason === "expo-go" || IS_EXPO_GO
+              ? "Expo Go에서는 푸시 알림이 지원되지 않아요. 개발 빌드에서 이용 가능합니다."
+              : "이 앱에는 알림 기능이 포함되지 않았어요. 최신 앱을 다시 설치해 주세요.",
+          );
+          return;
+        }
+
+        if (result.status === "unavailable") {
+          setPermissionStatus(
+            result.reason === "permission-denied" ? "denied" : "error",
+          );
+          Alert.alert(
+            "알림을 켤 수 없어요",
+            result.reason === "permission-denied"
+              ? "기기 설정에서 알림 권한을 허용해 주세요."
+              : "기기 알림 권한을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+          );
+          return;
+        }
+
+        const failureMessage =
+          result.reason === "backend-registration-failed"
+            ? "네트워크 연결을 확인한 뒤 푸시 알림을 다시 켜주세요."
+            : result.reason === "missing-project-id"
+              ? "앱 설정에 푸시 정보가 빠져 있어요. 최신 앱을 다시 설치해 주세요."
+              : "앱 설정 또는 기기의 푸시 연결을 확인한 뒤 최신 앱에서 다시 시도해 주세요.";
+        if (result.status === "failed") {
+          Alert.alert("푸시 알림 등록에 실패했어요", failureMessage);
+        }
+      } catch {
+        setPermissionStatus("error");
         Alert.alert(
-          "로그인 정보를 확인해 주세요",
-          "다시 로그인한 뒤 푸시 알림을 켜주세요.",
+          "푸시 알림 설정에 실패했어요",
+          "네트워크 연결을 확인한 뒤 잠시 후 다시 시도해 주세요.",
         );
-        return;
-      }
-
-      const result = await registerForPushNotifications(accessToken, {
-        requestPermission: true,
-        refreshAuthToken: async () => {
-          const { data, error } = await getSupabase().auth.refreshSession();
-          return error ? null : (data.session?.access_token ?? null);
-        },
-        ...(automatedE2E
-          ? { e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]" }
-          : {}),
-      });
-      if (result.status === "registered") {
-        setPermissionStatus("granted");
-        await updatePreferences({ pushEnabled: true });
-        return;
-      }
-
-      if (result.status === "unsupported") {
-        setPermissionStatus("unsupported");
-        Alert.alert(
-          "알림을 켤 수 없어요",
-          result.reason === "expo-go" || IS_EXPO_GO
-            ? "Expo Go에서는 푸시 알림이 지원되지 않아요. 개발 빌드에서 이용 가능합니다."
-            : "이 앱에는 알림 기능이 포함되지 않았어요. 최신 앱을 다시 설치해 주세요.",
-        );
-        return;
-      }
-
-      if (result.status === "unavailable") {
-        setPermissionStatus(
-          result.reason === "permission-denied" ? "denied" : "error",
-        );
-        Alert.alert(
-          "알림을 켤 수 없어요",
-          result.reason === "permission-denied"
-            ? "기기 설정에서 알림 권한을 허용해 주세요."
-            : "기기 알림 권한을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
-        );
-        return;
-      }
-
-      const failureMessage =
-        result.reason === "backend-registration-failed"
-          ? "네트워크 연결을 확인한 뒤 푸시 알림을 다시 켜주세요."
-          : result.reason === "missing-project-id"
-            ? "앱 설정에 푸시 정보가 빠져 있어요. 최신 앱을 다시 설치해 주세요."
-            : "앱 설정 또는 기기의 푸시 연결을 확인한 뒤 최신 앱에서 다시 시도해 주세요.";
-      if (result.status === "failed") {
-        Alert.alert("푸시 알림 등록에 실패했어요", failureMessage);
+      } finally {
+        pushChangeInFlight.current = false;
+        setPendingPushEnabled(null);
+        setUpdatingPush(false);
       }
     },
     [accessToken, automatedE2E, requireAuth, updatePreferences],
@@ -225,8 +246,10 @@ export function SettingsScreen() {
     setTestScheduled(Boolean(id));
   }, [automatedE2E, testDelaySeconds]);
 
-  const controlsDisabled = !preferencesReady || preferencesSaving;
-  const pushEnabled = isAuthenticated && preferences.pushEnabled;
+  const controlsDisabled =
+    !preferencesReady || preferencesSaving || updatingPush;
+  const pushEnabled =
+    isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
   const deadlineRemindersEnabled =
     isAuthenticated && preferences.deadlineRemindersEnabled;
   const newSubmissionsEnabled =
@@ -342,6 +365,7 @@ export function SettingsScreen() {
             <Switch
               accessibilityLabel="푸시 알림"
               accessibilityHint="모든 공구 알림 수신을 켜거나 끕니다"
+              accessibilityState={{ busy: updatingPush }}
               disabled={controlsDisabled}
               value={pushEnabled}
               onValueChange={handlePushChange}

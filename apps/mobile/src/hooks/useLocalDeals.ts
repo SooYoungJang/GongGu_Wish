@@ -667,6 +667,7 @@ function getUnscheduledEnabledState(): GroupBuyAlertState {
 async function getScheduledAlertState(
   item: GroupBuy,
   preferences: NotificationPreferences,
+  catchUp = false,
 ): Promise<GroupBuyAlertState> {
   if (
     !preferences.pushEnabled ||
@@ -682,6 +683,7 @@ async function getScheduledAlertState(
         item.productName,
         item.endDate,
         preferences.reminderDays,
+        { catchUp },
       ),
     );
   }
@@ -802,7 +804,7 @@ async function enableNotification(
     ...withoutExisting,
   ]);
 
-  const alertState = await getScheduledAlertState(item, preferences);
+  const alertState = await getScheduledAlertState(item, preferences, true);
   const completedEntry = applyAlertState(pendingEntry, alertState);
   await persistNotifications(namespace, storageKey, [
     completedEntry,
