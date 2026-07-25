@@ -8,6 +8,15 @@ fake_bin="$test_directory/bin"
 mkdir -p "$fake_bin"
 trap 'rm -rf "$test_directory"' EXIT
 
+preview_google_services="$test_directory/google-services.preview.json"
+production_google_services="$test_directory/google-services.production.json"
+printf '%s\n' \
+  '{"project_info":{"project_id":"gonggu-test"},"client":[{"client_info":{"mobilesdk_app_id":"1:123456789012:android:preview","android_client_info":{"package_name":"com.gonggu.wish.preview"}}}]}' \
+  >"$preview_google_services"
+printf '%s\n' \
+  '{"project_info":{"project_id":"gonggu-test"},"client":[{"client_info":{"mobilesdk_app_id":"1:123456789012:android:production","android_client_info":{"package_name":"com.gonggu.wish"}}}]}' \
+  >"$production_google_services"
+
 bash_command="${BASH:-bash}"
 if ! command -v bash >/dev/null 2>&1; then
   cp "$bash_command" "$fake_bin/bash.exe"
@@ -24,6 +33,10 @@ command_name="${1:?command is required}"
 shift
 
 case "$command_name" in
+  env:get)
+    printf 'GOOGLE_SERVICES_JSON='
+    cat "$MOCK_GOOGLE_SERVICES_JSON"
+    ;;
   env:exec)
     environment_name="${1:?environment is required}"
     command_string="${2:?command is required}"
@@ -31,6 +44,7 @@ case "$command_name" in
     export EXPO_PUBLIC_API_PROXY_URL="https://api.example.test"
     export EXPO_PUBLIC_SUPABASE_ANON_KEY="test-anon-key"
     export EXPO_PUBLIC_SUPABASE_URL="https://supabase.example.test"
+    export GOOGLE_SERVICES_JSON="${GOOGLE_SERVICES_JSON:-$MOCK_GOOGLE_SERVICES_JSON}"
     bash -c "$command_string"
     ;;
   fingerprint:generate)
@@ -94,6 +108,10 @@ run_deployment() {
   local compatible_build="$3"
   local upload_fail="${4:-false}"
   local case_directory="$test_directory/$name"
+  local google_services_file="$preview_google_services"
+  if [[ "$ref" == "refs/heads/main" ]]; then
+    google_services_file="$production_google_services"
+  fi
   mkdir -p "$case_directory/runner"
 
   PATH="$fake_bin:$PATH" \
@@ -107,6 +125,8 @@ run_deployment() {
     EXPO_PUBLIC_API_PROXY_URL="https://api.example.test" \
     EXPO_PUBLIC_SUPABASE_ANON_KEY="test-anon-key" \
     EXPO_PUBLIC_SUPABASE_URL="https://supabase.example.test" \
+    GOOGLE_SERVICES_JSON="$google_services_file" \
+    MOCK_GOOGLE_SERVICES_JSON="$google_services_file" \
     MOCK_COMPATIBLE_BUILD="$compatible_build" \
     MOCK_UPLOAD_FAIL="$upload_fail" \
     MOCK_EAS_LOG="$case_directory/eas.log" \
@@ -175,12 +195,37 @@ mkdir -p "$wrapped_directory/runner"
     GITHUB_OUTPUT="$wrapped_directory/output" \
     GITHUB_STEP_SUMMARY="$wrapped_directory/summary" \
     RUNNER_TEMP="$wrapped_directory/runner" \
+    MOCK_GOOGLE_SERVICES_JSON="$preview_google_services" \
     MOCK_COMPATIBLE_BUILD="true" \
     MOCK_EAS_LOG="$wrapped_directory/eas.log" \
     "$bash_command" scripts/ci-deploy-android.sh
 )
 grep -Fxq "mode=ota" "$wrapped_directory/output"
+grep -Fq "env:get preview --variable-name GOOGLE_SERVICES_JSON --format short" \
+  "$wrapped_directory/eas.log"
 grep -Fq "env:exec preview bash scripts/ci-deploy-android.sh" "$wrapped_directory/eas.log"
+
+wrapped_production_directory="$test_directory/wrapped-production"
+mkdir -p "$wrapped_production_directory/runner"
+(
+  cd "$script_directory/.."
+  PATH="$fake_bin:$PATH" \
+    GITHUB_REF="refs/heads/main" \
+    GITHUB_SHA="abc123" \
+    GITHUB_OUTPUT="$wrapped_production_directory/output" \
+    GITHUB_STEP_SUMMARY="$wrapped_production_directory/summary" \
+    RUNNER_TEMP="$wrapped_production_directory/runner" \
+    MOCK_GOOGLE_SERVICES_JSON="$production_google_services" \
+    MOCK_COMPATIBLE_BUILD="true" \
+    MOCK_EAS_LOG="$wrapped_production_directory/eas.log" \
+    "$bash_command" scripts/ci-deploy-android.sh
+)
+grep -Fxq "mode=ota" "$wrapped_production_directory/output"
+grep -Fxq "environment=production" "$wrapped_production_directory/output"
+grep -Fq "env:get production --variable-name GOOGLE_SERVICES_JSON --format short" \
+  "$wrapped_production_directory/eas.log"
+grep -Fq "env:exec production bash scripts/ci-deploy-android.sh" \
+  "$wrapped_production_directory/eas.log"
 
 invalid_ref_directory="$test_directory/invalid-ref"
 mkdir -p "$invalid_ref_directory/runner"
@@ -205,8 +250,48 @@ if PATH="$fake_bin:$PATH" \
   EXPO_PUBLIC_API_PROXY_URL="" \
   EXPO_PUBLIC_SUPABASE_ANON_KEY="test-anon-key" \
   EXPO_PUBLIC_SUPABASE_URL="https://supabase.example.test" \
+  GOOGLE_SERVICES_JSON="$preview_google_services" \
   "$bash_command" "$script_directory/ci-deploy-android.sh" >/dev/null 2>&1; then
   echo "Missing backend environment unexpectedly passed validation" >&2
+  exit 1
+fi
+
+missing_firebase_directory="$test_directory/missing-firebase"
+mkdir -p "$missing_firebase_directory/runner"
+if PATH="$fake_bin:$PATH" \
+  GITHUB_REF="refs/heads/develop" \
+  GITHUB_OUTPUT="$missing_firebase_directory/output" \
+  GITHUB_STEP_SUMMARY="$missing_firebase_directory/summary" \
+  RUNNER_TEMP="$missing_firebase_directory/runner" \
+  EAS_ENV_READY="true" \
+  APP_VARIANT="preview" \
+  EXPO_PUBLIC_API_PROXY_URL="https://api.example.test" \
+  EXPO_PUBLIC_SUPABASE_ANON_KEY="test-anon-key" \
+  EXPO_PUBLIC_SUPABASE_URL="https://supabase.example.test" \
+  GOOGLE_SERVICES_JSON="" \
+  "$bash_command" "$script_directory/ci-deploy-android.sh" >/dev/null 2>&1; then
+  echo "Missing Firebase environment unexpectedly passed validation" >&2
+  exit 1
+fi
+
+mismatched_firebase_directory="$test_directory/mismatched-firebase"
+mkdir -p "$mismatched_firebase_directory/runner"
+if PATH="$fake_bin:$PATH" \
+  GITHUB_REF="refs/heads/develop" \
+  GITHUB_OUTPUT="$mismatched_firebase_directory/output" \
+  GITHUB_STEP_SUMMARY="$mismatched_firebase_directory/summary" \
+  RUNNER_TEMP="$mismatched_firebase_directory/runner" \
+  EAS_ENV_READY="true" \
+  APP_VARIANT="preview" \
+  EXPO_PUBLIC_API_PROXY_URL="https://api.example.test" \
+  EXPO_PUBLIC_SUPABASE_ANON_KEY="test-anon-key" \
+  EXPO_PUBLIC_SUPABASE_URL="https://supabase.example.test" \
+  GOOGLE_SERVICES_JSON="$production_google_services" \
+  MOCK_COMPATIBLE_BUILD="true" \
+  MOCK_UPLOAD_FAIL="false" \
+  MOCK_EAS_LOG="$mismatched_firebase_directory/eas.log" \
+  "$bash_command" "$script_directory/ci-deploy-android.sh" >/dev/null 2>&1; then
+  echo "Mismatched Firebase package unexpectedly passed validation" >&2
   exit 1
 fi
 

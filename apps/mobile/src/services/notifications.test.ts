@@ -94,8 +94,11 @@ describe("registerForPushNotifications", () => {
   });
 
   it("registers the Expo token through the authenticated Edge Function", async () => {
-    await expect(registerForPushNotifications("access-token")).resolves.toBe(
-      "ExpoPushToken[test-token]",
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "registered",
+        token: "ExpoPushToken[test-token]",
+      },
     );
     expect(callEdgeFunction).toHaveBeenCalledWith(
       "register-push-token",
@@ -113,7 +116,10 @@ describe("registerForPushNotifications", () => {
         requestPermission: false,
         e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]",
       }),
-    ).resolves.toBe("ExpoPushToken[gon229-local-e2e]");
+    ).resolves.toEqual({
+      status: "registered",
+      token: "ExpoPushToken[gon229-local-e2e]",
+    });
 
     expect(notificationMocks.getExpoPushTokenAsync).not.toHaveBeenCalled();
     expect(callEdgeFunction).toHaveBeenCalledWith(
@@ -134,7 +140,10 @@ describe("registerForPushNotifications", () => {
         requestPermission: false,
         e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]",
       }),
-    ).resolves.toBe("ExpoPushToken[gon229-local-e2e]");
+    ).resolves.toEqual({
+      status: "registered",
+      token: "ExpoPushToken[gon229-local-e2e]",
+    });
 
     expect(notificationMocks.getExpoPushTokenAsync).not.toHaveBeenCalled();
     expect(callEdgeFunction).toHaveBeenCalledOnce();
@@ -225,9 +234,61 @@ describe("registerForPushNotifications", () => {
       registerForPushNotifications("access-token", {
         requestPermission: false,
       }),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({
+      status: "unavailable",
+      reason: "permission-denied",
+    });
     expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
     expect(callEdgeFunction).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing EAS project ID without requesting a token", async () => {
+    delete constantsMock.expoConfig.extra.eas.projectId;
+
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "failed",
+        reason: "missing-project-id",
+      },
+    );
+    expect(notificationMocks.getExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(callEdgeFunction).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid Expo token before backend registration", async () => {
+    notificationMocks.getExpoPushTokenAsync.mockResolvedValueOnce({
+      data: "not-an-expo-token",
+    });
+
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "failed",
+        reason: "invalid-token",
+      },
+    );
+    expect(callEdgeFunction).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes Expo token failures from backend registration failures", async () => {
+    notificationMocks.getExpoPushTokenAsync.mockRejectedValueOnce(
+      new Error("FCM is unavailable"),
+    );
+
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "failed",
+        reason: "token-request-failed",
+      },
+    );
+    expect(callEdgeFunction).not.toHaveBeenCalled();
+
+    callEdgeFunction.mockRejectedValueOnce(new Error("request failed"));
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "failed",
+        reason: "backend-registration-failed",
+      },
+    );
   });
 
   it("creates Android channels before requesting first-run permission", async () => {

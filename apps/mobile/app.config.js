@@ -1,4 +1,6 @@
 const { AndroidConfig, withAndroidManifest } = require("expo/config-plugins");
+const { readFileSync } = require("node:fs");
+const path = require("node:path");
 
 const GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID =
   "ca-app-pub-3940256099942544~3347511713";
@@ -69,6 +71,48 @@ function resolveGoogleServicesFile(
   return variant === "production"
     ? normalizeValue(productionFallback)
     : undefined;
+}
+
+function validateGoogleServicesFile(
+  applicationId,
+  configuredFile,
+  required = false,
+) {
+  const googleServicesFile = normalizeValue(configuredFile);
+  if (!googleServicesFile) {
+    if (required) {
+      throw new Error(
+        `[Firebase] GOOGLE_SERVICES_JSON is required for ${applicationId}`,
+      );
+    }
+    return undefined;
+  }
+
+  const resolvedPath = path.isAbsolute(googleServicesFile)
+    ? googleServicesFile
+    : path.resolve(__dirname, googleServicesFile);
+  let firebaseConfig;
+  try {
+    const contents = readFileSync(resolvedPath, "utf8").replace(/^\uFEFF/, "");
+    firebaseConfig = JSON.parse(contents);
+  } catch {
+    throw new Error(
+      `[Firebase] GOOGLE_SERVICES_JSON must point to a readable JSON file for ${applicationId}`,
+    );
+  }
+
+  const configuredPackages = Array.isArray(firebaseConfig?.client)
+    ? firebaseConfig.client
+        .map((client) => client?.client_info?.android_client_info?.package_name)
+        .filter((packageName) => typeof packageName === "string")
+    : [];
+  if (!configuredPackages.includes(applicationId)) {
+    throw new Error(
+      `[Firebase] GOOGLE_SERVICES_JSON does not contain Android package ${applicationId}`,
+    );
+  }
+
+  return googleServicesFile;
 }
 
 function requireHttpsOrigin(value, label) {
@@ -352,10 +396,14 @@ const createAppConfig = ({ config }) => {
     requestedMode: process.env.EXPO_PUBLIC_ADMOB_MODE,
   });
   const productionGoogleServicesFile = config.android?.googleServicesFile;
-  const googleServicesFile = resolveGoogleServicesFile(
-    appVariant.key,
-    process.env.GOOGLE_SERVICES_JSON,
-    productionGoogleServicesFile,
+  const googleServicesFile = validateGoogleServicesFile(
+    appVariant.applicationId,
+    resolveGoogleServicesFile(
+      appVariant.key,
+      process.env.GOOGLE_SERVICES_JSON,
+      productionGoogleServicesFile,
+    ),
+    process.env.GOOGLE_SERVICES_REQUIRED === "true",
   );
   const hasBackendConfiguration = [
     process.env.EXPO_PUBLIC_API_PROXY_URL,
@@ -445,5 +493,6 @@ createAppConfig.resolveAppVariant = resolveAppVariant;
 createAppConfig.resolveBackendEnvironment = resolveBackendEnvironment;
 createAppConfig.resolveGoogleServicesFile = resolveGoogleServicesFile;
 createAppConfig.resolveRuntimeVersion = resolveRuntimeVersion;
+createAppConfig.validateGoogleServicesFile = validateGoogleServicesFile;
 
 module.exports = createAppConfig;

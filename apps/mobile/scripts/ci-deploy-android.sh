@@ -24,7 +24,36 @@ esac
 : "${GITHUB_STEP_SUMMARY:?GITHUB_STEP_SUMMARY is required}"
 
 if [[ "${EAS_ENV_READY:-}" != "true" ]]; then
-  EAS_ENV_READY=true eas env:exec "$environment" \
+  google_services_path="$RUNNER_TEMP/google-services.$environment.json"
+  google_services_variable="$(
+    eas env:get "$environment" \
+      --variable-name GOOGLE_SERVICES_JSON \
+      --format short \
+      --non-interactive
+  )"
+  GOOGLE_SERVICES_VARIABLE="$google_services_variable" \
+    node - "$google_services_path" <<'NODE'
+const fs = require("node:fs");
+
+const outputPath = process.argv[2];
+const output = process.env.GOOGLE_SERVICES_VARIABLE ?? "";
+const valuePrefix = "GOOGLE_SERVICES_JSON=";
+const valueStart = output.indexOf(valuePrefix);
+if (valueStart < 0) {
+  throw new Error(
+    "Could not read GOOGLE_SERVICES_JSON from the selected EAS environment",
+  );
+}
+const fileContents = output.slice(valueStart + valuePrefix.length).trim();
+JSON.parse(fileContents);
+fs.writeFileSync(outputPath, `${fileContents}\n`, { mode: 0o600 });
+fs.chmodSync(outputPath, 0o600);
+NODE
+  export GOOGLE_SERVICES_JSON="$google_services_path"
+  trap 'rm -f "$google_services_path"' EXIT
+
+  EAS_ENV_READY=true GOOGLE_SERVICES_JSON="$google_services_path" \
+    eas env:exec "$environment" \
     'bash scripts/ci-deploy-android.sh' \
     --non-interactive
   exit 0
@@ -35,6 +64,7 @@ required_environment_variables=(
   EXPO_PUBLIC_API_PROXY_URL
   EXPO_PUBLIC_SUPABASE_ANON_KEY
   EXPO_PUBLIC_SUPABASE_URL
+  GOOGLE_SERVICES_JSON
 )
 
 for variable_name in "${required_environment_variables[@]}"; do
@@ -48,6 +78,38 @@ if [[ "$APP_VARIANT" != "$environment" ]]; then
   echo "::error::APP_VARIANT must be $environment, received $APP_VARIANT."
   exit 1
 fi
+
+node <<'NODE'
+const fs = require("node:fs");
+
+const expectedPackage =
+  process.env.APP_VARIANT === "production"
+    ? "com.gonggu.wish"
+    : "com.gonggu.wish.preview";
+const filePath = process.env.GOOGLE_SERVICES_JSON;
+let firebaseConfig;
+try {
+  firebaseConfig = JSON.parse(fs.readFileSync(filePath, "utf8"));
+} catch {
+  throw new Error(
+    `GOOGLE_SERVICES_JSON must be a readable JSON file for ${expectedPackage}`,
+  );
+}
+
+const packageNames = Array.isArray(firebaseConfig.client)
+  ? firebaseConfig.client
+      .map(
+        (client) =>
+          client?.client_info?.android_client_info?.package_name,
+      )
+      .filter((packageName) => typeof packageName === "string")
+  : [];
+if (!packageNames.includes(expectedPackage)) {
+  throw new Error(
+    `GOOGLE_SERVICES_JSON does not contain Android package ${expectedPackage}`,
+  );
+}
+NODE
 
 fingerprint_json="$(
   eas fingerprint:generate \
