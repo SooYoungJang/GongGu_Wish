@@ -64,7 +64,7 @@
     "@storybook/addon-links": "^8.4.0",
     "@storybook/addon-onboarding": "^8.4.0",
     "@storybook/blocks": "^8.4.0",
-    "@storybook/react": "^8.4.0",
+    "@storybook/react": "^10.5.4",
     "@storybook/react-vite": "^8.4.0",
     "@storybook/test": "^8.4.0",
     "@testing-library/jest-dom": "^6.6.0",
