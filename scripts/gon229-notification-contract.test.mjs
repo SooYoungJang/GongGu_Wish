@@ -147,7 +147,9 @@ test("Android push registration is wired to Firebase and reports failures", () =
   );
   assert.ok(androidClient, "Firebase config must include com.gonggu.wish");
   assert.match(settings, /registerForPushNotifications/);
-  assert.match(settings, /requestPermission:\s*false/);
+  assert.match(settings, /requestPermission:\s*true/);
+  assert.match(settings, /pendingPushEnabled/);
+  assert.match(settings, /pushChangeInFlight/);
   assert.match(
     settings,
     /e2eTokenOverride:\s*"ExpoPushToken\[gon229-local-e2e\]"/,
@@ -193,7 +195,7 @@ test("notification and bookmark actions require authentication", () => {
   assert.match(detail, /handleBrandFollowPress/);
   assert.match(store, /handleToggleNotification/);
   assert.match(store, /if \(!requireAuth\(\)\) return/);
-  assert.match(settings, /const pushEnabled = isAuthenticated/);
+  assert.match(settings, /const pushEnabled\s*=\s*isAuthenticated/);
   assert.match(settings, /const handleFollowInfluencerPress/);
   assert.match(settings, /const handleFollowBrandPress/);
   assert.match(
@@ -213,4 +215,25 @@ test("notification and bookmark actions require authentication", () => {
     migration,
     /ALTER COLUMN new_submissions_enabled SET DEFAULT false/,
   );
+});
+
+test("moderated approvals queue preference-aware new-submission push", () => {
+  const adminApi = read("supabase/functions/admin-api/index.ts");
+  const delivery = read("supabase/functions/admin-api/newSubmissionPush.ts");
+  const preferenceContract = read(
+    "supabase/functions/admin-api/pushNotificationContract.ts",
+  );
+  const publicSubmission = read(
+    "supabase/functions/public-submission/index.ts",
+  );
+
+  assert.match(adminApi, /queueNewSubmissionPush\(supabase/);
+  assert.match(delivery, /notificationType:\s*"new_submission"/);
+  assert.match(delivery, /Promise\.resolve\(\)/);
+  assert.match(delivery, /waitUntil\(delivery\)/);
+  assert.match(
+    preferenceContract,
+    /case "new_submission":[\s\S]*?row\.new_submissions_enabled !== false/,
+  );
+  assert.doesNotMatch(publicSubmission, /queueNewSubmissionPush/);
 });

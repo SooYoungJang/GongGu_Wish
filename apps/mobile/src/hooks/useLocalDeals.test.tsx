@@ -960,7 +960,9 @@ describe("useNotifications", () => {
 
     expect(
       notificationServiceMocks.scheduleGroupBuyReminders,
-    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1, 3, 7]);
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1, 3, 7], {
+      catchUp: true,
+    });
     expect(notifications.result.current.getNotificationState(item.id)).toEqual({
       status: "enabled",
       notificationId: "deadline-7",
@@ -1028,7 +1030,9 @@ describe("useNotifications", () => {
     ).toHaveBeenCalledWith(["deadline-old-7"]);
     expect(
       notificationServiceMocks.scheduleGroupBuyReminders,
-    ).toHaveBeenLastCalledWith(item.id, item.productName, item.endDate, [3]);
+    ).toHaveBeenLastCalledWith(item.id, item.productName, item.endDate, [3], {
+      catchUp: false,
+    });
     expect(notifications.result.current.getNotificationState(item.id)).toEqual(
       expect.objectContaining({
         status: "enabled",

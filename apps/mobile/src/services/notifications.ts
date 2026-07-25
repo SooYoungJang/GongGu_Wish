@@ -266,6 +266,7 @@ export type ScheduledNotification = {
   productName: string | null;
   triggerDate: Date | null;
   reminderDay?: NotificationReminderDay;
+  catchUp?: boolean;
 };
 
 export type GroupBuyReminderUnavailableReason =
@@ -285,25 +286,59 @@ export type ScheduleGroupBuyRemindersResult =
     };
 
 const DAY_MS = 86_400_000;
+const CATCH_UP_DELAY_MS = 1_000;
+
+export type GroupBuyReminderScheduleOptions = {
+  now?: number;
+  catchUp?: boolean;
+};
+
+function resolveGroupBuyReminderScheduleOptions(
+  value: number | GroupBuyReminderScheduleOptions | undefined,
+) {
+  return typeof value === "number"
+    ? { now: value, catchUp: false }
+    : { now: value?.now ?? Date.now(), catchUp: value?.catchUp ?? false };
+}
 
 export function buildGroupBuyReminderDates(
   endDate: string,
   reminderDays: readonly number[],
-  now = Date.now(),
+  options?: number | GroupBuyReminderScheduleOptions,
 ) {
+  const { now, catchUp } = resolveGroupBuyReminderScheduleOptions(options);
   const deadline = new Date(endDate);
-  if (Number.isNaN(deadline.getTime())) return [];
+  if (Number.isNaN(deadline.getTime()) || deadline.getTime() <= now) return [];
   const allowed = new Set<number>([1, 3, 7]);
-  return [...new Set(reminderDays)]
+  const candidates = [...new Set(reminderDays)]
     .filter((day): day is NotificationReminderDay => allowed.has(day))
     .map((reminderDay) => ({
       reminderDay,
       triggerDate: new Date(deadline.getTime() - reminderDay * DAY_MS),
-    }))
+    }));
+  const futureReminders = candidates
     .filter(({ triggerDate }) => triggerDate.getTime() > now)
-    .sort(
-      (left, right) => left.triggerDate.getTime() - right.triggerDate.getTime(),
-    );
+    .map((candidate) => ({ ...candidate, catchUp: false as const }));
+  const catchUpReminder = catchUp
+    ? candidates
+        .filter(({ triggerDate }) => triggerDate.getTime() <= now)
+        .sort((left, right) => left.reminderDay - right.reminderDay)[0]
+    : undefined;
+
+  return [
+    ...futureReminders,
+    ...(catchUpReminder
+      ? [
+          {
+            ...catchUpReminder,
+            triggerDate: new Date(now + CATCH_UP_DELAY_MS),
+            catchUp: true as const,
+          },
+        ]
+      : []),
+  ].sort(
+    (left, right) => left.triggerDate.getTime() - right.triggerDate.getTime(),
+  );
 }
 
 export async function scheduleGroupBuyReminders(
@@ -311,7 +346,7 @@ export async function scheduleGroupBuyReminders(
   productName: string | null,
   endDate: string | null,
   reminderDays: readonly NotificationReminderDay[],
-  now = Date.now(),
+  options?: number | GroupBuyReminderScheduleOptions,
 ): Promise<ScheduleGroupBuyRemindersResult> {
   const url = buildGroupBuyNotificationUrl(groupBuyId);
   if (!url) return { status: "failed", reason: "invalid-group-buy-id" };
@@ -320,7 +355,7 @@ export async function scheduleGroupBuyReminders(
     return { status: "unavailable", reason: "invalid-end-date" };
   }
 
-  const reminders = buildGroupBuyReminderDates(endDate, reminderDays, now);
+  const reminders = buildGroupBuyReminderDates(endDate, reminderDays, options);
   if (reminders.length === 0) {
     return { status: "unavailable", reason: "past-reminder-window" };
   }
@@ -336,7 +371,9 @@ export async function scheduleGroupBuyReminders(
       const identifier = await Notifications.scheduleNotificationAsync({
         content: {
           title: "공구 마감 알림",
-          body: `${productName ?? "공동구매"} 마감까지 ${reminder.reminderDay}일 남았어요.`,
+          body: reminder.catchUp
+            ? `${productName ?? "공동구매"} 마감이 ${reminder.reminderDay}일 안으로 다가왔어요.`
+            : `${productName ?? "공동구매"} 마감까지 ${reminder.reminderDay}일 남았어요.`,
           data: {
             groupBuyId: groupBuyId.trim(),
             notificationType: "deadline",
@@ -355,6 +392,7 @@ export async function scheduleGroupBuyReminders(
         productName,
         reminderDay: reminder.reminderDay,
         triggerDate: reminder.triggerDate,
+        catchUp: reminder.catchUp,
       });
     }
     return { status: "scheduled", notifications: scheduled };

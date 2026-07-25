@@ -567,23 +567,48 @@ describe('MyPageScreen', () => {
     expect(push.props.value).toBe(false);
   });
 
-  it('enables push preferences only after token registration succeeds', async () => {
+  it('moves the push toggle immediately while token registration finishes', async () => {
     authMocks.session = {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
     };
     settingsPreferenceMocks.preferences.pushEnabled = false;
+    let resolveRegistration!: (result: {
+      status: 'registered';
+      token: string;
+    }) => void;
+    const registration = new Promise<{
+      status: 'registered';
+      token: string;
+    }>((resolve) => {
+      resolveRegistration = resolve;
+    });
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(
+      registration,
+    );
     const renderer = renderScreen(React.createElement(SettingsScreen));
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
     const push = renderer.root.findByProps({ accessibilityLabel: '푸시 알림' });
+    let registrationTask!: Promise<void>;
 
-    await act(async () => {
-      await push.props.onValueChange(true);
+    act(() => {
+      registrationTask = push.props.onValueChange(true);
     });
 
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .value,
+    ).toBe(true);
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .disabled,
+    ).toBe(true);
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
     expect(notificationMocks.registerForPushNotifications).toHaveBeenCalledWith(
       'access-token',
       expect.objectContaining({
@@ -591,32 +616,68 @@ describe('MyPageScreen', () => {
         requestPermission: true,
       }),
     );
+
+    await act(async () => {
+      resolveRegistration({
+        status: 'registered',
+        token: 'ExpoPushToken[test-token]',
+      });
+      await registrationTask;
+    });
+
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       pushEnabled: true,
     });
   });
 
-  it('keeps push preferences off and explains a native token failure', async () => {
+  it('rolls the optimistic push toggle back after a native token failure', async () => {
     authMocks.session = {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
     };
     settingsPreferenceMocks.preferences.pushEnabled = false;
-    notificationMocks.registerForPushNotifications.mockResolvedValueOnce({
-      status: 'failed',
-      reason: 'token-request-failed',
+    let resolveRegistration!: (result: {
+      status: 'failed';
+      reason: 'token-request-failed';
+    }) => void;
+    const registration = new Promise<{
+      status: 'failed';
+      reason: 'token-request-failed';
+    }>((resolve) => {
+      resolveRegistration = resolve;
     });
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(
+      registration,
+    );
     const renderer = renderScreen(React.createElement(SettingsScreen));
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
     const push = renderer.root.findByProps({ accessibilityLabel: '푸시 알림' });
+    let registrationTask!: Promise<void>;
 
-    await act(async () => {
-      await push.props.onValueChange(true);
+    act(() => {
+      registrationTask = push.props.onValueChange(true);
     });
 
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .value,
+    ).toBe(true);
+
+    await act(async () => {
+      resolveRegistration({
+        status: 'failed',
+        reason: 'token-request-failed',
+      });
+      await registrationTask;
+    });
+
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .value,
+    ).toBe(false);
     expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
       pushEnabled: true,
     });
