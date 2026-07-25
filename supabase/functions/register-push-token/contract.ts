@@ -36,6 +36,49 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+export type AuthUserProfileEmail = {
+  email: string;
+  source: "auth" | "metadata" | "identity" | "synthetic";
+};
+
+function normalizeEmailCandidate(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized) ? normalized : null;
+}
+
+export function resolveAuthUserProfileEmail(user: {
+  id: string;
+  email?: unknown;
+  user_metadata?: unknown;
+  identities?: unknown;
+}): AuthUserProfileEmail {
+  const authEmail = normalizeEmailCandidate(user.email);
+  if (authEmail) return { email: authEmail, source: "auth" };
+
+  const metadataEmail = isRecord(user.user_metadata)
+    ? normalizeEmailCandidate(user.user_metadata.email)
+    : null;
+  if (metadataEmail) return { email: metadataEmail, source: "metadata" };
+
+  if (Array.isArray(user.identities)) {
+    for (const identity of user.identities) {
+      const identityEmail =
+        isRecord(identity) && isRecord(identity.identity_data)
+          ? normalizeEmailCandidate(identity.identity_data.email)
+          : null;
+      if (identityEmail) return { email: identityEmail, source: "identity" };
+    }
+  }
+
+  const normalizedId = user.id.trim().toLowerCase();
+  if (!normalizedId) throw new Error("사용자 ID를 확인할 수 없습니다.");
+  return {
+    email: `${normalizedId}@oauth.gonggu.invalid`,
+    source: "synthetic",
+  };
+}
+
 function normalizeTargets(
   value: unknown,
   kind: "brand" | "influencer",

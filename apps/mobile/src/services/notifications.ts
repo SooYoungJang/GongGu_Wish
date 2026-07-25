@@ -62,6 +62,8 @@ export type PushRegistrationResult =
         | "backend-registration-failed";
     };
 
+const DEFAULT_PUSH_TOKEN_RETRY_DELAYS_MS = [500, 1_500] as const;
+
 export type GroupBuyStartUnavailableReason =
   | "missing-start-date"
   | "invalid-start-date"
@@ -157,10 +159,20 @@ export async function getNotificationPermissionStatus(): Promise<NotificationPer
 export function getEasProjectId(): string | null {
   const projectId =
     Constants.expoConfig?.extra?.eas?.projectId ??
+    Constants.easConfig?.projectId ??
     process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
   return typeof projectId === "string" && projectId.trim()
     ? projectId.trim()
     : null;
+}
+
+function hasHttpStatus(error: unknown, status: number): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error as { status?: unknown }).status === status
+  );
 }
 
 export async function registerForPushNotifications(
@@ -168,6 +180,8 @@ export async function registerForPushNotifications(
   options: {
     requestPermission?: boolean;
     e2eTokenOverride?: string;
+    retryDelaysMs?: readonly number[];
+    refreshAuthToken?: () => Promise<string | null>;
   } = {},
 ): Promise<PushRegistrationResult> {
   if (IS_EXPO_GO) return { status: "unsupported", reason: "expo-go" };
@@ -185,20 +199,31 @@ export async function registerForPushNotifications(
     if (!Notifications) {
       return { status: "unsupported", reason: "native-module" };
     }
-    try {
-      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-    } catch (error) {
-      console.warn(
-        "[Notifications] Expo push token request failed",
-        error instanceof Error ? error.message : "unknown error",
-      );
-      return { status: "failed", reason: "token-request-failed" };
+    const retryDelaysMs =
+      options.retryDelaysMs ?? DEFAULT_PUSH_TOKEN_RETRY_DELAYS_MS;
+    for (let attempt = 0; token === undefined; attempt += 1) {
+      try {
+        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      } catch (error) {
+        if (attempt >= retryDelaysMs.length) {
+          console.warn(
+            "[Notifications] Expo push token request failed",
+            error instanceof Error ? error.message : "unknown error",
+          );
+          return { status: "failed", reason: "token-request-failed" };
+        }
+        const delayMs = retryDelaysMs[attempt] ?? 0;
+        if (delayMs > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
     }
   }
   if (!isExpoPushToken(token)) {
     return { status: "failed", reason: "invalid-token" };
   }
 
+  let registrationError: unknown;
   try {
     await callEdgeFunction(
       "register-push-token",
@@ -207,12 +232,32 @@ export async function registerForPushNotifications(
     );
     return { status: "registered", token };
   } catch (error) {
-    console.warn(
-      "[Notifications] Push token registration failed",
-      error instanceof Error ? error.message : "unknown error",
-    );
-    return { status: "failed", reason: "backend-registration-failed" };
+    registrationError = error;
   }
+
+  if (hasHttpStatus(registrationError, 401) && options.refreshAuthToken) {
+    try {
+      const refreshedAuthToken = await options.refreshAuthToken();
+      if (refreshedAuthToken) {
+        await callEdgeFunction(
+          "register-push-token",
+          { token, provider: "expo" },
+          { authToken: refreshedAuthToken },
+        );
+        return { status: "registered", token };
+      }
+    } catch (error) {
+      registrationError = error;
+    }
+  }
+
+  console.warn(
+    "[Notifications] Push token registration failed",
+    registrationError instanceof Error
+      ? registrationError.message
+      : "unknown error",
+  );
+  return { status: "failed", reason: "backend-registration-failed" };
 }
 
 export type ScheduledNotification = {

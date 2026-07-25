@@ -30,6 +30,7 @@ import {
   resolveAppInfo,
 } from "../lib/app-info";
 import { isAutomatedE2E } from "../lib/automatedE2E";
+import { getSupabase } from "../lib/supabase";
 import {
   getNotificationPermissionStatus,
   IS_EXPO_GO,
@@ -113,6 +114,10 @@ export function SettingsScreen() {
 
       const result = await registerForPushNotifications(accessToken, {
         requestPermission: true,
+        refreshAuthToken: async () => {
+          const { data, error } = await getSupabase().auth.refreshSession();
+          return error ? null : (data.session?.access_token ?? null);
+        },
         ...(automatedE2E
           ? { e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]" }
           : {}),
