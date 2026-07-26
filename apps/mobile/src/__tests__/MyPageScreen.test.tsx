@@ -525,7 +525,10 @@ describe('MyPageScreen', () => {
     expect(rendered).toContain('시스템');
     expect(rendered).toContain('라이트');
     expect(rendered).toContain('다크');
-    expect(rendered).toContain('공구 마감 임박 알림');
+    expect(rendered).not.toContain('공구 마감 임박 알림');
+    expect(
+      renderer.root.findAllByProps({ testID: 'deadline-notification-toggle' }),
+    ).toHaveLength(0);
     expect(rendered).toContain('내 제보 승인 알림');
     expect(rendered).not.toContain('마감 알림 날짜');
     expect(rendered).not.toContain('테스트 알림 보내기');
@@ -584,7 +587,7 @@ describe('MyPageScreen', () => {
     expect(adsMocks.showPrivacyOptions).toHaveBeenCalledOnce();
   });
 
-  it('persists deadline, own-submission approval, and follow changes', async () => {
+  it('persists own-submission approval and follow changes', async () => {
     authMocks.session = {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
@@ -593,9 +596,6 @@ describe('MyPageScreen', () => {
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
-    });
-    const deadlineSwitch = renderer.root.findByProps({
-      accessibilityLabel: '공구 마감 임박 알림',
     });
     const submissionApprovalSwitch = renderer.root.findByProps({
       accessibilityLabel: '내 제보 승인 알림',
@@ -608,15 +608,11 @@ describe('MyPageScreen', () => {
     });
 
     await act(async () => {
-      await deadlineSwitch.props.onValueChange(false);
       await submissionApprovalSwitch.props.onValueChange(false);
       await influencer.props.onPress();
       await brand.props.onPress();
     });
 
-    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
-      deadlineRemindersEnabled: false,
-    });
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       submissionApprovalEnabled: false,
     });
@@ -641,10 +637,6 @@ describe('MyPageScreen', () => {
     expect(
       renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
         .disabled,
-    ).toBe(false);
-    expect(
-      renderer.root.findByProps({ accessibilityLabel: '공구 마감 임박 알림' })
-        .props.disabled,
     ).toBe(false);
     expect(
       renderer.root.findByProps({ accessibilityLabel: '내 제보 승인 알림' })

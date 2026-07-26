@@ -227,14 +227,6 @@ export function SettingsScreen() {
     [drainPushIntents, requireAuth],
   );
 
-  const handleDeadlineChange = useCallback(
-    (value: boolean) => {
-      if (!requireAuth()) return;
-      void updatePreferences({ deadlineRemindersEnabled: value });
-    },
-    [requireAuth, updatePreferences],
-  );
-
   const handleSubmissionApprovalChange = useCallback(
     (value: boolean) => {
       if (!requireAuth()) return;
@@ -262,8 +254,6 @@ export function SettingsScreen() {
   const controlsDisabled = !preferencesReady;
   const pushEnabled =
     isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
-  const deadlineRemindersEnabled =
-    isAuthenticated && preferences.deadlineRemindersEnabled;
   const submissionApprovalEnabled =
     isAuthenticated && preferences.submissionApprovalEnabled;
   const permissionCopy = !isAuthenticated
@@ -383,27 +373,6 @@ export function SettingsScreen() {
               trackColor={{ false: colors.softBg, true: colors.accentSoft }}
               thumbColor={pushEnabled ? colors.accent : colors.weak}
               testID="push-notification-toggle"
-            />
-          </View>
-          <View style={s.switchRow}>
-            <View style={s.switchCopy}>
-              <SText variant="body" style={s.switchLabel}>
-                공구 마감 임박 알림
-              </SText>
-              <SText variant="caption" style={s.switchDescription}>
-                선택한 D-day에 관심 공구를 알려드려요
-              </SText>
-            </View>
-            <Switch
-              accessibilityLabel="공구 마감 임박 알림"
-              disabled={controlsDisabled || (isAuthenticated && !pushEnabled)}
-              onValueChange={(value) => void handleDeadlineChange(value)}
-              thumbColor={
-                deadlineRemindersEnabled ? colors.accent : colors.weak
-              }
-              trackColor={{ false: colors.softBg, true: colors.accentSoft }}
-              testID="deadline-notification-toggle"
-              value={deadlineRemindersEnabled}
             />
           </View>
           <View style={s.switchRow}>

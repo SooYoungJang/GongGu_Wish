@@ -426,7 +426,6 @@ async function reconcileRemoteNotificationEntries(
     const needsNativeScheduleRecovery = Boolean(
       existing &&
       preferences.pushEnabled &&
-      preferences.deadlineRemindersEnabled &&
       reminderDays.length > 0 &&
       (existingState?.status === "pending" ||
         (existingState?.status === "enabled" &&
@@ -817,11 +816,7 @@ async function getScheduledAlertState(
   preferences: NotificationPreferences,
   reminderDays: readonly NotificationReminderDay[],
 ): Promise<GroupBuyAlertState> {
-  if (
-    !preferences.pushEnabled ||
-    !preferences.deadlineRemindersEnabled ||
-    reminderDays.length === 0
-  ) {
+  if (!preferences.pushEnabled || reminderDays.length === 0) {
     return getUnscheduledEnabledState();
   }
   return alertStateFromReminderResult(

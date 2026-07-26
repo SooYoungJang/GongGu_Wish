@@ -157,6 +157,10 @@ describe("useNotifications", () => {
         }
         return { cancelledIds: [...new Set(ids)], failedIds: [] as string[] };
       });
+    notificationPreferenceMocks.preferences.pushEnabled = true;
+    notificationPreferenceMocks.preferences.deadlineRemindersEnabled = true;
+    notificationPreferenceMocks.preferences.submissionApprovalEnabled = true;
+    notificationPreferenceMocks.preferences.reminderDays = [1, 3, 7];
     authMocks.user = null;
   });
 
@@ -1021,6 +1025,50 @@ describe("useNotifications", () => {
     ).toEqual([3]);
     await waitFor(() => {
       expect(apiMocks.syncNotification).toHaveBeenCalledWith(item.id, [3]);
+    });
+  });
+
+  it("uses global push and per-item days when the legacy deadline preference is disabled", async () => {
+    authMocks.user = { id: "user-1" };
+    notificationPreferenceMocks.preferences.deadlineRemindersEnabled = false;
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
+      status: "scheduled",
+      notifications: [
+        {
+          id: "deadline-5",
+          groupBuyId: GROUP_BUY.id,
+          productName: GROUP_BUY.productName,
+          reminderDay: 5,
+          triggerDate: new Date("2026-07-22T00:00:00.000Z"),
+        },
+        {
+          id: "deadline-2",
+          groupBuyId: GROUP_BUY.id,
+          productName: GROUP_BUY.productName,
+          reminderDay: 2,
+          triggerDate: new Date("2026-07-25T00:00:00.000Z"),
+        },
+      ],
+    });
+    const item = {
+      ...GROUP_BUY,
+      endDate: "2026-07-27T00:00:00.000Z",
+    };
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(item, [2, 5]);
+    });
+
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [2, 5]);
+    expect(
+      notifications.result.current.getNotificationReminderDays(item.id),
+    ).toEqual([2, 5]);
+    await waitFor(() => {
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(item.id, [2, 5]);
     });
   });
 

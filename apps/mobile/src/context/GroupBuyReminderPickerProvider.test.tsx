@@ -15,6 +15,12 @@ const notificationMocks = vi.hoisted(() => ({
   reminderDays: [] as number[],
   setNotificationReminders: vi.fn(async () => ({ status: "enabled" })),
 }));
+const preferenceMocks = vi.hoisted(() => ({
+  preferences: {
+    pushEnabled: true,
+    deadlineRemindersEnabled: true,
+  },
+}));
 
 vi.mock("../hooks/useLocalDeals", () => ({
   useNotifications: () => ({
@@ -30,12 +36,7 @@ vi.mock("./AuthContext", () => ({
 }));
 
 vi.mock("./NotificationPreferencesContext", () => ({
-  useNotificationPreferences: () => ({
-    preferences: {
-      pushEnabled: true,
-      deadlineRemindersEnabled: true,
-    },
-  }),
+  useNotificationPreferences: () => preferenceMocks,
 }));
 
 vi.mock("../components/ui/SText", () => ({
@@ -100,6 +101,8 @@ describe("GroupBuyReminderPickerProvider", () => {
     notificationMocks.enabled = false;
     notificationMocks.reminderDays = [];
     notificationMocks.setNotificationReminders.mockClear();
+    preferenceMocks.preferences.pushEnabled = true;
+    preferenceMocks.preferences.deadlineRemindersEnabled = true;
   });
 
   it("opens immediately with seven unselected reminder dates", () => {
@@ -185,6 +188,48 @@ describe("GroupBuyReminderPickerProvider", () => {
     expect(notificationMocks.setNotificationReminders).toHaveBeenCalledWith(
       item,
       [2, 4],
+    );
+  });
+
+  it("ignores the legacy deadline preference when global push is enabled", () => {
+    preferenceMocks.preferences.deadlineRemindersEnabled = false;
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <GroupBuyReminderPickerProvider>
+          <PickerHarness />
+        </GroupBuyReminderPickerProvider>,
+      );
+    });
+
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "open-reminder-picker" })
+        .props.onPress(),
+    );
+
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("선택만 저장돼요");
+  });
+
+  it("shows paused guidance when global push is disabled", () => {
+    preferenceMocks.preferences.pushEnabled = false;
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <GroupBuyReminderPickerProvider>
+          <PickerHarness />
+        </GroupBuyReminderPickerProvider>,
+      );
+    });
+
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "open-reminder-picker" })
+        .props.onPress(),
+    );
+
+    expect(JSON.stringify(renderer!.toJSON())).toContain(
+      "푸시 알림이 꺼져 있어 선택만 저장돼요.",
     );
   });
 
