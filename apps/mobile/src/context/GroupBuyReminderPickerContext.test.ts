@@ -21,16 +21,16 @@ describe("group-buy reminder picker", () => {
   it("disables reminder times that are already past", () => {
     expect(
       getAvailableReminderDays(endDate, Date.parse("2026-07-20T00:00:00.000Z")),
-    ).toEqual([1, 3]);
+    ).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("restores only still-available saved days", () => {
     expect(
       getInitialReminderDays(
         endDate,
-        [1, 3, 7],
+        [1, 2, 3, 4, 5, 6, 7],
         Date.parse("2026-07-20T00:00:00.000Z"),
       ),
-    ).toEqual([1, 3]);
+    ).toEqual([1, 2, 3, 4, 5, 6]);
   });
 });

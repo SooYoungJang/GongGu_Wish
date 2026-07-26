@@ -35,7 +35,7 @@ export function GroupBuyAlertButton({
       : `${groupBuyName} ${isEnabled ? "알림 날짜 변경" : "마감 알림 설정"}`;
   const hint = isPending
     ? "공구 알림 처리 중입니다"
-    : "D-1, D-3, D-7 마감 알림 날짜를 선택합니다";
+    : "D-7부터 D-1 사이의 마감 알림 날짜를 선택합니다";
 
   return (
     <Pressable

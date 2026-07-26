@@ -38,6 +38,7 @@ const adsMocks = vi.hoisted(() => ({
   showPrivacyOptions: vi.fn(async () => true),
 }));
 const settingsPreferenceMocks = vi.hoisted(() => ({
+  saving: false,
   preferences: {
     pushEnabled: true,
     deadlineRemindersEnabled: true,
@@ -70,7 +71,7 @@ vi.mock('../context/NotificationPreferencesContext', () => ({
   useNotificationPreferences: () => ({
     preferences: settingsPreferenceMocks.preferences,
     ready: true,
-    saving: false,
+    saving: settingsPreferenceMocks.saving,
     error: null,
     updatePreferences: settingsPreferenceMocks.updatePreferences,
     toggleInfluencer: settingsPreferenceMocks.toggleInfluencer,
@@ -256,13 +257,10 @@ function renderMyPageScreen() {
 }
 
 beforeEach(() => {
-  vi.stubGlobal(
-    'requestAnimationFrame',
-    (callback: FrameRequestCallback) => {
-      callback(0);
-      return 1;
-    },
-  );
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
   vi.mocked(AccessibilityInfo.announceForAccessibility).mockClear();
   vi.mocked(Linking.openURL).mockClear();
   authMocks.session = null;
@@ -276,6 +274,7 @@ beforeEach(() => {
   settingsPreferenceMocks.preferences.reminderDays = [1, 3, 7];
   settingsPreferenceMocks.preferences.followedInfluencers = ['seller.one'];
   settingsPreferenceMocks.preferences.followedBrands = ['Brand A'];
+  settingsPreferenceMocks.saving = false;
   settingsPreferenceMocks.updatePreferences.mockClear();
   settingsPreferenceMocks.toggleInfluencer.mockClear();
   settingsPreferenceMocks.toggleBrand.mockClear();
@@ -579,6 +578,32 @@ describe('MyPageScreen', () => {
     expect(settingsPreferenceMocks.toggleBrand).toHaveBeenCalledWith('Brand A');
   });
 
+  it('keeps notification switches interactive while preferences sync', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.saving = true;
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .disabled,
+    ).toBe(false);
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '공구 마감 임박 알림' })
+        .props.disabled,
+    ).toBe(false);
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '내 제보 승인 알림' })
+        .props.disabled,
+    ).toBe(false);
+  });
+
   it('routes guest notification changes to login without persisting them', async () => {
     const renderer = renderScreen(React.createElement(SettingsScreen));
     const push = renderer.root.findByProps({
@@ -620,10 +645,8 @@ describe('MyPageScreen', () => {
       await Promise.resolve();
     });
     const push = renderer.root.findByProps({ accessibilityLabel: '푸시 알림' });
-    let registrationTask!: Promise<void>;
-
     act(() => {
-      registrationTask = push.props.onValueChange(true);
+      push.props.onValueChange(true);
     });
 
     expect(
@@ -633,7 +656,7 @@ describe('MyPageScreen', () => {
     expect(
       renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
         .disabled,
-    ).toBe(true);
+    ).toBe(false);
     expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
       pushEnabled: true,
     });
@@ -653,7 +676,8 @@ describe('MyPageScreen', () => {
         status: 'registered',
         token: 'ExpoPushToken[test-token]',
       });
-      await registrationTask;
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
@@ -686,10 +710,8 @@ describe('MyPageScreen', () => {
       await Promise.resolve();
     });
     const push = renderer.root.findByProps({ accessibilityLabel: '푸시 알림' });
-    let registrationTask!: Promise<void>;
-
     act(() => {
-      registrationTask = push.props.onValueChange(true);
+      push.props.onValueChange(true);
     });
 
     expect(
@@ -702,7 +724,8 @@ describe('MyPageScreen', () => {
         status: 'failed',
         reason: 'token-request-failed',
       });
-      await registrationTask;
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(
@@ -716,6 +739,63 @@ describe('MyPageScreen', () => {
       '푸시 알림 등록에 실패했어요',
       expect.stringContaining('앱 설정'),
     );
+  });
+
+  it('keeps the latest push intent when an older registration finishes', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    let resolveRegistration!: () => void;
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRegistration = () =>
+          resolve({
+            status: 'registered',
+            token: 'ExpoPushToken[test-token]',
+          });
+      }),
+    );
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: '푸시 알림' })
+        .props.onValueChange(true);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: '푸시 알림' })
+        .props.onValueChange(false);
+    });
+
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .value,
+    ).toBe(false);
+
+    await act(async () => {
+      resolveRegistration();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      pushEnabled: false,
+    });
+    expect(alertMocks.alert).not.toHaveBeenCalled();
   });
 
   it('places account deletion at the bottom and asks for confirmation', async () => {

@@ -15,6 +15,7 @@ import { useNotificationPreferences } from "../context/NotificationPreferencesCo
 import {
   getPendingNotificationPreferencesStorageKey,
   getNotificationPreferencesStorageKey,
+  DEFAULT_NOTIFICATION_REMINDER_DAYS,
   NOTIFICATION_REMINDER_DAYS,
   type NotificationPreferences,
   type NotificationReminderDay,
@@ -174,7 +175,7 @@ function getDerivedAlertState(entry: NotificationEntry): GroupBuyAlertState {
 
 function normalizeReminderDays(
   value: unknown,
-  fallback: readonly NotificationReminderDay[] = NOTIFICATION_REMINDER_DAYS,
+  fallback: readonly NotificationReminderDay[] = DEFAULT_NOTIFICATION_REMINDER_DAYS,
 ) {
   const allowed = new Set<number>(NOTIFICATION_REMINDER_DAYS);
   const source = Array.isArray(value) ? value : fallback;
@@ -188,7 +189,7 @@ function normalizeReminderDays(
 
 function normalizeNotificationEntry(
   entry: NotificationEntry,
-  legacyReminderDays: readonly NotificationReminderDay[] = NOTIFICATION_REMINDER_DAYS,
+  legacyReminderDays: readonly NotificationReminderDay[] = DEFAULT_NOTIFICATION_REMINDER_DAYS,
 ): NotificationEntry {
   return {
     ...entry,
@@ -681,7 +682,9 @@ async function flushNotificationMirror(namespace: string): Promise<void> {
       try {
         const reminderDays =
           entry.reminderDays ??
-          (entry.enabled === false ? [] : [...NOTIFICATION_REMINDER_DAYS]);
+          (entry.enabled === false
+            ? []
+            : [...DEFAULT_NOTIFICATION_REMINDER_DAYS]);
         const result = await syncNotification(entry.groupBuyId, reminderDays);
         if (result.status === "failed") remaining.push(entry);
       } catch {

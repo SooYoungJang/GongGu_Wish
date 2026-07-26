@@ -453,17 +453,17 @@ describe("public data fetch diagnostics", () => {
       json: async () => [
         {
           group_buy_id: "group-buy-1",
-          reminder_days: [1, 7],
+          reminder_days: [2, 6],
           updated_at: "2026-07-26T01:00:00.000Z",
         },
       ],
     }) as unknown as typeof fetch;
 
-    await expect(syncNotification("group-buy-1", [7, 1, 7])).resolves.toEqual({
+    await expect(syncNotification("group-buy-1", [6, 2, 6])).resolves.toEqual({
       status: "synced",
       preference: {
         groupBuyId: "group-buy-1",
-        reminderDays: [1, 7],
+        reminderDays: [2, 6],
         updatedAt: "2026-07-26T01:00:00.000Z",
       },
     });
@@ -475,7 +475,7 @@ describe("public data fetch diagnostics", () => {
     );
     expect(JSON.parse(String((requestInit as RequestInit).body))).toEqual({
       p_group_buy_id: "group-buy-1",
-      p_reminder_days: [1, 7],
+      p_reminder_days: [2, 6],
     });
   });
 

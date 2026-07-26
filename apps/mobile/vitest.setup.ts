@@ -131,6 +131,7 @@ vi.mock("react-native-reanimated", () => {
     interpolate,
     runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
     useAnimatedStyle: (updater: () => unknown) => updater(),
+    useReducedMotion: () => false,
     useSharedValue: (value: unknown) => {
       const ref = ReactMock.useRef<{ value: unknown } | null>(null);
       if (!ref.current) {
