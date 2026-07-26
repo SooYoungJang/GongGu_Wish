@@ -14,6 +14,7 @@ on:
         default: false
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -723,6 +724,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+    outputs:
+      mode: ${{ steps.mobile-deploy.outputs.mode }}
+      environment: ${{ steps.mobile-deploy.outputs.environment }}
+      fingerprint: ${{ steps.mobile-deploy.outputs.fingerprint }}
+      artifact-name: ${{ steps.mobile-deploy.outputs.artifact-name }}
+      apk-artifact-id: ${{ steps.upload-apk.outputs.artifact-id }}
+      apk-artifact-url: ${{ steps.upload-apk.outputs.artifact-url }}
+      apk-sha256: ${{ steps.mobile-deploy.outputs.apk-sha256 }}
+      expo-url: ${{ steps.mobile-deploy.outputs.expo-url }}
     needs:
       [
         change-plan,
@@ -766,16 +776,17 @@ jobs:
       - name: Run fingerprint-aware local Android deployment
         id: mobile-deploy
         working-directory: ./apps/mobile
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: bash scripts/ci-deploy-android.sh
       - name: Upload local APK artifact
         id: upload-apk
         if: steps.mobile-deploy.outputs.mode == 'build'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: gonggu-wish-${{ steps.mobile-deploy.outputs.environment }}-${{ github.sha }}
+          name: ${{ steps.mobile-deploy.outputs.artifact-name }}
           path: ${{ steps.mobile-deploy.outputs.apk-path }}
           if-no-files-found: error
-          retention-days: 30
           compression-level: 0
       - name: Report local APK artifact
         if: steps.mobile-deploy.outputs.mode == 'build'
@@ -1056,11 +1067,19 @@ jobs:
       - name: Create affected-components Preview release manifest
         env:
           RELEASE_MANIFEST: ${{ runner.temp }}/preview-release.json
+          RUNTIME_BASELINE_MANIFEST: ${{ runner.temp }}/preview-runtime-baseline.json
           DOCS_ONLY: ${{ needs.change-plan.outputs.docs_only }}
           SUPABASE_REQUIRED: ${{ needs.change-plan.outputs.supabase }}
           WORKER_REQUIRED: ${{ needs.change-plan.outputs.worker }}
           ADMIN_REQUIRED: ${{ needs.change-plan.outputs.admin }}
           MOBILE_REQUIRED: ${{ needs.change-plan.outputs.mobile }}
+          MOBILE_DEPLOY_MODE: ${{ needs.deploy-mobile.outputs.mode }}
+          MOBILE_FINGERPRINT: ${{ needs.deploy-mobile.outputs.fingerprint }}
+          MOBILE_ARTIFACT_NAME: ${{ needs.deploy-mobile.outputs.artifact-name }}
+          MOBILE_ARTIFACT_ID: ${{ needs.deploy-mobile.outputs.apk-artifact-id }}
+          MOBILE_ARTIFACT_URL: ${{ needs.deploy-mobile.outputs.apk-artifact-url }}
+          MOBILE_APK_SHA256: ${{ needs.deploy-mobile.outputs.apk-sha256 }}
+          MOBILE_EXPO_URL: ${{ needs.deploy-mobile.outputs.expo-url }}
         run: |
           admin_url="${VERCEL_PREVIEW_URL:-https://gong-gu-wish-admin-git-develop-jsy10835.vercel.app}"
           jq -n \
@@ -1068,6 +1087,13 @@ jobs:
             --arg status "preview-green" \
             --arg adminUrl "$admin_url" \
             --arg apiUrl "https://api-preview.gongguwish.com" \
+            --arg mobileDeployMode "$MOBILE_DEPLOY_MODE" \
+            --arg mobileFingerprint "$MOBILE_FINGERPRINT" \
+            --arg mobileArtifactName "$MOBILE_ARTIFACT_NAME" \
+            --arg mobileArtifactId "$MOBILE_ARTIFACT_ID" \
+            --arg mobileArtifactUrl "$MOBILE_ARTIFACT_URL" \
+            --arg mobileApkSha256 "$MOBILE_APK_SHA256" \
+            --arg mobileExpoUrl "$MOBILE_EXPO_URL" \
             --argjson docsOnly "$DOCS_ONLY" \
             --argjson supabase "$SUPABASE_REQUIRED" \
             --argjson worker "$WORKER_REQUIRED" \
@@ -1083,10 +1109,56 @@ jobs:
                 admin: $admin,
                 mobile: $mobile
               },
+              mobileDeployment: (
+                if $mobile then {
+                  mode: $mobileDeployMode,
+                  fingerprint: $mobileFingerprint,
+                  artifactName: $mobileArtifactName,
+                  artifactId: $mobileArtifactId,
+                  artifactUrl: $mobileArtifactUrl,
+                  apkSha256: $mobileApkSha256,
+                  expoUrl: $mobileExpoUrl
+                } else null end
+              ),
               adminUrl: $adminUrl,
               apiUrl: $apiUrl
             }' \
             > "$RELEASE_MANIFEST"
+
+          if [[ "$MOBILE_REQUIRED" == "true" && "$MOBILE_DEPLOY_MODE" == "build" ]]; then
+            if [[ ! "$MOBILE_FINGERPRINT" =~ ^[A-Za-z0-9_-]{16,128}$ ]] ||
+              [[ ! "$MOBILE_ARTIFACT_ID" =~ ^[0-9]+$ ]] ||
+              [[ ! "$MOBILE_APK_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::Preview APK baseline metadata is invalid."
+              exit 1
+            fi
+            if [[ "$MOBILE_ARTIFACT_NAME" != "gonggu-wish-preview-runtime-$MOBILE_FINGERPRINT" ]]; then
+              echo "::error::Preview APK artifact name does not match its fingerprint."
+              exit 1
+            fi
+            jq -n \
+              --arg fingerprint "$MOBILE_FINGERPRINT" \
+              --arg commitSha "${{ github.sha }}" \
+              --arg workflowRunId "${{ github.run_id }}" \
+              --arg apkArtifactId "$MOBILE_ARTIFACT_ID" \
+              --arg apkArtifactName "$MOBILE_ARTIFACT_NAME" \
+              --arg apkArtifactUrl "$MOBILE_ARTIFACT_URL" \
+              --arg apkSha256 "$MOBILE_APK_SHA256" \
+              '{
+                schemaVersion: 1,
+                environment: "preview",
+                packageName: "com.gonggu.wish.preview",
+                mode: "build",
+                fingerprint: $fingerprint,
+                commitSha: $commitSha,
+                workflowRunId: $workflowRunId,
+                apkArtifactId: $apkArtifactId,
+                apkArtifactName: $apkArtifactName,
+                apkArtifactUrl: $apkArtifactUrl,
+                apkSha256: $apkSha256
+              }' \
+              > "$RUNTIME_BASELINE_MANIFEST"
+          fi
           {
             echo "## Preview Green"
             echo ""
@@ -1101,6 +1173,14 @@ jobs:
           path: ${{ runner.temp }}/preview-release.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload Preview runtime baseline manifest
+        if: needs.change-plan.outputs.mobile == 'true' && needs.deploy-mobile.outputs.mode == 'build'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gonggu-wish-preview-runtime-${{ needs.deploy-mobile.outputs.fingerprint }}-baseline
+          path: ${{ runner.temp }}/preview-runtime-baseline.json
+          if-no-files-found: error
 
   # ── Production Promotion Gate ────────────────────────────────────────────
   promotion-gate:
