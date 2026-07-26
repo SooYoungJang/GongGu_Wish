@@ -54,6 +54,17 @@ const APP_INFO = resolveAppInfo({
     DEFAULT_TERMS_OF_SERVICE_URL,
 });
 
+function waitForPushTogglePaint() {
+  return new Promise<void>((resolve) => {
+    const scheduleFrame = globalThis.requestAnimationFrame;
+    if (typeof scheduleFrame !== "function") {
+      resolve();
+      return;
+    }
+    scheduleFrame(() => scheduleFrame(() => resolve()));
+  });
+}
+
 export function SettingsScreen() {
   const { colors, spacing, radius } = useCommerceTheme();
   const { privacyOptionsRequired, showPrivacyOptions } = useAds();
@@ -63,7 +74,6 @@ export function SettingsScreen() {
     error: preferencesError,
     preferences,
     ready: preferencesReady,
-    saving: preferencesSaving,
     toggleBrand,
     toggleInfluencer,
     updatePreferences,
@@ -80,8 +90,11 @@ export function SettingsScreen() {
   const [pendingPushEnabled, setPendingPushEnabled] = useState<boolean | null>(
     null,
   );
-  const [updatingPush, setUpdatingPush] = useState(false);
-  const pushChangeInFlight = useRef(false);
+  const latestPushRevision = useRef(0);
+  const pendingPushIntent = useRef<{ value: boolean; revision: number } | null>(
+    null,
+  );
+  const pushWorkerRunning = useRef(false);
   const automatedE2E = isAutomatedE2E();
   const [deleting, setDeleting] = useState(false);
   const [updatingAdPrivacy, setUpdatingAdPrivacy] = useState(false);
@@ -94,33 +107,23 @@ export function SettingsScreen() {
     }, []),
   );
 
-  const handlePushChange = useCallback(
-    async (value: boolean) => {
-      if (!requireAuth() || pushChangeInFlight.current) return;
-
-      pushChangeInFlight.current = true;
-      setPendingPushEnabled(value);
-      setUpdatingPush(true);
-      await new Promise<void>((resolve) => {
-        const scheduleFrame = globalThis.requestAnimationFrame;
-        if (typeof scheduleFrame === "function") {
-          scheduleFrame(() => resolve());
-          return;
-        }
-        resolve();
-      });
+  const applyPushIntent = useCallback(
+    async (intent: { value: boolean; revision: number }) => {
+      const isLatest = () => latestPushRevision.current === intent.revision;
       try {
-        if (!value) {
+        if (!intent.value) {
           await updatePreferences({ pushEnabled: false });
-          return;
+          return true;
         }
 
         if (!accessToken) {
-          Alert.alert(
-            "로그인 정보를 확인해 주세요",
-            "다시 로그인한 뒤 푸시 알림을 켜주세요.",
-          );
-          return;
+          if (isLatest()) {
+            Alert.alert(
+              "로그인 정보를 확인해 주세요",
+              "다시 로그인한 뒤 푸시 알림을 켜주세요.",
+            );
+          }
+          return false;
         }
 
         const result = await registerForPushNotifications(accessToken, {
@@ -135,32 +138,38 @@ export function SettingsScreen() {
         });
         if (result.status === "registered") {
           setPermissionStatus("granted");
-          await updatePreferences({ pushEnabled: true });
-          return;
+          if (isLatest()) {
+            await updatePreferences({ pushEnabled: true });
+          }
+          return true;
         }
 
         if (result.status === "unsupported") {
           setPermissionStatus("unsupported");
-          Alert.alert(
-            "알림을 켤 수 없어요",
-            result.reason === "expo-go" || IS_EXPO_GO
-              ? "Expo Go에서는 푸시 알림이 지원되지 않아요. 개발 빌드에서 이용 가능합니다."
-              : "이 앱에는 알림 기능이 포함되지 않았어요. 최신 앱을 다시 설치해 주세요.",
-          );
-          return;
+          if (isLatest()) {
+            Alert.alert(
+              "알림을 켤 수 없어요",
+              result.reason === "expo-go" || IS_EXPO_GO
+                ? "Expo Go에서는 푸시 알림이 지원되지 않아요. 개발 빌드에서 이용 가능합니다."
+                : "이 앱에는 알림 기능이 포함되지 않았어요. 최신 앱을 다시 설치해 주세요.",
+            );
+          }
+          return false;
         }
 
         if (result.status === "unavailable") {
           setPermissionStatus(
             result.reason === "permission-denied" ? "denied" : "error",
           );
-          Alert.alert(
-            "알림을 켤 수 없어요",
-            result.reason === "permission-denied"
-              ? "기기 설정에서 알림 권한을 허용해 주세요."
-              : "기기 알림 권한을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
-          );
-          return;
+          if (isLatest()) {
+            Alert.alert(
+              "알림을 켤 수 없어요",
+              result.reason === "permission-denied"
+                ? "기기 설정에서 알림 권한을 허용해 주세요."
+                : "기기 알림 권한을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+            );
+          }
+          return false;
         }
 
         const failureMessage =
@@ -169,22 +178,53 @@ export function SettingsScreen() {
             : result.reason === "missing-project-id"
               ? "앱 설정에 푸시 정보가 빠져 있어요. 최신 앱을 다시 설치해 주세요."
               : "앱 설정 또는 기기의 푸시 연결을 확인한 뒤 최신 앱에서 다시 시도해 주세요.";
-        if (result.status === "failed") {
+        if (result.status === "failed" && isLatest()) {
           Alert.alert("푸시 알림 등록에 실패했어요", failureMessage);
         }
+        return false;
       } catch {
-        setPermissionStatus("error");
-        Alert.alert(
-          "푸시 알림 설정에 실패했어요",
-          "네트워크 연결을 확인한 뒤 잠시 후 다시 시도해 주세요.",
-        );
-      } finally {
-        pushChangeInFlight.current = false;
-        setPendingPushEnabled(null);
-        setUpdatingPush(false);
+        if (isLatest()) {
+          setPermissionStatus("error");
+          Alert.alert(
+            "푸시 알림 설정에 실패했어요",
+            "네트워크 연결을 확인한 뒤 잠시 후 다시 시도해 주세요.",
+          );
+        }
+        return false;
       }
     },
-    [accessToken, automatedE2E, requireAuth, updatePreferences],
+    [accessToken, automatedE2E, updatePreferences],
+  );
+
+  const drainPushIntents = useCallback(async () => {
+    await waitForPushTogglePaint();
+    try {
+      while (pendingPushIntent.current) {
+        const intent = pendingPushIntent.current;
+        pendingPushIntent.current = null;
+        await applyPushIntent(intent);
+        if (latestPushRevision.current === intent.revision) {
+          setPendingPushEnabled(null);
+        }
+      }
+    } finally {
+      pushWorkerRunning.current = false;
+    }
+  }, [applyPushIntent]);
+
+  const handlePushChange = useCallback(
+    (value: boolean) => {
+      if (!requireAuth()) return;
+
+      const intent = { value, revision: ++latestPushRevision.current };
+      pendingPushIntent.current = intent;
+      setPendingPushEnabled(value);
+      if (pushWorkerRunning.current) return;
+
+      pushWorkerRunning.current = true;
+      void drainPushIntents();
+    },
+    [drainPushIntents, requireAuth],
   );
 
   const handleDeadlineChange = useCallback(
@@ -219,8 +259,7 @@ export function SettingsScreen() {
     [requireAuth, toggleBrand],
   );
 
-  const controlsDisabled =
-    !preferencesReady || preferencesSaving || updatingPush;
+  const controlsDisabled = !preferencesReady;
   const pushEnabled =
     isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
   const deadlineRemindersEnabled =
@@ -338,7 +377,6 @@ export function SettingsScreen() {
             <Switch
               accessibilityLabel="푸시 알림"
               accessibilityHint="모든 공구 알림 수신을 켜거나 끕니다"
-              accessibilityState={{ busy: updatingPush }}
               disabled={controlsDisabled}
               value={pushEnabled}
               onValueChange={handlePushChange}
