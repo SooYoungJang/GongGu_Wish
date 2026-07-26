@@ -93,9 +93,7 @@ describe("DealCard", () => {
         { ...item, endDate: "2026-07-20T00:00:00.000Z" },
         Date.parse("2026-07-17T00:00:00.000Z"),
       ),
-    ).toBe(
-      "제주 감귤 3kg, 가격 25,900원, 판매자 귤밭상회 @sample, 3일 남음, 상세 보기",
-    );
+    ).toBe("제주 감귤 3kg, 가격 25,900원, 판매자 @sample, 3일 남음, 상세 보기");
   });
 
   it("announces a previous-day deadline as expired instead of today", () => {
@@ -140,11 +138,63 @@ describe("DealCard", () => {
       "Pressable" as unknown as React.ElementType,
     );
     expect(card.props.accessibilityLabel).toContain("가격 25,900원");
-    expect(card.props.accessibilityLabel).toContain("판매자 귤밭상회 @sample");
+    expect(card.props.accessibilityLabel).toContain("판매자 @sample");
     expect(
       renderer!.root.findByType(
         "GroupBuyReminderButton" as unknown as React.ElementType,
       ).props.item,
     ).toEqual(item);
+  });
+
+  it("shows only the Instagram handle in the seller slot", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DealCard
+          item={{ ...item, thumbnailUrl: "https://example.com/deal.jpg" }}
+          category="food"
+          onPress={vi.fn()}
+        />,
+      );
+    });
+
+    const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
+    expect(text).toContain("@sample");
+    expect(text).not.toContain("귤밭상회");
+    expect(text).not.toContain("식품");
+  });
+
+  it("keeps an empty seller slot when the Instagram account is missing", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DealCard
+          item={{
+            ...item,
+            thumbnailUrl: "https://example.com/deal.jpg",
+            rawPost: {
+              ...item.rawPost,
+              influencer: {
+                ...item.rawPost.influencer,
+                instagramUsername: "",
+              },
+            },
+          }}
+          category="food"
+          onPress={vi.fn()}
+        />,
+      );
+    });
+
+    const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
+    const sellerLine = renderer!.root
+      .findAllByType("SText" as unknown as React.ElementType)
+      .find((node) => node.props.numberOfLines === 1);
+
+    expect(text).not.toContain("귤밭상회");
+    expect(text).not.toContain("식품");
+    expect(sellerLine?.props.style).toMatchObject({ minHeight: 18 });
   });
 });

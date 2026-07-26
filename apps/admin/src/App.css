@@ -1477,6 +1477,7 @@ textarea:focus {
   font-size: 13px;
   font-weight: 700;
   line-height: 18px;
+  min-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

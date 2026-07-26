@@ -371,7 +371,7 @@ test("모킹된 관리자 로그인으로 라이브 프리뷰와 중앙 날짜 �
   ).toContainText("배송비 무료");
   await expect(
     preview.locator(".app-live-preview__deal-card-brand"),
-  ).toHaveText("프리뷰 브랜드 · @preview_shop");
+  ).toHaveText("@preview_shop");
   await expect(
     preview.locator(".app-live-preview__deal-card-price"),
   ).toHaveText("가격 12,900원");
