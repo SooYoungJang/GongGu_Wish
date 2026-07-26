@@ -367,7 +367,9 @@ describe('MyPageScreen', () => {
       miniDealRail: 'miniDealRail',
       shelfDealItem: 'shelfDealItem',
       shelfDealCard: 'shelfDealCard',
+      shelfDealActions: 'shelfDealActions',
       shelfDealRemove: 'shelfDealRemove',
+      shelfDealRemoveIcon: 'shelfDealRemoveIcon',
       shelfDealRemoveText: 'shelfDealRemoveText',
       emptyShelf: 'emptyShelf',
       emptyShelfText: 'emptyShelfText',
@@ -403,6 +405,11 @@ describe('MyPageScreen', () => {
     const removeButton = renderer!.root.findByProps({
       accessibilityLabel: '테스트 공구 북마크 해제',
     });
+    expect(removeButton.parent?.props.style).toBe(styles.shelfDealActions);
+    expect(
+      removeButton.findByProps({ name: 'close-circle-outline' }),
+    ).toBeTruthy();
+    expect(removeButton.findByProps({ children: '북마크 해제' })).toBeTruthy();
     act(() => {
       removeButton.props.onPress();
     });
