@@ -197,4 +197,42 @@ describe("DealCard", () => {
     expect(text).not.toContain("식품");
     expect(sellerLine?.props.style).toMatchObject({ minHeight: 18 });
   });
+
+  it("isolates a trailing action from the parent card navigation", () => {
+    const onPress = vi.fn();
+    const onActionPress = vi.fn();
+    const stopPropagation = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DealCard
+          item={item}
+          category="food"
+          onPress={onPress}
+          trailingAction={{
+            accessibilityHint: "북마크 목록에서 제거합니다.",
+            accessibilityLabel: "제주 감귤 3kg 북마크 해제",
+            icon: React.createElement("BookmarkIcon"),
+            onPress: onActionPress,
+            selected: true,
+            testID: "deal-card-bookmark-action",
+          }}
+        />,
+      );
+    });
+
+    const action = renderer!.root.findByProps({
+      testID: "deal-card-bookmark-action",
+    });
+    expect(action.props.accessibilityRole).toBe("button");
+    expect(action.props.accessibilityState).toEqual({ selected: true });
+    expect(action.props.hitSlop).toBe(6);
+
+    act(() => action.props.onPress({ stopPropagation }));
+
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(onActionPress).toHaveBeenCalledOnce();
+    expect(onPress).not.toHaveBeenCalled();
+  });
 });

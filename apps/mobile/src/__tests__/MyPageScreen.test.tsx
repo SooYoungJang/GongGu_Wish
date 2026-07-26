@@ -351,14 +351,14 @@ describe('MyPageScreen', () => {
     });
   });
 
-  it('uses the home DealCard surface for activity shelves and keeps remove actions', () => {
+  it('uses an active bookmark action inside the shared DealCard price row', () => {
     const item = {
       id: 'deal-1',
       productName: '테스트 공구',
       category: 'beauty',
     } as any;
     const onPressDeal = vi.fn();
-    const onRemoveDeal = vi.fn();
+    const onUnbookmarkDeal = vi.fn();
     const styles = {
       dealShelf: 'dealShelf',
       shelfHeader: 'shelfHeader',
@@ -367,10 +367,6 @@ describe('MyPageScreen', () => {
       miniDealRail: 'miniDealRail',
       shelfDealItem: 'shelfDealItem',
       shelfDealCard: 'shelfDealCard',
-      shelfDealActions: 'shelfDealActions',
-      shelfDealRemove: 'shelfDealRemove',
-      shelfDealRemoveIcon: 'shelfDealRemoveIcon',
-      shelfDealRemoveText: 'shelfDealRemoveText',
       emptyShelf: 'emptyShelf',
       emptyShelfText: 'emptyShelfText',
       pressed: 'pressed',
@@ -386,8 +382,7 @@ describe('MyPageScreen', () => {
           items: [item],
           emptyText: '북마크한 공구가 아직 없어요.',
           onPressDeal,
-          onRemoveDeal,
-          removeLabel: '북마크 해제',
+          onUnbookmarkDeal,
           s: styles,
         }),
       );
@@ -399,21 +394,63 @@ describe('MyPageScreen', () => {
         category: 'beauty',
         onPress: expect.any(Function),
         style: styles.shelfDealCard,
+        trailingAction: expect.objectContaining({
+          accessibilityHint: '북마크 목록에서 제거합니다.',
+          accessibilityLabel: '테스트 공구 북마크 해제',
+          onPress: expect.any(Function),
+          selected: true,
+          testID: 'my-page-unbookmark-deal-1',
+        }),
       }),
     );
 
-    const removeButton = renderer!.root.findByProps({
-      accessibilityLabel: '테스트 공구 북마크 해제',
-    });
-    expect(removeButton.parent?.props.style).toBe(styles.shelfDealActions);
-    expect(
-      removeButton.findByProps({ name: 'close-circle-outline' }),
-    ).toBeTruthy();
-    expect(removeButton.findByProps({ children: '북마크 해제' })).toBeTruthy();
+    const trailingAction = dealCardMock.mock.calls[0]?.[0].trailingAction;
+    expect(trailingAction.icon.props.name).toBe('bookmark');
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain('북마크 해제');
     act(() => {
-      removeButton.props.onPress();
+      trailingAction.onPress();
     });
-    expect(onRemoveDeal).toHaveBeenCalledWith(item);
+    expect(onUnbookmarkDeal).toHaveBeenCalledWith(item);
+  });
+
+  it('uses the reminder bell as the only notification removal entry point', () => {
+    const item = {
+      id: 'deal-1',
+      productName: '테스트 공구',
+      category: 'beauty',
+    } as any;
+    const styles = {
+      dealShelf: 'dealShelf',
+      shelfHeader: 'shelfHeader',
+      shelfTitle: 'shelfTitle',
+      shelfSubtitle: 'shelfSubtitle',
+      miniDealRail: 'miniDealRail',
+      shelfDealItem: 'shelfDealItem',
+      shelfDealCard: 'shelfDealCard',
+      emptyShelf: 'emptyShelf',
+      emptyShelfText: 'emptyShelfText',
+      pressed: 'pressed',
+    } as any;
+
+    dealCardMock.mockClear();
+    let renderer: ReturnType<typeof TestRenderer.create>;
+    act(() => {
+      renderer = renderScreen(
+        React.createElement(DealShelf, {
+          title: '알림 설정한 공구',
+          subtitle: '마감 알림을 설정한 공구예요',
+          items: [item],
+          emptyText: '알림을 설정한 공구가 아직 없어요.',
+          onPressDeal: vi.fn(),
+          s: styles,
+        }),
+      );
+    });
+
+    expect(dealCardMock.mock.calls[0]?.[0].trailingAction).toBeUndefined();
+    const text = JSON.stringify(renderer!.toJSON());
+    expect(text).toContain('마감 알림을 설정한 공구예요');
+    expect(text).not.toContain('알림 해제');
   });
 
   it('renders without crashing', () => {

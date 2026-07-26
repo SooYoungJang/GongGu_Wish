@@ -1,6 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
-import type { StyleProp, ViewStyle } from "react-native";
+import type {
+  GestureResponderEvent,
+  StyleProp,
+  ViewStyle,
+} from "react-native";
 import { PriceText } from "./ui/PriceText";
 import { SText } from "./ui/SText";
 import { GroupBuyReminderButton } from "./GroupBuyReminderButton";
@@ -19,6 +23,14 @@ type DealCardProps = {
   category: CategoryColorName;
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
+  trailingAction?: {
+    accessibilityHint?: string;
+    accessibilityLabel: string;
+    icon: ReactNode;
+    onPress: () => void;
+    selected?: boolean;
+    testID?: string;
+  };
 };
 
 const CATEGORY_LABELS: Record<CategoryColorName, string> = {
@@ -75,7 +87,13 @@ export function buildDealCardAccessibilityLabel(
   ].join(", ");
 }
 
-export function DealCard({ item, category, onPress, style }: DealCardProps) {
+export function DealCard({
+  item,
+  category,
+  onPress,
+  style,
+  trailingAction,
+}: DealCardProps) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const token = categoryColors[category];
@@ -88,6 +106,10 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
   const instagramHandle = formatInstagramHandle(
     item.rawPost.influencer.instagramUsername,
   );
+  const handleTrailingActionPress = (event: GestureResponderEvent) => {
+    event.stopPropagation();
+    trailingAction?.onPress();
+  };
 
   return (
     <Pressable
@@ -134,7 +156,28 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
       <SText variant="caption" numberOfLines={2} style={s.title}>
         {item.productName ?? "공동구매 상품"}
       </SText>
-      <PriceText priceKrw={item.priceKrw} style={s.price} />
+      <View style={s.priceRow}>
+        <View style={s.priceSlot}>
+          <PriceText numberOfLines={1} priceKrw={item.priceKrw} style={s.price} />
+        </View>
+        {trailingAction ? (
+          <Pressable
+            accessibilityHint={trailingAction.accessibilityHint}
+            accessibilityLabel={trailingAction.accessibilityLabel}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !!trailingAction.selected }}
+            hitSlop={6}
+            onPress={handleTrailingActionPress}
+            style={({ pressed }) => [
+              s.trailingAction,
+              pressed && s.trailingActionPressed,
+            ]}
+            testID={trailingAction.testID}
+          >
+            {trailingAction.icon}
+          </Pressable>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -199,7 +242,28 @@ function makeStyles(colors: CommerceColorPalette) {
     price: {
       fontSize: 13,
       lineHeight: 18,
+    },
+    priceRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: spacing.xs,
       marginTop: 2,
+      minWidth: 0,
+    },
+    priceSlot: {
+      flex: 1,
+      minWidth: 0,
+    },
+    trailingAction: {
+      alignItems: "center",
+      backgroundColor: colors.accentSoft,
+      borderRadius: 16,
+      height: 32,
+      justifyContent: "center",
+      width: 32,
+    },
+    trailingActionPressed: {
+      opacity: 0.64,
     },
     instagramHandle: {
       color: colors.muted,
