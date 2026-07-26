@@ -2,11 +2,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { callEdgeFunction } from "../lib/postgrest-client";
 import {
+  DEFAULT_NOTIFICATION_REMINDER_DAYS,
   NOTIFICATION_REMINDER_DAYS,
   type NotificationReminderDay,
 } from "./reminderDates";
 
-export { NOTIFICATION_REMINDER_DAYS };
+export { DEFAULT_NOTIFICATION_REMINDER_DAYS, NOTIFICATION_REMINDER_DAYS };
 export type { NotificationReminderDay };
 
 export type NotificationPreferences = {
@@ -22,7 +23,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   pushEnabled: false,
   deadlineRemindersEnabled: false,
   submissionApprovalEnabled: false,
-  reminderDays: [1, 3, 7],
+  reminderDays: [...DEFAULT_NOTIFICATION_REMINDER_DAYS],
   followedInfluencers: [],
   followedBrands: [],
 };
@@ -42,7 +43,7 @@ function normalizeReminderDays(value: unknown): NotificationReminderDay[] {
     return [...DEFAULT_NOTIFICATION_PREFERENCES.reminderDays];
   }
 
-  const allowed = new Set<number>(NOTIFICATION_REMINDER_DAYS);
+  const allowed = new Set<number>(DEFAULT_NOTIFICATION_REMINDER_DAYS);
   const normalized = [
     ...new Set(
       value.filter(

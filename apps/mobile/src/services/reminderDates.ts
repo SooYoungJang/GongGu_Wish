@@ -1,6 +1,8 @@
-export const NOTIFICATION_REMINDER_DAYS = [1, 3, 7] as const;
+export const NOTIFICATION_REMINDER_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 export type NotificationReminderDay =
   (typeof NOTIFICATION_REMINDER_DAYS)[number];
+export const DEFAULT_NOTIFICATION_REMINDER_DAYS: readonly NotificationReminderDay[] =
+  [1, 3, 7];
 
 const SEOUL_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Seoul",
@@ -11,6 +13,12 @@ const SEOUL_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
 
 export type GroupBuyReminderScheduleOptions = {
   now?: number;
+};
+
+export type GroupBuyReminderOption = {
+  reminderDay: NotificationReminderDay;
+  triggerDate: Date;
+  available: boolean;
 };
 
 function resolveGroupBuyReminderScheduleOptions(
@@ -37,27 +45,40 @@ export function buildGroupBuyReminderDates(
   reminderDays: readonly number[],
   options?: number | GroupBuyReminderScheduleOptions,
 ) {
+  const selectedDays = new Set(reminderDays);
+  return buildGroupBuyReminderOptions(endDate, options)
+    .filter(
+      ({ reminderDay, available }) =>
+        available && selectedDays.has(reminderDay),
+    )
+    .map(({ reminderDay, triggerDate }) => ({ reminderDay, triggerDate }))
+    .sort(
+      (left, right) => left.triggerDate.getTime() - right.triggerDate.getTime(),
+    );
+}
+
+export function buildGroupBuyReminderOptions(
+  endDate: string,
+  options?: number | GroupBuyReminderScheduleOptions,
+): GroupBuyReminderOption[] {
   const now = resolveGroupBuyReminderScheduleOptions(options);
   const deadline = new Date(endDate);
   if (Number.isNaN(deadline.getTime())) return [];
   const deadlineDate = getSeoulCalendarDate(deadline);
   if (!deadlineDate) return [];
-  const allowed = new Set<number>(NOTIFICATION_REMINDER_DAYS);
-  return [...new Set(reminderDays)]
-    .filter((day): day is NotificationReminderDay => allowed.has(day))
-    .map((reminderDay) => ({
+  return NOTIFICATION_REMINDER_DAYS.map((reminderDay) => {
+    const triggerDate = new Date(
+      Date.UTC(
+        deadlineDate.year,
+        deadlineDate.month - 1,
+        deadlineDate.day - reminderDay,
+      ),
+    );
+    return {
       reminderDay,
       // 09:00 Asia/Seoul is 00:00 UTC; Korea has no DST transitions.
-      triggerDate: new Date(
-        Date.UTC(
-          deadlineDate.year,
-          deadlineDate.month - 1,
-          deadlineDate.day - reminderDay,
-        ),
-      ),
-    }))
-    .filter(({ triggerDate }) => triggerDate.getTime() > now)
-    .sort(
-      (left, right) => left.triggerDate.getTime() - right.triggerDate.getTime(),
-    );
+      triggerDate,
+      available: triggerDate.getTime() > now,
+    };
+  });
 }

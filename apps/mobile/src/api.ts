@@ -473,7 +473,7 @@ export async function syncBookmark(
  * Mirror a notification opt-in to the server for popularity aggregation.
  * enabled=true inserts, enabled=false deletes by (group_buy_id, session_id).
  */
-export type GroupBuyReminderDay = 1 | 3 | 7;
+export type GroupBuyReminderDay = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export type GroupBuyReminderPreference = {
   groupBuyId: string;
@@ -513,7 +513,7 @@ function normalizeGroupBuyReminderRow(
   ) {
     return null;
   }
-  const allowed = new Set<number>([1, 3, 7]);
+  const allowed = new Set<number>([1, 2, 3, 4, 5, 6, 7]);
   const reminderDays = [...new Set(reminderDaysValue)]
     .filter(
       (day): day is GroupBuyReminderDay =>
