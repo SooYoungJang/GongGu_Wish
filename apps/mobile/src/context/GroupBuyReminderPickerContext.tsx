@@ -241,8 +241,7 @@ export function GroupBuyReminderPickerProvider({
       : availableDays.length === 0
         ? "선택 가능한 알림 시점이 모두 지났어요."
         : null;
-  const notificationsPaused =
-    !preferences.pushEnabled || !preferences.deadlineRemindersEnabled;
+  const notificationsPaused = !preferences.pushEnabled;
 
   return (
     <GroupBuyReminderPickerContext.Provider value={contextValue}>
@@ -357,7 +356,7 @@ export function GroupBuyReminderPickerProvider({
 
             {notificationsPaused && !unavailableCopy ? (
               <SText style={s.pausedText} variant="caption">
-                푸시 또는 마감 임박 알림이 꺼져 있어 선택만 저장돼요.
+                푸시 알림이 꺼져 있어 선택만 저장돼요.
               </SText>
             ) : null}
 

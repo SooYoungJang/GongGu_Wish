@@ -328,7 +328,6 @@ function NotificationScheduleBridge() {
   const lastScheduleSignatureRef = useRef<string | null>(null);
   const scheduleSignature = JSON.stringify({
     pushEnabled: preferences.pushEnabled,
-    deadlineRemindersEnabled: preferences.deadlineRemindersEnabled,
   });
 
   useEffect(() => {
