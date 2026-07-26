@@ -75,38 +75,39 @@ model RawPost {
 }
 
 model GroupBuy {
-  id           String         @id @default(uuid())
-  rawPostId    String?        @unique @map("raw_post_id")
-  rawPost      RawPost?       @relation(fields: [rawPostId], references: [id], onDelete: Cascade)
-  productName  String?        @map("product_name")
-  brandName    String?        @map("brand_name")
-  category     String?
-  startDate    DateTime?      @map("start_date")
-  endDate      DateTime?      @map("end_date")
-  purchaseUrl  String?        @map("purchase_url")
-  discountInfo String?        @map("discount_info")
-  priceKrw     Int?           @map("price_krw")
-  summary      String?
-  confidence   Float
-  status       GroupBuyStatus @default(REVIEW_REQUIRED)
-  rejectionReason String?     @map("rejection_reason")
-  reviewedAt   DateTime?      @map("reviewed_at")
-  favorites    Favorite[]
+  id                       String                         @id @default(uuid())
+  rawPostId                String?                        @unique @map("raw_post_id")
+  rawPost                  RawPost?                       @relation(fields: [rawPostId], references: [id], onDelete: Cascade)
+  productName              String?                        @map("product_name")
+  brandName                String?                        @map("brand_name")
+  category                 String?
+  startDate                DateTime?                      @map("start_date")
+  endDate                  DateTime?                      @map("end_date")
+  purchaseUrl              String?                        @map("purchase_url")
+  discountInfo             String?                        @map("discount_info")
+  priceKrw                 Int?                           @map("price_krw")
+  summary                  String?
+  confidence               Float
+  status                   GroupBuyStatus                 @default(REVIEW_REQUIRED)
+  rejectionReason          String?                        @map("rejection_reason")
+  reviewedAt               DateTime?                      @map("reviewed_at")
+  favorites                Favorite[]
   // 제보 출처 추적
-  sourceType   String?        @default("CRAWLED") @map("source_type")
-  submissionId String?        @unique @map("submission_id")
-  submission   GongguSubmission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  sourceType               String?                        @default("CRAWLED") @map("source_type")
+  submissionId             String?                        @unique @map("submission_id")
+  submission               GongguSubmission?              @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  submissionApprovalPushes SubmissionApprovalPushOutbox[]
   // 캘린더용 필드
-  isAllDay     Boolean        @default(false) @map("is_all_day")
+  isAllDay                 Boolean                        @default(false) @map("is_all_day")
   // 운영자가 유료 광고/추천 슬롯처럼 지정하는 이달의 공구
-  isMonthlyFeatured Boolean   @default(false) @map("is_monthly_featured")
-  monthlyFeaturedRank Int?    @map("monthly_featured_rank")
-  isHomeBanner Boolean        @default(false) @map("is_home_banner")
-  homeBannerStartDate DateTime? @db.Date @map("home_banner_start_date")
-  homeBannerEndDate DateTime? @db.Date @map("home_banner_end_date")
-  mediaItems   Json           @default("[]") @map("media_items")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
+  isMonthlyFeatured        Boolean                        @default(false) @map("is_monthly_featured")
+  monthlyFeaturedRank      Int?                           @map("monthly_featured_rank")
+  isHomeBanner             Boolean                        @default(false) @map("is_home_banner")
+  homeBannerStartDate      DateTime?                      @map("home_banner_start_date") @db.Date
+  homeBannerEndDate        DateTime?                      @map("home_banner_end_date") @db.Date
+  mediaItems               Json                           @default("[]") @map("media_items")
+  createdAt                DateTime                       @default(now()) @map("created_at")
+  updatedAt                DateTime                       @updatedAt @map("updated_at")
 
   @@index([status])
   @@index([endDate])
@@ -118,21 +119,24 @@ model GroupBuy {
 }
 
 model User {
-  id                       String     @id @default(uuid())
-  email                    String     @unique
-  nickname                 String?
-  fcmToken                 String?    @map("fcm_token")
-  pushToken                String?    @map("push_token")
-  pushProvider             String?    @map("push_provider")
-  pushEnabled              Boolean    @default(false) @map("push_enabled")
-  deadlineRemindersEnabled Boolean    @default(false) @map("deadline_reminders_enabled")
-  newSubmissionsEnabled    Boolean    @default(false) @map("new_submissions_enabled")
-  notificationReminderDays Int[]      @default([1, 3, 7]) @map("notification_reminder_days")
-  followedInfluencers      String[]   @default([]) @map("followed_influencers")
-  followedBrands           String[]   @default([]) @map("followed_brands")
-  favorites                Favorite[]
-  createdAt                DateTime   @default(now()) @map("created_at")
-  updatedAt                DateTime   @updatedAt @map("updated_at")
+  id                                     String                         @id @default(uuid())
+  email                                  String                         @unique
+  nickname                               String?
+  fcmToken                               String?                        @map("fcm_token")
+  pushToken                              String?                        @map("push_token")
+  pushProvider                           String?                        @map("push_provider")
+  pushEnabled                            Boolean                        @default(false) @map("push_enabled")
+  deadlineRemindersEnabled               Boolean                        @default(false) @map("deadline_reminders_enabled")
+  newSubmissionsEnabled                  Boolean                        @default(false) @map("new_submissions_enabled")
+  submissionApprovalNotificationsEnabled Boolean                        @default(false) @map("submission_approval_notifications_enabled")
+  notificationReminderDays               Int[]                          @default([1, 3, 7]) @map("notification_reminder_days")
+  followedInfluencers                    String[]                       @default([]) @map("followed_influencers")
+  followedBrands                         String[]                       @default([]) @map("followed_brands")
+  favorites                              Favorite[]
+  submittedGongguReports                 GongguSubmissionSubmitter[]
+  submissionApprovalPushes               SubmissionApprovalPushOutbox[]
+  createdAt                              DateTime                       @default(now()) @map("created_at")
+  updatedAt                              DateTime                       @updatedAt @map("updated_at")
 
   @@map("users")
 }
@@ -150,44 +154,46 @@ model Favorite {
 }
 
 model GongguSubmission {
-  id              String            @id @default(uuid())
+  id                  String    @id @default(uuid())
   // 제보 내용 (필수)
-  productName     String            @map("product_name")
-  brandName       String?           @map("brand_name")
-  category        String?
-  startDate       DateTime?         @map("start_date")
-  endDate         DateTime?         @map("end_date")
-  purchaseUrl     String?           @map("purchase_url")
-  discountInfo    String?           @map("discount_info")
-  priceKrw        Int?              @map("price_krw")
-  summary         String?           @map("summary")
-  instagramUrl    String?           @map("instagram_url")
-  imageUrls       String[]          @default([]) @map("image_urls")
-  mediaItems      Json              @default("[]") @map("media_items")
-  isHomeBanner    Boolean           @default(false) @map("is_home_banner")
-  homeBannerStartDate DateTime?     @db.Date @map("home_banner_start_date")
-  homeBannerEndDate DateTime?       @db.Date @map("home_banner_end_date")
+  productName         String    @map("product_name")
+  brandName           String?   @map("brand_name")
+  category            String?
+  startDate           DateTime? @map("start_date")
+  endDate             DateTime? @map("end_date")
+  purchaseUrl         String?   @map("purchase_url")
+  discountInfo        String?   @map("discount_info")
+  priceKrw            Int?      @map("price_krw")
+  summary             String?   @map("summary")
+  instagramUrl        String?   @map("instagram_url")
+  imageUrls           String[]  @default([]) @map("image_urls")
+  mediaItems          Json      @default("[]") @map("media_items")
+  isHomeBanner        Boolean   @default(false) @map("is_home_banner")
+  homeBannerStartDate DateTime? @map("home_banner_start_date") @db.Date
+  homeBannerEndDate   DateTime? @map("home_banner_end_date") @db.Date
 
   // 제보자 정보
-  reporterName    String?           @map("reporter_name")
-  reporterContact String?           @map("reporter_contact")
-  isAnonymous     Boolean           @default(true) @map("is_anonymous")
+  reporterName    String? @map("reporter_name")
+  reporterContact String? @map("reporter_contact")
+  isAnonymous     Boolean @default(true) @map("is_anonymous")
 
   // 중복 검출용
-  contentHash     String            @unique @map("content_hash")
+  contentHash String @unique @map("content_hash")
 
   // 상태 관리
-  status          SubmissionStatus  @default(PENDING)
-  adminMemo       String?           @map("admin_memo")
-  reviewedAt      DateTime?         @map("reviewed_at")
-  reviewedBy      String?           @map("reviewed_by")
+  status     SubmissionStatus @default(PENDING)
+  adminMemo  String?          @map("admin_memo")
+  reviewedAt DateTime?        @map("reviewed_at")
+  reviewedBy String?          @map("reviewed_by")
 
   // 승인 시 생성된 GroupBuy 참조
-  groupBuyId      String?           @unique @map("group_buy_id")
-  groupBuy        GroupBuy?
+  groupBuyId     String?                        @unique @map("group_buy_id")
+  groupBuy       GroupBuy?
+  submitters     GongguSubmissionSubmitter[]
+  approvalPushes SubmissionApprovalPushOutbox[]
 
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([status])
   @@index([createdAt])
@@ -196,29 +202,64 @@ model GongguSubmission {
   @@map("gonggu_submissions")
 }
 
+model GongguSubmissionSubmitter {
+  submissionId String           @map("submission_id")
+  submission   GongguSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  userId       String           @map("user_id")
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  @@id([submissionId, userId])
+  @@index([userId, createdAt])
+  @@map("gonggu_submission_submitters")
+}
+
+model SubmissionApprovalPushOutbox {
+  id            BigInt           @id @default(autoincrement())
+  submissionId  String           @map("submission_id")
+  submission    GongguSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  userId        String           @map("user_id")
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupBuyId    String           @map("group_buy_id")
+  groupBuy      GroupBuy         @relation(fields: [groupBuyId], references: [id], onDelete: Cascade)
+  eventType     String           @default("submission_approved") @map("event_type")
+  status        String           @default("PENDING")
+  attemptCount  Int              @default(0) @map("attempt_count")
+  nextAttemptAt DateTime         @default(now()) @map("next_attempt_at")
+  lastError     String?          @map("last_error")
+  sentAt        DateTime?        @map("sent_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  @@unique([submissionId, userId, eventType])
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([submissionId, createdAt])
+  @@map("submission_approval_push_outbox")
+}
+
 model FeedPost {
-  id            String        @id @default(uuid())
-  instagramUrl  String        @map("instagram_url")
-  thumbnailUrl  String?       @map("thumbnail_url")
-  mediaUrl      String?       @map("media_url")
-  mediaType     FeedMediaType?
-  caption       String?
-  accountName   String?       @map("account_name")
-  linkUrl       String?       @map("link_url")
-  openDate      DateTime?     @map("open_date")
-  closeDate     DateTime?     @map("close_date")
-  isActive      Boolean       @default(true) @map("is_active")
-  sortOrder     Int           @default(0) @map("sort_order")
+  id           String         @id @default(uuid())
+  instagramUrl String         @map("instagram_url")
+  thumbnailUrl String?        @map("thumbnail_url")
+  mediaUrl     String?        @map("media_url")
+  mediaType    FeedMediaType?
+  caption      String?
+  accountName  String?        @map("account_name")
+  linkUrl      String?        @map("link_url")
+  openDate     DateTime?      @map("open_date")
+  closeDate    DateTime?      @map("close_date")
+  isActive     Boolean        @default(true) @map("is_active")
+  sortOrder    Int            @default(0) @map("sort_order")
 
   // OG 태그 캐시 (크롤링 결과)
-  ogTitle       String?       @map("og_title")
-  ogDescription String?       @map("og_description")
-  ogImage       String?       @map("og_image")
-  ogVideo       String?       @map("og_video")
-  ogUpdatedAt   DateTime?     @map("og_updated_at")
+  ogTitle       String?   @map("og_title")
+  ogDescription String?   @map("og_description")
+  ogImage       String?   @map("og_image")
+  ogVideo       String?   @map("og_video")
+  ogUpdatedAt   DateTime? @map("og_updated_at")
 
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("feed_posts")
 }

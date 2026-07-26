@@ -5,6 +5,7 @@ import {
   fetchGroupBuyRankings,
   fetchGroupBuys,
   fetchGroupBuysByInfluencer,
+  fetchNotificationReminders,
   lookupInstagramUrl,
   postPublicJson,
   refreshGroupBuyMedia,
@@ -16,8 +17,12 @@ import { configurePostgrest } from "./lib/postgrest-client";
 const sessionMocks = vi.hoisted(() => ({
   getSessionId: vi.fn(),
 }));
+const authTokenMocks = vi.hoisted(() => ({
+  getAuthToken: vi.fn<() => Promise<string | null>>(),
+}));
 
 vi.mock("./utils/session", () => sessionMocks);
+vi.mock("./utils/auth", () => authTokenMocks);
 
 const originalFetch = global.fetch;
 
@@ -25,6 +30,7 @@ describe("public data fetch diagnostics", () => {
   beforeEach(() => {
     configurePostgrest("sb_publishable_1234567890");
     sessionMocks.getSessionId.mockReset();
+    authTokenMocks.getAuthToken.mockReset().mockResolvedValue(null);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
   });
 
@@ -393,6 +399,7 @@ describe("public data fetch diagnostics", () => {
   });
 
   it("posts public submissions through the Supabase public-submission function", async () => {
+    authTokenMocks.getAuthToken.mockResolvedValue("signed-in-user-token");
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -412,6 +419,9 @@ describe("public data fetch diagnostics", () => {
       expect.stringContaining("/functions/v1/public-submission"),
       expect.objectContaining({
         method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer signed-in-user-token",
+        }),
         body: JSON.stringify({
           productName: "테스트 공구",
           instagramUrl: "https://www.instagram.com/p/ABC123/",
@@ -435,36 +445,68 @@ describe("public data fetch diagnostics", () => {
     ).rejects.toThrow("제품명은 2자 이상 필수입니다.");
   });
 
-  it("upserts notification mirrors idempotently and reports success", async () => {
-    sessionMocks.getSessionId.mockResolvedValue("session-1");
+  it("replaces authenticated reminder days through the owner-only RPC", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      status: 201,
+      status: 200,
       headers: { get: () => null },
-      json: async () => ({}),
+      json: async () => [
+        {
+          group_buy_id: "group-buy-1",
+          reminder_days: [1, 7],
+          updated_at: "2026-07-26T01:00:00.000Z",
+        },
+      ],
     }) as unknown as typeof fetch;
 
-    await expect(syncNotification("group-buy-1", true)).resolves.toBe(true);
+    await expect(syncNotification("group-buy-1", [7, 1, 7])).resolves.toEqual({
+      status: "synced",
+      preference: {
+        groupBuyId: "group-buy-1",
+        reminderDays: [1, 7],
+        updatedAt: "2026-07-26T01:00:00.000Z",
+      },
+    });
 
     const [requestUrl, requestInit] =
       vi.mocked(global.fetch).mock.calls[0] ?? [];
-    expect(String(requestUrl)).toContain("/rest/v1/group_buy_notifications");
+    expect(String(requestUrl)).toContain(
+      "/rest/v1/rpc/set_my_group_buy_reminder",
+    );
     expect(JSON.parse(String((requestInit as RequestInit).body))).toEqual({
-      group_buy_id: "group-buy-1",
-      session_id: "session-1",
-    });
-    expect((requestInit as RequestInit).headers).toMatchObject({
-      Prefer: "resolution=merge-duplicates,return=minimal",
+      p_group_buy_id: "group-buy-1",
+      p_reminder_days: [1, 7],
     });
   });
 
-  it("swallows session lookup failures for popularity sync requests", async () => {
-    const sessionError = new TypeError(
-      "Cannot read property 'reload' of undefined",
-    );
-    sessionMocks.getSessionId.mockRejectedValue(sessionError);
+  it("loads and maps authenticated reminder intent", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [
+        {
+          group_buy_id: "group-buy-1",
+          reminder_days: [3],
+          updated_at: "2026-07-26T01:00:00.000Z",
+        },
+      ],
+    }) as unknown as typeof fetch;
 
-    await expect(syncBookmark("group-buy-1", true)).resolves.toBeUndefined();
-    await expect(syncNotification("group-buy-1", true)).resolves.toBe(false);
+    await expect(fetchNotificationReminders()).resolves.toEqual([
+      {
+        groupBuyId: "group-buy-1",
+        reminderDays: [3],
+        updatedAt: "2026-07-26T01:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("reports a retryable failure when a reminder mirror cannot sync", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+
+    await expect(syncNotification("group-buy-1", [1])).resolves.toEqual({
+      status: "failed",
+    });
   });
 });

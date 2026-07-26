@@ -61,6 +61,37 @@ describe("adminApi", () => {
     });
   });
 
+  it("requests a targeted submission approval notification retry", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          submission: { id: "submission-1", status: "APPROVED" },
+          notificationDelivery: {
+            status: "sent",
+            queued: 1,
+            sent: 1,
+            skipped: 0,
+            retrying: 0,
+            failed: 0,
+          },
+        },
+      }),
+    } as Response);
+
+    await adminApi.retrySubmissionApprovalNotification("submission-1");
+
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
+      path: string;
+      method: string;
+    };
+    expect(request.path).toBe(
+      "/admin/submissions/submission-1/notification/retry",
+    );
+    expect(request.method).toBe("POST");
+  });
+
   it("sends priceKrw and normalizes the persisted commerce response before the UI consumes it", async () => {
     const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,

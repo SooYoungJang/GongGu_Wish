@@ -473,32 +473,115 @@ export async function syncBookmark(
  * Mirror a notification opt-in to the server for popularity aggregation.
  * enabled=true inserts, enabled=false deletes by (group_buy_id, session_id).
  */
-export async function syncNotification(
-  groupBuyId: string,
-  enabled: boolean,
-): Promise<boolean> {
+export type GroupBuyReminderDay = 1 | 3 | 7;
+
+export type GroupBuyReminderPreference = {
+  groupBuyId: string;
+  reminderDays: GroupBuyReminderDay[];
+  updatedAt: string;
+};
+
+export type GroupBuyReminderSyncResult =
+  | { status: "synced"; preference: GroupBuyReminderPreference | null }
+  | { status: "failed" };
+
+type GroupBuyReminderRow = {
+  group_buy_id?: unknown;
+  groupBuyId?: unknown;
+  reminder_days?: unknown;
+  reminderDays?: unknown;
+  updated_at?: unknown;
+  updatedAt?: unknown;
+};
+
+function normalizeGroupBuyReminderRow(
+  value: GroupBuyReminderRow,
+): GroupBuyReminderPreference | null {
+  const groupBuyId =
+    typeof value.groupBuyId === "string"
+      ? value.groupBuyId
+      : value.group_buy_id;
+  const reminderDaysValue = Array.isArray(value.reminderDays)
+    ? value.reminderDays
+    : value.reminder_days;
+  const updatedAt =
+    typeof value.updatedAt === "string" ? value.updatedAt : value.updated_at;
+  if (
+    typeof groupBuyId !== "string" ||
+    typeof updatedAt !== "string" ||
+    !Array.isArray(reminderDaysValue)
+  ) {
+    return null;
+  }
+  const allowed = new Set<number>([1, 3, 7]);
+  const reminderDays = [...new Set(reminderDaysValue)]
+    .filter(
+      (day): day is GroupBuyReminderDay =>
+        typeof day === "number" && allowed.has(day),
+    )
+    .sort((left, right) => left - right);
+  if (reminderDays.length === 0) return null;
+  return {
+    groupBuyId,
+    reminderDays,
+    updatedAt,
+  };
+}
+
+export async function fetchNotificationReminders(): Promise<
+  GroupBuyReminderPreference[] | null
+> {
   try {
-    const { getSessionId } = await import("./utils/session");
-    const sessionId = await getSessionId();
-    if (enabled) {
-      await postgrestFetch("group_buy_notifications", {
-        method: "POST",
-        body: { group_buy_id: groupBuyId, session_id: sessionId },
-        prefer: "resolution=merge-duplicates,return=minimal",
-      });
-    } else {
-      await postgrestFetch(
-        `group_buy_notifications?group_buy_id=eq.${encodeURIComponent(groupBuyId)}&session_id=eq.${encodeURIComponent(sessionId)}`,
-        { method: "DELETE" },
-      );
-    }
-    return true;
+    const rows = await postgrestPost<GroupBuyReminderRow[]>(
+      "rpc/get_my_group_buy_reminders",
+      {},
+    );
+    return (Array.isArray(rows) ? rows : [])
+      .map(normalizeGroupBuyReminderRow)
+      .filter((row): row is GroupBuyReminderPreference => row !== null);
   } catch (error) {
     console.log(
-      "[Notification] sync notification failed:",
+      "[Notification] fetch reminder preferences failed:",
       error instanceof Error ? error.message : String(error),
     );
-    return false;
+    return null;
+  }
+}
+
+export async function syncNotification(
+  groupBuyId: string,
+  reminderDays: readonly GroupBuyReminderDay[] | boolean,
+): Promise<GroupBuyReminderSyncResult> {
+  const requestedDays =
+    reminderDays === true
+      ? ([1, 3, 7] as const)
+      : reminderDays === false
+        ? []
+        : reminderDays;
+  const normalizedDays = [...new Set(requestedDays)].sort(
+    (left, right) => left - right,
+  );
+  try {
+    const rows = await postgrestPost<GroupBuyReminderRow[]>(
+      "rpc/set_my_group_buy_reminder",
+      {
+        p_group_buy_id: groupBuyId,
+        p_reminder_days: normalizedDays,
+      },
+    );
+    return {
+      status: "synced",
+      preference:
+        Array.isArray(rows) && rows.length > 0
+          ? normalizeGroupBuyReminderRow(rows[0])
+          : null,
+    };
+  } catch (error) {
+    console.log(
+      "[Notification] sync reminder preference failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return { status: "failed" };
   }
 }
 

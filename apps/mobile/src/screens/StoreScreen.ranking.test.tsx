@@ -33,7 +33,7 @@ const ranking: GroupBuyRankingItem = {
 };
 
 const refreshRanking = vi.hoisted(() => vi.fn());
-const toggleNotificationMock = vi.hoisted(() => vi.fn());
+const openReminderPickerMock = vi.hoisted(() => vi.fn());
 const authGateMock = vi.hoisted(() => ({
   isAuthenticated: true,
   requireAuth: vi.fn(() => true),
@@ -190,7 +190,11 @@ vi.mock("../hooks/useLocalDeals", () => ({
   useNotifications: () => ({
     isNotifying: () => false,
     getNotificationState: () => ({ status: "idle" }),
-    toggleNotification: toggleNotificationMock,
+  }),
+}));
+vi.mock("../context/GroupBuyReminderPickerContext", () => ({
+  useGroupBuyReminderPicker: () => ({
+    openReminderPicker: openReminderPickerMock,
   }),
 }));
 vi.mock("../hooks/useAuthGate", () => ({
@@ -324,12 +328,37 @@ describe("StoreScreen ranking redesign", () => {
     });
 
     const alert = renderer!.root.findByProps({
-      accessibilityLabel: "여름 한정 공구 알림",
+      accessibilityLabel: "여름 한정 공구 마감 알림 설정",
     });
     act(() => alert.props.onPress());
 
     expect(authGateMock.requireAuth).toHaveBeenCalledOnce();
-    expect(toggleNotificationMock).not.toHaveBeenCalled();
+    expect(openReminderPickerMock).not.toHaveBeenCalled();
+  });
+
+  it("opens the per-item reminder picker from a ranking alert", () => {
+    const navigation = createNavigation();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ThemeProvider>
+          <StoreScreen
+            navigation={navigation as never}
+            route={{ key: "Store-test", name: "Store" } as never}
+          />
+        </ThemeProvider>,
+      );
+    });
+
+    const alert = renderer!.root.findByProps({
+      accessibilityLabel: "여름 한정 공구 마감 알림 설정",
+    });
+    act(() => alert.props.onPress());
+
+    expect(openReminderPickerMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ranking.groupBuyId }),
+    );
   });
 
   it("shows the clean ranking header and removes the non-functional global alert action", () => {

@@ -44,11 +44,14 @@ const authGateMock = vi.hoisted(() => ({
   isAuthenticated: true,
   requireAuth: vi.fn(() => true),
 }));
+const reminderPickerMock = vi.hoisted(() => ({
+  openReminderPicker: vi.fn(),
+}));
 const notificationPreferencesMock = vi.hoisted(() => ({
   preferences: {
     pushEnabled: true,
     deadlineRemindersEnabled: true,
-    newSubmissionsEnabled: true,
+    submissionApprovalEnabled: true,
     reminderDays: [1, 3, 7],
     followedInfluencers: [] as string[],
     followedBrands: [] as string[],
@@ -88,6 +91,9 @@ vi.mock("../context/NotificationPreferencesContext", () => ({
     toggleInfluencer: notificationPreferencesMock.toggleInfluencer,
     toggleBrand: notificationPreferencesMock.toggleBrand,
   }),
+}));
+vi.mock("../context/GroupBuyReminderPickerContext", () => ({
+  useGroupBuyReminderPicker: () => reminderPickerMock,
 }));
 vi.mock("../hooks/useLocalDeals", () => ({
   useBookmarks: () => ({
@@ -521,9 +527,7 @@ function expectPreparedSummarySheetClosed(
   });
   expect(overlay.props.pointerEvents).toBe("none");
   expect(overlay.props.accessibilityElementsHidden).toBe(true);
-  expect(overlay.props.importantForAccessibility).toBe(
-    "no-hide-descendants",
-  );
+  expect(overlay.props.importantForAccessibility).toBe("no-hide-descendants");
   expect(
     renderer.root.findAllByProps({
       testID: "reels-summary-sheet-backdrop",
@@ -670,6 +674,7 @@ beforeEach(() => {
   localDealActionMocks.toggleNotification.mockReset();
   authGateMock.isAuthenticated = true;
   authGateMock.requireAuth.mockReset().mockReturnValue(true);
+  reminderPickerMock.openReminderPicker.mockReset();
   notificationPreferencesMock.preferences.followedInfluencers = [];
   notificationPreferencesMock.preferences.followedBrands = [];
   notificationPreferencesMock.toggleInfluencer.mockReset();
@@ -736,7 +741,9 @@ describe("DetailScreen", () => {
 
     expect(flattenText(renderer!.toJSON())).not.toContain("@unknown");
     await act(async () => {
-      renderer!.root.findByProps({ accessibilityLabel: "공유" }).props.onPress();
+      renderer!.root
+        .findByProps({ accessibilityLabel: "공유" })
+        .props.onPress();
     });
     expect(Share.share).toHaveBeenCalledWith({
       message: "퍼스트 바이크\nhttps://example.com/buy",
@@ -748,11 +755,13 @@ describe("DetailScreen", () => {
     act(() => {
       renderer = TestRenderer.create(
         <DetailScreen
-          route={{
-            key: "Detail",
-            name: "Detail",
-            params: { groupBuy: baseGroupBuy },
-          } as any}
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
           navigation={{ addListener: vi.fn(() => () => {}) } as any}
         />,
       );
@@ -786,11 +795,13 @@ describe("DetailScreen", () => {
     act(() => {
       renderer = TestRenderer.create(
         <DetailScreen
-          route={{
-            key: "Detail",
-            name: "Detail",
-            params: { groupBuy: baseGroupBuy },
-          } as any}
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
           navigation={{ addListener: vi.fn(() => () => {}) } as any}
         />,
       );
@@ -811,6 +822,7 @@ describe("DetailScreen", () => {
     expect(authGateMock.requireAuth).toHaveBeenCalledTimes(4);
     expect(localDealActionMocks.toggleBookmark).not.toHaveBeenCalled();
     expect(localDealActionMocks.toggleNotification).not.toHaveBeenCalled();
+    expect(reminderPickerMock.openReminderPicker).not.toHaveBeenCalled();
     expect(notificationPreferencesMock.toggleInfluencer).not.toHaveBeenCalled();
     expect(notificationPreferencesMock.toggleBrand).not.toHaveBeenCalled();
   });
@@ -821,11 +833,13 @@ describe("DetailScreen", () => {
     act(() => {
       renderer = TestRenderer.create(
         <DetailScreen
-          route={{
-            key: "Detail",
-            name: "Detail",
-            params: { groupBuyId: baseGroupBuy.id },
-          } as any}
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuyId: baseGroupBuy.id },
+            } as any
+          }
           navigation={{ addListener: vi.fn(() => () => {}) } as any}
         />,
       );
@@ -844,11 +858,13 @@ describe("DetailScreen", () => {
     act(() => {
       renderer = TestRenderer.create(
         <DetailScreen
-          route={{
-            key: "Detail",
-            name: "Detail",
-            params: { groupBuyId: "missing" },
-          } as any}
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuyId: "missing" },
+            } as any
+          }
           navigation={{ goBack: vi.fn() } as any}
         />,
       );
@@ -896,8 +912,9 @@ describe("DetailScreen", () => {
       );
     });
 
-    const canonicalPage = findProductReelPages(renderer!)
-      .find((node) => node.props.groupBuy.id === canonicalItem.id);
+    const canonicalPage = findProductReelPages(renderer!).find(
+      (node) => node.props.groupBuy.id === canonicalItem.id,
+    );
     expect(canonicalPage?.props.groupBuy).toMatchObject({
       id: canonicalItem.id,
       purchaseUrl: canonicalItem.purchaseUrl,
@@ -1366,7 +1383,8 @@ describe("DetailScreen", () => {
       });
     });
     expect(
-      renderer!.root.findByProps({ testID: "detail-native-ad-1" }).props.visible,
+      renderer!.root.findByProps({ testID: "detail-native-ad-1" }).props
+        .visible,
     ).toBe(true);
 
     act(() => {
@@ -1446,16 +1464,19 @@ describe("DetailScreen", () => {
               params: { groupBuy: baseGroupBuy },
             } as any
           }
-          navigation={{
-            goBack: vi.fn(),
-            addListener: vi.fn(() => () => {}),
-          } as any}
+          navigation={
+            {
+              goBack: vi.fn(),
+              addListener: vi.fn(() => () => {}),
+            } as any
+          }
         />,
       );
     });
 
-    const initialCallback = findProductReelPages(renderer!)
-      .find((node) => node.props.isActive)?.props.onPlaybackStateChange;
+    const initialCallback = findProductReelPages(renderer!).find(
+      (node) => node.props.isActive,
+    )?.props.onPlaybackStateChange;
 
     act(() => {
       findVerticalPager(renderer!).props.onPageSelected({
@@ -2580,15 +2601,17 @@ describe("DetailScreen video playback", () => {
         node.props.accessibilityLabel === "상품 검색",
     );
 
-    expect(findPages().find((node) => node.props.isActive)?.props.playbackAllowed)
-      .toBe(true);
+    expect(
+      findPages().find((node) => node.props.isActive)?.props.playbackAllowed,
+    ).toBe(true);
 
     act(() => {
       searchButton.props.onPress();
     });
 
-    expect(findPages().find((node) => node.props.isActive)?.props.playbackAllowed)
-      .toBe(true);
+    expect(
+      findPages().find((node) => node.props.isActive)?.props.playbackAllowed,
+    ).toBe(true);
 
     act(() => {
       renderer!.unmount();

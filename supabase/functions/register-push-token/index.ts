@@ -79,7 +79,7 @@ async function registerToken(req: Request) {
   const { data: existing, error: lookupError } = await supabase
     .from("users")
     .select(
-      "id, push_token, push_enabled, deadline_reminders_enabled, new_submissions_enabled, notification_reminder_days, followed_influencers, followed_brands",
+      "id, push_token, push_enabled, deadline_reminders_enabled, new_submissions_enabled, submission_approval_notifications_enabled, notification_reminder_days, followed_influencers, followed_brands",
     )
     .eq("id", authData.user.id)
     .maybeSingle();

@@ -36,7 +36,7 @@ describe("notification preferences", () => {
     expect(DEFAULT_NOTIFICATION_PREFERENCES).toMatchObject({
       pushEnabled: false,
       deadlineRemindersEnabled: false,
-      newSubmissionsEnabled: false,
+      submissionApprovalEnabled: false,
     });
     expect(normalizeNotificationPreferences(null)).toEqual(
       DEFAULT_NOTIFICATION_PREFERENCES,
@@ -48,7 +48,7 @@ describe("notification preferences", () => {
       normalizeNotificationPreferences({
         pushEnabled: false,
         deadlineRemindersEnabled: true,
-        newSubmissionsEnabled: false,
+        submissionApprovalEnabled: true,
         reminderDays: [7, 3, 7, 2, "1"],
         followedInfluencers: [" @Seller.One ", "seller.one", "bad handle!"],
         followedBrands: ["  Brand  A ", "brand a", ""],
@@ -56,11 +56,18 @@ describe("notification preferences", () => {
     ).toEqual({
       pushEnabled: false,
       deadlineRemindersEnabled: true,
-      newSubmissionsEnabled: false,
+      submissionApprovalEnabled: true,
       reminderDays: [3, 7],
       followedInfluencers: ["seller.one"],
       followedBrands: ["Brand A"],
     });
+  });
+
+  it("migrates the legacy new-submission preference once", () => {
+    expect(
+      normalizeNotificationPreferences({ newSubmissionsEnabled: true })
+        .submissionApprovalEnabled,
+    ).toBe(true);
   });
 
   it("repairs an empty reminder selection to the supported defaults", () => {

@@ -35,13 +35,8 @@ import {
   getNotificationPermissionStatus,
   IS_EXPO_GO,
   registerForPushNotifications,
-  scheduleTestNotification,
   type NotificationPermissionStatus,
 } from "../services/notifications";
-import {
-  NOTIFICATION_REMINDER_DAYS,
-  type NotificationReminderDay,
-} from "../services/notificationPreferences";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import type { RootStackParamList } from "../types";
 import bundledAppConfig from "../../app.json";
@@ -87,9 +82,7 @@ export function SettingsScreen() {
   );
   const [updatingPush, setUpdatingPush] = useState(false);
   const pushChangeInFlight = useRef(false);
-  const [testScheduled, setTestScheduled] = useState(false);
   const automatedE2E = isAutomatedE2E();
-  const testDelaySeconds = automatedE2E ? 8 : 10;
   const [deleting, setDeleting] = useState(false);
   const [updatingAdPrivacy, setUpdatingAdPrivacy] = useState(false);
 
@@ -108,6 +101,14 @@ export function SettingsScreen() {
       pushChangeInFlight.current = true;
       setPendingPushEnabled(value);
       setUpdatingPush(true);
+      await new Promise<void>((resolve) => {
+        const scheduleFrame = globalThis.requestAnimationFrame;
+        if (typeof scheduleFrame === "function") {
+          scheduleFrame(() => resolve());
+          return;
+        }
+        resolve();
+      });
       try {
         if (!value) {
           await updatePreferences({ pushEnabled: false });
@@ -194,32 +195,12 @@ export function SettingsScreen() {
     [requireAuth, updatePreferences],
   );
 
-  const handleNewSubmissionsChange = useCallback(
+  const handleSubmissionApprovalChange = useCallback(
     (value: boolean) => {
       if (!requireAuth()) return;
-      void updatePreferences({ newSubmissionsEnabled: value });
+      void updatePreferences({ submissionApprovalEnabled: value });
     },
     [requireAuth, updatePreferences],
-  );
-
-  const handleReminderDay = useCallback(
-    async (day: NotificationReminderDay) => {
-      if (!requireAuth()) return;
-      const selected = preferences.reminderDays.includes(day);
-      if (selected && preferences.reminderDays.length === 1) {
-        Alert.alert(
-          "알림 날짜가 필요해요",
-          "마감 임박 알림을 켜려면 D-1, D-3, D-7 중 하나 이상을 선택해주세요.",
-        );
-        return;
-      }
-      await updatePreferences({
-        reminderDays: selected
-          ? preferences.reminderDays.filter((value) => value !== day)
-          : [...preferences.reminderDays, day],
-      });
-    },
-    [preferences.reminderDays, requireAuth, updatePreferences],
   );
 
   const handleFollowInfluencerPress = useCallback(
@@ -238,22 +219,14 @@ export function SettingsScreen() {
     [requireAuth, toggleBrand],
   );
 
-  const handleTestNotification = useCallback(async () => {
-    const id = await scheduleTestNotification(
-      testDelaySeconds,
-      automatedE2E ? "gon263-e2e-price-200000" : undefined,
-    );
-    setTestScheduled(Boolean(id));
-  }, [automatedE2E, testDelaySeconds]);
-
   const controlsDisabled =
     !preferencesReady || preferencesSaving || updatingPush;
   const pushEnabled =
     isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
   const deadlineRemindersEnabled =
     isAuthenticated && preferences.deadlineRemindersEnabled;
-  const newSubmissionsEnabled =
-    isAuthenticated && preferences.newSubmissionsEnabled;
+  const submissionApprovalEnabled =
+    isAuthenticated && preferences.submissionApprovalEnabled;
   const permissionCopy = !isAuthenticated
     ? "로그인 후 원하는 알림을 직접 켤 수 있어요."
     : !pushEnabled
@@ -398,66 +371,25 @@ export function SettingsScreen() {
           <View style={s.switchRow}>
             <View style={s.switchCopy}>
               <SText variant="body" style={s.switchLabel}>
-                신규 제보 알림
+                내 제보 승인 알림
               </SText>
               <SText variant="caption" style={s.switchDescription}>
-                승인된 새 공구와 팔로우 대상 소식 수신
+                내가 제보한 공구가 승인되면 알려드려요
               </SText>
             </View>
             <Switch
-              accessibilityLabel="신규 제보 알림"
+              accessibilityLabel="내 제보 승인 알림"
               disabled={controlsDisabled || (isAuthenticated && !pushEnabled)}
-              onValueChange={(value) => void handleNewSubmissionsChange(value)}
-              thumbColor={newSubmissionsEnabled ? colors.accent : colors.weak}
+              onValueChange={(value) =>
+                void handleSubmissionApprovalChange(value)
+              }
+              thumbColor={
+                submissionApprovalEnabled ? colors.accent : colors.weak
+              }
               trackColor={{ false: colors.softBg, true: colors.accentSoft }}
-              testID="new-submission-notification-toggle"
-              value={newSubmissionsEnabled}
+              testID="submission-approval-notification-toggle"
+              value={submissionApprovalEnabled}
             />
-          </View>
-
-          <View style={s.preferenceBlock}>
-            <SText variant="label" style={s.preferenceTitle}>
-              마감 알림 날짜
-            </SText>
-            <SText variant="caption" style={s.switchDescription}>
-              이미 알림 설정한 공구도 선택 즉시 다시 예약돼요.
-            </SText>
-            <View style={s.dayRow}>
-              {[...NOTIFICATION_REMINDER_DAYS].reverse().map((day) => {
-                const selected =
-                  isAuthenticated && preferences.reminderDays.includes(day);
-                const dayDisabled =
-                  controlsDisabled ||
-                  (isAuthenticated &&
-                    (!pushEnabled || !deadlineRemindersEnabled));
-                return (
-                  <Pressable
-                    accessibilityLabel={`D-${day} 알림`}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{
-                      checked: selected,
-                      disabled: dayDisabled,
-                    }}
-                    disabled={dayDisabled}
-                    key={day}
-                    onPress={() => void handleReminderDay(day)}
-                    style={({ pressed }) => [
-                      s.dayChip,
-                      selected && s.dayChipSelected,
-                      pressed && s.pressed,
-                    ]}
-                    testID={`deadline-reminder-day-${day}`}
-                  >
-                    <SText
-                      style={[s.dayChipText, selected && s.dayChipTextSelected]}
-                      variant="label"
-                    >
-                      D-{day}
-                    </SText>
-                  </Pressable>
-                );
-              })}
-            </View>
           </View>
 
           <View style={s.preferenceBlock}>
@@ -519,44 +451,6 @@ export function SettingsScreen() {
               알림 설정을 저장하지 못했어요. 다시 변경해 주세요.
             </SText>
           ) : null}
-          {IS_EXPO_GO ? (
-            <View style={s.testButton}>
-              <SText variant="label" style={s.testButtonText}>
-                개발 빌드에서만 테스트 가능해요
-              </SText>
-            </View>
-          ) : (
-            <Pressable
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel="테스트 알림 보내기"
-              disabled={
-                controlsDisabled ||
-                !pushEnabled ||
-                permissionStatus !== "granted"
-              }
-              onPress={() => void handleTestNotification()}
-              style={({ pressed }) => [
-                s.testButton,
-                (controlsDisabled ||
-                  !pushEnabled ||
-                  permissionStatus !== "granted") &&
-                  s.disabledButton,
-                pressed && s.pressed,
-              ]}
-              testID="test-notification-button"
-            >
-              {testScheduled ? (
-                <SText variant="label" style={s.testButtonText}>
-                  {testDelaySeconds}초 뒤 알림 예약됨
-                </SText>
-              ) : (
-                <SText variant="label" style={s.testButtonText}>
-                  테스트 알림 보내기 ({testDelaySeconds}초)
-                </SText>
-              )}
-            </Pressable>
-          )}
         </View>
 
         <View style={s.sectionCard}>
@@ -598,11 +492,7 @@ export function SettingsScreen() {
                   개인정보 처리방침
                 </SText>
               </View>
-              <Ionicons
-                color={colors.weak}
-                name="chevron-forward"
-                size={20}
-              />
+              <Ionicons color={colors.weak} name="chevron-forward" size={20} />
             </Pressable>
 
             <Pressable
@@ -629,11 +519,7 @@ export function SettingsScreen() {
                   서비스 이용약관
                 </SText>
               </View>
-              <Ionicons
-                color={colors.weak}
-                name="chevron-forward"
-                size={20}
-              />
+              <Ionicons color={colors.weak} name="chevron-forward" size={20} />
             </Pressable>
 
             <View
@@ -798,25 +684,6 @@ function makeStyles(
       paddingVertical: spacing.lg,
     },
     preferenceTitle: { color: colors.text, fontWeight: "900" },
-    dayRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-    dayChip: {
-      alignItems: "center",
-      backgroundColor: colors.softBg,
-      borderColor: colors.borderLight,
-      borderRadius: radius.full,
-      borderWidth: 1,
-      minHeight: 44,
-      justifyContent: "center",
-      minWidth: 72,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-    },
-    dayChipSelected: {
-      backgroundColor: colors.accentSoft,
-      borderColor: colors.accent,
-    },
-    dayChipText: { color: colors.weak, fontWeight: "900" },
-    dayChipTextSelected: { color: colors.accent },
     followChipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     followChip: {
       backgroundColor: colors.accentSoft,
@@ -833,14 +700,6 @@ function makeStyles(
       fontWeight: "800",
       paddingTop: spacing.md,
     },
-    testButton: {
-      alignItems: "center",
-      backgroundColor: colors.accentSoft,
-      borderRadius: radius.md,
-      marginVertical: spacing.md,
-      paddingVertical: spacing.md,
-    },
-    testButtonText: { color: colors.accent, fontWeight: "900" },
     deleteButton: {
       alignItems: "center",
       backgroundColor: colors.errorSoft,

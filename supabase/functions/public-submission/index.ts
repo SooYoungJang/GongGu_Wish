@@ -7,6 +7,11 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
+import {
+  SubmissionAuthenticationError,
+  resolveOptionalSubmissionUserId,
+} from "./auth.ts";
+import { deliverPendingSubmissionApprovalPushes } from "../admin-api/submissionApprovalPush.ts";
 
 type SubmissionStatus =
   | "PENDING"
@@ -103,6 +108,53 @@ function createAdminClient() {
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+async function linkSubmissionSubmitter(
+  supabase: AdminClient,
+  submissionId: string,
+  userId: string | null,
+) {
+  if (!userId) return;
+  const { error } = await supabase
+    .from("gonggu_submission_submitters")
+    .upsert(
+      { submission_id: submissionId, user_id: userId },
+      { onConflict: "submission_id,user_id", ignoreDuplicates: true },
+    );
+  if (error) throw new Error(error.message);
+}
+
+async function deliverApprovalPush(
+  supabase: AdminClient,
+  submissionId: string,
+) {
+  try {
+    return await deliverPendingSubmissionApprovalPushes(supabase, {
+      submissionId,
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "public_submission_approval_push_queue_failed",
+        submissionId,
+        error:
+          error instanceof Error
+            ? error.message.slice(0, 500)
+            : "unknown error",
+      }),
+    );
+    return {
+      status: "retrying" as const,
+      queued: 0,
+      sent: 0,
+      skipped: 0,
+      retrying: 1,
+      failed: 0,
+    };
+  }
 }
 
 function normalizeOptional(value: unknown) {
@@ -362,13 +414,16 @@ async function markSubmissionApproved(
   return data;
 }
 
-async function handleWishUrlSubmission(body: SubmissionRequest) {
+async function handleWishUrlSubmission(
+  body: SubmissionRequest,
+  submitterUserId: string | null,
+  supabase: AdminClient,
+) {
   const instagramUrl = normalizeOptional(body.instagramUrl);
   if (!isInstagramPostUrl(instagramUrl)) {
     return json({ error: "인스타그램 게시물 URL을 입력해주세요." }, 400);
   }
 
-  const supabase = createAdminClient();
   const productName = "검수 대기 위시템";
   const contentHash = await createSubmissionHash({
     productName,
@@ -385,11 +440,16 @@ async function handleWishUrlSubmission(body: SubmissionRequest) {
   if (findError) throw new Error(findError.message);
 
   if (existing) {
+    await linkSubmissionSubmitter(supabase, existing.id, submitterUserId);
+    const notificationDelivery = submitterUserId && existing.status === "APPROVED"
+      ? await deliverApprovalPush(supabase, existing.id)
+      : undefined;
     return json({
       alreadyRegistered: true,
       submissionId: existing.id,
       groupBuyId: existing.group_buy_id,
       status: existing.status,
+      ...(notificationDelivery ? { notificationDelivery } : {}),
     });
   }
 
@@ -425,6 +485,7 @@ async function handleWishUrlSubmission(body: SubmissionRequest) {
     .single();
 
   if (error) throw new Error(error.message);
+  await linkSubmissionSubmitter(supabase, data.id, submitterUserId);
 
   return json({
     submission: data,
@@ -433,9 +494,13 @@ async function handleWishUrlSubmission(body: SubmissionRequest) {
   });
 }
 
-async function handleSubmission(body: SubmissionRequest) {
+async function handleSubmission(
+  body: SubmissionRequest,
+  submitterUserId: string | null,
+  supabase: AdminClient,
+) {
   if (!normalizeOptional(body.productName) && body.source === "wish-url") {
-    return handleWishUrlSubmission(body);
+    return handleWishUrlSubmission(body, submitterUserId, supabase);
   }
 
   const validated = validate(body);
@@ -443,7 +508,6 @@ async function handleSubmission(body: SubmissionRequest) {
     return json({ error: validated.error }, 400);
   }
 
-  const supabase = createAdminClient();
   const row = validated.data;
   const contentHash = await createSubmissionHash({
     productName: row.product_name,
@@ -460,12 +524,17 @@ async function handleSubmission(body: SubmissionRequest) {
   if (findError) throw new Error(findError.message);
 
   if (existing) {
+    await linkSubmissionSubmitter(supabase, existing.id, submitterUserId);
     if (existing.status === "APPROVED") {
+      const notificationDelivery = submitterUserId
+        ? await deliverApprovalPush(supabase, existing.id)
+        : undefined;
       return json({
         alreadyRegistered: true,
         groupBuyId: existing.group_buy_id,
         submissionId: existing.id,
         status: "APPROVED",
+        ...(notificationDelivery ? { notificationDelivery } : {}),
       });
     }
     if (existing.status === "DUPLICATE") {
@@ -525,7 +594,11 @@ async function handleSubmission(body: SubmissionRequest) {
       existing.id,
       groupBuy.id,
     );
-    return json({ submission, groupBuy });
+    const notificationDelivery = await deliverApprovalPush(
+      supabase,
+      existing.id,
+    );
+    return json({ submission, groupBuy, notificationDelivery });
   }
 
   const { data, error } = await supabase
@@ -558,6 +631,7 @@ async function handleSubmission(body: SubmissionRequest) {
     .single();
 
   if (error) throw new Error(error.message);
+  await linkSubmissionSubmitter(supabase, data.id, submitterUserId);
 
   const groupBuy = await upsertApprovedGroupBuy(supabase, row, data.id, null);
   const submission = await markSubmissionApproved(
@@ -565,10 +639,11 @@ async function handleSubmission(body: SubmissionRequest) {
     data.id,
     groupBuy.id,
   );
-  return json({ submission, groupBuy });
+  const notificationDelivery = await deliverApprovalPush(supabase, data.id);
+  return json({ submission, groupBuy, notificationDelivery });
 }
 
-serve(async (req: Request) => {
+export async function handler(req: Request) {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
   }
@@ -578,12 +653,22 @@ serve(async (req: Request) => {
   }
 
   try {
+    const supabase = createAdminClient();
+    const submitterUserId = await resolveOptionalSubmissionUserId(
+      req.headers.get("Authorization"),
+      supabase,
+    );
     const body = (await req.json()) as SubmissionRequest;
-    return await handleSubmission(body);
+    return await handleSubmission(body, submitterUserId, supabase);
   } catch (err) {
+    if (err instanceof SubmissionAuthenticationError) {
+      return json({ error: err.message }, err.status);
+    }
     const message =
       err instanceof Error ? err.message : "Internal server error";
     console.error("[public-submission] Error:", message);
     return json({ error: message }, 500);
   }
-});
+}
+
+if (import.meta.main) serve(handler);

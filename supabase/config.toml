@@ -217,6 +217,7 @@ web3 = 30
 # secret = ""
 
 [functions.admin-api]
+[functions.process-notification-outbox]
 [functions.health]
 [functions.refresh-instagram-media]
 [functions.seller-rankings]

@@ -1,6 +1,6 @@
 appId: com.gonggu.wish.preview
 ---
-# GON-229 Android: verify notification controls and schedule a real local push.
+# GON-229 Android: verify notification controls and the per-item reminder picker.
 - launchApp:
     clearState: true
     permissions:
@@ -27,18 +27,14 @@ appId: com.gonggu.wish.preview
 - assertVisible:
     id: "deadline-notification-toggle"
 - assertVisible:
-    id: "new-submission-notification-toggle"
-- assertVisible:
-    id: "deadline-reminder-day-7"
-- assertVisible:
-    id: "deadline-reminder-day-3"
-- assertVisible:
-    id: "deadline-reminder-day-1"
+    id: "submission-approval-notification-toggle"
+- assertNotVisible:
+    id: "test-notification-button"
 - takeScreenshot: gon229-android-01-settings-defaults
 
 # Guests are routed to authentication before any preference can change.
 - tapOn:
-    id: "deadline-reminder-day-7"
+    id: "deadline-notification-toggle"
 - extendedWaitUntil:
     visible:
       text: "공구위시 로그인 화면"
@@ -56,17 +52,15 @@ appId: com.gonggu.wish.preview
     id: "auth-login-submit"
 - extendedWaitUntil:
     visible:
-      id: "new-submission-notification-toggle"
+      id: "submission-approval-notification-toggle"
     timeout: 30000
 
 # Authenticated preferences remain independently controllable.
 - tapOn:
-    id: "deadline-reminder-day-7"
-- tapOn:
-    id: "new-submission-notification-toggle"
+    id: "submission-approval-notification-toggle"
 - takeScreenshot: gon229-android-03-custom-preferences
 - tapOn:
-    id: "new-submission-notification-toggle"
+    id: "submission-approval-notification-toggle"
 - tapOn:
     id: "push-notification-toggle"
 - extendedWaitUntil:
@@ -86,14 +80,22 @@ appId: com.gonggu.wish.preview
       text: "앱과 기기에서 푸시 알림을 받을 수 있어요.*"
     timeout: 10000
 
-# The E2E build schedules an 8-second notification carrying a canonical URL.
+# Reminder dates are selected from an individual deal, not from Settings.
+- back
 - tapOn:
-    id: "test-notification-button"
-- scrollUntilVisible:
-    element:
-      text: "8초 뒤 알림 예약됨"
-    direction: DOWN
-    timeout: 10000
+    text: "홈 탭"
+- extendedWaitUntil:
+    visible:
+      id: "group-buy-reminder-button-.*"
+    timeout: 30000
+- tapOn:
+    id: "group-buy-reminder-button-.*"
 - assertVisible:
-    text: "8초 뒤 알림 예약됨"
-- takeScreenshot: gon229-android-04-test-notification-scheduled
+    text: "마감 알림"
+- assertVisible:
+    id: "group-buy-reminder-day-7"
+- assertVisible:
+    id: "group-buy-reminder-day-3"
+- assertVisible:
+    id: "group-buy-reminder-day-1"
+- takeScreenshot: gon229-android-04-item-reminder-picker

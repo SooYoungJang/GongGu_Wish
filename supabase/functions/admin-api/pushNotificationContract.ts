@@ -16,6 +16,7 @@ export type ValidatedPushNotificationInput = {
 export type PushPreferenceAudience =
   | { type: "general" }
   | { type: "new_submission" }
+  | { type: "submission_approved" }
   | { type: "deadline" }
   | { type: "influencer"; target: string }
   | { type: "brand"; target: string };
@@ -31,17 +32,13 @@ export function isExpoPushToken(value: unknown): value is string {
   return typeof value === "string" && EXPO_PUSH_TOKEN_PATTERN.test(value);
 }
 
-function normalizeAudienceTarget(
-  value: unknown,
-  type: "brand" | "influencer",
-) {
+function normalizeAudienceTarget(value: unknown, type: "brand" | "influencer") {
   if (typeof value !== "string") {
     throw new Error("푸시 알림 대상이 필요합니다.");
   }
   const compact = value.trim().replace(/\s+/g, " ");
-  const normalized = type === "influencer"
-    ? compact.replace(/^@+/, "").toLowerCase()
-    : compact;
+  const normalized =
+    type === "influencer" ? compact.replace(/^@+/, "").toLowerCase() : compact;
   if (
     !normalized ||
     normalized.length > MAX_AUDIENCE_TARGET_LENGTH ||
@@ -58,6 +55,7 @@ function getPushPreferenceAudience(
   const type = data?.notificationType;
   if (type === undefined || type === "general") return { type: "general" };
   if (type === "new_submission") return { type: "new_submission" };
+  if (type === "submission_approved") return { type: "submission_approved" };
   if (type === "deadline") return { type: "deadline" };
   if (type === "influencer") {
     return {
@@ -94,18 +92,14 @@ export function matchesPushPreferences(
       return true;
     case "new_submission":
       return row.new_submissions_enabled !== false;
+    case "submission_approved":
+      return row.submission_approval_notifications_enabled === true;
     case "deadline":
       return row.deadline_reminders_enabled !== false;
     case "influencer":
-      return (
-        row.new_submissions_enabled !== false &&
-        hasFollowTarget(row.followed_influencers, audience.target)
-      );
+      return hasFollowTarget(row.followed_influencers, audience.target);
     case "brand":
-      return (
-        row.new_submissions_enabled !== false &&
-        hasFollowTarget(row.followed_brands, audience.target)
-      );
+      return hasFollowTarget(row.followed_brands, audience.target);
   }
 }
 

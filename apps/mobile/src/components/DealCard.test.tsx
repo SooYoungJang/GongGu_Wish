@@ -27,6 +27,13 @@ vi.mock("./ui/SText", () => ({
   },
 }));
 
+vi.mock("./GroupBuyReminderButton", () => ({
+  GroupBuyReminderButton: (props: unknown) => {
+    const ReactMock = require("react");
+    return ReactMock.createElement("GroupBuyReminderButton", props);
+  },
+}));
+
 vi.mock("../design/useCommerceTheme", () => ({
   useCommerceTheme: () => ({
     colors: {
@@ -134,5 +141,10 @@ describe("DealCard", () => {
     );
     expect(card.props.accessibilityLabel).toContain("가격 25,900원");
     expect(card.props.accessibilityLabel).toContain("판매자 귤밭상회 @sample");
+    expect(
+      renderer!.root.findByType(
+        "GroupBuyReminderButton" as unknown as React.ElementType,
+      ).props.item,
+    ).toEqual(item);
   });
 });

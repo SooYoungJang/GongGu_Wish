@@ -36,6 +36,7 @@ import {
 import { usePopularGroupBuys } from "../features/ranking/usePopularGroupBuys";
 import { useNotifications } from "../hooks/useLocalDeals";
 import { useAuthGate } from "../hooks/useAuthGate";
+import { useGroupBuyReminderPicker } from "../context/GroupBuyReminderPickerContext";
 import { useTabReselect } from "../hooks/useTabReselect";
 import type { GroupBuyAlertState } from "../services/notifications";
 import type { StoreScreenProps, GroupBuy } from "../types";
@@ -53,9 +54,7 @@ type RankingItemCacheEntry = {
   item: RankingListItem;
 };
 
-// 랭킹 행을 GroupBuy로 변환해 useNotifications.toggleNotification에 넘긴다.
-// startDate/endDate가 있으면 시작 1시간 전 푸시가 예약되고, 없어도 알림 항목은
-// 마이페이지·릴스가 읽는 공유 스토어에 저장된다.
+// 랭킹 행을 공용 마감 알림 선택창이 사용하는 GroupBuy로 변환한다.
 function rankingToGroupBuy(item: GroupBuyRankingItem): GroupBuy {
   const username = normalizeOptionalInstagramUsername(item.username);
   return {
@@ -107,8 +106,8 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const rankingItemCacheRef = useRef(new Map<string, RankingItemCacheEntry>());
 
   const rankingState = usePopularGroupBuys(period, selectedCategory, sort);
-  const { isNotifying, getNotificationState, toggleNotification } =
-    useNotifications();
+  const { isNotifying, getNotificationState } = useNotifications();
+  const { openReminderPicker } = useGroupBuyReminderPicker();
   const { requireAuth } = useAuthGate();
 
   const patchedRankingState = useMemo(() => {
@@ -244,11 +243,9 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const handleToggleNotification = useCallback(
     (item: GroupBuyRankingItem) => {
       if (!requireAuth()) return;
-      // 진짜 알림 등록/해제: useNotifications 스토어에 쓰면 마이페이지·릴스에 즉시 반영되고,
-      // startDate가 있으면 시작 1시간 전 푸시도 예약된다.
-      void toggleNotification(rankingToGroupBuy(item));
+      openReminderPicker(rankingToGroupBuy(item));
     },
-    [requireAuth, toggleNotification],
+    [openReminderPicker, requireAuth],
   );
 
   return (
@@ -270,10 +267,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
           />
         </View>
 
-        <View
-          style={s.listContainer}
-          testID="ranking-scroll-clip"
-        >
+        <View style={s.listContainer} testID="ranking-scroll-clip">
           <Animated.View
             onLayout={handleFilterHeaderLayout}
             style={[s.filterHeader, filterAnimatedStyle]}
@@ -339,7 +333,6 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
                 );
               })}
             </View>
-
           </Animated.View>
 
           <SellerRankingList

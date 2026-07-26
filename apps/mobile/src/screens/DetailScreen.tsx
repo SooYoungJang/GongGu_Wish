@@ -27,7 +27,10 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { FlashList } from "@shopify/flash-list";
 import { getGroupBuyCategoryLabel } from "@gonggu/shared/utils/groupBuyCategory";
@@ -79,6 +82,7 @@ import {
 } from "../design/bottomSheetMotion";
 import { useTheme } from "../context/ThemeContext";
 import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
+import { useGroupBuyReminderPicker } from "../context/GroupBuyReminderPickerContext";
 import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatEndDate, getDaysRemaining } from "../utils";
@@ -968,44 +972,25 @@ function ProductReelPageComponent({
     onPlaybackStateChange,
   ]);
   const { isBookmarked, toggleBookmark } = useBookmarks();
-  const {
-    getNotificationState,
-    isNotifying,
-    retryNotification,
-    toggleNotification,
-  } = useNotifications();
+  const { getNotificationState, isNotifying } = useNotifications();
+  const { openReminderPicker } = useGroupBuyReminderPicker();
   const notificationState = getNotificationState(groupBuy.id);
-  const notificationEnabled =
-    isAuthenticated && isNotifying(groupBuy.id);
+  const notificationEnabled = isAuthenticated && isNotifying(groupBuy.id);
   const notificationLabel =
     notificationState.status === "pending"
       ? "알림 처리 중"
       : notificationState.status === "failed"
-        ? "알림 재시도"
+        ? "알림 다시 설정"
         : notificationState.status === "unsupported" ||
             notificationState.status === "unavailable"
-          ? "알림 설정 불가"
+          ? "알림 설정"
           : notificationEnabled
-            ? "알림설정됨"
+            ? "알림 변경"
             : "알림";
   const handleNotificationPress = useCallback(() => {
     if (!requireAuth()) return;
-    if (
-      notificationState.status === "failed" ||
-      notificationState.status === "unsupported" ||
-      notificationState.status === "unavailable"
-    ) {
-      void retryNotification(groupBuy);
-      return;
-    }
-    void toggleNotification(groupBuy);
-  }, [
-    groupBuy,
-    notificationState.status,
-    requireAuth,
-    retryNotification,
-    toggleNotification,
-  ]);
+    openReminderPicker(groupBuy);
+  }, [groupBuy, openReminderPicker, requireAuth]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
@@ -1016,17 +1001,21 @@ function ProductReelPageComponent({
     ) ?? "";
   const sellerHandle = sellerName ? `@${sellerName}` : null;
   const categoryLabel = getGroupBuyCategoryLabel(groupBuy.category);
-  const isInfluencerFollowed = isAuthenticated && preferences.followedInfluencers.some(
-    (target) =>
-      target.toLocaleLowerCase("en-US") ===
-      sellerName.toLocaleLowerCase("en-US"),
-  );
+  const isInfluencerFollowed =
+    isAuthenticated &&
+    preferences.followedInfluencers.some(
+      (target) =>
+        target.toLocaleLowerCase("en-US") ===
+        sellerName.toLocaleLowerCase("en-US"),
+    );
   const brandName = groupBuy.brandName?.trim() ?? "";
-  const isBrandFollowed = isAuthenticated && preferences.followedBrands.some(
-    (target) =>
-      target.toLocaleLowerCase("en-US") ===
-      brandName.toLocaleLowerCase("en-US"),
-  );
+  const isBrandFollowed =
+    isAuthenticated &&
+    preferences.followedBrands.some(
+      (target) =>
+        target.toLocaleLowerCase("en-US") ===
+        brandName.toLocaleLowerCase("en-US"),
+    );
   const followControlsDisabled =
     !notificationPreferencesReady || notificationPreferencesSaving;
   const handleBookmarkPress = useCallback(() => {
@@ -1824,13 +1813,23 @@ function ProductReelPageComponent({
             icon={
               <Ionicons
                 name={
-                  isAuthenticated && isBookmarked(groupBuy.id) ? "bookmark" : "bookmark-outline"
+                  isAuthenticated && isBookmarked(groupBuy.id)
+                    ? "bookmark"
+                    : "bookmark-outline"
                 }
                 size={26}
-                color={isAuthenticated && isBookmarked(groupBuy.id) ? colors.accent : "#FFFFFF"}
+                color={
+                  isAuthenticated && isBookmarked(groupBuy.id)
+                    ? colors.accent
+                    : "#FFFFFF"
+                }
               />
             }
-            label={isAuthenticated && isBookmarked(groupBuy.id) ? "북마크됨" : "북마크"}
+            label={
+              isAuthenticated && isBookmarked(groupBuy.id)
+                ? "북마크됨"
+                : "북마크"
+            }
             onPress={handleBookmarkPress}
             s={s}
           />
@@ -2148,12 +2147,7 @@ function NotificationLinkedDetail({
   navigation: DetailScreenProps["navigation"];
 }) {
   const { colors } = useTheme();
-  const {
-    data,
-    isError,
-    isFetching,
-    refetch,
-  } = useQuery({
+  const { data, isError, isFetching, refetch } = useQuery({
     queryKey: ["group-buy", groupBuyId],
     queryFn: () => fetchGroupBuyById(groupBuyId),
   });
@@ -2171,7 +2165,11 @@ function NotificationLinkedDetail({
       />
       <View
         style={{ flex: 1, justifyContent: "center", padding: spacing.lg }}
-        testID={isError ? "notification-linked-detail-error" : "notification-linked-detail-loading"}
+        testID={
+          isError
+            ? "notification-linked-detail-error"
+            : "notification-linked-detail-loading"
+        }
       >
         {isError ? (
           <AsyncStateNotice
@@ -2365,7 +2363,7 @@ function DetailScreenContent({
   // playback tracking and deep-view timers pause until they swipe back.
   const activeGroupBuy = isOnAdPage
     ? groupBuy
-    : reelItems[activeProductIndex] ?? groupBuy;
+    : (reelItems[activeProductIndex] ?? groupBuy);
   const hasCanonicalRouteGroupBuy = Boolean(
     groupBuys?.some((item) => item.id === groupBuy.id),
   );
@@ -2421,10 +2419,7 @@ function DetailScreenContent({
   ]);
   useEffect(() => {
     setActivePlayerPlaying(false);
-  }, [
-    activeGroupBuy.id,
-    isPlaybackActive,
-  ]);
+  }, [activeGroupBuy.id, isPlaybackActive]);
   // ── Deep view tracking: count a view only after 30s of continuous watch ──
   const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackEligibleRef = useRef(false);
@@ -2533,10 +2528,7 @@ function DetailScreenContent({
   }, [activeProductIndex]);
 
   useEffect(() => {
-    if (
-      !hasCanonicalRouteGroupBuy ||
-      canonicalAlignedRouteId === groupBuy.id
-    ) {
+    if (!hasCanonicalRouteGroupBuy || canonicalAlignedRouteId === groupBuy.id) {
       return;
     }
     if (!hasDepartedRouteRef.current) {
@@ -2560,11 +2552,7 @@ function DetailScreenContent({
 
   useEffect(() => {
     const selectedEntry = feedItems[activePagerIndex];
-    if (
-      isOnAdPage &&
-      selectedEntry &&
-      !isReelsContentItem(selectedEntry)
-    ) {
+    if (isOnAdPage && selectedEntry && !isReelsContentItem(selectedEntry)) {
       return;
     }
     setIsOnAdPage(false);
@@ -2587,9 +2575,7 @@ function DetailScreenContent({
           nextDisplayIndex >= 0 ? nextDisplayIndex : activeDisplayIndex;
         setActivePagerIndex(targetDisplayIndex);
         setIsOnAdPage(false);
-        verticalPagerRef.current?.setPage?.(
-          targetDisplayIndex,
-        );
+        verticalPagerRef.current?.setPage?.(targetDisplayIndex);
         return;
       }
       navigation.push("Detail", { groupBuy: item });
@@ -2605,51 +2591,51 @@ function DetailScreenContent({
   );
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
- const renderReelItem = useCallback(
-   ({ item, index }: { item: GroupBuy; index: number }) => (
-     <ProductReelPage
-       key={item.id}
-       groupBuy={item}
-        isActive={isScreenFocused && index === activeProductIndex && !isOnAdPage}
-       playbackAllowed={
-          isPlaybackActive &&
-          index === activeProductIndex &&
-          !isOnAdPage
-       }
-       isSearchSheetVisible={isSearchSheetVisible}
-       searchSheetMetrics={searchSheetMetrics}
-       shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
-       bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
-       pageHeight={screenHeight}
-       mediaWidth={screenWidth}
-       topInset={insets.top}
-       bottomInset={insets.bottom}
-       onBack={handleBack}
-       showDetailAd
-       onCloseSearchSheet={closeSearchSheet}
-       onPlaybackStateChange={handlePlaybackStateChange}
-       onSummarySheetStateChange={handleSummarySheetStateChange}
-       s={s}
-     />
-   ),
-   [
-     activeProductIndex,
-     closeSearchSheet,
-     handleSummarySheetStateChange,
-     handlePlaybackStateChange,
-     handleBack,
-     insets.bottom,
-     insets.top,
+  const renderReelItem = useCallback(
+    ({ item, index }: { item: GroupBuy; index: number }) => (
+      <ProductReelPage
+        key={item.id}
+        groupBuy={item}
+        isActive={
+          isScreenFocused && index === activeProductIndex && !isOnAdPage
+        }
+        playbackAllowed={
+          isPlaybackActive && index === activeProductIndex && !isOnAdPage
+        }
+        isSearchSheetVisible={isSearchSheetVisible}
+        searchSheetMetrics={searchSheetMetrics}
+        shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
+        bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
+        pageHeight={screenHeight}
+        mediaWidth={screenWidth}
+        topInset={insets.top}
+        bottomInset={insets.bottom}
+        onBack={handleBack}
+        showDetailAd
+        onCloseSearchSheet={closeSearchSheet}
+        onPlaybackStateChange={handlePlaybackStateChange}
+        onSummarySheetStateChange={handleSummarySheetStateChange}
+        s={s}
+      />
+    ),
+    [
+      activeProductIndex,
+      closeSearchSheet,
+      handleSummarySheetStateChange,
+      handlePlaybackStateChange,
+      handleBack,
+      insets.bottom,
+      insets.top,
       isOnAdPage,
-     isPlaybackActive,
-     isSearchSheetVisible,
-     navigation,
-     s,
-     searchSheetMetrics,
-     screenHeight,
-     screenWidth,
-   ],
- );
+      isPlaybackActive,
+      isSearchSheetVisible,
+      navigation,
+      s,
+      searchSheetMetrics,
+      screenHeight,
+      screenWidth,
+    ],
+  );
 
   return (
     <View style={s.safeArea}>
@@ -2706,7 +2692,9 @@ function DetailScreenContent({
                     accessibilityLiveRegion="polite"
                     style={s.reelAdLoading}
                   >
-                    <SText variant="caption" style={s.reelAdLoadingLabel}>광고</SText>
+                    <SText variant="caption" style={s.reelAdLoadingLabel}>
+                      광고
+                    </SText>
                     <SText variant="body" style={s.reelAdLoadingText}>
                       광고를 불러오는 중이에요
                     </SText>
@@ -2715,7 +2703,9 @@ function DetailScreenContent({
                     loadEnabled={Math.abs(index - activePagerIndex) <= 1}
                     onLoadStateChange={handleDetailAdLoadStateChange}
                     placement="detail"
-                    reelBottomInset={insets.bottom + DETAIL_SEARCH_CHROME_OFFSET}
+                    reelBottomInset={
+                      insets.bottom + DETAIL_SEARCH_CHROME_OFFSET
+                    }
                     testID={`detail-native-ad-${entry.sequence}`}
                     variant="reel"
                     visible={index === activePagerIndex}
@@ -2724,21 +2714,21 @@ function DetailScreenContent({
               </View>
             );
           }
-         const item = entry.content;
-         const organicIndex = reelItems.indexOf(item);
+          const item = entry.content;
+          const organicIndex = reelItems.indexOf(item);
           return (
-         <View
-           key={entry.key}
-           collapsable={false}
-           style={[
-             s.verticalPagerPage,
-             {
-               height: screenHeight,
-             },
-           ]}
-         >
-           {renderReelItem({ item, index: organicIndex })}
-         </View>
+            <View
+              key={entry.key}
+              collapsable={false}
+              style={[
+                s.verticalPagerPage,
+                {
+                  height: screenHeight,
+                },
+              ]}
+            >
+              {renderReelItem({ item, index: organicIndex })}
+            </View>
           );
         })}
       </PagerView>

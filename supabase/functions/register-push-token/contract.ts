@@ -5,7 +5,7 @@ export type NotificationReminderDay =
 export type NotificationPreferences = {
   pushEnabled: boolean;
   deadlineRemindersEnabled: boolean;
-  newSubmissionsEnabled: boolean;
+  submissionApprovalEnabled: boolean;
   reminderDays: NotificationReminderDay[];
   followedInfluencers: string[];
   followedBrands: string[];
@@ -14,7 +14,7 @@ export type NotificationPreferences = {
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   pushEnabled: false,
   deadlineRemindersEnabled: false,
-  newSubmissionsEnabled: false,
+  submissionApprovalEnabled: false,
   reminderDays: [1, 3, 7],
   followedInfluencers: [],
   followedBrands: [],
@@ -94,9 +94,10 @@ function normalizeTargets(
       throw new Error(`${kind} 알림 대상은 문자열이어야 합니다.`);
     }
     const compact = candidate.trim().replace(/\s+/g, " ");
-    const normalized = kind === "influencer"
-      ? compact.replace(/^@+/, "").toLowerCase()
-      : compact;
+    const normalized =
+      kind === "influencer"
+        ? compact.replace(/^@+/, "").toLowerCase()
+        : compact;
     if (
       !normalized ||
       normalized.length > MAX_TARGET_LENGTH ||
@@ -124,15 +125,16 @@ function validatePreferences(value: unknown): NotificationPreferences {
   }
   const pushEnabled = value.pushEnabled;
   const deadlineRemindersEnabled = value.deadlineRemindersEnabled;
-  const newSubmissionsEnabled = value.newSubmissionsEnabled;
+  const submissionApprovalEnabled =
+    value.submissionApprovalEnabled ?? value.newSubmissionsEnabled;
   if (typeof pushEnabled !== "boolean") {
     throw new Error("pushEnabled 값은 boolean이어야 합니다.");
   }
   if (typeof deadlineRemindersEnabled !== "boolean") {
     throw new Error("deadlineRemindersEnabled 값은 boolean이어야 합니다.");
   }
-  if (typeof newSubmissionsEnabled !== "boolean") {
-    throw new Error("newSubmissionsEnabled 값은 boolean이어야 합니다.");
+  if (typeof submissionApprovalEnabled !== "boolean") {
+    throw new Error("submissionApprovalEnabled 값은 boolean이어야 합니다.");
   }
   if (!Array.isArray(value.reminderDays)) {
     throw new Error("알림 날짜 설정은 배열이어야 합니다.");
@@ -150,7 +152,7 @@ function validatePreferences(value: unknown): NotificationPreferences {
   return {
     pushEnabled,
     deadlineRemindersEnabled,
-    newSubmissionsEnabled,
+    submissionApprovalEnabled,
     reminderDays: [
       ...new Set(value.reminderDays as NotificationReminderDay[]),
     ].sort((left, right) => left - right),
@@ -193,18 +195,20 @@ export function validatePushRegistrationInput(
     throw new Error("유효한 Expo Push Token이 필요합니다.");
   }
 
-  const preferences = value.preferences === undefined
-    ? null
-    : validatePreferences(value.preferences);
+  const preferences =
+    value.preferences === undefined
+      ? null
+      : validatePreferences(value.preferences);
   if (!hasToken && !preferences) {
     throw new Error("푸시 토큰 또는 알림 설정이 필요합니다.");
   }
 
-  const tokenAction = preferences?.pushEnabled === false
-    ? "clear"
-    : hasToken
-    ? "set"
-    : "preserve";
+  const tokenAction =
+    preferences?.pushEnabled === false
+      ? "clear"
+      : hasToken
+        ? "set"
+        : "preserve";
   return {
     readOnly: false,
     token: tokenAction === "set" ? (value.token as string) : null,
@@ -217,17 +221,20 @@ export function fromNotificationPreferenceColumns(
   columns: Record<string, unknown>,
 ) {
   return validatePreferences({
-    pushEnabled: typeof columns.push_enabled === "boolean"
-      ? columns.push_enabled
-      : false,
+    pushEnabled:
+      typeof columns.push_enabled === "boolean" ? columns.push_enabled : false,
     deadlineRemindersEnabled:
       typeof columns.deadline_reminders_enabled === "boolean"
         ? columns.deadline_reminders_enabled
         : false,
-    newSubmissionsEnabled: typeof columns.new_submissions_enabled === "boolean"
-      ? columns.new_submissions_enabled
-      : false,
-    reminderDays: columns.notification_reminder_days ??
+    submissionApprovalEnabled:
+      typeof columns.submission_approval_notifications_enabled === "boolean"
+        ? columns.submission_approval_notifications_enabled
+        : typeof columns.new_submissions_enabled === "boolean"
+          ? columns.new_submissions_enabled
+          : false,
+    reminderDays:
+      columns.notification_reminder_days ??
       DEFAULT_NOTIFICATION_PREFERENCES.reminderDays,
     followedInfluencers: columns.followed_influencers ?? [],
     followedBrands: columns.followed_brands ?? [],
@@ -240,7 +247,10 @@ export function toNotificationPreferenceColumns(
   return {
     push_enabled: preferences.pushEnabled,
     deadline_reminders_enabled: preferences.deadlineRemindersEnabled,
-    new_submissions_enabled: preferences.newSubmissionsEnabled,
+    submission_approval_notifications_enabled:
+      preferences.submissionApprovalEnabled,
+    // One-release bridge for clients that still read the legacy preference.
+    new_submissions_enabled: preferences.submissionApprovalEnabled,
     notification_reminder_days: preferences.reminderDays,
     followed_influencers: preferences.followedInfluencers,
     followed_brands: preferences.followedBrands,

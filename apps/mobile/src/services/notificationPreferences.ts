@@ -1,15 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { callEdgeFunction } from "../lib/postgrest-client";
+import {
+  NOTIFICATION_REMINDER_DAYS,
+  type NotificationReminderDay,
+} from "./reminderDates";
 
-export const NOTIFICATION_REMINDER_DAYS = [1, 3, 7] as const;
-export type NotificationReminderDay =
-  (typeof NOTIFICATION_REMINDER_DAYS)[number];
+export { NOTIFICATION_REMINDER_DAYS };
+export type { NotificationReminderDay };
 
 export type NotificationPreferences = {
   pushEnabled: boolean;
   deadlineRemindersEnabled: boolean;
-  newSubmissionsEnabled: boolean;
+  submissionApprovalEnabled: boolean;
   reminderDays: NotificationReminderDay[];
   followedInfluencers: string[];
   followedBrands: string[];
@@ -18,7 +21,7 @@ export type NotificationPreferences = {
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   pushEnabled: false,
   deadlineRemindersEnabled: false,
-  newSubmissionsEnabled: false,
+  submissionApprovalEnabled: false,
   reminderDays: [1, 3, 7],
   followedInfluencers: [],
   followedBrands: [],
@@ -98,10 +101,12 @@ export function normalizeNotificationPreferences(
       typeof source.deadlineRemindersEnabled === "boolean"
         ? source.deadlineRemindersEnabled
         : DEFAULT_NOTIFICATION_PREFERENCES.deadlineRemindersEnabled,
-    newSubmissionsEnabled:
-      typeof source.newSubmissionsEnabled === "boolean"
-        ? source.newSubmissionsEnabled
-        : DEFAULT_NOTIFICATION_PREFERENCES.newSubmissionsEnabled,
+    submissionApprovalEnabled:
+      typeof source.submissionApprovalEnabled === "boolean"
+        ? source.submissionApprovalEnabled
+        : typeof source.newSubmissionsEnabled === "boolean"
+          ? source.newSubmissionsEnabled
+          : DEFAULT_NOTIFICATION_PREFERENCES.submissionApprovalEnabled,
     reminderDays: normalizeReminderDays(source.reminderDays),
     followedInfluencers: normalizeFollowTargets(
       source.followedInfluencers,

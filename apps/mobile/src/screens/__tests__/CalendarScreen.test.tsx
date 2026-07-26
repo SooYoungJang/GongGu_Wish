@@ -18,6 +18,13 @@ import type { GroupBuy } from "../../types";
 vi.mock("../../api", () => ({
   fetchGroupBuys: vi.fn(),
 }));
+vi.mock("../../context/GroupBuyReminderPickerContext", () => ({
+  useGroupBuyReminderPicker: () => ({
+    getReminderState: () => ({ status: "idle" }),
+    isReminderEnabled: () => false,
+    openReminderPicker: vi.fn(),
+  }),
+}));
 
 const activityMock = vi.hoisted(() => ({
   bookmarks: [] as Array<{ id: string }>,
@@ -287,9 +294,7 @@ function createCalendar(params: Record<string, unknown> = {}) {
     <ThemeProvider>
       <CalendarScreen
         navigation={navigationMock as any}
-        route={
-          { params, key: "CalendarScreen", name: "CalendarScreen" } as any
-        }
+        route={{ params, key: "CalendarScreen", name: "CalendarScreen" } as any}
       />
     </ThemeProvider>
   );
