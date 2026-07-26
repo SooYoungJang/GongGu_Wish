@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 case "${GITHUB_REF:-}" in
   refs/heads/main)
     environment="production"
@@ -131,31 +133,10 @@ fingerprint_hash="$(
   ' <<<"$fingerprint_json"
 )"
 
-# Android APK uploads retain the fingerprint but not the app identifier metadata.
-compatible_builds_json="$(
-  eas build:list \
-    --platform android \
-    --status finished \
-    --fingerprint-hash "$fingerprint_hash" \
-    --limit 1 \
-    --json \
-    --non-interactive
-)"
+publish_ota() {
+  local compatibility_label="$1"
+  local compatibility_id="$2"
 
-compatible_build_id="$(
-  node -e '
-    const fs = require("node:fs");
-    const value = JSON.parse(fs.readFileSync(0, "utf8"));
-    const builds = Array.isArray(value) ? value : value.builds ?? [];
-    const id = builds[0]?.id ?? "";
-    if (id !== "" && !/^[A-Za-z0-9_-]{8,128}$/.test(id)) {
-      throw new Error("EAS build list returned an invalid build ID");
-    }
-    process.stdout.write(id);
-  ' <<<"$compatible_builds_json"
-)"
-
-if [[ -n "$compatible_build_id" ]]; then
   eas update \
     --channel "$channel" \
     --environment "$environment" \
@@ -173,10 +154,48 @@ if [[ -n "$compatible_build_id" ]]; then
     echo "## Android OTA update"
     echo ""
     echo "- Environment: \`$environment\`"
-    echo "- Compatible build: \`$compatible_build_id\`"
+    echo "- $compatibility_label: \`$compatibility_id\`"
     echo "- Fingerprint: \`$fingerprint_hash\`"
   } >>"$GITHUB_STEP_SUMMARY"
   exit 0
+}
+
+if [[ "$environment" == "preview" ]]; then
+  preview_baseline_artifact_id="$(
+    node "$script_directory/find-preview-runtime-baseline.mjs" "$fingerprint_hash"
+  )"
+
+  if [[ -n "$preview_baseline_artifact_id" ]]; then
+    publish_ota "GitHub baseline artifact" "$preview_baseline_artifact_id"
+  fi
+else
+  # Android APK uploads retain the fingerprint but not the app identifier metadata.
+  compatible_builds_json="$(
+    eas build:list \
+      --platform android \
+      --status finished \
+      --fingerprint-hash "$fingerprint_hash" \
+      --limit 1 \
+      --json \
+      --non-interactive
+  )"
+
+  compatible_build_id="$(
+    node -e '
+      const fs = require("node:fs");
+      const value = JSON.parse(fs.readFileSync(0, "utf8"));
+      const builds = Array.isArray(value) ? value : value.builds ?? [];
+      const id = builds[0]?.id ?? "";
+      if (id !== "" && !/^[A-Za-z0-9_-]{8,128}$/.test(id)) {
+        throw new Error("EAS build list returned an invalid build ID");
+      }
+      process.stdout.write(id);
+    ' <<<"$compatible_builds_json"
+  )"
+
+  if [[ -n "$compatible_build_id" ]]; then
+    publish_ota "Compatible EAS build" "$compatible_build_id"
+  fi
 fi
 
 gradle_user_home="$RUNNER_TEMP/gradle-user-home"
@@ -206,29 +225,40 @@ if [[ ! -s "$apk_path" ]]; then
   exit 1
 fi
 
-eas_upload_available="true"
-if upload_json="$(
-  # Uploading registers the locally built APK and its fingerprint. It does not
-  # invoke an EAS cloud build, and it gives testers a shareable download link.
-  eas upload \
-    --platform android \
-    --build-path "$apk_path" \
-    --fingerprint "$fingerprint_hash" \
-    --json \
-    --non-interactive
-)"; then
-  :
-elif [[ "$environment" == "preview" ]]; then
-  eas_upload_available="false"
-  upload_json='{}'
-  echo "::warning::EAS upload failed; preserving the Preview APK as a GitHub Actions artifact."
+apk_sha256="$(
+  node -e '
+    const { createHash } = require("node:crypto");
+    const { readFileSync } = require("node:fs");
+    process.stdout.write(
+      createHash("sha256").update(readFileSync(process.argv[1])).digest("hex"),
+    );
+  ' "$apk_path"
+)"
+
+if [[ "$environment" == "preview" ]]; then
+  apk_artifact_name="gonggu-wish-preview-runtime-$fingerprint_hash"
 else
-  echo "::error::EAS upload failed for the Production APK."
-  exit 1
+  apk_artifact_name="gonggu-wish-production-${GITHUB_SHA:-local}"
 fi
 
-expo_url="$(
-  node -e '
+expo_url=""
+if [[ "$environment" == "production" ]]; then
+  if ! upload_json="$(
+    # Production local builds must be registered with EAS before they can
+    # become a compatibility baseline for later OTA updates.
+    eas upload \
+      --platform android \
+      --build-path "$apk_path" \
+      --fingerprint "$fingerprint_hash" \
+      --json \
+      --non-interactive
+  )"; then
+    echo "::error::EAS upload failed for the Production APK."
+    exit 1
+  fi
+
+  expo_url="$(
+    node -e '
     const fs = require("node:fs");
     const value = JSON.parse(fs.readFileSync(0, "utf8"));
     const seen = new Set();
@@ -266,14 +296,17 @@ expo_url="$(
       }
       process.stdout.write(parsed.href);
     }
-  ' <<<"$upload_json"
-)"
+    ' <<<"$upload_json"
+  )"
+fi
 
 {
   echo "mode=build"
   echo "environment=$environment"
   echo "fingerprint=$fingerprint_hash"
   echo "apk-path=$apk_path"
+  echo "artifact-name=$apk_artifact_name"
+  echo "apk-sha256=$apk_sha256"
   echo "expo-url=$expo_url"
 } >>"$GITHUB_OUTPUT"
 
@@ -283,10 +316,9 @@ expo_url="$(
   echo "- Environment: \`$environment\`"
   echo "- Builder: GitHub Actions runner (local EAS build)"
   echo "- Fingerprint: \`$fingerprint_hash\`"
-  if [[ -n "$expo_url" ]]; then
+  if [[ "$environment" == "preview" ]]; then
+    echo "- Distribution: GitHub Actions artifact only"
+  elif [[ -n "$expo_url" ]]; then
     echo "- Expo download: $expo_url"
-  fi
-  if [[ "$eas_upload_available" == "false" ]]; then
-    echo "- Expo upload: unavailable; use the GitHub Actions artifact"
   fi
 } >>"$GITHUB_STEP_SUMMARY"

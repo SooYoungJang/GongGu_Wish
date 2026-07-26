@@ -102,11 +102,99 @@ if command -v chmod >/dev/null 2>&1; then
   chmod +x "$fake_bin/eas"
 fi
 
+cat >"$fake_bin/gh" <<'FAKE_GH'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+printf '%s\n' "$*" >>"$MOCK_GH_LOG"
+fingerprint="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+head_sha="0123456789abcdef0123456789abcdef01234567"
+apk_name="gonggu-wish-preview-runtime-$fingerprint"
+baseline_name="$apk_name-baseline"
+
+if [[ "$1" == "run" && "$2" == "download" ]]; then
+  output_directory=""
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--dir" ]]; then
+      output_directory="${2:?download directory is required}"
+      break
+    fi
+    shift
+  done
+  [[ -n "$output_directory" ]]
+  mkdir -p "$output_directory"
+  manifest_fingerprint="$fingerprint"
+  if [[ "$MOCK_GITHUB_BASELINE" == "bad-manifest" ]]; then
+    manifest_fingerprint="ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  fi
+  printf '%s\n' "{\"schemaVersion\":1,\"environment\":\"preview\",\"packageName\":\"com.gonggu.wish.preview\",\"mode\":\"build\",\"fingerprint\":\"$manifest_fingerprint\",\"commitSha\":\"$head_sha\",\"workflowRunId\":\"42\",\"apkArtifactId\":\"456\",\"apkArtifactName\":\"$apk_name\",\"apkSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}" \
+    >"$output_directory/preview-runtime-baseline.json"
+  exit 0
+fi
+
+endpoint="${!#}"
+case "$endpoint" in
+  */actions/workflows/ci.yml)
+    if [[ "$MOCK_GITHUB_BASELINE" == "api-error" ]]; then
+      echo "GitHub API unavailable" >&2
+      exit 1
+    fi
+    printf '%s\n' '{"id":777}'
+    ;;
+  */actions/artifacts\?*)
+    case "$MOCK_GITHUB_BASELINE" in
+      trusted|failed|wrong-workflow|bad-manifest|bad-apk)
+        printf '%s\n' "{\"artifacts\":[{\"id\":123,\"name\":\"$baseline_name\",\"expired\":false,\"created_at\":\"2026-07-26T10:00:00Z\",\"workflow_run\":{\"id\":42,\"head_branch\":\"develop\",\"head_sha\":\"$head_sha\"}}]}"
+        ;;
+      candidate-fallback)
+        printf '%s\n' "{\"artifacts\":[{\"id\":122,\"name\":\"$baseline_name\",\"expired\":false,\"created_at\":\"2026-07-26T11:00:00Z\",\"workflow_run\":{\"id\":41,\"head_branch\":\"develop\",\"head_sha\":\"$head_sha\"}},{\"id\":123,\"name\":\"$baseline_name\",\"expired\":false,\"created_at\":\"2026-07-26T10:00:00Z\",\"workflow_run\":{\"id\":42,\"head_branch\":\"develop\",\"head_sha\":\"$head_sha\"}}]}"
+        ;;
+      expired)
+        printf '%s\n' "{\"artifacts\":[{\"id\":123,\"name\":\"$baseline_name\",\"expired\":true,\"workflow_run\":{\"id\":42,\"head_branch\":\"develop\",\"head_sha\":\"$head_sha\"}}]}"
+        ;;
+      *)
+        printf '%s\n' '{"artifacts":[]}'
+        ;;
+    esac
+    ;;
+  */actions/runs/41)
+    printf '%s\n' "{\"workflow_id\":777,\"path\":\".github/workflows/ci.yml\",\"status\":\"completed\",\"conclusion\":\"failure\",\"event\":\"push\",\"head_branch\":\"develop\",\"head_sha\":\"$head_sha\"}"
+    ;;
+  */actions/runs/42)
+    workflow_id=777
+    conclusion="success"
+    if [[ "$MOCK_GITHUB_BASELINE" == "failed" ]]; then
+      conclusion="failure"
+    elif [[ "$MOCK_GITHUB_BASELINE" == "wrong-workflow" ]]; then
+      workflow_id=778
+    fi
+    printf '%s\n' "{\"workflow_id\":$workflow_id,\"path\":\".github/workflows/ci.yml\",\"status\":\"completed\",\"conclusion\":\"$conclusion\",\"event\":\"push\",\"head_branch\":\"develop\",\"head_sha\":\"$head_sha\"}"
+    ;;
+  */actions/artifacts/456)
+    artifact_name="$apk_name"
+    expired=false
+    if [[ "$MOCK_GITHUB_BASELINE" == "bad-apk" ]]; then
+      artifact_name="unexpected-artifact"
+    fi
+    printf '%s\n' "{\"id\":456,\"name\":\"$artifact_name\",\"expired\":$expired,\"size_in_bytes\":123456,\"workflow_run\":{\"id\":42,\"head_branch\":\"develop\",\"head_sha\":\"$head_sha\"}}"
+    ;;
+  *)
+    printf 'Unexpected GitHub API endpoint: %s\n' "$endpoint" >&2
+    exit 1
+    ;;
+esac
+FAKE_GH
+if command -v chmod >/dev/null 2>&1; then
+  chmod +x "$fake_bin/gh"
+fi
+
 run_deployment() {
   local name="$1"
   local ref="$2"
-  local compatible_build="$3"
-  local upload_fail="${4:-false}"
+  local github_baseline="$3"
+  local compatible_build="$4"
+  local upload_fail="${5:-false}"
   local case_directory="$test_directory/$name"
   local google_services_file="$preview_google_services"
   if [[ "$ref" == "refs/heads/main" ]]; then
@@ -117,6 +205,8 @@ run_deployment() {
   PATH="$fake_bin:$PATH" \
     GITHUB_REF="$ref" \
     GITHUB_SHA="abc123" \
+    GITHUB_REPOSITORY="SooYoungJang/GongGu_Wish" \
+    GH_TOKEN="test-token" \
     GITHUB_OUTPUT="$case_directory/output" \
     GITHUB_STEP_SUMMARY="$case_directory/summary" \
     RUNNER_TEMP="$case_directory/runner" \
@@ -127,38 +217,84 @@ run_deployment() {
     EXPO_PUBLIC_SUPABASE_URL="https://supabase.example.test" \
     GOOGLE_SERVICES_JSON="$google_services_file" \
     MOCK_GOOGLE_SERVICES_JSON="$google_services_file" \
+    MOCK_GITHUB_BASELINE="$github_baseline" \
     MOCK_COMPATIBLE_BUILD="$compatible_build" \
     MOCK_UPLOAD_FAIL="$upload_fail" \
     MOCK_EAS_LOG="$case_directory/eas.log" \
+    MOCK_GH_LOG="$case_directory/gh.log" \
     "$bash_command" "$script_directory/ci-deploy-android.sh"
 }
 
-run_deployment "preview-ota" "refs/heads/develop" "true"
+assert_eas_commands() {
+  local case_name="$1"
+  local expected="$2"
+  local actual
+  actual="$(awk '{ values = values separator $1; separator = " " } END { print values }' \
+    "$test_directory/$case_name/eas.log")"
+  if [[ "$actual" != "$expected" ]]; then
+    printf 'Unexpected Preview EAS commands for %s: %s\n' "$case_name" "$actual" >&2
+    exit 1
+  fi
+}
+
+run_deployment "preview-ota" "refs/heads/develop" "trusted" "false"
 grep -Fxq "mode=ota" "$test_directory/preview-ota/output"
 grep -Fxq "environment=preview" "$test_directory/preview-ota/output"
 grep -Fq "update --channel preview --environment preview" "$test_directory/preview-ota/eas.log"
-if grep -Fq -- "--app-identifier" "$test_directory/preview-ota/eas.log"; then
-  echo "Android uploaded builds must be looked up without an app identifier filter" >&2
-  exit 1
-fi
-if grep -Fq "build --platform" "$test_directory/preview-ota/eas.log"; then
-  echo "Preview OTA case unexpectedly started a build" >&2
+grep -Fq "/actions/workflows/ci.yml" "$test_directory/preview-ota/gh.log"
+grep -Fq "/actions/artifacts?name=gonggu-wish-preview-runtime-" \
+  "$test_directory/preview-ota/gh.log"
+grep -Fq "/actions/runs/42" "$test_directory/preview-ota/gh.log"
+grep -Fq "run download 42" "$test_directory/preview-ota/gh.log"
+grep -Fq "/actions/artifacts/456" "$test_directory/preview-ota/gh.log"
+assert_eas_commands "preview-ota" "fingerprint:generate update"
+if grep -Eq "build:list|build --platform|upload --platform" \
+  "$test_directory/preview-ota/eas.log"; then
+  echo "Preview OTA unexpectedly used an EAS build record" >&2
   exit 1
 fi
 
-run_deployment "preview-build" "refs/heads/develop" "false"
-grep -Fxq "mode=build" "$test_directory/preview-build/output"
-grep -Fq "build --platform android --profile preview --local" "$test_directory/preview-build/eas.log"
+run_deployment \
+  "preview-ota-candidate-fallback" \
+  "refs/heads/develop" \
+  "candidate-fallback" \
+  "false"
+grep -Fxq "mode=ota" "$test_directory/preview-ota-candidate-fallback/output"
+grep -Fq "/actions/runs/41" "$test_directory/preview-ota-candidate-fallback/gh.log"
+grep -Fq "/actions/runs/42" "$test_directory/preview-ota-candidate-fallback/gh.log"
+assert_eas_commands \
+  "preview-ota-candidate-fallback" \
+  "fingerprint:generate update"
+
+for baseline in \
+  missing \
+  expired \
+  failed \
+  wrong-workflow \
+  bad-manifest \
+  bad-apk \
+  api-error; do
+  case_name="preview-build-$baseline"
+  run_deployment "$case_name" "refs/heads/develop" "$baseline" "true" "true"
+  grep -Fxq "mode=build" "$test_directory/$case_name/output"
+  grep -Fxq "expo-url=" "$test_directory/$case_name/output"
+  grep -Fxq \
+    "artifact-name=gonggu-wish-preview-runtime-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" \
+    "$test_directory/$case_name/output"
+  grep -Eq '^apk-sha256=[0-9a-f]{64}$' "$test_directory/$case_name/output"
+  grep -Fq "build --platform android --profile preview --local" \
+    "$test_directory/$case_name/eas.log"
+  grep -Fq "GitHub Actions artifact only" "$test_directory/$case_name/summary"
+  assert_eas_commands "$case_name" "fingerprint:generate build"
+  if grep -Eq "build:list|upload --platform" "$test_directory/$case_name/eas.log"; then
+    echo "Preview build unexpectedly queried or uploaded an EAS build" >&2
+    exit 1
+  fi
+done
 grep -Fxq 'org.gradle.parallel=false' \
-  "$test_directory/preview-build/runner/gradle-user-home/gradle.properties"
+  "$test_directory/preview-build-missing/runner/gradle-user-home/gradle.properties"
 
-run_deployment "preview-build-upload-fallback" "refs/heads/develop" "false" "true"
-grep -Fxq "mode=build" "$test_directory/preview-build-upload-fallback/output"
-grep -Fxq "expo-url=" "$test_directory/preview-build-upload-fallback/output"
-grep -Fq "Expo upload: unavailable" \
-  "$test_directory/preview-build-upload-fallback/summary"
-
-run_deployment "production-ota" "refs/heads/main" "true"
+run_deployment "production-ota" "refs/heads/main" "missing" "true"
 grep -Fxq "mode=ota" "$test_directory/production-ota/output"
 grep -Fq "update --channel production --environment production" "$test_directory/production-ota/eas.log"
 if grep -Fq -- "--app-identifier" "$test_directory/production-ota/eas.log"; then
@@ -166,9 +302,11 @@ if grep -Fq -- "--app-identifier" "$test_directory/production-ota/eas.log"; then
   exit 1
 fi
 
-run_deployment "production-build" "refs/heads/main" "false"
+run_deployment "production-build" "refs/heads/main" "missing" "false"
 grep -Fxq "mode=build" "$test_directory/production-build/output"
 grep -Fxq "environment=production" "$test_directory/production-build/output"
+grep -Fxq "artifact-name=gonggu-wish-production-abc123" \
+  "$test_directory/production-build/output"
 grep -Fq "build --platform android --profile production-apk --local" "$test_directory/production-build/eas.log"
 grep -Fq "upload --platform android" "$test_directory/production-build/eas.log"
 grep -Fq "expo-url=https://expo.dev/artifacts/test.apk" "$test_directory/production-build/output"
@@ -176,6 +314,7 @@ grep -Fq "expo-url=https://expo.dev/artifacts/test.apk" "$test_directory/product
 if run_deployment \
   "production-build-upload-failure" \
   "refs/heads/main" \
+  "missing" \
   "false" \
   "true"; then
   echo "Production unexpectedly tolerated an EAS upload failure" >&2
@@ -192,12 +331,16 @@ mkdir -p "$wrapped_directory/runner"
   PATH="$fake_bin:$PATH" \
     GITHUB_REF="refs/heads/develop" \
     GITHUB_SHA="abc123" \
+    GITHUB_REPOSITORY="SooYoungJang/GongGu_Wish" \
+    GH_TOKEN="test-token" \
     GITHUB_OUTPUT="$wrapped_directory/output" \
     GITHUB_STEP_SUMMARY="$wrapped_directory/summary" \
     RUNNER_TEMP="$wrapped_directory/runner" \
     MOCK_GOOGLE_SERVICES_JSON="$preview_google_services" \
-    MOCK_COMPATIBLE_BUILD="true" \
+    MOCK_GITHUB_BASELINE="trusted" \
+    MOCK_COMPATIBLE_BUILD="false" \
     MOCK_EAS_LOG="$wrapped_directory/eas.log" \
+    MOCK_GH_LOG="$wrapped_directory/gh.log" \
     "$bash_command" scripts/ci-deploy-android.sh
 )
 grep -Fxq "mode=ota" "$wrapped_directory/output"

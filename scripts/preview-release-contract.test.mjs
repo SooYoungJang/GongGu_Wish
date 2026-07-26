@@ -19,6 +19,14 @@ const adminViteConfig = readFileSync("apps/admin/vite.config.ts", "utf8");
 const adminVercelConfig = readFileSync("apps/admin/vercel.json", "utf8");
 const adminIgnoreCommand = JSON.parse(adminVercelConfig).ignoreCommand;
 const ciChangePlanSource = readFileSync("scripts/ci-change-plan.mjs", "utf8");
+const mobileDeployScript = readFileSync(
+  "apps/mobile/scripts/ci-deploy-android.sh",
+  "utf8",
+);
+const previewBaselineSource = readFileSync(
+  "apps/mobile/scripts/find-preview-runtime-baseline.mjs",
+  "utf8",
+);
 const agentRules = readFileSync("AGENTS.md", "utf8");
 const branchStrategy = readFileSync("docs/branch-strategy.md", "utf8");
 
@@ -184,6 +192,43 @@ test("develop publishes a green affected-components Preview release gate", () =>
   assert.match(releaseGate, /affected:/);
   assert.match(releaseGate, /docsOnly:/);
   assert.match(releaseGate, /unchanged components were reused/);
+});
+
+test("Preview mobile deploys use successful GitHub APK baselines before EAS OTA", () => {
+  const mobileJob = job("deploy-mobile");
+  const releaseGate = job("preview-release-gate");
+
+  assert.match(workflow, /permissions:\n\s+actions: read\n\s+contents: read/);
+  assert.match(mobileJob, /GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/);
+  assert.match(mobileJob, /artifact-name:/);
+  assert.match(mobileJob, /steps\.mobile-deploy\.outputs\.artifact-name/);
+  assert.match(mobileJob, /apk-artifact-id:/);
+  assert.match(mobileJob, /steps\.upload-apk\.outputs\.artifact-id/);
+  assert.match(mobileJob, /apk-artifact-url:/);
+  assert.match(mobileJob, /steps\.upload-apk\.outputs\.artifact-url/);
+  assert.match(mobileJob, /apk-sha256:/);
+  assert.match(mobileDeployScript, /find-preview-runtime-baseline\.mjs/);
+  assert.match(mobileDeployScript, /GitHub Actions artifact only/);
+  assert.match(previewBaselineSource, /actions\/workflows\/ci\.yml/);
+  assert.match(
+    previewBaselineSource,
+    /run\?\.path === "\.github\/workflows\/ci\.yml"/,
+  );
+  assert.match(previewBaselineSource, /run\?\.conclusion === "success"/);
+  assert.match(previewBaselineSource, /run\?\.event === "push"/);
+  assert.match(previewBaselineSource, /run\?\.head_branch === "develop"/);
+  assert.match(previewBaselineSource, /manifest\?\.mode === "build"/);
+  assert.match(previewBaselineSource, /manifest\?\.apkSha256/);
+  assert.match(previewBaselineSource, /artifact\?\.expired === false/);
+  assert.match(previewBaselineSource, /artifact\.size_in_bytes > 0/);
+  assert.match(releaseGate, /MOBILE_DEPLOY_MODE/);
+  assert.match(releaseGate, /MOBILE_FINGERPRINT/);
+  assert.match(releaseGate, /MOBILE_ARTIFACT_NAME/);
+  assert.match(releaseGate, /MOBILE_ARTIFACT_ID/);
+  assert.match(releaseGate, /MOBILE_APK_SHA256/);
+  assert.match(releaseGate, /mobileDeployment:/);
+  assert.match(releaseGate, /preview-runtime-baseline\.json/);
+  assert.match(releaseGate, /mode: "build"/);
 });
 
 test("Preview Green summary renders the SHA without shell command substitution", () => {
