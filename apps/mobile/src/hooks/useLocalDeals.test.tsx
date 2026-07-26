@@ -1285,7 +1285,9 @@ describe("useNotifications", () => {
     });
     expect(
       JSON.parse(
-        storage.values.get("@gonggu/notifications/outbox/v1/user-1") ?? "[]",
+        storage.values.get(
+          "@gonggu/notifications/outbox/v1/user%3Auser-1",
+        ) ?? "[]",
       ),
     ).toEqual(
       expect.arrayContaining([
@@ -1305,7 +1307,9 @@ describe("useNotifications", () => {
       await waitFor(() => {
         expect(
           JSON.parse(
-            storage.values.get("@gonggu/notifications/outbox/v1/user-1") ??
+            storage.values.get(
+              "@gonggu/notifications/outbox/v1/user%3Auser-1",
+            ) ??
               "[]",
           ),
         ).toEqual([]);
@@ -1340,7 +1344,9 @@ describe("useNotifications", () => {
     await waitFor(() => {
       expect(
         JSON.parse(
-          storage.values.get("@gonggu/notifications/outbox/v1/user-1") ??
+          storage.values.get(
+            "@gonggu/notifications/outbox/v1/user%3Auser-1",
+          ) ??
             "[]",
         ),
       ).toEqual(
@@ -1373,8 +1379,13 @@ describe("useNotifications", () => {
     });
 
     expect(notifications.result.current.notifications).toHaveLength(0);
-    expect(storage.values.has("@gonggu/notifications/v2/user%3Auser-1")).toBe(
-      false,
-    );
+    expect(
+      JSON.parse(
+        storage.values.get("@gonggu/notifications/v2/user%3Auser-1") ?? "null",
+      ),
+    ).toEqual([]);
+    expect(
+      JSON.parse(storage.values.get("@gonggu/notifications/v2/guest") ?? "[]"),
+    ).toHaveLength(1);
   });
 });
