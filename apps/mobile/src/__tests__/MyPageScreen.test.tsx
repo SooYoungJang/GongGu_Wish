@@ -406,7 +406,11 @@ describe('MyPageScreen', () => {
 
     const trailingAction = dealCardMock.mock.calls[0]?.[0].trailingAction;
     expect(trailingAction.icon.props.name).toBe('bookmark');
-    expect(JSON.stringify(renderer!.toJSON())).not.toContain('북마크 해제');
+    expect(
+      renderer!.root.findAll((node) =>
+        node.children.some((child) => child === '북마크 해제'),
+      ),
+    ).toHaveLength(0);
     act(() => {
       trailingAction.onPress();
     });
