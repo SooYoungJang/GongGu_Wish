@@ -10,7 +10,7 @@ const EXPO_PUSH_SEND_URL = "https://exp.host/--/api/v2/push/send";
 const EXPO_BATCH_SIZE = 100;
 const PUSH_CANDIDATE_PAGE_SIZE = 500;
 const PUSH_CANDIDATE_COLUMNS =
-  "id, push_token, push_enabled, deadline_reminders_enabled, new_submissions_enabled, followed_influencers, followed_brands";
+  "id, push_token, push_enabled, deadline_reminders_enabled, new_submissions_enabled, submission_approval_notifications_enabled, followed_influencers, followed_brands";
 
 export type PushNotificationResult = {
   provider: "expo";

@@ -533,7 +533,7 @@ async function flushNotificationMirror(namespace: string): Promise<void> {
     for (const entry of pending) {
       try {
         const result = await syncNotification(entry.groupBuyId, entry.enabled);
-        if (result === false) remaining.push(entry);
+        if (result.status === "failed") remaining.push(entry);
       } catch {
         remaining.push(entry);
       }

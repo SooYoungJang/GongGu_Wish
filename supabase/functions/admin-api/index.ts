@@ -16,7 +16,10 @@ import {
   mapCdnRefreshStatusRow,
 } from "./cdnRefreshStatus.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
-import { queueNewSubmissionPush } from "./newSubmissionPush.ts";
+import {
+  deliverPendingSubmissionApprovalPushes,
+  type SubmissionApprovalDeliverySummary,
+} from "./submissionApprovalPush.ts";
 import { sendPushNotification } from "./pushNotifications.ts";
 import { mapAdminUser } from "./userContract.ts";
 
@@ -677,13 +680,32 @@ async function approveSubmission(
     await supabase.from("group_buys").delete().eq("id", groupBuy.id);
     throw new Error(submissionError.message);
   }
-  queueNewSubmissionPush(supabase, {
-    id: groupBuy.id,
-    product_name: groupBuy.product_name,
-  });
+  let notificationDelivery: SubmissionApprovalDeliverySummary;
+  try {
+    notificationDelivery = await deliverPendingSubmissionApprovalPushes(
+      supabase,
+      { submissionId: id },
+    );
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "submission_approval_push_queue_failed",
+      submissionId: id,
+      groupBuyId: groupBuy.id,
+      error: error instanceof Error ? error.message.slice(0, 500) : "unknown error",
+    }));
+    notificationDelivery = {
+      status: "retrying",
+      queued: 0,
+      sent: 0,
+      skipped: 0,
+      retrying: 1,
+      failed: 0,
+    };
+  }
   return {
     submission: mapSubmission(submission),
     groupBuy: mapGroupBuy(groupBuy),
+    notificationDelivery,
   };
 }
 
