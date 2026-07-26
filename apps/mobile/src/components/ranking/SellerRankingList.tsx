@@ -22,7 +22,6 @@ import {
   seedAdRandomFromIds,
   type ReelsFeedItem,
 } from "../../screens/reelsAdPlacement";
-import { SText } from "../ui/SText";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
 import type {
   GroupBuyRankingItem,
@@ -85,7 +84,7 @@ export function SellerRankingList({
     [resolvedTopInset, s.statusContainer],
   );
   const readyData = state.status === "ready" ? state.data : EMPTY_RANKINGS;
-  const { remainingItems, topThree } = useMemo(() => {
+  const topThree = useMemo(() => {
     let leadingTopCount = 0;
     while (leadingTopCount < Math.min(3, readyData.length)) {
       const rank = readyData[leadingTopCount].rank;
@@ -93,10 +92,7 @@ export function SellerRankingList({
       leadingTopCount += 1;
     }
 
-    return {
-      topThree: readyData.slice(0, leadingTopCount),
-      remainingItems: readyData.slice(leadingTopCount),
-    };
+    return readyData.slice(0, leadingTopCount);
   }, [readyData]);
   const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
   const [rankingAdsUnavailable, setRankingAdsUnavailable] = useState(false);
@@ -105,32 +101,27 @@ export function SellerRankingList({
     adsReady &&
     Boolean(nativeUnitIds.home) &&
     !rankingAdsUnavailable;
-  const feedItems = useMemo<RankingFeedItem[]>(
-    () => {
-      const rankingIds = readyData.map((item) => item.groupBuyId);
-      const random = seedAdRandomFromIds(rankingIds);
-      const smallestFirstGap = Math.max(REELS_AD_GAP_MIN, topThree.length);
-      const largestFirstGap = Math.min(REELS_AD_GAP_MAX, readyData.length);
-      const firstAdAfter =
-        largestFirstGap >= smallestFirstGap
-          ? Math.floor(
-              random() * (largestFirstGap - smallestFirstGap + 1),
-            ) + smallestFirstGap
-          : undefined;
-      const topThreeIds = new Set(topThree.map((item) => item.groupBuyId));
-      return insertReelsAdSlots(wrapForAdInsertion(readyData.slice()), {
-        enabled: canShowRankingAds,
-        firstAdAfter,
-        includeTrailingAd: true,
-        random,
-      }).filter(
-        (item) =>
-          !isReelsContentItem(item) ||
-          !topThreeIds.has(item.content.groupBuyId),
-      );
-    },
-    [canShowRankingAds, readyData, topThree],
-  );
+  const feedItems = useMemo<RankingFeedItem[]>(() => {
+    const rankingIds = readyData.map((item) => item.groupBuyId);
+    const random = seedAdRandomFromIds(rankingIds);
+    const smallestFirstGap = Math.max(REELS_AD_GAP_MIN, topThree.length);
+    const largestFirstGap = Math.min(REELS_AD_GAP_MAX, readyData.length);
+    const firstAdAfter =
+      largestFirstGap >= smallestFirstGap
+        ? Math.floor(random() * (largestFirstGap - smallestFirstGap + 1)) +
+          smallestFirstGap
+        : undefined;
+    const topThreeIds = new Set(topThree.map((item) => item.groupBuyId));
+    return insertReelsAdSlots(wrapForAdInsertion(readyData.slice()), {
+      enabled: canShowRankingAds,
+      firstAdAfter,
+      includeTrailingAd: true,
+      random,
+    }).filter(
+      (item) =>
+        !isReelsContentItem(item) || !topThreeIds.has(item.content.groupBuyId),
+    );
+  }, [canShowRankingAds, readyData, topThree]);
   const handleRankingAdLoadStateChange = useCallback(
     (status: NativeAdLoadStatus) => {
       if (status === "unavailable") setRankingAdsUnavailable(true);
@@ -245,16 +236,6 @@ export function SellerRankingList({
               onToggleAlert={onToggleAlert ?? NOOP}
             />
           ) : null}
-          {remainingItems.length > 0 ? (
-            <View style={s.listHeading} testID="ranking-list-heading">
-              <SText accessibilityRole="header" style={s.listHeadingTitle} variant="cardTitle">
-                계속 인기 중
-              </SText>
-              <SText style={s.listHeadingCaption} variant="caption">
-                4위부터도 같은 기준으로 집계해요
-              </SText>
-            </View>
-          ) : null}
         </>
       }
       ListFooterComponent={<View style={footerStyle} />}
@@ -273,7 +254,7 @@ export function SellerRankingList({
 }
 
 function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
-  const { colors, spacing, typography } = theme;
+  const { colors, spacing } = theme;
   return StyleSheet.create({
     adCard: {
       marginVertical: spacing.sm,
@@ -290,18 +271,6 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
     list: {
       backgroundColor: colors.bg,
       flex: 1,
-    },
-    listHeading: {
-      gap: spacing.xxs,
-      paddingBottom: spacing.sm,
-      paddingTop: spacing.xs,
-    },
-    listHeadingCaption: {
-      color: colors.muted,
-    },
-    listHeadingTitle: {
-      color: colors.text,
-      ...typography.sectionTitle,
     },
     statusContainer: {
       alignItems: "center",

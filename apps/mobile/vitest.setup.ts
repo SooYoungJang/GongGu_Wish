@@ -100,6 +100,14 @@ vi.mock("react-native", () => {
 
 vi.mock("react-native-reanimated", () => {
   const ReactMock = require("react");
+  const makeLayoutTransition = (name: string) => {
+    const transition = {
+      name,
+      duration: vi.fn(() => transition),
+      reduceMotion: vi.fn(() => transition),
+    };
+    return transition;
+  };
   const animated = {
     View: ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement("Reanimated.View", props, children),
@@ -128,7 +136,12 @@ vi.mock("react-native-reanimated", () => {
     Extrapolation: {
       CLAMP: "clamp",
     },
+    FadeOut: makeLayoutTransition("FadeOut"),
     interpolate,
+    LinearTransition: makeLayoutTransition("LinearTransition"),
+    ReduceMotion: {
+      System: "system",
+    },
     runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
     useAnimatedStyle: (updater: () => unknown) => updater(),
     useReducedMotion: () => false,

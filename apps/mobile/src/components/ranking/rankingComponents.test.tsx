@@ -699,6 +699,31 @@ describe("ranking components", () => {
     ).toBeTruthy();
   });
 
+  it("renders rank four directly without a continuation heading", () => {
+    const rankings = [1, 2, 3, 4].map((rank) =>
+      sampleRanking({ groupBuyId: `group-${rank}`, rank }),
+    );
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList state={{ status: "ready", data: rankings }} />,
+        ),
+      );
+    });
+
+    const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-row-4" }),
+    ).toBeTruthy();
+    expect(
+      renderer!.root.findAllByProps({ testID: "ranking-list-heading" }),
+    ).toHaveLength(0);
+    expect(text).not.toContain("계속 인기 중");
+    expect(text).not.toContain("4위부터도 같은 기준으로 집계해요");
+  });
+
   it("uses the same editorial divider treatment for every ranking row", () => {
     const rankings = [4, 5, 6, 7].map((rank) =>
       sampleRanking({ groupBuyId: `group-${rank}`, rank }),

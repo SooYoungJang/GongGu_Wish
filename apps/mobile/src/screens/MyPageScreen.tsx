@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeOut, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 import { ApiError, postPublicJson } from '../api';
 import { useBookmarks, useRecentViews, useNotifications, useWishItems } from '../hooks/useLocalDeals';
@@ -40,6 +41,9 @@ type PublicWishSubmissionResponse = {
   };
   status?: string;
 };
+
+const SHELF_ITEM_EXIT = FadeOut.duration(120).reduceMotion(ReduceMotion.System);
+const SHELF_ITEM_LAYOUT = LinearTransition.duration(160).reduceMotion(ReduceMotion.System);
 
 function isInstagramPostUrl(value: string) {
   try {
@@ -88,8 +92,7 @@ export function DealShelf({
   items,
   emptyText,
   onPressDeal,
-  onRemoveDeal,
-  removeLabel = '삭제',
+  onUnbookmarkDeal,
   s,
 }: {
   title: string;
@@ -97,51 +100,56 @@ export function DealShelf({
   items: GroupBuy[];
   emptyText: string;
   onPressDeal: (item: GroupBuy) => void;
-  onRemoveDeal?: (item: GroupBuy) => void;
-  removeLabel?: string;
+  onUnbookmarkDeal?: (item: GroupBuy) => void;
   s: ReturnType<typeof makeStyles>;
 }) {
   return (
     <View style={s.dealShelf}>
       <View style={s.shelfHeader}>
         <View>
-          <SText variant="cardTitle" style={s.shelfTitle}>{title}</SText>
-          <SText variant="caption" style={s.shelfSubtitle}>{subtitle}</SText>
+          <SText variant="cardTitle" style={s.shelfTitle}>
+            {title}
+          </SText>
+          <SText variant="caption" style={s.shelfSubtitle}>
+            {subtitle}
+          </SText>
         </View>
       </View>
       {items.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.miniDealRail}>
           {items.map((item, index) => (
-            <View key={`${title}-${item.id}`} style={s.shelfDealItem}>
+            <Animated.View
+              exiting={SHELF_ITEM_EXIT}
+              key={`${title}-${item.id}`}
+              layout={SHELF_ITEM_LAYOUT}
+              style={s.shelfDealItem}
+            >
               <DealCard
                 item={item}
                 category={categoryForGroupBuy(item, index)}
                 onPress={() => onPressDeal(item)}
                 style={s.shelfDealCard}
+                trailingAction={
+                  onUnbookmarkDeal
+                    ? {
+                        accessibilityHint: '북마크 목록에서 제거합니다.',
+                        accessibilityLabel: `${item.productName ?? '공구'} 북마크 해제`,
+                        icon: <Ionicons name="bookmark" size={18} style={s.shelfBookmarkIcon} />,
+                        onPress: () => onUnbookmarkDeal(item),
+                        selected: true,
+                        testID: `my-page-unbookmark-${item.id}`,
+                      }
+                    : undefined
+                }
               />
-              {onRemoveDeal ? (
-                <View style={s.shelfDealActions}>
-                  <Pressable
-                    accessibilityHint="이 목록에서 제거합니다."
-                    accessibilityLabel={`${item.productName ?? '공구'} ${removeLabel}`}
-                    accessibilityRole="button"
-                    onPress={() => onRemoveDeal(item)}
-                    hitSlop={4}
-                    style={({ pressed }) => [s.shelfDealRemove, pressed && s.pressed]}
-                  >
-                    <Ionicons name="close-circle-outline" size={16} style={s.shelfDealRemoveIcon} />
-                    <SText variant="caption" style={s.shelfDealRemoveText}>
-                      {removeLabel}
-                    </SText>
-                  </Pressable>
-                </View>
-              ) : null}
-            </View>
+            </Animated.View>
           ))}
         </ScrollView>
       ) : (
         <View style={s.emptyShelf}>
-          <SText variant="caption" style={s.emptyShelfText}>{emptyText}</SText>
+          <SText variant="caption" style={s.emptyShelfText}>
+            {emptyText}
+          </SText>
         </View>
       )}
     </View>
@@ -184,7 +192,7 @@ export function MyPageScreen() {
   const [loggingOut, setLoggingOut] = useState(false);
   const { bookmarks: bookmarkedDeals, removeBookmark, refresh: refreshBookmarks } = useBookmarks();
   const { recentViews: viewedToday, refresh: refreshRecent } = useRecentViews();
-  const { notifications, removeNotification, refresh: refreshNotifications } = useNotifications();
+  const { notifications, refresh: refreshNotifications } = useNotifications();
   const { wishItems, recordWishItem, refresh: refreshWishItems } = useWishItems();
   const [wishModalVisible, setWishModalVisible] = useState(false);
   const [wishUrl, setWishUrl] = useState('');
@@ -232,11 +240,6 @@ export function MyPageScreen() {
     if (!requireAuth()) return;
     removeBookmark(item.id);
   }, [removeBookmark, requireAuth]);
-
-  const handleRemoveNotification = useCallback((item: GroupBuy) => {
-    if (!requireAuth()) return;
-    removeNotification(item.id);
-  }, [removeNotification, requireAuth]);
 
   const closeWishModal = useCallback(() => {
     if (wishSubmitting) return;
@@ -419,19 +422,16 @@ export function MyPageScreen() {
           items={bookmarkedDeals}
           emptyText="북마크한 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
-          onRemoveDeal={handleRemoveBookmark}
-          removeLabel="북마크 해제"
+          onUnbookmarkDeal={handleRemoveBookmark}
           s={s}
         />
 
         <DealShelf
           title="알림 설정한 공구"
-          subtitle="시작 알림을 설정한 공구예요"
+          subtitle="마감 알림을 설정한 공구예요"
           items={notificationDeals}
           emptyText="알림을 설정한 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
-          onRemoveDeal={handleRemoveNotification}
-          removeLabel="알림 해제"
           s={s}
         />
 
@@ -691,7 +691,6 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingRight: spacing.lg,
     },
     shelfDealItem: {
-      position: 'relative',
       width: 168,
     },
     shelfDealCard: {
@@ -701,31 +700,8 @@ function makeStyles(colors: CommerceColorPalette) {
       minHeight: 0,
       width: '100%',
     },
-    shelfDealActions: {
-      alignItems: 'center',
-      borderTopColor: colors.borderLight,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      flexDirection: 'row',
-      height: 40,
-      justifyContent: 'flex-end',
-      marginTop: spacing.xs,
-    },
-    shelfDealRemove: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 4,
-      height: 36,
-      justifyContent: 'center',
-      paddingHorizontal: spacing.xs,
-    },
-    shelfDealRemoveIcon: {
-      color: colors.weak,
-    },
-    shelfDealRemoveText: {
-      color: colors.weak,
-      fontSize: 12,
-      fontWeight: '800',
-      lineHeight: 16,
+    shelfBookmarkIcon: {
+      color: colors.accent,
     },
     emptyShelf: {
       alignItems: 'center',

@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { Text } from "react-native";
 import { withTiming } from "react-native-reanimated";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GroupBuy } from "../types";
 import {
@@ -11,14 +11,16 @@ import {
 } from "./GroupBuyReminderPickerContext";
 
 const notificationMocks = vi.hoisted(() => ({
+  enabled: false,
+  reminderDays: [] as number[],
   setNotificationReminders: vi.fn(async () => ({ status: "enabled" })),
 }));
 
 vi.mock("../hooks/useLocalDeals", () => ({
   useNotifications: () => ({
-    getNotificationReminderDays: () => [],
+    getNotificationReminderDays: () => notificationMocks.reminderDays,
     getNotificationState: () => ({ status: "idle" }),
-    isNotifying: () => false,
+    isNotifying: () => notificationMocks.enabled,
     setNotificationReminders: notificationMocks.setNotificationReminders,
   }),
 }));
@@ -94,6 +96,12 @@ function PickerHarness() {
 }
 
 describe("GroupBuyReminderPickerProvider", () => {
+  beforeEach(() => {
+    notificationMocks.enabled = false;
+    notificationMocks.reminderDays = [];
+    notificationMocks.setNotificationReminders.mockClear();
+  });
+
   it("opens immediately with seven unselected reminder dates", () => {
     vi.mocked(withTiming).mockClear();
     notificationMocks.setNotificationReminders.mockClear();
@@ -177,6 +185,37 @@ describe("GroupBuyReminderPickerProvider", () => {
     expect(notificationMocks.setNotificationReminders).toHaveBeenCalledWith(
       item,
       [2, 4],
+    );
+  });
+
+  it("turns off an existing reminder through the shared picker", async () => {
+    notificationMocks.enabled = true;
+    notificationMocks.reminderDays = [3];
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <GroupBuyReminderPickerProvider>
+          <PickerHarness />
+        </GroupBuyReminderPickerProvider>,
+      );
+    });
+
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "open-reminder-picker" })
+        .props.onPress(),
+    );
+
+    await act(async () => {
+      renderer!.root
+        .findByProps({ testID: "group-buy-reminder-disable" })
+        .props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(notificationMocks.setNotificationReminders).toHaveBeenCalledWith(
+      item,
+      [],
     );
   });
 });
