@@ -35,6 +35,8 @@ import type {
   MediaAsset,
   AppUser,
   SubmissionStatus,
+  SubmissionApprovalDeliverySummary,
+  SubmissionNotificationDelivery,
 } from "@/types";
 import "./App.css";
 
@@ -204,6 +206,38 @@ function formatDateTime(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function submissionDeliveryLabel(
+  delivery: SubmissionNotificationDelivery | null | undefined,
+) {
+  if (!delivery) return "정보 없음";
+  const labels: Record<SubmissionNotificationDelivery["status"], string> = {
+    NOT_STARTED: "승인 전",
+    NO_RECIPIENTS: "연결 제보자 없음",
+    PENDING: "전송 중",
+    SENT: "전송 완료",
+    PARTIAL: "일부 전송",
+    SKIPPED: "수신 제외",
+    FAILED: "전송 실패",
+  };
+  return labels[delivery.status];
+}
+
+function approvalDeliveryNotice(
+  delivery: SubmissionApprovalDeliverySummary,
+  linkedSubmitterCount: number,
+) {
+  if (delivery.sent > 0) {
+    return `공구로 등록하고 제보자 ${delivery.sent.toLocaleString()}명에게 승인 알림을 보냈습니다.`;
+  }
+  if (delivery.retrying > 0 || delivery.failed > 0) {
+    return "공구로 등록했습니다. 승인 알림은 서버에서 재시도합니다.";
+  }
+  if (linkedSubmitterCount > 0) {
+    return "공구로 등록했습니다. 알림 수신 조건에 맞는 제보자는 없었습니다.";
+  }
+  return "공구로 등록했습니다. 연결된 로그인 제보자는 없습니다.";
 }
 
 function deriveImageUrls(
@@ -963,8 +997,17 @@ function AdminShell({ session }: { session: Session }) {
       const submissionId = selectedSubmission.id;
       const approvalPayload = submissionPayload(submissionForm);
       invalidateHikerLookup(false);
-      await adminApi.approveSubmission(submissionId, approvalPayload);
-      setNotice({ tone: "success", message: "위시를 공구로 등록했습니다." });
+      const result = await adminApi.approveSubmission(
+        submissionId,
+        approvalPayload,
+      );
+      setNotice({
+        tone: "success",
+        message: approvalDeliveryNotice(
+          result.notificationDelivery,
+          result.submission.notificationDelivery?.linkedSubmitterCount ?? 0,
+        ),
+      });
       closeDetail();
       await loadSubmissions();
       await loadDashboard();
@@ -972,6 +1015,33 @@ function AdminShell({ session }: { session: Session }) {
       setNotice({
         tone: "error",
         message: error instanceof Error ? error.message : "승인 실패",
+      });
+    } finally {
+      setSubmissionActionLoading(false);
+    }
+  }
+
+  async function retrySubmissionApprovalNotification() {
+    if (!selectedSubmission) return;
+    setSubmissionActionLoading(true);
+    try {
+      const result = await adminApi.retrySubmissionApprovalNotification(
+        selectedSubmission.id,
+      );
+      selectSubmission(result.submission, false);
+      setNotice({
+        tone: result.notificationDelivery.failed > 0 ? "error" : "success",
+        message: approvalDeliveryNotice(
+          result.notificationDelivery,
+          result.submission.notificationDelivery?.linkedSubmitterCount ?? 0,
+        ),
+      });
+      await loadSubmissions();
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : "승인 알림 재시도 실패",
       });
     } finally {
       setSubmissionActionLoading(false);
@@ -1456,6 +1526,9 @@ function AdminShell({ session }: { session: Session }) {
             onLookupHiker={() => void lookupHiker()}
             onReject={() => void rejectSubmission()}
             onRejectReasonChange={setRejectReason}
+            onRetryNotification={() =>
+              void retrySubmissionApprovalNotification()
+            }
             onSave={() => void saveSubmission()}
             rejectReason={rejectReason}
             selected={selectedSubmission}
@@ -1501,6 +1574,9 @@ function AdminShell({ session }: { session: Session }) {
                 onLookupHiker={() => void lookupHiker()}
                 onReject={() => void rejectSubmission()}
                 onRejectReasonChange={setRejectReason}
+                onRetryNotification={() =>
+                  void retrySubmissionApprovalNotification()
+                }
                 onSave={() => void saveSubmission()}
                 onSelect={selectSubmission}
                 onToggleAllSelected={togglePageSubmissionSelection}
@@ -2089,6 +2165,7 @@ function SubmissionPanel(props: {
   onLookupHiker: () => void;
   onReject: () => void;
   onRejectReasonChange: (value: string) => void;
+  onRetryNotification: () => void;
   onSave: () => void;
   onSelect: (item: GongguSubmission | null) => void;
   onStatusChange: (value: "ALL" | SubmissionStatus) => void;
@@ -2208,6 +2285,7 @@ function SubmissionPanel(props: {
                   <th>제보자</th>
                   <th>원본</th>
                   <th>접수</th>
+                  <th>승인 알림</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -2248,6 +2326,14 @@ function SubmissionPanel(props: {
                     </td>
                     <td className="truncate">{item.instagramUrl}</td>
                     <td>{formatDateTime(item.createdAt)}</td>
+                    <td>
+                      <strong>
+                        {item.notificationDelivery?.linkedSubmitterCount ?? 0}명
+                      </strong>
+                      <span>
+                        {submissionDeliveryLabel(item.notificationDelivery)}
+                      </span>
+                    </td>
                     <td>
                       <StatusBadge status={item.status} />
                     </td>
@@ -2290,6 +2376,7 @@ function SubmissionPanel(props: {
           onLookupHiker={props.onLookupHiker}
           onReject={props.onReject}
           onRejectReasonChange={props.onRejectReasonChange}
+          onRetryNotification={props.onRetryNotification}
           onSave={props.onSave}
           rejectReason={props.rejectReason}
           selected={props.selected}
@@ -2373,6 +2460,11 @@ function MobileSubmissionCards({
               <strong>{formatDateTime(item.createdAt)}</strong>
               <span>원본</span>
               <strong>{item.instagramUrl || "-"}</strong>
+              <span>승인 알림</span>
+              <strong>
+                {item.notificationDelivery?.linkedSubmitterCount ?? 0}명 ·{" "}
+                {submissionDeliveryLabel(item.notificationDelivery)}
+              </strong>
             </div>
           </article>
         );
@@ -2390,6 +2482,7 @@ function SubmissionEditor(props: {
   onLookupHiker: () => void;
   onReject: () => void;
   onRejectReasonChange: (value: string) => void;
+  onRetryNotification: () => void;
   onSave: () => void;
   rejectReason: string;
   selected: GongguSubmission | null;
@@ -2417,6 +2510,13 @@ function SubmissionEditor(props: {
   };
 
   const canApprove = props.selected.status === "PENDING";
+  const canRetryNotification =
+    props.selected.status === "APPROVED" &&
+    Boolean(
+      props.selected.notificationDelivery &&
+      (props.selected.notificationDelivery.failedCount > 0 ||
+        props.selected.notificationDelivery.retryingCount > 0),
+    );
   return (
     <aside className="detail-panel">
       {props.hikerLookupLoading ? (
@@ -2620,12 +2720,34 @@ function SubmissionEditor(props: {
           <strong>{props.selected.groupBuyId || "-"}</strong>
         </div>
         <div>
+          <span>연결 로그인 제보자</span>
+          <strong>
+            {props.selected.notificationDelivery?.linkedSubmitterCount ?? 0}명
+          </strong>
+        </div>
+        <div>
+          <span>승인 알림</span>
+          <strong>
+            {submissionDeliveryLabel(props.selected.notificationDelivery)}
+          </strong>
+        </div>
+        <div>
           <span>콘텐츠 해시</span>
           <strong>{props.selected.contentHash || "-"}</strong>
         </div>
       </div>
 
       <div className="action-row action-row--end">
+        {canRetryNotification ? (
+          <button
+            className="button button--secondary"
+            disabled={props.actionLoading}
+            onClick={props.onRetryNotification}
+            type="button"
+          >
+            승인 알림 재시도
+          </button>
+        ) : null}
         <button
           className="button button--secondary"
           disabled={props.actionLoading}

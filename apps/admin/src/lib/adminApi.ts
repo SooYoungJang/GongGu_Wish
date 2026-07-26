@@ -5,6 +5,7 @@ import type {
   CdnRefreshStatusResponse,
   DashboardResponse,
   GongguSubmission,
+  SubmissionApprovalDeliverySummary,
   GroupBuy,
   HikerLookupResult,
   ListResponse,
@@ -205,14 +206,21 @@ export const adminApi = {
   },
 
   approveSubmission(id: string, body: Record<string, unknown>) {
-    return requestAdmin<{ submission: GongguSubmission; groupBuy: GroupBuy }>(
-      `/admin/submissions/${id}/approve`,
-      "POST",
-      { body },
-    ).then((result) => ({
+    return requestAdmin<{
+      submission: GongguSubmission;
+      groupBuy: GroupBuy;
+      notificationDelivery: SubmissionApprovalDeliverySummary;
+    }>(`/admin/submissions/${id}/approve`, "POST", { body }).then((result) => ({
       ...result,
       groupBuy: normalizeGroupBuyResponse(result.groupBuy),
     }));
+  },
+
+  retrySubmissionApprovalNotification(id: string) {
+    return requestAdmin<{
+      submission: GongguSubmission;
+      notificationDelivery: SubmissionApprovalDeliverySummary;
+    }>(`/admin/submissions/${id}/notification/retry`, "POST");
   },
 
   rejectSubmission(id: string, reason: string) {

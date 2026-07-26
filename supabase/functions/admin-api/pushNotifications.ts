@@ -44,13 +44,7 @@ async function sendExpoBatch(
   input: ValidatedPushNotificationInput,
   tokens: string[],
 ) {
-  const messages = tokens.map((token) => ({
-    to: token,
-    sound: "default",
-    title: input.title,
-    body: input.body,
-    ...(input.data ? { data: input.data } : {}),
-  }));
+  const messages = buildExpoPushMessages(input, tokens);
 
   const response = await fetch(EXPO_PUSH_SEND_URL, {
     method: "POST",
@@ -60,13 +54,34 @@ async function sendExpoBatch(
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const message = isRecord(payload) && typeof payload.message === "string"
-      ? payload.message
-      : `Expo push request failed: ${response.status}`;
+    const message =
+      isRecord(payload) && typeof payload.message === "string"
+        ? payload.message
+        : `Expo push request failed: ${response.status}`;
     throw new Error(message);
   }
 
   return isRecord(payload) && Array.isArray(payload.data) ? payload.data : [];
+}
+
+export function buildExpoPushMessages(
+  input: ValidatedPushNotificationInput,
+  tokens: string[],
+) {
+  const notificationEventId =
+    typeof input.data?.notificationEventId === "string"
+      ? input.data.notificationEventId.trim()
+      : "";
+  return tokens.map((token) => ({
+    to: token,
+    sound: "default",
+    title: input.title,
+    body: input.body,
+    ...(input.data ? { data: input.data } : {}),
+    ...(notificationEventId
+      ? { collapseId: notificationEventId, tag: notificationEventId }
+      : {}),
+  }));
 }
 
 export async function sendPushNotification(
@@ -167,7 +182,7 @@ export async function collectPushCandidateRows(
   userIds: string[] | null,
 ) {
   const rows: Record<string, unknown>[] = [];
-  for (let from = 0;; from += PUSH_CANDIDATE_PAGE_SIZE) {
+  for (let from = 0; ; from += PUSH_CANDIDATE_PAGE_SIZE) {
     let query = supabase
       .from("users")
       .select(PUSH_CANDIDATE_COLUMNS)

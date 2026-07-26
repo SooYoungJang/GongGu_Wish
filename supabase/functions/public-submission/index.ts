@@ -441,11 +441,15 @@ async function handleWishUrlSubmission(
 
   if (existing) {
     await linkSubmissionSubmitter(supabase, existing.id, submitterUserId);
+    const notificationDelivery = submitterUserId && existing.status === "APPROVED"
+      ? await deliverApprovalPush(supabase, existing.id)
+      : undefined;
     return json({
       alreadyRegistered: true,
       submissionId: existing.id,
       groupBuyId: existing.group_buy_id,
       status: existing.status,
+      ...(notificationDelivery ? { notificationDelivery } : {}),
     });
   }
 
@@ -522,11 +526,15 @@ async function handleSubmission(
   if (existing) {
     await linkSubmissionSubmitter(supabase, existing.id, submitterUserId);
     if (existing.status === "APPROVED") {
+      const notificationDelivery = submitterUserId
+        ? await deliverApprovalPush(supabase, existing.id)
+        : undefined;
       return json({
         alreadyRegistered: true,
         groupBuyId: existing.group_buy_id,
         submissionId: existing.id,
         status: "APPROVED",
+        ...(notificationDelivery ? { notificationDelivery } : {}),
       });
     }
     if (existing.status === "DUPLICATE") {

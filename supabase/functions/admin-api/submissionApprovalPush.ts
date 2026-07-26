@@ -41,12 +41,17 @@ export function buildSubmissionApprovedPush(
   event: SubmissionApprovalPushEvent,
 ) {
   const productName = event.productName?.trim() || "제보한 공동구매";
+  const eventIdentity =
+    event.id === undefined
+      ? `${event.submissionId.slice(0, 16)}:${event.userId.slice(0, 16)}`
+      : String(event.id);
   return {
     title: "제보한 공구가 승인됐어요",
     body: `${productName}가 승인되어 등록됐어요. 지금 확인해 보세요.`,
     userIds: [event.userId],
     data: {
       notificationType: "submission_approved",
+      notificationEventId: `submission-approved:${eventIdentity}`,
       submissionId: event.submissionId,
       groupBuyId: event.groupBuyId,
     },

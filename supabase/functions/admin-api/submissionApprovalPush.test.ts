@@ -14,6 +14,7 @@ Deno.test(
         groupBuyId: "group-buy-1",
         productName: "테스트 공구",
         userId: "user-1",
+        id: 42,
       }),
       {
         title: "제보한 공구가 승인됐어요",
@@ -21,6 +22,7 @@ Deno.test(
         userIds: ["user-1"],
         data: {
           notificationType: "submission_approved",
+          notificationEventId: "submission-approved:42",
           submissionId: "submission-1",
           groupBuyId: "group-buy-1",
         },

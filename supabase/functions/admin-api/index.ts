@@ -21,6 +21,10 @@ import {
   type SubmissionApprovalDeliverySummary,
 } from "./submissionApprovalPush.ts";
 import { sendPushNotification } from "./pushNotifications.ts";
+import {
+  mapSubmissionDelivery,
+  type SubmissionNotificationDelivery,
+} from "./submissionDelivery.ts";
 import { mapAdminUser } from "./userContract.ts";
 
 type AdminMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -36,7 +40,6 @@ type MediaAsset = {
   mediaType: "IMAGE" | "VIDEO";
   thumbnailUrl?: string | null;
 };
-
 interface AdminRequest {
   path: string;
   method: AdminMethod;
@@ -265,7 +268,8 @@ function normalizeSubmissionPatch(
 
   if (hasOwn(body, "productName")) patch.product_name = str(body.productName);
   if (hasOwn(body, "brandName")) patch.brand_name = str(body.brandName);
-  if (hasOwn(body, "instagramUsername")) patch.instagram_username = str(body.instagramUsername);
+  if (hasOwn(body, "instagramUsername"))
+    patch.instagram_username = str(body.instagramUsername);
   if (hasOwn(body, "category")) patch.category = str(body.category);
   if (hasOwn(body, "startDate")) patch.start_date = str(body.startDate);
   if (hasOwn(body, "endDate")) patch.end_date = str(body.endDate);
@@ -295,7 +299,8 @@ function normalizeGroupBuyPatch(
 
   if (hasOwn(body, "productName")) patch.product_name = str(body.productName);
   if (hasOwn(body, "brandName")) patch.brand_name = str(body.brandName);
-  if (hasOwn(body, "instagramUsername")) patch.instagram_username = str(body.instagramUsername);
+  if (hasOwn(body, "instagramUsername"))
+    patch.instagram_username = str(body.instagramUsername);
   if (hasOwn(body, "category")) patch.category = str(body.category);
   if (hasOwn(body, "startDate")) patch.start_date = str(body.startDate);
   if (hasOwn(body, "endDate")) patch.end_date = str(body.endDate);
@@ -332,7 +337,30 @@ function compact<T extends Record<string, unknown>>(value: T) {
   );
 }
 
-function mapSubmission(row: Record<string, unknown>) {
+async function getSubmissionNotificationDeliveries(
+  supabase: AdminClient,
+  submissionIds: string[],
+) {
+  if (submissionIds.length === 0) {
+    return new Map<string, SubmissionNotificationDelivery>();
+  }
+  const { data, error } = await supabase.rpc(
+    "get_submission_notification_delivery",
+    { p_submission_ids: [...new Set(submissionIds)] },
+  );
+  if (error) throw new Error(error.message);
+  return new Map<string, SubmissionNotificationDelivery>(
+    ((data ?? []) as Record<string, unknown>[]).map((row) => [
+      String(row.submission_id),
+      mapSubmissionDelivery(row),
+    ]),
+  );
+}
+
+function mapSubmission(
+  row: Record<string, unknown>,
+  notificationDelivery: SubmissionNotificationDelivery | null = null,
+) {
   return {
     id: row.id,
     productName: row.product_name,
@@ -362,6 +390,7 @@ function mapSubmission(row: Record<string, unknown>) {
     homeBannerEndDate: row.home_banner_end_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    notificationDelivery,
   };
 }
 
@@ -423,8 +452,15 @@ async function listSubmissions(
 
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const deliveries = await getSubmissionNotificationDeliveries(
+    supabase,
+    rows.map((row) => String(row.id)),
+  );
   return {
-    items: (data ?? []).map((row) => mapSubmission(row)),
+    items: rows.map((row) =>
+      mapSubmission(row, deliveries.get(String(row.id)) ?? null),
+    ),
     total: count ?? 0,
   };
 }
@@ -687,12 +723,17 @@ async function approveSubmission(
       { submissionId: id },
     );
   } catch (error) {
-    console.error(JSON.stringify({
-      event: "submission_approval_push_queue_failed",
-      submissionId: id,
-      groupBuyId: groupBuy.id,
-      error: error instanceof Error ? error.message.slice(0, 500) : "unknown error",
-    }));
+    console.error(
+      JSON.stringify({
+        event: "submission_approval_push_queue_failed",
+        submissionId: id,
+        groupBuyId: groupBuy.id,
+        error:
+          error instanceof Error
+            ? error.message.slice(0, 500)
+            : "unknown error",
+      }),
+    );
     notificationDelivery = {
       status: "retrying",
       queued: 0,
@@ -703,8 +744,53 @@ async function approveSubmission(
     };
   }
   return {
-    submission: mapSubmission(submission),
+    submission: mapSubmission(
+      submission,
+      (await getSubmissionNotificationDeliveries(supabase, [id])).get(id) ??
+        null,
+    ),
     groupBuy: mapGroupBuy(groupBuy),
+    notificationDelivery,
+  };
+}
+
+async function retrySubmissionApprovalNotification(
+  supabase: AdminClient,
+  id: string,
+) {
+  const { data: submission, error: findError } = await supabase
+    .from("gonggu_submissions")
+    .select(SUBMISSION_SELECT)
+    .eq("id", id)
+    .single();
+  if (findError) throw new Error(findError.message);
+  if (!submission) throw new Error("제보를 찾을 수 없습니다.");
+  if (submission.status !== "APPROVED") {
+    throw new Error("승인된 제보의 알림만 재시도할 수 있습니다.");
+  }
+
+  const { error: resetError } = await supabase
+    .from("submission_approval_push_outbox")
+    .update({
+      status: "PENDING",
+      attempt_count: 0,
+      next_attempt_at: new Date().toISOString(),
+      last_error: null,
+      sent_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("submission_id", id)
+    .in("status", ["FAILED", "RETRYING"]);
+  if (resetError) throw new Error(resetError.message);
+
+  const notificationDelivery = await deliverPendingSubmissionApprovalPushes(
+    supabase,
+    { submissionId: id },
+  );
+  const delivery =
+    (await getSubmissionNotificationDeliveries(supabase, [id])).get(id) ?? null;
+  return {
+    submission: mapSubmission(submission, delivery),
     notificationDelivery,
   };
 }
@@ -938,6 +1024,13 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   }
   if (path === "/admin/submissions" && method === "GET") {
     return listSubmissions(supabase, params);
+  }
+  if (
+    path.startsWith("/admin/submissions/") &&
+    path.endsWith("/notification/retry") &&
+    method === "POST"
+  ) {
+    return retrySubmissionApprovalNotification(supabase, path.split("/")[3]);
   }
   if (
     path.startsWith("/admin/submissions/") &&
