@@ -652,11 +652,11 @@ describe('MyPageScreen', () => {
     expect(
       renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
         .value,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
         .disabled,
-    ).toBe(true);
+    ).toBe(false);
     expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
       pushEnabled: true,
     });
