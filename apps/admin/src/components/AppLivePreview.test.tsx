@@ -56,7 +56,7 @@ describe("AppLivePreview", () => {
     });
     expect(
       dealCard.querySelector(".app-live-preview__deal-card-brand")?.textContent,
-    ).toBe("귤밭상회 · @gyulbbad");
+    ).toBe("@gyulbbad");
     expect(
       dealCard.querySelector(".app-live-preview__deal-card-deadline-badge")
         ?.textContent,
@@ -76,6 +76,19 @@ describe("AppLivePreview", () => {
     expect(screen.getByRole("tabpanel", { name: "상세 화면" })).toBeTruthy();
     expect(screen.getByText("구매하러 가기")).toBeTruthy();
     expect(screen.getByText(activeDeal.summary)).toBeTruthy();
+  });
+
+  it("keeps the card account row empty when Instagram is missing", async () => {
+    const user = userEvent.setup();
+    render(<AppLivePreview deal={{ ...activeDeal, instagramUsername: "" }} />);
+
+    await user.click(screen.getByRole("tab", { name: "공구 카드" }));
+    const account = screen
+      .getByRole("article", { name: "공구 카드 미리보기" })
+      .querySelector(".app-live-preview__deal-card-brand");
+
+    expect(account).not.toBeNull();
+    expect(account?.textContent).toBe("");
   });
 
   it("shows 마감 instead of a negative countdown for expired deals", async () => {
@@ -239,5 +252,4 @@ describe("AppLivePreview", () => {
       dealCard.querySelector(".app-live-preview__deal-card-sale-badge"),
     ).toBeNull();
   });
-
 });

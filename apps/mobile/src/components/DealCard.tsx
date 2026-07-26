@@ -61,12 +61,10 @@ export function buildDealCardAccessibilityLabel(
 ) {
   const productName = item.productName?.trim() || "공동구매 상품";
   const price = formatPriceKrw(item.priceKrw) ?? "미정";
-  const sellerName = item.brandName?.trim();
   const instagramHandle = formatInstagramHandle(
     item.rawPost.influencer.instagramUsername,
   );
-  const seller =
-    [sellerName, instagramHandle].filter(Boolean).join(" ") || "정보 미정";
+  const seller = instagramHandle || "정보 미정";
 
   return [
     productName,
@@ -90,7 +88,6 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
   const instagramHandle = formatInstagramHandle(
     item.rawPost.influencer.instagramUsername,
   );
-  const brandLabel = item.brandName?.trim() || fallbackLabel;
 
   return (
     <Pressable
@@ -131,8 +128,8 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
           </SText>
         </View>
       </View>
-      <SText variant="body" numberOfLines={1} style={s.brand}>
-        {instagramHandle ? `${brandLabel} · ${instagramHandle}` : brandLabel}
+      <SText variant="body" numberOfLines={1} style={s.instagramHandle}>
+        {instagramHandle ?? ""}
       </SText>
       <SText variant="caption" numberOfLines={2} style={s.title}>
         {item.productName ?? "공동구매 상품"}
@@ -204,13 +201,14 @@ function makeStyles(colors: CommerceColorPalette) {
       lineHeight: 18,
       marginTop: 2,
     },
-    brand: {
+    instagramHandle: {
       color: colors.muted,
       fontSize: 13,
       fontWeight: "700",
       lineHeight: 18,
       marginBottom: 2,
       marginTop: spacing.sm,
+      minHeight: 18,
     },
     deadlineBadge: {
       backgroundColor: colors.overlay,

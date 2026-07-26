@@ -392,8 +392,7 @@ function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
       </div>
       <div className="app-live-preview__deal-card-content">
         <p className="app-live-preview__deal-card-brand">
-          {deal.brandName || "브랜드 미지정"}
-          {instagramHandle ? ` · ${instagramHandle}` : ""}
+          {instagramHandle ?? ""}
         </p>
         <h3 className="app-live-preview__deal-card-title">
           {deal.productName}
