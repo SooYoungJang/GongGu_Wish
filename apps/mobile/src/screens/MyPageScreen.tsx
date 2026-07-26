@@ -120,15 +120,21 @@ export function DealShelf({
                 style={s.shelfDealCard}
               />
               {onRemoveDeal ? (
-                <Pressable
-                  accessibilityLabel={`${item.productName ?? '공구'} ${removeLabel}`}
-                  accessibilityRole="button"
-                  onPress={() => onRemoveDeal(item)}
-                  hitSlop={8}
-                  style={s.shelfDealRemove}
-                >
-                  <SText variant="caption" style={s.shelfDealRemoveText}>x</SText>
-                </Pressable>
+                <View style={s.shelfDealActions}>
+                  <Pressable
+                    accessibilityHint="이 목록에서 제거합니다."
+                    accessibilityLabel={`${item.productName ?? '공구'} ${removeLabel}`}
+                    accessibilityRole="button"
+                    onPress={() => onRemoveDeal(item)}
+                    hitSlop={4}
+                    style={({ pressed }) => [s.shelfDealRemove, pressed && s.pressed]}
+                  >
+                    <Ionicons name="close-circle-outline" size={16} style={s.shelfDealRemoveIcon} />
+                    <SText variant="caption" style={s.shelfDealRemoveText}>
+                      {removeLabel}
+                    </SText>
+                  </Pressable>
+                </View>
               ) : null}
             </View>
           ))}
@@ -695,21 +701,30 @@ function makeStyles(colors: CommerceColorPalette) {
       minHeight: 0,
       width: '100%',
     },
+    shelfDealActions: {
+      alignItems: 'center',
+      borderTopColor: colors.borderLight,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      height: 40,
+      justifyContent: 'flex-end',
+      marginTop: spacing.xs,
+    },
     shelfDealRemove: {
       alignItems: 'center',
-      backgroundColor: colors.softBg,
-      borderRadius: 10,
-      height: 20,
+      flexDirection: 'row',
+      gap: 4,
+      height: 36,
       justifyContent: 'center',
-      position: 'absolute',
-      right: 6,
-      top: 6,
-      width: 20,
+      paddingHorizontal: spacing.xs,
+    },
+    shelfDealRemoveIcon: {
+      color: colors.weak,
     },
     shelfDealRemoveText: {
       color: colors.weak,
-      fontSize: 14,
-      fontWeight: '900',
+      fontSize: 12,
+      fontWeight: '800',
       lineHeight: 16,
     },
     emptyShelf: {
