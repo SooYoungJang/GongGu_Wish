@@ -682,9 +682,6 @@ describe("useNotifications", () => {
     });
 
     const reels = renderHook(() => useNotifications());
-    await waitFor(() => {
-      expect(reels.result.current.ready).toBe(true);
-    });
 
     await act(async () => {
       releaseWrite();
@@ -692,7 +689,10 @@ describe("useNotifications", () => {
       await togglePromise;
     });
 
-    expect(reels.result.current.isNotifying(GROUP_BUY.id)).toBe(true);
+    await waitFor(() => {
+      expect(reels.result.current.ready).toBe(true);
+      expect(reels.result.current.isNotifying(GROUP_BUY.id)).toBe(true);
+    });
   });
 
   it("회원탈퇴 후 로컬 활동 데이터를 비운다", async () => {
