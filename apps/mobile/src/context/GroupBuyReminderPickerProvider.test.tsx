@@ -125,7 +125,9 @@ describe("GroupBuyReminderPickerProvider", () => {
       "Reanimated.View" as unknown as React.ElementType,
     );
     expect(animatedViews[0]?.props.style[1]).toEqual({ opacity: 0 });
-    expect(animatedViews[1]?.props.style[1]).toEqual({
+    expect(
+      renderer!.root.findByProps({ accessibilityRole: "none" }).props.style[2],
+    ).toEqual({
       transform: [{ translateY: 24 }],
     });
     for (let day = 1; day <= 7; day += 1) {

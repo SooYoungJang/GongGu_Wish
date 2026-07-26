@@ -64,6 +64,7 @@ const REMINDER_DATE_FORMAT = new Intl.DateTimeFormat("ko-KR", {
   day: "numeric",
   weekday: "short",
 });
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 function formatReminderDate(value: Date) {
   const parts = REMINDER_DATE_FORMAT.formatToParts(value);
@@ -258,146 +259,145 @@ export function GroupBuyReminderPickerProvider({
             pointerEvents="none"
             style={[s.backdrop, backdropAnimatedStyle]}
           />
-          <Animated.View style={[s.sheet, sheetAnimatedStyle]}>
-            <Pressable
-              accessibilityRole="none"
-              onPress={(event) => event.stopPropagation()}
-              style={[
-                s.sheetContent,
-                { paddingBottom: Math.max(insets.bottom, 16) },
-              ]}
-            >
-              <View style={s.header}>
-                <View style={s.headerCopy}>
-                  <SText numberOfLines={1} style={s.title} variant="subtitle">
-                    마감 알림
-                  </SText>
-                  <SText
-                    numberOfLines={1}
-                    style={s.productName}
-                    variant="caption"
-                  >
-                    {activeItem?.productName ?? "공동구매 상품"}
-                  </SText>
-                </View>
-                <Pressable
-                  accessibilityLabel="닫기"
-                  accessibilityRole="button"
-                  hitSlop={8}
-                  onPress={close}
-                  style={({ pressed }) => [s.closeButton, pressed && s.pressed]}
-                >
-                  <Ionicons color={colors.text} name="close" size={22} />
-                </Pressable>
-              </View>
-
-              {unavailableCopy ? (
-                <View style={s.statusRow}>
-                  <Ionicons
-                    color={colors.warning}
-                    name="alert-circle-outline"
-                    size={18}
-                  />
-                  <SText style={s.statusText} variant="caption">
-                    {unavailableCopy}
-                  </SText>
-                </View>
-              ) : (
-                <View style={s.dayRow}>
-                  {[...reminderOptions].reverse().map((option) => {
-                    const day = option.reminderDay;
-                    const available = option.available;
-                    const selected = selectedDays.includes(day);
-                    const dateLabel = formatReminderDate(option.triggerDate);
-                    return (
-                      <Pressable
-                        accessibilityLabel={`D-${day}, ${dateLabel} 마감 알림`}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{
-                          checked: selected,
-                          disabled: !available,
-                        }}
-                        disabled={!available}
-                        key={day}
-                        onPress={() => toggleDay(day)}
-                        style={({ pressed }) => [
-                          s.dayButton,
-                          selected && s.dayButtonSelected,
-                          !available && s.dayButtonDisabled,
-                          pressed && s.pressed,
-                        ]}
-                        testID={`group-buy-reminder-day-${day}`}
-                      >
-                        <SText
-                          style={[
-                            s.dayText,
-                            selected && s.dayTextSelected,
-                            !available && s.dayTextDisabled,
-                          ]}
-                          variant="label"
-                        >
-                          D-{day}
-                        </SText>
-                        <SText
-                          style={[
-                            s.dayDateText,
-                            selected && s.dayTextSelected,
-                            !available && s.dayTextDisabled,
-                          ]}
-                          variant="caption"
-                        >
-                          {dateLabel}
-                        </SText>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-
-              {notificationsPaused && !unavailableCopy ? (
-                <SText style={s.pausedText} variant="caption">
-                  푸시 또는 마감 임박 알림이 꺼져 있어 선택만 저장돼요.
+          <AnimatedPressable
+            accessibilityRole="none"
+            onPress={(event) => event.stopPropagation()}
+            style={[
+              s.sheet,
+              { paddingBottom: Math.max(insets.bottom, 16) },
+              sheetAnimatedStyle,
+            ]}
+          >
+            <View style={s.header}>
+              <View style={s.headerCopy}>
+                <SText numberOfLines={1} style={s.title} variant="subtitle">
+                  마감 알림
                 </SText>
-              ) : null}
+                <SText
+                  numberOfLines={1}
+                  style={s.productName}
+                  variant="caption"
+                >
+                  {activeItem?.productName ?? "공동구매 상품"}
+                </SText>
+              </View>
+              <Pressable
+                accessibilityLabel="닫기"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={close}
+                style={({ pressed }) => [s.closeButton, pressed && s.pressed]}
+              >
+                <Ionicons color={colors.text} name="close" size={22} />
+              </Pressable>
+            </View>
 
-              <View style={s.actions}>
-                {reminderEnabled ? (
-                  <Pressable
-                    accessibilityLabel="마감 알림 끄기"
-                    accessibilityRole="button"
-                    onPress={() => persist([])}
-                    style={({ pressed }) => [
-                      s.secondaryButton,
-                      pressed && s.pressed,
-                    ]}
-                    testID="group-buy-reminder-disable"
-                  >
-                    <SText style={s.secondaryButtonText} variant="label">
-                      알림 끄기
-                    </SText>
-                  </Pressable>
-                ) : null}
+            {unavailableCopy ? (
+              <View style={s.statusRow}>
+                <Ionicons
+                  color={colors.warning}
+                  name="alert-circle-outline"
+                  size={18}
+                />
+                <SText style={s.statusText} variant="caption">
+                  {unavailableCopy}
+                </SText>
+              </View>
+            ) : (
+              <View style={s.dayRow}>
+                {[...reminderOptions].reverse().map((option) => {
+                  const day = option.reminderDay;
+                  const available = option.available;
+                  const selected = selectedDays.includes(day);
+                  const dateLabel = formatReminderDate(option.triggerDate);
+                  return (
+                    <Pressable
+                      accessibilityLabel={`D-${day}, ${dateLabel} 마감 알림`}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{
+                        checked: selected,
+                        disabled: !available,
+                      }}
+                      disabled={!available}
+                      key={day}
+                      onPress={() => toggleDay(day)}
+                      style={({ pressed }) => [
+                        s.dayButton,
+                        selected && s.dayButtonSelected,
+                        !available && s.dayButtonDisabled,
+                        pressed && s.pressed,
+                      ]}
+                      testID={`group-buy-reminder-day-${day}`}
+                    >
+                      <SText
+                        style={[
+                          s.dayText,
+                          selected && s.dayTextSelected,
+                          !available && s.dayTextDisabled,
+                        ]}
+                        variant="label"
+                      >
+                        D-{day}
+                      </SText>
+                      <SText
+                        style={[
+                          s.dayDateText,
+                          selected && s.dayTextSelected,
+                          !available && s.dayTextDisabled,
+                        ]}
+                        variant="caption"
+                      >
+                        {dateLabel}
+                      </SText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
+            {notificationsPaused && !unavailableCopy ? (
+              <SText style={s.pausedText} variant="caption">
+                푸시 또는 마감 임박 알림이 꺼져 있어 선택만 저장돼요.
+              </SText>
+            ) : null}
+
+            <View style={s.actions}>
+              {reminderEnabled ? (
                 <Pressable
-                  accessibilityLabel="마감 알림 저장"
+                  accessibilityLabel="마감 알림 끄기"
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: selectedDays.length === 0 }}
-                  disabled={selectedDays.length === 0}
-                  onPress={() => persist(selectedDays)}
+                  onPress={() => persist([])}
                   style={({ pressed }) => [
-                    s.primaryButton,
-                    reminderEnabled && s.primaryButtonFlexible,
-                    selectedDays.length === 0 && s.primaryButtonDisabled,
+                    s.secondaryButton,
                     pressed && s.pressed,
                   ]}
-                  testID="group-buy-reminder-save"
+                  testID="group-buy-reminder-disable"
                 >
-                  <SText style={s.primaryButtonText} variant="label">
-                    저장
+                  <SText style={s.secondaryButtonText} variant="label">
+                    알림 끄기
                   </SText>
                 </Pressable>
-              </View>
-            </Pressable>
-          </Animated.View>
+              ) : null}
+              <Pressable
+                accessibilityLabel="마감 알림 저장"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: selectedDays.length === 0 }}
+                disabled={selectedDays.length === 0}
+                onPress={() => persist(selectedDays)}
+                style={({ pressed }) => [
+                  s.primaryButton,
+                  reminderEnabled && s.primaryButtonFlexible,
+                  selectedDays.length === 0 && s.primaryButtonDisabled,
+                  pressed && s.pressed,
+                ]}
+                testID="group-buy-reminder-save"
+              >
+                <SText style={s.primaryButtonText} variant="label">
+                  저장
+                </SText>
+              </Pressable>
+            </View>
+          </AnimatedPressable>
         </Pressable>
       </Modal>
     </GroupBuyReminderPickerContext.Provider>
@@ -432,8 +432,6 @@ function makeStyles(colors: CommerceColorPalette) {
       backgroundColor: colors.surface,
       borderTopLeftRadius: commerceRadius.lg,
       borderTopRightRadius: commerceRadius.lg,
-    },
-    sheetContent: {
       paddingHorizontal: commerceSpacing.lg,
       paddingTop: commerceSpacing.lg,
     },
