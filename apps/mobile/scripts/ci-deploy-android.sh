@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 case "${GITHUB_REF:-}" in
   refs/heads/main)
     environment="production"
@@ -160,7 +162,7 @@ publish_ota() {
 
 if [[ "$environment" == "preview" ]]; then
   preview_baseline_artifact_id="$(
-    node scripts/find-preview-runtime-baseline.mjs "$fingerprint_hash"
+    node "$script_directory/find-preview-runtime-baseline.mjs" "$fingerprint_hash"
   )"
 
   if [[ -n "$preview_baseline_artifact_id" ]]; then
