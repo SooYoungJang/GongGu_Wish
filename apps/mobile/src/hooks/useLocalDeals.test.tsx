@@ -666,16 +666,16 @@ describe("useNotifications", () => {
   });
 
   it("저장 중 새로 마운트된 화면에도 완료된 알림 상태를 전파한다", async () => {
-    let releaseWrite!: () => void;
-    storage.writeGate = new Promise<void>((resolve) => {
-      releaseWrite = resolve;
-    });
     const ranking = renderHook(() => useNotifications());
 
     await waitFor(() => {
       expect(ranking.result.current.ready).toBe(true);
     });
 
+    let releaseWrite!: () => void;
+    storage.writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
     let togglePromise!: Promise<unknown>;
     act(() => {
       togglePromise = ranking.result.current.toggleNotification(GROUP_BUY);
@@ -688,6 +688,7 @@ describe("useNotifications", () => {
 
     await act(async () => {
       releaseWrite();
+      storage.writeGate = null;
       await togglePromise;
     });
 

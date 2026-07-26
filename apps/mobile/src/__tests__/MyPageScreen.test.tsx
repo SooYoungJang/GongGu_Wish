@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../api';
 import {
@@ -256,6 +256,13 @@ function renderMyPageScreen() {
 }
 
 beforeEach(() => {
+  vi.stubGlobal(
+    'requestAnimationFrame',
+    (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    },
+  );
   vi.mocked(AccessibilityInfo.announceForAccessibility).mockClear();
   vi.mocked(Linking.openURL).mockClear();
   authMocks.session = null;
@@ -756,4 +763,8 @@ describe('MyPageScreen', () => {
     expect(deleteSpy).toHaveBeenCalledOnce();
     deleteSpy.mockRestore();
   });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });

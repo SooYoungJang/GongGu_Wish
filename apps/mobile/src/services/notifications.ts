@@ -5,11 +5,18 @@ import Constants from "expo-constants";
 import { callEdgeFunction } from "../lib/postgrest-client";
 import { isAutomatedE2E } from "../lib/automatedE2E";
 import { isExpoPushToken } from "./pushToken";
-import type { NotificationReminderDay } from "./notificationPreferences";
+import {
+  buildGroupBuyReminderDates,
+  type GroupBuyReminderScheduleOptions,
+  type NotificationReminderDay,
+} from "./reminderDates";
 import {
   buildGroupBuyNotificationUrl,
   notificationResponseToUrl,
 } from "./notificationPayload";
+
+export { buildGroupBuyReminderDates };
+export type { GroupBuyReminderScheduleOptions };
 
 // Expo Go does not fully support expo-notifications native modules.
 // Lazy-load to avoid importing the module at app startup in Expo Go.
@@ -283,66 +290,6 @@ export type ScheduleGroupBuyRemindersResult =
       reason: "invalid-group-buy-id" | "schedule-failed";
       notifications?: ScheduledNotification[];
     };
-
-const SEOUL_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
-  timeZone: "Asia/Seoul",
-  year: "numeric",
-  month: "numeric",
-  day: "numeric",
-});
-
-export type GroupBuyReminderScheduleOptions = {
-  now?: number;
-};
-
-function resolveGroupBuyReminderScheduleOptions(
-  value: number | GroupBuyReminderScheduleOptions | undefined,
-) {
-  return typeof value === "number" ? value : (value?.now ?? Date.now());
-}
-
-function getSeoulCalendarDate(value: Date) {
-  const parts = SEOUL_DATE_FORMAT.formatToParts(value);
-  const values = new Map(parts.map((part) => [part.type, part.value]));
-  const year = Number(values.get("year"));
-  const month = Number(values.get("month"));
-  const day = Number(values.get("day"));
-  return Number.isInteger(year) &&
-    Number.isInteger(month) &&
-    Number.isInteger(day)
-    ? { year, month, day }
-    : null;
-}
-
-export function buildGroupBuyReminderDates(
-  endDate: string,
-  reminderDays: readonly number[],
-  options?: number | GroupBuyReminderScheduleOptions,
-) {
-  const now = resolveGroupBuyReminderScheduleOptions(options);
-  const deadline = new Date(endDate);
-  if (Number.isNaN(deadline.getTime())) return [];
-  const deadlineDate = getSeoulCalendarDate(deadline);
-  if (!deadlineDate) return [];
-  const allowed = new Set<number>([1, 3, 7]);
-  return [...new Set(reminderDays)]
-    .filter((day): day is NotificationReminderDay => allowed.has(day))
-    .map((reminderDay) => ({
-      reminderDay,
-      // 09:00 Asia/Seoul is 00:00 UTC; Korea has no DST transitions.
-      triggerDate: new Date(
-        Date.UTC(
-          deadlineDate.year,
-          deadlineDate.month - 1,
-          deadlineDate.day - reminderDay,
-        ),
-      ),
-    }))
-    .filter(({ triggerDate }) => triggerDate.getTime() > now)
-    .sort(
-      (left, right) => left.triggerDate.getTime() - right.triggerDate.getTime(),
-    );
-}
 
 async function cancelExistingGroupBuyDeadlineNotifications(
   Notifications: typeof import("expo-notifications"),

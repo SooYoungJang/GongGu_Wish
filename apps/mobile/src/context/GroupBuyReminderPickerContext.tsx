@@ -19,11 +19,12 @@ import {
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import { useNotifications } from "../hooks/useLocalDeals";
 import { useAuth } from "./AuthContext";
-import { useNotificationPreferences } from "./NotificationPreferencesContext";
 import {
-  buildGroupBuyReminderDates,
-  type GroupBuyAlertState,
-} from "../services/notifications";
+  getAvailableReminderDays,
+  getInitialReminderDays,
+} from "./groupBuyReminderPicker";
+import { useNotificationPreferences } from "./NotificationPreferencesContext";
+import type { GroupBuyAlertState } from "../services/notifications";
 import {
   NOTIFICATION_REMINDER_DAYS,
   type NotificationReminderDay,
@@ -39,27 +40,6 @@ type GroupBuyReminderPickerContextValue = {
 
 const GroupBuyReminderPickerContext =
   createContext<GroupBuyReminderPickerContextValue | null>(null);
-
-export function getAvailableReminderDays(
-  endDate: string | null,
-  now = Date.now(),
-): NotificationReminderDay[] {
-  if (!endDate) return [];
-  return NOTIFICATION_REMINDER_DAYS.filter(
-    (day) => buildGroupBuyReminderDates(endDate, [day], now).length > 0,
-  );
-}
-
-export function getInitialReminderDays(
-  endDate: string | null,
-  currentDays: readonly NotificationReminderDay[],
-  now = Date.now(),
-) {
-  const available = new Set(getAvailableReminderDays(endDate, now));
-  return NOTIFICATION_REMINDER_DAYS.filter(
-    (day) => available.has(day) && currentDays.includes(day),
-  );
-}
 
 type GroupBuyReminderPickerProviderProps = PropsWithChildren<{
   onAuthenticationRequired?: () => void;

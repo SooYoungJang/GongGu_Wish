@@ -1,10 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { callEdgeFunction } from "../lib/postgrest-client";
+import {
+  NOTIFICATION_REMINDER_DAYS,
+  type NotificationReminderDay,
+} from "./reminderDates";
 
-export const NOTIFICATION_REMINDER_DAYS = [1, 3, 7] as const;
-export type NotificationReminderDay =
-  (typeof NOTIFICATION_REMINDER_DAYS)[number];
+export { NOTIFICATION_REMINDER_DAYS };
+export type { NotificationReminderDay };
 
 export type NotificationPreferences = {
   pushEnabled: boolean;

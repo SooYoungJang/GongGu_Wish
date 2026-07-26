@@ -487,22 +487,34 @@ export type GroupBuyReminderSyncResult =
 
 type GroupBuyReminderRow = {
   group_buy_id?: unknown;
+  groupBuyId?: unknown;
   reminder_days?: unknown;
+  reminderDays?: unknown;
   updated_at?: unknown;
+  updatedAt?: unknown;
 };
 
 function normalizeGroupBuyReminderRow(
   value: GroupBuyReminderRow,
 ): GroupBuyReminderPreference | null {
+  const groupBuyId =
+    typeof value.groupBuyId === "string"
+      ? value.groupBuyId
+      : value.group_buy_id;
+  const reminderDaysValue = Array.isArray(value.reminderDays)
+    ? value.reminderDays
+    : value.reminder_days;
+  const updatedAt =
+    typeof value.updatedAt === "string" ? value.updatedAt : value.updated_at;
   if (
-    typeof value.group_buy_id !== "string" ||
-    typeof value.updated_at !== "string" ||
-    !Array.isArray(value.reminder_days)
+    typeof groupBuyId !== "string" ||
+    typeof updatedAt !== "string" ||
+    !Array.isArray(reminderDaysValue)
   ) {
     return null;
   }
   const allowed = new Set<number>([1, 3, 7]);
-  const reminderDays = [...new Set(value.reminder_days)]
+  const reminderDays = [...new Set(reminderDaysValue)]
     .filter(
       (day): day is GroupBuyReminderDay =>
         typeof day === "number" && allowed.has(day),
@@ -510,9 +522,9 @@ function normalizeGroupBuyReminderRow(
     .sort((left, right) => left - right);
   if (reminderDays.length === 0) return null;
   return {
-    groupBuyId: value.group_buy_id,
+    groupBuyId,
     reminderDays,
-    updatedAt: value.updated_at,
+    updatedAt,
   };
 }
 

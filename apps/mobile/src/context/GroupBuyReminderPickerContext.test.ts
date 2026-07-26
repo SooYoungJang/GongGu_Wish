@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getAvailableReminderDays,
   getInitialReminderDays,
-} from "./GroupBuyReminderPickerContext";
+} from "./groupBuyReminderPicker";
 
 describe("group-buy reminder picker", () => {
   const endDate = "2026-07-27T00:00:00.000Z";
