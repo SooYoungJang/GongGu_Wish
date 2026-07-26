@@ -8,6 +8,13 @@ import { spacing } from '../design/tokens';
 import type { GroupBuy } from '../types';
 
 const mockWindowDimensions = vi.hoisted(() => ({ width: 393 }));
+vi.mock('../context/GroupBuyReminderPickerContext', () => ({
+  useGroupBuyReminderPicker: () => ({
+    getReminderState: () => ({ status: 'idle' }),
+    isReminderEnabled: () => false,
+    openReminderPicker: vi.fn(),
+  }),
+}));
 const fallbackGroupBuysMock = vi.hoisted(() => [
   {
     id: 'local-fixture-only',

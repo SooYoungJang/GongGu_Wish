@@ -11,8 +11,12 @@ import {
 
 const apiMocks = vi.hoisted(() => ({
   fetchGroupBuysByIds: vi.fn().mockResolvedValue([]),
+  fetchNotificationReminders: vi.fn().mockResolvedValue([]),
   syncBookmark: vi.fn().mockResolvedValue(undefined),
-  syncNotification: vi.fn().mockResolvedValue(undefined),
+  syncNotification: vi.fn().mockResolvedValue({
+    status: "synced",
+    preference: null,
+  }),
 }));
 
 const notificationServiceMocks = vi.hoisted(() => {
@@ -20,10 +24,6 @@ const notificationServiceMocks = vi.hoisted(() => {
     .fn()
     .mockResolvedValue({ status: "cancelled" });
   return {
-    scheduleGroupBuyStart: vi.fn().mockResolvedValue({
-      status: "unavailable",
-      reason: "missing-start-date",
-    }),
     scheduleGroupBuyReminders: vi.fn().mockResolvedValue({
       status: "unavailable",
       reason: "missing-end-date",
@@ -42,7 +42,7 @@ const notificationPreferenceMocks = vi.hoisted(() => ({
   preferences: {
     pushEnabled: true,
     deadlineRemindersEnabled: true,
-    newSubmissionsEnabled: true,
+    submissionApprovalEnabled: true,
     reminderDays: [1, 3, 7] as Array<1 | 3 | 7>,
     followedInfluencers: [] as string[],
     followedBrands: [] as string[],
@@ -134,14 +134,12 @@ describe("useNotifications", () => {
     storage.writeGate = null;
     storage.writeAttempts = 0;
     apiMocks.fetchGroupBuysByIds.mockReset().mockResolvedValue([]);
+    apiMocks.fetchNotificationReminders.mockReset().mockResolvedValue([]);
     apiMocks.syncBookmark.mockReset().mockResolvedValue(undefined);
-    apiMocks.syncNotification.mockReset().mockResolvedValue(undefined);
-    notificationServiceMocks.scheduleGroupBuyStart
-      .mockReset()
-      .mockResolvedValue({
-        status: "unavailable",
-        reason: "missing-start-date",
-      });
+    apiMocks.syncNotification.mockReset().mockResolvedValue({
+      status: "synced",
+      preference: null,
+    });
     notificationServiceMocks.scheduleGroupBuyReminders
       .mockReset()
       .mockResolvedValue({
@@ -731,24 +729,28 @@ describe("useNotifications", () => {
   });
 
   it("serializes different group-buy writes without dropping either entry", async () => {
-    notificationServiceMocks.scheduleGroupBuyStart
+    notificationServiceMocks.scheduleGroupBuyReminders
       .mockResolvedValueOnce({
         status: "scheduled",
-        notification: {
-          id: "native-a",
-          groupBuyId: "group-buy-a",
-          productName: "공구 A",
-          triggerDate: new Date("2026-07-20T12:00:00.000Z"),
-        },
+        notifications: [
+          {
+            id: "native-a",
+            groupBuyId: "group-buy-a",
+            productName: "공구 A",
+            triggerDate: new Date("2026-07-20T00:00:00.000Z"),
+          },
+        ],
       })
       .mockResolvedValueOnce({
         status: "scheduled",
-        notification: {
-          id: "native-b",
-          groupBuyId: "group-buy-b",
-          productName: "공구 B",
-          triggerDate: new Date("2026-07-20T13:00:00.000Z"),
-        },
+        notifications: [
+          {
+            id: "native-b",
+            groupBuyId: "group-buy-b",
+            productName: "공구 B",
+            triggerDate: new Date("2026-07-21T00:00:00.000Z"),
+          },
+        ],
       });
     const notifications = renderHook(() => useNotifications());
     await waitFor(() => expect(notifications.result.current.ready).toBe(true));
@@ -759,13 +761,13 @@ describe("useNotifications", () => {
           ...GROUP_BUY,
           id: "group-buy-a",
           productName: "공구 A",
-          startDate: "2026-07-20T13:00:00.000Z",
+          endDate: "2026-07-27T00:00:00.000Z",
         }),
         notifications.result.current.toggleNotification({
           ...GROUP_BUY,
           id: "group-buy-b",
           productName: "공구 B",
-          startDate: "2026-07-20T14:00:00.000Z",
+          endDate: "2026-07-28T00:00:00.000Z",
         }),
       ]);
     });
@@ -810,7 +812,7 @@ describe("useNotifications", () => {
       notificationServiceMocks.cancelScheduledNotifications,
     ).toHaveBeenCalledWith(["native-disable"]);
     expect(
-      notificationServiceMocks.scheduleGroupBuyStart,
+      notificationServiceMocks.scheduleGroupBuyReminders,
     ).not.toHaveBeenCalled();
     expect(notifications.result.current.isNotifying(GROUP_BUY.id)).toBe(false);
   });
@@ -856,7 +858,7 @@ describe("useNotifications", () => {
       await notifications.result.current.rescheduleNotifications({
         pushEnabled: true,
         deadlineRemindersEnabled: true,
-        newSubmissionsEnabled: true,
+        submissionApprovalEnabled: true,
         reminderDays: [3],
         followedInfluencers: [],
         followedBrands: [],
@@ -875,14 +877,16 @@ describe("useNotifications", () => {
 
   it("예약 결과를 관심 저장 상태와 분리해 노출한다", async () => {
     const scheduledFor = "2026-07-16T17:00:00.000Z";
-    notificationServiceMocks.scheduleGroupBuyStart.mockResolvedValueOnce({
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
       status: "scheduled",
-      notification: {
-        id: "native-notification-1",
-        groupBuyId: GROUP_BUY.id,
-        productName: GROUP_BUY.productName,
-        triggerDate: new Date(scheduledFor),
-      },
+      notifications: [
+        {
+          id: "native-notification-1",
+          groupBuyId: GROUP_BUY.id,
+          productName: GROUP_BUY.productName,
+          triggerDate: new Date(scheduledFor),
+        },
+      ],
     });
     const notifications = renderHook(() => useNotifications());
 
@@ -893,7 +897,7 @@ describe("useNotifications", () => {
     await act(async () => {
       await notifications.result.current.toggleNotification({
         ...GROUP_BUY,
-        startDate: "2026-07-16T18:00:00.000Z",
+        endDate: "2026-07-23T00:00:00.000Z",
       });
     });
 
@@ -904,6 +908,8 @@ describe("useNotifications", () => {
       status: "enabled",
       notificationId: "native-notification-1",
       scheduledFor,
+      notificationIds: ["native-notification-1"],
+      scheduledForDates: [scheduledFor],
     });
   });
 
@@ -923,7 +929,7 @@ describe("useNotifications", () => {
       notifications.result.current.getNotificationState(GROUP_BUY.id),
     ).toEqual({
       status: "unavailable",
-      reason: "missing-start-date",
+      reason: "missing-end-date",
     });
   });
 
@@ -960,9 +966,7 @@ describe("useNotifications", () => {
 
     expect(
       notificationServiceMocks.scheduleGroupBuyReminders,
-    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1, 3, 7], {
-      catchUp: true,
-    });
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1, 3, 7]);
     expect(notifications.result.current.getNotificationState(item.id)).toEqual({
       status: "enabled",
       notificationId: "deadline-7",
@@ -983,7 +987,179 @@ describe("useNotifications", () => {
     expect(notifications.result.current.isNotifying(item.id)).toBe(false);
   });
 
-  it("reconciles existing native IDs when reminder preferences change", async () => {
+  it("schedules and mirrors only the reminder days selected for the item", async () => {
+    authMocks.user = { id: "user-1" };
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
+      status: "scheduled",
+      notifications: [
+        {
+          id: "deadline-3",
+          groupBuyId: GROUP_BUY.id,
+          productName: GROUP_BUY.productName,
+          reminderDay: 3,
+          triggerDate: new Date("2026-07-24T00:00:00.000Z"),
+        },
+      ],
+    });
+    const item = {
+      ...GROUP_BUY,
+      endDate: "2026-07-27T00:00:00.000Z",
+    };
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(item, [3]);
+    });
+
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [3]);
+    expect(
+      notifications.result.current.getNotificationReminderDays(item.id),
+    ).toEqual([3]);
+    await waitFor(() => {
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(item.id, [3]);
+    });
+  });
+
+  it("restores authenticated reminder selections from the server", async () => {
+    authMocks.user = { id: "user-1" };
+    const item = {
+      ...GROUP_BUY,
+      endDate: "2026-07-27T00:00:00.000Z",
+    };
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
+      status: "scheduled",
+      notifications: [
+        {
+          id: "restored-deadline-3",
+          groupBuyId: item.id,
+          productName: item.productName,
+          reminderDay: 3,
+          triggerDate: new Date("2026-07-24T00:00:00.000Z"),
+        },
+      ],
+    });
+    apiMocks.fetchNotificationReminders.mockResolvedValue([
+      {
+        groupBuyId: item.id,
+        reminderDays: [1, 3],
+        updatedAt: "2026-07-20T00:00:00.000Z",
+      },
+    ]);
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([item]);
+    const notifications = renderHook(() => useNotifications());
+    const secondSubscriber = renderHook(() => useNotifications());
+
+    await waitFor(() => {
+      expect(notifications.result.current.ready).toBe(true);
+      expect(secondSubscriber.result.current.ready).toBe(true);
+      expect(
+        notifications.result.current.getNotificationReminderDays(item.id),
+      ).toEqual([1, 3]);
+    });
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1, 3]);
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes a startup refresh before a newer item reminder mutation", async () => {
+    authMocks.user = { id: "user-1" };
+    const item = {
+      ...GROUP_BUY,
+      endDate: "2026-07-27T00:00:00.000Z",
+    };
+    let releaseRemote!: (
+      value: Array<{
+        groupBuyId: string;
+        reminderDays: Array<1 | 3 | 7>;
+        updatedAt: string;
+      }>,
+    ) => void;
+    apiMocks.fetchNotificationReminders.mockReturnValueOnce(
+      new Promise((resolve) => {
+        releaseRemote = resolve;
+      }),
+    );
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([item]);
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => {
+      expect(apiMocks.fetchNotificationReminders).toHaveBeenCalledOnce();
+    });
+    let mutation!: Promise<unknown>;
+    act(() => {
+      mutation = notifications.result.current.setNotificationReminders(item, [
+        3,
+      ]);
+    });
+    await act(async () => {
+      releaseRemote([
+        {
+          groupBuyId: item.id,
+          reminderDays: [1],
+          updatedAt: "2026-07-20T00:00:00.000Z",
+        },
+      ]);
+      await mutation;
+    });
+
+    expect(
+      notifications.result.current.getNotificationReminderDays(item.id),
+    ).toEqual([3]);
+    await waitFor(() => {
+      expect(apiMocks.syncNotification).toHaveBeenLastCalledWith(item.id, [3]);
+    });
+  });
+
+  it("recovers a native schedule left pending by an interrupted app process", async () => {
+    authMocks.user = { id: "user-1" };
+    const item = {
+      ...GROUP_BUY,
+      endDate: "2026-07-27T00:00:00.000Z",
+    };
+    storage.values.set(
+      "@gonggu/notifications/v2/user%3Auser-1",
+      JSON.stringify([
+        {
+          ...item,
+          groupBuyId: item.id,
+          reminderDays: [1],
+          notificationId: null,
+          notificationIds: [],
+          scheduledFor: null,
+          scheduledForDates: [],
+          alertState: { status: "pending", action: "enable" },
+          createdAt: "2026-07-20T00:00:00.000Z",
+        },
+      ]),
+    );
+    storage.values.set(
+      "@gonggu/notifications/server-migrated/v1/user%3Auser-1",
+      "true",
+    );
+    apiMocks.fetchNotificationReminders.mockResolvedValue([
+      {
+        groupBuyId: item.id,
+        reminderDays: [1],
+        updatedAt: "2026-07-20T00:00:00.000Z",
+      },
+    ]);
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([item]);
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1]);
+  });
+
+  it("reconciles existing native IDs when item reminder days change", async () => {
     notificationServiceMocks.scheduleGroupBuyReminders
       .mockResolvedValueOnce({
         status: "scheduled",
@@ -1015,14 +1191,7 @@ describe("useNotifications", () => {
     await waitFor(() => expect(notifications.result.current.ready).toBe(true));
     await act(async () => {
       await notifications.result.current.toggleNotification(item);
-      await notifications.result.current.rescheduleNotifications({
-        pushEnabled: true,
-        deadlineRemindersEnabled: true,
-        newSubmissionsEnabled: true,
-        reminderDays: [3],
-        followedInfluencers: [],
-        followedBrands: [],
-      });
+      await notifications.result.current.setNotificationReminders(item, [3]);
     });
 
     expect(
@@ -1030,9 +1199,7 @@ describe("useNotifications", () => {
     ).toHaveBeenCalledWith(["deadline-old-7"]);
     expect(
       notificationServiceMocks.scheduleGroupBuyReminders,
-    ).toHaveBeenLastCalledWith(item.id, item.productName, item.endDate, [3], {
-      catchUp: false,
-    });
+    ).toHaveBeenLastCalledWith(item.id, item.productName, item.endDate, [3]);
     expect(notifications.result.current.getNotificationState(item.id)).toEqual(
       expect.objectContaining({
         status: "enabled",
@@ -1043,7 +1210,7 @@ describe("useNotifications", () => {
 
   it("serializes rapid double taps into one schedule and one cancellation", async () => {
     let releaseSchedule!: (result: unknown) => void;
-    notificationServiceMocks.scheduleGroupBuyStart.mockReturnValueOnce(
+    notificationServiceMocks.scheduleGroupBuyReminders.mockReturnValueOnce(
       new Promise((resolve) => {
         releaseSchedule = resolve;
       }),
@@ -1051,7 +1218,7 @@ describe("useNotifications", () => {
     const notifications = renderHook(() => useNotifications());
     const item = {
       ...GROUP_BUY,
-      startDate: "2026-07-16T18:00:00.000Z",
+      endDate: "2026-07-23T00:00:00.000Z",
     };
 
     await waitFor(() => {
@@ -1067,34 +1234,39 @@ describe("useNotifications", () => {
 
     await waitFor(() => {
       expect(
-        notificationServiceMocks.scheduleGroupBuyStart,
+        notificationServiceMocks.scheduleGroupBuyReminders,
       ).toHaveBeenCalledTimes(1);
     });
 
     await act(async () => {
       releaseSchedule({
         status: "scheduled",
-        notification: {
-          id: "native-notification-rapid",
-          groupBuyId: item.id,
-          productName: item.productName,
-          triggerDate: new Date("2026-07-16T17:00:00.000Z"),
-        },
+        notifications: [
+          {
+            id: "native-notification-rapid",
+            groupBuyId: item.id,
+            productName: item.productName,
+            triggerDate: new Date("2026-07-16T17:00:00.000Z"),
+          },
+        ],
       });
       await Promise.all([firstToggle, secondToggle]);
     });
 
     expect(
-      notificationServiceMocks.scheduleGroupBuyStart,
+      notificationServiceMocks.scheduleGroupBuyReminders,
     ).toHaveBeenCalledTimes(1);
     expect(
-      notificationServiceMocks.cancelScheduledNotification,
-    ).toHaveBeenCalledWith("native-notification-rapid");
+      notificationServiceMocks.cancelScheduledNotifications,
+    ).toHaveBeenCalledWith(["native-notification-rapid"]);
     expect(notifications.result.current.isNotifying(item.id)).toBe(false);
   });
 
   it("keeps failed server mirrors in a retryable outbox", async () => {
-    apiMocks.syncNotification.mockReset().mockResolvedValue(false);
+    authMocks.user = { id: "user-1" };
+    apiMocks.syncNotification.mockReset().mockResolvedValue({
+      status: "failed",
+    });
     const notifications = renderHook(() => useNotifications());
 
     await waitFor(() => {
@@ -1107,29 +1279,81 @@ describe("useNotifications", () => {
     await waitFor(() => {
       expect(apiMocks.syncNotification).toHaveBeenCalledWith(
         GROUP_BUY.id,
-        true,
+        [1, 3, 7],
       );
     });
     expect(
       JSON.parse(
-        storage.values.get("@gonggu/notifications/outbox/v1/guest") ?? "[]",
+        storage.values.get("@gonggu/notifications/outbox/v1/user-1") ?? "[]",
       ),
     ).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ groupBuyId: GROUP_BUY.id, enabled: true }),
+        expect.objectContaining({
+          groupBuyId: GROUP_BUY.id,
+          reminderDays: [1, 3, 7],
+        }),
       ]),
     );
 
-    apiMocks.syncNotification.mockResolvedValue(true);
+    apiMocks.syncNotification.mockResolvedValue({
+      status: "synced",
+      preference: null,
+    });
     await act(async () => {
       notifications.result.current.refresh();
       await waitFor(() => {
         expect(
           JSON.parse(
-            storage.values.get("@gonggu/notifications/outbox/v1/guest") ?? "[]",
+            storage.values.get("@gonggu/notifications/outbox/v1/user-1") ??
+              "[]",
           ),
         ).toEqual([]);
       });
+    });
+  });
+
+  it("keeps concurrent reminder mirror intents for different items", async () => {
+    authMocks.user = { id: "user-1" };
+    apiMocks.syncNotification.mockReset().mockResolvedValue({
+      status: "failed",
+    });
+    const notifications = renderHook(() => useNotifications());
+    const first = {
+      ...GROUP_BUY,
+      id: "group-buy-a",
+      endDate: "2026-07-27T00:00:00.000Z",
+    };
+    const second = {
+      ...GROUP_BUY,
+      id: "group-buy-b",
+      endDate: "2026-07-28T00:00:00.000Z",
+    };
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    await act(async () => {
+      await Promise.all([
+        notifications.result.current.setNotificationReminders(first, [1]),
+        notifications.result.current.setNotificationReminders(second, [3]),
+      ]);
+    });
+    await waitFor(() => {
+      expect(
+        JSON.parse(
+          storage.values.get("@gonggu/notifications/outbox/v1/user-1") ??
+            "[]",
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            groupBuyId: first.id,
+            reminderDays: [1],
+          }),
+          expect.objectContaining({
+            groupBuyId: second.id,
+            reminderDays: [3],
+          }),
+        ]),
+      );
     });
   });
 

@@ -1,9 +1,25 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, BackHandler, Platform, StatusBar, StyleSheet, ToastAndroid, useWindowDimensions, View } from 'react-native';
+import {
+  AppState,
+  BackHandler,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  ToastAndroid,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { BlurView } from 'expo-blur';
 import Constants from 'expo-constants';
 import * as SystemUI from 'expo-system-ui';
-import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme, useNavigation } from '@react-navigation/native';
+import {
+  createNavigationContainerRef,
+  NavigationContainer,
+  NavigatorScreenParams,
+  DefaultTheme,
+  DarkTheme,
+  useNavigation,
+} from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,17 +33,18 @@ import { AdsProvider } from './ads/AdsContext';
 import type { MainTabParamList, RootStackParamList } from './types';
 import { configurePostgrest } from './lib/postgrest-client';
 import { configureSupabase } from './lib/supabase';
-import { resolveDataApiUrl, resolveSupabaseAnonKey, resolveSupabaseUrl } from './lib/supabase-config';
+import {
+  resolveDataApiUrl,
+  resolveSupabaseAnonKey,
+  resolveSupabaseUrl,
+} from './lib/supabase-config';
 import { isAutomatedE2E } from './lib/automatedE2E';
 import { registerForPushNotifications } from './services/notifications';
 import { BackButton } from './components/BackButton';
 import { NavigationHeaderTitle } from './components/CenteredBackHeader';
 import { getCommerceColors } from './design/commerce';
 import { spacing } from './design/tokens';
-import {
-  decideMainTabsBack,
-  useFocusedAndroidBackHandler,
-} from './navigation/androidBack';
+import { decideMainTabsBack, useFocusedAndroidBackHandler } from './navigation/androidBack';
 import {
   createTabBarButtonRenderer,
   getTabBarVisibilityStyle,
@@ -37,14 +54,17 @@ import { notificationLinking } from './navigation/notificationLinking';
 
 // Initialize PostgREST client with the Supabase anon key
 const automatedE2E = isAutomatedE2E();
-const anonKey = resolveSupabaseAnonKey(automatedE2E
-  ? Constants.expoConfig?.extra?.e2eSupabaseAnonKey
-  : process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
-const supabaseUrl = resolveSupabaseUrl(automatedE2E
-  ? Constants.expoConfig?.extra?.e2eSupabaseUrl
-  : process.env.EXPO_PUBLIC_SUPABASE_URL, {
-  requireLocal: automatedE2E,
-});
+const anonKey = resolveSupabaseAnonKey(
+  automatedE2E
+    ? Constants.expoConfig?.extra?.e2eSupabaseAnonKey
+    : process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+);
+const supabaseUrl = resolveSupabaseUrl(
+  automatedE2E ? Constants.expoConfig?.extra?.e2eSupabaseUrl : process.env.EXPO_PUBLIC_SUPABASE_URL,
+  {
+    requireLocal: automatedE2E,
+  },
+);
 const dataApiUrl = resolveDataApiUrl(
   supabaseUrl,
   automatedE2E ? undefined : process.env.EXPO_PUBLIC_API_PROXY_URL,
@@ -72,6 +92,7 @@ import {
   NotificationPreferencesProvider,
   useNotificationPreferences,
 } from './context/NotificationPreferencesContext';
+import { GroupBuyReminderPickerProvider } from './context/GroupBuyReminderPickerContext';
 import { useNotifications } from './hooks/useLocalDeals';
 
 type RootStackWithTabs = RootStackParamList & {
@@ -80,6 +101,7 @@ type RootStackWithTabs = RootStackParamList & {
 
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const rootNavigationRef = createNavigationContainerRef<RootStackWithTabs>();
 const TAB_BAR_HEIGHT = 58;
 const EXIT_BACK_PRESS_WINDOW_MS = 2000;
 const REELS_TAB_COLORS = getCommerceColors(true);
@@ -232,9 +254,7 @@ function MainTabs() {
           headerShown: false,
           tabBarButton: renderTabBarButton,
           tabBarIconStyle: styles.tabIconSlot,
-          tabBarItemStyle: [
-            styles.tabButton,
-          ],
+          tabBarItemStyle: [styles.tabButton],
           tabBarAccessibilityLabel: `${tabLabel(route.name)} 탭`,
           // Stable selector for E2E (Maestro): id "tab-<routeName>"
           tabBarTestID: `tab-${route.name}`,
@@ -242,15 +262,17 @@ function MainTabs() {
           tabBarShowLabel: false,
           tabBarLabel: tabLabel(route.name),
           tabBarActiveTintColor: isReelsActive ? REELS_TAB_COLORS.text : colors.text,
-          tabBarInactiveTintColor: isReelsActive ? REELS_TAB_COLORS.tabInactive : colors.tabInactive,
+          tabBarInactiveTintColor: isReelsActive
+            ? REELS_TAB_COLORS.tabInactive
+            : colors.tabInactive,
           tabBarBackground: isIOS
             ? () => (
-              <BlurView
-                intensity={isReelsActive ? 42 : 34}
-                tint={isReelsActive ? 'systemChromeMaterialDark' : 'systemChromeMaterial'}
-                style={StyleSheet.absoluteFill}
-              />
-            )
+                <BlurView
+                  intensity={isReelsActive ? 42 : 34}
+                  tint={isReelsActive ? 'systemChromeMaterialDark' : 'systemChromeMaterial'}
+                  style={StyleSheet.absoluteFill}
+                />
+              )
             : undefined,
           tabBarStyle: [
             styles.tabBar,
@@ -294,10 +316,7 @@ function NotificationPreferencesBoundary({ children }: { children: React.ReactNo
   const { session, user } = useAuth();
   const namespace = user?.id ? `user:${user.id}` : 'guest';
   return (
-    <NotificationPreferencesProvider
-      authToken={session?.access_token}
-      namespace={namespace}
-    >
+    <NotificationPreferencesProvider authToken={session?.access_token} namespace={namespace}>
       {children}
     </NotificationPreferencesProvider>
   );
@@ -310,7 +329,6 @@ function NotificationScheduleBridge() {
   const scheduleSignature = JSON.stringify({
     pushEnabled: preferences.pushEnabled,
     deadlineRemindersEnabled: preferences.deadlineRemindersEnabled,
-    reminderDays: preferences.reminderDays,
   });
 
   useEffect(() => {
@@ -351,25 +369,14 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
   }, [bg]);
 
   useEffect(() => {
-    if (
-      authLoading ||
-      !preferencesReady ||
-      !preferences.pushEnabled ||
-      !userId ||
-      !accessToken
-    ) return;
+    if (authLoading || !preferencesReady || !preferences.pushEnabled || !userId || !accessToken)
+      return;
     registerForPushNotifications(accessToken, {
       requestPermission: false,
     }).catch(() => {
       // push registration is best-effort; delivery can be enabled again on next launch
     });
-  }, [
-    accessToken,
-    authLoading,
-    preferences.pushEnabled,
-    preferencesReady,
-    userId,
-  ]);
+  }, [accessToken, authLoading, preferences.pushEnabled, preferencesReady, userId]);
 
   const navTheme = React.useMemo(() => {
     const base = isDark ? DarkTheme : DefaultTheme;
@@ -392,7 +399,7 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
     <>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={bg} />
       <View style={{ flex: 1, backgroundColor: bg }}>
-        <NavigationContainer linking={notificationLinking} theme={navTheme}>
+        <NavigationContainer linking={notificationLinking} ref={rootNavigationRef} theme={navTheme}>
           {children}
         </NavigationContainer>
       </View>
@@ -405,7 +412,9 @@ function ThemedStackNavigator() {
   return (
     <Stack.Navigator
       initialRouteName={
-        Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
+        Platform.OS === 'web' &&
+        typeof window !== 'undefined' &&
+        window.location.pathname.startsWith('/admin')
           ? 'Admin'
           : 'MainTabs'
       }
@@ -453,10 +462,18 @@ export default function App() {
               <ThemeProvider>
                 <AuthProvider>
                   <NotificationPreferencesBoundary>
-                    <NotificationScheduleBridge />
-                    <ThemedNavigationContainer>
-                      <ThemedStackNavigator />
-                    </ThemedNavigationContainer>
+                    <GroupBuyReminderPickerProvider
+                      onAuthenticationRequired={() => {
+                        if (rootNavigationRef.isReady()) {
+                          rootNavigationRef.navigate('Login');
+                        }
+                      }}
+                    >
+                      <NotificationScheduleBridge />
+                      <ThemedNavigationContainer>
+                        <ThemedStackNavigator />
+                      </ThemedNavigationContainer>
+                    </GroupBuyReminderPickerProvider>
                   </NotificationPreferencesBoundary>
                 </AuthProvider>
               </ThemeProvider>

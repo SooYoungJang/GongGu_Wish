@@ -58,7 +58,6 @@ import {
   requestNotificationPermissions,
   scheduleGroupBuyReminders,
   scheduleGroupBuyStart,
-  scheduleTestNotification,
 } from "./notifications";
 
 describe("registerForPushNotifications", () => {
@@ -85,6 +84,9 @@ describe("registerForPushNotifications", () => {
     notificationMocks.cancelScheduledNotificationAsync
       .mockReset()
       .mockResolvedValue(undefined);
+    notificationMocks.getAllScheduledNotificationsAsync
+      .mockReset()
+      .mockResolvedValue([]);
     notificationMocks.getLastNotificationResponse
       .mockReset()
       .mockReturnValue(null);
@@ -403,24 +405,7 @@ describe("registerForPushNotifications", () => {
     ).toHaveBeenCalledOnce();
   });
 
-  it("embeds a canonical detail URL in the Android E2E test notification", async () => {
-    await expect(scheduleTestNotification(3, "group-buy-1")).resolves.toBe(
-      "scheduled-1",
-    );
-    expect(notificationMocks.scheduleNotificationAsync).toHaveBeenCalledWith({
-      content: expect.objectContaining({
-        data: {
-          groupBuyId: "group-buy-1",
-          notificationType: "general",
-          test: true,
-          url: "gongguwish-preview://group-buy/group-buy-1",
-        },
-      }),
-      trigger: expect.objectContaining({ seconds: 3 }),
-    });
-  });
-
-  it("builds chronological future D-7, D-3, and D-1 reminder dates", () => {
+  it("builds future D-days at 9 AM in Asia/Seoul", () => {
     const now = Date.parse("2026-07-10T12:00:00.000Z");
     expect(
       buildGroupBuyReminderDates(
@@ -432,46 +417,39 @@ describe("registerForPushNotifications", () => {
         date: item.triggerDate.toISOString(),
       })),
     ).toEqual([
-      { day: 7, date: "2026-07-13T12:00:00.000Z" },
-      { day: 3, date: "2026-07-17T12:00:00.000Z" },
-      { day: 1, date: "2026-07-19T12:00:00.000Z" },
+      { day: 7, date: "2026-07-13T00:00:00.000Z" },
+      { day: 3, date: "2026-07-17T00:00:00.000Z" },
+      { day: 1, date: "2026-07-19T00:00:00.000Z" },
     ]);
   });
 
-  it("catches up the nearest selected D-day for a newly tracked short deal", () => {
+  it("excludes selected D-days whose 9 AM trigger has already passed", () => {
     const now = Date.parse("2026-07-10T12:00:00.000Z");
 
     expect(
-      buildGroupBuyReminderDates("2026-07-13T12:00:00.000Z", [1, 3, 7], {
+      buildGroupBuyReminderDates(
+        "2026-07-13T12:00:00.000Z",
+        [1, 3, 7],
         now,
-        catchUp: true,
-      }).map((item) => ({
+      ).map((item) => ({
         day: item.reminderDay,
         date: item.triggerDate.toISOString(),
-        catchUp: item.catchUp ?? false,
       })),
     ).toEqual([
       {
-        day: 3,
-        date: "2026-07-10T12:00:01.000Z",
-        catchUp: true,
-      },
-      {
         day: 1,
-        date: "2026-07-12T12:00:00.000Z",
-        catchUp: false,
+        date: "2026-07-12T00:00:00.000Z",
       },
     ]);
   });
 
-  it("does not catch up reminders after a deal has ended", () => {
-    const now = Date.parse("2026-07-14T12:00:00.000Z");
-
+  it("treats a trigger exactly at now as already passed", () => {
     expect(
-      buildGroupBuyReminderDates("2026-07-13T12:00:00.000Z", [1, 3, 7], {
-        now,
-        catchUp: true,
-      }),
+      buildGroupBuyReminderDates(
+        "2026-07-13T12:00:00.000Z",
+        [3],
+        Date.parse("2026-07-10T00:00:00.000Z"),
+      ),
     ).toEqual([]);
   });
 
@@ -508,16 +486,58 @@ describe("registerForPushNotifications", () => {
           data: {
             groupBuyId: "group-buy-1",
             notificationType: "deadline",
+            notificationEventId: "deadline:group-buy-1:7",
+            reminderDay: 7,
             url: "gongguwish-preview://group-buy/group-buy-1",
           },
         }),
         trigger: expect.objectContaining({
           type: "date",
-          date: new Date("2026-07-13T12:00:00.000Z"),
+          date: new Date("2026-07-13T00:00:00.000Z"),
           channelId: "group-buy-deadline",
         }),
       }),
     );
+  });
+
+  it("cancels orphaned logical reminders before scheduling replacements", async () => {
+    notificationMocks.getAllScheduledNotificationsAsync.mockResolvedValueOnce([
+      {
+        identifier: "orphaned-deadline",
+        content: {
+          data: {
+            groupBuyId: "group-buy-1",
+            notificationType: "deadline",
+            reminderDay: 3,
+          },
+        },
+      },
+      {
+        identifier: "different-group-buy",
+        content: {
+          data: {
+            groupBuyId: "group-buy-2",
+            notificationType: "deadline",
+            reminderDay: 3,
+          },
+        },
+      },
+    ]);
+
+    await scheduleGroupBuyReminders(
+      "group-buy-1",
+      "테스트 공구",
+      "2026-07-20T12:00:00.000Z",
+      [3],
+      Date.parse("2026-07-10T12:00:00.000Z"),
+    );
+
+    expect(
+      notificationMocks.cancelScheduledNotificationAsync,
+    ).toHaveBeenCalledWith("orphaned-deadline");
+    expect(
+      notificationMocks.cancelScheduledNotificationAsync,
+    ).not.toHaveBeenCalledWith("different-group-buy");
   });
 
   it("rolls back partial native schedules when a later reminder fails", async () => {

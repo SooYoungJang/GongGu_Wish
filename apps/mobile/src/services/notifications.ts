@@ -266,7 +266,6 @@ export type ScheduledNotification = {
   productName: string | null;
   triggerDate: Date | null;
   reminderDay?: NotificationReminderDay;
-  catchUp?: boolean;
 };
 
 export type GroupBuyReminderUnavailableReason =
@@ -285,20 +284,34 @@ export type ScheduleGroupBuyRemindersResult =
       notifications?: ScheduledNotification[];
     };
 
-const DAY_MS = 86_400_000;
-const CATCH_UP_DELAY_MS = 1_000;
+const SEOUL_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+});
 
 export type GroupBuyReminderScheduleOptions = {
   now?: number;
-  catchUp?: boolean;
 };
 
 function resolveGroupBuyReminderScheduleOptions(
   value: number | GroupBuyReminderScheduleOptions | undefined,
 ) {
-  return typeof value === "number"
-    ? { now: value, catchUp: false }
-    : { now: value?.now ?? Date.now(), catchUp: value?.catchUp ?? false };
+  return typeof value === "number" ? value : (value?.now ?? Date.now());
+}
+
+function getSeoulCalendarDate(value: Date) {
+  const parts = SEOUL_DATE_FORMAT.formatToParts(value);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  const year = Number(values.get("year"));
+  const month = Number(values.get("month"));
+  const day = Number(values.get("day"));
+  return Number.isInteger(year) &&
+    Number.isInteger(month) &&
+    Number.isInteger(day)
+    ? { year, month, day }
+    : null;
 }
 
 export function buildGroupBuyReminderDates(
@@ -306,38 +319,48 @@ export function buildGroupBuyReminderDates(
   reminderDays: readonly number[],
   options?: number | GroupBuyReminderScheduleOptions,
 ) {
-  const { now, catchUp } = resolveGroupBuyReminderScheduleOptions(options);
+  const now = resolveGroupBuyReminderScheduleOptions(options);
   const deadline = new Date(endDate);
-  if (Number.isNaN(deadline.getTime()) || deadline.getTime() <= now) return [];
+  if (Number.isNaN(deadline.getTime())) return [];
+  const deadlineDate = getSeoulCalendarDate(deadline);
+  if (!deadlineDate) return [];
   const allowed = new Set<number>([1, 3, 7]);
-  const candidates = [...new Set(reminderDays)]
+  return [...new Set(reminderDays)]
     .filter((day): day is NotificationReminderDay => allowed.has(day))
     .map((reminderDay) => ({
       reminderDay,
-      triggerDate: new Date(deadline.getTime() - reminderDay * DAY_MS),
-    }));
-  const futureReminders = candidates
+      // 09:00 Asia/Seoul is 00:00 UTC; Korea has no DST transitions.
+      triggerDate: new Date(
+        Date.UTC(
+          deadlineDate.year,
+          deadlineDate.month - 1,
+          deadlineDate.day - reminderDay,
+        ),
+      ),
+    }))
     .filter(({ triggerDate }) => triggerDate.getTime() > now)
-    .map((candidate) => ({ ...candidate, catchUp: false as const }));
-  const catchUpReminder = catchUp
-    ? candidates
-        .filter(({ triggerDate }) => triggerDate.getTime() <= now)
-        .sort((left, right) => left.reminderDay - right.reminderDay)[0]
-    : undefined;
+    .sort(
+      (left, right) => left.triggerDate.getTime() - right.triggerDate.getTime(),
+    );
+}
 
-  return [
-    ...futureReminders,
-    ...(catchUpReminder
-      ? [
-          {
-            ...catchUpReminder,
-            triggerDate: new Date(now + CATCH_UP_DELAY_MS),
-            catchUp: true as const,
-          },
-        ]
-      : []),
-  ].sort(
-    (left, right) => left.triggerDate.getTime() - right.triggerDate.getTime(),
+async function cancelExistingGroupBuyDeadlineNotifications(
+  Notifications: typeof import("expo-notifications"),
+  groupBuyId: string,
+) {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const matchingIds = scheduled
+    .filter((request) => {
+      const data = request.content.data as Record<string, unknown> | null;
+      return (
+        data?.notificationType === "deadline" && data.groupBuyId === groupBuyId
+      );
+    })
+    .map((request) => request.identifier);
+  await Promise.all(
+    matchingIds.map((identifier) =>
+      Notifications.cancelScheduledNotificationAsync(identifier),
+    ),
   );
 }
 
@@ -367,16 +390,20 @@ export async function scheduleGroupBuyReminders(
 
   const scheduled: ScheduledNotification[] = [];
   try {
+    await cancelExistingGroupBuyDeadlineNotifications(
+      Notifications,
+      groupBuyId.trim(),
+    );
     for (const reminder of reminders) {
       const identifier = await Notifications.scheduleNotificationAsync({
         content: {
           title: "공구 마감 알림",
-          body: reminder.catchUp
-            ? `${productName ?? "공동구매"} 마감이 ${reminder.reminderDay}일 안으로 다가왔어요.`
-            : `${productName ?? "공동구매"} 마감까지 ${reminder.reminderDay}일 남았어요.`,
+          body: `${productName ?? "공동구매"} 마감까지 ${reminder.reminderDay}일 남았어요.`,
           data: {
             groupBuyId: groupBuyId.trim(),
             notificationType: "deadline",
+            notificationEventId: `deadline:${groupBuyId.trim()}:${reminder.reminderDay}`,
+            reminderDay: reminder.reminderDay,
             url,
           },
         },
@@ -392,7 +419,6 @@ export async function scheduleGroupBuyReminders(
         productName,
         reminderDay: reminder.reminderDay,
         triggerDate: reminder.triggerDate,
-        catchUp: reminder.catchUp,
       });
     }
     return { status: "scheduled", notifications: scheduled };
@@ -625,37 +651,4 @@ export function subscribeNotificationResponseUrls(
     active = false;
     removeSubscription?.();
   };
-}
-
-// ─── Test helper (dev only) ──────────────────────────────────────────────────
-
-/**
- * Fire a local notification after `delaySeconds` so we can verify the push
- * pipeline end-to-end on a real device. Requires a development build —
- * Expo Go (SDK 53+) removed expo-notifications native support entirely, so
- * even local scheduling returns null there.
- * Returns the scheduled notification id, or null on failure.
- */
-export async function scheduleTestNotification(
-  delaySeconds = 10,
-  groupBuyId?: string,
-): Promise<string | null> {
-  if (IS_EXPO_GO) return null;
-  const Notifications = await getNotifications();
-  if (!Notifications) return null;
-  const url = groupBuyId ? buildGroupBuyNotificationUrl(groupBuyId) : null;
-  const id = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "🛎 푸시 테스트",
-      body: `${delaySeconds}초 뒤 알림이 울렸어요! 푸시가 정상 동작합니다.`,
-      data: url
-        ? { groupBuyId, notificationType: "general", test: true, url }
-        : { test: true },
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: delaySeconds,
-    },
-  });
-  return id;
 }

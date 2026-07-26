@@ -3,7 +3,11 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../api';
-import { DealShelf, MyPageScreen, notificationEntryToGroupBuy } from '../screens/MyPageScreen';
+import {
+  DealShelf,
+  MyPageScreen,
+  notificationEntryToGroupBuy,
+} from '../screens/MyPageScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
@@ -21,11 +25,12 @@ const authMocks = vi.hoisted(() => ({
 const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
 const notificationMocks = vi.hoisted(() => ({
   getNotificationPermissionStatus: vi.fn(async () => 'granted'),
-  registerForPushNotifications: vi.fn(async (): Promise<any> => ({
-    status: 'registered',
-    token: 'ExpoPushToken[test-token]',
-  })),
-  scheduleTestNotification: vi.fn(async () => 'scheduled-test'),
+  registerForPushNotifications: vi.fn(
+    async (): Promise<any> => ({
+      status: 'registered',
+      token: 'ExpoPushToken[test-token]',
+    }),
+  ),
 }));
 const dealCardMock = vi.hoisted(() => vi.fn());
 const adsMocks = vi.hoisted(() => ({
@@ -36,10 +41,10 @@ const settingsPreferenceMocks = vi.hoisted(() => ({
   preferences: {
     pushEnabled: true,
     deadlineRemindersEnabled: true,
-    newSubmissionsEnabled: true,
+    submissionApprovalEnabled: true,
     reminderDays: [1, 3, 7] as Array<1 | 3 | 7>,
-    followedInfluencers: ["seller.one"],
-    followedBrands: ["Brand A"],
+    followedInfluencers: ['seller.one'],
+    followedBrands: ['Brand A'],
   },
   updatePreferences: vi.fn(async (patch: Record<string, unknown>) => patch),
   toggleInfluencer: vi.fn(),
@@ -78,7 +83,6 @@ vi.mock('../services/notifications', () => ({
   getNotificationPermissionStatus:
     notificationMocks.getNotificationPermissionStatus,
   registerForPushNotifications: notificationMocks.registerForPushNotifications,
-  scheduleTestNotification: notificationMocks.scheduleTestNotification,
 }));
 
 vi.mock('../components/DealCard', () => ({
@@ -92,7 +96,9 @@ vi.mock('../components/DealCard', () => ({
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: authMocks.session } }),
+      getSession: vi
+        .fn()
+        .mockResolvedValue({ data: { session: authMocks.session } }),
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
@@ -119,7 +125,9 @@ vi.mock('../lib/supabase', () => ({
   configureSupabase: vi.fn(),
   getSupabase: vi.fn(() => ({
     auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: authMocks.session } }),
+      getSession: vi
+        .fn()
+        .mockResolvedValue({ data: { session: authMocks.session } }),
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
@@ -164,7 +172,10 @@ vi.mock('expo-modules-core', () => ({}));
 vi.mock('expo-notifications', () => ({
   scheduleNotificationAsync: vi.fn(),
   cancelScheduledNotificationAsync: vi.fn(),
-  SchedulableTriggerInputTypes: { CALENDAR: 'calendar', TIME_INTERVAL: 'timeInterval' },
+  SchedulableTriggerInputTypes: {
+    CALENDAR: 'calendar',
+    TIME_INTERVAL: 'timeInterval',
+  },
 }));
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -178,7 +189,8 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 // Mock react-native with components used by MyPageScreen
 vi.mock('react-native', () => {
   const ReactMock = require('react');
-  const passthrough = (type: string) =>
+  const passthrough =
+    (type: string) =>
     ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement(type, props, children);
   return {
@@ -195,7 +207,11 @@ vi.mock('react-native', () => {
       ReactMock.createElement('Pressable', { onPress, ...props }, children),
     TextInput: (props: any) => ReactMock.createElement('TextInput', props),
     TouchableOpacity: ({ children, onPress, ...props }: any) =>
-      ReactMock.createElement('TouchableOpacity', { onPress, ...props }, children),
+      ReactMock.createElement(
+        'TouchableOpacity',
+        { onPress, ...props },
+        children,
+      ),
     ScrollView: ({ children, ...props }: any) =>
       ReactMock.createElement('ScrollView', props, children),
     FlatList: ({ children, ...props }: any) =>
@@ -225,10 +241,10 @@ function renderScreen(screen: React.ReactElement) {
   let renderer: ReturnType<typeof TestRenderer.create>;
   act(() => {
     renderer = TestRenderer.create(
-      React.createElement(ThemeProvider, null,
-        React.createElement(AuthProvider, null,
-          screen,
-        ),
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(AuthProvider, null, screen),
       ),
     );
   });
@@ -249,7 +265,7 @@ beforeEach(() => {
   navigationMocks.goBack.mockClear();
   settingsPreferenceMocks.preferences.pushEnabled = true;
   settingsPreferenceMocks.preferences.deadlineRemindersEnabled = true;
-  settingsPreferenceMocks.preferences.newSubmissionsEnabled = true;
+  settingsPreferenceMocks.preferences.submissionApprovalEnabled = true;
   settingsPreferenceMocks.preferences.reminderDays = [1, 3, 7];
   settingsPreferenceMocks.preferences.followedInfluencers = ['seller.one'];
   settingsPreferenceMocks.preferences.followedBrands = ['Brand A'];
@@ -261,7 +277,6 @@ beforeEach(() => {
     status: 'registered',
     token: 'ExpoPushToken[test-token]',
   });
-  notificationMocks.scheduleTestNotification.mockClear();
   adsMocks.privacyOptionsRequired = false;
   adsMocks.showPrivacyOptions.mockClear();
 });
@@ -313,7 +328,10 @@ describe('MyPageScreen', () => {
       videoUrl: null,
       mediaUrls: ['https://example.com/deal.png'],
       mediaType: 'IMAGE',
-      rawPost: { postUrl: 'https://instagram.com/p/1', influencer: { instagramUsername: 'seller' } },
+      rawPost: {
+        postUrl: 'https://instagram.com/p/1',
+        influencer: { instagramUsername: 'seller' },
+      },
       scheduledFor: null,
       notificationId: null,
       createdAt: '2026-07-15T00:00:00.000Z',
@@ -454,8 +472,9 @@ describe('MyPageScreen', () => {
     expect(rendered).toContain('라이트');
     expect(rendered).toContain('다크');
     expect(rendered).toContain('공구 마감 임박 알림');
-    expect(rendered).toContain('신규 제보 알림');
-    expect(rendered).toContain('D-7');
+    expect(rendered).toContain('내 제보 승인 알림');
+    expect(rendered).not.toContain('마감 알림 날짜');
+    expect(rendered).not.toContain('테스트 알림 보내기');
     expect(rendered).toContain('@seller.one');
     expect(rendered).toContain('Brand A');
   });
@@ -511,7 +530,7 @@ describe('MyPageScreen', () => {
     expect(adsMocks.showPrivacyOptions).toHaveBeenCalledOnce();
   });
 
-  it('persists deadline switches, D-day choices, and follow removals', async () => {
+  it('persists deadline, own-submission approval, and follow changes', async () => {
     authMocks.session = {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
@@ -524,7 +543,9 @@ describe('MyPageScreen', () => {
     const deadlineSwitch = renderer.root.findByProps({
       accessibilityLabel: '공구 마감 임박 알림',
     });
-    const d7 = renderer.root.findByProps({ accessibilityLabel: 'D-7 알림' });
+    const submissionApprovalSwitch = renderer.root.findByProps({
+      accessibilityLabel: '내 제보 승인 알림',
+    });
     const influencer = renderer.root.findByProps({
       accessibilityLabel: '@seller.one 인플루언서 알림 해제',
     });
@@ -534,7 +555,7 @@ describe('MyPageScreen', () => {
 
     await act(async () => {
       await deadlineSwitch.props.onValueChange(false);
-      await d7.props.onPress();
+      await submissionApprovalSwitch.props.onValueChange(false);
       await influencer.props.onPress();
       await brand.props.onPress();
     });
@@ -543,7 +564,7 @@ describe('MyPageScreen', () => {
       deadlineRemindersEnabled: false,
     });
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
-      reminderDays: [1, 3],
+      submissionApprovalEnabled: false,
     });
     expect(settingsPreferenceMocks.toggleInfluencer).toHaveBeenCalledWith(
       'seller.one',
@@ -608,6 +629,9 @@ describe('MyPageScreen', () => {
     ).toBe(true);
     expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
       pushEnabled: true,
+    });
+    await act(async () => {
+      await Promise.resolve();
     });
     expect(notificationMocks.registerForPushNotifications).toHaveBeenCalledWith(
       'access-token',
@@ -696,7 +720,9 @@ describe('MyPageScreen', () => {
         created_at: '2026-01-01T00:00:00.000Z',
       },
     };
-    const deleteSpy = vi.spyOn(api, 'deleteAccount').mockResolvedValue(undefined);
+    const deleteSpy = vi
+      .spyOn(api, 'deleteAccount')
+      .mockResolvedValue(undefined);
     const renderer = renderScreen(React.createElement(SettingsScreen));
 
     await act(async () => {
@@ -711,7 +737,11 @@ describe('MyPageScreen', () => {
       deleteButton.props.onPress();
     });
 
-    expect(alertMocks.alert).toHaveBeenCalledWith('회원탈퇴', expect.stringContaining('복구할 수 없어요'), expect.any(Array));
+    expect(alertMocks.alert).toHaveBeenCalledWith(
+      '회원탈퇴',
+      expect.stringContaining('복구할 수 없어요'),
+      expect.any(Array),
+    );
     const options = alertMocks.alert.mock.calls.at(-1)?.[2] as Array<{
       onPress?: () => void;
     }>;

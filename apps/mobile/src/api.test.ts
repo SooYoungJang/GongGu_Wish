@@ -17,8 +17,12 @@ import { configurePostgrest } from "./lib/postgrest-client";
 const sessionMocks = vi.hoisted(() => ({
   getSessionId: vi.fn(),
 }));
+const authTokenMocks = vi.hoisted(() => ({
+  getAuthToken: vi.fn<() => Promise<string | null>>(),
+}));
 
 vi.mock("./utils/session", () => sessionMocks);
+vi.mock("./utils/auth", () => authTokenMocks);
 
 const originalFetch = global.fetch;
 
@@ -26,6 +30,7 @@ describe("public data fetch diagnostics", () => {
   beforeEach(() => {
     configurePostgrest("sb_publishable_1234567890");
     sessionMocks.getSessionId.mockReset();
+    authTokenMocks.getAuthToken.mockReset().mockResolvedValue(null);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
   });
 
@@ -394,6 +399,7 @@ describe("public data fetch diagnostics", () => {
   });
 
   it("posts public submissions through the Supabase public-submission function", async () => {
+    authTokenMocks.getAuthToken.mockResolvedValue("signed-in-user-token");
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -413,6 +419,9 @@ describe("public data fetch diagnostics", () => {
       expect.stringContaining("/functions/v1/public-submission"),
       expect.objectContaining({
         method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer signed-in-user-token",
+        }),
         body: JSON.stringify({
           productName: "테스트 공구",
           instagramUrl: "https://www.instagram.com/p/ABC123/",

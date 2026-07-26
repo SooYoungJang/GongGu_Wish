@@ -351,7 +351,9 @@ describe("ranking components", () => {
     });
 
     expect(
-      renderer!.root.findByProps({ accessibilityLabel: "샘플마켓 알림" }),
+      renderer!.root.findByProps({
+        accessibilityLabel: "샘플마켓 마감 알림 설정",
+      }),
     ).toBeTruthy();
     expect(
       renderer!.root.findByProps({ name: "notifications-outline" }),
@@ -375,7 +377,9 @@ describe("ranking components", () => {
 
     expect(onFollow).toHaveBeenCalledTimes(1);
     expect(
-      renderer!.root.findByProps({ accessibilityLabel: "샘플마켓 알림 해제" }),
+      renderer!.root.findByProps({
+        accessibilityLabel: "샘플마켓 알림 날짜 변경",
+      }),
     ).toBeTruthy();
     expect(renderer!.root.findByProps({ name: "notifications" })).toBeTruthy();
   });
@@ -427,7 +431,7 @@ describe("ranking components", () => {
     const failed = renderer!.root.findByType(
       "Pressable" as unknown as React.ElementType,
     );
-    expect(failed.props.accessibilityLabel).toBe("샘플마켓 알림 재시도");
+    expect(failed.props.accessibilityLabel).toBe("샘플마켓 알림 다시 설정");
     act(() => failed.props.onPress());
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
@@ -478,7 +482,8 @@ describe("ranking components", () => {
     const followButton = renderer!.root
       .findAllByType("Pressable" as unknown as React.ElementType)
       .find(
-        (pressable) => pressable.props.accessibilityLabel === "팔로우대상 알림",
+        (pressable) =>
+          pressable.props.accessibilityLabel === "팔로우대상 마감 알림 설정",
       );
 
     act(() => followButton!.props.onPress());

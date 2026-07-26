@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, View } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
 import { PriceText } from "./ui/PriceText";
 import { SText } from "./ui/SText";
+import { GroupBuyReminderButton } from "./GroupBuyReminderButton";
 
 import { categoryColors, spacing } from "../design/tokens";
 import { commerceRadius, type CommerceColorPalette } from "../design/commerce";
@@ -116,6 +117,7 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
             </SText>
           </View>
         )}
+        <GroupBuyReminderButton item={item} style={s.reminderButton} />
         {item.discountInfo ? (
           <View style={s.saleBadge}>
             <SText variant="caption" style={s.saleBadgeText}>
@@ -161,6 +163,12 @@ function makeStyles(colors: CommerceColorPalette) {
       resizeMode: "cover",
       width: "100%",
     },
+    reminderButton: {
+      position: "absolute",
+      right: 8,
+      top: 8,
+      zIndex: 2,
+    },
     imageFallback: {
       alignItems: "center",
       borderWidth: 1,
@@ -172,7 +180,7 @@ function makeStyles(colors: CommerceColorPalette) {
       backgroundColor: colors.accent,
       borderRadius: commerceRadius.sm,
       left: 8,
-      maxWidth: "82%",
+      maxWidth: "62%",
       paddingHorizontal: 7,
       paddingVertical: 4,
       position: "absolute",
