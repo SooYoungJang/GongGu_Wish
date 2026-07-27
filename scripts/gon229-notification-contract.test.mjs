@@ -109,7 +109,7 @@ test("Android notification runtime covers consent, deep links, and persistence",
   );
   assert.match(
     preferencesFlow,
-    /id: "group-buy-reminder-button-gon263-e2e-beauty"/,
+    /scrollUntilVisible:[\s\S]*?id: "group-buy-reminder-button-gon263-e2e-beauty"[\s\S]*?direction: DOWN/,
   );
   assert.match(authScreen, /testID="auth-login-submit"/);
   assert.match(flow, /id: "follow-influencer-notifications"/);
