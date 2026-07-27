@@ -70,9 +70,10 @@ appId: com.gonggu.wish.preview
 # one compact information column while preserving their separate actions.
 - scrollUntilVisible:
     element:
-      id: "ranking-row-4"
+      id: "ranking-row-seller-4"
     direction: DOWN
     timeout: 30000
+    centerElement: true
 - assertVisible:
     id: "ranking-row-name-4"
 - assertVisible:

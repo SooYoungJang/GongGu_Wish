@@ -115,7 +115,10 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(authScreen, /testID="auth-login-submit"/);
   assert.match(flow, /id: "follow-influencer-notifications"/);
   assert.match(flow, /id: "group-buy-reminder-day-1"/);
-  assert.match(flow, /text: "@gon263_price ×"/);
+  assert.match(flow, /text: "@gon263_price 인플루언서 알림 해제"/);
+  assert.match(flow, /text: "GON-263 Brand 브랜드 알림 해제"/);
+  assert.match(flow, /centerElement: true/);
+  assert.doesNotMatch(flow, /@gon263_price ×/);
   assert.match(runner, /android\.intent\.action\.VIEW/);
   assert.match(expoConfig, /preview:[\s\S]*?scheme: "gongguwish-preview"/);
   assert.match(

@@ -54,11 +54,12 @@ appId: com.gonggu.wish.preview
     timeout: 30000
 - scrollUntilVisible:
     element:
-      text: "@gon263_price ×"
+      text: "@gon263_price 인플루언서 알림 해제"
     direction: DOWN
     timeout: 30000
+    centerElement: true
 - assertVisible:
-    text: "@gon263_price ×"
+    text: "@gon263_price 인플루언서 알림 해제"
 - assertVisible:
-    text: "GON-263 Brand ×"
+    text: "GON-263 Brand 브랜드 알림 해제"
 - takeScreenshot: gon229-android-07-persisted-preferences
