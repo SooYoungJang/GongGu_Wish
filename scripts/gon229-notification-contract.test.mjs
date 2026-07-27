@@ -60,6 +60,9 @@ test("Android notification runtime covers consent, deep links, and persistence",
   const notificationPayload = read(
     "apps/mobile/src/services/notificationPayload.ts",
   );
+  const reminderPicker = read(
+    "apps/mobile/src/context/GroupBuyReminderPickerContext.tsx",
+  );
   const flow = read(".maestro/gon-229-notification-tap.yaml");
   const preferencesFlow = read(
     ".maestro/gon-229-notification-preferences.yaml",
@@ -84,10 +87,9 @@ test("Android notification runtime covers consent, deep links, and persistence",
     read("apps/mobile/src/lib/automatedE2E.ts"),
     /process\.env\.EXPO_PUBLIC_E2E_MODE === "true"/,
   );
-  assert.match(settings, new RegExp(sharedFixtureId));
   assert.match(supabaseSeed, new RegExp(sharedFixtureId));
   assert.match(localFixtureServer, new RegExp(sharedFixtureId));
-  assert.match(settings, /testID=\{`deadline-reminder-day-\$\{day\}`\}/);
+  assert.match(reminderPicker, /testID=\{`group-buy-reminder-day-\$\{day\}`\}/);
   assert.match(notifications, /clearLastNotificationResponseAsync/);
   assert.match(notifications, /buildGroupBuyNotificationUrl/);
   assert.match(notificationPayload, /AUTH_REDIRECT_URL/);
@@ -149,7 +151,10 @@ test("Android push registration is wired to Firebase and reports failures", () =
   assert.match(settings, /registerForPushNotifications/);
   assert.match(settings, /requestPermission:\s*true/);
   assert.match(settings, /pendingPushEnabled/);
-  assert.match(settings, /pushChangeInFlight/);
+  assert.match(settings, /latestPushRevision/);
+  assert.match(settings, /pendingPushIntent/);
+  assert.match(settings, /pushWorkerRunning/);
+  assert.match(settings, /waitForPushTogglePaint/);
   assert.match(
     settings,
     /e2eTokenOverride:\s*"ExpoPushToken\[gon229-local-e2e\]"/,
@@ -177,6 +182,9 @@ test("notification and bookmark actions require authentication", () => {
   const store = read("apps/mobile/src/screens/StoreScreen.tsx");
   const settings = read("apps/mobile/src/screens/SettingsScreen.tsx");
   const myPage = read("apps/mobile/src/screens/MyPageScreen.tsx");
+  const reminderPicker = read(
+    "apps/mobile/src/context/GroupBuyReminderPickerContext.tsx",
+  );
   const migration = read(
     "supabase/migrations/20260719000001_disable_notification_defaults.sql",
   );
@@ -184,7 +192,7 @@ test("notification and bookmark actions require authentication", () => {
   for (const source of [defaults, edgeContract]) {
     assert.match(source, /pushEnabled:\s*false/);
     assert.match(source, /deadlineRemindersEnabled:\s*false/);
-    assert.match(source, /newSubmissionsEnabled:\s*false/);
+    assert.match(source, /submissionApprovalEnabled:\s*false/);
   }
   assert.match(authGate, /navigation\.navigate\("Login"\)/);
   assert.match(authGate, /isAuthenticated/);
@@ -203,9 +211,10 @@ test("notification and bookmark actions require authentication", () => {
     /const handleRemoveBookmark[\s\S]*?if \(!requireAuth\(\)\) return;[\s\S]*?removeBookmark\(item\.id\)/,
   );
   assert.match(
-    myPage,
-    /const handleRemoveNotification[\s\S]*?if \(!requireAuth\(\)\) return;[\s\S]*?removeNotification\(item\.id\)/,
+    reminderPicker,
+    /if \(!user\) \{[\s\S]*?onAuthenticationRequired\?\.\(\)/,
   );
+  assert.doesNotMatch(myPage, /handleRemoveNotification/);
   assert.match(migration, /ALTER COLUMN push_enabled SET DEFAULT false/);
   assert.match(
     migration,
@@ -217,9 +226,11 @@ test("notification and bookmark actions require authentication", () => {
   );
 });
 
-test("moderated approvals queue preference-aware new-submission push", () => {
+test("approved submissions deliver preference-aware approval push", () => {
   const adminApi = read("supabase/functions/admin-api/index.ts");
-  const delivery = read("supabase/functions/admin-api/newSubmissionPush.ts");
+  const delivery = read(
+    "supabase/functions/admin-api/submissionApprovalPush.ts",
+  );
   const preferenceContract = read(
     "supabase/functions/admin-api/pushNotificationContract.ts",
   );
@@ -227,13 +238,17 @@ test("moderated approvals queue preference-aware new-submission push", () => {
     "supabase/functions/public-submission/index.ts",
   );
 
-  assert.match(adminApi, /queueNewSubmissionPush\(supabase/);
-  assert.match(delivery, /notificationType:\s*"new_submission"/);
-  assert.match(delivery, /Promise\.resolve\(\)/);
-  assert.match(delivery, /waitUntil\(delivery\)/);
+  assert.match(adminApi, /deliverPendingSubmissionApprovalPushes\(/);
+  assert.match(delivery, /notificationType:\s*"submission_approved"/);
+  assert.match(delivery, /"claim_submission_approval_push_events"/);
+  assert.match(delivery, /\.from\("submission_approval_push_outbox"\)/);
   assert.match(
     preferenceContract,
-    /case "new_submission":[\s\S]*?row\.new_submissions_enabled !== false/,
+    /case "submission_approved":[\s\S]*?row\.submission_approval_notifications_enabled === true/,
   );
-  assert.doesNotMatch(publicSubmission, /queueNewSubmissionPush/);
+  assert.match(publicSubmission, /deliverPendingSubmissionApprovalPushes/);
+  assert.match(
+    publicSubmission,
+    /const submission = await markSubmissionApproved\([\s\S]*?const notificationDelivery = await deliverApprovalPush\(/,
+  );
 });
