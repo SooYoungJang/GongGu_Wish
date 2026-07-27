@@ -20,6 +20,13 @@ vi.mock("react-native", () => {
   };
 });
 
+vi.mock("@expo/vector-icons", () => ({
+  Ionicons: (props: Record<string, unknown>) => {
+    const ReactMock = require("react");
+    return ReactMock.createElement("Ionicons", props);
+  },
+}));
+
 vi.mock("./ui/SText", () => ({
   SText: ({ children, ...props }: { children?: React.ReactNode }) => {
     const ReactMock = require("react");
@@ -163,6 +170,8 @@ describe("DealCard", () => {
     expect(text).toContain("@sample");
     expect(text).not.toContain("귤밭상회");
     expect(text).not.toContain("식품");
+    expect(renderer!.root.findByProps({ testID: "deal-card-instagram-icon" }).props)
+      .toMatchObject({ accessible: false, name: "logo-instagram" });
   });
 
   it("keeps an empty seller slot when the Instagram account is missing", () => {
@@ -189,13 +198,13 @@ describe("DealCard", () => {
     });
 
     const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
-    const sellerLine = renderer!.root
-      .findAllByType("SText" as unknown as React.ElementType)
-      .find((node) => node.props.numberOfLines === 1);
+    const sellerSlot = renderer!.root.findByProps({
+      testID: "deal-card-instagram-slot",
+    });
 
     expect(text).not.toContain("귤밭상회");
     expect(text).not.toContain("식품");
-    expect(sellerLine?.props.style).toMatchObject({ minHeight: 18 });
+    expect(sellerSlot.props.style).toMatchObject({ minHeight: 18 });
   });
 
   it("isolates a trailing action from the parent card navigation", () => {

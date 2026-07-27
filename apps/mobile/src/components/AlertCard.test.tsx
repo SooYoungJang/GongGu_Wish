@@ -63,6 +63,9 @@ describe('AlertCard', () => {
     const compactText = text.replace(/\s+/g, '');
 
     expect(compactText).toContain('@sample_influencer');
+    expect(
+      renderer!.root.findByProps({ testID: 'alert-card-instagram-icon' }).props,
+    ).toMatchObject({ accessible: false, name: 'logo-instagram' });
     expect(text).toContain('비건 선크림 공구');
     expect(text).toContain('Sample Beauty');
     expect(text).toContain('20% 할인');

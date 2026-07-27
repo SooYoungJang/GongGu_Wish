@@ -7,6 +7,7 @@ import type {
 } from "react-native";
 import { PriceText } from "./ui/PriceText";
 import { SText } from "./ui/SText";
+import { InstagramIdentity } from "./ui/InstagramIdentity";
 import { GroupBuyReminderButton } from "./GroupBuyReminderButton";
 
 import { categoryColors, spacing } from "../design/tokens";
@@ -103,9 +104,6 @@ export function DealCard({
     item.mediaUrls?.[0] ??
     null;
   const fallbackLabel = CATEGORY_LABELS[category];
-  const instagramHandle = formatInstagramHandle(
-    item.rawPost.influencer.instagramUsername,
-  );
   const handleTrailingActionPress = (event: GestureResponderEvent) => {
     event.stopPropagation();
     trailingAction?.onPress();
@@ -150,9 +148,14 @@ export function DealCard({
           </SText>
         </View>
       </View>
-      <SText variant="body" numberOfLines={1} style={s.instagramHandle}>
-        {instagramHandle ?? ""}
-      </SText>
+      <View style={s.instagramSlot} testID="deal-card-instagram-slot">
+        <InstagramIdentity
+          iconTestID="deal-card-instagram-icon"
+          size="body"
+          textStyle={s.instagramHandle}
+          username={item.rawPost.influencer.instagramUsername}
+        />
+      </View>
       <SText variant="caption" numberOfLines={2} style={s.title}>
         {item.productName ?? "공동구매 상품"}
       </SText>
@@ -266,10 +269,12 @@ function makeStyles(colors: CommerceColorPalette) {
       opacity: 0.64,
     },
     instagramHandle: {
-      color: colors.muted,
       fontSize: 13,
       fontWeight: "700",
       lineHeight: 18,
+    },
+    instagramSlot: {
+      justifyContent: "center",
       marginBottom: 2,
       marginTop: spacing.sm,
       minHeight: 18,

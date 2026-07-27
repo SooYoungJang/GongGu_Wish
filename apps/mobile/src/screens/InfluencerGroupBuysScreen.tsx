@@ -7,6 +7,7 @@ import { fetchGroupBuysByInfluencer } from '../api';
 import { AlertCard } from '../components/AlertCard';
 import { AppButton } from '../components/AppButton';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { InstagramIdentity } from '../components/ui/InstagramIdentity';
 import { SText } from '../components/ui/SText';
 import { spacing } from '../design/tokens';
 import { commerceRadius } from '../design/commerce';
@@ -32,7 +33,13 @@ export function InfluencerGroupBuysScreen({ navigation, route }: InfluencerGroup
       <View style={s.container}>
         <ScreenHeader
           eyebrow="Influencer GongGu"
-          title={`@${normalizedUsername}`}
+          title={
+            <InstagramIdentity
+              size="title"
+              textStyle={s.titleIdentityText}
+              username={normalizedUsername}
+            />
+          }
           subtitle={influencerDisplayName ? `${influencerDisplayName}의 공동구매 목록` : '인플루언서 공동구매 목록'}
         >
           <AppButton onPress={() => navigation.goBack()} variant="secondary" style={s.backButton}>
@@ -83,6 +90,7 @@ function makeStyles(colors: ColorPalette) {
       padding: spacing.md,
     },
     listContent: { flexGrow: 1, paddingBottom: 122 },
+    titleIdentityText: { fontSize: 22, fontWeight: '900', lineHeight: 29 },
     emptyState: {
       alignItems: 'center',
       backgroundColor: colors.panelBg,

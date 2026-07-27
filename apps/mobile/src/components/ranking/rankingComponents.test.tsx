@@ -518,20 +518,16 @@ describe("ranking components", () => {
     const sellerAction = renderer!.root.findByProps({
       accessibilityLabel: "@ordinary.seller 판매자 공구 보기",
     });
-    expect(sellerAction.props.hitSlop).toEqual({
-      bottom: 8,
-      left: 8,
-      right: 8,
-      top: 8,
-    });
     const sellerStyle = flattenStyle(
       sellerAction.props.style({ pressed: false }),
     );
     expect(sellerStyle).toMatchObject({
       alignItems: "center",
+      flex: 1,
       flexDirection: "row",
-      minHeight: 28,
+      minHeight: 44,
     });
+    expect(sellerAction.props.hitSlop).toBeUndefined();
     const sellerIcon = renderer!.root.findByProps({
       testID: "ranking-row-seller-icon-4",
     });
@@ -539,10 +535,29 @@ describe("ranking components", () => {
       accessible: false,
       name: "logo-instagram",
     });
-    const stopPropagation = vi.fn();
-    act(() => sellerAction.props.onPress({ stopPropagation }));
+    const detailAction = renderer!.root.findByProps({
+      accessibilityHint: "공구 상세 보기",
+    });
+    expect(
+      detailAction.findAll(
+        (node) =>
+          node.props.accessibilityLabel ===
+          "@ordinary.seller 판매자 공구 보기",
+      ),
+    ).toHaveLength(0);
+    const footer = renderer!.root.findByProps({ testID: "ranking-row-footer-4" });
+    expect(
+      footer
+        .findAllByType("Pressable" as unknown as React.ElementType)
+        .filter(
+          (node) =>
+            node.props.accessibilityLabel ===
+            "@ordinary.seller 판매자 공구 보기",
+        ),
+    ).toHaveLength(1);
 
-    expect(stopPropagation).toHaveBeenCalledTimes(1);
+    act(() => sellerAction.props.onPress());
+
     expect(onPressSeller).toHaveBeenCalledWith(item);
     expect(onPressDetail).not.toHaveBeenCalled();
 
@@ -555,7 +570,7 @@ describe("ranking components", () => {
           .findAll(
             (node) =>
               typeof node.props.testID === "string" &&
-              /^ranking-row-(name|seller|commerce)-4$/.test(node.props.testID),
+              /^ranking-row-(name|commerce)-4$/.test(node.props.testID),
           )
           .map((node) => node.props.testID as string),
       ),
@@ -563,7 +578,6 @@ describe("ranking components", () => {
 
     expect(orderedContent).toEqual([
       "ranking-row-name-4",
-      "ranking-row-seller-4",
       "ranking-row-commerce-4",
     ]);
   });
@@ -631,10 +645,10 @@ describe("ranking components", () => {
       );
     });
 
+    expect(flattenText(renderer!.toJSON())).toContain("@ranked.shop");
     expect(
-      renderer!.root.findByProps({ testID: "ranking-top-seller-1" }).props
-        .children,
-    ).toBe("@ranked.shop");
+      renderer!.root.findByProps({ testID: "ranking-top-seller-icon-1" }).props,
+    ).toMatchObject({ accessible: false, name: "logo-instagram" });
   });
 
   it("shows rank movement and deadline instead of popularity scores", () => {

@@ -69,6 +69,7 @@ import {
   type ReelsFeedItem,
 } from "./reelsAdPlacement";
 import { PriceText } from "../components/ui/PriceText";
+import { InstagramIdentity } from "../components/ui/InstagramIdentity";
 import {
   useBookmarks,
   useNotifications,
@@ -815,10 +816,7 @@ function DetailSearchSheet({
                 const sellerName = normalizeOptionalInstagramUsername(
                   item.rawPost.influencer.instagramUsername,
                 );
-                const sellerLabel =
-                  [item.brandName?.trim(), sellerName ? `@${sellerName}` : null]
-                    .filter((label): label is string => Boolean(label))
-                    .join(" · ") || "판매자 정보 미정";
+                const brandName = item.brandName?.trim() || null;
                 return (
                   <Pressable
                     accessibilityLabel={`${item.productName ?? "상품"} 보기`}
@@ -852,13 +850,42 @@ function DetailSearchSheet({
                       >
                         {item.productName ?? "제품명 미확인"}
                       </SText>
-                      <SText
-                        variant="caption"
-                        style={s.detailSearchResultMeta}
-                        numberOfLines={1}
-                      >
-                        {sellerLabel} · {formatEndDate(item.endDate)}
-                      </SText>
+                      <View style={s.detailSearchResultMetaRow}>
+                        {brandName ? (
+                          <SText
+                            numberOfLines={1}
+                            style={s.detailSearchResultMeta}
+                            variant="caption"
+                          >
+                            {brandName}
+                          </SText>
+                        ) : null}
+                        {sellerName ? (
+                          <InstagramIdentity
+                            iconTestID={`detail-search-instagram-icon-${item.id}`}
+                            style={s.detailSearchInstagram}
+                            textStyle={s.detailSearchInstagramText}
+                            tone="inverse"
+                            username={sellerName}
+                          />
+                        ) : null}
+                        {!brandName && !sellerName ? (
+                          <SText
+                            numberOfLines={1}
+                            style={s.detailSearchResultMeta}
+                            variant="caption"
+                          >
+                            판매자 정보 미정
+                          </SText>
+                        ) : null}
+                        <SText
+                          numberOfLines={1}
+                          style={s.detailSearchResultMeta}
+                          variant="caption"
+                        >
+                          · {formatEndDate(item.endDate)}
+                        </SText>
+                      </View>
                     </View>
                     <Ionicons
                       name="chevron-forward"
@@ -1885,9 +1912,14 @@ function ProductReelPageComponent({
                   {sellerName.slice(0, 1).toUpperCase()}
                 </SText>
               </View>
-              <SText variant="cardTitle" style={s.sellerName} numberOfLines={1}>
-                {sellerHandle}
-              </SText>
+              <InstagramIdentity
+                iconTestID={`detail-reel-instagram-icon-${groupBuy.id}`}
+                size="title"
+                style={s.sellerIdentity}
+                textStyle={s.sellerName}
+                tone="inverse"
+                username={sellerName}
+              />
             </View>
           ) : null}
 
@@ -2062,13 +2094,13 @@ function ProductReelPageComponent({
                     ) : null}
                     <View style={s.summarySheetTitleBlock}>
                       {sellerHandle ? (
-                        <SText
-                          variant="cardTitle"
-                          style={s.summarySheetSellerName}
-                          numberOfLines={1}
-                        >
-                          {sellerHandle}
-                        </SText>
+                        <InstagramIdentity
+                          iconTestID={`detail-summary-instagram-icon-${groupBuy.id}`}
+                          size="body"
+                          textStyle={s.summarySheetSellerName}
+                          tone="inverse"
+                          username={sellerName}
+                        />
                       ) : null}
                       <SText
                         variant="caption"
@@ -2926,8 +2958,25 @@ export function makeStyles(
     },
     detailSearchResultMeta: {
       color: "rgba(255,255,255,0.56)",
+      flexShrink: 1,
       fontSize: 12,
       fontWeight: "700",
+    },
+    detailSearchResultMetaRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: spacing.xs,
+      minWidth: 0,
+    },
+    detailSearchInstagram: {
+      flexShrink: 1,
+      maxWidth: "45%",
+    },
+    detailSearchInstagramText: {
+      color: "rgba(255,255,255,0.66)",
+      fontSize: 12,
+      fontWeight: "700",
+      lineHeight: 16,
     },
     detailSearchEmpty: {
       alignItems: "center",
@@ -3230,13 +3279,14 @@ export function makeStyles(
       fontWeight: "900",
     },
     sellerName: {
-      color: "#FFFFFF",
-      flexShrink: 1,
       fontSize: 16,
       fontWeight: "800",
       textShadowColor: "rgba(0,0,0,0.42)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
+    },
+    sellerIdentity: {
+      flex: 1,
     },
     followTargetRow: {
       flexDirection: "row",
@@ -3395,7 +3445,6 @@ export function makeStyles(
       minWidth: 0,
     },
     summarySheetSellerName: {
-      color: "#FFFFFF",
       fontSize: 15,
       fontWeight: "700",
     },

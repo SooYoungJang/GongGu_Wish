@@ -18,6 +18,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { deleteAccount } from "../api";
 import { useAds } from "../ads/AdsContext";
+import { InstagramIdentity } from "../components/ui/InstagramIdentity";
 import { SText } from "../components/ui/SText";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
@@ -424,9 +425,16 @@ export function SettingsScreen() {
                       pressed && s.pressed,
                     ]}
                   >
-                    <SText style={s.followChipText} variant="caption">
-                      @{target} ×
-                    </SText>
+                    <InstagramIdentity
+                      textStyle={s.followChipText}
+                      username={target}
+                    />
+                    <Ionicons
+                      accessible={false}
+                      color={colors.accent}
+                      name="close"
+                      size={14}
+                    />
                   </Pressable>
                 ))}
                 {preferences.followedBrands.map((target) => (
@@ -441,8 +449,14 @@ export function SettingsScreen() {
                     ]}
                   >
                     <SText style={s.followChipText} variant="caption">
-                      {target} ×
+                      {target}
                     </SText>
+                    <Ionicons
+                      accessible={false}
+                      color={colors.accent}
+                      name="close"
+                      size={14}
+                    />
                   </Pressable>
                 ))}
               </View>
@@ -693,10 +707,13 @@ function makeStyles(
     preferenceTitle: { color: colors.text, fontWeight: "900" },
     followChipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
     followChip: {
+      alignItems: "center",
       backgroundColor: colors.accentSoft,
       borderRadius: radius.full,
-      minHeight: 40,
+      flexDirection: "row",
+      gap: spacing.xs,
       justifyContent: "center",
+      minHeight: 44,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.xs,
     },

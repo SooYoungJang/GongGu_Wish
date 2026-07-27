@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { InteractionManager, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -11,6 +12,7 @@ import { BackButton } from '../components/BackButton';
 import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 import { SearchResultsPanel } from '../components/home/SearchResultsPanel';
 import { SearchGlyph } from '../components/ui/LineGlyphs';
+import { InstagramIdentity } from '../components/ui/InstagramIdentity';
 import { SText } from '../components/ui/SText';
 import { AsyncStateNotice } from '../components/ui/AsyncStateNotice';
 import { fetchGroupBuys, fetchInfluencers, fetchPopularSearchTerms, logSearchTerm, searchInfluencers, type PopularSearchTerm } from '../api';
@@ -45,13 +47,14 @@ function ClockGlyph({ s }: { s: ReturnType<typeof makeStyles> }) {
 }
 
 type DealSearchResultRowProps = {
+  chevronColor: string;
   item: GroupBuy;
   // eslint-disable-next-line no-unused-vars
   onSelect: (item: GroupBuy) => void;
   s: ReturnType<typeof makeStyles>;
 };
 
-const DealSearchResultRow = memo(function DealSearchResultRow({ item, onSelect, s }: DealSearchResultRowProps) {
+const DealSearchResultRow = memo(function DealSearchResultRow({ chevronColor, item, onSelect, s }: DealSearchResultRowProps) {
   const handlePress = useCallback(() => {
     onSelect(item);
   }, [item, onSelect]);
@@ -66,12 +69,20 @@ const DealSearchResultRow = memo(function DealSearchResultRow({ item, onSelect, 
     >
       <View style={s.resultLeft}>
         <SText variant="body" style={s.resultName}>{item.productName ?? '제품명 없음'}</SText>
-        <SText variant="body" style={s.resultMeta}>
-          @{item.rawPost.influencer.instagramUsername.replace(/^@/, '')}
-          {item.discountInfo ? ` · ${item.discountInfo}` : ''}
-        </SText>
+        <View style={s.resultMetaRow}>
+          <InstagramIdentity
+            style={s.resultInstagram}
+            textStyle={s.resultInstagramText}
+            username={item.rawPost.influencer.instagramUsername}
+          />
+          {item.discountInfo ? (
+            <SText numberOfLines={1} style={s.resultMeta} variant="caption">
+              · {item.discountInfo}
+            </SText>
+          ) : null}
+        </View>
       </View>
-      <SText variant="body" style={s.resultArrow}>›</SText>
+      <Ionicons accessible={false} color={chevronColor} name="chevron-forward" size={20} />
     </Pressable>
   );
 });
@@ -327,6 +338,7 @@ export function SearchScreen() {
                 <SText variant="label" style={s.resultTitle}>공구</SText>
                 {dealResults.map((gb) => (
                   <DealSearchResultRow
+                    chevronColor={colors.weak}
                     key={gb.id}
                     item={gb}
                     onSelect={handleSelectDeal}
@@ -463,10 +475,12 @@ function makeStyles(colors: CommerceColorPalette) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.borderLight,
     },
-    resultLeft: { flex: 1 },
+    resultLeft: { flex: 1, minWidth: 0 },
     resultName: { fontSize: 15, fontWeight: '700', color: colors.text, letterSpacing: 0, lineHeight: 21 },
-    resultMeta: { fontSize: 12, color: colors.weak, fontWeight: '500', letterSpacing: 0, lineHeight: 17, marginTop: 3 },
-    resultArrow: { fontSize: 22, color: colors.weak, lineHeight: 26 },
+    resultInstagram: { flexShrink: 1 },
+    resultInstagramText: { fontSize: 12, fontWeight: '600', lineHeight: 17 },
+    resultMeta: { color: colors.weak, flexShrink: 1, fontSize: 12, fontWeight: '500', letterSpacing: 0, lineHeight: 17 },
+    resultMetaRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs, marginTop: 3, minWidth: 0 },
 
     emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 72 },
     emptyIcon: { fontSize: 40, color: colors.weak, marginBottom: spacing.md, opacity: 0.4 },

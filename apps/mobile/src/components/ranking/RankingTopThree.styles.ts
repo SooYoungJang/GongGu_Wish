@@ -170,16 +170,30 @@ export function makeRankingTopStyles(
       lineHeight: 27,
     },
     sellerAction: {
+      alignItems: "center",
       flex: 1,
+      flexDirection: "row",
+      gap: spacing.xs,
       justifyContent: "center",
       minHeight: 44,
       minWidth: 0,
+      paddingHorizontal: spacing.xs,
+    },
+    sellerIdentity: {
+      flex: 1,
+    },
+    sellerStatic: {
+      alignItems: "center",
+      flex: 1,
+      flexDirection: "row",
+      minHeight: 44,
+      minWidth: 0,
+      paddingHorizontal: spacing.xs,
     },
     username: {
-      color: colors.weak,
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: "700",
-      lineHeight: 16,
+      lineHeight: 17,
     },
   });
 }

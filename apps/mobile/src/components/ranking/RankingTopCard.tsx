@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { Image, Pressable, useWindowDimensions, View } from "react-native";
 
 import { useCommerceTheme } from "../../design/useCommerceTheme";
@@ -11,6 +12,7 @@ import type {
   GroupBuyRankingItem,
   RankingListItem,
 } from "../../features/ranking/types";
+import { InstagramIdentity } from "../ui/InstagramIdentity";
 import { PriceText } from "../ui/PriceText";
 import { SText } from "../ui/SText";
 import { GroupBuyAlertButton } from "./FollowButton";
@@ -153,24 +155,34 @@ export const RankingTopCard = memo(function RankingTopCard({
                 pressed ? s.pressed : null,
               ]}
             >
-              <SText
-                numberOfLines={largeText ? undefined : 1}
-                style={s.username}
+              <InstagramIdentity
+                allowWrapping={largeText}
+                iconTestID={`ranking-top-seller-icon-${item.rank}`}
+                size="body"
+                style={s.sellerIdentity}
                 testID={`ranking-top-seller-${item.rank}`}
-                variant="caption"
-              >
-                {instagramHandle}
-              </SText>
+                textStyle={s.username}
+                username={item.username}
+              />
+              <Ionicons
+                accessible={false}
+                color={theme.colors.weak}
+                name="chevron-forward"
+                size={16}
+              />
             </Pressable>
           ) : (
-            <SText
-              numberOfLines={largeText ? undefined : 1}
-              style={s.username}
-              testID={`ranking-top-seller-${item.rank}`}
-              variant="caption"
-            >
-              {instagramHandle}
-            </SText>
+            <View style={s.sellerStatic}>
+              <InstagramIdentity
+                allowWrapping={largeText}
+                iconTestID={`ranking-top-seller-icon-${item.rank}`}
+                size="body"
+                style={s.sellerIdentity}
+                testID={`ranking-top-seller-${item.rank}`}
+                textStyle={s.username}
+                username={item.username}
+              />
+            </View>
           )
         ) : null}
         <View style={s.alertAction}>
