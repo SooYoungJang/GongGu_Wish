@@ -9,7 +9,15 @@ import {
   type PropsWithChildren,
 } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Alert, Modal, Pressable, StyleSheet, View } from "react-native";
+import DateTimePicker from "@expo/ui/datetimepicker";
+import {
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Easing,
@@ -28,10 +36,14 @@ import {
 } from "../design/commerce";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import { useNotifications } from "../hooks/useLocalDeals";
+import type { GroupBuyReminderUpdate } from "../api";
 import { useAuth } from "./AuthContext";
 import {
+  getInitialOpeningReminderDays,
   getInitialReminderDays,
+  getOpeningReminderDayOptions,
   getReminderDayOptions,
+  getReminderPickerMode,
 } from "./groupBuyReminderPicker";
 import { useNotificationPreferences } from "./NotificationPreferencesContext";
 import type { GroupBuyAlertState } from "../services/notifications";
@@ -39,6 +51,11 @@ import {
   NOTIFICATION_REMINDER_DAYS,
   type NotificationReminderDay,
 } from "../services/notificationPreferences";
+import {
+  DEFAULT_OPENING_REMINDER_TIME_MINUTES,
+  OPENING_REMINDER_DAYS,
+  type OpeningReminderDay,
+} from "../services/reminderDates";
 import type { GroupBuy } from "../types";
 
 type GroupBuyReminderPickerContextValue = {
@@ -74,6 +91,26 @@ function formatReminderDate(value: Date) {
   return [`${month ?? ""}/${day ?? ""}`, weekday].filter(Boolean).join(" ");
 }
 
+function formatReminderDay(day: OpeningReminderDay) {
+  return day === 0 ? "D-day" : `D-${day}`;
+}
+
+function reminderTimeToDate(reminderTimeMinutes: number) {
+  return new Date(
+    2026,
+    0,
+    1,
+    Math.floor(reminderTimeMinutes / 60),
+    reminderTimeMinutes % 60,
+  );
+}
+
+function formatReminderTime(reminderTimeMinutes: number) {
+  const hour = String(Math.floor(reminderTimeMinutes / 60)).padStart(2, "0");
+  const minute = String(reminderTimeMinutes % 60).padStart(2, "0");
+  return `${hour}:${minute} KST`;
+}
+
 export function GroupBuyReminderPickerProvider({
   children,
   onAuthenticationRequired,
@@ -84,23 +121,38 @@ export function GroupBuyReminderPickerProvider({
   const { preferences } = useNotificationPreferences();
   const {
     getNotificationReminderDays,
+    getNotificationReminderPreference,
     getNotificationState,
     isNotifying,
     setNotificationReminders,
   } = useNotifications();
   const [activeItem, setActiveItem] = useState<GroupBuy | null>(null);
-  const [selectedDays, setSelectedDays] = useState<NotificationReminderDay[]>(
-    [],
+  const [selectedDays, setSelectedDays] = useState<OpeningReminderDay[]>([]);
+  const [reminderTimeMinutes, setReminderTimeMinutes] = useState(
+    DEFAULT_OPENING_REMINDER_TIME_MINUTES,
   );
+  const [showAndroidTimePicker, setShowAndroidTimePicker] = useState(false);
   const closingRef = useRef(false);
   const reduceMotion = useReducedMotion();
   const backdropProgress = useSharedValue(0);
   const sheetProgress = useSharedValue(0);
   const s = useMemo(() => makeStyles(colors), [colors]);
 
+  const reminderMode = getReminderPickerMode(activeItem?.startDate ?? null);
   const reminderOptions = useMemo(
-    () => getReminderDayOptions(activeItem?.endDate ?? null),
-    [activeItem?.endDate],
+    () =>
+      reminderMode === "opening"
+        ? getOpeningReminderDayOptions(
+            activeItem?.startDate ?? null,
+            reminderTimeMinutes,
+          )
+        : getReminderDayOptions(activeItem?.endDate ?? null),
+    [
+      activeItem?.endDate,
+      activeItem?.startDate,
+      reminderMode,
+      reminderTimeMinutes,
+    ],
   );
   const availableDays = useMemo(
     () =>
@@ -110,7 +162,7 @@ export function GroupBuyReminderPickerProvider({
     [reminderOptions],
   );
   const availableDaySet = useMemo(
-    () => new Set<NotificationReminderDay>(availableDays),
+    () => new Set<OpeningReminderDay>(availableDays),
     [availableDays],
   );
   const reminderEnabled = activeItem ? isNotifying(activeItem.id) : false;
@@ -126,6 +178,8 @@ export function GroupBuyReminderPickerProvider({
     closingRef.current = false;
     setActiveItem(null);
     setSelectedDays([]);
+    setReminderTimeMinutes(DEFAULT_OPENING_REMINDER_TIME_MINUTES);
+    setShowAndroidTimePicker(false);
   }, []);
 
   const close = useCallback(() => {
@@ -160,12 +214,34 @@ export function GroupBuyReminderPickerProvider({
         onAuthenticationRequired?.();
         return;
       }
-      setSelectedDays(
-        getInitialReminderDays(
-          item.endDate,
-          getNotificationReminderDays(item.id),
-        ),
-      );
+      const mode = getReminderPickerMode(item.startDate);
+      const existingPreference = getNotificationReminderPreference(item.id);
+      if (mode === "opening") {
+        const timeMinutes =
+          existingPreference?.type === "opening"
+            ? existingPreference.reminderTimeMinutes
+            : DEFAULT_OPENING_REMINDER_TIME_MINUTES;
+        setReminderTimeMinutes(timeMinutes);
+        setSelectedDays(
+          getInitialOpeningReminderDays(
+            item.startDate,
+            existingPreference?.type === "opening"
+              ? existingPreference.reminderDays
+              : [],
+            timeMinutes,
+          ),
+        );
+      } else {
+        setReminderTimeMinutes(DEFAULT_OPENING_REMINDER_TIME_MINUTES);
+        setSelectedDays(
+          getInitialReminderDays(
+            item.endDate,
+            existingPreference?.type === "deadline"
+              ? existingPreference.reminderDays
+              : getNotificationReminderDays(item.id),
+          ),
+        );
+      }
       backdropProgress.value = 0;
       sheetProgress.value = 0;
       setActiveItem(item);
@@ -173,6 +249,7 @@ export function GroupBuyReminderPickerProvider({
     [
       backdropProgress,
       getNotificationReminderDays,
+      getNotificationReminderPreference,
       onAuthenticationRequired,
       sheetProgress,
       user,
@@ -180,25 +257,56 @@ export function GroupBuyReminderPickerProvider({
   );
 
   const toggleDay = useCallback(
-    (day: NotificationReminderDay) => {
+    (day: OpeningReminderDay) => {
       if (!availableDaySet.has(day)) return;
       setSelectedDays((current) =>
         current.includes(day)
           ? current.filter((value) => value !== day)
-          : NOTIFICATION_REMINDER_DAYS.filter(
-              (value) => value === day || current.includes(value),
-            ),
+          : (reminderMode === "opening"
+              ? OPENING_REMINDER_DAYS
+              : NOTIFICATION_REMINDER_DAYS
+            ).filter((value) => value === day || current.includes(value)),
       );
     },
-    [availableDaySet],
+    [availableDaySet, reminderMode],
+  );
+
+  const updateReminderTime = useCallback(
+    (date: Date) => {
+      const nextMinutes = date.getHours() * 60 + date.getMinutes();
+      setReminderTimeMinutes(nextMinutes);
+      const nextAvailable = new Set(
+        getOpeningReminderDayOptions(activeItem?.startDate ?? null, nextMinutes)
+          .filter(({ available }) => available)
+          .map(({ reminderDay }) => reminderDay),
+      );
+      setSelectedDays((current) =>
+        current.filter((day) => nextAvailable.has(day)),
+      );
+    },
+    [activeItem?.startDate],
   );
 
   const persist = useCallback(
-    (reminderDays: readonly NotificationReminderDay[]) => {
+    (reminderDays: readonly OpeningReminderDay[]) => {
       if (!activeItem) return;
       const item = activeItem;
+      const reminderPreference: GroupBuyReminderUpdate =
+        reminderMode === "opening"
+          ? {
+              type: "opening",
+              reminderDays,
+              reminderTimeMinutes,
+            }
+          : {
+              type: "deadline",
+              reminderDays: reminderDays.filter(
+                (day): day is NotificationReminderDay => day !== 0,
+              ),
+              reminderTimeMinutes: null,
+            };
       close();
-      void setNotificationReminders(item, reminderDays)
+      void setNotificationReminders(item, reminderPreference)
         .then((state) => {
           if (state.status !== "failed") return;
           Alert.alert(
@@ -213,7 +321,13 @@ export function GroupBuyReminderPickerProvider({
           );
         });
     },
-    [activeItem, close, setNotificationReminders],
+    [
+      activeItem,
+      close,
+      reminderMode,
+      reminderTimeMinutes,
+      setNotificationReminders,
+    ],
   );
 
   const contextValue = useMemo<GroupBuyReminderPickerContextValue>(
@@ -234,13 +348,31 @@ export function GroupBuyReminderPickerProvider({
   const hasInvalidEndDate = Boolean(
     activeItem?.endDate && Number.isNaN(new Date(activeItem.endDate).getTime()),
   );
-  const unavailableCopy = !activeItem?.endDate
-    ? "마감일이 없어 알림을 설정할 수 없어요."
-    : hasInvalidEndDate
-      ? "마감일 정보가 올바르지 않아 알림을 설정할 수 없어요."
-      : availableDays.length === 0
-        ? "선택 가능한 알림 시점이 모두 지났어요."
-        : null;
+  const hasInvalidStartDate = Boolean(
+    activeItem?.startDate &&
+    Number.isNaN(new Date(activeItem.startDate).getTime()),
+  );
+  const unavailableCopy =
+    reminderMode === "opening"
+      ? !activeItem?.startDate
+        ? "오픈일이 없어 알림을 설정할 수 없어요."
+        : hasInvalidStartDate
+          ? "오픈일 정보가 올바르지 않아 알림을 설정할 수 없어요."
+          : availableDays.length === 0
+            ? "선택 가능한 알림 시점이 모두 지났어요."
+            : null
+      : !activeItem?.endDate
+        ? "마감일이 없어 알림을 설정할 수 없어요."
+        : hasInvalidEndDate
+          ? "마감일 정보가 올바르지 않아 알림을 설정할 수 없어요."
+          : availableDays.length === 0
+            ? "선택 가능한 알림 시점이 모두 지났어요."
+            : null;
+  const activePreference = activeItem
+    ? getNotificationReminderPreference(activeItem.id)
+    : null;
+  const hasPendingOpeningReminder =
+    reminderMode === "deadline" && activePreference?.type === "opening";
   const notificationsPaused = !preferences.pushEnabled;
 
   return (
@@ -270,7 +402,9 @@ export function GroupBuyReminderPickerProvider({
             <View style={s.header}>
               <View style={s.headerCopy}>
                 <SText numberOfLines={1} style={s.title} variant="subtitle">
-                  마감 알림
+                  {reminderMode === "opening"
+                    ? "공구 오픈 알림"
+                    : "공구 마감 알림"}
                 </SText>
                 <SText
                   numberOfLines={1}
@@ -311,7 +445,7 @@ export function GroupBuyReminderPickerProvider({
                   const dateLabel = formatReminderDate(option.triggerDate);
                   return (
                     <Pressable
-                      accessibilityLabel={`D-${day}, ${dateLabel} 마감 알림`}
+                      accessibilityLabel={`${formatReminderDay(day)}, ${dateLabel} ${reminderMode === "opening" ? "오픈" : "마감"} 알림`}
                       accessibilityRole="checkbox"
                       accessibilityState={{
                         checked: selected,
@@ -336,7 +470,7 @@ export function GroupBuyReminderPickerProvider({
                         ]}
                         variant="label"
                       >
-                        D-{day}
+                        {formatReminderDay(day)}
                       </SText>
                       <SText
                         style={[
@@ -354,6 +488,80 @@ export function GroupBuyReminderPickerProvider({
               </View>
             )}
 
+            {reminderMode === "opening" && !hasInvalidStartDate ? (
+              <View style={s.timeSection}>
+                <View style={s.timeCopy}>
+                  <SText style={s.timeLabel} variant="label">
+                    알림 시간
+                  </SText>
+                  <SText style={s.timeHint} variant="caption">
+                    선택한 모든 날에 한국 시간 기준으로 알려드려요.
+                  </SText>
+                </View>
+                {Platform.OS === "android" ? (
+                  <Pressable
+                    accessibilityLabel={`알림 시간 ${formatReminderTime(reminderTimeMinutes)}`}
+                    accessibilityRole="button"
+                    onPress={() => setShowAndroidTimePicker(true)}
+                    style={({ pressed }) => [
+                      s.timeButton,
+                      pressed && s.pressed,
+                    ]}
+                    testID="group-buy-opening-reminder-time"
+                  >
+                    <Ionicons
+                      color={colors.accent}
+                      name="time-outline"
+                      size={18}
+                    />
+                    <SText style={s.timeButtonText} variant="label">
+                      {formatReminderTime(reminderTimeMinutes)}
+                    </SText>
+                  </Pressable>
+                ) : (
+                  <DateTimePicker
+                    accentColor={colors.accent}
+                    display="compact"
+                    locale="ko_KR"
+                    mode="time"
+                    onValueChange={(_event, date) => updateReminderTime(date)}
+                    style={s.iosTimePicker}
+                    testID="group-buy-opening-reminder-time"
+                    value={reminderTimeToDate(reminderTimeMinutes)}
+                  />
+                )}
+                {Platform.OS === "android" && showAndroidTimePicker ? (
+                  <DateTimePicker
+                    display="default"
+                    is24Hour
+                    mode="time"
+                    negativeButton={{ label: "취소" }}
+                    onDismiss={() => setShowAndroidTimePicker(false)}
+                    onValueChange={(_event, date) => {
+                      setShowAndroidTimePicker(false);
+                      updateReminderTime(date);
+                    }}
+                    positiveButton={{ label: "확인" }}
+                    presentation="dialog"
+                    value={reminderTimeToDate(reminderTimeMinutes)}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+
+            {hasPendingOpeningReminder ? (
+              <View style={s.pendingOpeningRow}>
+                <Ionicons
+                  color={colors.accent}
+                  name="information-circle-outline"
+                  size={18}
+                />
+                <SText style={s.pendingOpeningText} variant="caption">
+                  아직 남은 오픈 알림이 있어요. 저장하면 마감 알림으로 교체돼요.
+                </SText>
+              </View>
+            ) : null}
+
             {notificationsPaused && !unavailableCopy ? (
               <SText style={s.pausedText} variant="caption">
                 푸시 알림이 꺼져 있어 선택만 저장돼요.
@@ -363,7 +571,7 @@ export function GroupBuyReminderPickerProvider({
             <View style={s.actions}>
               {reminderEnabled ? (
                 <Pressable
-                  accessibilityLabel="마감 알림 끄기"
+                  accessibilityLabel={`${activePreference?.type === "opening" ? "오픈" : "마감"} 알림 끄기`}
                   accessibilityRole="button"
                   onPress={() => persist([])}
                   style={({ pressed }) => [
@@ -378,7 +586,7 @@ export function GroupBuyReminderPickerProvider({
                 </Pressable>
               ) : null}
               <Pressable
-                accessibilityLabel="마감 알림 저장"
+                accessibilityLabel={`${reminderMode === "opening" ? "오픈" : "마감"} 알림 저장`}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: selectedDays.length === 0 }}
                 disabled={selectedDays.length === 0}
@@ -483,6 +691,52 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     dayTextSelected: { color: colors.accent },
     dayTextDisabled: { color: colors.weak },
+    timeSection: {
+      alignItems: "center",
+      borderTopColor: colors.border,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      flexDirection: "row",
+      gap: commerceSpacing.md,
+      marginTop: commerceSpacing.lg,
+      minHeight: 64,
+      paddingTop: commerceSpacing.md,
+    },
+    timeCopy: { flex: 1, minWidth: 0 },
+    timeLabel: { color: colors.text, letterSpacing: 0 },
+    timeHint: {
+      color: colors.muted,
+      letterSpacing: 0,
+      marginTop: commerceSpacing.xs,
+    },
+    timeButton: {
+      alignItems: "center",
+      borderColor: colors.border,
+      borderRadius: commerceRadius.sm,
+      borderWidth: 1,
+      flexDirection: "row",
+      gap: commerceSpacing.xs,
+      height: 42,
+      justifyContent: "center",
+      minWidth: 116,
+      paddingHorizontal: commerceSpacing.sm,
+    },
+    timeButtonText: { color: colors.text, letterSpacing: 0 },
+    iosTimePicker: { minHeight: 42, minWidth: 104 },
+    pendingOpeningRow: {
+      alignItems: "center",
+      backgroundColor: colors.accentSoft,
+      borderRadius: commerceRadius.sm,
+      flexDirection: "row",
+      gap: commerceSpacing.sm,
+      marginTop: commerceSpacing.md,
+      minHeight: 48,
+      paddingHorizontal: commerceSpacing.md,
+    },
+    pendingOpeningText: {
+      color: colors.text,
+      flex: 1,
+      letterSpacing: 0,
+    },
     statusRow: {
       alignItems: "center",
       backgroundColor: colors.warningSoft,

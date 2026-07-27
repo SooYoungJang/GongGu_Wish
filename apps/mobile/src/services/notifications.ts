@@ -6,16 +6,18 @@ import { callEdgeFunction } from "../lib/postgrest-client";
 import { isAutomatedE2E } from "../lib/automatedE2E";
 import { isExpoPushToken } from "./pushToken";
 import {
+  buildGroupBuyOpeningReminderDates,
   buildGroupBuyReminderDates,
   type GroupBuyReminderScheduleOptions,
   type NotificationReminderDay,
+  type OpeningReminderDay,
 } from "./reminderDates";
 import {
   buildGroupBuyNotificationUrl,
   notificationResponseToUrl,
 } from "./notificationPayload";
 
-export { buildGroupBuyReminderDates };
+export { buildGroupBuyOpeningReminderDates, buildGroupBuyReminderDates };
 export type { GroupBuyReminderScheduleOptions };
 
 // Expo Go does not fully support expo-notifications native modules.
@@ -272,7 +274,8 @@ export type ScheduledNotification = {
   groupBuyId: string;
   productName: string | null;
   triggerDate: Date | null;
-  reminderDay?: NotificationReminderDay;
+  reminderDay?: NotificationReminderDay | OpeningReminderDay;
+  reminderType?: "opening" | "deadline";
 };
 
 export type GroupBuyReminderUnavailableReason =
@@ -287,11 +290,31 @@ export type ScheduleGroupBuyRemindersResult =
   | { status: "unavailable"; reason: GroupBuyReminderUnavailableReason }
   | {
       status: "failed";
-      reason: "invalid-group-buy-id" | "schedule-failed";
+      reason: "invalid-group-buy-id" | "cancel-failed" | "schedule-failed";
       notifications?: ScheduledNotification[];
     };
 
-async function cancelExistingGroupBuyDeadlineNotifications(
+export type GroupBuyOpeningReminderUnavailableReason =
+  | "missing-start-date"
+  | "invalid-start-date"
+  | "invalid-reminder-time"
+  | "past-reminder-window"
+  | NotificationPermissionFailureReason;
+
+export type ScheduleGroupBuyOpeningRemindersResult =
+  | { status: "scheduled"; notifications: ScheduledNotification[] }
+  | { status: "unsupported"; reason: "expo-go" | "native-module" }
+  | {
+      status: "unavailable";
+      reason: GroupBuyOpeningReminderUnavailableReason;
+    }
+  | {
+      status: "failed";
+      reason: "invalid-group-buy-id" | "cancel-failed" | "schedule-failed";
+      notifications?: ScheduledNotification[];
+    };
+
+async function cancelExistingGroupBuyReminderNotifications(
   Notifications: typeof import("expo-notifications"),
   groupBuyId: string,
 ) {
@@ -300,15 +323,20 @@ async function cancelExistingGroupBuyDeadlineNotifications(
     .filter((request) => {
       const data = request.content.data as Record<string, unknown> | null;
       return (
-        data?.notificationType === "deadline" && data.groupBuyId === groupBuyId
+        (data?.notificationType === "deadline" ||
+          data?.notificationType === "opening") &&
+        data.groupBuyId === groupBuyId
       );
     })
     .map((request) => request.identifier);
-  await Promise.all(
+  const results = await Promise.allSettled(
     matchingIds.map((identifier) =>
       Notifications.cancelScheduledNotificationAsync(identifier),
     ),
   );
+  if (results.some((result) => result.status === "rejected")) {
+    throw new Error("Failed to cancel an existing group-buy reminder");
+  }
 }
 
 export async function scheduleGroupBuyReminders(
@@ -337,10 +365,14 @@ export async function scheduleGroupBuyReminders(
 
   const scheduled: ScheduledNotification[] = [];
   try {
-    await cancelExistingGroupBuyDeadlineNotifications(
+    await cancelExistingGroupBuyReminderNotifications(
       Notifications,
       groupBuyId.trim(),
     );
+  } catch {
+    return { status: "failed", reason: "cancel-failed" };
+  }
+  try {
     for (const reminder of reminders) {
       const identifier = await Notifications.scheduleNotificationAsync({
         content: {
@@ -365,6 +397,112 @@ export async function scheduleGroupBuyReminders(
         groupBuyId: groupBuyId.trim(),
         productName,
         reminderDay: reminder.reminderDay,
+        reminderType: "deadline",
+        triggerDate: reminder.triggerDate,
+      });
+    }
+    return { status: "scheduled", notifications: scheduled };
+  } catch {
+    const rollbackResults = await Promise.all(
+      scheduled.map((notification) =>
+        Notifications.cancelScheduledNotificationAsync(notification.id)
+          .then(() => null)
+          .catch(() => notification),
+      ),
+    );
+    const survivingNotifications = rollbackResults.filter(
+      (notification): notification is ScheduledNotification =>
+        notification !== null,
+    );
+    return survivingNotifications.length > 0
+      ? {
+          status: "failed",
+          reason: "schedule-failed",
+          notifications: survivingNotifications,
+        }
+      : { status: "failed", reason: "schedule-failed" };
+  }
+}
+
+export async function scheduleGroupBuyOpeningReminders(
+  groupBuyId: string,
+  productName: string | null,
+  startDate: string | null,
+  reminderDays: readonly OpeningReminderDay[],
+  reminderTimeMinutes: number,
+  options?: number | GroupBuyReminderScheduleOptions,
+): Promise<ScheduleGroupBuyOpeningRemindersResult> {
+  const normalizedGroupBuyId = groupBuyId.trim();
+  const url = buildGroupBuyNotificationUrl(normalizedGroupBuyId);
+  if (!url) return { status: "failed", reason: "invalid-group-buy-id" };
+  if (!startDate) {
+    return { status: "unavailable", reason: "missing-start-date" };
+  }
+  if (Number.isNaN(new Date(startDate).getTime())) {
+    return { status: "unavailable", reason: "invalid-start-date" };
+  }
+  if (
+    !Number.isInteger(reminderTimeMinutes) ||
+    reminderTimeMinutes < 0 ||
+    reminderTimeMinutes >= 24 * 60
+  ) {
+    return { status: "unavailable", reason: "invalid-reminder-time" };
+  }
+
+  const reminders = buildGroupBuyOpeningReminderDates(
+    startDate,
+    reminderDays,
+    reminderTimeMinutes,
+    options,
+  );
+  if (reminders.length === 0) {
+    return { status: "unavailable", reason: "past-reminder-window" };
+  }
+
+  const availability = await getNotificationAvailability();
+  if (availability.status !== "available") return availability;
+  const Notifications = await getNotifications();
+  if (!Notifications) return { status: "unsupported", reason: "native-module" };
+
+  try {
+    await cancelExistingGroupBuyReminderNotifications(
+      Notifications,
+      normalizedGroupBuyId,
+    );
+  } catch {
+    return { status: "failed", reason: "cancel-failed" };
+  }
+
+  const scheduled: ScheduledNotification[] = [];
+  try {
+    for (const reminder of reminders) {
+      const identifier = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "공구 오픈 알림",
+          body:
+            reminder.reminderDay === 0
+              ? `${productName ?? "공동구매"} 공구가 오늘 오픈해요.`
+              : `${productName ?? "공동구매"} 오픈까지 ${reminder.reminderDay}일 남았어요.`,
+          data: {
+            groupBuyId: normalizedGroupBuyId,
+            notificationType: "opening",
+            notificationEventId: `opening:${normalizedGroupBuyId}:${reminder.reminderDay}`,
+            reminderDay: reminder.reminderDay,
+            url,
+          },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: reminder.triggerDate,
+          channelId: "group-buy-start",
+        } as NotificationTriggerInput,
+      });
+      scheduled.push({
+        id: identifier,
+        groupBuyId: normalizedGroupBuyId,
+        productName,
+        reminderDay: reminder.reminderDay,
+        reminderType: "opening",
         triggerDate: reminder.triggerDate,
       });
     }
@@ -420,6 +558,7 @@ export type GroupBuyAlertState =
       status: "unavailable";
       reason:
         | GroupBuyStartUnavailableReason
+        | GroupBuyOpeningReminderUnavailableReason
         | GroupBuyReminderUnavailableReason;
     };
 

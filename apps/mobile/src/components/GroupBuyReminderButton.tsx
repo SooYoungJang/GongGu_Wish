@@ -12,6 +12,7 @@ import {
 import { commerceRadius, type CommerceColorPalette } from "../design/commerce";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import { useGroupBuyReminderPicker } from "../context/GroupBuyReminderPickerContext";
+import { getReminderPickerMode } from "../context/groupBuyReminderPicker";
 import type { GroupBuy } from "../types";
 
 type GroupBuyReminderButtonProps = {
@@ -31,6 +32,8 @@ export function GroupBuyReminderButton({
     useGroupBuyReminderPicker();
   const enabled = isReminderEnabled(item.id);
   const pending = getReminderState(item.id).status === "pending";
+  const reminderLabel =
+    getReminderPickerMode(item.startDate) === "opening" ? "오픈" : "마감";
 
   const handlePress = (event: GestureResponderEvent) => {
     event.stopPropagation();
@@ -40,7 +43,9 @@ export function GroupBuyReminderButton({
   return (
     <Pressable
       accessibilityLabel={`${item.productName ?? "공동구매 상품"} ${
-        enabled ? "마감 알림 날짜 변경" : "마감 알림 설정"
+        enabled
+          ? `${reminderLabel} 알림 설정 변경`
+          : `${reminderLabel} 알림 설정`
       }`}
       accessibilityRole="button"
       accessibilityState={{ busy: pending, selected: enabled }}

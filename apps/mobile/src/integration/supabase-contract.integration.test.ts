@@ -29,6 +29,33 @@ import {
 
 const describeLocal = hasLocalSupabaseConfig() ? describe : describe.skip;
 
+async function invokeReminderRpc<T>(
+  config: LocalSupabaseConfig,
+  accessToken: string,
+  functionName: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const response = await fetch(
+    `${config.url}/rest/v1/rpc/${encodeURIComponent(functionName)}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: config.anonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    },
+  );
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `[local-supabase:reminder-rpc] ${functionName} returned ${response.status}: ${JSON.stringify(payload)}`,
+    );
+  }
+  return payload as T;
+}
+
 describeLocal("local Supabase commerce and ranking contracts", () => {
   let config: LocalSupabaseConfig;
   let fixture: LocalSupabaseFixture | null = null;
@@ -113,6 +140,104 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
     });
     const homeBanners = await fetchHomeBannerGroupBuys();
     expect(homeBanners.some((item) => item.id === groupBuyId)).toBe(false);
+  });
+
+  it("stores typed opening reminders while legacy RPCs remain deadline-only", async () => {
+    if (!fixture)
+      throw new Error("[local-supabase:setup] Fixture is unavailable");
+    const groupBuyId = fixture.groupBuyIds[3];
+    const startDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    const endDate = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000);
+    const originalDates = await readGroupBuyRow<{
+      start_date: string;
+      end_date: string | null;
+    }>(config, groupBuyId);
+
+    try {
+      await invokeAdmin(config, fixture, "reminder-dates", {
+        path: `/admin/group-buys/${groupBuyId}`,
+        method: "PATCH",
+        body: {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+        },
+      });
+
+      const openingRows = await invokeReminderRpc<
+        Array<{
+          group_buy_id: string;
+          reminder_type: string;
+          reminder_days: number[];
+          reminder_time_minutes: number | null;
+        }>
+      >(config, fixture.adminAccessToken, "set_my_group_buy_reminder_v2", {
+        p_group_buy_id: groupBuyId,
+        p_reminder_type: "OPENING",
+        p_reminder_days: [7, 0, 3, 3],
+        p_reminder_time_minutes: 15 * 60 + 30,
+      });
+      expect(openingRows).toEqual([
+        expect.objectContaining({
+          group_buy_id: groupBuyId,
+          reminder_type: "OPENING",
+          reminder_days: [0, 3, 7],
+          reminder_time_minutes: 15 * 60 + 30,
+        }),
+      ]);
+
+      await expect(
+        invokeReminderRpc(
+          config,
+          fixture.adminAccessToken,
+          "get_my_group_buy_reminders",
+          {},
+        ),
+      ).resolves.toEqual([]);
+
+      await invokeReminderRpc(
+        config,
+        fixture.adminAccessToken,
+        "set_my_group_buy_reminder",
+        {
+          p_group_buy_id: groupBuyId,
+          p_reminder_days: [1],
+        },
+      );
+      const v2Rows = await invokeReminderRpc<
+        Array<{
+          group_buy_id: string;
+          reminder_type: string;
+          reminder_days: number[];
+          reminder_time_minutes: number | null;
+        }>
+      >(config, fixture.adminAccessToken, "get_my_group_buy_reminders_v2", {});
+      expect(v2Rows).toContainEqual(
+        expect.objectContaining({
+          group_buy_id: groupBuyId,
+          reminder_type: "DEADLINE",
+          reminder_days: [1],
+          reminder_time_minutes: null,
+        }),
+      );
+    } finally {
+      await invokeReminderRpc(
+        config,
+        fixture.adminAccessToken,
+        "set_my_group_buy_reminder",
+        {
+          p_group_buy_id: groupBuyId,
+          p_reminder_days: [],
+        },
+      );
+      await invokeAdmin(config, fixture, "reminder-dates-restore", {
+        path: `/admin/group-buys/${groupBuyId}`,
+        method: "PATCH",
+        body: {
+          startDate: originalDates.start_date,
+          endDate: originalDates.end_date,
+        },
+      });
+    }
   });
 
   it("ranks selected product names but excludes unselected search queries", async () => {

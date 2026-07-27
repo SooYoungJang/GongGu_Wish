@@ -56,6 +56,7 @@ import {
   getLastNotificationResponseUrl,
   registerForPushNotifications,
   requestNotificationPermissions,
+  scheduleGroupBuyOpeningReminders,
   scheduleGroupBuyReminders,
   scheduleGroupBuyStart,
 } from "./notifications";
@@ -453,6 +454,49 @@ describe("registerForPushNotifications", () => {
     ).toEqual([]);
   });
 
+  it("schedules selected opening days at the shared KST time", async () => {
+    notificationMocks.scheduleNotificationAsync
+      .mockResolvedValueOnce("opening-3")
+      .mockResolvedValueOnce("opening-0");
+
+    const result = await scheduleGroupBuyOpeningReminders(
+      "group-buy-1",
+      "테스트 공구",
+      "2026-07-20T00:00:00.000Z",
+      [0, 3],
+      15 * 60 + 30,
+      Date.parse("2026-07-10T12:00:00.000Z"),
+    );
+
+    expect(result.status).toBe("scheduled");
+    if (result.status === "scheduled") {
+      expect(result.notifications.map((item) => item.id)).toEqual([
+        "opening-3",
+        "opening-0",
+      ]);
+    }
+    expect(notificationMocks.scheduleNotificationAsync).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        content: expect.objectContaining({
+          title: "공구 오픈 알림",
+          data: {
+            groupBuyId: "group-buy-1",
+            notificationType: "opening",
+            notificationEventId: "opening:group-buy-1:3",
+            reminderDay: 3,
+            url: "gongguwish-preview://group-buy/group-buy-1",
+          },
+        }),
+        trigger: expect.objectContaining({
+          type: "date",
+          date: new Date("2026-07-17T06:30:00.000Z"),
+          channelId: "group-buy-start",
+        }),
+      }),
+    );
+  });
+
   it("schedules every selected future deadline reminder with a canonical URL", async () => {
     notificationMocks.scheduleNotificationAsync
       .mockResolvedValueOnce("deadline-7")
@@ -522,6 +566,16 @@ describe("registerForPushNotifications", () => {
           },
         },
       },
+      {
+        identifier: "pending-opening",
+        content: {
+          data: {
+            groupBuyId: "group-buy-1",
+            notificationType: "opening",
+            reminderDay: 0,
+          },
+        },
+      },
     ]);
 
     await scheduleGroupBuyReminders(
@@ -537,7 +591,49 @@ describe("registerForPushNotifications", () => {
     ).toHaveBeenCalledWith("orphaned-deadline");
     expect(
       notificationMocks.cancelScheduledNotificationAsync,
+    ).toHaveBeenCalledWith("pending-opening");
+    expect(
+      notificationMocks.cancelScheduledNotificationAsync,
     ).not.toHaveBeenCalledWith("different-group-buy");
+  });
+
+  it("does not schedule a replacement when any existing reminder cannot cancel", async () => {
+    notificationMocks.getAllScheduledNotificationsAsync.mockResolvedValueOnce([
+      {
+        identifier: "deadline-existing",
+        content: {
+          data: {
+            groupBuyId: "group-buy-1",
+            notificationType: "deadline",
+          },
+        },
+      },
+      {
+        identifier: "opening-existing",
+        content: {
+          data: {
+            groupBuyId: "group-buy-1",
+            notificationType: "opening",
+          },
+        },
+      },
+    ]);
+    notificationMocks.cancelScheduledNotificationAsync.mockImplementation(
+      async (identifier: string) => {
+        if (identifier === "opening-existing") throw new Error("cancel failed");
+      },
+    );
+
+    await expect(
+      scheduleGroupBuyReminders(
+        "group-buy-1",
+        "테스트 공구",
+        "2026-07-20T12:00:00.000Z",
+        [3],
+        Date.parse("2026-07-10T12:00:00.000Z"),
+      ),
+    ).resolves.toEqual({ status: "failed", reason: "cancel-failed" });
+    expect(notificationMocks.scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 
   it("rolls back partial native schedules when a later reminder fails", async () => {

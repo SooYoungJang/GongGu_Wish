@@ -24,6 +24,10 @@ const notificationServiceMocks = vi.hoisted(() => {
     .fn()
     .mockResolvedValue({ status: "cancelled" });
   return {
+    scheduleGroupBuyOpeningReminders: vi.fn().mockResolvedValue({
+      status: "unavailable",
+      reason: "missing-start-date",
+    }),
     scheduleGroupBuyReminders: vi.fn().mockResolvedValue({
       status: "unavailable",
       reason: "missing-end-date",
@@ -145,6 +149,12 @@ describe("useNotifications", () => {
       .mockResolvedValue({
         status: "unavailable",
         reason: "missing-end-date",
+      });
+    notificationServiceMocks.scheduleGroupBuyOpeningReminders
+      .mockReset()
+      .mockResolvedValue({
+        status: "unavailable",
+        reason: "missing-start-date",
       });
     notificationServiceMocks.cancelScheduledNotification
       .mockReset()
@@ -1028,6 +1038,64 @@ describe("useNotifications", () => {
     });
   });
 
+  it("stores, schedules, and mirrors opening reminders with their shared time", async () => {
+    authMocks.user = { id: "user-1" };
+    notificationServiceMocks.scheduleGroupBuyOpeningReminders.mockResolvedValueOnce(
+      {
+        status: "scheduled",
+        notifications: [
+          {
+            id: "opening-3",
+            groupBuyId: GROUP_BUY.id,
+            productName: GROUP_BUY.productName,
+            reminderDay: 3,
+            reminderType: "opening",
+            triggerDate: new Date("2026-07-24T06:30:00.000Z"),
+          },
+        ],
+      },
+    );
+    const item = {
+      ...GROUP_BUY,
+      startDate: "2026-07-27T00:00:00.000Z",
+      endDate: "2026-08-03T00:00:00.000Z",
+    };
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(item, {
+        type: "opening",
+        reminderDays: [0, 3],
+        reminderTimeMinutes: 15 * 60 + 30,
+      });
+    });
+
+    expect(
+      notificationServiceMocks.scheduleGroupBuyOpeningReminders,
+    ).toHaveBeenCalledWith(
+      item.id,
+      item.productName,
+      item.startDate,
+      [0, 3],
+      15 * 60 + 30,
+    );
+    expect(
+      notifications.result.current.getNotificationReminderPreference(item.id),
+    ).toEqual({
+      type: "opening",
+      reminderDays: [0, 3],
+      reminderTimeMinutes: 15 * 60 + 30,
+    });
+    await waitFor(() => {
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(item.id, {
+        type: "opening",
+        reminderDays: [0, 3],
+        reminderTimeMinutes: 15 * 60 + 30,
+      });
+    });
+  });
+
   it("uses global push and per-item days when the legacy deadline preference is disabled", async () => {
     authMocks.user = { id: "user-1" };
     notificationPreferenceMocks.preferences.deadlineRemindersEnabled = false;
@@ -1076,7 +1144,7 @@ describe("useNotifications", () => {
     authMocks.user = { id: "user-1" };
     const item = {
       ...GROUP_BUY,
-      endDate: "2026-07-27T00:00:00.000Z",
+      endDate: "2099-07-27T00:00:00.000Z",
     };
     notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
       status: "scheduled",
@@ -1116,11 +1184,45 @@ describe("useNotifications", () => {
     ).toHaveBeenCalledTimes(1);
   });
 
+  it("prunes an expired remote reminder intent on startup", async () => {
+    authMocks.user = { id: "user-1" };
+    const expiredItem = {
+      ...GROUP_BUY,
+      endDate: "2020-07-27T00:00:00.000Z",
+    };
+    apiMocks.fetchNotificationReminders.mockResolvedValue([
+      {
+        groupBuyId: expiredItem.id,
+        type: "deadline",
+        reminderDays: [1],
+        reminderTimeMinutes: null,
+        updatedAt: "2020-07-20T00:00:00.000Z",
+      },
+    ]);
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([expiredItem]);
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+
+    expect(notifications.result.current.isNotifying(expiredItem.id)).toBe(
+      false,
+    );
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(
+        expiredItem.id,
+        [],
+      );
+    });
+  });
+
   it("serializes a startup refresh before a newer item reminder mutation", async () => {
     authMocks.user = { id: "user-1" };
     const item = {
       ...GROUP_BUY,
-      endDate: "2026-07-27T00:00:00.000Z",
+      endDate: "2099-07-27T00:00:00.000Z",
     };
     let releaseRemote!: (
       value: Array<{
@@ -1142,9 +1244,10 @@ describe("useNotifications", () => {
     });
     let mutation!: Promise<unknown>;
     act(() => {
-      mutation = notifications.result.current.setNotificationReminders(item, [
-        3,
-      ]);
+      mutation = notifications.result.current.setNotificationReminders(
+        item,
+        [3],
+      );
     });
     await act(async () => {
       releaseRemote([
@@ -1169,7 +1272,7 @@ describe("useNotifications", () => {
     authMocks.user = { id: "user-1" };
     const item = {
       ...GROUP_BUY,
-      endDate: "2026-07-27T00:00:00.000Z",
+      endDate: "2099-07-27T00:00:00.000Z",
     };
     storage.values.set(
       "@gonggu/notifications/v2/user%3Auser-1",
@@ -1333,9 +1436,8 @@ describe("useNotifications", () => {
     });
     expect(
       JSON.parse(
-        storage.values.get(
-          "@gonggu/notifications/outbox/v1/user%3Auser-1",
-        ) ?? "[]",
+        storage.values.get("@gonggu/notifications/outbox/v1/user%3Auser-1") ??
+          "[]",
       ),
     ).toEqual(
       expect.arrayContaining([
@@ -1357,8 +1459,7 @@ describe("useNotifications", () => {
           JSON.parse(
             storage.values.get(
               "@gonggu/notifications/outbox/v1/user%3Auser-1",
-            ) ??
-              "[]",
+            ) ?? "[]",
           ),
         ).toEqual([]);
       });
@@ -1392,9 +1493,7 @@ describe("useNotifications", () => {
     await waitFor(() => {
       expect(
         JSON.parse(
-          storage.values.get(
-            "@gonggu/notifications/outbox/v1/user%3Auser-1",
-          ) ??
+          storage.values.get("@gonggu/notifications/outbox/v1/user%3Auser-1") ??
             "[]",
         ),
       ).toEqual(

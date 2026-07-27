@@ -84,8 +84,26 @@ describe("GroupBuyReminderButton", () => {
 
     expect(
       renderer!.root.findByProps({
-        accessibilityLabel: "테스트 공구 마감 알림 날짜 변경",
+        accessibilityLabel: "테스트 공구 마감 알림 설정 변경",
       }).props.accessibilityState,
     ).toMatchObject({ selected: true });
+  });
+
+  it("announces an opening reminder before the group buy starts", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <GroupBuyReminderButton
+          item={{ ...item, startDate: "2099-12-30T00:00:00.000Z" }}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findByProps({
+        accessibilityLabel: "테스트 공구 오픈 알림 설정",
+      }),
+    ).toBeTruthy();
   });
 });
