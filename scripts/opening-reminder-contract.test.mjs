@@ -27,6 +27,10 @@ test("per-item reminders distinguish opening and deadline intent", () => {
   assert.match(migration, /reminder_time_minutes IS NULL/);
   assert.match(migration, /FUNCTION public\.get_my_group_buy_reminders_v2/);
   assert.match(migration, /FUNCTION public\.set_my_group_buy_reminder_v2/);
+  assert.equal(
+    migration.match(/#variable_conflict use_column/g)?.length,
+    2,
+  );
   assert.match(
     migration,
     /get_my_group_buy_reminders\(\)[\s\S]*?reminder_type = 'DEADLINE'/,

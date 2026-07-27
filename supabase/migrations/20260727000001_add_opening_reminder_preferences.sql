@@ -56,6 +56,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+#variable_conflict use_column
 DECLARE
   current_user_id uuid := auth.uid();
   deadline timestamp without time zone;
@@ -189,6 +190,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+#variable_conflict use_column
 DECLARE
   current_user_id uuid := auth.uid();
   normalized_type text := upper(btrim(COALESCE(p_reminder_type, '')));
