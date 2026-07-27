@@ -528,13 +528,17 @@ describe("ranking components", () => {
     const infoColumn = renderer!.root.findByProps({
       testID: "ranking-row-info-4",
     });
-    const orderedContent = infoColumn
-      .findAll(
-        (node) =>
-          typeof node.props.testID === "string" &&
-          /^ranking-row-(name|seller|commerce)-4$/.test(node.props.testID),
-      )
-      .map((node) => node.props.testID);
+    const orderedContent = [
+      ...new Set(
+        infoColumn
+          .findAll(
+            (node) =>
+              typeof node.props.testID === "string" &&
+              /^ranking-row-(name|seller|commerce)-4$/.test(node.props.testID),
+          )
+          .map((node) => node.props.testID as string),
+      ),
+    ];
 
     expect(orderedContent).toEqual([
       "ranking-row-name-4",
