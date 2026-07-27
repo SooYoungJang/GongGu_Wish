@@ -1,5 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { InstagramIdentity } from '../../components/ui/InstagramIdentity';
 import { SText } from '../../components/ui/SText';
 
 import { spacing } from '../../design/tokens';
@@ -14,17 +16,19 @@ type SearchResultsPanelProps = {
 };
 
 type SearchResultRowProps = {
+  chevronColor: string;
   influencer: Influencer;
   // eslint-disable-next-line no-unused-vars
   onPressInfluencer: (influencer: Influencer) => void;
   s: ReturnType<typeof makeStyles>;
 };
 
-const SearchResultRow = memo(function SearchResultRow({ influencer, onPressInfluencer, s }: SearchResultRowProps) {
+const SearchResultRow = memo(function SearchResultRow({ chevronColor, influencer, onPressInfluencer, s }: SearchResultRowProps) {
   const handlePress = useCallback(() => {
     onPressInfluencer(influencer);
   }, [influencer, onPressInfluencer]);
-  const displayName = influencer.displayName ?? influencer.instagramUsername;
+  const displayName = influencer.displayName?.trim() || null;
+  const avatarLabel = displayName ?? influencer.instagramUsername;
 
   return (
     <Pressable
@@ -34,13 +38,19 @@ const SearchResultRow = memo(function SearchResultRow({ influencer, onPressInflu
       style={({ pressed }) => [s.searchResultRow, pressed && s.pressed]}
     >
       <View style={s.avatar}>
-        <SText variant="caption" style={s.avatarText}>{displayName.slice(0, 1).toUpperCase()}</SText>
+        <SText variant="caption" style={s.avatarText}>{avatarLabel.slice(0, 1).toUpperCase()}</SText>
       </View>
       <View style={s.resultTextBlock}>
-        <SText variant="label" style={s.searchResultName}>{displayName}</SText>
-        <SText variant="caption" style={s.searchResultMeta}>@{influencer.instagramUsername.replace(/^@/, '')}</SText>
+        {displayName ? (
+          <SText variant="label" style={s.searchResultName}>{displayName}</SText>
+        ) : null}
+        <InstagramIdentity
+          size={displayName ? "compact" : "body"}
+          textStyle={displayName ? s.searchResultMeta : s.searchResultPrimary}
+          username={influencer.instagramUsername}
+        />
       </View>
-      <SText variant="body" style={s.chevron}>›</SText>
+      <Ionicons accessible={false} color={chevronColor} name="chevron-forward" size={20} />
     </Pressable>
   );
 });
@@ -55,6 +65,7 @@ export const SearchResultsPanel = memo(function SearchResultsPanel({ results, on
       {results.length > 0 ? (
         results.map((influencer) => (
           <SearchResultRow
+            chevronColor={colors.weak}
             key={influencer.id}
             influencer={influencer}
             onPressInfluencer={onPressInfluencer}
@@ -97,10 +108,10 @@ function makeStyles(colors: CommerceColorPalette) {
       width: 42,
     },
     avatarText: { color: colors.accent, fontSize: 15, fontWeight: '900', lineHeight: 19 },
-    resultTextBlock: { flex: 1 },
+    resultTextBlock: { flex: 1, minWidth: 0 },
     searchResultName: { color: colors.text, fontSize: 15, fontWeight: '800', lineHeight: 20 },
-    searchResultMeta: { color: colors.weak, fontSize: 12, fontWeight: '600', lineHeight: 16, marginTop: 2 },
-    chevron: { color: colors.weak, fontSize: 24, lineHeight: 28 },
+    searchResultMeta: { fontSize: 12, fontWeight: '600', lineHeight: 16, marginTop: 2 },
+    searchResultPrimary: { fontSize: 14, fontWeight: '700', lineHeight: 20 },
     emptySearchResult: {
       alignItems: 'center',
       backgroundColor: colors.panelBg,

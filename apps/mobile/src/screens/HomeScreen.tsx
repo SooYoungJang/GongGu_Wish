@@ -28,6 +28,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 
 import { SText } from "../components/ui/SText";
+import { InstagramIdentity } from "../components/ui/InstagramIdentity";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { PriceText } from "../components/ui/PriceText";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
@@ -584,14 +585,17 @@ function PromoBanner({
               testID={clone ? undefined : `promo-overlay-${item.id}`}
             >
               {instagramHandle ? (
-                <SText
-                  numberOfLines={1}
-                  style={s.promoAccount}
+                <InstagramIdentity
+                  iconTestID={
+                    clone ? undefined : `promo-account-icon-${item.id}`
+                  }
+                  size="compact"
+                  style={s.promoAccountRow}
                   testID={clone ? undefined : `promo-account-${item.id}`}
-                  variant="caption"
-                >
-                  {instagramHandle}
-                </SText>
+                  textStyle={s.promoAccount}
+                  tone="inverse"
+                  username={item.rawPost.influencer.instagramUsername}
+                />
               ) : null}
               <SText variant="cardTitle" numberOfLines={2} style={s.promoTitle}>
                 {productName}
@@ -1167,15 +1171,16 @@ function makeStyles(colors: CommerceColorPalette) {
       textShadowRadius: 4,
     },
     promoAccount: {
-      color: "rgba(255, 255, 255, 0.9)",
       fontSize: 12,
       fontWeight: "700",
       letterSpacing: 0,
       lineHeight: 17,
-      marginBottom: 3,
       textShadowColor: "rgba(0, 0, 0, 0.38)",
       textShadowOffset: { height: 1, width: 0 },
       textShadowRadius: 3,
+    },
+    promoAccountRow: {
+      marginBottom: 3,
     },
     promoImage: { ...StyleSheet.absoluteFillObject },
     promoImagePending: { opacity: 0 },

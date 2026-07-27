@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { InstagramIdentity } from '../../components/ui/InstagramIdentity';
 import { SText } from '../../components/ui/SText';
 import { borderRadius, spacing, typography } from '../../design/tokens';
 import type { FeedPost } from '../../types';
@@ -19,11 +20,11 @@ function FeedCard({ item, onPress, s }: { item: FeedPost; onPress: () => void; s
   const imageUrl = item.ogImage ?? item.thumbnailUrl ?? (item.mediaType === 'IMAGE' ? item.mediaUrl : null);
   const title = item.ogTitle ?? item.caption ?? '';
   const description = item.ogDescription ?? '';
-  const accountName = item.accountName ?? '알 수 없음';
+  const accountName = item.accountName ?? null;
 
   return (
     <Pressable
-      accessibilityLabel={`${title || accountName} 피드 열기`}
+      accessibilityLabel={`${title || accountName || '피드'} 피드 열기`}
       accessibilityRole="button"
       onPress={onPress}
       style={s.card}
@@ -46,9 +47,7 @@ function FeedCard({ item, onPress, s }: { item: FeedPost; onPress: () => void; s
             {description}
           </SText>
         ) : null}
-        <SText variant="caption" numberOfLines={1} style={s.accountName}>
-          @{accountName}
-        </SText>
+        <InstagramIdentity textStyle={s.accountName} username={accountName} />
       </View>
     </Pressable>
   );
@@ -169,7 +168,7 @@ function makeStyles(colors: ColorPalette) {
       marginBottom: 2,
     },
     description: { ...typography.caption, color: colors.textTertiary, fontSize: 11, marginBottom: 2 },
-    accountName: { ...typography.caption, color: colors.textTertiary, fontSize: 11 },
+    accountName: { ...typography.caption, fontSize: 11 },
     statusContainer: {
       alignItems: 'center',
       gap: spacing.sm,

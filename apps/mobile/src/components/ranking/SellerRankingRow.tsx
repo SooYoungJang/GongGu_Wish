@@ -1,7 +1,6 @@
 import { memo, useCallback, useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  type GestureResponderEvent,
   Image,
   Pressable,
   StyleSheet,
@@ -19,6 +18,7 @@ import type {
   GroupBuyRankingItem,
   RankingListItem,
 } from "../../features/ranking/types";
+import { InstagramIdentity } from "../ui/InstagramIdentity";
 import { PriceText } from "../ui/PriceText";
 import { SText } from "../ui/SText";
 import { GroupBuyAlertButton } from "./FollowButton";
@@ -26,13 +26,6 @@ import { RankBadge } from "./RankBadge";
 import { RankingTrendBadge } from "./RankingTrendBadge";
 
 type RankingItemAction = (item: GroupBuyRankingItem) => void;
-
-const SELLER_ACTION_HIT_SLOP = {
-  bottom: 8,
-  left: 8,
-  right: 8,
-  top: 8,
-} as const;
 
 export interface SellerRankingRowProps {
   item: RankingListItem;
@@ -72,10 +65,7 @@ export const SellerRankingRow = memo(function SellerRankingRow({
 
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
   const handlePressSeller = useCallback(
-    (event?: GestureResponderEvent) => {
-      event?.stopPropagation();
-      onPressSeller?.(item);
-    },
+    () => onPressSeller?.(item),
     [item, onPressSeller],
   );
   const handleToggleAlert = useCallback(
@@ -85,25 +75,6 @@ export const SellerRankingRow = memo(function SellerRankingRow({
   const handleImageError = useCallback(() => {
     if (imageUrl) setFailedImageUrl(imageUrl);
   }, [imageUrl]);
-  const sellerIdentity = instagramHandle ? (
-    <>
-      <Ionicons
-        accessible={false}
-        color={theme.colors.accent}
-        name="logo-instagram"
-        size={14}
-        testID={`ranking-row-seller-icon-${item.rank}`}
-      />
-      <SText
-        numberOfLines={largeText ? undefined : 1}
-        style={s.username}
-        testID={`ranking-row-seller-${item.rank}`}
-        variant="caption"
-      >
-        {instagramHandle}
-      </SText>
-    </>
-  ) : null;
 
   return (
     <View testID={`ranking-row-${item.rank}`} style={[s.cardRow, shadow]}>
@@ -157,25 +128,6 @@ export const SellerRankingRow = memo(function SellerRankingRow({
             >
               {displayName}
             </SText>
-            {instagramHandle ? (
-              onPressSeller ? (
-                <Pressable
-                  accessibilityHint="판매자의 공구 목록 보기"
-                  accessibilityLabel={`${instagramHandle} 판매자 공구 보기`}
-                  accessibilityRole="button"
-                  hitSlop={SELLER_ACTION_HIT_SLOP}
-                  onPress={handlePressSeller}
-                  style={({ pressed }) => [
-                    s.sellerIdentity,
-                    pressed ? s.pressed : null,
-                  ]}
-                >
-                  {sellerIdentity}
-                </Pressable>
-              ) : (
-                <View style={s.sellerIdentity}>{sellerIdentity}</View>
-              )
-            ) : null}
             <View
               style={s.commerceRow}
               testID={`ranking-row-commerce-${item.rank}`}
@@ -191,10 +143,58 @@ export const SellerRankingRow = memo(function SellerRankingRow({
             </View>
           </View>
         </Pressable>
+      </View>
 
-        <View
-          style={[s.actionColumn, largeText ? s.actionColumnLargeText : null]}
-        >
+      <View
+        style={[s.footer, largeText ? s.footerLargeText : null]}
+        testID={`ranking-row-footer-${item.rank}`}
+      >
+        {instagramHandle ? (
+          onPressSeller ? (
+            <Pressable
+              accessibilityHint="판매자의 공구 목록 보기"
+              accessibilityLabel={`${instagramHandle} 판매자 공구 보기`}
+              accessibilityRole="button"
+              onPress={handlePressSeller}
+              style={({ pressed }) => [
+                s.sellerAction,
+                pressed ? s.pressed : null,
+              ]}
+            >
+              <InstagramIdentity
+                allowWrapping={largeText}
+                iconTestID={`ranking-row-seller-icon-${item.rank}`}
+                size="body"
+                style={s.sellerIdentity}
+                testID={`ranking-row-seller-${item.rank}`}
+                textStyle={s.username}
+                username={item.username}
+              />
+              <Ionicons
+                accessible={false}
+                color={theme.colors.weak}
+                name="chevron-forward"
+                size={16}
+              />
+            </Pressable>
+          ) : (
+            <View style={s.sellerStatic}>
+              <InstagramIdentity
+                allowWrapping={largeText}
+                iconTestID={`ranking-row-seller-icon-${item.rank}`}
+                size="body"
+                style={s.sellerIdentity}
+                testID={`ranking-row-seller-${item.rank}`}
+                textStyle={s.username}
+                username={item.username}
+              />
+            </View>
+          )
+        ) : (
+          <View style={s.footerSpacer} />
+        )}
+
+        <View style={s.actionColumn}>
           <GroupBuyAlertButton
             groupBuyName={displayName}
             isEnabled={item.isNotifying ?? false}
@@ -214,16 +214,13 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       alignItems: "flex-end",
       justifyContent: "center",
     },
-    actionColumnLargeText: {
-      alignSelf: "flex-end",
-    },
     cardRow: {
       backgroundColor: colors.bg,
       borderBottomColor: colors.divider,
       borderBottomWidth: 1,
       marginBottom: spacing.xs,
       paddingHorizontal: spacing.xs,
-      paddingVertical: spacing.md,
+      paddingTop: spacing.md,
     },
     commerceRow: {
       alignItems: "center",
@@ -268,6 +265,21 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       alignItems: "stretch",
       flexDirection: "column",
     },
+    footer: {
+      alignItems: "center",
+      borderTopColor: colors.divider,
+      borderTopWidth: 1,
+      flexDirection: "row",
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+      minHeight: 52,
+    },
+    footerLargeText: {
+      alignItems: "flex-end",
+    },
+    footerSpacer: {
+      flex: 1,
+    },
     media: {
       alignItems: "center",
       backgroundColor: colors.softBg,
@@ -294,13 +306,25 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       gap: spacing.xs,
       width: 34,
     },
-    sellerIdentity: {
+    sellerAction: {
       alignItems: "center",
-      alignSelf: "flex-start",
+      flex: 1,
       flexDirection: "row",
-      gap: spacing.xxs,
-      maxWidth: "100%",
-      minHeight: 28,
+      gap: spacing.xs,
+      minHeight: 44,
+      minWidth: 0,
+      paddingHorizontal: spacing.xs,
+    },
+    sellerIdentity: {
+      flex: 1,
+    },
+    sellerStatic: {
+      alignItems: "center",
+      flex: 1,
+      flexDirection: "row",
+      minHeight: 44,
+      minWidth: 0,
+      paddingHorizontal: spacing.xs,
     },
     sellerName: {
       color: colors.text,
@@ -313,11 +337,9 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       fontWeight: "900",
     },
     username: {
-      color: colors.muted,
-      flexShrink: 1,
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: "700",
-      lineHeight: 16,
+      lineHeight: 17,
     },
   });
 }

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import type { ImageStyle } from 'react-native';
 
+import { InstagramIdentity } from './ui/InstagramIdentity';
 import { SText } from './ui/SText';
 import { spacing } from '../design/tokens';
 import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
@@ -87,24 +88,29 @@ function formatCount(count: number): string {
 }
 
 function SuccessState({ s, data }: { s: ReturnType<typeof makeStyles>; data: HikerPostData }) {
+  const authorName = data.authorName?.trim() || null;
+  const fallbackName = authorName ?? data.authorUsername?.trim() ?? '알 수 없음';
+
   return (
     <View style={s.card}>
       <View style={s.authorRow}>
         <View style={s.authorBlock}>
           <View style={s.avatarPlaceholder}>
             <SText variant="caption" style={s.avatarText}>
-              {data.authorName?.charAt(0) ?? data.authorUsername?.charAt(0) ?? '?'}
+              {fallbackName.charAt(0) || '?'}
             </SText>
           </View>
           <View style={s.authorInfo}>
-            <SText variant="label" style={s.authorName} numberOfLines={1}>
-              {data.authorName ?? data.authorUsername ?? '알 수 없음'}
-            </SText>
-            {data.authorUsername ? (
-              <SText variant="caption" style={s.authorHandle} numberOfLines={1}>
-                @{data.authorUsername}
+            {authorName || !data.authorUsername ? (
+              <SText variant="label" style={s.authorName} numberOfLines={1}>
+                {fallbackName}
               </SText>
             ) : null}
+            <InstagramIdentity
+              size={authorName ? "compact" : "body"}
+              textStyle={[s.authorHandle, !authorName && s.authorHandlePrimary]}
+              username={data.authorUsername}
+            />
           </View>
         </View>
         {data.likeCount != null ? (
@@ -172,8 +178,11 @@ function makeStyles(colors: CommerceColorPalette) {
       flexDirection: 'row',
     },
     authorHandle: {
-      color: colors.weak,
       fontWeight: '700',
+    },
+    authorHandlePrimary: {
+      fontSize: 14,
+      lineHeight: 20,
     },
     authorInfo: {
       flex: 1,

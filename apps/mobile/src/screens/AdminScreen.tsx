@@ -16,6 +16,7 @@ import { CommerceCard, CommerceChip, CommerceSearchField, CommerceSurface } from
 import { FormInput } from '../components/FormInput';
 import { InfoRow } from '../components/InfoRow';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { InstagramIdentity } from '../components/ui/InstagramIdentity';
 import { SText } from '../components/ui/SText';
 import { commerceRadius, commerceSpacing, type CommerceColorPalette } from '../design/commerce';
 import { useCommerceTheme } from '../design/useCommerceTheme';
@@ -382,7 +383,11 @@ export function AdminScreen() {
                   <CommerceCard key={item.id} style={s.listCard}>
                     <View style={s.cardHeader}>
                       <View style={s.cardTitleBlock}>
-                        <SText variant="cardTitle" style={s.itemTitle}>@{item.instagramUsername}</SText>
+                        <InstagramIdentity
+                          size="body"
+                          textStyle={s.itemTitle}
+                          username={item.instagramUsername}
+                        />
                         <SText variant="body" style={s.itemMeta}>{item.displayName ?? '표시명 없음'}</SText>
                       </View>
                       <StatusPill label={item.isActive ? '활성' : '비활성'} tone={item.isActive ? 'success' : 'muted'} colors={colors} />
@@ -439,7 +444,15 @@ export function AdminScreen() {
                 </View>
 
                 <View style={s.infoBlock}>
-                  <InfoRow label="계정" value={`@${selectedSubmission.rawPost.influencer.instagramUsername}`} />
+                  <InfoRow
+                    label="계정"
+                    value={
+                      <InstagramIdentity
+                        size="body"
+                        username={selectedSubmission.rawPost.influencer.instagramUsername}
+                      />
+                    }
+                  />
                   <InfoRow label="원문 URL" value={selectedSubmission.rawPost.postUrl} />
                   <InfoRow label="이미지" value={selectedSubmission.rawPost.imageUrl ?? '없음'} />
                   <InfoRow label="검수일" value={formatDate(selectedSubmission.reviewedAt)} />
@@ -528,7 +541,11 @@ function SubmissionCard({
     >
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleBlock}>
-          <SText variant="label" style={styles.itemHandle}>@{item.rawPost.influencer.instagramUsername}</SText>
+          <InstagramIdentity
+            size="body"
+            textStyle={styles.itemHandle}
+            username={item.rawPost.influencer.instagramUsername}
+          />
           <SText variant="cardTitle" numberOfLines={2} style={styles.itemTitle}>
             {item.productName ?? '상품명 미확정'}
           </SText>

@@ -1349,6 +1349,9 @@ describe('HomeScreenContent redesign', () => {
 
     const text = flattenText(renderer.toJSON());
     expect(text).toContain('@beauty_pick');
+    expect(
+      renderer.root.findByProps({ testID: 'promo-account-icon-gb-1' }).props,
+    ).toMatchObject({ accessible: false, name: 'logo-instagram' });
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
     expect(banner!.props.accessibilityLabel).toContain('@beauty_pick');
   });

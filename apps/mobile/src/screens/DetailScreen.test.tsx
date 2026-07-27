@@ -716,6 +716,11 @@ describe("DetailScreen", () => {
 
     const text = flattenText(renderer!.toJSON());
     expect(text).toContain("@hanssang_home");
+    expect(
+      renderer!.root.findByProps({
+        testID: `detail-reel-instagram-icon-${groupBuy.id}`,
+      }).props,
+    ).toMatchObject({ accessible: false, name: "logo-instagram" });
     expect(text).toContain("뷰티");
     expect(text).not.toContain("beauty");
   });
