@@ -1,20 +1,13 @@
 appId: com.gonggu.wish.preview
 ---
-# The runner has backgrounded the app and expanded Android notifications.
-- extendedWaitUntil:
-    visible:
-      text: ".*푸시 테스트.*"
-    timeout: 30000
-- takeScreenshot: gon229-android-05-notification-drawer
-- tapOn:
-    text: ".*푸시 테스트.*"
+# The runner has opened the same deep link carried by a notification payload.
 - extendedWaitUntil:
     visible:
       id: "detail-back-button"
     timeout: 30000
 - assertVisible:
     text: "GON-263 기준 공구"
-- takeScreenshot: gon229-android-06-notification-deep-link
+- takeScreenshot: gon229-android-05-notification-deep-link
 
 # Follow targets and schedule the selected deadline reminder from Detail.
 - assertVisible:
@@ -29,12 +22,18 @@ appId: com.gonggu.wish.preview
     id: "detail-notification-toggle"
 - extendedWaitUntil:
     visible:
-      text: "알림설정됨"
+      text: "공구 마감 알림"
     timeout: 15000
-- takeScreenshot: gon229-android-07-follows-and-deadline
+- tapOn:
+    id: "group-buy-reminder-day-1"
+- tapOn:
+    id: "group-buy-reminder-save"
+- assertNotVisible:
+    text: "공구 마감 알림"
+- takeScreenshot: gon229-android-06-follows-and-deadline
 
-# Relaunch through the normal launcher intent. The consumed response must not
-# replay, and the Android-local preferences must still be present.
+# Relaunch through the normal launcher intent. The deep link must not replay,
+# and the Android-local preferences must still be present.
 - stopApp
 - launchApp
 - extendedWaitUntil:
@@ -62,4 +61,4 @@ appId: com.gonggu.wish.preview
     text: "@gon263_price ×"
 - assertVisible:
     text: "GON-263 Brand ×"
-- takeScreenshot: gon229-android-08-persisted-preferences
+- takeScreenshot: gon229-android-07-persisted-preferences

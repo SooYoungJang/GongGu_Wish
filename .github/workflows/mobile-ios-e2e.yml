@@ -154,8 +154,8 @@ jobs:
           test "$(find artifacts/android -name 'gon263-*.png' | wc -l)" -ge 10
           test "$(find artifacts/android -name 'gon264-android-*.png' | wc -l)" -ge 8
           test "$(find artifacts/android -name 'gon229-android-*.png' | wc -l)" -ge 7
-          test -s artifacts/android/gon229-notification-state.txt
-          test -s artifacts/android/gon229-notification-drawer.xml
+          test -s artifacts/android/gon229-deep-link-launch.txt
+          test -s artifacts/android/gon229-deep-link-state.txt
           test -s artifacts/android/gon229-alarm-state.txt
           test -s artifacts/android/gon264-reels-accessibility.xml
           test -s artifacts/android/gon264-talkback-state.txt

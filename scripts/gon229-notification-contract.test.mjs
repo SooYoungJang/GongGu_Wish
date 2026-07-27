@@ -94,15 +94,30 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(notifications, /buildGroupBuyNotificationUrl/);
   assert.match(notificationPayload, /AUTH_REDIRECT_URL/);
   assert.match(notificationPayload, /NOTIFICATION_URL_PREFIX/);
-  assert.match(flow, /text: "\.\*푸시 테스트\.\*"/);
+  assert.doesNotMatch(flow, /푸시 테스트/);
   assert.match(preferencesFlow, /text: "공구위시 로그인 화면"/);
   assert.match(preferencesFlow, /id: "fl-input-email"/);
   assert.match(preferencesFlow, /id: "fl-input-password"/);
   assert.match(preferencesFlow, /id: "auth-login-submit"/);
+  assert.match(
+    preferencesFlow,
+    /assertNotVisible:[\s\S]*?id: "deadline-notification-toggle"/,
+  );
+  assert.doesNotMatch(
+    preferencesFlow,
+    /tapOn:\s*\n\s+id: "deadline-notification-toggle"/,
+  );
+  assert.match(
+    preferencesFlow,
+    /id: "group-buy-reminder-button-gon263-beauty"/,
+  );
   assert.match(authScreen, /testID="auth-login-submit"/);
   assert.match(flow, /id: "follow-influencer-notifications"/);
+  assert.match(flow, /id: "group-buy-reminder-day-1"/);
   assert.match(flow, /text: "@gon263_price ×"/);
-  assert.match(runner, /cmd statusbar expand-notifications/);
+  assert.match(runner, /android\.intent\.action\.VIEW/);
+  assert.match(runner, /gongguwish:\/\/group-buy\/gon263-e2e-price-200000/);
+  assert.doesNotMatch(runner, /statusbar expand-notifications/);
   assert.match(runner, /auth\/v1\/signup/);
   assert.match(runner, /gon229\.e2e@example\.com/);
   assert.match(windowsBuild, /\[switch\]\$AutomatedE2E/);
@@ -122,7 +137,8 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(windowsBuild, /gradlew\.bat \$installTask[^\n]*--no-daemon/);
   assert.match(windowsBuild, /Gradle \$installTask failed with exit code/);
   assert.match(orchestrator, /run-gon229-android-notifications\.sh/);
-  assert.match(workflow, /gon229-notification-state\.txt/);
+  assert.match(workflow, /gon229-deep-link-state\.txt/);
+  assert.doesNotMatch(workflow, /gon229-notification-drawer\.xml/);
   assert.match(ciWorkflow, /supabase functions deploy register-push-token/);
   assert.doesNotMatch(workflow, /gon229[^\n]*ios/i);
 });
