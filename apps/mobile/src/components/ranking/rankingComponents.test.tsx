@@ -518,6 +518,27 @@ describe("ranking components", () => {
     const sellerAction = renderer!.root.findByProps({
       accessibilityLabel: "@ordinary.seller 판매자 공구 보기",
     });
+    expect(sellerAction.props.hitSlop).toEqual({
+      bottom: 8,
+      left: 8,
+      right: 8,
+      top: 8,
+    });
+    const sellerStyle = flattenStyle(
+      sellerAction.props.style({ pressed: false }),
+    );
+    expect(sellerStyle).toMatchObject({
+      alignItems: "center",
+      flexDirection: "row",
+      minHeight: 28,
+    });
+    const sellerIcon = renderer!.root.findByProps({
+      testID: "ranking-row-seller-icon-4",
+    });
+    expect(sellerIcon.props).toMatchObject({
+      accessible: false,
+      name: "logo-instagram",
+    });
     const stopPropagation = vi.fn();
     act(() => sellerAction.props.onPress({ stopPropagation }));
 
