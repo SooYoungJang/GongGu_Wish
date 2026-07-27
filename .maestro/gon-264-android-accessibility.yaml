@@ -60,11 +60,11 @@ appId: com.gonggu.wish.preview
     timeout: 30000
 - scrollUntilVisible:
     element:
-      text: "GON-263 기준 공구, 가격 200,000원, 판매자 GON-263 Brand @gon263_price, .* 상세 보기"
+      text: "GON-263 기준 공구, 가격 200,000원, 판매자 @gon263_price, .* 상세 보기"
     direction: DOWN
     timeout: 30000
 - assertVisible:
-    text: "GON-263 기준 공구, 가격 200,000원, 판매자 GON-263 Brand @gon263_price, .* 상세 보기"
+    text: "GON-263 기준 공구, 가격 200,000원, 판매자 @gon263_price, .* 상세 보기"
 - takeScreenshot: gon264-android-02-deal-card-label
 
 # Ranking cards switch to the large-text vertical layout and keep the sticky
