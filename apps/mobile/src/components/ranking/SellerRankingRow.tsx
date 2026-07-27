@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo, useState } from "react";
 import {
+  type GestureResponderEvent,
   Image,
   Pressable,
   StyleSheet,
@@ -63,7 +64,10 @@ export const SellerRankingRow = memo(function SellerRankingRow({
 
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
   const handlePressSeller = useCallback(
-    () => onPressSeller?.(item),
+    (event?: GestureResponderEvent) => {
+      event?.stopPropagation();
+      onPressSeller?.(item);
+    },
     [item, onPressSeller],
   );
   const handleToggleAlert = useCallback(
@@ -117,7 +121,7 @@ export const SellerRankingRow = memo(function SellerRankingRow({
             )}
           </View>
 
-          <View style={s.infoColumn}>
+          <View style={s.infoColumn} testID={`ranking-row-info-${item.rank}`}>
             <SText
               numberOfLines={largeText ? undefined : 2}
               style={s.sellerName}
@@ -126,7 +130,42 @@ export const SellerRankingRow = memo(function SellerRankingRow({
             >
               {displayName}
             </SText>
-            <View style={s.commerceRow}>
+            {instagramHandle ? (
+              onPressSeller ? (
+                <Pressable
+                  accessibilityHint="판매자의 공구 목록 보기"
+                  accessibilityLabel={`${instagramHandle} 판매자 공구 보기`}
+                  accessibilityRole="button"
+                  onPress={handlePressSeller}
+                  style={({ pressed }) => [
+                    s.sellerAction,
+                    pressed ? s.pressed : null,
+                  ]}
+                >
+                  <SText
+                    numberOfLines={largeText ? undefined : 1}
+                    style={s.username}
+                    testID={`ranking-row-seller-${item.rank}`}
+                    variant="caption"
+                  >
+                    {instagramHandle}
+                  </SText>
+                </Pressable>
+              ) : (
+                <SText
+                  numberOfLines={largeText ? undefined : 1}
+                  style={s.username}
+                  testID={`ranking-row-seller-${item.rank}`}
+                  variant="caption"
+                >
+                  {instagramHandle}
+                </SText>
+              )
+            ) : null}
+            <View
+              style={s.commerceRow}
+              testID={`ranking-row-commerce-${item.rank}`}
+            >
               <PriceText
                 numberOfLines={largeText ? 2 : 1}
                 priceKrw={item.priceKrw}
@@ -139,7 +178,9 @@ export const SellerRankingRow = memo(function SellerRankingRow({
           </View>
         </Pressable>
 
-        <View style={[s.actionColumn, largeText ? s.actionColumnLargeText : null]}>
+        <View
+          style={[s.actionColumn, largeText ? s.actionColumnLargeText : null]}
+        >
           <GroupBuyAlertButton
             groupBuyName={displayName}
             isEnabled={item.isNotifying ?? false}
@@ -148,41 +189,6 @@ export const SellerRankingRow = memo(function SellerRankingRow({
           />
         </View>
       </View>
-
-      {instagramHandle ? (
-        <View style={s.sellerRow}>
-          {onPressSeller ? (
-            <Pressable
-              accessibilityHint="판매자의 공구 목록 보기"
-              accessibilityLabel={`${instagramHandle} 판매자 공구 보기`}
-              accessibilityRole="button"
-              onPress={handlePressSeller}
-              style={({ pressed }) => [
-                s.sellerAction,
-                pressed ? s.pressed : null,
-              ]}
-            >
-              <SText
-                numberOfLines={largeText ? undefined : 1}
-                style={s.username}
-                testID={`ranking-row-seller-${item.rank}`}
-                variant="caption"
-              >
-                {instagramHandle}
-              </SText>
-            </Pressable>
-          ) : (
-            <SText
-              numberOfLines={largeText ? undefined : 1}
-              style={s.username}
-              testID={`ranking-row-seller-${item.rank}`}
-              variant="caption"
-            >
-              {instagramHandle}
-            </SText>
-          )}
-        </View>
-      ) : null}
     </View>
   );
 });
@@ -201,7 +207,6 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       backgroundColor: colors.bg,
       borderBottomColor: colors.divider,
       borderBottomWidth: 1,
-      gap: spacing.xs,
       marginBottom: spacing.xs,
       paddingHorizontal: spacing.xs,
       paddingVertical: spacing.md,
@@ -280,18 +285,11 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       justifyContent: "center",
       minHeight: 44,
       minWidth: 44,
-      paddingHorizontal: spacing.xs,
     },
     sellerName: {
       color: colors.text,
       ...typography.bodyStrong,
       minWidth: 0,
-    },
-    sellerRow: {
-      borderTopColor: colors.divider,
-      borderTopWidth: 1,
-      justifyContent: "center",
-      minHeight: 44,
     },
     thumbnailFallbackText: {
       color: colors.muted,

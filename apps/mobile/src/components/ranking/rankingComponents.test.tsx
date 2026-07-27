@@ -499,6 +499,7 @@ describe("ranking components", () => {
       username: "ordinary.seller",
     });
     const onPressSeller = vi.fn();
+    const onPressDetail = vi.fn();
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -506,7 +507,7 @@ describe("ranking components", () => {
         withTheme(
           <SellerRankingRow
             item={item}
-            onPress={vi.fn()}
+            onPress={onPressDetail}
             onPressSeller={onPressSeller}
             onToggleAlert={vi.fn()}
           />,
@@ -517,9 +518,29 @@ describe("ranking components", () => {
     const sellerAction = renderer!.root.findByProps({
       accessibilityLabel: "@ordinary.seller 판매자 공구 보기",
     });
-    act(() => sellerAction.props.onPress());
+    const stopPropagation = vi.fn();
+    act(() => sellerAction.props.onPress({ stopPropagation }));
 
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
     expect(onPressSeller).toHaveBeenCalledWith(item);
+    expect(onPressDetail).not.toHaveBeenCalled();
+
+    const infoColumn = renderer!.root.findByProps({
+      testID: "ranking-row-info-4",
+    });
+    const orderedContent = infoColumn
+      .findAll(
+        (node) =>
+          typeof node.props.testID === "string" &&
+          /^ranking-row-(name|seller|commerce)-4$/.test(node.props.testID),
+      )
+      .map((node) => node.props.testID);
+
+    expect(orderedContent).toEqual([
+      "ranking-row-name-4",
+      "ranking-row-seller-4",
+      "ranking-row-commerce-4",
+    ]);
   });
 
   it("does not render the legacy unknown account placeholder", () => {
