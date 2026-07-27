@@ -84,9 +84,10 @@ appId: com.gonggu.wish.preview
 - back
 - tapOn:
     text: "홈 탭"
-- extendedWaitUntil:
-    visible:
+- scrollUntilVisible:
+    element:
       id: "group-buy-reminder-button-gon263-e2e-beauty"
+    direction: DOWN
     timeout: 30000
 - tapOn:
     id: "group-buy-reminder-button-gon263-e2e-beauty"
