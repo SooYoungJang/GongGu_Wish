@@ -86,10 +86,10 @@ appId: com.gonggu.wish.preview
     text: "홈 탭"
 - extendedWaitUntil:
     visible:
-      id: "group-buy-reminder-button-gon263-beauty"
+      id: "group-buy-reminder-button-gon263-e2e-beauty"
     timeout: 30000
 - tapOn:
-    id: "group-buy-reminder-button-gon263-beauty"
+    id: "group-buy-reminder-button-gon263-e2e-beauty"
 - assertVisible:
     text: "공구 마감 알림"
 - assertVisible:
