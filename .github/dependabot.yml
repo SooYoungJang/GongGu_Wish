@@ -24,6 +24,11 @@ updates:
       - dependency-name: babel-preset-expo
         update-types:
           - version-update:semver-major
+      # 16.4.0 pulls Google Ads 25.4.0, whose Kotlin 2.3 metadata is
+      # incompatible with the current Expo/RN Kotlin 2.1 toolchain.
+      - dependency-name: react-native-google-mobile-ads
+        versions:
+          - 16.4.0
       # Storybook majors require coordinated core, addon, and config migration.
       - dependency-name: storybook
         update-types:
