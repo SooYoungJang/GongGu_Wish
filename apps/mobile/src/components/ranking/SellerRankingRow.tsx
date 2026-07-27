@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   type GestureResponderEvent,
   Image,
@@ -25,6 +26,13 @@ import { RankBadge } from "./RankBadge";
 import { RankingTrendBadge } from "./RankingTrendBadge";
 
 type RankingItemAction = (item: GroupBuyRankingItem) => void;
+
+const SELLER_ACTION_HIT_SLOP = {
+  bottom: 8,
+  left: 8,
+  right: 8,
+  top: 8,
+} as const;
 
 export interface SellerRankingRowProps {
   item: RankingListItem;
@@ -77,6 +85,25 @@ export const SellerRankingRow = memo(function SellerRankingRow({
   const handleImageError = useCallback(() => {
     if (imageUrl) setFailedImageUrl(imageUrl);
   }, [imageUrl]);
+  const sellerIdentity = instagramHandle ? (
+    <>
+      <Ionicons
+        accessible={false}
+        color={theme.colors.accent}
+        name="logo-instagram"
+        size={14}
+        testID={`ranking-row-seller-icon-${item.rank}`}
+      />
+      <SText
+        numberOfLines={largeText ? undefined : 1}
+        style={s.username}
+        testID={`ranking-row-seller-${item.rank}`}
+        variant="caption"
+      >
+        {instagramHandle}
+      </SText>
+    </>
+  ) : null;
 
   return (
     <View testID={`ranking-row-${item.rank}`} style={[s.cardRow, shadow]}>
@@ -136,30 +163,17 @@ export const SellerRankingRow = memo(function SellerRankingRow({
                   accessibilityHint="판매자의 공구 목록 보기"
                   accessibilityLabel={`${instagramHandle} 판매자 공구 보기`}
                   accessibilityRole="button"
+                  hitSlop={SELLER_ACTION_HIT_SLOP}
                   onPress={handlePressSeller}
                   style={({ pressed }) => [
-                    s.sellerAction,
+                    s.sellerIdentity,
                     pressed ? s.pressed : null,
                   ]}
                 >
-                  <SText
-                    numberOfLines={largeText ? undefined : 1}
-                    style={s.username}
-                    testID={`ranking-row-seller-${item.rank}`}
-                    variant="caption"
-                  >
-                    {instagramHandle}
-                  </SText>
+                  {sellerIdentity}
                 </Pressable>
               ) : (
-                <SText
-                  numberOfLines={largeText ? undefined : 1}
-                  style={s.username}
-                  testID={`ranking-row-seller-${item.rank}`}
-                  variant="caption"
-                >
-                  {instagramHandle}
-                </SText>
+                <View style={s.sellerIdentity}>{sellerIdentity}</View>
               )
             ) : null}
             <View
@@ -280,11 +294,13 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       gap: spacing.xs,
       width: 34,
     },
-    sellerAction: {
+    sellerIdentity: {
+      alignItems: "center",
       alignSelf: "flex-start",
-      justifyContent: "center",
-      minHeight: 44,
-      minWidth: 44,
+      flexDirection: "row",
+      gap: spacing.xxs,
+      maxWidth: "100%",
+      minHeight: 28,
     },
     sellerName: {
       color: colors.text,
@@ -297,7 +313,8 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
       fontWeight: "900",
     },
     username: {
-      color: colors.weak,
+      color: colors.muted,
+      flexShrink: 1,
       fontSize: 11,
       fontWeight: "700",
       lineHeight: 16,
