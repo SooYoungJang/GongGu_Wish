@@ -5,6 +5,7 @@ import { withTiming } from "react-native-reanimated";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GroupBuy } from "../types";
+import type { GroupBuyReminderUpdate } from "../api";
 import {
   GroupBuyReminderPickerProvider,
   useGroupBuyReminderPicker,
@@ -13,6 +14,7 @@ import {
 const notificationMocks = vi.hoisted(() => ({
   enabled: false,
   reminderDays: [] as number[],
+  reminderPreference: null as GroupBuyReminderUpdate | null,
   setNotificationReminders: vi.fn(async () => ({ status: "enabled" })),
 }));
 const preferenceMocks = vi.hoisted(() => ({
@@ -25,10 +27,16 @@ const preferenceMocks = vi.hoisted(() => ({
 vi.mock("../hooks/useLocalDeals", () => ({
   useNotifications: () => ({
     getNotificationReminderDays: () => notificationMocks.reminderDays,
+    getNotificationReminderPreference: () =>
+      notificationMocks.reminderPreference,
     getNotificationState: () => ({ status: "idle" }),
     isNotifying: () => notificationMocks.enabled,
     setNotificationReminders: notificationMocks.setNotificationReminders,
   }),
+}));
+
+vi.mock("@expo/ui/datetimepicker", () => ({
+  default: (props: object) => <Text {...props}>time picker</Text>,
 }));
 
 vi.mock("./AuthContext", () => ({
@@ -84,12 +92,12 @@ const item: GroupBuy = {
   rawPost: { postUrl: "", influencer: { instagramUsername: "" } },
 };
 
-function PickerHarness() {
+function PickerHarness({ item: target = item }: { item?: GroupBuy }) {
   const { openReminderPicker } = useGroupBuyReminderPicker();
   return (
     <Text
       testID="open-reminder-picker"
-      onPress={() => openReminderPicker(item)}
+      onPress={() => openReminderPicker(target)}
     >
       open
     </Text>
@@ -100,6 +108,7 @@ describe("GroupBuyReminderPickerProvider", () => {
   beforeEach(() => {
     notificationMocks.enabled = false;
     notificationMocks.reminderDays = [];
+    notificationMocks.reminderPreference = null;
     notificationMocks.setNotificationReminders.mockClear();
     preferenceMocks.preferences.pushEnabled = true;
     preferenceMocks.preferences.deadlineRemindersEnabled = true;
@@ -187,7 +196,11 @@ describe("GroupBuyReminderPickerProvider", () => {
 
     expect(notificationMocks.setNotificationReminders).toHaveBeenCalledWith(
       item,
-      [2, 4],
+      {
+        type: "deadline",
+        reminderDays: [2, 4],
+        reminderTimeMinutes: null,
+      },
     );
   });
 
@@ -260,7 +273,64 @@ describe("GroupBuyReminderPickerProvider", () => {
 
     expect(notificationMocks.setNotificationReminders).toHaveBeenCalledWith(
       item,
-      [],
+      {
+        type: "deadline",
+        reminderDays: [],
+        reminderTimeMinutes: null,
+      },
+    );
+  });
+
+  it("restores opening days and the saved shared time before start", () => {
+    const openingItem = {
+      ...item,
+      startDate: "2099-12-30T00:00:00.000Z",
+    };
+    notificationMocks.enabled = true;
+    notificationMocks.reminderPreference = {
+      type: "opening",
+      reminderDays: [0, 3],
+      reminderTimeMinutes: 15 * 60 + 30,
+    };
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <GroupBuyReminderPickerProvider>
+          <PickerHarness item={openingItem} />
+        </GroupBuyReminderPickerProvider>,
+      );
+    });
+
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "open-reminder-picker" })
+        .props.onPress(),
+    );
+
+    expect(JSON.stringify(renderer!.toJSON())).toContain("공구 오픈 알림");
+    expect(
+      renderer!.root.findByProps({ testID: "group-buy-reminder-day-0" }).props
+        .accessibilityState.checked,
+    ).toBe(true);
+    const timePicker = renderer!.root.findByProps({
+      testID: "group-buy-opening-reminder-time",
+    });
+    expect(timePicker.props.value.getHours()).toBe(15);
+    expect(timePicker.props.value.getMinutes()).toBe(30);
+
+    act(() => {
+      renderer!.root
+        .findByProps({ testID: "group-buy-reminder-save" })
+        .props.onPress();
+    });
+
+    expect(notificationMocks.setNotificationReminders).toHaveBeenCalledWith(
+      openingItem,
+      {
+        type: "opening",
+        reminderDays: [0, 3],
+        reminderTimeMinutes: 15 * 60 + 30,
+      },
     );
   });
 });

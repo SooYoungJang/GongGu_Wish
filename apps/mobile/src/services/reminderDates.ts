@@ -1,8 +1,14 @@
 export const NOTIFICATION_REMINDER_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 export type NotificationReminderDay =
   (typeof NOTIFICATION_REMINDER_DAYS)[number];
+export const OPENING_REMINDER_DAYS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+export type OpeningReminderDay = (typeof OPENING_REMINDER_DAYS)[number];
 export const DEFAULT_NOTIFICATION_REMINDER_DAYS: readonly NotificationReminderDay[] =
   [1, 3, 7];
+export const DEFAULT_OPENING_REMINDER_TIME_MINUTES = 9 * 60;
+
+const SEOUL_UTC_OFFSET_MINUTES = 9 * 60;
+const DEADLINE_REMINDER_TIME_MINUTES = 9 * 60;
 
 const SEOUL_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Seoul",
@@ -17,6 +23,12 @@ export type GroupBuyReminderScheduleOptions = {
 
 export type GroupBuyReminderOption = {
   reminderDay: NotificationReminderDay;
+  triggerDate: Date;
+  available: boolean;
+};
+
+export type GroupBuyOpeningReminderOption = {
+  reminderDay: OpeningReminderDay;
   triggerDate: Date;
   available: boolean;
 };
@@ -38,6 +50,26 @@ function getSeoulCalendarDate(value: Date) {
     Number.isInteger(day)
     ? { year, month, day }
     : null;
+}
+
+function isValidReminderTimeMinutes(value: number) {
+  return Number.isInteger(value) && value >= 0 && value < 24 * 60;
+}
+
+function buildTriggerDate(
+  eventDate: { year: number; month: number; day: number },
+  reminderDay: number,
+  reminderTimeMinutes: number,
+) {
+  return new Date(
+    Date.UTC(
+      eventDate.year,
+      eventDate.month - 1,
+      eventDate.day - reminderDay,
+      0,
+      reminderTimeMinutes - SEOUL_UTC_OFFSET_MINUTES,
+    ),
+  );
 }
 
 export function buildGroupBuyReminderDates(
@@ -67,16 +99,60 @@ export function buildGroupBuyReminderOptions(
   const deadlineDate = getSeoulCalendarDate(deadline);
   if (!deadlineDate) return [];
   return NOTIFICATION_REMINDER_DAYS.map((reminderDay) => {
-    const triggerDate = new Date(
-      Date.UTC(
-        deadlineDate.year,
-        deadlineDate.month - 1,
-        deadlineDate.day - reminderDay,
-      ),
+    const triggerDate = buildTriggerDate(
+      deadlineDate,
+      reminderDay,
+      DEADLINE_REMINDER_TIME_MINUTES,
     );
     return {
       reminderDay,
-      // 09:00 Asia/Seoul is 00:00 UTC; Korea has no DST transitions.
+      triggerDate,
+      available: triggerDate.getTime() > now,
+    };
+  });
+}
+
+export function buildGroupBuyOpeningReminderDates(
+  startDate: string,
+  reminderDays: readonly number[],
+  reminderTimeMinutes: number,
+  options?: number | GroupBuyReminderScheduleOptions,
+) {
+  const selectedDays = new Set(reminderDays);
+  return buildGroupBuyOpeningReminderOptions(
+    startDate,
+    reminderTimeMinutes,
+    options,
+  )
+    .filter(
+      ({ reminderDay, available }) =>
+        available && selectedDays.has(reminderDay),
+    )
+    .map(({ reminderDay, triggerDate }) => ({ reminderDay, triggerDate }))
+    .sort(
+      (left, right) => left.triggerDate.getTime() - right.triggerDate.getTime(),
+    );
+}
+
+export function buildGroupBuyOpeningReminderOptions(
+  startDate: string,
+  reminderTimeMinutes: number,
+  options?: number | GroupBuyReminderScheduleOptions,
+): GroupBuyOpeningReminderOption[] {
+  if (!isValidReminderTimeMinutes(reminderTimeMinutes)) return [];
+  const now = resolveGroupBuyReminderScheduleOptions(options);
+  const opening = new Date(startDate);
+  if (Number.isNaN(opening.getTime())) return [];
+  const openingDate = getSeoulCalendarDate(opening);
+  if (!openingDate) return [];
+  return OPENING_REMINDER_DAYS.map((reminderDay) => {
+    const triggerDate = buildTriggerDate(
+      openingDate,
+      reminderDay,
+      reminderTimeMinutes,
+    );
+    return {
+      reminderDay,
       triggerDate,
       available: triggerDate.getTime() > now,
     };

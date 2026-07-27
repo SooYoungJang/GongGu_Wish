@@ -91,7 +91,7 @@ appId: com.gonggu.wish.preview
 - tapOn:
     id: "group-buy-reminder-button-.*"
 - assertVisible:
-    text: "마감 알림"
+    text: "공구 마감 알림"
 - assertVisible:
     id: "group-buy-reminder-day-7"
 - assertVisible:
@@ -114,4 +114,4 @@ appId: com.gonggu.wish.preview
 - tapOn:
     id: "group-buy-reminder-save"
 - assertNotVisible:
-    text: "마감 알림"
+    text: "공구 마감 알림"

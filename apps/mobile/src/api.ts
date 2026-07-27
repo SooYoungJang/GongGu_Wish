@@ -474,12 +474,38 @@ export async function syncBookmark(
  * enabled=true inserts, enabled=false deletes by (group_buy_id, session_id).
  */
 export type GroupBuyReminderDay = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type GroupBuyOpeningReminderDay = 0 | GroupBuyReminderDay;
 
-export type GroupBuyReminderPreference = {
+type GroupBuyReminderPreferenceBase = {
   groupBuyId: string;
-  reminderDays: GroupBuyReminderDay[];
   updatedAt: string;
 };
+
+export type GroupBuyReminderPreference = GroupBuyReminderPreferenceBase &
+  (
+    | {
+        type: "opening";
+        reminderDays: GroupBuyOpeningReminderDay[];
+        reminderTimeMinutes: number;
+      }
+    | {
+        type: "deadline";
+        reminderDays: GroupBuyReminderDay[];
+        reminderTimeMinutes: null;
+      }
+  );
+
+export type GroupBuyReminderUpdate =
+  | {
+      type: "opening";
+      reminderDays: readonly GroupBuyOpeningReminderDay[];
+      reminderTimeMinutes: number;
+    }
+  | {
+      type: "deadline";
+      reminderDays: readonly GroupBuyReminderDay[];
+      reminderTimeMinutes: null;
+    };
 
 export type GroupBuyReminderSyncResult =
   | { status: "synced"; preference: GroupBuyReminderPreference | null }
@@ -490,6 +516,10 @@ type GroupBuyReminderRow = {
   groupBuyId?: unknown;
   reminder_days?: unknown;
   reminderDays?: unknown;
+  reminder_type?: unknown;
+  reminderType?: unknown;
+  reminder_time_minutes?: unknown;
+  reminderTimeMinutes?: unknown;
   updated_at?: unknown;
   updatedAt?: unknown;
 };
@@ -506,6 +536,26 @@ function normalizeGroupBuyReminderRow(
     : value.reminder_days;
   const updatedAt =
     typeof value.updatedAt === "string" ? value.updatedAt : value.updated_at;
+  const reminderTypeValue =
+    typeof value.reminderType === "string"
+      ? value.reminderType
+      : value.reminder_type;
+  const normalizedReminderType =
+    typeof reminderTypeValue === "string"
+      ? reminderTypeValue.toUpperCase()
+      : "DEADLINE";
+  if (
+    normalizedReminderType !== "OPENING" &&
+    normalizedReminderType !== "DEADLINE"
+  ) {
+    return null;
+  }
+  const reminderType =
+    normalizedReminderType === "OPENING" ? "opening" : "deadline";
+  const reminderTimeMinutes =
+    typeof value.reminderTimeMinutes === "number"
+      ? value.reminderTimeMinutes
+      : value.reminder_time_minutes;
   if (
     typeof groupBuyId !== "string" ||
     typeof updatedAt !== "string" ||
@@ -513,17 +563,36 @@ function normalizeGroupBuyReminderRow(
   ) {
     return null;
   }
-  const allowed = new Set<number>([1, 2, 3, 4, 5, 6, 7]);
+  const allowed = new Set<number>(
+    reminderType === "opening"
+      ? [0, 1, 2, 3, 4, 5, 6, 7]
+      : [1, 2, 3, 4, 5, 6, 7],
+  );
   const reminderDays = [...new Set(reminderDaysValue)]
-    .filter(
-      (day): day is GroupBuyReminderDay =>
-        typeof day === "number" && allowed.has(day),
-    )
+    .filter((day): day is number => typeof day === "number" && allowed.has(day))
     .sort((left, right) => left - right);
   if (reminderDays.length === 0) return null;
+  if (reminderType === "opening") {
+    if (
+      !Number.isInteger(reminderTimeMinutes) ||
+      Number(reminderTimeMinutes) < 0 ||
+      Number(reminderTimeMinutes) >= 24 * 60
+    ) {
+      return null;
+    }
+    return {
+      groupBuyId,
+      type: "opening",
+      reminderDays: reminderDays as GroupBuyOpeningReminderDay[],
+      reminderTimeMinutes: Number(reminderTimeMinutes),
+      updatedAt,
+    };
+  }
   return {
     groupBuyId,
-    reminderDays,
+    type: "deadline",
+    reminderDays: reminderDays as GroupBuyReminderDay[],
+    reminderTimeMinutes: null,
     updatedAt,
   };
 }
@@ -533,7 +602,7 @@ export async function fetchNotificationReminders(): Promise<
 > {
   try {
     const rows = await postgrestPost<GroupBuyReminderRow[]>(
-      "rpc/get_my_group_buy_reminders",
+      "rpc/get_my_group_buy_reminders_v2",
       {},
     );
     return (Array.isArray(rows) ? rows : [])
@@ -550,23 +619,47 @@ export async function fetchNotificationReminders(): Promise<
 
 export async function syncNotification(
   groupBuyId: string,
-  reminderDays: readonly GroupBuyReminderDay[] | boolean,
+  reminder: GroupBuyReminderUpdate | readonly GroupBuyReminderDay[] | boolean,
 ): Promise<GroupBuyReminderSyncResult> {
-  const requestedDays =
-    reminderDays === true
-      ? ([1, 3, 7] as const)
-      : reminderDays === false
-        ? []
-        : reminderDays;
-  const normalizedDays = [...new Set(requestedDays)].sort(
-    (left, right) => left - right,
+  const update: GroupBuyReminderUpdate =
+    typeof reminder === "boolean" || Array.isArray(reminder)
+      ? {
+          type: "deadline",
+          reminderDays:
+            reminder === true
+              ? ([1, 3, 7] as const)
+              : reminder === false
+                ? []
+                : (reminder as readonly GroupBuyReminderDay[]),
+          reminderTimeMinutes: null,
+        }
+      : (reminder as GroupBuyReminderUpdate);
+  if (
+    update.type === "opening" &&
+    (!Number.isInteger(update.reminderTimeMinutes) ||
+      update.reminderTimeMinutes < 0 ||
+      update.reminderTimeMinutes >= 24 * 60)
+  ) {
+    return { status: "failed" };
+  }
+  const allowedDays = new Set<number>(
+    update.type === "opening"
+      ? [0, 1, 2, 3, 4, 5, 6, 7]
+      : [1, 2, 3, 4, 5, 6, 7],
   );
+  const requestedDays = update.reminderDays;
+  const normalizedDays = [...new Set(requestedDays)]
+    .sort((left, right) => left - right)
+    .filter((day) => allowedDays.has(day));
   try {
     const rows = await postgrestPost<GroupBuyReminderRow[]>(
-      "rpc/set_my_group_buy_reminder",
+      "rpc/set_my_group_buy_reminder_v2",
       {
         p_group_buy_id: groupBuyId,
+        p_reminder_type: update.type.toUpperCase(),
         p_reminder_days: normalizedDays,
+        p_reminder_time_minutes:
+          update.type === "opening" ? update.reminderTimeMinutes : null,
       },
     );
     return {

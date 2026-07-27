@@ -129,7 +129,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Test CI change and release policy
-        run: node --test scripts/ci-change-plan.test.mjs scripts/preview-release-contract.test.mjs
+        run: >-
+          node --test
+          scripts/ci-change-plan.test.mjs
+          scripts/opening-reminder-contract.test.mjs
+          scripts/preview-release-contract.test.mjs
       - name: Classify changed files
         id: plan
         env:

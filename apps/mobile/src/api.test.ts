@@ -445,7 +445,7 @@ describe("public data fetch diagnostics", () => {
     ).rejects.toThrow("제품명은 2자 이상 필수입니다.");
   });
 
-  it("replaces authenticated reminder days through the owner-only RPC", async () => {
+  it("replaces authenticated opening reminders through the owner-only v2 RPC", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -453,17 +453,27 @@ describe("public data fetch diagnostics", () => {
       json: async () => [
         {
           group_buy_id: "group-buy-1",
-          reminder_days: [2, 6],
+          reminder_type: "OPENING",
+          reminder_days: [0, 2, 6],
+          reminder_time_minutes: 15 * 60 + 30,
           updated_at: "2026-07-26T01:00:00.000Z",
         },
       ],
     }) as unknown as typeof fetch;
 
-    await expect(syncNotification("group-buy-1", [6, 2, 6])).resolves.toEqual({
+    await expect(
+      syncNotification("group-buy-1", {
+        type: "opening",
+        reminderDays: [6, 0, 2, 6],
+        reminderTimeMinutes: 15 * 60 + 30,
+      }),
+    ).resolves.toEqual({
       status: "synced",
       preference: {
         groupBuyId: "group-buy-1",
-        reminderDays: [2, 6],
+        type: "opening",
+        reminderDays: [0, 2, 6],
+        reminderTimeMinutes: 15 * 60 + 30,
         updatedAt: "2026-07-26T01:00:00.000Z",
       },
     });
@@ -471,15 +481,17 @@ describe("public data fetch diagnostics", () => {
     const [requestUrl, requestInit] =
       vi.mocked(global.fetch).mock.calls[0] ?? [];
     expect(String(requestUrl)).toContain(
-      "/rest/v1/rpc/set_my_group_buy_reminder",
+      "/rest/v1/rpc/set_my_group_buy_reminder_v2",
     );
     expect(JSON.parse(String((requestInit as RequestInit).body))).toEqual({
       p_group_buy_id: "group-buy-1",
-      p_reminder_days: [2, 6],
+      p_reminder_type: "OPENING",
+      p_reminder_days: [0, 2, 6],
+      p_reminder_time_minutes: 15 * 60 + 30,
     });
   });
 
-  it("loads and maps authenticated reminder intent", async () => {
+  it("loads and maps authenticated opening and deadline reminder intents", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -487,8 +499,24 @@ describe("public data fetch diagnostics", () => {
       json: async () => [
         {
           group_buy_id: "group-buy-1",
-          reminder_days: [3],
+          reminder_type: "OPENING",
+          reminder_days: [0, 3],
+          reminder_time_minutes: 9 * 60 + 15,
           updated_at: "2026-07-26T01:00:00.000Z",
+        },
+        {
+          group_buy_id: "group-buy-2",
+          reminder_type: "DEADLINE",
+          reminder_days: [3],
+          reminder_time_minutes: null,
+          updated_at: "2026-07-26T02:00:00.000Z",
+        },
+        {
+          group_buy_id: "group-buy-invalid",
+          reminder_type: "UNKNOWN",
+          reminder_days: [1],
+          reminder_time_minutes: null,
+          updated_at: "2026-07-26T03:00:00.000Z",
         },
       ],
     }) as unknown as typeof fetch;
@@ -496,10 +524,23 @@ describe("public data fetch diagnostics", () => {
     await expect(fetchNotificationReminders()).resolves.toEqual([
       {
         groupBuyId: "group-buy-1",
-        reminderDays: [3],
+        type: "opening",
+        reminderDays: [0, 3],
+        reminderTimeMinutes: 9 * 60 + 15,
         updatedAt: "2026-07-26T01:00:00.000Z",
       },
+      {
+        groupBuyId: "group-buy-2",
+        type: "deadline",
+        reminderDays: [3],
+        reminderTimeMinutes: null,
+        updatedAt: "2026-07-26T02:00:00.000Z",
+      },
     ]);
+
+    expect(String(vi.mocked(global.fetch).mock.calls[0]?.[0])).toContain(
+      "/rest/v1/rpc/get_my_group_buy_reminders_v2",
+    );
   });
 
   it("reports a retryable failure when a reminder mirror cannot sync", async () => {

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   getAvailableReminderDays,
+  getInitialOpeningReminderDays,
   getInitialReminderDays,
+  getReminderPickerMode,
 } from "./groupBuyReminderPicker";
 
 describe("group-buy reminder picker", () => {
@@ -32,5 +34,29 @@ describe("group-buy reminder picker", () => {
         Date.parse("2026-07-20T00:00:00.000Z"),
       ),
     ).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("uses opening reminders only while a valid start date is in the future", () => {
+    const now = Date.parse("2026-07-20T00:00:00.000Z");
+
+    expect(getReminderPickerMode("2026-07-20T00:00:00.001Z", now)).toBe(
+      "opening",
+    );
+    expect(getReminderPickerMode("2026-07-20T00:00:00.000Z", now)).toBe(
+      "deadline",
+    );
+    expect(getReminderPickerMode("invalid", now)).toBe("deadline");
+    expect(getReminderPickerMode(null, now)).toBe("deadline");
+  });
+
+  it("restores D-day opening reminders using the selected common time", () => {
+    expect(
+      getInitialOpeningReminderDays(
+        "2026-07-27T00:00:00.000Z",
+        [0, 6, 7],
+        15 * 60 + 30,
+        Date.parse("2026-07-20T06:30:00.000Z"),
+      ),
+    ).toEqual([0, 6]);
   });
 });
