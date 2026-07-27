@@ -68,6 +68,7 @@ test("Android notification runtime covers consent, deep links, and persistence",
     ".maestro/gon-229-notification-preferences.yaml",
   );
   const runner = read("scripts/run-gon229-android-notifications.sh");
+  const expoConfig = read("apps/mobile/app.config.js");
   const windowsBuild = read("scripts/android-build-install.ps1");
   const orchestrator = read("scripts/run-gon263-android-e2e.sh");
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
@@ -116,7 +117,11 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(flow, /id: "group-buy-reminder-day-1"/);
   assert.match(flow, /text: "@gon263_price ×"/);
   assert.match(runner, /android\.intent\.action\.VIEW/);
-  assert.match(runner, /gongguwish:\/\/group-buy\/gon263-e2e-price-200000/);
+  assert.match(expoConfig, /preview:[\s\S]*?scheme: "gongguwish-preview"/);
+  assert.match(
+    runner,
+    /gongguwish-preview:\/\/group-buy\/gon263-e2e-price-200000/,
+  );
   assert.doesNotMatch(runner, /statusbar expand-notifications/);
   assert.match(runner, /auth\/v1\/signup/);
   assert.match(runner, /gon229\.e2e@example\.com/);
