@@ -41,7 +41,7 @@ tap_status=1
 if [[ "$preferences_status" -eq 0 ]]; then
   adb shell am start -W \
     -a android.intent.action.VIEW \
-    -d "gongguwish://group-buy/gon263-e2e-price-200000" \
+    -d "gongguwish-preview://group-buy/gon263-e2e-price-200000" \
     com.gonggu.wish.preview \
     | tee "$artifact_dir/gon229-deep-link-launch.txt"
   sleep 2
