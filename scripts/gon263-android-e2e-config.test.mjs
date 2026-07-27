@@ -60,6 +60,15 @@ test("canonical detail checks scroll the exact seeded price into view", () => {
   assert.equal(flow.split(priceCheck).length - 1, 2);
 });
 
+test("ranking evidence centers the Instagram seller footer above the GNB", () => {
+  const flow = read(".maestro/gon-263-critical-journeys.yaml");
+
+  assert.match(
+    flow,
+    /scrollUntilVisible:[\s\S]*?id: "ranking-row-seller-4"[\s\S]*?centerElement: true[\s\S]*?takeScreenshot: gon263-critical-02b-ranking-row-4/,
+  );
+});
+
 test("Android E2E config plugin enables cleartext only in generated manifest", () => {
   const appConfig = require("../apps/mobile/app.config.js");
   const manifest = { manifest: { application: [{ $: {} }] } };
