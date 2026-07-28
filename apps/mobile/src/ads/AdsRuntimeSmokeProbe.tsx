@@ -18,12 +18,21 @@ export function AdsRuntimeSmokeProbe() {
   return (
     <View style={styles.overlay} testID="ads-runtime-smoke">
       <Text style={styles.title}>Google Mobile Ads runtime smoke</Text>
-      <Text style={styles.status}>Waiting for an official test ad…</Text>
-      <NativeAdCard
-        placement="home"
-        style={styles.ad}
-        testID="ads-runtime-smoke-ad"
-      />
+      <Text style={styles.status}>Waiting for official test ads…</Text>
+      <View style={styles.ads}>
+        <NativeAdCard
+          placement="home"
+          style={styles.ad}
+          testID="ads-runtime-smoke-home-ad"
+          variant="row"
+        />
+        <NativeAdCard
+          placement="reels"
+          style={styles.ad}
+          testID="ads-runtime-smoke-reels-ad"
+          variant="row"
+        />
+      </View>
     </View>
   );
 }
@@ -31,6 +40,10 @@ export function AdsRuntimeSmokeProbe() {
 const styles = StyleSheet.create({
   ad: {
     alignSelf: "stretch",
+  },
+  ads: {
+    alignSelf: "stretch",
+    gap: 12,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,

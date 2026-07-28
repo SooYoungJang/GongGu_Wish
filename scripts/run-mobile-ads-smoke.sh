@@ -31,7 +31,9 @@ for attempt in $(seq 1 120); do
     > "$artifact_dir/ads-logcat-current.txt"
   if grep -F '"event":"initialization_ready"' \
       "$artifact_dir/ads-logcat-current.txt" >/dev/null \
-    && grep -F '"event":"native_ad_loaded"' \
+    && grep -F '"event":"native_ad_loaded","placement":"home"' \
+      "$artifact_dir/ads-logcat-current.txt" >/dev/null \
+    && grep -F '"event":"native_ad_loaded","placement":"reels"' \
       "$artifact_dir/ads-logcat-current.txt" >/dev/null; then
     sleep 2
     capture_evidence
@@ -47,5 +49,5 @@ for attempt in $(seq 1 120); do
   sleep 1
 done
 
-echo "Timed out waiting for the official Google native test ad" >&2
+echo "Timed out waiting for both official Google native test ads" >&2
 exit 1
