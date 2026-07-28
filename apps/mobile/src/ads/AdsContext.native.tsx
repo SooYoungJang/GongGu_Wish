@@ -18,9 +18,12 @@ import {
 import {
   createGoogleMobileAdsController,
   type AdsInitializationState,
-  type GoogleMobileAdsController,
 } from "./initializeMobileAds";
 import type { AdsContextValue } from "./AdsContext.types";
+import {
+  createAdsControllerLoader,
+  initializeAdsWithRetry,
+} from "./loadAdsController";
 import { getGoogleMobileAdsModule } from "./loadGoogleMobileAds";
 
 export type { AdsContextValue } from "./AdsContext.types";
@@ -85,11 +88,9 @@ function normalizeAdsMode(mode?: string): AdsMode {
 
 export const AdsContext = createContext<AdsContextValue>(disabledAds);
 
-let adsControllerPromise: Promise<GoogleMobileAdsController | null> | null =
-  null;
-
-function getAdsController(): Promise<GoogleMobileAdsController | null> {
-  adsControllerPromise ??= getGoogleMobileAdsModule().then((module) => {
+const getAdsController = createAdsControllerLoader({
+  loadController: async () => {
+    const module = await getGoogleMobileAdsModule();
     if (!module) return null;
     return createGoogleMobileAdsController({
       gatherConsent: () => module.AdsConsent.gatherConsent(),
@@ -97,9 +98,13 @@ function getAdsController(): Promise<GoogleMobileAdsController | null> {
       showPrivacyOptionsForm: () => module.AdsConsent.showPrivacyOptionsForm(),
       initialize: () => module.default().initialize(),
     });
+  },
+});
+
+const waitForAdsRetry = () =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, 500);
   });
-  return adsControllerPromise;
-}
 
 export function AdsProvider({
   adAccessResolved = true,
@@ -155,12 +160,10 @@ export function AdsProvider({
 
     let mounted = true;
     setState((current) => ({ ...current, isReady: false, isSettled: false }));
-    void getAdsController()
-      .then((controller) =>
-        controller
-          ? controller.initialize()
-          : { isReady: false, privacyOptionsRequired: false },
-      )
+    void initializeAdsWithRetry({
+      loadController: getAdsController,
+      waitForRetry: waitForAdsRetry,
+    })
       .then((nextState) => {
         if (mounted) setState({ ...nextState, isSettled: true });
       })
