@@ -30,8 +30,8 @@ function isConsentInfo(value: unknown): value is ConsentInfo {
   const candidate = value as Partial<ConsentInfo>;
   return (
     typeof candidate.canRequestAds === "boolean" &&
-    (candidate.privacyOptionsRequirementStatus === "REQUIRED" ||
-      candidate.privacyOptionsRequirementStatus === "NOT_REQUIRED")
+    (candidate.privacyOptionsRequirementStatus === undefined ||
+      typeof candidate.privacyOptionsRequirementStatus === "string")
   );
 }
 

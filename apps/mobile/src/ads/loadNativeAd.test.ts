@@ -18,4 +18,21 @@ describe("loadNativeAdWithRetry", () => {
     expect(load).toHaveBeenCalledTimes(2);
     expect(waitForRetry).toHaveBeenCalledWith(1);
   });
+
+  it("normalizes an invalid attempt limit to one bounded request", async () => {
+    const error = new Error("request failed");
+    const load = vi.fn(async () => {
+      throw error;
+    });
+
+    await expect(
+      loadNativeAdWithRetry({
+        load,
+        maxAttempts: Number.NaN,
+        waitForRetry: vi.fn(async () => undefined),
+      }),
+    ).rejects.toBe(error);
+
+    expect(load).toHaveBeenCalledOnce();
+  });
 });

@@ -75,7 +75,9 @@ export async function loadNativeAdWithRetry<T>({
   waitForRetry: (attempt: number) => Promise<void>;
 }): Promise<T> {
   let lastError: unknown;
-  const attemptLimit = Math.max(1, Math.trunc(maxAttempts));
+  const attemptLimit = Number.isFinite(maxAttempts)
+    ? Math.max(1, Math.trunc(maxAttempts))
+    : 1;
 
   for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
     try {

@@ -4,7 +4,10 @@ import { createGoogleMobileAdsController } from "./initializeMobileAds";
 
 const consent = (
   canRequestAds: boolean,
-  privacyOptionsRequirementStatus: "REQUIRED" | "NOT_REQUIRED" = "NOT_REQUIRED",
+  privacyOptionsRequirementStatus:
+    | "REQUIRED"
+    | "NOT_REQUIRED"
+    | "UNKNOWN" = "NOT_REQUIRED",
 ) => ({ canRequestAds, privacyOptionsRequirementStatus });
 
 describe("createGoogleMobileAdsController", () => {
@@ -67,7 +70,7 @@ describe("createGoogleMobileAdsController", () => {
   it("uses the refreshed consent returned by gatherConsent", async () => {
     const initialize = vi.fn(async () => undefined);
     const controller = createGoogleMobileAdsController({
-      gatherConsent: vi.fn(async () => consent(true)),
+      gatherConsent: vi.fn(async () => consent(true, "UNKNOWN")),
       getConsentInfo: vi.fn(async () => {
         throw new Error("consent storage unavailable");
       }),
