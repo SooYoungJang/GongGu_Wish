@@ -220,6 +220,10 @@ web3 = 30
 [functions.process-notification-outbox]
 [functions.health]
 [functions.refresh-instagram-media]
+# The function accepts user JWTs, service-role calls, and a Vault-backed cron
+# secret. JWT verification is performed inside the handler so cron can use its
+# non-JWT credential; unauthenticated requests are rejected there.
+verify_jwt = false
 [functions.seller-rankings]
 # Rankings expose only the same approved rows available through public
 # PostgREST. Mobile callers may be signed out, so no user JWT is required.

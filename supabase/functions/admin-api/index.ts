@@ -7,6 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
+import { isInstagramCdnUrl } from "../_shared/hiker-instagram-audio.ts";
 import {
   normalizeCommercePatch,
   normalizePersistedPriceKrw,
@@ -70,6 +71,10 @@ const SUBMISSION_SELECT = `
   instagram_url,
   image_urls,
   media_items,
+  post_audio_url,
+  post_audio_start_time_ms,
+  post_audio_duration_ms,
+  post_audio_checked_at,
   reporter_name,
   reporter_contact,
   is_anonymous,
@@ -103,6 +108,10 @@ const GROUP_BUY_SELECT = `
   media_urls,
   media_items,
   media_type,
+  post_audio_url,
+  post_audio_start_time_ms,
+  post_audio_duration_ms,
+  post_audio_checked_at,
   confidence,
   status,
   source_type,
@@ -258,6 +267,70 @@ function normalizeMediaUrls(value: unknown): string[] {
     : [];
 }
 
+function normalizePostAudioUrl(value: unknown): string | null {
+  const url = str(value);
+  if (!url) return null;
+  if (!isInstagramCdnUrl(url)) {
+    throw new Error("postAudioUrl must be an HTTPS Instagram CDN URL.");
+  }
+  return url;
+}
+
+function normalizePostAudioInteger(
+  value: unknown,
+  fieldName: string,
+  allowZero: boolean,
+): number | null {
+  if (
+    value === null ||
+    value === undefined ||
+    (typeof value === "string" && value.trim() === "")
+  ) {
+    return null;
+  }
+  const parsed = typeof value === "number" ? value : Number(value);
+  const minimum = allowZero ? 0 : 1;
+  if (!Number.isSafeInteger(parsed) || parsed < minimum) {
+    throw new Error(
+      `${fieldName} must be ${allowZero ? "non-negative" : "positive"}.`,
+    );
+  }
+  return parsed;
+}
+
+export function normalizePostAudioPatch(body: Record<string, unknown>) {
+  const urlTouched = hasOwn(body, "postAudioUrl");
+  const startTouched = hasOwn(body, "postAudioStartTimeMs");
+  const durationTouched = hasOwn(body, "postAudioDurationMs");
+  if (!urlTouched && !startTouched && !durationTouched) return {};
+
+  const patch: Record<string, unknown> = {
+    post_audio_checked_at: new Date().toISOString(),
+  };
+  if (urlTouched) {
+    patch.post_audio_url = normalizePostAudioUrl(body.postAudioUrl);
+  }
+  if (startTouched) {
+    patch.post_audio_start_time_ms = normalizePostAudioInteger(
+      body.postAudioStartTimeMs,
+      "postAudioStartTimeMs",
+      true,
+    );
+  }
+  if (durationTouched) {
+    patch.post_audio_duration_ms = normalizePostAudioInteger(
+      body.postAudioDurationMs,
+      "postAudioDurationMs",
+      false,
+    );
+  }
+  if (patch.post_audio_url === null) {
+    patch.post_audio_start_time_ms = null;
+    patch.post_audio_duration_ms = null;
+  }
+  return patch;
+}
+
 function normalizeSubmissionPatch(
   body: Record<string, unknown>,
   existing: Record<string, unknown>,
@@ -284,6 +357,7 @@ function normalizeSubmissionPatch(
   if (hasOwn(body, "mediaItems"))
     patch.media_items = normalizeMediaItems(body.mediaItems);
   if (hasOwn(body, "adminMemo")) patch.admin_memo = str(body.adminMemo);
+  Object.assign(patch, normalizePostAudioPatch(body));
   Object.assign(patch, normalizeCommercePatch(body, existing));
 
   return patch;
@@ -326,6 +400,7 @@ function normalizeGroupBuyPatch(
       body.monthlyFeaturedRank,
     );
   }
+  Object.assign(patch, normalizePostAudioPatch(body));
   Object.assign(patch, normalizeCommercePatch(body, existing));
 
   return patch;
@@ -376,6 +451,9 @@ function mapSubmission(
     instagramUrl: row.instagram_url,
     imageUrls: row.image_urls ?? [],
     mediaItems: row.media_items ?? [],
+    postAudioUrl: row.post_audio_url,
+    postAudioStartTimeMs: row.post_audio_start_time_ms,
+    postAudioDurationMs: row.post_audio_duration_ms,
     reporterName: row.reporter_name,
     reporterContact: row.reporter_contact,
     isAnonymous: row.is_anonymous,
@@ -412,6 +490,9 @@ function mapGroupBuy(row: Record<string, unknown>) {
     mediaUrls: row.media_urls ?? [],
     mediaItems: row.media_items ?? [],
     mediaType: row.media_type,
+    postAudioUrl: row.post_audio_url,
+    postAudioStartTimeMs: row.post_audio_start_time_ms,
+    postAudioDurationMs: row.post_audio_duration_ms,
     confidence: row.confidence,
     status: row.status,
     sourceType: row.source_type,
@@ -662,6 +743,18 @@ async function approveSubmission(
       ? normalizeMediaItems(body.mediaItems)
       : existing.media_items,
     media_type: str(body.mediaType),
+    post_audio_url: hasOwn(patch, "post_audio_url")
+      ? patch.post_audio_url
+      : existing.post_audio_url,
+    post_audio_start_time_ms: hasOwn(patch, "post_audio_start_time_ms")
+      ? patch.post_audio_start_time_ms
+      : existing.post_audio_start_time_ms,
+    post_audio_duration_ms: hasOwn(patch, "post_audio_duration_ms")
+      ? patch.post_audio_duration_ms
+      : existing.post_audio_duration_ms,
+    post_audio_checked_at: hasOwn(patch, "post_audio_checked_at")
+      ? patch.post_audio_checked_at
+      : existing.post_audio_checked_at,
     is_all_day: hasOwn(body, "isAllDay") ? bool(body.isAllDay) : false,
     is_monthly_featured: hasOwn(body, "isMonthlyFeatured")
       ? bool(body.isMonthlyFeatured)
@@ -1093,7 +1186,7 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   throw new Error(`Unknown route: ${method} ${path}`);
 }
 
-serve(async (req: Request) => {
+export async function handler(req: Request) {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
   }
@@ -1126,4 +1219,6 @@ serve(async (req: Request) => {
     console.error("[admin-api] Error:", message);
     return json({ error: message }, 500);
   }
-});
+}
+
+if (import.meta.main) serve(handler);

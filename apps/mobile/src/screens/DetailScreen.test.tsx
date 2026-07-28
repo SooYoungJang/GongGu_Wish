@@ -1,6 +1,10 @@
 const videoMock = vi.hoisted(() => ({
   players: [] as any[],
 }));
+const audioMock = vi.hoisted(() => ({
+  players: [] as any[],
+  setAudioModeAsync: vi.fn(async () => undefined),
+}));
 const appStateMock = vi.hoisted(() => ({
   currentState: "active",
   listener: null as null | ((nextState: string) => void),
@@ -25,6 +29,7 @@ const hardwareBackMock = vi.hoisted(() => ({
 }));
 const platformMock = vi.hoisted(() => ({ os: "ios" }));
 const logDeepViewMock = vi.hoisted(() => vi.fn());
+const refreshGroupBuyMediaMock = vi.hoisted(() => vi.fn());
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
   linkedGroupBuy: undefined as any,
@@ -182,6 +187,53 @@ vi.mock("expo-video", () => ({
   },
 }));
 
+vi.mock("expo-audio", () => ({
+  setAudioModeAsync: audioMock.setAudioModeAsync,
+  useAudioPlayer: (source: any, options?: any) => {
+    const ReactMock = require("react");
+    const playerRef = ReactMock.useRef(null as any);
+    if (!playerRef.current) {
+      const player = {
+        source,
+        options,
+        loop: false,
+        muted: false,
+        volume: 1,
+        play: vi.fn(),
+        pause: vi.fn(),
+        seekTo: vi.fn(async () => undefined),
+        currentStatus: {
+          id: `audio-${audioMock.players.length + 1}`,
+          currentTime: 0,
+          duration: 120,
+          error: null,
+          isBuffering: false,
+          isLoaded: Boolean(source),
+          playbackState: source ? "ready" : "idle",
+          playing: false,
+        },
+      };
+      player.play.mockImplementation(() => {
+        player.currentStatus.playing = true;
+      });
+      player.pause.mockImplementation(() => {
+        player.currentStatus.playing = false;
+      });
+      audioMock.players.push(player);
+      playerRef.current = player;
+    } else if (playerRef.current.source !== source) {
+      playerRef.current.source = source;
+      playerRef.current.currentStatus.currentTime = 0;
+      playerRef.current.currentStatus.isLoaded = Boolean(source);
+      playerRef.current.currentStatus.playbackState = source ? "ready" : "idle";
+      playerRef.current.currentStatus.playing = false;
+    }
+    playerRef.current.options = options;
+    return playerRef.current;
+  },
+  useAudioPlayerStatus: (player: any) => player.currentStatus,
+}));
+
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey?: unknown[] }) =>
     options.queryKey?.[0] === "group-buy"
@@ -205,6 +257,7 @@ vi.mock("../api", () => ({
   fetchGroupBuyById: vi.fn(),
   fetchGroupBuys: vi.fn(),
   logDeepView: logDeepViewMock,
+  refreshGroupBuyMedia: refreshGroupBuyMediaMock,
 }));
 
 vi.mock("@shopify/flash-list", () => {
@@ -655,7 +708,11 @@ beforeEach(() => {
   platformMock.os = "ios";
   logDeepViewMock.mockReset();
   logDeepViewMock.mockResolvedValue(undefined);
+  refreshGroupBuyMediaMock.mockReset();
+  refreshGroupBuyMediaMock.mockRejectedValue(new Error("refresh unavailable"));
   videoMock.players = [];
+  audioMock.players = [];
+  audioMock.setAudioModeAsync.mockClear();
   queryMock.groupBuys = undefined;
   queryMock.linkedGroupBuy = undefined;
   queryMock.linkedIsError = false;
@@ -2766,6 +2823,427 @@ describe("DetailScreen video playback", () => {
     expect(videoMock.players[0]?.volume).toBe(1);
     expect(videoMock.players[0]?.audioMixingMode).toBe("doNotMix");
     expect(videoMock.players[0]?.play).toHaveBeenCalled();
+  });
+
+  it("plays post music from its segment and prioritizes it over embedded video audio", async () => {
+    const postAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/carousel-track.m4a";
+    const videoUrl =
+      "https://scontent-test.cdninstagram.com/video/carousel-slide.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [videoUrl],
+      mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+      mediaType: "VIDEO",
+      postAudioUrl,
+      postAudioStartTimeMs: 12_000,
+      postAudioDurationMs: 30_000,
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === postAudioUrl,
+    );
+    expect(audioPlayer).toBeDefined();
+    expect(audioPlayer.options).toMatchObject({ updateInterval: 250 });
+    expect(audioPlayer.seekTo).toHaveBeenCalledWith(12);
+    expect(audioPlayer.play).toHaveBeenCalled();
+    expect(audioPlayer.muted).toBe(false);
+    expect(audioMock.setAudioModeAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+      }),
+    );
+    expect(
+      videoMock.players.some(
+        (player) =>
+          player.muted === true && player.audioMixingMode === "mixWithOthers",
+      ),
+    ).toBe(true);
+
+    const postAudioMuteButton = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "게시물 음악 음소거",
+    );
+    act(() => {
+      postAudioMuteButton.props.onPress();
+    });
+    expect(audioPlayer.muted).toBe(true);
+    expect(
+      renderer!.root.find(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === "게시물 음악 음소거 해제",
+      ),
+    ).toBeDefined();
+  });
+
+  it("pauses and resumes post music with the visible video playback control", async () => {
+    const postAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/controlled-track.m4a";
+    const videoUrl =
+      "https://scontent-test.cdninstagram.com/video/controlled-video.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [videoUrl],
+      mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+      mediaType: "VIDEO",
+      postAudioUrl,
+      postAudioStartTimeMs: 0,
+      postAudioDurationMs: null,
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+      await Promise.resolve();
+    });
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === postAudioUrl,
+    );
+    audioPlayer.pause.mockClear();
+    audioPlayer.play.mockClear();
+
+    act(() => {
+      renderer!.root.find(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === "동영상 컨트롤 표시",
+      ).props.onPress();
+    });
+    act(() => {
+      renderer!.root.find(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === "동영상 일시정지",
+      ).props.onPress();
+    });
+    expect(audioPlayer.pause).toHaveBeenCalled();
+
+    await act(async () => {
+      renderer!.root.find(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === "동영상 재생",
+      ).props.onPress();
+      await Promise.resolve();
+    });
+    expect(audioPlayer.play).toHaveBeenCalled();
+  });
+
+  it("keeps post music on image posts and pauses it when playback becomes inactive", async () => {
+    const postAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/image-post-track.m4a";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      mediaType: "IMAGE",
+      mediaUrls: ["https://cdn.example.com/image-post.jpg"],
+      mediaItems: [
+        {
+          url: "https://cdn.example.com/image-post.jpg",
+          mediaType: "IMAGE",
+        },
+      ],
+      videoUrl: null,
+      postAudioUrl,
+      postAudioStartTimeMs: 0,
+      postAudioDurationMs: null,
+    };
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === postAudioUrl,
+    );
+    expect(audioPlayer).toBeDefined();
+    expect(audioPlayer.play).toHaveBeenCalled();
+    expect(audioPlayer.loop).toBe(true);
+    expect(
+      renderer!.root.findAll((node) => String(node.type) === "VideoView"),
+    ).toHaveLength(0);
+
+    audioPlayer.pause.mockClear();
+    playbackLifecycleMock.isAppActive = false;
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+    });
+    expect(audioPlayer.pause).toHaveBeenCalled();
+  });
+
+  it("loops only the configured post music segment", async () => {
+    const postAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/segment-track.m4a";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      postAudioUrl,
+      postAudioStartTimeMs: 12_000,
+      postAudioDurationMs: 30_000,
+    };
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === postAudioUrl,
+    );
+    audioPlayer.seekTo.mockClear();
+    audioPlayer.play.mockClear();
+    audioPlayer.currentStatus.currentTime = 42;
+
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+    });
+
+    expect(audioPlayer.loop).toBe(false);
+    expect(audioPlayer.seekTo).toHaveBeenCalledWith(12);
+    expect(audioPlayer.play).toHaveBeenCalled();
+  });
+
+  it("forces one media refresh and retries a failed post music URL", async () => {
+    const staleAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/stale-track.m4a";
+    const refreshedAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/refreshed-track.m4a";
+    const videoUrl =
+      "https://scontent-test.cdninstagram.com/video/audio-refresh.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [videoUrl],
+      mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+      mediaType: "VIDEO",
+      postAudioUrl: staleAudioUrl,
+      postAudioStartTimeMs: 4_000,
+      postAudioDurationMs: 20_000,
+    };
+    refreshGroupBuyMediaMock.mockResolvedValue({
+      groupBuyId: groupBuy.id,
+      refreshed: true,
+      source: "hiker",
+      instagramUrl: groupBuy.rawPost.postUrl,
+      media: {
+        imageUrl: null,
+        thumbnailUrl: null,
+        videoUrl,
+        mediaUrls: [videoUrl],
+        mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+        mediaType: "VIDEO",
+        postAudioUrl: refreshedAudioUrl,
+        postAudioStartTimeMs: 5_000,
+        postAudioDurationMs: 25_000,
+      },
+    });
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === staleAudioUrl,
+    );
+    audioPlayer.currentStatus.isLoaded = false;
+    audioPlayer.currentStatus.playbackState = "error";
+
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(refreshGroupBuyMediaMock).toHaveBeenCalledTimes(1);
+    expect(refreshGroupBuyMediaMock).toHaveBeenCalledWith(groupBuy.id, {
+      force: true,
+      failedPostAudioUrl: staleAudioUrl,
+    });
+    expect(audioPlayer.source).toBe(refreshedAudioUrl);
+    expect(audioPlayer.seekTo).toHaveBeenCalledWith(5);
+    expect(audioPlayer.play).toHaveBeenCalled();
+
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+    });
+    expect(refreshGroupBuyMediaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to embedded video audio when refreshed post music is unavailable", async () => {
+    const staleAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/missing-track.m4a";
+    const videoUrl =
+      "https://scontent-test.cdninstagram.com/video/audio-fallback.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [videoUrl],
+      mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+      mediaType: "VIDEO",
+      postAudioUrl: staleAudioUrl,
+      postAudioStartTimeMs: 0,
+      postAudioDurationMs: null,
+    };
+    refreshGroupBuyMediaMock.mockResolvedValue({
+      groupBuyId: groupBuy.id,
+      refreshed: true,
+      source: "hiker",
+      instagramUrl: groupBuy.rawPost.postUrl,
+      media: {
+        imageUrl: null,
+        thumbnailUrl: null,
+        videoUrl,
+        mediaUrls: [videoUrl],
+        mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+        mediaType: "VIDEO",
+        postAudioUrl: null,
+        postAudioStartTimeMs: null,
+        postAudioDurationMs: null,
+      },
+    });
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === staleAudioUrl,
+    );
+    audioPlayer.currentStatus.isLoaded = false;
+    audioPlayer.currentStatus.playbackState = "error";
+
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(audioPlayer.source).toBeNull();
+    expect(refreshGroupBuyMediaMock).toHaveBeenCalledTimes(1);
+    expect(
+      videoMock.players.some(
+        (player) =>
+          player.muted === false && player.audioMixingMode === "doNotMix",
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a skipped refresh that returns the same failed post music URL", async () => {
+    const staleAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/still-stale-track.m4a";
+    const videoUrl =
+      "https://scontent-test.cdninstagram.com/video/skipped-audio-fallback.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [videoUrl],
+      mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+      mediaType: "VIDEO",
+      postAudioUrl: staleAudioUrl,
+      postAudioStartTimeMs: 0,
+      postAudioDurationMs: null,
+    };
+    refreshGroupBuyMediaMock.mockResolvedValue({
+      groupBuyId: groupBuy.id,
+      refreshed: false,
+      source: "skipped",
+      instagramUrl: groupBuy.rawPost.postUrl,
+      media: {
+        imageUrl: null,
+        thumbnailUrl: null,
+        videoUrl,
+        mediaUrls: [videoUrl],
+        mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+        mediaType: "VIDEO",
+        postAudioUrl: staleAudioUrl,
+        postAudioStartTimeMs: 0,
+        postAudioDurationMs: null,
+      },
+      error: "Refresh is cooling down",
+    });
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === staleAudioUrl,
+    );
+    audioPlayer.currentStatus.isLoaded = false;
+    audioPlayer.currentStatus.playbackState = "error";
+
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(refreshGroupBuyMediaMock).toHaveBeenCalledTimes(1);
+    expect(audioPlayer.source).toBeNull();
+    expect(
+      videoMock.players.some(
+        (player) =>
+          player.muted === false && player.audioMixingMode === "doNotMix",
+      ),
+    ).toBe(true);
   });
 
   it("shows playback and mute controls when the video is tapped", () => {

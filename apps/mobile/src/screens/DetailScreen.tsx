@@ -55,7 +55,12 @@ import Reanimated, {
   type SharedValue,
 } from "react-native-reanimated";
 
-import { fetchGroupBuyById, fetchGroupBuys, logDeepView } from "../api";
+import {
+  fetchGroupBuyById,
+  fetchGroupBuys,
+  logDeepView,
+  refreshGroupBuyMedia,
+} from "../api";
 import { Ionicons } from "@expo/vector-icons";
 import { CenteredBackHeader } from "../components/CenteredBackHeader";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
@@ -84,6 +89,7 @@ import {
 import { useTheme } from "../context/ThemeContext";
 import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
 import { useGroupBuyReminderPicker } from "../context/GroupBuyReminderPickerContext";
+import { usePostAudioPlayer } from "../hooks/usePostAudioPlayer";
 import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatEndDate, getDaysRemaining } from "../utils";
@@ -308,7 +314,11 @@ type VideoSlideProps = {
   thumbnailUrl?: string | null;
   replayKey?: number;
   muted?: boolean;
+  shouldPlay?: boolean;
+  showMuteControl?: boolean;
+  suppressEmbeddedAudio?: boolean;
   onMutedChange?: (muted: boolean) => void;
+  onShouldPlayChange?: (shouldPlay: boolean) => void;
   onPlaybackStateChange?: (isPlaying: boolean) => void;
   s: ReturnType<typeof makeStyles>;
 };
@@ -319,13 +329,29 @@ const VideoSlide = memo(function VideoSlide({
   replayKey,
   thumbnailUrl,
   muted,
+  shouldPlay: controlledShouldPlay,
+  showMuteControl = true,
+  suppressEmbeddedAudio = false,
   onMutedChange,
+  onShouldPlayChange,
   onPlaybackStateChange,
   s,
 }: VideoSlideProps) {
-  const [shouldPlay, setShouldPlay] = useState(true);
+  const [localShouldPlay, setLocalShouldPlay] = useState(true);
+  const shouldPlay = controlledShouldPlay ?? localShouldPlay;
+  const updateShouldPlay = useCallback(
+    (nextShouldPlay: boolean) => {
+      setLocalShouldPlay(nextShouldPlay);
+      onShouldPlayChange?.(nextShouldPlay);
+    },
+    [onShouldPlayChange],
+  );
   const [localMuted, setLocalMuted] = useState(muted ?? false);
   const isMuted = muted ?? localMuted;
+  const effectiveMuted = isMuted || suppressEmbeddedAudio;
+  const audioMixingMode = suppressEmbeddedAudio
+    ? "mixWithOthers"
+    : "doNotMix";
   const [areControlsVisible, setControlsVisible] = useState(false);
   const [hasFirstFrame, setHasFirstFrame] = useState(false);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -338,9 +364,9 @@ const VideoSlide = memo(function VideoSlide({
 
   const player = useVideoPlayer(source, (p) => {
     p.loop = true;
-    p.muted = false;
+    p.muted = effectiveMuted;
     p.volume = 1;
-    p.audioMixingMode = "doNotMix";
+    p.audioMixingMode = audioMixingMode;
     p.allowsExternalPlayback = false;
   });
   const [playerStatus, setPlayerStatus] = useState<VideoPlayerStatus>(
@@ -379,11 +405,11 @@ const VideoSlide = memo(function VideoSlide({
 
   useEffect(() => {
     safelyCallVideoPlayer(() => {
-      player.muted = isMuted;
+      player.muted = effectiveMuted;
       player.volume = 1;
-      player.audioMixingMode = "doNotMix";
+      player.audioMixingMode = audioMixingMode;
     });
-  }, [isMuted, player]);
+  }, [audioMixingMode, effectiveMuted, player]);
 
   useEffect(() => {
     return () => {
@@ -437,9 +463,9 @@ const VideoSlide = memo(function VideoSlide({
 
   useEffect(() => {
     safelyCallVideoPlayer(() => {
-      player.muted = isMuted;
+      player.muted = effectiveMuted;
       player.volume = 1;
-      player.audioMixingMode = "doNotMix";
+      player.audioMixingMode = audioMixingMode;
 
       if (isActive && shouldPlay) {
         player.play();
@@ -448,7 +474,7 @@ const VideoSlide = memo(function VideoSlide({
         if (!isActive) player.currentTime = 0;
       }
     });
-  }, [isActive, isMuted, player, shouldPlay]);
+  }, [audioMixingMode, effectiveMuted, isActive, player, shouldPlay]);
 
   const replayKeyRef = useRef(replayKey);
   const isActiveRef = useRef(isActive);
@@ -459,12 +485,12 @@ const VideoSlide = memo(function VideoSlide({
     replayKeyRef.current = replayKey;
     if (!isActive || !wasActive) return;
 
-    setShouldPlay(true);
+    updateShouldPlay(true);
     safelyCallVideoPlayer(() => {
       player.currentTime = 0;
       player.play();
     });
-  }, [isActive, player, replayKey]);
+  }, [isActive, player, replayKey, updateShouldPlay]);
 
   useEffect(() => {
     setHasFirstFrame(false);
@@ -480,22 +506,28 @@ const VideoSlide = memo(function VideoSlide({
 
   const togglePlayback = useCallback(() => {
     showControlsTemporarily();
-    setShouldPlay((current) => {
-      const next = !current;
-      safelyCallVideoPlayer(() => {
-        player.muted = isMuted;
-        player.volume = 1;
-        player.audioMixingMode = "doNotMix";
+    const next = !shouldPlay;
+    safelyCallVideoPlayer(() => {
+      player.muted = effectiveMuted;
+      player.volume = 1;
+      player.audioMixingMode = audioMixingMode;
 
-        if (next && isActive) {
-          player.play();
-        } else {
-          player.pause();
-        }
-      });
-      return next;
+      if (next && isActive) {
+        player.play();
+      } else {
+        player.pause();
+      }
     });
-  }, [isActive, isMuted, player, showControlsTemporarily]);
+    updateShouldPlay(next);
+  }, [
+    audioMixingMode,
+    effectiveMuted,
+    isActive,
+    player,
+    shouldPlay,
+    showControlsTemporarily,
+    updateShouldPlay,
+  ]);
 
   const toggleMuted = useCallback(() => {
     showControlsTemporarily();
@@ -518,9 +550,9 @@ const VideoSlide = memo(function VideoSlide({
           setPlayerStatus("readyToPlay");
           setPlayerError(null);
           safelyCallVideoPlayer(() => {
-            player.muted = isMuted;
+            player.muted = effectiveMuted;
             player.volume = 1;
-            player.audioMixingMode = "doNotMix";
+            player.audioMixingMode = audioMixingMode;
             if (isActive && shouldPlay) player.play();
           });
         }}
@@ -566,18 +598,23 @@ const VideoSlide = memo(function VideoSlide({
       />
       {areControlsVisible || !shouldPlay ? (
         <View style={s.videoControlsOverlay} pointerEvents="box-none">
-          <Pressable
-            accessibilityLabel={isMuted ? "음소거 해제" : "음소거"}
-            accessibilityRole="button"
-            onPress={toggleMuted}
-            style={({ pressed }) => [s.muteOverlayButton, pressed && s.pressed]}
-          >
-            <Ionicons
-              name={isMuted ? "volume-mute" : "volume-high"}
-              size={20}
-              color="#FFFFFF"
-            />
-          </Pressable>
+          {showMuteControl ? (
+            <Pressable
+              accessibilityLabel={isMuted ? "음소거 해제" : "음소거"}
+              accessibilityRole="button"
+              onPress={toggleMuted}
+              style={({ pressed }) => [
+                s.muteOverlayButton,
+                pressed && s.pressed,
+              ]}
+            >
+              <Ionicons
+                name={isMuted ? "volume-mute" : "volume-high"}
+                size={20}
+                color="#FFFFFF"
+              />
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityLabel={shouldPlay ? "동영상 일시정지" : "동영상 재생"}
             accessibilityRole="button"
@@ -599,15 +636,23 @@ const VideoSlide = memo(function VideoSlide({
 type ReelActionProps = {
   icon: ReactNode;
   label: string;
+  accessibilityLabel?: string;
   onPress: () => void;
   s: ReturnType<typeof makeStyles>;
   testID?: string;
 };
 
-function ReelAction({ icon, label, onPress, s, testID }: ReelActionProps) {
+function ReelAction({
+  icon,
+  label,
+  accessibilityLabel,
+  onPress,
+  s,
+  testID,
+}: ReelActionProps) {
   return (
     <Pressable
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [s.railButton, pressed && s.pressed]}
@@ -961,6 +1006,101 @@ function ProductReelPageComponent({
 }: ProductReelPageProps) {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
+  const [shouldPlayMedia, setShouldPlayMedia] = useState(true);
+  const [localMuted, setLocalMuted] = useState(muted ?? false);
+  const [resolvedPostAudio, setResolvedPostAudio] = useState(() => ({
+    url: groupBuy.postAudioUrl ?? null,
+    startTimeMs: groupBuy.postAudioStartTimeMs ?? null,
+    durationMs: groupBuy.postAudioDurationMs ?? null,
+  }));
+  const postAudioRefreshAttemptedRef = useRef(false);
+  const isMuted = muted ?? localMuted;
+  const handleMutedChange = useCallback(
+    (nextMuted: boolean) => {
+      setLocalMuted(nextMuted);
+      onMutedChange?.(nextMuted);
+    },
+    [onMutedChange],
+  );
+  const postAudio = usePostAudioPlayer({
+    url: resolvedPostAudio.url,
+    startTimeMs: resolvedPostAudio.startTimeMs,
+    durationMs: resolvedPostAudio.durationMs,
+    isActive: isActive && playbackAllowed && shouldPlayMedia,
+    muted: isMuted,
+    replayKey,
+  });
+  const shouldPrioritizePostAudio = postAudio.isReady;
+
+  useEffect(() => {
+    setShouldPlayMedia(true);
+  }, [activeMediaIndex, groupBuy.id, replayKey]);
+
+  useEffect(() => {
+    postAudioRefreshAttemptedRef.current = false;
+    setResolvedPostAudio({
+      url: groupBuy.postAudioUrl ?? null,
+      startTimeMs: groupBuy.postAudioStartTimeMs ?? null,
+      durationMs: groupBuy.postAudioDurationMs ?? null,
+    });
+  }, [
+    groupBuy.id,
+    groupBuy.postAudioDurationMs,
+    groupBuy.postAudioStartTimeMs,
+    groupBuy.postAudioUrl,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isActive ||
+      !postAudio.hasError ||
+      !resolvedPostAudio.url ||
+      postAudioRefreshAttemptedRef.current
+    ) {
+      return;
+    }
+
+    postAudioRefreshAttemptedRef.current = true;
+    const failedPostAudioUrl = resolvedPostAudio.url;
+    let cancelled = false;
+    void refreshGroupBuyMedia(groupBuy.id, {
+      force: true,
+      failedPostAudioUrl,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        const refreshedPostAudioUrl = result.media.postAudioUrl?.trim() || null;
+        const hasFreshPostAudio =
+          result.refreshed === true &&
+          result.source === "hiker" &&
+          !result.error &&
+          refreshedPostAudioUrl !== null &&
+          refreshedPostAudioUrl !== failedPostAudioUrl;
+
+        setResolvedPostAudio(
+          hasFreshPostAudio
+            ? {
+                url: refreshedPostAudioUrl,
+                startTimeMs: result.media.postAudioStartTimeMs ?? null,
+                durationMs: result.media.postAudioDurationMs ?? null,
+              }
+            : { url: null, startTimeMs: null, durationMs: null },
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedPostAudio({
+            url: null,
+            startTimeMs: null,
+            durationMs: null,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [groupBuy.id, isActive, postAudio.hasError, resolvedPostAudio.url]);
   const { colors } = useTheme();
   const { isAuthenticated, requireAuth } = useAuthGate();
   const {
@@ -1648,18 +1788,22 @@ function ProductReelPageComponent({
     () => ({
       activeMediaIndex,
       isActive,
-      muted,
+      isMuted,
       playbackAllowed,
       replayKey,
+      shouldPlayMedia,
       shouldPreloadVideo,
+      shouldPrioritizePostAudio,
     }),
     [
       activeMediaIndex,
       isActive,
-      muted,
+      isMuted,
       playbackAllowed,
       replayKey,
+      shouldPlayMedia,
       shouldPreloadVideo,
+      shouldPrioritizePostAudio,
     ],
   );
   const handleActiveMediaPlaybackStateChange = useCallback(
@@ -1687,8 +1831,12 @@ function ProductReelPageComponent({
                 isActive={mediaActive}
                 replayKey={replayKey}
                 thumbnailUrl={thumbnailUrl}
-                muted={muted}
-                onMutedChange={onMutedChange}
+                muted={isMuted}
+                shouldPlay={shouldPlayMedia}
+                showMuteControl={!resolvedPostAudio.url}
+                suppressEmbeddedAudio={shouldPrioritizePostAudio}
+                onMutedChange={handleMutedChange}
+                onShouldPlayChange={setShouldPlayMedia}
                 onPlaybackStateChange={
                   mediaActive ? handleActiveMediaPlaybackStateChange : undefined
                 }
@@ -1721,14 +1869,17 @@ function ProductReelPageComponent({
       activeMediaIndex,
       groupBuy.thumbnailUrl,
       handleActiveMediaPlaybackStateChange,
+      handleMutedChange,
       isActive,
+      isMuted,
       mediaWidth,
-      muted,
-      onMutedChange,
       pageHeight,
       playbackAllowed,
+      resolvedPostAudio.url,
       s,
+      shouldPlayMedia,
       shouldPreloadVideo,
+      shouldPrioritizePostAudio,
       replayKey,
     ],
   );
@@ -1836,6 +1987,26 @@ function ProductReelPageComponent({
             reelChromeStyle,
           ]}
         >
+          {resolvedPostAudio.url ? (
+            <ReelAction
+              accessibilityLabel={
+                isMuted
+                  ? "게시물 음악 음소거 해제"
+                  : "게시물 음악 음소거"
+              }
+              icon={
+                <Ionicons
+                  name={isMuted ? "volume-mute" : "volume-high"}
+                  size={26}
+                  color="#FFFFFF"
+                />
+              }
+              label={isMuted ? "소리 켜기" : "음소거"}
+              onPress={() => handleMutedChange(!isMuted)}
+              s={s}
+              testID="detail-post-audio-toggle"
+            />
+          ) : null}
           <ReelAction
             icon={
               <Ionicons

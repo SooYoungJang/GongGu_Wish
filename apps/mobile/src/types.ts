@@ -69,6 +69,9 @@ export type GroupBuy = {
   mediaUrls: string[];
   mediaItems?: MediaAsset[];
   mediaType: 'IMAGE' | 'VIDEO' | null;
+  postAudioUrl?: string | null;
+  postAudioStartTimeMs?: number | null;
+  postAudioDurationMs?: number | null;
   isMonthlyFeatured?: boolean;
   monthlyFeaturedRank?: number | null;
   isHomeBanner?: boolean;
@@ -127,6 +130,11 @@ export interface InstagramMediaInfo {
   mediaItems?: MediaAsset[];
   /** Dominant media type: IMAGE or VIDEO */
   mediaType: 'IMAGE' | 'VIDEO' | null;
+  /** Post-level music played independently from a carousel video file. */
+  postAudioUrl?: string | null;
+  postAudioStartTimeMs?: number | null;
+  postAudioDurationMs?: number | null;
+  postAudioLookupStatus?: 'FOUND' | 'NONE' | 'RETRYABLE';
   /** Post caption / summary text */
   caption: string | null;
   /** Number of likes */
