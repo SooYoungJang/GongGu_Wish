@@ -122,6 +122,12 @@ export function usePostAudioPlayer({
           player.play();
         }
       } catch {
+        if (
+          playbackRequestIdRef.current !== requestId ||
+          !activeRef.current
+        ) {
+          return;
+        }
         initializedPlaybackKeyRef.current = null;
         player.pause();
       }
@@ -141,6 +147,8 @@ export function usePostAudioPlayer({
   useEffect(() => {
     if (!isActive || !isReady || segmentLoopInFlightRef.current) return;
 
+    const requestId = playbackRequestIdRef.current;
+
     const segmentEndSeconds = durationSeconds
       ? startTimeSeconds + durationSeconds
       : startTimeSeconds > 0 && status.duration > startTimeSeconds
@@ -158,7 +166,12 @@ export function usePostAudioPlayer({
     void player
       .seekTo(startTimeSeconds)
       .then(() => {
-        if (activeRef.current) player.play();
+        if (
+          activeRef.current &&
+          playbackRequestIdRef.current === requestId
+        ) {
+          player.play();
+        }
       })
       .catch(() => undefined)
       .finally(() => {
@@ -176,10 +189,10 @@ export function usePostAudioPlayer({
 
   useEffect(
     () => () => {
+      activeRef.current = false;
       playbackRequestIdRef.current += 1;
-      player.pause();
     },
-    [player],
+    [],
   );
 
   return {

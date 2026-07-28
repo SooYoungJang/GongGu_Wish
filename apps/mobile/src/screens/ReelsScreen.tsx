@@ -23,7 +23,6 @@ import PagerView from "react-native-pager-view";
 import { fetchGroupBuys } from "../api";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { NativeAdCard } from "../components/ads/NativeAdCard";
-import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
 import { logDeepView } from "../api";
 import { useAds } from "../ads/AdsContext";
 import { useRecentViews } from "../hooks/useLocalDeals";
@@ -82,11 +81,7 @@ export function ReelsScreen({
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
-  const {
-    enabled: adsEnabled,
-    isReady: adsReady,
-    nativeUnitIds,
-  } = useAds();
+  const { enabled: adsEnabled, nativeUnitIds } = useAds();
   const pagerRef = useRef<PagerView>(null);
   const [replayKey, setReplayKey] = useState(0);
   const [reelDirection, setReelDirection] = useState<1 | -1>(1);
@@ -106,7 +101,6 @@ export function ReelsScreen({
   } = usePlaybackLifecycle();
   const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
   const [isReelsMuted, setReelsMuted] = useState(false);
-  const [reelsAdsUnavailable, setReelsAdsUnavailable] = useState(false);
   const { recordView } = useRecentViews();
 
   useEffect(() => {
@@ -122,11 +116,9 @@ export function ReelsScreen({
   const shuffledGroupBuys = useMemo<GroupBuy[]>(() => {
     return shuffle(data ?? []);
   }, [data]);
-  const canShowReelsAds =
-    adsEnabled &&
-    adsReady &&
-    Boolean(nativeUnitIds.reels) &&
-    !reelsAdsUnavailable;
+  // Keep PagerView's item identity stable while the native ads SDK initializes
+  // or an individual request has no fill. NativeAdCard owns local loading state.
+  const canShowReelsAds = adsEnabled && Boolean(nativeUnitIds.reels);
   const baseBatch = useMemo(
     () =>
       insertReelsAdSlots(shuffledGroupBuys, {
@@ -317,12 +309,6 @@ export function ReelsScreen({
       screenWidth,
     ],
   );
-  const handleReelsAdLoadStateChange = useCallback(
-    (status: NativeAdLoadStatus) => {
-      if (status === "unavailable") setReelsAdsUnavailable(true);
-    },
-    [],
-  );
   const organicReelItems = useMemo(
     () =>
       reelItems.flatMap((item) =>
@@ -426,7 +412,6 @@ export function ReelsScreen({
                       </Text>
                     </View>
                     <NativeAdCard
-                      onLoadStateChange={handleReelsAdLoadStateChange}
                       placement="reels"
                       reelBottomInset={
                         insets.bottom + REELS_TAB_BAR_OVERLAY_OFFSET
