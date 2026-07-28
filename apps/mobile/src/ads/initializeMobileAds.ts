@@ -25,6 +25,16 @@ const disabledState: AdsInitializationState = {
   privacyOptionsRequired: false,
 };
 
+function isConsentInfo(value: unknown): value is ConsentInfo {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ConsentInfo>;
+  return (
+    typeof candidate.canRequestAds === "boolean" &&
+    (candidate.privacyOptionsRequirementStatus === undefined ||
+      typeof candidate.privacyOptionsRequirementStatus === "string")
+  );
+}
+
 export function createGoogleMobileAdsController(
   dependencies: GoogleMobileAdsDependencies,
 ): GoogleMobileAdsController {
@@ -61,10 +71,15 @@ export function createGoogleMobileAdsController(
     if (startupInitialization) return startupInitialization;
 
     startupInitialization = (async () => {
+      let refreshedConsentInfo: unknown;
       try {
-        await dependencies.gatherConsent();
+        refreshedConsentInfo = await dependencies.gatherConsent();
       } catch {
         // UMP can still expose a valid consent state from the prior session.
+      }
+
+      if (isConsentInfo(refreshedConsentInfo)) {
+        return applyConsentInfo(refreshedConsentInfo);
       }
 
       let consentInfo: ConsentInfo;

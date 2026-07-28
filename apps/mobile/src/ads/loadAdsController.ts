@@ -60,9 +60,12 @@ export async function initializeAdsWithRetry({
   if (!controller) return unavailableState;
 
   try {
-    return await controller.initialize();
+    const state = await controller.initialize();
+    if (state.isReady || state.privacyOptionsRequired) return state;
   } catch {
-    await waitForRetry();
-    return controller.initialize();
+    // Retry one transient SDK or consent-state initialization failure.
   }
+
+  await waitForRetry();
+  return controller.initialize();
 }

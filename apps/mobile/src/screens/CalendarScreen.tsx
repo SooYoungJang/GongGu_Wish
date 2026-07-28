@@ -368,6 +368,57 @@ function CalendarHeader({
   );
 }
 
+function CalendarNativeAdSlot({
+  rowHeight,
+  s,
+  sequence,
+}: {
+  rowHeight: number;
+  s: ReturnType<typeof makeStyles>;
+  sequence: number;
+}) {
+  const [loadStatus, setLoadStatus] =
+    useState<NativeAdLoadStatus>("loading");
+  const isUnavailable = loadStatus === "unavailable";
+
+  return (
+    <View
+      style={[s.calendarAdSlot, { height: rowHeight }]}
+      testID={`calendar-native-ad-slot-${sequence}`}
+    >
+      {loadStatus !== "loaded" ? (
+        <View
+          accessibilityLiveRegion="polite"
+          style={s.calendarAdLoading}
+          testID={
+            isUnavailable
+              ? `calendar-native-ad-unavailable-${sequence}`
+              : undefined
+          }
+        >
+          <SText variant="caption" style={s.calendarAdLoadingLabel}>
+            광고
+          </SText>
+          <SText variant="body" style={s.calendarAdLoadingText}>
+            {isUnavailable
+              ? "이번 광고를 불러오지 못했어요"
+              : "광고를 불러오는 중이에요"}
+          </SText>
+        </View>
+      ) : null}
+      {isUnavailable ? null : (
+        <NativeAdCard
+          onLoadStateChange={setLoadStatus}
+          placement="home"
+          style={s.calendarNativeAdCard}
+          testID={`calendar-native-ad-${sequence}`}
+          variant="row"
+        />
+      )}
+    </View>
+  );
+}
+
 // ─── Main CalendarScreen ────────────────────────────────────────────────────
 
 export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
@@ -385,7 +436,6 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     CALENDAR_NATIVE_AD_BASE_HEIGHT +
     Math.round((normalizedAdFontScale - 1) * CALENDAR_NATIVE_AD_SCALE_DELTA);
   const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
-  const [calendarAdsUnavailable, setCalendarAdsUnavailable] = useState(false);
 
   const initialParam = route.params?.initialDate;
   const initialDate =
@@ -480,10 +530,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     selectedDateKey,
   ]);
   const canShowCalendarAds =
-    adsEnabled &&
-    adsReady &&
-    Boolean(nativeUnitIds.home) &&
-    !calendarAdsUnavailable;
+    adsEnabled && adsReady && Boolean(nativeUnitIds.home);
   const timelineItems = useMemo<CalendarTimelineItem[]>(
     () =>
       insertReelsAdSlots(dateGroups, {
@@ -621,39 +668,15 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     (item: GroupBuy) => navigation.navigate("Detail", { groupBuy: item }),
     [navigation],
   );
-  const handleCalendarAdLoadStateChange = useCallback(
-    (status: NativeAdLoadStatus) => {
-      if (status === "unavailable") setCalendarAdsUnavailable(true);
-    },
-    [],
-  );
   const renderDateGroup = useCallback(
     ({ item }: { item: CalendarTimelineItem }) => {
       if (!isReelsContentItem(item)) {
         return (
-          <View
-            style={[s.calendarAdSlot, { height: calendarAdRowHeight }]}
-            testID={`calendar-native-ad-slot-${item.sequence}`}
-          >
-            <View
-              accessibilityLiveRegion="polite"
-              style={s.calendarAdLoading}
-            >
-              <SText variant="caption" style={s.calendarAdLoadingLabel}>
-                광고
-              </SText>
-              <SText variant="body" style={s.calendarAdLoadingText}>
-                광고를 불러오는 중이에요
-              </SText>
-            </View>
-            <NativeAdCard
-              onLoadStateChange={handleCalendarAdLoadStateChange}
-              placement="home"
-              style={s.calendarNativeAdCard}
-              testID={`calendar-native-ad-${item.sequence}`}
-              variant="row"
-            />
-          </View>
+          <CalendarNativeAdSlot
+            rowHeight={calendarAdRowHeight}
+            s={s}
+            sequence={item.sequence}
+          />
         );
       }
       const dateGroup = item.content;
@@ -673,13 +696,8 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
       calendarAdRowHeight,
       calendarFilterLabel,
       calendarLayoutMetrics,
-      handleCalendarAdLoadStateChange,
       openDealDetail,
-      s.calendarAdLoading,
-      s.calendarAdLoadingLabel,
-      s.calendarAdLoadingText,
-      s.calendarAdSlot,
-      s.calendarNativeAdCard,
+      s,
       selectedDateKey,
     ],
   );

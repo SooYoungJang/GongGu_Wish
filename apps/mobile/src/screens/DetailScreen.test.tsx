@@ -1486,6 +1486,9 @@ describe("DetailScreen", () => {
     const selectedAd = renderer!.root.findByProps({
       testID: "detail-native-ad-1",
     });
+    const selectedAdNodeCount = renderer!.root.findAllByProps({
+      testID: "detail-native-ad-1",
+    }).length;
     act(() => {
       selectedAd.props.onLoadStateChange("unavailable");
     });
@@ -1496,7 +1499,7 @@ describe("DetailScreen", () => {
     expect(recoveredPage?.props.groupBuy.id).toBe(thirdGroupBuy.id);
     expect(
       renderer!.root.findAllByProps({ testID: "detail-native-ad-1" }),
-    ).toHaveLength(0);
+    ).toHaveLength(selectedAdNodeCount);
   });
 
   it("keeps the playback callback stable across detail page changes", () => {

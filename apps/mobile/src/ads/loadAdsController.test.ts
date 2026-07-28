@@ -93,6 +93,27 @@ describe("initializeAdsWithRetry", () => {
     expect(waitForRetry).toHaveBeenCalledOnce();
   });
 
+  it("rechecks consent readiness after a transient unavailable result", async () => {
+    const controller = createController();
+    vi.mocked(controller.initialize)
+      .mockResolvedValueOnce({
+        isReady: false,
+        privacyOptionsRequired: false,
+      })
+      .mockResolvedValueOnce(readyState);
+    const waitForRetry = vi.fn(async () => undefined);
+
+    await expect(
+      initializeAdsWithRetry({
+        loadController: vi.fn(async () => controller),
+        waitForRetry,
+      }),
+    ).resolves.toEqual(readyState);
+
+    expect(controller.initialize).toHaveBeenCalledTimes(2);
+    expect(waitForRetry).toHaveBeenCalledOnce();
+  });
+
   it("stops after the bounded SDK initialization retry also fails", async () => {
     const controller = createController();
     vi.mocked(controller.initialize).mockRejectedValue(

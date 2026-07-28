@@ -18,6 +18,29 @@ const windowDimensionsMock = vi.hoisted(() => ({
   height: 812,
   width: 375,
 }));
+const rankingAdsMock = vi.hoisted(() => ({
+  enabled: false,
+  isReady: false,
+  nativeUnitIds: {
+    detail: null as string | null,
+    home: null as string | null,
+    reels: null as string | null,
+  },
+}));
+
+vi.mock("../../ads/AdsContext", () => ({
+  useAds: () => rankingAdsMock,
+}));
+
+vi.mock("../ads/NativeAdCard", () => {
+  const ReactMock = require("react");
+  return {
+    NativeAdCard: (props: Record<string, unknown>) =>
+      rankingAdsMock.enabled
+        ? ReactMock.createElement("NativeAdCard", props)
+        : null,
+  };
+});
 
 vi.mock("react-native", () => {
   const ReactMock = require("react");
@@ -130,6 +153,11 @@ describe("ranking components", () => {
   beforeEach(() => {
     windowDimensionsMock.fontScale = 1;
     windowDimensionsMock.width = 375;
+    rankingAdsMock.enabled = false;
+    rankingAdsMock.isReady = false;
+    rankingAdsMock.nativeUnitIds.detail = null;
+    rankingAdsMock.nativeUnitIds.home = null;
+    rankingAdsMock.nativeUnitIds.reels = null;
   });
 
   it("stacks ordinary ranking rows and releases text clamps for large fonts", () => {
@@ -782,6 +810,40 @@ describe("ranking components", () => {
     ).toHaveLength(0);
     expect(text).not.toContain("계속 인기 중");
     expect(text).not.toContain("4위부터도 같은 기준으로 집계해요");
+  });
+
+  it("keeps later ranking ad slots when one request is unavailable", () => {
+    const rankings = Array.from({ length: 30 }, (_, index) =>
+      sampleRanking({
+        groupBuyId: `ranking-ad-group-${index + 1}`,
+        rank: index + 1,
+      }),
+    );
+    rankingAdsMock.enabled = true;
+    rankingAdsMock.isReady = true;
+    rankingAdsMock.nativeUnitIds.home = "home-native-unit";
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList state={{ status: "ready", data: rankings }} />,
+        ),
+      );
+    });
+
+    const adsBeforeFailure = renderer!.root.findAll(
+      (node) => String(node.type) === "NativeAdCard",
+    );
+    expect(adsBeforeFailure.length).toBeGreaterThan(1);
+
+    act(() => adsBeforeFailure[0].props.onLoadStateChange("unavailable"));
+
+    const adsAfterFailure = renderer!.root.findAll(
+      (node) => String(node.type) === "NativeAdCard",
+    );
+    expect(adsAfterFailure).toHaveLength(adsBeforeFailure.length - 1);
+    expect(adsAfterFailure.length).toBeGreaterThan(0);
   });
 
   it("uses the same editorial divider treatment for every ranking row", () => {

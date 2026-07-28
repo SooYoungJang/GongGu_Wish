@@ -15,6 +15,7 @@ const {
   applyGoogleMobileAdsIosInfoPlist,
   resolveBackendEnvironment,
   resolveAdsBuildConfig,
+  resolveAdsRuntimeSmoke,
   resolveAppVariant,
   resolveGoogleServicesFile,
   resolveRuntimeVersion,
@@ -84,6 +85,14 @@ describe("resolveAppVariant", () => {
       expect(() => resolveAppVariant(variant)).toThrow(/APP_VARIANT/);
     },
   );
+});
+
+describe("resolveAdsRuntimeSmoke", () => {
+  it("allows the diagnostic ad surface only in Preview", () => {
+    expect(resolveAdsRuntimeSmoke("preview", "true")).toBe(true);
+    expect(resolveAdsRuntimeSmoke("production", "true")).toBe(false);
+    expect(resolveAdsRuntimeSmoke("preview", "false")).toBe(false);
+  });
 });
 
 describe("resolveGoogleServicesFile", () => {
