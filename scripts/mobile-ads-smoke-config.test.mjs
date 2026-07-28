@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
-test("Android ads smoke enables only Preview test ads and captures runtime proof", () => {
+test("Android ads smoke verifies the Preview request lifecycle without masking no-fill", () => {
   const app = read("apps/mobile/src/App.tsx");
   const appConfig = read("apps/mobile/app.config.js");
   const builder = read("scripts/build-mobile-ads-smoke.sh");
@@ -32,14 +32,12 @@ test("Android ads smoke enables only Preview test ads and captures runtime proof
   assert.match(probe, /placement="reels"/);
   assert.match(runner, /com\.gonggu\.wish\.preview/);
   assert.match(runner, /"event":"initialization_ready"/);
-  assert.match(
-    runner,
-    /"event":"native_ad_loaded","placement":"home"/,
-  );
-  assert.match(
-    runner,
-    /"event":"native_ad_loaded","placement":"reels"/,
-  );
+  assert.match(runner, /native_ad_request_started/);
+  assert.match(runner, /native_ad_loaded/);
+  assert.match(runner, /native_ad_failed/);
+  assert.match(runner, /Ad failed to load : 3/);
+  assert.match(runner, /ads-runtime-result\.json/);
+  assert.match(workflow, /ads-runtime-result\.json/);
   assert.match(runner, /ads-runtime-smoke\.png/);
   assert.doesNotMatch(builder, /com\.gonggu\.wish(?!\.preview)/);
 });

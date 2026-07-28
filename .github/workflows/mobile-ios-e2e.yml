@@ -251,7 +251,7 @@ jobs:
           sudo usermod -aG kvm "$USER"
           sudo chown "$USER" /dev/kvm
 
-      - name: Build release app and load an official Google test ad
+      - name: Build release app and exercise official Google test ad requests
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 36
@@ -272,12 +272,17 @@ jobs:
           test -s artifacts/mobile-ads-smoke/android-prebuild.log
           test -s artifacts/mobile-ads-smoke/android-build.log
           test -s artifacts/mobile-ads-smoke/ads-logcat.txt
+          test -s artifacts/mobile-ads-smoke/ads-runtime-result.json
           test -s artifacts/mobile-ads-smoke/ads-runtime-smoke.png
           grep -F '"event":"initialization_ready"' \
             artifacts/mobile-ads-smoke/ads-logcat.txt
-          grep -F '"event":"native_ad_loaded","placement":"home"' \
+          grep -F '"event":"native_ad_request_started","placement":"home"' \
             artifacts/mobile-ads-smoke/ads-logcat.txt
-          grep -F '"event":"native_ad_loaded","placement":"reels"' \
+          grep -F '"event":"native_ad_request_started","placement":"reels"' \
+            artifacts/mobile-ads-smoke/ads-logcat.txt
+          grep -E '"event":"native_ad_(loaded|failed)","placement":"home"' \
+            artifacts/mobile-ads-smoke/ads-logcat.txt
+          grep -E '"event":"native_ad_(loaded|failed)","placement":"reels"' \
             artifacts/mobile-ads-smoke/ads-logcat.txt
 
       - name: Upload ads runtime evidence

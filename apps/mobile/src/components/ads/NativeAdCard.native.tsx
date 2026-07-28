@@ -21,6 +21,7 @@ export type {
 } from "./NativeAdCard.types";
 
 const NATIVE_AD_REQUEST_TIMEOUT_MS = 15_000;
+const NATIVE_AD_MAX_ATTEMPTS = 2;
 const NATIVE_AD_RETRY_DELAYS_MS = [750] as const;
 type NativeAdInstance = Awaited<
   ReturnType<GoogleMobileAdsModule["NativeAd"]["createForAdRequest"]>
@@ -96,12 +97,21 @@ export const NativeAdCard = memo(function NativeAdCard({
 
     let active = true;
     let loadedAd: NativeAdInstance | null = null;
+    let requestAttempt = 0;
     onLoadStateChange?.("loading");
 
     void loadNativeAdWithRetry({
       load: async () => {
         const module = await getGoogleMobileAdsModule();
         if (!module) throw new Error("Google Mobile Ads module unavailable");
+        requestAttempt += 1;
+        emitAdsDiagnostic({
+          event: "native_ad_request_started",
+          placement,
+          variant,
+          attempt: requestAttempt,
+          maxAttempts: NATIVE_AD_MAX_ATTEMPTS,
+        });
         const nativeAd = await module.NativeAd.createForAdRequest(unitId, {
           adChoicesPlacement: module.NativeAdChoicesPlacement.TOP_RIGHT,
           aspectRatio:
@@ -114,7 +124,7 @@ export const NativeAdCard = memo(function NativeAdCard({
         });
         return { module, nativeAd };
       },
-      maxAttempts: 2,
+      maxAttempts: NATIVE_AD_MAX_ATTEMPTS,
       onLateSuccess: ({ nativeAd }) => nativeAd.destroy(),
       shouldRetry: () => active,
       timeoutMs: NATIVE_AD_REQUEST_TIMEOUT_MS,

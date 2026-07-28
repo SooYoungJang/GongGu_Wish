@@ -196,6 +196,41 @@ describe("NativeAdCard", () => {
     );
   });
 
+  it("records each native ad request before waiting for Google fill", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const ad = {
+      advertiser: null,
+      body: null,
+      callToAction: null,
+      destroy: vi.fn(),
+      headline: "요청 추적 광고",
+      icon: null,
+      mediaContent: null,
+    } as unknown as Awaited<ReturnType<typeof NativeAd.createForAdRequest>>;
+    vi.mocked(NativeAd.createForAdRequest).mockResolvedValue(ad);
+
+    await act(async () => {
+      TestRenderer.create(
+        <AdsContext.Provider value={enabledAds}>
+          <NativeAdCard placement="reels" variant="reel" />
+        </AdsContext.Provider>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(info).toHaveBeenCalledWith(
+      JSON.stringify({
+        scope: "mobile_ads",
+        event: "native_ad_request_started",
+        placement: "reels",
+        variant: "reel",
+        attempt: 1,
+        maxAttempts: 2,
+      }),
+    );
+    info.mockRestore();
+  });
+
   it("merges a screen-specific layout style into the loaded card", async () => {
     const ad = {
       advertiser: null,
