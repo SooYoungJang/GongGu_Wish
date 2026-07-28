@@ -2,10 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Image, Text, View, type LayoutChangeEvent } from "react-native";
 
 import { useAds } from "../../ads/AdsContext.native";
-import {
-  emitAdsDiagnostic,
-  getAdsErrorCode,
-} from "../../ads/adsDiagnostics";
+import { emitAdsDiagnostic, getAdsErrorCode } from "../../ads/adsDiagnostics";
 import { loadNativeAdWithRetry } from "../../ads/loadNativeAd";
 import {
   getGoogleMobileAdsModule,
@@ -20,7 +17,9 @@ export type {
   NativeAdLoadStatus,
 } from "./NativeAdCard.types";
 
-const NATIVE_AD_REQUEST_TIMEOUT_MS = 15_000;
+// Keep the app watchdog beyond the Android SDK's 60s HTTP timeout so the
+// bridge can reject with the real Mobile Ads error code before we give up.
+const NATIVE_AD_REQUEST_TIMEOUT_MS = 65_000;
 const NATIVE_AD_MAX_ATTEMPTS = 2;
 const NATIVE_AD_RETRY_DELAYS_MS = [750] as const;
 type NativeAdInstance = Awaited<
@@ -137,11 +136,10 @@ export const NativeAdCard = memo(function NativeAdCard({
             ],
           );
         }),
-      onAttemptFailure: ({ attempt, error, maxAttempts }) => {
+      onAttemptFailure: ({ attempt, error, maxAttempts, willRetry }) => {
         emitAdsDiagnostic(
           {
-            event:
-              attempt < maxAttempts ? "native_ad_retry" : "native_ad_failed",
+            event: willRetry ? "native_ad_retry" : "native_ad_failed",
             placement,
             variant,
             attempt,

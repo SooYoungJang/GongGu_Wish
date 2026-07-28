@@ -52,14 +52,31 @@ has_terminal_event() {
     || has_event "native_ad_failed" "$placement"
 }
 
+has_no_fill_failure() {
+  local placement="$1"
+  grep -F "\"event\":\"native_ad_failed\",\"placement\":\"$placement\"" \
+    "$artifact_dir/ads-logcat-current.txt" \
+    | grep -E '"errorCode":"(google-mobile-ads/)?no-fill"' >/dev/null
+}
+
 write_result() {
-  local home_status="external_no_fill"
-  local reels_status="external_no_fill"
+  local home_status
+  local reels_status
   if has_event "native_ad_loaded" "home"; then
     home_status="loaded"
+  elif has_no_fill_failure "home"; then
+    home_status="external_no_fill"
+  else
+    echo "Home native ad did not load or report structured no-fill" >&2
+    return 1
   fi
   if has_event "native_ad_loaded" "reels"; then
     reels_status="loaded"
+  elif has_no_fill_failure "reels"; then
+    reels_status="external_no_fill"
+  else
+    echo "Reels native ad did not load or report structured no-fill" >&2
+    return 1
   fi
   printf \
     '{"sdk":"ready","appProcess":"alive","home":"%s","reels":"%s"}\n' \
@@ -82,13 +99,13 @@ for attempt in $(seq 1 120); do
     && has_event "native_ad_request_started" "reels" \
     && has_terminal_event "home" \
     && has_terminal_event "reels"; then
-    if { has_event "native_ad_failed" "home" \
-        || has_event "native_ad_failed" "reels"; } \
-      && ! grep -F 'Ad failed to load : 3' \
-        "$artifact_dir/ads-logcat-current.txt" >/dev/null; then
-      echo "A native ad request failed for a reason other than Google no-fill" >&2
-      exit 1
-    fi
+    for placement in home reels; do
+      if has_event "native_ad_failed" "$placement" \
+        && ! has_no_fill_failure "$placement"; then
+        echo "$placement native ad failed without structured no-fill" >&2
+        exit 1
+      fi
+    done
     sleep 2
     adb shell pidof "$package_name" >/dev/null
     write_result
