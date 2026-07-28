@@ -144,6 +144,7 @@ describe("NativeAdCard", () => {
   });
 
   it("leaves no blank card when loading fails", async () => {
+    vi.useFakeTimers();
     const onLoadStateChange = vi.fn();
     vi.mocked(NativeAd.createForAdRequest).mockRejectedValue(
       new Error("no fill"),
@@ -159,8 +160,13 @@ describe("NativeAdCard", () => {
       await Promise.resolve();
     });
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(750);
+    });
+
     expect(renderer!.toJSON()).toBeNull();
     expect(onLoadStateChange).toHaveBeenLastCalledWith("unavailable");
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);
   });
 
   it("requests the unit assigned to the requested placement", async () => {
@@ -424,18 +430,23 @@ describe("NativeAdCard", () => {
     expect(flattenText(renderer!.toJSON())).not.toContain("자세히 보기");
   });
 
-  it("times out without inserting a late ad under visible content", async () => {
+  it("retries a timed-out request once and destroys a late ad", async () => {
     vi.useFakeTimers();
     const onLoadStateChange = vi.fn();
     let resolveAd!: React.Dispatch<
       Awaited<ReturnType<typeof NativeAd.createForAdRequest>>
     >;
-    const pendingAd = new Promise<
+    const firstPendingAd = new Promise<
       Awaited<ReturnType<typeof NativeAd.createForAdRequest>>
     >((resolve) => {
       resolveAd = resolve;
     });
-    vi.mocked(NativeAd.createForAdRequest).mockReturnValue(pendingAd);
+    const secondPendingAd = new Promise<
+      Awaited<ReturnType<typeof NativeAd.createForAdRequest>>
+    >(() => undefined);
+    vi.mocked(NativeAd.createForAdRequest)
+      .mockReturnValueOnce(firstPendingAd)
+      .mockReturnValueOnce(secondPendingAd);
 
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
@@ -446,10 +457,11 @@ describe("NativeAdCard", () => {
       );
     });
 
-    act(() => {
-      vi.advanceTimersByTime(5_000);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_750);
     });
     expect(onLoadStateChange).toHaveBeenLastCalledWith("unavailable");
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);
 
     const destroy = vi.fn();
     await act(async () => {

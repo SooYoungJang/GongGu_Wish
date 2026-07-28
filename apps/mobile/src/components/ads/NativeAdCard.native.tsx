@@ -20,7 +20,8 @@ export type {
   NativeAdLoadStatus,
 } from "./NativeAdCard.types";
 
-const NATIVE_AD_RETRY_DELAYS_MS = [750, 2_000] as const;
+const NATIVE_AD_REQUEST_TIMEOUT_MS = 15_000;
+const NATIVE_AD_RETRY_DELAYS_MS = [750] as const;
 type NativeAdInstance = Awaited<
   ReturnType<GoogleMobileAdsModule["NativeAd"]["createForAdRequest"]>
 >;
@@ -113,6 +114,10 @@ export const NativeAdCard = memo(function NativeAdCard({
         });
         return { module, nativeAd };
       },
+      maxAttempts: 2,
+      onLateSuccess: ({ nativeAd }) => nativeAd.destroy(),
+      shouldRetry: () => active,
+      timeoutMs: NATIVE_AD_REQUEST_TIMEOUT_MS,
       waitForRetry: (attempt) =>
         new Promise((resolve) => {
           setTimeout(
