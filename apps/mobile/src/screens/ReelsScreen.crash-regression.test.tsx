@@ -16,7 +16,9 @@ vi.mock("expo-audio", () => ({
   setAudioModeAsync: vi.fn(async () => undefined),
   useAudioPlayer: (source: string | null, options?: unknown) => {
     const ReactMock = require("react");
-    const [player] = ReactMock.useState(() => {
+    const currentPlayerRef = ReactMock.useRef(null);
+    const playerToReleaseRef = ReactMock.useRef(null);
+    const player = ReactMock.useMemo(() => {
       const nativePlayer: any = {
         currentStatus: {
           currentTime: 0,
@@ -56,15 +58,28 @@ vi.mock("expo-audio", () => ({
         });
       });
       audioMock.players.push(nativePlayer);
+      if (currentPlayerRef.current) {
+        playerToReleaseRef.current = currentPlayerRef.current;
+      }
+      currentPlayerRef.current = nativePlayer;
       return nativePlayer;
-    });
+    }, [source]);
+
+    // Source changes create a new SharedObject, then release the previous one.
+    ReactMock.useEffect(() => {
+      if (!playerToReleaseRef.current) return;
+      playerToReleaseRef.current.released = true;
+      playerToReleaseRef.current = null;
+    }, [player]);
 
     // expo-audio owns and releases hook-created SharedObjects on unmount.
     ReactMock.useEffect(
       () => () => {
-        player.released = true;
+        if (currentPlayerRef.current) {
+          currentPlayerRef.current.released = true;
+        }
       },
-      [player],
+      [],
     );
 
     return player;
@@ -72,11 +87,20 @@ vi.mock("expo-audio", () => ({
   useAudioPlayerStatus: (player: any) => player.currentStatus,
 }));
 
-function ReelPostAudioHarness({ url }: { url: string }) {
+function ReelPostAudioHarness({
+  url,
+  durationMs = null,
+  renderTick = 0,
+}: {
+  url: string;
+  durationMs?: number | null;
+  renderTick?: number;
+}) {
+  void renderTick;
   usePostAudioPlayer({
     url,
     startTimeMs: 0,
-    durationMs: null,
+    durationMs,
     isActive: true,
     muted: false,
   });
@@ -139,6 +163,83 @@ describe("ReelsScreen native player recycling", () => {
 
     await act(async () => {
       audioMock.rejectSeek?.();
+      await Promise.resolve();
+    });
+    expect(audioMock.callsAfterRelease).toBe(0);
+  });
+
+  it("ignores a pending seek from a replaced source without unmounting", async () => {
+    audioMock.deferSeek = true;
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <ReelPostAudioHarness
+          url="https://scontent-test.cdninstagram.com/audio/reel-a.m4a"
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const previousPlayer = audioMock.players[0];
+    const resolvePreviousSeek = audioMock.resolveSeek;
+    expect(resolvePreviousSeek).not.toBeNull();
+
+    audioMock.deferSeek = false;
+    await act(async () => {
+      renderer!.update(
+        <ReelPostAudioHarness
+          url="https://scontent-test.cdninstagram.com/audio/reel-b.m4a"
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    expect(audioMock.players).toHaveLength(2);
+    expect(previousPlayer.released).toBe(true);
+    await act(async () => {
+      resolvePreviousSeek?.();
+      await Promise.resolve();
+    });
+    expect(previousPlayer.play).not.toHaveBeenCalled();
+    expect(audioMock.callsAfterRelease).toBe(0);
+
+    act(() => renderer!.unmount());
+  });
+
+  it("ignores a segment-loop seek completion after release", async () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <ReelPostAudioHarness
+          durationMs={1_000}
+          renderTick={0}
+          url="https://scontent-test.cdninstagram.com/audio/reel-a.m4a"
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const player = audioMock.players[0];
+    audioMock.deferSeek = true;
+    player.currentStatus.currentTime = 1;
+    await act(async () => {
+      renderer!.update(
+        <ReelPostAudioHarness
+          durationMs={1_000}
+          renderTick={1}
+          url="https://scontent-test.cdninstagram.com/audio/reel-a.m4a"
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const resolveLoopSeek = audioMock.resolveSeek;
+    expect(resolveLoopSeek).not.toBeNull();
+    expect(player.seekTo).toHaveBeenCalledTimes(2);
+    act(() => renderer!.unmount());
+
+    await act(async () => {
+      resolveLoopSeek?.();
       await Promise.resolve();
     });
     expect(audioMock.callsAfterRelease).toBe(0);

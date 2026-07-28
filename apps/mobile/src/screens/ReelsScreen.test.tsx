@@ -294,11 +294,22 @@ describe("ReelsScreen player lifecycle", () => {
       testID: "reels-native-ad-1",
     });
     expect(firstAd.props.visible).toBe(true);
+    expect(firstAd.props.onLoadStateChange).toBeTypeOf("function");
 
     act(() => {
-      firstAd.props.onLoadStateChange?.("unavailable");
+      firstAd.props.onLoadStateChange("unavailable");
     });
     expect(pagerViewMock.mounts).toBe(1);
+    expect(
+      renderer!.root.findByProps({
+        testID: "reels-native-ad-unavailable-1",
+      }),
+    ).toBeTruthy();
+    expect(
+      renderer!.root.findByProps({
+        children: "이번 광고를 불러오지 못했어요",
+      }),
+    ).toBeTruthy();
 
     act(() => {
       findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
