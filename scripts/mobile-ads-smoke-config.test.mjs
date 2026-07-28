@@ -22,8 +22,7 @@ test("Android ads smoke verifies the Preview request lifecycle without masking n
   assert.match(app, /<AdsRuntimeSmokeProbe \/>/);
   assert.ok(
     app.indexOf("<ThemeProvider>") < app.indexOf("<AdsRuntimeSmokeProbe />") &&
-      app.indexOf("<AdsRuntimeSmokeProbe />") <
-        app.indexOf("</ThemeProvider>"),
+      app.indexOf("<AdsRuntimeSmokeProbe />") < app.indexOf("</ThemeProvider>"),
     "the ads smoke probe must render inside ThemeProvider",
   );
   assert.match(builder, /app:assembleRelease/);
@@ -36,7 +35,10 @@ test("Android ads smoke verifies the Preview request lifecycle without masking n
   assert.match(runner, /native_ad_request_started/);
   assert.match(runner, /native_ad_loaded/);
   assert.match(runner, /native_ad_failed/);
-  assert.match(runner, /Ad failed to load : 3/);
+  assert.match(runner, /has_no_fill_failure/);
+  assert.match(runner, /errorCode/);
+  assert.match(runner, /google-mobile-ads\//);
+  assert.doesNotMatch(runner, /Ad failed to load : 3/);
   assert.match(runner, /ads-runtime-result\.json/);
   assert.match(workflow, /ads-runtime-result\.json/);
   assert.match(runner, /ads-runtime-smoke\.png/);

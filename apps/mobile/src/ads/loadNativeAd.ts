@@ -2,6 +2,7 @@ export type NativeAdLoadAttemptFailure = {
   attempt: number;
   error: unknown;
   maxAttempts: number;
+  willRetry: boolean;
 };
 
 export class NativeAdLoadTimeoutError extends Error {
@@ -84,8 +85,20 @@ export async function loadNativeAdWithRetry<T>({
       return await loadWithTimeout({ load, onLateSuccess, timeoutMs });
     } catch (error) {
       lastError = error;
-      onAttemptFailure?.({ attempt, error, maxAttempts: attemptLimit });
-      if (attempt >= attemptLimit || shouldRetry?.() === false) break;
+      // The native request cannot be cancelled. Retrying after our watchdog
+      // fires would leave the timed-out request in flight and overlap it with
+      // a second request.
+      const willRetry =
+        !(error instanceof NativeAdLoadTimeoutError) &&
+        attempt < attemptLimit &&
+        shouldRetry?.() !== false;
+      onAttemptFailure?.({
+        attempt,
+        error,
+        maxAttempts: attemptLimit,
+        willRetry,
+      });
+      if (!willRetry) break;
       await waitForRetry(attempt);
       if (shouldRetry?.() === false) break;
     }

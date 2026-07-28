@@ -465,7 +465,7 @@ describe("NativeAdCard", () => {
     expect(flattenText(renderer!.toJSON())).not.toContain("자세히 보기");
   });
 
-  it("retries a timed-out request once and destroys a late ad", async () => {
+  it("does not overlap a timed-out native request and destroys a late ad", async () => {
     vi.useFakeTimers();
     const onLoadStateChange = vi.fn();
     let resolveAd!: React.Dispatch<
@@ -476,12 +476,7 @@ describe("NativeAdCard", () => {
     >((resolve) => {
       resolveAd = resolve;
     });
-    const secondPendingAd = new Promise<
-      Awaited<ReturnType<typeof NativeAd.createForAdRequest>>
-    >(() => undefined);
-    vi.mocked(NativeAd.createForAdRequest)
-      .mockReturnValueOnce(firstPendingAd)
-      .mockReturnValueOnce(secondPendingAd);
+    vi.mocked(NativeAd.createForAdRequest).mockReturnValue(firstPendingAd);
 
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
@@ -493,10 +488,16 @@ describe("NativeAdCard", () => {
     });
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_750);
+      await vi.advanceTimersByTimeAsync(64_999);
+    });
+    expect(onLoadStateChange).toHaveBeenLastCalledWith("loading");
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
     });
     expect(onLoadStateChange).toHaveBeenLastCalledWith("unavailable");
-    expect(NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
 
     const destroy = vi.fn();
     await act(async () => {

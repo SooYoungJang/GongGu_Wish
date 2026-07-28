@@ -16,6 +16,7 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
+    "postinstall": "patch-package",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -72,6 +73,7 @@
     "cross-env": "^10.1.0",
     "eslint": "^9.39.5",
     "jsdom": "^26.0.0",
+    "patch-package": "8.0.1",
     "react-test-renderer": "19.2.8",
     "typescript": "^5.7.2",
     "vitest": "^3.0.0"
