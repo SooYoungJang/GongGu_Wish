@@ -7,6 +7,7 @@ import {
   fetchGroupBuysByInfluencer,
   fetchNotificationReminders,
   lookupInstagramUrl,
+  mapGroupBuyRows,
   postPublicJson,
   refreshGroupBuyMedia,
   syncBookmark,
@@ -154,6 +155,41 @@ describe("public data fetch diagnostics", () => {
     const [item] = await fetchGroupBuys();
 
     expect(item.rawPost.influencer.instagramUsername).toBe("saved_shop");
+  });
+
+  it("maps post-level audio fields without replacing embedded video media", () => {
+    const [item] = mapGroupBuyRows([
+      {
+        id: "group-buy-with-post-audio",
+        product_name: "오디오가 있는 캐러셀 공구",
+        confidence: 0,
+        video_url: "https://media.example.invalid/carousel-video.mp4",
+        media_urls: ["https://media.example.invalid/carousel-video.mp4"],
+        media_items: [
+          {
+            url: "https://media.example.invalid/carousel-video.mp4",
+            mediaType: "VIDEO",
+          },
+        ],
+        media_type: "VIDEO",
+        post_audio_url: "https://cdn.example.invalid/audio/carousel-track.m4a",
+        post_audio_start_time_ms: 12_000,
+        post_audio_duration_ms: 30_000,
+        raw_post_id: null,
+      },
+    ]);
+
+    expect({
+      videoUrl: item.videoUrl,
+      postAudioUrl: item.postAudioUrl,
+      postAudioStartTimeMs: item.postAudioStartTimeMs,
+      postAudioDurationMs: item.postAudioDurationMs,
+    }).toEqual({
+      videoUrl: "https://media.example.invalid/carousel-video.mp4",
+      postAudioUrl: "https://cdn.example.invalid/audio/carousel-track.m4a",
+      postAudioStartTimeMs: 12_000,
+      postAudioDurationMs: 30_000,
+    });
   });
 
   it("finds both current and legacy group buys for an Instagram account", async () => {
@@ -394,6 +430,22 @@ describe("public data fetch diagnostics", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ groupBuyId: "group-buy-1" }),
+      }),
+    );
+
+    await refreshGroupBuyMedia("group-buy-1", {
+      force: true,
+      failedPostAudioUrl: "https://example.com/failed-audio.m4a",
+    });
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      expect.stringContaining("/functions/v1/refresh-instagram-media"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          groupBuyId: "group-buy-1",
+          force: true,
+          failedPostAudioUrl: "https://example.com/failed-audio.m4a",
+        }),
       }),
     );
   });

@@ -7,6 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
+import { isInstagramCdnUrl } from "../_shared/hiker-instagram-audio.ts";
 import {
   SubmissionAuthenticationError,
   resolveOptionalSubmissionUserId,
@@ -25,7 +26,7 @@ type MediaAsset = {
   thumbnailUrl?: string | null;
 };
 
-interface SubmissionRequest {
+export interface SubmissionRequest {
   productName?: string;
   brandName?: string;
   category?: string;
@@ -41,6 +42,9 @@ interface SubmissionRequest {
   mediaUrls?: string[];
   mediaItems?: MediaAsset[];
   mediaType?: string;
+  postAudioUrl?: string | null;
+  postAudioStartTimeMs?: number | null;
+  postAudioDurationMs?: number | null;
   reporterName?: string;
   reporterContact?: string;
   isAnonymous?: boolean;
@@ -70,6 +74,10 @@ type ValidatedSubmissionRow = {
   media_urls: string[];
   media_items: MediaAsset[];
   media_type: string | null;
+  post_audio_url: string | null;
+  post_audio_start_time_ms: number | null;
+  post_audio_duration_ms: number | null;
+  post_audio_checked_at: string | null;
   reporter_name: string | null;
   reporter_contact: string | null;
   is_anonymous: boolean;
@@ -251,7 +259,25 @@ async function createSubmissionHash(input: {
   );
 }
 
-function validate(body: SubmissionRequest) {
+function normalizePostAudioInteger(
+  value: unknown,
+  allowZero: boolean,
+): number | null | typeof Number.NaN {
+  if (
+    value === null ||
+    value === undefined ||
+    (typeof value === "string" && value.trim() === "")
+  ) {
+    return null;
+  }
+  const parsed = typeof value === "number" ? value : Number(value);
+  const minimum = allowZero ? 0 : 1;
+  return Number.isSafeInteger(parsed) && parsed >= minimum
+    ? parsed
+    : Number.NaN;
+}
+
+export function validate(body: SubmissionRequest) {
   const productName = normalizeOptional(body.productName);
   const brandName = normalizeOptional(body.brandName);
   const category = normalizeCategory(body.category);
@@ -285,6 +311,19 @@ function validate(body: SubmissionRequest) {
     ["IMAGE", "VIDEO"].includes(body.mediaType)
       ? body.mediaType
       : null;
+  const postAudioUrl = normalizeOptional(body.postAudioUrl);
+  const rawPostAudioStartTimeMs = normalizePostAudioInteger(
+    body.postAudioStartTimeMs,
+    true,
+  );
+  const rawPostAudioDurationMs = normalizePostAudioInteger(
+    body.postAudioDurationMs,
+    false,
+  );
+  const postAudioStartTimeMs = postAudioUrl
+    ? rawPostAudioStartTimeMs ?? 0
+    : null;
+  const postAudioDurationMs = postAudioUrl ? rawPostAudioDurationMs : null;
 
   if (!productName || productName.length < 2) {
     return { error: "제품명은 2자 이상 필수입니다." };
@@ -313,6 +352,15 @@ function validate(body: SubmissionRequest) {
   if (summary && summary.length > 500) {
     return { error: "요약은 500자 이하로 입력해주세요." };
   }
+  if (postAudioUrl && !isInstagramCdnUrl(postAudioUrl)) {
+    return { error: "게시물 오디오 URL을 확인해주세요." };
+  }
+  if (
+    Number.isNaN(rawPostAudioStartTimeMs) ||
+    Number.isNaN(rawPostAudioDurationMs)
+  ) {
+    return { error: "게시물 오디오 재생 구간을 확인해주세요." };
+  }
 
   return {
     data: {
@@ -331,6 +379,15 @@ function validate(body: SubmissionRequest) {
       media_urls: mediaUrls,
       media_items: mediaItems,
       media_type: mediaType,
+      post_audio_url: postAudioUrl,
+      post_audio_start_time_ms: postAudioStartTimeMs,
+      post_audio_duration_ms: postAudioDurationMs,
+      post_audio_checked_at: Object.prototype.hasOwnProperty.call(
+          body,
+          "postAudioUrl",
+        )
+        ? new Date().toISOString()
+        : null,
       reporter_name: reporterName,
       reporter_contact: reporterContact,
       is_anonymous: body.isAnonymous ?? true,
@@ -360,6 +417,10 @@ async function upsertApprovedGroupBuy(
     media_urls: row.media_urls,
     media_items: row.media_items,
     media_type: row.media_type,
+    post_audio_url: row.post_audio_url,
+    post_audio_start_time_ms: row.post_audio_start_time_ms,
+    post_audio_duration_ms: row.post_audio_duration_ms,
+    post_audio_checked_at: row.post_audio_checked_at,
     confidence: 0.9,
     status: "APPROVED",
     is_all_day: false,
@@ -563,6 +624,10 @@ async function handleSubmission(
       media_urls: row.media_urls,
       media_items: row.media_items,
       media_type: row.media_type,
+      post_audio_url: row.post_audio_url,
+      post_audio_start_time_ms: row.post_audio_start_time_ms,
+      post_audio_duration_ms: row.post_audio_duration_ms,
+      post_audio_checked_at: row.post_audio_checked_at,
       reporter_name: row.reporter_name,
       reporter_contact: row.reporter_contact,
       is_anonymous: row.is_anonymous,
@@ -620,6 +685,10 @@ async function handleSubmission(
       media_urls: row.media_urls,
       media_items: row.media_items,
       media_type: row.media_type,
+      post_audio_url: row.post_audio_url,
+      post_audio_start_time_ms: row.post_audio_start_time_ms,
+      post_audio_duration_ms: row.post_audio_duration_ms,
+      post_audio_checked_at: row.post_audio_checked_at,
       reporter_name: row.reporter_name,
       reporter_contact: row.reporter_contact,
       is_anonymous: row.is_anonymous,

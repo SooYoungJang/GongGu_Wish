@@ -35,6 +35,8 @@
     "babel-preset-expo": "~55.0.24",
     "expo": "~55.0.27",
     "expo-application": "~55.0.17",
+    "expo-asset": "~55.0.18",
+    "expo-audio": "~55.0.16",
     "expo-blur": "~55.0.16",
     "expo-constants": "~55.0.17",
     "expo-dev-client": "~55.0.37",

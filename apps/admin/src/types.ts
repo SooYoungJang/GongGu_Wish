@@ -59,6 +59,9 @@ export type GongguSubmission = {
   instagramUrl: string | null;
   imageUrls: string[];
   mediaItems: MediaAsset[];
+  postAudioUrl?: string | null;
+  postAudioStartTimeMs?: number | null;
+  postAudioDurationMs?: number | null;
   reporterName: string | null;
   reporterContact: string | null;
   isAnonymous: boolean;
@@ -93,6 +96,9 @@ export type GroupBuy = {
   mediaUrls: string[];
   mediaItems: MediaAsset[];
   mediaType: "IMAGE" | "VIDEO" | null;
+  postAudioUrl?: string | null;
+  postAudioStartTimeMs?: number | null;
+  postAudioDurationMs?: number | null;
   status: GroupBuyStatus;
   sourceType: string | null;
   submissionId: string | null;
@@ -167,6 +173,10 @@ export type HikerLookupResult = {
   mediaUrls: string[];
   mediaItems: MediaAsset[];
   mediaType: "IMAGE" | "VIDEO" | null;
+  postAudioUrl?: string | null;
+  postAudioStartTimeMs?: number | null;
+  postAudioDurationMs?: number | null;
+  postAudioLookupStatus?: "FOUND" | "NONE" | "RETRYABLE";
   caption: string | null;
   likeCount: number | null;
   username: string | null;

@@ -11,6 +11,12 @@
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import {
+  extractPostAudioInfo,
+  preferAudioVideoVersions,
+  resolvePostAudio,
+  trustedInstagramCdnUrl,
+} from '../_shared/hiker-instagram-audio.ts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -34,6 +40,11 @@ interface InstagramMediaInfo {
   }>;
   /** Dominant media type: IMAGE or VIDEO */
   mediaType: 'IMAGE' | 'VIDEO' | null;
+  /** Carousel/reel-level music served separately from the video file. */
+  postAudioUrl: string | null;
+  postAudioStartTimeMs: number | null;
+  postAudioDurationMs: number | null;
+  postAudioLookupStatus: 'FOUND' | 'NONE' | 'RETRYABLE';
   caption: string | null;
   likeCount: number | null;
   username: string | null;
@@ -126,7 +137,7 @@ function bestImageUrl(media: Record<string, unknown>): string | null {
         ((getNumber(b.width) ?? 0) * (getNumber(b.height) ?? 0)) -
         ((getNumber(a.width) ?? 0) * (getNumber(a.height) ?? 0)),
       )[0];
-    const url = getString(best?.url);
+    const url = trustedInstagramCdnUrl(best?.url);
     if (url) return url;
   }
 
@@ -137,17 +148,25 @@ function bestImageUrl(media: Record<string, unknown>): string | null {
 
   const videoVersions = media.video_versions;
   if (Array.isArray(videoVersions) && videoVersions[0] && typeof videoVersions[0] === 'object') {
-    const url = getString((videoVersions[0] as Record<string, unknown>).url);
+    const url = trustedInstagramCdnUrl(
+      (videoVersions[0] as Record<string, unknown>).url,
+    );
     if (url) return url;
   }
 
-  return getString(media.imageUrl) ?? getString(media.thumbnail_url) ?? getString(media.thumbnailUrl);
+  return trustedInstagramCdnUrl(media.imageUrl) ??
+    trustedInstagramCdnUrl(media.thumbnail_url) ??
+    trustedInstagramCdnUrl(media.thumbnailUrl);
 }
 
 function bestVideoUrl(media: Record<string, unknown>): string | null {
   const videoVersions = media.video_versions;
-  if (Array.isArray(videoVersions) && videoVersions[0] && typeof videoVersions[0] === 'object') {
-    return getString((videoVersions[0] as Record<string, unknown>).url);
+  if (Array.isArray(videoVersions)) {
+    for (const version of videoVersions) {
+      const record = getRecord(version);
+      const url = trustedInstagramCdnUrl(record?.url);
+      if (url) return url;
+    }
   }
   return null;
 }
@@ -172,7 +191,7 @@ export function collectCarouselMedia(media: Record<string, unknown>): CollectedC
   let firstVideoUrl: string | null = null;
   let thumbnailUrl: string | null = null;
 
-  for (const item of carousel) {
+  for (const item of carousel.slice(0, 20)) {
     if (!item || typeof item !== 'object') continue;
     const itemMedia = item as Record<string, unknown>;
     const imageUrl = bestImageUrl(itemMedia);
@@ -200,8 +219,17 @@ export function collectCarouselMedia(media: Record<string, unknown>): CollectedC
 
 export function collectPostMedia(media: Record<string, unknown>): Pick<
   InstagramMediaInfo,
-  'imageUrl' | 'thumbnailUrl' | 'videoUrl' | 'mediaUrls' | 'mediaItems' | 'mediaType'
+  | 'imageUrl'
+  | 'thumbnailUrl'
+  | 'videoUrl'
+  | 'mediaUrls'
+  | 'mediaItems'
+  | 'mediaType'
+  | 'postAudioUrl'
+  | 'postAudioStartTimeMs'
+  | 'postAudioDurationMs'
 > {
+  const postAudio = extractPostAudioInfo(media);
   const carousel = collectCarouselMedia(media);
   if (carousel.urls.length > 0) {
     const thumbnailUrl = carousel.thumbnailUrl ?? bestImageUrl(media);
@@ -212,6 +240,7 @@ export function collectPostMedia(media: Record<string, unknown>): Pick<
       mediaUrls: carousel.urls,
       mediaItems: carousel.items,
       mediaType: carousel.hasVideo ? 'VIDEO' : 'IMAGE',
+      ...postAudio,
     };
   }
 
@@ -228,6 +257,7 @@ export function collectPostMedia(media: Record<string, unknown>): Pick<
       ? [{ url: videoUrl ?? displayUrl, mediaType: videoUrl ? 'VIDEO' : 'IMAGE', thumbnailUrl: imageUrl ?? displayUrl }]
       : [],
     mediaType: videoUrl ? 'VIDEO' : imageUrl ? 'IMAGE' : null,
+    ...postAudio,
   };
 }
 
@@ -253,10 +283,13 @@ export async function lookupViaHikerAPI(url: string, apiKey: string): Promise<In
   const user = getRecord(media.user) ?? getRecord(media.owner) ?? getRecord(data?.user);
   const caption = getRecord(media.caption);
   const takenAt = media.taken_at ?? media.takenAt ?? null;
-  const mediaInfo = collectPostMedia(media);
+  const preferredMedia = await preferAudioVideoVersions(media);
+  const mediaInfo = collectPostMedia(preferredMedia);
+  const postAudio = await resolvePostAudio(media, apiKey);
 
   return {
     ...mediaInfo,
+    ...postAudio,
     caption: getString(caption?.text) ?? getString(media.caption_text) ?? getString(media.caption),
     likeCount: getNumber(media.like_count) ?? getNumber(media.likeCount),
     username: getString(user?.username) ?? getString(media.username),

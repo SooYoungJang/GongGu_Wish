@@ -207,6 +207,11 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
       mediaUrls: item.mediaUrls ?? item.media_urls ?? [],
       mediaItems: item.mediaItems ?? item.media_items ?? [],
       mediaType: item.mediaType ?? item.media_type ?? null,
+      postAudioUrl: item.postAudioUrl ?? item.post_audio_url ?? null,
+      postAudioStartTimeMs:
+        item.postAudioStartTimeMs ?? item.post_audio_start_time_ms ?? null,
+      postAudioDurationMs:
+        item.postAudioDurationMs ?? item.post_audio_duration_ms ?? null,
       ...(item.isMonthlyFeatured !== undefined
         ? { isMonthlyFeatured: item.isMonthlyFeatured }
         : {}),
@@ -859,6 +864,9 @@ export type RefreshedInstagramMedia = {
     | "mediaUrls"
     | "mediaItems"
     | "mediaType"
+    | "postAudioUrl"
+    | "postAudioStartTimeMs"
+    | "postAudioDurationMs"
   >;
   error?: string;
 };
@@ -869,9 +877,13 @@ export type RefreshedInstagramMedia = {
  */
 export async function refreshGroupBuyMedia(
   groupBuyId: string,
+  options?: { force?: boolean; failedPostAudioUrl?: string },
 ): Promise<RefreshedInstagramMedia> {
+  const failedPostAudioUrl = options?.failedPostAudioUrl?.trim();
   return callEdgeFunction<RefreshedInstagramMedia>("refresh-instagram-media", {
     groupBuyId,
+    ...(options?.force === true ? { force: true } : {}),
+    ...(failedPostAudioUrl ? { failedPostAudioUrl } : {}),
   });
 }
 

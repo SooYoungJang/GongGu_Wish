@@ -67,6 +67,9 @@ type SubmissionForm = {
   mediaUrlsText: string;
   mediaItems: MediaAsset[];
   mediaType: "" | "IMAGE" | "VIDEO";
+  postAudioUrl: string;
+  postAudioStartTimeMs: number | null;
+  postAudioDurationMs: number | null;
   isHomeBanner: boolean;
   homeBannerStartDate: string;
   homeBannerEndDate: string;
@@ -347,6 +350,9 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
         : (item.imageUrls ?? []).join("\n"),
     mediaItems,
     mediaType,
+    postAudioUrl: text(item.postAudioUrl),
+    postAudioStartTimeMs: item.postAudioStartTimeMs ?? null,
+    postAudioDurationMs: item.postAudioDurationMs ?? null,
     isHomeBanner: Boolean(item.isHomeBanner),
     homeBannerStartDate: dateInput(item.homeBannerStartDate),
     homeBannerEndDate: dateInput(item.homeBannerEndDate),
@@ -412,6 +418,13 @@ function submissionPayload(form: SubmissionForm) {
     mediaUrls,
     mediaItems,
     mediaType: inferFormMediaType(mediaItems, mediaUrls) || null,
+    postAudioUrl: form.postAudioUrl || null,
+    postAudioStartTimeMs: form.postAudioUrl
+      ? form.postAudioStartTimeMs ?? 0
+      : null,
+    postAudioDurationMs: form.postAudioUrl
+      ? form.postAudioDurationMs
+      : null,
     isHomeBanner: canonicalForm.isHomeBanner,
     homeBannerStartDate: canonicalForm.homeBannerStartDate,
     homeBannerEndDate: canonicalForm.homeBannerEndDate,
@@ -1841,6 +1854,9 @@ function applyHikerResult(
   // existing form value (per product request: Hiker 조회 refreshes the form).
   // Rule-based suggestions only fill empty fields.
   const isLlm = suggestions.source === "llm";
+  const shouldApplyPostAudio =
+    result.postAudioLookupStatus !== "RETRYABLE" &&
+    result.postAudioUrl !== undefined;
 
   return {
     ...form,
@@ -1869,6 +1885,22 @@ function applyHikerResult(
     mediaUrlsText: mediaUrls.join("\n"),
     mediaItems,
     mediaType: suggestions.mediaType ?? result.mediaType ?? form.mediaType,
+    postAudioUrl:
+      !shouldApplyPostAudio
+        ? form.postAudioUrl
+        : result.postAudioUrl ?? "",
+    postAudioStartTimeMs:
+      !shouldApplyPostAudio
+        ? form.postAudioStartTimeMs
+        : result.postAudioUrl
+          ? result.postAudioStartTimeMs ?? 0
+          : null,
+    postAudioDurationMs:
+      !shouldApplyPostAudio
+        ? form.postAudioDurationMs
+        : result.postAudioUrl
+          ? result.postAudioDurationMs ?? null
+          : null,
   };
 }
 function tabTitle(tab: TabKey) {
