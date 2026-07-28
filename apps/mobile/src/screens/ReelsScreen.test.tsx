@@ -48,6 +48,12 @@ const groupBuys = [0, 1, 2].map((index) => ({
   videoUrl: `https://example.com/reel-${index}.mp4`,
   mediaType: "VIDEO",
 }));
+const manyGroupBuys = Array.from({ length: 12 }, (_, index) => ({
+  id: `reel-${index}`,
+  productName: `릴스 ${index}`,
+  videoUrl: `https://example.com/reel-${index}.mp4`,
+  mediaType: "VIDEO",
+}));
 
 vi.mock("react-native", () => {
   const ReactMock = require("react");
@@ -232,6 +238,77 @@ describe("ReelsScreen player lifecycle", () => {
     act(() => {
       renderer!.unmount();
     });
+  });
+
+  it("keeps the pager stable while the native ad SDK becomes ready", () => {
+    adsMock.enabled = true;
+    adsMock.isReady = false;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+
+    expect(pagerViewMock.mounts).toBe(1);
+    act(() => {
+      adsMock.isReady = true;
+      renderer!.update(<ReelsScreen />);
+    });
+
+    expect(pagerViewMock.mounts).toBe(1);
+    randomSpy.mockRestore();
+    act(() => {
+      renderer!.root
+        .find((node) => String(node.type) === "PagerView")
+        .props.onPageSelected({ nativeEvent: { position: 1 } });
+    });
+    expect(
+      renderer!.root.findByProps({ testID: "reels-native-ad-1" }),
+    ).toBeTruthy();
+
+    act(() => renderer!.unmount());
+  });
+
+  it("keeps later ad slots when one ad request is unavailable", () => {
+    queryResultMock.data = manyGroupBuys;
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+    randomSpy.mockRestore();
+
+    const findPager = () =>
+      renderer!.root.find((node) => String(node.type) === "PagerView");
+
+    act(() => {
+      findPager().props.onPageSelected({ nativeEvent: { position: 2 } });
+    });
+    const firstAd = renderer!.root.findByProps({
+      testID: "reels-native-ad-1",
+    });
+    expect(firstAd.props.visible).toBe(true);
+
+    act(() => {
+      firstAd.props.onLoadStateChange?.("unavailable");
+    });
+    expect(pagerViewMock.mounts).toBe(1);
+
+    act(() => {
+      findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
+    });
+    expect(
+      renderer!.root.findByProps({ testID: "reels-native-ad-2" }).props
+        .visible,
+    ).toBe(true);
+
+    act(() => renderer!.unmount());
   });
 
   it("shows an accessible retry state when reels fail without cache", () => {
