@@ -3,6 +3,11 @@ import { Image, Text, View, type LayoutChangeEvent } from "react-native";
 
 import { useAds } from "../../ads/AdsContext.native";
 import {
+  emitAdsDiagnostic,
+  getAdsErrorCode,
+} from "../../ads/adsDiagnostics";
+import { loadNativeAdWithRetry } from "../../ads/loadNativeAd";
+import {
   getGoogleMobileAdsModule,
   type GoogleMobileAdsModule,
 } from "../../ads/loadGoogleMobileAds";
@@ -15,7 +20,7 @@ export type {
   NativeAdLoadStatus,
 } from "./NativeAdCard.types";
 
-const LOAD_TIMEOUT_MS = 5_000;
+const NATIVE_AD_RETRY_DELAYS_MS = [750, 2_000] as const;
 type NativeAdInstance = Awaited<
   ReturnType<GoogleMobileAdsModule["NativeAd"]["createForAdRequest"]>
 >;
@@ -89,19 +94,13 @@ export const NativeAdCard = memo(function NativeAdCard({
     }
 
     let active = true;
-    let timedOut = false;
     let loadedAd: NativeAdInstance | null = null;
     onLoadStateChange?.("loading");
 
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      setLoadedNativeAd(null);
-      onLoadStateChange?.("unavailable");
-    }, LOAD_TIMEOUT_MS);
-
-    void getGoogleMobileAdsModule()
-      .then(async (module) => {
-        if (!module) return null;
+    void loadNativeAdWithRetry({
+      load: async () => {
+        const module = await getGoogleMobileAdsModule();
+        if (!module) throw new Error("Google Mobile Ads module unavailable");
         const nativeAd = await module.NativeAd.createForAdRequest(unitId, {
           adChoicesPlacement: module.NativeAdChoicesPlacement.TOP_RIGHT,
           aspectRatio:
@@ -113,33 +112,54 @@ export const NativeAdCard = memo(function NativeAdCard({
           startVideoMuted: true,
         });
         return { module, nativeAd };
-      })
+      },
+      waitForRetry: (attempt) =>
+        new Promise((resolve) => {
+          setTimeout(
+            resolve,
+            NATIVE_AD_RETRY_DELAYS_MS[
+              Math.min(attempt - 1, NATIVE_AD_RETRY_DELAYS_MS.length - 1)
+            ],
+          );
+        }),
+      onAttemptFailure: ({ attempt, error, maxAttempts }) => {
+        emitAdsDiagnostic(
+          {
+            event:
+              attempt < maxAttempts ? "native_ad_retry" : "native_ad_failed",
+            placement,
+            variant,
+            attempt,
+            maxAttempts,
+            errorCode: getAdsErrorCode(error),
+          },
+          (payload) => console.warn(payload),
+        );
+      },
+    })
       .then((result) => {
-        if (!result) {
-          clearTimeout(timeout);
-          if (active && !timedOut) onLoadStateChange?.("unavailable");
-          return;
-        }
         const { module, nativeAd } = result;
-        if (!active || timedOut) {
+        if (!active) {
           nativeAd.destroy();
           return;
         }
-        clearTimeout(timeout);
         loadedAd = nativeAd;
         setLoadedNativeAd({ module, nativeAd });
         onLoadStateChange?.("loaded");
+        emitAdsDiagnostic({
+          event: "native_ad_loaded",
+          placement,
+          variant,
+        });
       })
       .catch(() => {
-        if (!active || timedOut) return;
-        clearTimeout(timeout);
+        if (!active) return;
         setLoadedNativeAd(null);
         onLoadStateChange?.("unavailable");
       });
 
     return () => {
       active = false;
-      clearTimeout(timeout);
       // NativeAd owns native media resources and must be explicitly released.
       // https://docs.page/invertase/react-native-google-mobile-ads/native-ads#destroying-ads
       loadedAd?.destroy();

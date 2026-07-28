@@ -15,6 +15,7 @@ import {
   type NativeAdUnitIds,
   resolveAdsRuntimeConfig,
 } from "./adConfig";
+import { emitAdsDiagnostic, getAdsErrorCode } from "./adsDiagnostics";
 import {
   createGoogleMobileAdsController,
   type AdsInitializationState,
@@ -165,15 +166,37 @@ export function AdsProvider({
       waitForRetry: waitForAdsRetry,
     })
       .then((nextState) => {
-        if (mounted) setState({ ...nextState, isSettled: true });
+        if (mounted) {
+          setState({ ...nextState, isSettled: true });
+          emitAdsDiagnostic(
+            {
+              event: nextState.isReady
+                ? "initialization_ready"
+                : "initialization_unavailable",
+              platform,
+              privacyOptionsRequired: nextState.privacyOptionsRequired,
+            },
+            nextState.isReady
+              ? undefined
+              : (payload) => console.warn(payload),
+          );
+        }
       })
-      .catch(() => {
+      .catch((error) => {
         if (mounted) {
           setState({
             isReady: false,
             isSettled: true,
             privacyOptionsRequired: false,
           });
+          emitAdsDiagnostic(
+            {
+              event: "initialization_failed",
+              platform,
+              errorCode: getAdsErrorCode(error),
+            },
+            (payload) => console.warn(payload),
+          );
         }
       });
 
@@ -190,10 +213,18 @@ export function AdsProvider({
       const nextState = await controller.showPrivacyOptions();
       setState({ ...nextState, isSettled: true });
       return true;
-    } catch {
+    } catch (error) {
+      emitAdsDiagnostic(
+        {
+          event: "privacy_options_failed",
+          platform,
+          errorCode: getAdsErrorCode(error),
+        },
+        (payload) => console.warn(payload),
+      );
       return false;
     }
-  }, [config.enabled]);
+  }, [config.enabled, platform]);
 
   const value = useMemo<AdsContextValue>(
     () => ({

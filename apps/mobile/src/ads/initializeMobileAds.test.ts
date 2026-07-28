@@ -64,6 +64,24 @@ describe("createGoogleMobileAdsController", () => {
     expect(initialize).toHaveBeenCalledOnce();
   });
 
+  it("uses the refreshed consent returned by gatherConsent", async () => {
+    const initialize = vi.fn(async () => undefined);
+    const controller = createGoogleMobileAdsController({
+      gatherConsent: vi.fn(async () => consent(true)),
+      getConsentInfo: vi.fn(async () => {
+        throw new Error("consent storage unavailable");
+      }),
+      showPrivacyOptionsForm: vi.fn(),
+      initialize,
+    });
+
+    await expect(controller.initialize()).resolves.toEqual({
+      isReady: true,
+      privacyOptionsRequired: false,
+    });
+    expect(initialize).toHaveBeenCalledOnce();
+  });
+
   it("fails closed when stored consent cannot be read", async () => {
     const initialize = vi.fn();
     const controller = createGoogleMobileAdsController({
