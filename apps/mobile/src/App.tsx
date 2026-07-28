@@ -39,6 +39,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 
 import { AdsProvider } from "./ads/AdsContext";
+import { AdsRuntimeSmokeProbe } from "./ads/AdsRuntimeSmokeProbe";
 import type { MainTabParamList, RootStackParamList } from "./types";
 import { configurePostgrest } from "./lib/postgrest-client";
 import { configureSupabase } from "./lib/supabase";
@@ -566,6 +567,7 @@ export default function App() {
       <KeyboardProvider>
         <SafeAreaProvider>
           <AdsProvider>
+            <AdsRuntimeSmokeProbe />
             <QueryClientProvider client={mobileQueryClient}>
               <QueryFocusBridge />
               <ThemeProvider>

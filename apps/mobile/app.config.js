@@ -61,6 +61,10 @@ function resolveAppVariant(requestedVariant) {
   return variant;
 }
 
+function resolveAdsRuntimeSmoke(appVariant, requestedValue) {
+  return appVariant === "preview" && requestedValue === "true";
+}
+
 function resolveGoogleServicesFile(
   variant,
   configuredFile,
@@ -378,6 +382,10 @@ function withAutomatedE2EAndroidManifest(config) {
 const createAppConfig = ({ config }) => {
   const appVariant = resolveAppVariant(process.env.APP_VARIANT);
   const automatedE2E = process.env.EXPO_PUBLIC_E2E_MODE === "true";
+  const adsRuntimeSmoke = resolveAdsRuntimeSmoke(
+    appVariant.key,
+    process.env.EXPO_PUBLIC_ADS_RUNTIME_SMOKE,
+  );
   const ads = resolveAdsBuildConfig({
     automatedE2E,
     configuredAndroidAppId: process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID,
@@ -430,6 +438,7 @@ const createAppConfig = ({ config }) => {
         appVariant: appVariant.key,
         authRedirectUrl: `${appVariant.scheme}://auth/callback`,
         automatedE2E,
+        ...(adsRuntimeSmoke ? { adsRuntimeSmoke: true } : {}),
         adsMode: ads.mode,
         admobAndroidAppId: ads.androidAppId,
         admobIosAppId: ads.iosAppId,
@@ -489,6 +498,7 @@ createAppConfig.applyGoogleMobileAdsAndroidManifest =
 createAppConfig.applyGoogleMobileAdsIosInfoPlist =
   applyGoogleMobileAdsIosInfoPlist;
 createAppConfig.resolveAdsBuildConfig = resolveAdsBuildConfig;
+createAppConfig.resolveAdsRuntimeSmoke = resolveAdsRuntimeSmoke;
 createAppConfig.resolveAppVariant = resolveAppVariant;
 createAppConfig.resolveBackendEnvironment = resolveBackendEnvironment;
 createAppConfig.resolveGoogleServicesFile = resolveGoogleServicesFile;

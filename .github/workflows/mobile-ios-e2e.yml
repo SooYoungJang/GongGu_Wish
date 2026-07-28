@@ -21,6 +21,12 @@ on:
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:
+    inputs:
+      ads_runtime_smoke:
+        description: "Run only the Preview Google Mobile Ads runtime smoke"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -31,6 +37,7 @@ concurrency:
 
 jobs:
   gon-263-android:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.ads_runtime_smoke != true }}
     name: GON-263 Android journeys
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -201,6 +208,83 @@ jobs:
           if [[ -n "${E2E_MEDIA_PID:-}" ]]; then
             kill "$E2E_MEDIA_PID" || true
           fi
+
+  ads-runtime-android:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.ads_runtime_smoke == true }}
+    name: Preview Android ads runtime smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      APP_VARIANT: "preview"
+      EXPO_NO_TELEMETRY: "1"
+      EXPO_PUBLIC_ADS_RUNTIME_SMOKE: "true"
+      EXPO_PUBLIC_ADMOB_MODE: "test"
+      EXPO_PUBLIC_API_PROXY_URL: "https://api-preview.gongguwish.com"
+      EXPO_PUBLIC_E2E_MODE: "false"
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "ads-smoke-placeholder"
+      EXPO_PUBLIC_SUPABASE_URL: "https://xwblovggtvbpiusjfokq.supabase.co"
+      ORG_GRADLE_PROJECT_reactNativeArchitectures: "x86_64"
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Validate ads smoke contract
+        run: node --test scripts/mobile-ads-smoke-config.test.mjs
+
+      - name: Enable KVM access
+        run: |
+          sudo usermod -aG kvm "$USER"
+          sudo chown "$USER" /dev/kvm
+
+      - name: Build release app and load an official Google test ad
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 36
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          disk-size: 6000M
+          heap-size: 2048M
+          pre-emulator-launch-script: bash scripts/build-mobile-ads-smoke.sh
+          script: bash scripts/run-mobile-ads-smoke.sh
+
+      - name: Validate ads runtime evidence
+        if: always()
+        shell: bash
+        run: |
+          test -s artifacts/mobile-ads-smoke/android-manifest.xml
+          test -s artifacts/mobile-ads-smoke/android-prebuild.log
+          test -s artifacts/mobile-ads-smoke/android-build.log
+          test -s artifacts/mobile-ads-smoke/ads-logcat.txt
+          test -s artifacts/mobile-ads-smoke/ads-runtime-smoke.png
+          grep -F '"event":"initialization_ready"' \
+            artifacts/mobile-ads-smoke/ads-logcat.txt
+          grep -F '"event":"native_ad_loaded"' \
+            artifacts/mobile-ads-smoke/ads-logcat.txt
+
+      - name: Upload ads runtime evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mobile-ads-runtime-smoke
+          path: artifacts/mobile-ads-smoke
+          if-no-files-found: error
+          retention-days: 14
 
   gon-263-ios:
     # GON-263 delivery is Android-only; keep this recipe disabled for an
