@@ -18,6 +18,12 @@ test("Android ads smoke enables only Preview test ads and captures runtime proof
   assert.match(workflow, /run-mobile-ads-smoke\.sh/);
   assert.match(appConfig, /appVariant === "preview"/);
   assert.match(app, /<AdsRuntimeSmokeProbe \/>/);
+  assert.ok(
+    app.indexOf("<ThemeProvider>") < app.indexOf("<AdsRuntimeSmokeProbe />") &&
+      app.indexOf("<AdsRuntimeSmokeProbe />") <
+        app.indexOf("</ThemeProvider>"),
+    "the ads smoke probe must render inside ThemeProvider",
+  );
   assert.match(builder, /app:assembleRelease/);
   assert.match(builder, /ca-app-pub-3940256099942544~3347511713/);
   assert.match(runner, /com\.gonggu\.wish\.preview/);

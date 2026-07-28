@@ -567,10 +567,10 @@ export default function App() {
       <KeyboardProvider>
         <SafeAreaProvider>
           <AdsProvider>
-            <AdsRuntimeSmokeProbe />
             <QueryClientProvider client={mobileQueryClient}>
               <QueryFocusBridge />
               <ThemeProvider>
+                <AdsRuntimeSmokeProbe />
                 <AuthProvider>
                   <NotificationPreferencesBoundary>
                     <GroupBuyReminderPickerProvider
