@@ -256,13 +256,17 @@ async function secretsEqual(left: string, right: string): Promise<boolean> {
 
 async function authenticateRefreshCaller(req: Request): Promise<RefreshCaller> {
   const bearerToken = extractBearerToken(req.headers.get('Authorization'));
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-
-  if (bearerToken && serviceRoleKey && await secretsEqual(bearerToken, serviceRoleKey)) {
-    return { kind: 'service' };
+  const cronSecret = req.headers.get(CRON_SECRET_HEADER)?.trim() ?? '';
+  if (!bearerToken && (!cronSecret || cronSecret.length > 256)) {
+    throw new HttpError(401, 'Authentication is required');
   }
 
   if (bearerToken) {
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (serviceRoleKey && await secretsEqual(bearerToken, serviceRoleKey)) {
+      return { kind: 'service' };
+    }
+
     const supabase = createAdminClient();
     const {
       data: { user },
@@ -272,8 +276,7 @@ async function authenticateRefreshCaller(req: Request): Promise<RefreshCaller> {
     throw new HttpError(401, 'Authentication is required');
   }
 
-  const cronSecret = req.headers.get(CRON_SECRET_HEADER)?.trim() ?? '';
-  if (cronSecret && cronSecret.length <= 256) {
+  if (cronSecret) {
     const supabase = createAdminClient();
     const { data, error } = await supabase.rpc('verify_instagram_refresh_cron_secret', {
       candidate: cronSecret,
