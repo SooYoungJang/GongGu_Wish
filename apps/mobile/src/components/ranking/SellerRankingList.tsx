@@ -7,6 +7,8 @@ import {
   type FlatListProps,
   type FlatList,
   type ListRenderItem,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import type { Ref } from "react";
 
@@ -60,6 +62,30 @@ function wrapForAdInsertion(
   return items.map((item) => ({ ...item, id: item.groupBuyId }));
 }
 
+function RankingNativeAdSlot({
+  sequence,
+  style,
+}: {
+  sequence: number;
+  style: StyleProp<ViewStyle>;
+}) {
+  const [loadStatus, setLoadStatus] =
+    useState<NativeAdLoadStatus>("loading");
+
+  if (loadStatus === "unavailable") return null;
+
+  return (
+    <View style={style}>
+      <NativeAdCard
+        onLoadStateChange={setLoadStatus}
+        placement="home"
+        testID={`ranking-native-ad-${sequence}`}
+        variant="row"
+      />
+    </View>
+  );
+}
+
 export function SellerRankingList({
   state,
   bottomPadding = 0,
@@ -95,12 +121,8 @@ export function SellerRankingList({
     return readyData.slice(0, leadingTopCount);
   }, [readyData]);
   const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
-  const [rankingAdsUnavailable, setRankingAdsUnavailable] = useState(false);
   const canShowRankingAds =
-    adsEnabled &&
-    adsReady &&
-    Boolean(nativeUnitIds.home) &&
-    !rankingAdsUnavailable;
+    adsEnabled && adsReady && Boolean(nativeUnitIds.home);
   const feedItems = useMemo<RankingFeedItem[]>(() => {
     const rankingIds = readyData.map((item) => item.groupBuyId);
     const random = seedAdRandomFromIds(rankingIds);
@@ -122,12 +144,6 @@ export function SellerRankingList({
         !isReelsContentItem(item) || !topThreeIds.has(item.content.groupBuyId),
     );
   }, [canShowRankingAds, readyData, topThree]);
-  const handleRankingAdLoadStateChange = useCallback(
-    (status: NativeAdLoadStatus) => {
-      if (status === "unavailable") setRankingAdsUnavailable(true);
-    },
-    [],
-  );
   const footerStyle = useMemo(
     () => [s.footer, { height: bottomPadding }],
     [bottomPadding, s.footer],
@@ -140,14 +156,7 @@ export function SellerRankingList({
     ({ item }) => {
       if (!isReelsContentItem(item)) {
         return (
-          <View style={s.adCard}>
-            <NativeAdCard
-              onLoadStateChange={handleRankingAdLoadStateChange}
-              placement="home"
-              testID={`ranking-native-ad-${item.sequence}`}
-              variant="row"
-            />
-          </View>
+          <RankingNativeAdSlot sequence={item.sequence} style={s.adCard} />
         );
       }
       return (
@@ -159,7 +168,7 @@ export function SellerRankingList({
         />
       );
     },
-    [handleRankingAdLoadStateChange, onPressItem, onPressSeller, onToggleAlert],
+    [onPressItem, onPressSeller, onToggleAlert, s.adCard],
   );
   if (state.status === "loading") {
     return (

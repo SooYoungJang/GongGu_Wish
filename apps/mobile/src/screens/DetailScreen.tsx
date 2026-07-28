@@ -2499,12 +2499,8 @@ function DetailScreenContent({
   // Interleave native-ad pages into the detail pager (same pattern as Reels).
   // When ads are disabled, insertReelsAdSlots returns a 1:1 content-only feed.
   const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
-  const [detailAdsUnavailable, setDetailAdsUnavailable] = useState(false);
   const canShowDetailAds =
-    adsEnabled &&
-    adsReady &&
-    Boolean(nativeUnitIds.detail) &&
-    !detailAdsUnavailable;
+    adsEnabled && adsReady && Boolean(nativeUnitIds.detail);
   const feedItems = useMemo(
     () =>
       insertReelsAdSlots(reelItems, {
@@ -2558,7 +2554,6 @@ function DetailScreenContent({
         if (recoveryEntry) setActiveProductId(recoveryEntry.content.id);
         setIsOnAdPage(false);
       }
-      setDetailAdsUnavailable(true);
     },
     [],
   );

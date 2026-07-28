@@ -696,6 +696,50 @@ describe("CalendarScreen", () => {
     expect(dateList.props.initialScrollIndex).toBe(3);
   });
 
+  it("keeps later calendar ad slots when one request is unavailable", () => {
+    const dateKeys = Array.from(
+      { length: 12 },
+      (_, index) => `2026-07-${String(index + 1).padStart(2, "0")}`,
+    );
+    mockQueryResult = {
+      data: dateKeys.map((dateKey, index) => ({
+        ...sampleGroupBuys[0],
+        id: `calendar-ad-retry-deal-${index + 1}`,
+        startDate: null,
+        endDate: `${dateKey}T23:59:59+09:00`,
+      })),
+      isFetching: false,
+      isError: false,
+    };
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.home = "home-native-unit";
+
+    const renderer = renderCalendar({ initialDate: dateKeys[0] });
+    const adsBeforeFailure = renderer.root.findAll(
+      (node) => String(node.type) === "NativeAdCard",
+    );
+    expect(adsBeforeFailure.length).toBeGreaterThan(1);
+    const failedAd = adsBeforeFailure[0];
+    const failedSequence = String(failedAd.props.testID).replace(
+      "calendar-native-ad-",
+      "",
+    );
+
+    act(() => failedAd.props.onLoadStateChange("unavailable"));
+
+    const adsAfterFailure = renderer.root.findAll(
+      (node) => String(node.type) === "NativeAdCard",
+    );
+    expect(adsAfterFailure).toHaveLength(adsBeforeFailure.length - 1);
+    expect(adsAfterFailure.length).toBeGreaterThan(0);
+    expect(
+      renderer.root.findByProps({
+        testID: `calendar-native-ad-unavailable-${failedSequence}`,
+      }),
+    ).toBeTruthy();
+  });
+
   it("reanchors the selected date when ads or Dynamic Type change row offsets", () => {
     const dateKeys = ["2026-07-01", "2026-07-02", "2026-07-03"];
     mockQueryResult = {
