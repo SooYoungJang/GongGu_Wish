@@ -23,6 +23,7 @@ import PagerView from "react-native-pager-view";
 import { fetchGroupBuys } from "../api";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { NativeAdCard } from "../components/ads/NativeAdCard";
+import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
 import { logDeepView } from "../api";
 import { useAds } from "../ads/AdsContext";
 import { useRecentViews } from "../hooks/useLocalDeals";
@@ -71,6 +72,51 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+function ReelsNativeAdPage({
+  reelBottomInset,
+  sequence,
+  visible,
+}: {
+  reelBottomInset: number;
+  sequence: number;
+  visible: boolean;
+}) {
+  const [loadStatus, setLoadStatus] =
+    useState<NativeAdLoadStatus>("loading");
+  const isUnavailable = loadStatus === "unavailable";
+
+  return (
+    <View style={styles.adPage}>
+      {loadStatus !== "loaded" ? (
+        <View
+          accessibilityLiveRegion="polite"
+          style={styles.adLoading}
+          testID={
+            isUnavailable
+              ? `reels-native-ad-unavailable-${sequence}`
+              : undefined
+          }
+        >
+          <Text style={styles.adLoadingLabel}>광고</Text>
+          <Text style={styles.adLoadingText}>
+            {isUnavailable
+              ? "이번 광고를 불러오지 못했어요"
+              : "광고를 불러오는 중이에요"}
+          </Text>
+        </View>
+      ) : null}
+      <NativeAdCard
+        onLoadStateChange={setLoadStatus}
+        placement="reels"
+        reelBottomInset={reelBottomInset}
+        testID={`reels-native-ad-${sequence}`}
+        variant="reel"
+        visible={visible}
+      />
+    </View>
+  );
+}
+
 export function ReelsScreen({
   onSheetVisibilityChange,
 }: {
@@ -117,7 +163,7 @@ export function ReelsScreen({
     return shuffle(data ?? []);
   }, [data]);
   // Keep PagerView's item identity stable while the native ads SDK initializes
-  // or an individual request has no fill. NativeAdCard owns local loading state.
+  // or an individual request has no fill. Each page owns its local load state.
   const canShowReelsAds = adsEnabled && Boolean(nativeUnitIds.reels);
   const baseBatch = useMemo(
     () =>
@@ -401,26 +447,13 @@ export function ReelsScreen({
                 isReelsContentItem(item) ? (
                   renderReelItem(item.content, index)
                 ) : (
-                  <View style={styles.adPage}>
-                    <View
-                      accessibilityLiveRegion="polite"
-                      style={styles.adLoading}
-                    >
-                      <Text style={styles.adLoadingLabel}>광고</Text>
-                      <Text style={styles.adLoadingText}>
-                        광고를 불러오는 중이에요
-                      </Text>
-                    </View>
-                    <NativeAdCard
-                      placement="reels"
-                      reelBottomInset={
-                        insets.bottom + REELS_TAB_BAR_OVERLAY_OFFSET
-                      }
-                      testID={`reels-native-ad-${item.sequence}`}
-                      variant="reel"
-                      visible={index === activeIndex}
-                    />
-                  </View>
+                  <ReelsNativeAdPage
+                    reelBottomInset={
+                      insets.bottom + REELS_TAB_BAR_OVERLAY_OFFSET
+                    }
+                    sequence={item.sequence}
+                    visible={index === activeIndex}
+                  />
                 )
               ) : null}
             </View>
