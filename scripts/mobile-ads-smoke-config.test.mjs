@@ -31,6 +31,7 @@ test("Android ads smoke verifies the Preview request lifecycle without masking n
   assert.match(probe, /placement="home"/);
   assert.match(probe, /placement="reels"/);
   assert.match(runner, /com\.gonggu\.wish\.preview/);
+  assert.match(runner, /for launch_attempt in \$\(seq 1 30\)/);
   assert.match(runner, /"event":"initialization_ready"/);
   assert.match(runner, /native_ad_request_started/);
   assert.match(runner, /native_ad_loaded/);

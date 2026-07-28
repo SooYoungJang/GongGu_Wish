@@ -26,6 +26,19 @@ adb shell am force-stop "$package_name"
 adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 \
   > "$artifact_dir/launch.txt"
 
+app_started=false
+for launch_attempt in $(seq 1 30); do
+  if adb shell pidof "$package_name" >/dev/null; then
+    app_started=true
+    break
+  fi
+  sleep 1
+done
+if [[ "$app_started" != "true" ]]; then
+  echo "Preview app process did not start within 30 seconds" >&2
+  exit 1
+fi
+
 has_event() {
   local event="$1"
   local placement="$2"
