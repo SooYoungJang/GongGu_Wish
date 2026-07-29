@@ -14,6 +14,8 @@ import {
   fetchPopularSearchTerms,
   logSearchTerm,
 } from "../api";
+import { resolveAudiencePolicy } from "../audience/audiencePolicy";
+import { setAudiencePolicySnapshot } from "../audience/behaviorSignalsPolicy";
 import { configurePostgrest } from "../lib/postgrest-client";
 import {
   cleanupLocalFixture,
@@ -247,16 +249,21 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
     const selectedProductName = "선택제품-인기집계";
     const selectedProductId = "search-popularity-contract-product";
 
-    await logSearchTerm(recentOnlyQuery);
-    await logSearchTerm(selectedProductName, selectedProductId);
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age14Plus"));
+    try {
+      await logSearchTerm(recentOnlyQuery);
+      await logSearchTerm(selectedProductName, selectedProductId);
 
-    const popularTerms = await fetchPopularSearchTerms(50, 24);
-    expect(popularTerms.some((term) => term.keyword === recentOnlyQuery)).toBe(
-      false,
-    );
-    expect(
-      popularTerms.some((term) => term.keyword === selectedProductName),
-    ).toBe(true);
+      const popularTerms = await fetchPopularSearchTerms(50, 24);
+      expect(popularTerms.some((term) => term.keyword === recentOnlyQuery)).toBe(
+        false,
+      );
+      expect(
+        popularTerms.some((term) => term.keyword === selectedProductName),
+      ).toBe(true);
+    } finally {
+      setAudiencePolicySnapshot(resolveAudiencePolicy(null));
+    }
   });
 
   it("keeps category, period, sort, and cursor consistent through the mobile ranking client", async () => {
