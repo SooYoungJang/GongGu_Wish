@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      confirm_preview_build:
+        description: "Build a fresh Preview APK with the latest embedded JS bundle"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -98,6 +103,97 @@ jobs:
             echo "::error::Preview credential isolation failed (Supabase=$SUPABASE_AUDIT, Cloudflare=$CLOUDFLARE_AUDIT, Vercel=$VERCEL_AUDIT)."
             exit 1
           fi
+
+  # ── Manual Preview APK Recovery ──────────────────────────────────────────
+  preview-apk-recovery:
+    name: Build fresh Preview APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment: preview
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop' && inputs.confirm_preview_build == true }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require the latest develop commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          develop_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/develop" --jq '.object.sha')"
+          if [[ "$GITHUB_SHA" != "$develop_sha" ]]; then
+            echo "::error::Recovery build SHA $GITHUB_SHA is not latest develop $develop_sha."
+            exit 1
+          fi
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+      - run: npm ci
+      - name: Set up EAS CLI
+        uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
+        with:
+          eas-version: latest
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.1.0
+        with:
+          distribution: "temurin"
+          java-version: "17"
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - name: Install required Android NDK
+        run: |
+          sdkmanager "ndk;${ANDROID_NDK_VERSION}"
+          ndk_path="${ANDROID_SDK_ROOT}/ndk/${ANDROID_NDK_VERSION}"
+          test -x "$ndk_path/ndk-build"
+          echo "ANDROID_NDK_HOME=$ndk_path" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ndk_path" >> "$GITHUB_ENV"
+      - name: Build exact-SHA Preview APK
+        id: mobile-build
+        working-directory: ./apps/mobile
+        env:
+          FORCE_PREVIEW_APK: "true"
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/ci-deploy-android.sh
+      - name: Require a local Preview APK result
+        env:
+          DEPLOY_MODE: ${{ steps.mobile-build.outputs.mode }}
+          APK_PATH: ${{ steps.mobile-build.outputs.apk-path }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$DEPLOY_MODE" != "build" || ! -s "$APK_PATH" ]]; then
+            echo "::error::Preview recovery did not produce a local APK."
+            exit 1
+          fi
+          develop_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/develop" --jq '.object.sha')"
+          if [[ "$GITHUB_SHA" != "$develop_sha" ]]; then
+            echo "::error::Develop moved to $develop_sha while recovery built $GITHUB_SHA."
+            exit 1
+          fi
+      - name: Upload fresh Preview APK
+        id: upload-apk
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.mobile-build.outputs.artifact-name }}-recovery-${{ github.sha }}
+          path: ${{ steps.mobile-build.outputs.apk-path }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+      - name: Report recovery artifact
+        env:
+          ARTIFACT_URL: ${{ steps.upload-apk.outputs.artifact-url }}
+          APK_SHA256: ${{ steps.mobile-build.outputs.apk-sha256 }}
+          FINGERPRINT: ${{ steps.mobile-build.outputs.fingerprint }}
+        run: |
+          {
+            echo "## Preview APK recovery"
+            echo ""
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Fingerprint: \`$FINGERPRINT\`"
+            echo "- APK SHA-256: \`$APK_SHA256\`"
+            echo "- Artifact: $ARTIFACT_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ── Change Plan & Lightweight Policy ─────────────────────────────────────
   change-plan:

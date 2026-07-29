@@ -21,6 +21,16 @@ case "${GITHUB_REF:-}" in
     ;;
 esac
 
+force_preview_apk="${FORCE_PREVIEW_APK:-false}"
+if [[ "$force_preview_apk" != "true" && "$force_preview_apk" != "false" ]]; then
+  echo "::error::FORCE_PREVIEW_APK must be true or false."
+  exit 1
+fi
+if [[ "$force_preview_apk" == "true" && "$environment" != "preview" ]]; then
+  echo "::error::FORCE_PREVIEW_APK is restricted to the Preview environment."
+  exit 1
+fi
+
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 : "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
 : "${GITHUB_STEP_SUMMARY:?GITHUB_STEP_SUMMARY is required}"
@@ -54,7 +64,9 @@ NODE
   export GOOGLE_SERVICES_JSON="$google_services_path"
   trap 'rm -f "$google_services_path"' EXIT
 
-  EAS_ENV_READY=true GOOGLE_SERVICES_JSON="$google_services_path" \
+  EAS_ENV_READY=true \
+    FORCE_PREVIEW_APK="$force_preview_apk" \
+    GOOGLE_SERVICES_JSON="$google_services_path" \
     eas env:exec "$environment" \
     'bash scripts/ci-deploy-android.sh' \
     --non-interactive
@@ -161,12 +173,14 @@ publish_ota() {
 }
 
 if [[ "$environment" == "preview" ]]; then
-  preview_baseline_artifact_id="$(
-    node "$script_directory/find-preview-runtime-baseline.mjs" "$fingerprint_hash"
-  )"
+  if [[ "$force_preview_apk" != "true" ]]; then
+    preview_baseline_artifact_id="$(
+      node "$script_directory/find-preview-runtime-baseline.mjs" "$fingerprint_hash"
+    )"
 
-  if [[ -n "$preview_baseline_artifact_id" ]]; then
-    publish_ota "GitHub baseline artifact" "$preview_baseline_artifact_id"
+    if [[ -n "$preview_baseline_artifact_id" ]]; then
+      publish_ota "GitHub baseline artifact" "$preview_baseline_artifact_id"
+    fi
   fi
 else
   # Android APK uploads retain the fingerprint but not the app identifier metadata.

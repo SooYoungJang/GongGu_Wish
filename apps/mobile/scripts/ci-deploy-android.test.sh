@@ -195,6 +195,7 @@ run_deployment() {
   local github_baseline="$3"
   local compatible_build="$4"
   local upload_fail="${5:-false}"
+  local force_preview_apk="${6:-false}"
   local case_directory="$test_directory/$name"
   local google_services_file="$preview_google_services"
   if [[ "$ref" == "refs/heads/main" ]]; then
@@ -220,6 +221,7 @@ run_deployment() {
     MOCK_GITHUB_BASELINE="$github_baseline" \
     MOCK_COMPATIBLE_BUILD="$compatible_build" \
     MOCK_UPLOAD_FAIL="$upload_fail" \
+    FORCE_PREVIEW_APK="$force_preview_apk" \
     MOCK_EAS_LOG="$case_directory/eas.log" \
     MOCK_GH_LOG="$case_directory/gh.log" \
     "$bash_command" "$script_directory/ci-deploy-android.sh"
@@ -251,6 +253,22 @@ assert_eas_commands "preview-ota" "fingerprint:generate update"
 if grep -Eq "build:list|build --platform|upload --platform" \
   "$test_directory/preview-ota/eas.log"; then
   echo "Preview OTA unexpectedly used an EAS build record" >&2
+  exit 1
+fi
+
+run_deployment \
+  "preview-forced-build" \
+  "refs/heads/develop" \
+  "trusted" \
+  "false" \
+  "false" \
+  "true"
+grep -Fxq "mode=build" "$test_directory/preview-forced-build/output"
+grep -Fq "build --platform android --profile preview --local" \
+  "$test_directory/preview-forced-build/eas.log"
+assert_eas_commands "preview-forced-build" "fingerprint:generate build"
+if [[ -s "$test_directory/preview-forced-build/gh.log" ]]; then
+  echo "Forced Preview APK build unexpectedly queried an existing baseline" >&2
   exit 1
 fi
 
@@ -299,6 +317,17 @@ grep -Fxq "mode=ota" "$test_directory/production-ota/output"
 grep -Fq "update --channel production --environment production" "$test_directory/production-ota/eas.log"
 if grep -Fq -- "--app-identifier" "$test_directory/production-ota/eas.log"; then
   echo "Android uploaded builds must be looked up without an app identifier filter" >&2
+  exit 1
+fi
+
+if run_deployment \
+  "production-forced-preview-build" \
+  "refs/heads/main" \
+  "missing" \
+  "true" \
+  "false" \
+  "true"; then
+  echo "Production unexpectedly accepted the Preview-only force build flag" >&2
   exit 1
 fi
 
