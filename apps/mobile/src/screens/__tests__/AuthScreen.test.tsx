@@ -17,6 +17,9 @@ import { Keyboard, Platform, TextInput, Pressable, Text } from 'react-native';
 import { AuthScreen, nextFocusedInputId } from '../AuthScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { AuthProvider } from '../../context/AuthContext';
+import { resolveAudiencePolicy } from '../../audience/audiencePolicy';
+
+const adultAudiencePolicy = resolveAudiencePolicy('age14Plus');
 
 // ─── Hoisted mocks (vi.hoisted ensures they're available when vi.mock factories run) ──
 
@@ -118,7 +121,7 @@ function createTestRenderer() {
   act(() => {
     renderer = TestRenderer.create(
       React.createElement(ThemeProvider, null,
-        React.createElement(AuthProvider, null,
+        React.createElement(AuthProvider, { audiencePolicy: adultAudiencePolicy },
           React.createElement(AuthScreen),
         ),
       ),

@@ -15,6 +15,7 @@ const {
   applyGoogleMobileAdsIosInfoPlist,
   resolveBackendEnvironment,
   resolveAdsBuildConfig,
+  resolveAdRequestsEnabled,
   resolveAdsRuntimeSmoke,
   resolveAppVariant,
   resolveGoogleServicesFile,
@@ -50,7 +51,21 @@ const baseInput = {
   configuredIosNativeUnitIds: {},
   isProductionBuild: true,
   requestedMode: undefined,
+  requestedRequestsEnabled: undefined,
 };
+
+describe("resolveAdRequestsEnabled", () => {
+  it("enables requests only for the exact true value", () => {
+    expect(resolveAdRequestsEnabled("true")).toBe(true);
+  });
+
+  it.each([undefined, "", "false", "TRUE", "yes", "invalid"])(
+    "fails closed for %s",
+    (value) => {
+      expect(resolveAdRequestsEnabled(value)).toBe(false);
+    },
+  );
+});
 
 describe("resolveAppVariant", () => {
   it.each([
@@ -263,6 +278,7 @@ describe("resolveAdsBuildConfig", () => {
       androidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
       iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode: "off",
+      requestsEnabled: false,
       nativeUnitIds: disabledNativeUnitIds,
     });
   });
@@ -274,6 +290,7 @@ describe("resolveAdsBuildConfig", () => {
       androidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
       iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode: "test",
+      requestsEnabled: false,
       nativeUnitIds: disabledNativeUnitIds,
     });
   });
@@ -312,6 +329,7 @@ describe("resolveAdsBuildConfig", () => {
       androidAppId: productionAndroidAppId,
       iosAppId: productionIosAppId,
       mode: "production",
+      requestsEnabled: false,
       nativeUnitIds: {
         android: productionNativeUnitIds,
         ios: productionNativeUnitIds,
@@ -331,10 +349,28 @@ describe("resolveAdsBuildConfig", () => {
       androidAppId: productionAndroidAppId,
       iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode: "production",
+      requestsEnabled: false,
       nativeUnitIds: {
         android: productionNativeUnitIds,
         ios: null,
       },
+    });
+  });
+
+  it("validates and embeds production IDs while requests stay off", () => {
+    expect(
+      resolveAdsBuildConfig({
+        ...baseInput,
+        requestedMode: "production",
+        requestedRequestsEnabled: "false",
+        configuredAndroidAppId: productionAndroidAppId,
+        configuredAndroidNativeUnitIds: productionNativeUnitIds,
+      }),
+    ).toMatchObject({
+      androidAppId: productionAndroidAppId,
+      mode: "production",
+      requestsEnabled: false,
+      nativeUnitIds: { android: productionNativeUnitIds },
     });
   });
 
@@ -409,6 +445,7 @@ describe("resolveAdsBuildConfig", () => {
       androidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
       iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode: "off",
+      requestsEnabled: false,
       nativeUnitIds: disabledNativeUnitIds,
     });
   });

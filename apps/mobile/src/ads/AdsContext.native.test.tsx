@@ -3,12 +3,21 @@ import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Constants from "expo-constants";
 
+import type { AudiencePolicy } from "../audience/audiencePolicy";
 import type { AdsContextValue } from "./AdsContext.types";
 import { AdsProvider, useAds } from "./AdsContext.native";
 
 const adsModuleMock = vi.hoisted(() => ({
   getGoogleMobileAdsModule: vi.fn(),
 }));
+
+const adultAudiencePolicy: AudiencePolicy = {
+  resolved: true,
+  canUseApp: true,
+  canAuthenticate: true,
+  canRequestAds: true,
+  canRecordBehaviorSignals: true,
+};
 
 vi.mock("./loadGoogleMobileAds", () => ({
   getGoogleMobileAdsModule: adsModuleMock.getGoogleMobileAdsModule,
@@ -26,6 +35,7 @@ function AdsStateProbe({ onState }: { onState: Dispatch<AdsContextValue> }) {
 
 afterEach(() => {
   vi.useRealTimers();
+  adsModuleMock.getGoogleMobileAdsModule.mockReset();
 });
 
 describe("AdsProvider", () => {
@@ -33,6 +43,7 @@ describe("AdsProvider", () => {
     vi.useFakeTimers();
     Object.assign(Constants.expoConfig?.extra ?? {}, {
       adsMode: "test",
+      admobRequestsEnabled: true,
       automatedE2E: false,
       admobAndroidAppId: "ca-app-pub-3940256099942544~3347511713",
       admobIosAppId: "ca-app-pub-3940256099942544~1458002511",
@@ -58,7 +69,7 @@ describe("AdsProvider", () => {
 
     await act(async () => {
       renderer = TestRenderer.create(
-        <AdsProvider>
+        <AdsProvider audiencePolicy={adultAudiencePolicy}>
           <AdsStateProbe onState={onState} />
         </AdsProvider>,
       );
@@ -84,5 +95,31 @@ describe("AdsProvider", () => {
     expect(initialize).toHaveBeenCalledOnce();
 
     act(() => renderer!.unmount());
+  });
+
+  it("does not load the native SDK while the global request switch is off", async () => {
+    Object.assign(Constants.expoConfig?.extra ?? {}, {
+      adsMode: "test",
+      admobRequestsEnabled: false,
+      automatedE2E: false,
+      admobAndroidAppId: "ca-app-pub-3940256099942544~3347511713",
+    });
+    const states: AdsContextValue[] = [];
+
+    await act(async () => {
+      TestRenderer.create(
+        <AdsProvider audiencePolicy={adultAudiencePolicy}>
+          <AdsStateProbe onState={(value) => states.push(value)} />
+        </AdsProvider>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(states.at(-1)).toMatchObject({
+      enabled: false,
+      isReady: false,
+      isSettled: true,
+    });
+    expect(adsModuleMock.getGoogleMobileAdsModule).not.toHaveBeenCalled();
   });
 });

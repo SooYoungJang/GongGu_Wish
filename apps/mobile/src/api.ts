@@ -52,6 +52,7 @@ import {
 import { ApiError, type ApiValidationError } from "./lib/api-types";
 import { normalizePriceKrw } from "./utils/price";
 import { filterActiveGroupBuys } from "./utils/groupBuyDates";
+import { canRecordBehaviorSignals } from "./audience/behaviorSignalsPolicy";
 
 // ─── Re-export ApiError for consumers that import it ─────────────────────────
 export type { ApiValidationError } from "./lib/api-types";
@@ -360,6 +361,7 @@ export async function logSearchTerm(
   keyword: string,
   groupBuyId?: string,
 ): Promise<void> {
+  if (!canRecordBehaviorSignals()) return;
   const trimmed = keyword.trim();
   if (!trimmed) return;
   try {
@@ -423,9 +425,11 @@ export type PopularGroupBuy = {
  * POST /rest/v1/group_buy_views
  */
 export async function logDeepView(groupBuyId: string): Promise<void> {
+  if (!canRecordBehaviorSignals()) return;
   try {
     const { getSessionId } = await import("./utils/session");
     const sessionId = await getSessionId();
+    if (!sessionId) return;
     await postgrestFetch("group_buy_views", {
       method: "POST",
       body: {
@@ -451,9 +455,11 @@ export async function syncBookmark(
   groupBuyId: string,
   bookmark: boolean,
 ): Promise<void> {
+  if (!canRecordBehaviorSignals()) return;
   try {
     const { getSessionId } = await import("./utils/session");
     const sessionId = await getSessionId();
+    if (!sessionId) return;
     if (bookmark) {
       await postgrestFetch("group_buy_bookmarks", {
         method: "POST",

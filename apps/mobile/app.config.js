@@ -52,6 +52,10 @@ function normalizeValue(value) {
   return normalized || undefined;
 }
 
+function resolveAdRequestsEnabled(requestedValue) {
+  return requestedValue === "true";
+}
+
 function resolveAppVariant(requestedVariant) {
   const key = normalizeValue(requestedVariant) ?? "preview";
   const variant = APP_VARIANTS[key];
@@ -232,14 +236,18 @@ function resolveAdsBuildConfig({
   configuredIosNativeUnitIds,
   isProductionBuild,
   requestedMode,
+  requestedRequestsEnabled,
 }) {
   const disabledNativeUnitIds = { android: null, ios: null };
+  const requestsEnabled =
+    !automatedE2E && resolveAdRequestsEnabled(requestedRequestsEnabled);
   if (automatedE2E) {
     return {
       androidAppId: GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
       iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode: "off",
       nativeUnitIds: disabledNativeUnitIds,
+      requestsEnabled: false,
     };
   }
 
@@ -257,6 +265,7 @@ function resolveAdsBuildConfig({
       iosAppId: GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
       mode,
       nativeUnitIds: disabledNativeUnitIds,
+      requestsEnabled,
     };
   }
 
@@ -287,6 +296,7 @@ function resolveAdsBuildConfig({
       android: android?.nativeUnitIds ?? null,
       ios: ios?.nativeUnitIds ?? null,
     },
+    requestsEnabled,
   };
 }
 
@@ -402,6 +412,8 @@ const createAppConfig = ({ config }) => {
     },
     isProductionBuild: appVariant.key === "production",
     requestedMode: process.env.EXPO_PUBLIC_ADMOB_MODE,
+    requestedRequestsEnabled:
+      process.env.EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED,
   });
   const productionGoogleServicesFile = config.android?.googleServicesFile;
   const googleServicesFile = validateGoogleServicesFile(
@@ -440,6 +452,7 @@ const createAppConfig = ({ config }) => {
         automatedE2E,
         ...(adsRuntimeSmoke ? { adsRuntimeSmoke: true } : {}),
         adsMode: ads.mode,
+        admobRequestsEnabled: ads.requestsEnabled,
         admobAndroidAppId: ads.androidAppId,
         admobIosAppId: ads.iosAppId,
         ...(ads.nativeUnitIds.android
@@ -498,6 +511,7 @@ createAppConfig.applyGoogleMobileAdsAndroidManifest =
 createAppConfig.applyGoogleMobileAdsIosInfoPlist =
   applyGoogleMobileAdsIosInfoPlist;
 createAppConfig.resolveAdsBuildConfig = resolveAdsBuildConfig;
+createAppConfig.resolveAdRequestsEnabled = resolveAdRequestsEnabled;
 createAppConfig.resolveAdsRuntimeSmoke = resolveAdsRuntimeSmoke;
 createAppConfig.resolveAppVariant = resolveAppVariant;
 createAppConfig.resolveBackendEnvironment = resolveBackendEnvironment;

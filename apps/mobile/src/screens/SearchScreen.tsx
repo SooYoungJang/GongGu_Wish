@@ -16,7 +16,8 @@ import { InstagramIdentity } from '../components/ui/InstagramIdentity';
 import { SText } from '../components/ui/SText';
 import { AsyncStateNotice } from '../components/ui/AsyncStateNotice';
 import { fetchGroupBuys, fetchInfluencers, fetchPopularSearchTerms, logSearchTerm, searchInfluencers, type PopularSearchTerm } from '../api';
-import { normalizeForSearch, pushRecentTerm } from '../utils/search';
+import { useAudience } from '../audience/AudienceContext';
+import { normalizeForSearch, pushRecentTerm, RECENT_SEARCH_STORAGE_KEY } from '../utils/search';
 import { spacing } from '../design/tokens';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 import { useTabReselect } from '../hooks/useTabReselect';
@@ -24,7 +25,6 @@ import type { CommerceColorPalette } from '../design/commerce';
 import type { GroupBuy, Influencer, MainTabParamList, RootStackParamList } from '../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-const RECENT_KEY = 'search:recent';
 const RECENT_MAX = 10;
 const DEFAULT_RECENT_TERM = '가방';
 
@@ -94,6 +94,7 @@ export function SearchScreen() {
   const inputRef = useRef<TextInput>(null);
   const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const { colors, isDark } = useCommerceTheme();
+  const { policy: audiencePolicy } = useAudience();
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
 
@@ -134,7 +135,12 @@ export function SearchScreen() {
   useTabReselect(tabNavigation, handleSearchTabReselect);
 
   useEffect(() => {
-    AsyncStorage.getItem(RECENT_KEY).then((raw) => {
+    if (!audiencePolicy.canRecordBehaviorSignals) {
+      setRecent([DEFAULT_RECENT_TERM]);
+      return;
+    }
+
+    AsyncStorage.getItem(RECENT_SEARCH_STORAGE_KEY).then((raw) => {
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
@@ -146,7 +152,7 @@ export function SearchScreen() {
         setRecent([DEFAULT_RECENT_TERM]);
       }
     }).catch(() => setRecent([DEFAULT_RECENT_TERM]));
-  }, []);
+  }, [audiencePolicy.canRecordBehaviorSignals]);
 
   // Focus the search input every time the tab is entered so the keyboard
   // comes up automatically on each visit, not just the first.
@@ -165,21 +171,22 @@ export function SearchScreen() {
   );
 
   const saveRecent = useCallback((text: string) => {
-    if (!text.trim()) return;
+    if (!audiencePolicy.canRecordBehaviorSignals || !text.trim()) return;
     setRecent((prev) => {
       const next = pushRecentTerm(prev, text, RECENT_MAX);
-      AsyncStorage.setItem(RECENT_KEY, JSON.stringify(next)).catch(() => {});
+      AsyncStorage.setItem(RECENT_SEARCH_STORAGE_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });
-  }, []);
+  }, [audiencePolicy.canRecordBehaviorSignals]);
 
   const removeRecent = useCallback((text: string) => {
+    if (!audiencePolicy.canRecordBehaviorSignals) return;
     setRecent((prev) => {
       const next = prev.filter((s) => s !== text);
-      AsyncStorage.setItem(RECENT_KEY, JSON.stringify(next)).catch(() => {});
+      AsyncStorage.setItem(RECENT_SEARCH_STORAGE_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });
-  }, []);
+  }, [audiencePolicy.canRecordBehaviorSignals]);
 
   const groupBuys = useMemo(() => groupBuysData ?? [], [groupBuysData]);
   const influencers = useMemo(() => influencersData ?? [], [influencersData]);

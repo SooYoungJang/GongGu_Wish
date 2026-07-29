@@ -1,0 +1,18 @@
+appId: com.gonggu.wish.preview
+name: Android audience policy
+---
+- launchApp:
+    clearState: true
+- assertVisible: "연령 구간을 선택해 주세요"
+- assertVisible: "생년월일은 수집하거나 저장하지 않습니다."
+- tapOn: "만 12세 이하"
+- assertVisible: "만 13세 이상부터 이용할 수 있어요"
+- tapOn: "연령 구간 다시 선택"
+- tapOn: "만 13세"
+- assertVisible: "홈"
+- tapOn: "마이"
+- assertVisible: "만 13세 모드에서는 로그인과 활동 저장 없이 공개 콘텐츠만 볼 수 있어요."
+- assertNotVisible: "계정 연결해서 여러 기기에서 이어보기"
+- tapOn: "설정 열기"
+- assertVisible: "연령 설정"
+- assertNotVisible: "광고 개인정보 설정"

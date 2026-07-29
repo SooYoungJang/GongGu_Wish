@@ -43,7 +43,9 @@ const mocks = vi.hoisted(() => {
 	    popularTerms: [{ keyword: '베개', rank: 1, count: 8 }],
 	    popularTermsRefetch: vi.fn(),
 	    logSearchTerm: vi.fn(() => Promise.resolve()),
+	    recentGetItem: vi.fn(() => Promise.resolve(JSON.stringify(['가방']))),
 	    recentSetItem: vi.fn(() => Promise.resolve()),
+	    canRecordBehaviorSignals: true,
 	    canGoBack: vi.fn(() => true),
 	    navigate: vi.fn(),
 	    goBack: vi.fn(),
@@ -63,6 +65,18 @@ vi.mock('../api', () => ({
       (influencer.displayName ?? '').toLowerCase().includes(q),
     );
   },
+}));
+
+vi.mock('../audience/behaviorSignalsPolicy', () => ({
+  canRecordBehaviorSignals: () => mocks.canRecordBehaviorSignals,
+}));
+
+vi.mock('../audience/AudienceContext', () => ({
+  useAudience: () => ({
+    policy: {
+      canRecordBehaviorSignals: mocks.canRecordBehaviorSignals,
+    },
+  }),
 }));
 
 vi.mock('../context/ThemeContext', () => ({
@@ -132,7 +146,7 @@ vi.mock('@react-navigation/native', () => ({
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
-    getItem: vi.fn(() => Promise.resolve(JSON.stringify(['가방']))),
+    getItem: mocks.recentGetItem,
     setItem: mocks.recentSetItem,
     removeItem: vi.fn(() => Promise.resolve()),
   },
@@ -206,7 +220,9 @@ describe('SearchScreen redesign', () => {
     mocks.influencersRefetch.mockClear();
     mocks.popularTermsRefetch.mockClear();
 	    mocks.logSearchTerm.mockClear();
+	    mocks.recentGetItem.mockClear();
 	    mocks.recentSetItem.mockClear();
+	    mocks.canRecordBehaviorSignals = true;
 	    mocks.navigate.mockClear();
 	    mocks.goBack.mockClear();
   });
@@ -287,6 +303,21 @@ describe('SearchScreen redesign', () => {
 	      'search:recent',
 	      expect.stringContaining('내맘대로 검색어'),
 	    );
+	    expect(mocks.logSearchTerm).not.toHaveBeenCalled();
+	  });
+
+	  it('does not read or write search history when behavior signals are blocked', async () => {
+	    mocks.canRecordBehaviorSignals = false;
+	    const renderer = await renderSearchScreen();
+	    const input = renderer.root.findByProps({ accessibilityLabel: '공구 검색' });
+
+	    act(() => {
+	      input.props.onChangeText('13세 검색어');
+	      input.props.onSubmitEditing();
+	    });
+
+	    expect(mocks.recentGetItem).not.toHaveBeenCalled();
+	    expect(mocks.recentSetItem).not.toHaveBeenCalled();
 	    expect(mocks.logSearchTerm).not.toHaveBeenCalled();
 	  });
 

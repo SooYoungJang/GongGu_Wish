@@ -18,6 +18,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { deleteAccount } from "../api";
 import { useAds } from "../ads/AdsContext";
+import { useAudience } from "../audience/AudienceContext";
+import type { AgeBand } from "../audience/audiencePolicy";
 import { InstagramIdentity } from "../components/ui/InstagramIdentity";
 import { SText } from "../components/ui/SText";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -38,6 +40,10 @@ import {
   registerForPushNotifications,
   type NotificationPermissionStatus,
 } from "../services/notifications";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  syncNotificationPreferences,
+} from "../services/notificationPreferences";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import type { RootStackParamList } from "../types";
 import bundledAppConfig from "../../app.json";
@@ -69,6 +75,7 @@ function waitForPushTogglePaint() {
 export function SettingsScreen() {
   const { colors, spacing, radius } = useCommerceTheme();
   const { privacyOptionsRequired, showPrivacyOptions } = useAds();
+  const { ageBand, selectAgeBand } = useAudience();
   const { user, session, signOut } = useAuth();
   const accessToken = session?.access_token;
   const {
@@ -81,7 +88,9 @@ export function SettingsScreen() {
   } = useNotificationPreferences();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { isAuthenticated, requireAuth } = useAuthGate();
+  const { canAuthenticate, isAuthenticated, requireAuth } = useAuthGate();
+  const canAuthenticateRef = useRef(canAuthenticate);
+  canAuthenticateRef.current = canAuthenticate;
   const s = useMemo(
     () => makeStyles(colors, spacing, radius),
     [colors, radius, spacing],
@@ -102,10 +111,14 @@ export function SettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!canAuthenticate) {
+        setPermissionStatus("undetermined");
+        return;
+      }
       getNotificationPermissionStatus()
         .then(setPermissionStatus)
         .catch(() => setPermissionStatus("error"));
-    }, []),
+    }, [canAuthenticate]),
   );
 
   const applyPushIntent = useCallback(
@@ -129,7 +142,14 @@ export function SettingsScreen() {
 
         const result = await registerForPushNotifications(accessToken, {
           requestPermission: true,
+          shouldContinue: () => canAuthenticateRef.current,
+          onRegistrationCancelled: () =>
+            syncNotificationPreferences(
+              accessToken,
+              DEFAULT_NOTIFICATION_PREFERENCES,
+            ),
           refreshAuthToken: async () => {
+            if (!canAuthenticateRef.current) return null;
             const { data, error } = await getSupabase().auth.refreshSession();
             return error ? null : (data.session?.access_token ?? null);
           },
@@ -137,6 +157,7 @@ export function SettingsScreen() {
             ? { e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]" }
             : {}),
         });
+        if (result.status === "cancelled") return false;
         if (result.status === "registered") {
           setPermissionStatus("granted");
           if (isLatest()) {
@@ -252,12 +273,14 @@ export function SettingsScreen() {
     [requireAuth, toggleBrand],
   );
 
-  const controlsDisabled = !preferencesReady;
+  const controlsDisabled = !preferencesReady || !canAuthenticate;
   const pushEnabled =
     isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
   const submissionApprovalEnabled =
     isAuthenticated && preferences.submissionApprovalEnabled;
-  const permissionCopy = !isAuthenticated
+  const permissionCopy = !canAuthenticate
+    ? "만 13세 모드에서는 푸시 알림과 활동 저장을 사용하지 않아요."
+    : !isAuthenticated
     ? "로그인 후 원하는 알림을 직접 켤 수 있어요."
     : !pushEnabled
       ? "앱에서 푸시 수신을 중지했어요. 저장된 원격 토큰도 제거됩니다."
@@ -348,6 +371,51 @@ export function SettingsScreen() {
         <SText variant="subtitle" style={s.intro}>
           알림과 화면 테마, 앱 정보를 편하게 확인해보세요.
         </SText>
+
+        <View style={s.sectionCard}>
+          <SText variant="cardTitle" style={s.sectionTitle}>
+            연령 설정
+          </SText>
+          <SText variant="caption" style={s.sectionSubtitle}>
+            생년월일은 수집하지 않고 선택한 구간만 이 기기에 저장해요.
+          </SText>
+          <View style={s.ageOptionList}>
+            {(
+              [
+                ["under13", "만 12세 이하"],
+                ["age13", "만 13세"],
+                ["age14Plus", "만 14세 이상"],
+              ] as const satisfies ReadonlyArray<readonly [AgeBand, string]>
+            ).map(([value, label]) => {
+              const selected = ageBand === value;
+              return (
+                <Pressable
+                  accessibilityLabel={`연령 구간 ${label}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  key={value}
+                  onPress={() => void selectAgeBand(value)}
+                  style={({ pressed }) => [
+                    s.ageOption,
+                    selected && s.ageOptionSelected,
+                    pressed && s.pressed,
+                  ]}
+                  testID={`settings-age-${value}`}
+                >
+                  <SText
+                    style={[
+                      s.ageOptionText,
+                      selected && s.ageOptionTextSelected,
+                    ]}
+                    variant="label"
+                  >
+                    {label}
+                  </SText>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
 
         <View style={s.sectionCard}>
           <SText variant="cardTitle" style={s.sectionTitle}>
@@ -651,6 +719,29 @@ function makeStyles(
     },
     sectionTitle: { color: colors.text },
     sectionSubtitle: { color: colors.weak, marginTop: spacing.xs },
+    ageOptionList: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.sm,
+      paddingBottom: spacing.lg,
+      paddingTop: spacing.md,
+    },
+    ageOption: {
+      alignItems: "center",
+      backgroundColor: colors.softBg,
+      borderColor: colors.borderLight,
+      borderRadius: radius.full,
+      borderWidth: 1,
+      justifyContent: "center",
+      minHeight: 44,
+      paddingHorizontal: spacing.md,
+    },
+    ageOptionSelected: {
+      backgroundColor: colors.accentSoft,
+      borderColor: colors.accent,
+    },
+    ageOptionText: { color: colors.weak, fontWeight: "900" },
+    ageOptionTextSelected: { color: colors.accent },
     accountCard: {
       backgroundColor: colors.surface,
       borderColor: colors.borderLight,

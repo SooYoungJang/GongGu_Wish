@@ -1,8 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect } from 'vitest';
 
 import { pushRecentTerm } from '../utils/search';
+import { resolveAudiencePolicy } from '../audience/audiencePolicy';
+import { setAudiencePolicySnapshot } from '../audience/behaviorSignalsPolicy';
 
 describe('pushRecentTerm — 최근 검색어 큐', () => {
+  beforeEach(() => {
+    setAudiencePolicySnapshot(resolveAudiencePolicy('age14Plus'));
+  });
+
   it('새 검색어를 맨 앞에 추가한다', () => {
     expect(pushRecentTerm(['a', 'b'], 'c', 10)).toEqual(['c', 'a', 'b']);
   });
@@ -49,5 +55,10 @@ describe('pushRecentTerm — 최근 검색어 큐', () => {
     expect(prev).toHaveLength(10);
     expect(prev[0]).toBe('term9');
     expect(prev[9]).toBe('term0');
+  });
+
+  it('만 13세 모드에서는 최근 검색어를 기록하지 않는다', () => {
+    setAudiencePolicySnapshot(resolveAudiencePolicy('age13'));
+    expect(pushRecentTerm(['기존'], '새 검색어', 10)).toEqual(['기존']);
   });
 });

@@ -11,6 +11,7 @@ import {
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
+import { resolveAudiencePolicy } from '../audience/audiencePolicy';
 import { AccessibilityInfo, Linking } from 'react-native';
 
 const navigationMocks = vi.hoisted(() => ({
@@ -37,6 +38,23 @@ const adsMocks = vi.hoisted(() => ({
   privacyOptionsRequired: false,
   showPrivacyOptions: vi.fn(async () => true),
 }));
+const audienceMocks = vi.hoisted(() => ({
+  ageBand: 'age14Plus' as const,
+  policy: {
+    resolved: true,
+    canUseApp: true,
+    canAuthenticate: true,
+    canRequestAds: true,
+    canRecordBehaviorSignals: true,
+  },
+  selectAgeBand: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../audience/AudienceContext', () => ({
+  useAudience: () => audienceMocks,
+}));
+
+const adultAudiencePolicy = resolveAudiencePolicy('age14Plus');
 const settingsPreferenceMocks = vi.hoisted(() => ({
   saving: false,
   preferences: {
@@ -245,7 +263,11 @@ function renderScreen(screen: React.ReactElement) {
       React.createElement(
         ThemeProvider,
         null,
-        React.createElement(AuthProvider, null, screen),
+        React.createElement(
+          AuthProvider,
+          { audiencePolicy: adultAudiencePolicy },
+          screen,
+        ),
       ),
     );
   });
@@ -559,7 +581,7 @@ describe('MyPageScreen', () => {
 
     expect(Linking.openURL).toHaveBeenNthCalledWith(
       1,
-      'https://separate-bank-636.notion.site/3a88f7ccc9f180768dbcdd7871d4aaab',
+      'https://gongguwish.com/privacy',
     );
 
     await act(async () => {
@@ -568,7 +590,7 @@ describe('MyPageScreen', () => {
 
     expect(Linking.openURL).toHaveBeenNthCalledWith(
       2,
-      'https://separate-bank-636.notion.site/3a78f7ccc9f180469a4acff0c62efce7',
+      'https://gongguwish.com/terms',
     );
   });
 

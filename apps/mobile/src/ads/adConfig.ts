@@ -9,8 +9,10 @@ export type ResolvedNativeAdUnitIds = Record<NativeAdPlacement, string | null>;
 export type AdsRuntimeConfigInput = {
   platform: SupportedPlatform;
   adAccessResolved: boolean;
+  audienceCanRequestAds: boolean;
   adsRemoved: boolean;
   automatedE2E: boolean;
+  requestsEnabled: boolean;
   mode: AdsMode;
   appId?: string;
   productionNativeUnitIds: Partial<NativeAdUnitIds>;
@@ -55,8 +57,10 @@ export function resolveAdsRuntimeConfig(
   if (
     !isSupportedNativePlatform(input.platform) ||
     !input.adAccessResolved ||
+    !input.audienceCanRequestAds ||
     input.adsRemoved ||
     input.automatedE2E ||
+    !input.requestsEnabled ||
     input.mode === "off"
   ) {
     return disabledConfig;

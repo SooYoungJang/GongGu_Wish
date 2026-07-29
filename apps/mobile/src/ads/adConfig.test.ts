@@ -19,8 +19,10 @@ const productionNativeUnitIds = {
 const baseInput = {
   platform: "android" as const,
   adAccessResolved: true,
+  audienceCanRequestAds: true,
   adsRemoved: false,
   automatedE2E: false,
+  requestsEnabled: true,
   mode: "off" as const,
   appId: testAndroidAppId,
   productionNativeUnitIds: {},
@@ -165,6 +167,28 @@ describe("resolveAdsRuntimeConfig", () => {
         ...baseInput,
         adAccessResolved: false,
         mode: "test",
+      }),
+    ).toEqual(disabledConfig);
+  });
+
+  it("does not initialize ads when the global request kill switch is off", () => {
+    expect(
+      resolveAdsRuntimeConfig({
+        ...baseInput,
+        mode: "production",
+        requestsEnabled: false,
+        appId: productionAppId,
+        productionNativeUnitIds,
+      }),
+    ).toEqual(disabledConfig);
+  });
+
+  it("does not initialize ads when the audience policy blocks requests", () => {
+    expect(
+      resolveAdsRuntimeConfig({
+        ...baseInput,
+        mode: "test",
+        audienceCanRequestAds: false,
       }),
     ).toEqual(disabledConfig);
   });

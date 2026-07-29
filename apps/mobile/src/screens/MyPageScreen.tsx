@@ -184,7 +184,7 @@ export function MyPageScreen() {
   const userPresentation = user
     ? resolveAuthUserPresentation(user)
     : { avatarInitial: '?', label: '사용자' };
-  const { requireAuth } = useAuthGate();
+  const { canAuthenticate, requireAuth } = useAuthGate();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -220,8 +220,13 @@ export function MyPageScreen() {
   useTabReselect(tabNavigation, handleMyPageTabReselect);
 
   const handleLoginPress = useCallback(() => {
-    navigation.navigate('Login');
-  }, [navigation]);
+    requireAuth();
+  }, [requireAuth]);
+
+  const handleRegisterWish = useCallback(() => {
+    if (!canAuthenticate) return;
+    setWishModalVisible(true);
+  }, [canAuthenticate]);
 
   const handleLogout = useCallback(async () => {
     setLoggingOut(true);
@@ -393,17 +398,21 @@ export function MyPageScreen() {
           <View style={s.guestHero}>
             <SText variant="cardTitle" style={s.guestHeroTitle}>내 활동을 가볍게 모아봤어요</SText>
             <SText variant="caption" style={s.guestHeroSubtitle}>
-              북마크와 알림 설정은 로그인 후 이용할 수 있어요.
+              {canAuthenticate
+                ? '북마크와 알림 설정은 로그인 후 이용할 수 있어요.'
+                : '만 13세 모드에서는 로그인과 활동 저장 없이 공개 콘텐츠만 볼 수 있어요.'}
             </SText>
-            <Pressable accessibilityRole="button" onPress={handleLoginPress} style={({ pressed }) => [s.softLoginButton, pressed && s.pressed]}>
-              <SText variant="label" style={s.softLoginText}>계정 연결해서 여러 기기에서 이어보기</SText>
-            </Pressable>
+            {canAuthenticate ? (
+              <Pressable accessibilityRole="button" onPress={handleLoginPress} style={({ pressed }) => [s.softLoginButton, pressed && s.pressed]}>
+                <SText variant="label" style={s.softLoginText}>계정 연결해서 여러 기기에서 이어보기</SText>
+              </Pressable>
+            ) : null}
           </View>
         )}
 
         <GuestSummaryCards
           wishItemCount={wishItems.length}
-          onPressRegisterWish={() => setWishModalVisible(true)}
+          onPressRegisterWish={handleRegisterWish}
           s={s}
         />
 

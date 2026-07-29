@@ -4,11 +4,14 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
+  type PropsWithChildren,
 } from "react";
 import type { AuthError, Session, User } from "@supabase/supabase-js";
 import { Linking } from "react-native";
 
+import type { AudiencePolicy } from "../audience/audiencePolicy";
 import { AUTH_REDIRECT_URL } from "../lib/auth-config";
 import { getSupabase } from "../lib/supabase";
 import { setAuthToken, clearAuthToken } from "../utils/auth";
@@ -55,6 +58,14 @@ export interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function createAudienceRestrictedAuthError(): AuthError {
+  return {
+    name: "AudienceRestrictedError",
+    message: "로그인과 회원가입은 만 14세 이상부터 이용할 수 있어요.",
+    status: 403,
+  } as AuthError;
+}
+
 function getAuthCodeFromUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
@@ -76,12 +87,26 @@ function getAuthCodeFromUrl(url: string): string | null {
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  audiencePolicy,
+  children,
+}: PropsWithChildren<{
+  audiencePolicy: AudiencePolicy;
+}>) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const canAuthenticateRef = useRef(audiencePolicy.canAuthenticate);
+  canAuthenticateRef.current = audiencePolicy.canAuthenticate;
 
   const applySession = useCallback((currentSession: Session | null) => {
+    if (!canAuthenticateRef.current) {
+      setSession(null);
+      setUser(null);
+      clearAuthToken().catch(() => {});
+      return;
+    }
+
     setSession(currentSession);
     setUser(currentSession?.user ?? null);
 
@@ -92,25 +117,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const rejectIfPolicyChanged = useCallback(async (): Promise<AuthError | null> => {
+    if (canAuthenticateRef.current) return null;
+
+    const supabase = getSupabase();
+    await Promise.allSettled([supabase.auth.signOut(), clearAuthToken()]);
+    setSession(null);
+    setUser(null);
+    return createAudienceRestrictedAuthError();
+  }, []);
+
   const handleAuthCallbackUrl = useCallback(
     async (url: string) => {
+      if (!canAuthenticateRef.current) return;
       const code = getAuthCodeFromUrl(url);
       if (!code) return;
 
       const supabase = getSupabase();
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      if (await rejectIfPolicyChanged()) return;
       if (!error) {
         applySession(data.session);
       }
     },
-    [applySession],
+    [applySession, rejectIfPolicyChanged],
   );
 
   // Restore session on mount
   useEffect(() => {
+    if (!audiencePolicy.canAuthenticate) {
+      setSession(null);
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
     const supabase = getSupabase();
+    let active = true;
 
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      if (!active) return;
       applySession(currentSession);
       setIsLoading(false);
     });
@@ -119,13 +165,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      if (!active) return;
       applySession(currentSession);
     });
 
     return () => {
+      active = false;
       subscription.unsubscribe();
     };
-  }, [applySession]);
+  }, [applySession, audiencePolicy.canAuthenticate]);
 
   useEffect(() => {
     Linking.getInitialURL()
@@ -147,18 +195,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(
     async (email: string, password: string): Promise<AuthError | null> => {
+      if (!audiencePolicy.canAuthenticate) {
+        return createAudienceRestrictedAuthError();
+      }
       const supabase = getSupabase();
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      return error;
+      return (await rejectIfPolicyChanged()) ?? error;
     },
-    [],
+    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
   );
 
   const signUp = useCallback(
     async (email: string, password: string): Promise<AuthError | null> => {
+      if (!audiencePolicy.canAuthenticate) {
+        return createAudienceRestrictedAuthError();
+      }
       const supabase = getSupabase();
       const { error } = await supabase.auth.signUp({
         email,
@@ -167,9 +221,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           emailRedirectTo: AUTH_REDIRECT_URL,
         },
       });
-      return error;
+      return (await rejectIfPolicyChanged()) ?? error;
     },
-    [],
+    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
   );
 
   const signUpWithEmailCode = useCallback(
@@ -178,6 +232,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password: string,
       metadata?: Record<string, unknown>,
     ): Promise<AuthError | null> => {
+      if (!audiencePolicy.canAuthenticate) {
+        return createAudienceRestrictedAuthError();
+      }
       const supabase = getSupabase();
       const { error } = await supabase.auth.signUp({
         email,
@@ -187,13 +244,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: metadata,
         },
       });
-      return error;
+      return (await rejectIfPolicyChanged()) ?? error;
     },
-    [],
+    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
   );
 
   const resendEmailSignUpCode = useCallback(
     async (email: string): Promise<AuthError | null> => {
+      if (!audiencePolicy.canAuthenticate) {
+        return createAudienceRestrictedAuthError();
+      }
       const supabase = getSupabase();
       const { error } = await supabase.auth.resend({
         type: "signup",
@@ -202,25 +262,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           emailRedirectTo: AUTH_REDIRECT_URL,
         },
       });
-      return error;
+      return (await rejectIfPolicyChanged()) ?? error;
     },
-    [],
+    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
   );
 
   const verifyEmailCode = useCallback(
     async (email: string, token: string): Promise<AuthError | null> => {
+      if (!audiencePolicy.canAuthenticate) {
+        return createAudienceRestrictedAuthError();
+      }
       const supabase = getSupabase();
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token,
         type: "email",
       });
+      const restrictionError = await rejectIfPolicyChanged();
+      if (restrictionError) return restrictionError;
       if (!error) {
         applySession(data.session);
       }
       return error;
     },
-    [applySession],
+    [
+      applySession,
+      audiencePolicy.canAuthenticate,
+      rejectIfPolicyChanged,
+    ],
   );
 
   const signUpWithMetadata = useCallback(
@@ -229,6 +298,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password: string,
       metadata?: Record<string, unknown>,
     ): Promise<AuthError | null> => {
+      if (!audiencePolicy.canAuthenticate) {
+        return createAudienceRestrictedAuthError();
+      }
       const supabase = getSupabase();
       const { error } = await supabase.auth.signUp({
         email,
@@ -238,9 +310,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ...(metadata ? { data: metadata } : {}),
         },
       });
-      return error;
+      return (await rejectIfPolicyChanged()) ?? error;
     },
-    [],
+    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
   );
 
   const signOut = useCallback(async () => {
@@ -251,6 +323,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithOAuth = useCallback(
     async (provider: SocialAuthProvider): Promise<AuthError | null> => {
+      if (!audiencePolicy.canAuthenticate) {
+        return createAudienceRestrictedAuthError();
+      }
       const supabase = getSupabase();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -259,12 +334,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           skipBrowserRedirect: true,
         },
       });
+      const restrictionError = await rejectIfPolicyChanged();
+      if (restrictionError) return restrictionError;
       if (!error && data.url) {
         await Linking.openURL(data.url);
       }
       return error;
     },
-    [],
+    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
   );
 
   const value = useMemo<AuthContextValue>(

@@ -40,6 +40,12 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { AdsProvider } from "./ads/AdsContext";
 import { AdsRuntimeSmokeProbe } from "./ads/AdsRuntimeSmokeProbe";
+import { AudienceGate } from "./audience/AudienceGate";
+import {
+  AudienceProvider,
+  useAudience,
+} from "./audience/AudienceContext";
+import { RestrictedAudienceCleanupBridge } from "./audience/RestrictedAudienceCleanupBridge";
 import type { MainTabParamList, RootStackParamList } from "./types";
 import { configurePostgrest } from "./lib/postgrest-client";
 import { configureSupabase } from "./lib/supabase";
@@ -50,6 +56,10 @@ import {
 } from "./lib/supabase-config";
 import { isAutomatedE2E } from "./lib/automatedE2E";
 import { registerForPushNotifications } from "./services/notifications";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  syncNotificationPreferences,
+} from "./services/notificationPreferences";
 import { BackButton } from "./components/BackButton";
 import { NavigationHeaderTitle } from "./components/CenteredBackHeader";
 import { getCommerceColors } from "./design/commerce";
@@ -395,6 +405,7 @@ function NotificationPreferencesBoundary({
 }
 
 function NotificationScheduleBridge() {
+  const { policy } = useAudience();
   const { preferences, ready: preferencesReady } = useNotificationPreferences();
   const {
     ready: notificationsReady,
@@ -407,7 +418,12 @@ function NotificationScheduleBridge() {
   });
 
   useEffect(() => {
-    if (!preferencesReady || !notificationsReady) return;
+    if (
+      !policy.canAuthenticate ||
+      !preferencesReady ||
+      !notificationsReady
+    )
+      return;
     if (lastScheduleSignatureRef.current === scheduleSignature) return;
     lastScheduleSignatureRef.current = scheduleSignature;
     void rescheduleNotifications(preferences).catch((error) => {
@@ -418,6 +434,7 @@ function NotificationScheduleBridge() {
     });
   }, [
     notificationsReady,
+    policy.canAuthenticate,
     preferences,
     preferencesReady,
     rescheduleNotifications,
@@ -425,11 +442,12 @@ function NotificationScheduleBridge() {
   ]);
 
   useEffect(() => {
+    if (!policy.canAuthenticate) return;
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") refreshNotifications();
     });
     return () => subscription.remove();
-  }, [refreshNotifications]);
+  }, [policy.canAuthenticate, refreshNotifications]);
 
   return null;
 }
@@ -446,6 +464,7 @@ function ThemedNavigationContainer({
   const { colors, isDark } = useTheme();
   const { user, session, isLoading: authLoading } = useAuth();
   const { preferences, ready: preferencesReady } = useNotificationPreferences();
+  const { policy: audiencePolicy } = useAudience();
   const userId = user?.id;
   const accessToken = session?.access_token;
   const bg = colors.bg;
@@ -457,19 +476,31 @@ function ThemedNavigationContainer({
   useEffect(() => {
     if (
       authLoading ||
+      !audiencePolicy.canAuthenticate ||
       !preferencesReady ||
       !preferences.pushEnabled ||
       !userId ||
       !accessToken
     )
       return;
+    let active = true;
     registerForPushNotifications(accessToken, {
       requestPermission: false,
+      shouldContinue: () => active,
+      onRegistrationCancelled: () =>
+        syncNotificationPreferences(
+          accessToken,
+          DEFAULT_NOTIFICATION_PREFERENCES,
+        ),
     }).catch(() => {
       // push registration is best-effort; delivery can be enabled again on next launch
     });
+    return () => {
+      active = false;
+    };
   }, [
     accessToken,
+    audiencePolicy.canAuthenticate,
     authLoading,
     preferences.pushEnabled,
     preferencesReady,
@@ -512,6 +543,21 @@ function ThemedNavigationContainer({
   );
 }
 
+function AudienceProtectedAuthScreen(
+  props: React.ComponentProps<typeof AuthScreen>,
+) {
+  const { policy } = useAudience();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
+  useEffect(() => {
+    if (!policy.canAuthenticate) navigation.replace("MainTabs");
+  }, [navigation, policy.canAuthenticate]);
+
+  if (!policy.canAuthenticate) return null;
+  return <AuthScreen {...props} />;
+}
+
 function ThemedStackNavigator() {
   const { colors } = useTheme();
   return (
@@ -540,7 +586,7 @@ function ThemedStackNavigator() {
       <Stack.Screen name="CalendarScreen" component={CalendarScreen} />
       <Stack.Screen name="Detail" component={DetailScreen} />
       <Stack.Screen name="FeedDetail" component={FeedDetailScreen} />
-      <Stack.Screen name="Login" component={AuthScreen} />
+      <Stack.Screen name="Login" component={AudienceProtectedAuthScreen} />
       <Stack.Screen
         name="InfluencerGroupBuys"
         component={InfluencerGroupBuysScreen}
@@ -561,35 +607,55 @@ function ThemedStackNavigator() {
   );
 }
 
+function AudienceApplication() {
+  const { policy } = useAudience();
+
+  return (
+    <AdsProvider audiencePolicy={policy}>
+      <QueryClientProvider client={mobileQueryClient}>
+        <QueryFocusBridge />
+        <ThemeProvider>
+          <AdsRuntimeSmokeProbe />
+          <AuthProvider audiencePolicy={policy}>
+            <RestrictedAudienceCleanupBridge />
+            <NotificationPreferencesBoundary>
+              <GroupBuyReminderPickerProvider
+                onAuthenticationRequired={() => {
+                  if (policy.canAuthenticate && rootNavigationRef.isReady()) {
+                    rootNavigationRef.navigate("Login");
+                  }
+                }}
+              >
+                <NotificationScheduleBridge />
+                <ThemedNavigationContainer>
+                  <ThemedStackNavigator />
+                </ThemedNavigationContainer>
+              </GroupBuyReminderPickerProvider>
+            </NotificationPreferencesBoundary>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </AdsProvider>
+  );
+}
+
+function AudienceApplicationBoundary() {
+  const { ageBand } = useAudience();
+  return <AudienceApplication key={ageBand ?? "unresolved"} />;
+}
+
 export default function App() {
   return (
     <GestureHandlerRootView style={styles.appRoot}>
       <KeyboardProvider>
         <SafeAreaProvider>
-          <AdsProvider>
-            <QueryClientProvider client={mobileQueryClient}>
-              <QueryFocusBridge />
-              <ThemeProvider>
-                <AdsRuntimeSmokeProbe />
-                <AuthProvider>
-                  <NotificationPreferencesBoundary>
-                    <GroupBuyReminderPickerProvider
-                      onAuthenticationRequired={() => {
-                        if (rootNavigationRef.isReady()) {
-                          rootNavigationRef.navigate("Login");
-                        }
-                      }}
-                    >
-                      <NotificationScheduleBridge />
-                      <ThemedNavigationContainer>
-                        <ThemedStackNavigator />
-                      </ThemedNavigationContainer>
-                    </GroupBuyReminderPickerProvider>
-                  </NotificationPreferencesBoundary>
-                </AuthProvider>
-              </ThemeProvider>
-            </QueryClientProvider>
-          </AdsProvider>
+          <AudienceProvider
+            initialAgeBandOverride={automatedE2E ? "age14Plus" : null}
+          >
+            <AudienceGate>
+              <AudienceApplicationBoundary />
+            </AudienceGate>
+          </AudienceProvider>
         </SafeAreaProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>

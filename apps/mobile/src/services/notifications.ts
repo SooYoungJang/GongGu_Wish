@@ -57,6 +57,7 @@ export type NotificationPermissionFailureReason =
 
 export type PushRegistrationResult =
   | { status: "registered"; token: string }
+  | { status: "cancelled"; reason: "audience-restricted" }
   | { status: "unsupported"; reason: "expo-go" | "native-module" }
   | {
       status: "unavailable";
@@ -191,13 +192,30 @@ export async function registerForPushNotifications(
     e2eTokenOverride?: string;
     retryDelaysMs?: readonly number[];
     refreshAuthToken?: () => Promise<string | null>;
+    shouldContinue?: () => boolean;
+    onRegistrationCancelled?: () => Promise<unknown>;
   } = {},
 ): Promise<PushRegistrationResult> {
+  const shouldContinue = options.shouldContinue ?? (() => true);
+  const cancelled = (): PushRegistrationResult => ({
+    status: "cancelled",
+    reason: "audience-restricted",
+  });
+  const cleanupCancelledRegistration = async () => {
+    try {
+      await options.onRegistrationCancelled?.();
+    } catch {
+      // Audience restriction remains authoritative even if remote cleanup
+      // must be retried by the restricted-mode cleanup bridge.
+    }
+  };
+  if (!shouldContinue()) return cancelled();
   if (IS_EXPO_GO) return { status: "unsupported", reason: "expo-go" };
 
   const availability = await getNotificationAvailability(
     options.requestPermission !== false,
   );
+  if (!shouldContinue()) return cancelled();
   if (availability.status !== "available") return availability;
 
   let token = isAutomatedE2E() ? options.e2eTokenOverride : undefined;
@@ -211,6 +229,7 @@ export async function registerForPushNotifications(
     const retryDelaysMs =
       options.retryDelaysMs ?? DEFAULT_PUSH_TOKEN_RETRY_DELAYS_MS;
     for (let attempt = 0; token === undefined; attempt += 1) {
+      if (!shouldContinue()) return cancelled();
       try {
         token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
       } catch (error) {
@@ -228,17 +247,23 @@ export async function registerForPushNotifications(
       }
     }
   }
+  if (!shouldContinue()) return cancelled();
   if (!isExpoPushToken(token)) {
     return { status: "failed", reason: "invalid-token" };
   }
 
   let registrationError: unknown;
   try {
+    if (!shouldContinue()) return cancelled();
     await callEdgeFunction(
       "register-push-token",
       { token, provider: "expo" },
       { authToken },
     );
+    if (!shouldContinue()) {
+      await cleanupCancelledRegistration();
+      return cancelled();
+    }
     return { status: "registered", token };
   } catch (error) {
     registrationError = error;
@@ -246,13 +271,19 @@ export async function registerForPushNotifications(
 
   if (hasHttpStatus(registrationError, 401) && options.refreshAuthToken) {
     try {
+      if (!shouldContinue()) return cancelled();
       const refreshedAuthToken = await options.refreshAuthToken();
       if (refreshedAuthToken) {
+        if (!shouldContinue()) return cancelled();
         await callEdgeFunction(
           "register-push-token",
           { token, provider: "expo" },
           { authToken: refreshedAuthToken },
         );
+        if (!shouldContinue()) {
+          await cleanupCancelledRegistration();
+          return cancelled();
+        }
         return { status: "registered", token };
       }
     } catch (error) {

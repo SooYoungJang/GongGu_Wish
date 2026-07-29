@@ -1,4 +1,7 @@
 import type { Influencer } from '../types';
+import { canRecordBehaviorSignals } from '../audience/behaviorSignalsPolicy';
+
+export const RECENT_SEARCH_STORAGE_KEY = 'search:recent';
 
 /**
  * Normalize text for search matching: lowercase and remove all whitespace
@@ -17,6 +20,7 @@ export function normalizeForSearch(text: string | null | undefined): string {
  * the oldest (last) entries. Mirrors a FIFO-with-promotion queue.
  */
 export function pushRecentTerm(prev: string[], term: string, maxItems: number): string[] {
+  if (!canRecordBehaviorSignals()) return prev;
   const trimmed = term.trim();
   if (!trimmed) return prev;
   return [trimmed, ...prev.filter((s) => s !== trimmed)].slice(0, maxItems);
