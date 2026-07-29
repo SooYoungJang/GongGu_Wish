@@ -941,12 +941,15 @@ jobs:
             deployment_url=""
             for deployment_id in "${deployment_ids[@]}"; do
               deployment_url="$(
-                gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" |
-                  jq -r '
+              gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" |
+                  jq -r --arg owner "$GITHUB_REPOSITORY_OWNER" '
                     [
                       .[] |
                       select(
-                        .creator.login == "vercel[bot]" and
+                        (
+                          .creator.login == "vercel[bot]" or
+                          .creator.login == $owner
+                        ) and
                         ((.environment // "") | ascii_downcase) == "preview" and
                         .state == "success" and
                         ((.environment_url // "") |
