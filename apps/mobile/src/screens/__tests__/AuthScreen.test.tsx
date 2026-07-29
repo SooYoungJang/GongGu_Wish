@@ -7,7 +7,7 @@
  *  - Social login buttons
  *  - Login form fields
  *  - Signup tab present
- *  - Navigation flow (goBack on success, OAuth calls)
+ *  - Navigation flow (MyPage on success, OAuth calls)
  */
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
@@ -27,7 +27,7 @@ const adultAudiencePolicy = resolveAudiencePolicy('age14Plus');
 const {
   mockNavigate,
   mockGoBack,
-  mockReplace,
+  mockPopTo,
   mockSignInWithPassword,
   mockSignUp,
   mockResend,
@@ -39,7 +39,7 @@ const {
   () => {
     const mockNavigate = vi.fn();
     const mockGoBack = vi.fn();
-    const mockReplace = vi.fn();
+    const mockPopTo = vi.fn();
     const mockSignInWithPassword = vi.fn();
     const mockSignUp = vi.fn();
     const mockResend = vi.fn();
@@ -53,13 +53,12 @@ const {
     const stableNavigation = {
       navigate: mockNavigate,
       goBack: mockGoBack,
-      canGoBack: vi.fn(() => true),
-      replace: mockReplace,
+      popTo: mockPopTo,
     };
     return {
       mockNavigate,
       mockGoBack,
-      mockReplace,
+      mockPopTo,
       mockSignInWithPassword,
       mockSignUp,
       mockResend,
@@ -337,7 +336,7 @@ describe('AuthScreen', () => {
 
   // ── Navigation Flow Tests ─────────────────────────────────────────────────
 
-  it('calls navigation.goBack() on successful email login', async () => {
+  it('moves to the MyPage tab on successful email login', async () => {
     mockSignInWithPassword.mockResolvedValue({ error: null });
     const renderer = createTestRenderer();
 
@@ -369,7 +368,10 @@ describe('AuthScreen', () => {
       email: 'test@example.com',
       password: 'password123!',
     });
-    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    expect(mockPopTo).toHaveBeenCalledTimes(1);
+    expect(mockPopTo).toHaveBeenCalledWith('MainTabs', {
+      screen: 'MyPage',
+    });
   });
 
   it('sends email signup code and verifies the in-app code', async () => {
@@ -452,7 +454,10 @@ describe('AuthScreen', () => {
       token: '123456',
       type: 'email',
     });
-    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    expect(mockPopTo).toHaveBeenCalledTimes(1);
+    expect(mockPopTo).toHaveBeenCalledWith('MainTabs', {
+      screen: 'MyPage',
+    });
   });
 
   it('calls signInWithOAuth with provider config when Kakao button pressed', async () => {
@@ -475,7 +480,7 @@ describe('AuthScreen', () => {
     });
   });
 
-  it('성공한 warm OAuth 콜백 후 Login 경로를 한 번만 닫는다', async () => {
+  it('성공한 warm OAuth 콜백 후 MyPage 탭으로 한 번만 이동한다', async () => {
     let handleWarmCallback:
       | Parameters<typeof Linking.addEventListener>[1]
       | undefined;
@@ -508,15 +513,17 @@ describe('AuthScreen', () => {
     });
 
     expect(mockExchangeCodeForSession).toHaveBeenCalledWith('kakao-auth-code');
-    expect(mockGoBack).toHaveBeenCalledTimes(1);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockPopTo).toHaveBeenCalledTimes(1);
+    expect(mockPopTo).toHaveBeenCalledWith('MainTabs', {
+      screen: 'MyPage',
+    });
+    expect(mockGoBack).not.toHaveBeenCalled();
   });
 
-  it('성공한 cold OAuth 콜백에서 뒤로 갈 경로가 없으면 MainTabs로 한 번 이동한다', async () => {
+  it('성공한 cold OAuth 콜백도 MyPage 탭으로 한 번만 이동한다', async () => {
     vi.mocked(Linking.getInitialURL).mockResolvedValueOnce(
       'gongguwish-preview://auth/callback?code=cold-kakao-auth-code',
     );
-    stableNavigation.canGoBack.mockReturnValueOnce(false);
     mockExchangeCodeForSession.mockResolvedValue({
       data: {
         session: {
@@ -535,8 +542,10 @@ describe('AuthScreen', () => {
     expect(mockExchangeCodeForSession).toHaveBeenCalledWith(
       'cold-kakao-auth-code',
     );
-    expect(mockReplace).toHaveBeenCalledTimes(1);
-    expect(mockReplace).toHaveBeenCalledWith('MainTabs');
+    expect(mockPopTo).toHaveBeenCalledTimes(1);
+    expect(mockPopTo).toHaveBeenCalledWith('MainTabs', {
+      screen: 'MyPage',
+    });
     expect(mockGoBack).not.toHaveBeenCalled();
   });
 
@@ -578,8 +587,8 @@ describe('AuthScreen', () => {
     expect(mockExchangeCodeForSession).toHaveBeenCalledWith(
       'unverified-kakao-code',
     );
+    expect(mockPopTo).not.toHaveBeenCalled();
     expect(mockGoBack).not.toHaveBeenCalled();
-    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it('calls signInWithOAuth when Apple login button pressed', async () => {

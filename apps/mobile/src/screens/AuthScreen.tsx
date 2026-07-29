@@ -424,24 +424,19 @@ export function AuthScreen(_props: AuthScreenProps) {
   const [actionBar, setActionBar] = useState<ActionBarConfig | null>(null);
   const [focusedInputId, setFocusedInputId] = useState<string | null>(null);
   const [authRuntimeMarker] = useState(() => `gon-211-${Date.now()}`);
-  const authRouteDismissedRef = useRef(false);
+  const authNavigationCompletedRef = useRef(false);
 
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const dismissAuthRoute = useCallback(() => {
-    if (authRouteDismissedRef.current) return;
-    authRouteDismissedRef.current = true;
-
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.replace('MainTabs');
-    }
+  const completeAuthNavigation = useCallback(() => {
+    if (authNavigationCompletedRef.current) return;
+    authNavigationCompletedRef.current = true;
+    navigation.popTo('MainTabs', { screen: 'MyPage' });
   }, [navigation]);
 
   useEffect(() => {
-    if (user) dismissAuthRoute();
-  }, [dismissAuthRoute, user]);
+    if (user) completeAuthNavigation();
+  }, [completeAuthNavigation, user]);
 
   // Reset focus state on tab switch; child panels own actionBar reporting.
   useEffect(() => {
@@ -551,7 +546,7 @@ export function AuthScreen(_props: AuthScreenProps) {
             activeTab={activeTab}
             onActionBarChange={setActionBar}
             hideActions={shouldShowStickyAction}
-            onAuthSuccess={dismissAuthRoute}
+            onAuthSuccess={completeAuthNavigation}
             onInputFocus={onInputFocus}
             onInputBlur={onInputBlur}
           />
