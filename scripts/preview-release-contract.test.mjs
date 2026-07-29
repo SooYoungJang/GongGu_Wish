@@ -429,6 +429,34 @@ test("manual Preview operations never trigger the full deployment pipeline", () 
   }
 });
 
+test("manual Preview APK recovery is explicit, develop-only, and never targets Production", () => {
+  const recoveryJob = job("preview-apk-recovery");
+
+  assert.match(workflow, /workflow_dispatch:[\s\S]*confirm_preview_build:/);
+  assert.match(workflow, /confirm_preview_build:[\s\S]*type:\s*boolean/);
+  assert.match(workflow, /confirm_preview_build:[\s\S]*default:\s*false/);
+  assert.match(recoveryJob, /github\.ref == 'refs\/heads\/develop'/);
+  assert.match(recoveryJob, /inputs\.confirm_preview_build == true/);
+  assert.match(recoveryJob, /environment:\s*preview/);
+  assert.match(recoveryJob, /Require the latest develop commit/);
+  assert.match(recoveryJob, /GITHUB_SHA.*develop_sha/);
+  assert.match(recoveryJob, /FORCE_PREVIEW_APK:\s*"true"/);
+  assert.match(recoveryJob, /ci-deploy-android\.sh/);
+  assert.match(recoveryJob, /Require a local Preview APK result/);
+  assert.match(recoveryJob, /DEPLOY_MODE:\s*\$\{\{ steps\.mobile-build\.outputs\.mode \}\}/);
+  assert.match(recoveryJob, /APK_PATH:\s*\$\{\{ steps\.mobile-build\.outputs\.apk-path \}\}/);
+  assert.equal(
+    recoveryJob.match(/git\/ref\/heads\/develop/g)?.length,
+    2,
+    "the recovery build must reject develop moving before or during the build",
+  );
+  assert.match(recoveryJob, /actions\/upload-artifact@/);
+  assert.doesNotMatch(recoveryJob, /refs\/heads\/main/);
+  assert.doesNotMatch(recoveryJob, /environment:\s*production/);
+  assert.match(mobileDeployScript, /FORCE_PREVIEW_APK must be true or false/);
+  assert.match(mobileDeployScript, /FORCE_PREVIEW_APK is restricted to the Preview environment/);
+});
+
 test("Admin deployments publish an exact environment and commit identity", () => {
   assert.match(adminEnvironmentContract, /xwblovggtvbpiusjfokq/);
   assert.match(adminEnvironmentContract, /iosdoheblabfimkjnvfj/);
