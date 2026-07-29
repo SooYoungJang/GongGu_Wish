@@ -115,6 +115,43 @@ describe("registerForPushNotifications", () => {
     );
   });
 
+  it("does not request or register a push token when audience policy blocks it", async () => {
+    await expect(
+      registerForPushNotifications("access-token", {
+        shouldContinue: () => false,
+      }),
+    ).resolves.toEqual({
+      status: "cancelled",
+      reason: "audience-restricted",
+    });
+
+    expect(notificationMocks.getPermissionsAsync).not.toHaveBeenCalled();
+    expect(notificationMocks.getExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(callEdgeFunction).not.toHaveBeenCalled();
+  });
+
+  it("removes a token registered while audience policy changes in flight", async () => {
+    let allowed = true;
+    const onRegistrationCancelled = vi.fn().mockResolvedValue(undefined);
+    callEdgeFunction.mockImplementationOnce(async () => {
+      allowed = false;
+      return { data: { registered: true, provider: "expo" } };
+    });
+
+    await expect(
+      registerForPushNotifications("access-token", {
+        shouldContinue: () => allowed,
+        onRegistrationCancelled,
+      }),
+    ).resolves.toEqual({
+      status: "cancelled",
+      reason: "audience-restricted",
+    });
+
+    expect(callEdgeFunction).toHaveBeenCalledOnce();
+    expect(onRegistrationCancelled).toHaveBeenCalledOnce();
+  });
+
   it("uses an explicit E2E token without contacting Expo", async () => {
     await expect(
       registerForPushNotifications("access-token", {

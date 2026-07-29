@@ -7,6 +7,8 @@ import {
   fetchGroupBuysByInfluencer,
   fetchNotificationReminders,
   lookupInstagramUrl,
+  logDeepView,
+  logSearchTerm,
   mapGroupBuyRows,
   postPublicJson,
   refreshGroupBuyMedia,
@@ -14,6 +16,8 @@ import {
   syncNotification,
 } from "./api";
 import { configurePostgrest } from "./lib/postgrest-client";
+import { resolveAudiencePolicy } from "./audience/audiencePolicy";
+import { setAudiencePolicySnapshot } from "./audience/behaviorSignalsPolicy";
 
 const sessionMocks = vi.hoisted(() => ({
   getSessionId: vi.fn(),
@@ -32,12 +36,25 @@ describe("public data fetch diagnostics", () => {
     configurePostgrest("sb_publishable_1234567890");
     sessionMocks.getSessionId.mockReset();
     authTokenMocks.getAuthToken.mockReset().mockResolvedValue(null);
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age14Plus"));
     vi.spyOn(console, "log").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
     vi.restoreAllMocks();
+  });
+
+  it("does not emit search, deep-view, bookmark, or session signals in age-13 mode", async () => {
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age13"));
+    global.fetch = vi.fn() as unknown as typeof fetch;
+
+    await logSearchTerm("공구");
+    await logDeepView("group-buy-1");
+    await syncBookmark("group-buy-1", true);
+
+    expect(sessionMocks.getSessionId).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("logs group buy failures separately from feed failures", async () => {

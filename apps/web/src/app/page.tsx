@@ -73,8 +73,14 @@ export default function HomePage() {
       </main>
 
       <footer className="bg-neutral-0 border-t border-neutral-100 py-8 mt-auto">
-        <div className="mx-auto max-w-7xl px-6 text-center text-neutral-500 text-sm">
-          © 2026 GongGu Wish. 인플루언서 공동구매 정보 서비스.
+        <div className="mx-auto max-w-7xl px-6 text-center text-neutral-500 text-sm space-y-3">
+          <nav aria-label="정책 및 지원" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+            <Link className="hover:text-primary-700" href="/privacy">개인정보처리방침</Link>
+            <Link className="hover:text-primary-700" href="/terms">서비스 이용약관</Link>
+            <Link className="hover:text-primary-700" href="/account-deletion">계정 삭제 안내</Link>
+            <a className="hover:text-primary-700" href="mailto:tturrr10@gmail.com">지원 문의</a>
+          </nav>
+          <p>© 2026 GongGu Wish. 인플루언서 공동구매 정보 서비스.</p>
         </div>
       </footer>
     </div>

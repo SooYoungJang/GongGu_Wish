@@ -14,6 +14,8 @@ import {
   scheduleGroupBuyReminders,
 } from "../services/notifications";
 import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
+import { canRecordBehaviorSignals } from "../audience/behaviorSignalsPolicy";
+import { RECENT_SEARCH_STORAGE_KEY } from "../utils/search";
 import {
   getPendingNotificationPreferencesStorageKey,
   getNotificationPreferencesStorageKey,
@@ -630,6 +632,12 @@ async function writeRecentViewsStorage(entries: StoredGroupBuy[]) {
 async function reconcileRecentViews(
   hydrate: boolean,
 ): Promise<StoredGroupBuy[]> {
+  if (!canRecordBehaviorSignals()) {
+    pendingRecentViews = [];
+    publishRecentViews([]);
+    return [];
+  }
+
   const stored = await readRecentViewsStorage();
   if (!stored) {
     const visible = mergeRecentViews(
@@ -688,6 +696,7 @@ function refreshRecentViewsStore(): Promise<StoredGroupBuy[]> {
 function recordRecentViewStore(
   item: StoredGroupBuy,
 ): Promise<StoredGroupBuy[]> {
+  if (!canRecordBehaviorSignals()) return Promise.resolve(recentViewsSnapshot);
   pendingRecentViews = [
     { sequence: ++nextRecentViewSequence, item },
     ...pendingRecentViews,
@@ -1257,7 +1266,12 @@ export async function clearLocalUserData(
 
   await Promise.all([
     clearRecentViewsStore(),
-    ...[BOOKMARK_KEY, ...notificationKeys, WISH_ITEM_KEY].map(async (key) => {
+    ...[
+      BOOKMARK_KEY,
+      RECENT_SEARCH_STORAGE_KEY,
+      ...notificationKeys,
+      WISH_ITEM_KEY,
+    ].map(async (key) => {
       try {
         await AsyncStorage.removeItem(key);
       } catch {
@@ -1273,6 +1287,12 @@ export function useBookmarks() {
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(() => {
+    if (!canRecordBehaviorSignals()) {
+      setBookmarks([]);
+      setReady(true);
+      return;
+    }
+
     readJSON<StoredGroupBuy[]>(BOOKMARK_KEY, []).then(async (value) => {
       const hydrated = await hydrateStoredDeals(BOOKMARK_KEY, value);
       setBookmarks(hydrated);
@@ -1290,6 +1310,7 @@ export function useBookmarks() {
   );
 
   const toggleBookmark = useCallback((item: GroupBuy) => {
+    if (!canRecordBehaviorSignals()) return;
     const isCurrentlyBookmarked = bookmarks.some(
       (entry) => entry.id === item.id,
     );
@@ -1307,6 +1328,7 @@ export function useBookmarks() {
   }, []);
 
   const removeBookmark = useCallback((id: string) => {
+    if (!canRecordBehaviorSignals()) return;
     setBookmarks((current) => {
       const next = current.filter((entry) => entry.id !== id);
       void writeJSON(BOOKMARK_KEY, next);
@@ -1367,13 +1389,20 @@ export function useNotifications() {
   const namespace = auth?.user?.id ? `user:${auth.user.id}` : GUEST_NAMESPACE;
   const storageKey = notificationStorageKey(namespace);
   const [notifications, setNotifications] = useState<NotificationEntry[]>(() =>
-    getNotificationSnapshot(namespace),
+    canRecordBehaviorSignals() ? getNotificationSnapshot(namespace) : [],
   );
   const [ready, setReady] = useState(false);
   const mountedRef = useRef(false);
   const activeNamespaceRef = useRef(namespace);
 
   const refresh = useCallback(() => {
+    if (!canRecordBehaviorSignals()) {
+      publishNotifications(namespace, []);
+      setNotifications([]);
+      setReady(true);
+      return;
+    }
+
     setReady(false);
     let refreshTask = notificationRefreshes.get(namespace);
     if (!refreshTask) {
@@ -1442,7 +1471,9 @@ export function useNotifications() {
     activeNamespaceRef.current = namespace;
     const listeners = getNotificationListeners(namespace);
     listeners.add(setNotifications);
-    setNotifications(getNotificationSnapshot(namespace));
+    setNotifications(
+      canRecordBehaviorSignals() ? getNotificationSnapshot(namespace) : [],
+    );
     refresh();
     return () => {
       mountedRef.current = false;
@@ -1481,8 +1512,11 @@ export function useNotifications() {
     (
       item: GroupBuy,
       reminder: GroupBuyReminderUpdate | readonly NotificationReminderDay[],
-    ) =>
-      enqueueNotificationOperation(namespace, item.id, () =>
+    ) => {
+      if (!canRecordBehaviorSignals()) {
+        return Promise.resolve({ status: "idle" } as const);
+      }
+      return enqueueNotificationOperation(namespace, item.id, () =>
         configureNotification(
           namespace,
           storageKey,
@@ -1491,13 +1525,17 @@ export function useNotifications() {
           preferences,
           reminder,
         ),
-      ),
+      );
+    },
     [namespace, preferences, storageKey],
   );
 
   const toggleNotification = useCallback(
-    (item: GroupBuy) =>
-      enqueueNotificationOperation(namespace, item.id, async () => {
+    (item: GroupBuy) => {
+      if (!canRecordBehaviorSignals()) {
+        return Promise.resolve({ status: "idle" } as const);
+      }
+      return enqueueNotificationOperation(namespace, item.id, async () => {
         const current = getNotificationSnapshot(namespace);
         const existing = current.find((entry) => entry.groupBuyId === item.id);
         return existing
@@ -1510,13 +1548,17 @@ export function useNotifications() {
               preferences,
               preferences.reminderDays,
             );
-      }),
+      });
+    },
     [namespace, preferences, storageKey],
   );
 
   const retryNotification = useCallback(
-    (item: GroupBuy) =>
-      enqueueNotificationOperation(namespace, item.id, async () => {
+    (item: GroupBuy) => {
+      if (!canRecordBehaviorSignals()) {
+        return Promise.resolve({ status: "idle" } as const);
+      }
+      return enqueueNotificationOperation(namespace, item.id, async () => {
         const current = getNotificationSnapshot(namespace);
         const existing = current.find((entry) => entry.groupBuyId === item.id);
         if (
@@ -1546,25 +1588,31 @@ export function useNotifications() {
             ? getEntryReminderPreference(existing, preferences.reminderDays)
             : preferences.reminderDays,
         );
-      }),
+      });
+    },
     [namespace, preferences, storageKey],
   );
 
   const removeNotification = useCallback(
-    (groupBuyId: string) =>
-      enqueueNotificationOperation(namespace, groupBuyId, async () => {
+    (groupBuyId: string) => {
+      if (!canRecordBehaviorSignals()) {
+        return Promise.resolve({ status: "idle" } as const);
+      }
+      return enqueueNotificationOperation(namespace, groupBuyId, async () => {
         const current = getNotificationSnapshot(namespace);
         const existing = current.find(
           (entry) => entry.groupBuyId === groupBuyId,
         );
         if (!existing) return { status: "idle" } as const;
         return disableNotification(namespace, storageKey, current, existing);
-      }),
+      });
+    },
     [namespace, storageKey],
   );
 
   const rescheduleNotifications = useCallback(
     async (nextPreferences: NotificationPreferences) => {
+      if (!canRecordBehaviorSignals()) return [];
       const groupBuyIds = getNotificationSnapshot(namespace).map(
         (entry) => entry.groupBuyId,
       );
@@ -1607,6 +1655,12 @@ export function useWishItems() {
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(() => {
+    if (!canRecordBehaviorSignals()) {
+      setWishItems([]);
+      setReady(true);
+      return;
+    }
+
     readJSON<WishItemEntry[]>(WISH_ITEM_KEY, []).then((value) => {
       setWishItems(value);
       setReady(true);
@@ -1624,6 +1678,7 @@ export function useWishItems() {
         createdAt?: string;
       },
     ) => {
+      if (!canRecordBehaviorSignals()) return;
       setWishItems((current) => {
         const normalizedUrl = entry.instagramUrl.trim();
         const id =

@@ -2,11 +2,14 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GroupBuy } from "../types";
+import { resolveAudiencePolicy } from "../audience/audiencePolicy";
+import { setAudiencePolicySnapshot } from "../audience/behaviorSignalsPolicy";
 import {
   clearLocalUserData,
   useBookmarks,
   useNotifications,
   useRecentViews,
+  useWishItems,
 } from "./useLocalDeals";
 
 const apiMocks = vi.hoisted(() => ({
@@ -172,6 +175,7 @@ describe("useNotifications", () => {
     notificationPreferenceMocks.preferences.submissionApprovalEnabled = true;
     notificationPreferenceMocks.preferences.reminderDays = [1, 3, 7];
     authMocks.user = null;
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age14Plus"));
   });
 
   it("동시에 마운트된 다른 화면에도 알림 변경을 즉시 반영한다", async () => {
@@ -223,6 +227,65 @@ describe("useNotifications", () => {
         )[0].priceKrw,
       ).toBe(200000);
     });
+  });
+
+  it("만 13세 모드에서는 최근 본 공구를 로컬에 기록하지 않는다", async () => {
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age13"));
+    storage.values.set(
+      "@gonggu/recent-views/v1",
+      JSON.stringify([{ ...GROUP_BUY, productName: "과거 최근 본 공구" }]),
+    );
+    const recentViews = renderHook(() => useRecentViews());
+    await waitFor(() => expect(recentViews.result.current.ready).toBe(true));
+
+    act(() => recentViews.result.current.recordView(GROUP_BUY));
+
+    expect(recentViews.result.current.recentViews).toEqual([]);
+    expect(apiMocks.fetchGroupBuysByIds).not.toHaveBeenCalled();
+  });
+
+  it("만 13세 모드에서는 개인 활동 캐시를 읽거나 변경하지 않는다", async () => {
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age13"));
+    storage.values.set("@gonggu/bookmarks/v1", JSON.stringify([GROUP_BUY]));
+    storage.values.set(
+      "@gonggu/wish-items/v1",
+      JSON.stringify([{ id: "old-wish" }]),
+    );
+    storage.values.set(
+      "@gonggu/notifications/v2/guest",
+      JSON.stringify([{ groupBuyId: GROUP_BUY.id }]),
+    );
+
+    const bookmarks = renderHook(() => useBookmarks());
+    const notifications = renderHook(() => useNotifications());
+    const wishItems = renderHook(() => useWishItems());
+    await waitFor(() => {
+      expect(bookmarks.result.current.ready).toBe(true);
+      expect(notifications.result.current.ready).toBe(true);
+      expect(wishItems.result.current.ready).toBe(true);
+    });
+
+    await act(async () => {
+      bookmarks.result.current.toggleBookmark(GROUP_BUY);
+      wishItems.result.current.recordWishItem({
+        submissionId: "new-wish",
+        groupBuyId: null,
+        instagramUrl: "https://www.instagram.com/p/example/",
+        productName: "새 위시",
+        thumbnailUrl: null,
+        mediaType: null,
+      });
+      await notifications.result.current.toggleNotification(GROUP_BUY);
+    });
+
+    expect(bookmarks.result.current.bookmarks).toEqual([]);
+    expect(notifications.result.current.notifications).toEqual([]);
+    expect(wishItems.result.current.wishItems).toEqual([]);
+    expect(storage.writeAttempts).toBe(0);
+    expect(apiMocks.syncBookmark).not.toHaveBeenCalled();
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).not.toHaveBeenCalled();
   });
 
   it("마운트 직후 기록해도 저장된 최근 본 공구를 유실하지 않는다", async () => {
@@ -720,6 +783,7 @@ describe("useNotifications", () => {
       "@gonggu/wish-items/v1",
       JSON.stringify([{ id: "wish-1" }]),
     );
+    storage.values.set("search:recent", JSON.stringify(["과거 검색어"]));
     storage.values.set(
       "@gonggu/notification-preferences/v1/guest",
       JSON.stringify({ followedBrands: ["Brand A"] }),
@@ -735,6 +799,7 @@ describe("useNotifications", () => {
     expect(storage.values.has("@gonggu/recent-views/v1")).toBe(false);
     expect(storage.values.has("@gonggu/notifications/v1")).toBe(false);
     expect(storage.values.has("@gonggu/wish-items/v1")).toBe(false);
+    expect(storage.values.has("search:recent")).toBe(false);
     expect(
       storage.values.has("@gonggu/notification-preferences/v1/guest"),
     ).toBe(false);

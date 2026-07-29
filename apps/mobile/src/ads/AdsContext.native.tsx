@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Platform } from "react-native";
 
+import type { AudiencePolicy } from "../audience/audiencePolicy";
 import {
   type AdsMode,
   type NativeAdUnitIds,
@@ -57,6 +58,7 @@ const TEST_CONFIG = {
 type AdsExtra = {
   automatedE2E?: boolean;
   adsMode?: string;
+  admobRequestsEnabled?: boolean;
   admobAndroidAppId?: string | null;
   admobIosAppId?: string | null;
   admobAndroidNativeUnitIds?: Partial<NativeAdUnitIds>;
@@ -66,6 +68,7 @@ type AdsExtra = {
 type AdsProviderProps = PropsWithChildren<{
   adAccessResolved?: boolean;
   adsRemoved?: boolean;
+  audiencePolicy: AudiencePolicy;
 }>;
 
 const initialState: AdsInitializationState & { isSettled: boolean } = {
@@ -110,6 +113,7 @@ const waitForAdsRetry = () =>
 export function AdsProvider({
   adAccessResolved = true,
   adsRemoved = false,
+  audiencePolicy,
   children,
 }: AdsProviderProps) {
   const extra = (Constants.expoConfig?.extra ?? {}) as AdsExtra;
@@ -120,8 +124,10 @@ export function AdsProvider({
       resolveAdsRuntimeConfig({
         platform,
         adAccessResolved,
+        audienceCanRequestAds: audiencePolicy.canRequestAds,
         adsRemoved,
         automatedE2E: extra.automatedE2E === true,
+        requestsEnabled: extra.admobRequestsEnabled === true,
         mode: normalizeAdsMode(extra.adsMode),
         appId:
           platform === "ios"
@@ -137,11 +143,13 @@ export function AdsProvider({
     [
       adAccessResolved,
       adsRemoved,
+      audiencePolicy.canRequestAds,
       extra.admobAndroidAppId,
       extra.admobAndroidNativeUnitIds,
       extra.admobIosAppId,
       extra.admobIosNativeUnitIds,
       extra.adsMode,
+      extra.admobRequestsEnabled,
       extra.automatedE2E,
       platform,
       testConfig,
