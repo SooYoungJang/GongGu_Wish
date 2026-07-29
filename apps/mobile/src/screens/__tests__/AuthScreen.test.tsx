@@ -14,6 +14,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 
 import { Keyboard, Platform, TextInput, Pressable, Text } from 'react-native';
+import { Linking } from 'react-native';
 import { AuthScreen, nextFocusedInputId } from '../AuthScreen';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { AuthProvider } from '../../context/AuthContext';
@@ -26,6 +27,7 @@ const adultAudiencePolicy = resolveAudiencePolicy('age14Plus');
 const {
   mockNavigate,
   mockGoBack,
+  mockReplace,
   mockSignInWithPassword,
   mockSignUp,
   mockResend,
@@ -37,6 +39,7 @@ const {
   () => {
     const mockNavigate = vi.fn();
     const mockGoBack = vi.fn();
+    const mockReplace = vi.fn();
     const mockSignInWithPassword = vi.fn();
     const mockSignUp = vi.fn();
     const mockResend = vi.fn();
@@ -47,10 +50,16 @@ const {
     // every call. Without this, LoginPanel's handleLogin re-creates on
     // every render, causing the useLayoutEffect/userEffect to re-fire
     // and creating an infinite re-render loop inside act().
-    const stableNavigation = { navigate: mockNavigate, goBack: mockGoBack };
+    const stableNavigation = {
+      navigate: mockNavigate,
+      goBack: mockGoBack,
+      canGoBack: vi.fn(() => true),
+      replace: mockReplace,
+    };
     return {
       mockNavigate,
       mockGoBack,
+      mockReplace,
       mockSignInWithPassword,
       mockSignUp,
       mockResend,
@@ -464,6 +473,113 @@ describe('AuthScreen', () => {
         skipBrowserRedirect: true,
       },
     });
+  });
+
+  it('성공한 warm OAuth 콜백 후 Login 경로를 한 번만 닫는다', async () => {
+    let handleWarmCallback:
+      | Parameters<typeof Linking.addEventListener>[1]
+      | undefined;
+    vi.mocked(Linking.addEventListener).mockImplementationOnce(
+      (_type, listener) => {
+        handleWarmCallback = listener;
+        return { remove: vi.fn() } as unknown as ReturnType<
+          typeof Linking.addEventListener
+        >;
+      },
+    );
+    mockExchangeCodeForSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'kakao-access-token',
+          user: { id: 'kakao-user' },
+        },
+      },
+      error: null,
+    });
+
+    const renderer = createTestRenderer();
+    expect(findAllText(renderer, '카카오로 계속하기').length).toBeGreaterThan(0);
+    expect(handleWarmCallback).toBeDefined();
+
+    await act(async () => {
+      handleWarmCallback!({
+        url: 'gongguwish-preview://auth/callback?code=kakao-auth-code',
+      });
+    });
+
+    expect(mockExchangeCodeForSession).toHaveBeenCalledWith('kakao-auth-code');
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('성공한 cold OAuth 콜백에서 뒤로 갈 경로가 없으면 MainTabs로 한 번 이동한다', async () => {
+    vi.mocked(Linking.getInitialURL).mockResolvedValueOnce(
+      'gongguwish-preview://auth/callback?code=cold-kakao-auth-code',
+    );
+    stableNavigation.canGoBack.mockReturnValueOnce(false);
+    mockExchangeCodeForSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'cold-kakao-access-token',
+          user: { id: 'cold-kakao-user' },
+        },
+      },
+      error: null,
+    });
+
+    await act(async () => {
+      createTestRenderer();
+      await Promise.resolve();
+    });
+
+    expect(mockExchangeCodeForSession).toHaveBeenCalledWith(
+      'cold-kakao-auth-code',
+    );
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith('MainTabs');
+    expect(mockGoBack).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: '코드 교환 오류',
+      result: {
+        data: { session: null },
+        error: { message: 'invalid callback code' },
+      },
+    },
+    {
+      name: '빈 세션',
+      result: { data: { session: null }, error: null },
+    },
+  ])('$name인 warm OAuth 콜백은 Login 경로를 닫지 않는다', async ({ result }) => {
+    let handleWarmCallback:
+      | Parameters<typeof Linking.addEventListener>[1]
+      | undefined;
+    vi.mocked(Linking.addEventListener).mockImplementationOnce(
+      (_type, listener) => {
+        handleWarmCallback = listener;
+        return { remove: vi.fn() } as unknown as ReturnType<
+          typeof Linking.addEventListener
+        >;
+      },
+    );
+    mockExchangeCodeForSession.mockResolvedValue(result);
+
+    createTestRenderer();
+    expect(handleWarmCallback).toBeDefined();
+
+    await act(async () => {
+      handleWarmCallback!({
+        url: 'gongguwish-preview://auth/callback?code=unverified-kakao-code',
+      });
+    });
+
+    expect(mockExchangeCodeForSession).toHaveBeenCalledWith(
+      'unverified-kakao-code',
+    );
+    expect(mockGoBack).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it('calls signInWithOAuth when Apple login button pressed', async () => {

@@ -415,14 +415,33 @@ const makeStyles = (colors: CommerceColorPalette) =>
 
 export function AuthScreen(_props: AuthScreenProps) {
   const { colors } = useCommerceTheme();
+  const { user } = useAuth();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
 
   const [actionBar, setActionBar] = useState<ActionBarConfig | null>(null);
   const [focusedInputId, setFocusedInputId] = useState<string | null>(null);
   const [authRuntimeMarker] = useState(() => `gon-211-${Date.now()}`);
+  const authRouteDismissedRef = useRef(false);
 
   const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const dismissAuthRoute = useCallback(() => {
+    if (authRouteDismissedRef.current) return;
+    authRouteDismissedRef.current = true;
+
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.replace('MainTabs');
+    }
+  }, [navigation]);
+
+  useEffect(() => {
+    if (user) dismissAuthRoute();
+  }, [dismissAuthRoute, user]);
 
   // Reset focus state on tab switch; child panels own actionBar reporting.
   useEffect(() => {
@@ -532,6 +551,7 @@ export function AuthScreen(_props: AuthScreenProps) {
             activeTab={activeTab}
             onActionBarChange={setActionBar}
             hideActions={shouldShowStickyAction}
+            onAuthSuccess={dismissAuthRoute}
             onInputFocus={onInputFocus}
             onInputBlur={onInputBlur}
           />
@@ -598,19 +618,20 @@ function AuthTabs({ activeTab, onTabChange }: { activeTab: AuthTab; onTabChange:
 
 // ─── Auth Content Area ──────────────────────────────────────────────────────
 
-function AuthContentArea({ activeTab, onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
+function AuthContentArea({ activeTab, onActionBarChange, hideActions, onAuthSuccess, onInputFocus, onInputBlur }: {
   activeTab: AuthTab;
   onActionBarChange?: (config: ActionBarConfig) => void;
   hideActions?: boolean;
+  onAuthSuccess: () => void;
   onInputFocus?: (inputId: string) => void;
   onInputBlur?: (inputId: string) => void;
 }) {
   return (
     <View>
       {activeTab === 'login' ? (
-        <LoginPanel onActionBarChange={onActionBarChange} hideActions={hideActions} onInputFocus={onInputFocus} onInputBlur={onInputBlur} />
+        <LoginPanel onActionBarChange={onActionBarChange} hideActions={hideActions} onAuthSuccess={onAuthSuccess} onInputFocus={onInputFocus} onInputBlur={onInputBlur} />
       ) : (
-        <SignupPanel onActionBarChange={onActionBarChange} hideActions={hideActions} onInputFocus={onInputFocus} onInputBlur={onInputBlur} />
+        <SignupPanel onActionBarChange={onActionBarChange} hideActions={hideActions} onAuthSuccess={onAuthSuccess} onInputFocus={onInputFocus} onInputBlur={onInputBlur} />
       )}
     </View>
   );
@@ -618,16 +639,16 @@ function AuthContentArea({ activeTab, onActionBarChange, hideActions, onInputFoc
 
 // ─── Login Panel ────────────────────────────────────────────────────────────
 
-function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
+function LoginPanel({ onActionBarChange, hideActions, onAuthSuccess, onInputFocus, onInputBlur }: {
   onActionBarChange?: (config: ActionBarConfig) => void;
   hideActions?: boolean;
+  onAuthSuccess: () => void;
   onInputFocus?: (inputId: string) => void;
   onInputBlur?: (inputId: string) => void;
 }) {
   const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { signIn, signInWithOAuth } = useAuth();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const [focusedLoginField, setFocusedLoginField] = useState<string | null>(null);
@@ -663,14 +684,14 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
       if (authError) {
         setSubmitError(mapAuthErrorMessage(authError));
       } else {
-        navigation.goBack();
+        onAuthSuccess();
       }
     } catch {
       setSubmitError('오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setSubmitting(false);
     }
-  }, [email, password, signIn, navigation]);
+  }, [email, onAuthSuccess, password, signIn]);
 
   const handleForgotPassword = useCallback(() => {
     Alert.alert('준비중', '비밀번호 찾기 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.');
@@ -851,9 +872,10 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
 
 // ─── Signup Panel (3-Step Progressive Disclosure) ──────────────────────────
 
-function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
+function SignupPanel({ onActionBarChange, hideActions, onAuthSuccess, onInputFocus, onInputBlur }: {
   onActionBarChange?: (config: ActionBarConfig) => void;
   hideActions?: boolean;
+  onAuthSuccess: () => void;
   onInputFocus?: (inputId: string) => void;
   onInputBlur?: (inputId: string) => void;
 }) {
@@ -865,7 +887,6 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
     signUpWithEmailCode,
     verifyEmailCode,
   } = useAuth();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [step, setStep] = useState<SignupStep>(1);
   const socialProviders = useMemo(() => getSocialProvidersForPlatform(), []);
@@ -1133,14 +1154,14 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
       if (authError) {
         setVerificationError(mapAuthErrorMessage(authError));
       } else {
-        navigation.goBack();
+        onAuthSuccess();
       }
     } catch {
       setVerificationError('인증번호 확인에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setSubmitting(false);
     }
-  }, [email, navigation, secondsLeft, verificationCode, verifyEmailCode]);
+  }, [email, onAuthSuccess, secondsLeft, verificationCode, verifyEmailCode]);
 
   const handleResendEmailCode = useCallback(async () => {
     setVerificationError(null);
