@@ -73,6 +73,10 @@ test("Android notification runtime covers consent, deep links, and persistence",
   const orchestrator = read("scripts/run-gon263-android-e2e.sh");
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
   const ciWorkflow = read(".github/workflows/ci.yml");
+  const productionSupabaseJob = ciWorkflow.slice(
+    ciWorkflow.indexOf("  supabase-production:\n"),
+    ciWorkflow.indexOf("\n  # ── Cloudflare Worker Checks"),
+  );
   const supabaseSeed = read("supabase/seed.sql");
   const localFixtureServer = read("scripts/mobile-e2e-api-server.mjs");
   const sharedFixtureId = "gon263-e2e-price-200000";
@@ -151,7 +155,18 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(orchestrator, /run-gon229-android-notifications\.sh/);
   assert.match(workflow, /gon229-deep-link-state\.txt/);
   assert.doesNotMatch(workflow, /gon229-notification-drawer\.xml/);
-  assert.match(ciWorkflow, /supabase functions deploy register-push-token/);
+  assert.match(productionSupabaseJob, /^  supabase-production:$/m);
+  assert.match(productionSupabaseJob, /name: Supabase Production Integration/);
+  assert.match(
+    productionSupabaseJob,
+    /EXPECTED_DETAILS_URL: https:\/\/supabase\.com\/dashboard\/project\/iosdoheblabfimkjnvfj/,
+  );
+  assert.match(productionSupabaseJob, /\.app\.slug == "supabase"/);
+  assert.match(productionSupabaseJob, /\.name == "Supabase Preview"/);
+  assert.doesNotMatch(
+    ciWorkflow,
+    /supabase functions deploy register-push-token/,
+  );
   assert.doesNotMatch(workflow, /gon229[^\n]*ios/i);
 });
 
