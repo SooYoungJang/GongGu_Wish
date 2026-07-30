@@ -13,8 +13,7 @@ export function useAuthGate() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const requireAuth = useCallback(() => {
-    if (!policy.canAuthenticate) return false;
-    if (user) return true;
+    if (policy.canAuthenticate && user) return true;
     navigation.navigate("Login");
     return false;
   }, [navigation, policy.canAuthenticate, user]);

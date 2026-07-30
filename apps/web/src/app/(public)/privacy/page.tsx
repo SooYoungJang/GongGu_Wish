@@ -14,8 +14,8 @@ const linkClass = "font-semibold text-primary-700 underline underline-offset-4";
 export default function PrivacyPage() {
   return (
     <LegalPage
-      effectiveDate="2026년 7월 29일"
-      summary="공구위시는 서비스 제공에 필요한 정보만 처리하고, 연령 구간에 따라 인증·광고·행동 신호 기능을 제한합니다."
+      effectiveDate="2026년 7월 30일"
+      summary="공구위시는 서비스 제공에 필요한 정보만 처리하고, 만 14세 이상 확인 전에는 인증·광고·행동 신호 기능을 사용하지 않습니다."
       title="개인정보처리방침"
     >
       <LegalSection title="1. 적용 범위">
@@ -50,7 +50,7 @@ export default function PrivacyPage() {
         </ul>
         <p>
           공구위시는 연령 확인을 위해 생년월일을 수집하지 않습니다. 사용자가
-          고른 연령 구간만 기기에 저장합니다.
+          인증 버튼을 계속할 때 확인한 만 14세 이상 여부만 기기에 저장합니다.
         </p>
       </LegalSection>
 
@@ -65,21 +65,22 @@ export default function PrivacyPage() {
         </ul>
       </LegalSection>
 
-      <LegalSection title="4. 연령별 처리 기준">
+      <LegalSection title="4. 인증 전후 처리 기준">
         <ul className={listClass}>
-          <li>만 12세 이하는 서비스를 이용할 수 없습니다.</li>
           <li>
-            만 13세는 공개 콘텐츠만 둘러볼 수 있으며 로그인·회원가입, 광고, 푸시
-            알림, 안정적 익명 ID 생성, 검색·딥뷰·인기 신호 기록을 하지 않습니다.
+            인증을 시작하기 전에는 공개 콘텐츠만 제공하며 기존 세션 복원,
+            로그인·회원가입, 광고 요청, 푸시 알림, 안정적 익명 ID 생성,
+            검색·딥뷰·인기 신호 기록을 하지 않습니다.
           </li>
           <li>
-            만 14세 이상은 선택한 기능과 동의 상태에 따라 계정, 알림, 활동 저장
+            카카오·네이버·Apple 또는 이메일 인증을 계속해 만 14세 이상임을
+            확인한 뒤에는 선택한 기능과 동의 상태에 따라 계정, 알림, 활동 저장
             및 광고 기능을 이용할 수 있습니다.
           </li>
         </ul>
         <p>
-          만 13세 모드에서도 공개 콘텐츠를 전송하는 데 필요한 네트워크 사업자가
-          IP 주소와 기본 접속 로그를 일시적으로 처리할 수 있습니다.
+          공개 콘텐츠를 전송하는 데 필요한 네트워크 사업자는 인증 전에도 IP
+          주소와 기본 접속 로그를 일시적으로 처리할 수 있습니다.
         </p>
       </LegalSection>
 
@@ -124,8 +125,8 @@ export default function PrivacyPage() {
           <Link className={linkClass} href="/account-deletion">
             계정 삭제 안내
           </Link>
-          에 따라 웹으로 요청할 수 있습니다. 기기에 저장된 연령 구간과 로컬
-          캐시는 앱 데이터 삭제 또는 앱 제거로 지울 수 있습니다.
+          에 따라 웹으로 요청할 수 있습니다. 기기에 저장된 만 14세 이상 확인값과
+          로컬 캐시는 앱 데이터 삭제 또는 앱 제거로 지울 수 있습니다.
         </p>
       </LegalSection>
 

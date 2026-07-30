@@ -55,16 +55,19 @@ export function AudienceProvider({
   useEffect(() => {
     if (initialAgeBandOverride) return;
     let mounted = true;
+    const hydrationRevision = selectionRevisionRef.current;
     AsyncStorage.getItem(AGE_BAND_STORAGE_KEY)
       .then((storedValue) => {
-        if (!mounted) return;
+        if (!mounted || hydrationRevision !== selectionRevisionRef.current)
+          return;
         const parsed = parseStoredAgeBand(storedValue);
         ageBandRef.current = parsed;
         setAudiencePolicySnapshot(resolveAudiencePolicy(parsed));
         setAgeBand(parsed);
       })
       .catch(() => {
-        if (!mounted) return;
+        if (!mounted || hydrationRevision !== selectionRevisionRef.current)
+          return;
         ageBandRef.current = null;
         setAudiencePolicySnapshot(resolveAudiencePolicy(null));
         setAgeBand(null);
@@ -97,9 +100,12 @@ export function AudienceProvider({
       previousAgeBand,
       nextAgeBand,
     );
-    ageBandRef.current = nextAgeBand;
-    setAudiencePolicySnapshot(resolveAudiencePolicy(nextAgeBand));
-    setAgeBand(nextAgeBand);
+    const unlocksAudienceFeatures = nextAgeBand === "age14Plus";
+    if (!unlocksAudienceFeatures) {
+      ageBandRef.current = nextAgeBand;
+      setAudiencePolicySnapshot(resolveAudiencePolicy(nextAgeBand));
+      setAgeBand(nextAgeBand);
+    }
 
     const persistSelection = persistenceQueueRef.current
       .catch(() => undefined)
@@ -111,10 +117,19 @@ export function AudienceProvider({
         if (revision !== selectionRevisionRef.current) return;
         try {
           await AsyncStorage.setItem(AGE_BAND_STORAGE_KEY, nextAgeBand);
-        } catch {
-          if (revision === selectionRevisionRef.current) {
-            await AsyncStorage.removeItem(AGE_BAND_STORAGE_KEY).catch(() => {});
-          }
+        } catch (error) {
+          if (revision !== selectionRevisionRef.current) return;
+          await AsyncStorage.removeItem(AGE_BAND_STORAGE_KEY).catch(() => {});
+          if (unlocksAudienceFeatures) throw error;
+          return;
+        }
+        if (
+          unlocksAudienceFeatures &&
+          revision === selectionRevisionRef.current
+        ) {
+          ageBandRef.current = nextAgeBand;
+          setAudiencePolicySnapshot(resolveAudiencePolicy(nextAgeBand));
+          setAgeBand(nextAgeBand);
         }
       });
     persistenceQueueRef.current = persistSelection.catch(() => undefined);
@@ -127,7 +142,10 @@ export function AudienceProvider({
         }),
       );
     }
-    await Promise.allSettled(operations);
+    const [persistenceResult] = await Promise.allSettled(operations);
+    if (persistenceResult?.status === "rejected") {
+      throw persistenceResult.reason;
+    }
   }, []);
 
   const clearAgeBand = useCallback(async () => {

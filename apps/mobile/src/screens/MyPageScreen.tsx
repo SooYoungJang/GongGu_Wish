@@ -224,9 +224,12 @@ export function MyPageScreen() {
   }, [requireAuth]);
 
   const handleRegisterWish = useCallback(() => {
-    if (!canAuthenticate) return;
+    if (!canAuthenticate) {
+      requireAuth();
+      return;
+    }
     setWishModalVisible(true);
-  }, [canAuthenticate]);
+  }, [canAuthenticate, requireAuth]);
 
   const handleLogout = useCallback(async () => {
     setLoggingOut(true);
@@ -398,15 +401,18 @@ export function MyPageScreen() {
           <View style={s.guestHero}>
             <SText variant="cardTitle" style={s.guestHeroTitle}>내 활동을 가볍게 모아봤어요</SText>
             <SText variant="caption" style={s.guestHeroSubtitle}>
-              {canAuthenticate
-                ? '북마크와 알림 설정은 로그인 후 이용할 수 있어요.'
-                : '만 13세 모드에서는 로그인과 활동 저장 없이 공개 콘텐츠만 볼 수 있어요.'}
+              북마크와 알림 설정은 로그인 후 이용할 수 있어요.
             </SText>
-            {canAuthenticate ? (
-              <Pressable accessibilityRole="button" onPress={handleLoginPress} style={({ pressed }) => [s.softLoginButton, pressed && s.pressed]}>
-                <SText variant="label" style={s.softLoginText}>계정 연결해서 여러 기기에서 이어보기</SText>
-              </Pressable>
-            ) : null}
+            <Pressable
+              accessibilityLabel="로그인하고 활동 이어보기"
+              accessibilityRole="button"
+              onPress={handleLoginPress}
+              style={({ pressed }) => [s.softLoginButton, pressed && s.pressed]}
+            >
+              <SText variant="label" style={s.softLoginText}>
+                계정 연결해서 여러 기기에서 이어보기
+              </SText>
+            </Pressable>
           </View>
         )}
 

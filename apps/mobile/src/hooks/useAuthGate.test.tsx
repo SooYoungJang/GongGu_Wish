@@ -54,12 +54,12 @@ describe("useAuthGate", () => {
     expect(navigationMock.navigate).not.toHaveBeenCalled();
   });
 
-  it("blocks direct login navigation for age-13 browse mode", () => {
+  it("opens the agreement-backed login screen from restricted browse mode", () => {
     audienceMock.canAuthenticate = false;
     const gate = renderHook(() => useAuthGate());
 
     expect(gate.result.current.requireAuth()).toBe(false);
     expect(gate.result.current.canAuthenticate).toBe(false);
-    expect(navigationMock.navigate).not.toHaveBeenCalled();
+    expect(navigationMock.navigate).toHaveBeenCalledWith("Login");
   });
 });

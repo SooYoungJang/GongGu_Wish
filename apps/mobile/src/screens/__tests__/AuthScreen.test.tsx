@@ -9,16 +9,17 @@
  *  - Signup tab present
  *  - Navigation flow (MyPage on success, OAuth calls)
  */
-import React from 'react';
-import TestRenderer, { act } from 'react-test-renderer';
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Keyboard, Platform, TextInput, Pressable, Text } from 'react-native';
-import { Linking } from 'react-native';
-import { AuthScreen, nextFocusedInputId } from '../AuthScreen';
-import { ThemeProvider } from '../../context/ThemeContext';
-import { AuthProvider } from '../../context/AuthContext';
-import { resolveAudiencePolicy } from '../../audience/audiencePolicy';
+import { Keyboard, Platform, TextInput, Pressable, Text } from "react-native";
+import { Linking } from "react-native";
+import { AuthScreen, nextFocusedInputId } from "../AuthScreen";
+import { ThemeProvider } from "../../context/ThemeContext";
+import { AuthProvider } from "../../context/AuthContext";
+import { AudienceProvider } from "../../audience/AudienceContext";
+import { resolveAudiencePolicy } from "../../audience/audiencePolicy";
 
 const adultAudiencePolicy = resolveAudiencePolicy('age14Plus');
 
@@ -34,50 +35,65 @@ const {
   mockVerifyOtp,
   mockExchangeCodeForSession,
   mockSignInWithOAuth,
+  mockOpenAuthSessionAsync,
+  mockSecureStoreDeleteItem,
+  mockSecureStoreGetItem,
+  mockSecureStoreSetItem,
   stableNavigation,
-} = vi.hoisted(
-  () => {
-    const mockNavigate = vi.fn();
-    const mockGoBack = vi.fn();
-    const mockPopTo = vi.fn();
-    const mockSignInWithPassword = vi.fn();
-    const mockSignUp = vi.fn();
-    const mockResend = vi.fn();
-    const mockVerifyOtp = vi.fn();
-    const mockExchangeCodeForSession = vi.fn();
-    const mockSignInWithOAuth = vi.fn();
-    // Use a stable object so useNavigation() returns the same reference
-    // every call. Without this, LoginPanel's handleLogin re-creates on
-    // every render, causing the useLayoutEffect/userEffect to re-fire
-    // and creating an infinite re-render loop inside act().
-    const stableNavigation = {
-      navigate: mockNavigate,
-      goBack: mockGoBack,
-      popTo: mockPopTo,
-    };
-    return {
-      mockNavigate,
-      mockGoBack,
-      mockPopTo,
-      mockSignInWithPassword,
-      mockSignUp,
-      mockResend,
-      mockVerifyOtp,
-      mockExchangeCodeForSession,
-      mockSignInWithOAuth,
-      stableNavigation,
-    };
-  },
-);
+} = vi.hoisted(() => {
+  const mockNavigate = vi.fn();
+  const mockGoBack = vi.fn();
+  const mockPopTo = vi.fn();
+  const mockSignInWithPassword = vi.fn();
+  const mockSignUp = vi.fn();
+  const mockResend = vi.fn();
+  const mockVerifyOtp = vi.fn();
+  const mockExchangeCodeForSession = vi.fn();
+  const mockSignInWithOAuth = vi.fn();
+  const mockOpenAuthSessionAsync = vi.fn();
+  const mockSecureStoreDeleteItem = vi.fn();
+  const mockSecureStoreGetItem = vi.fn();
+  const mockSecureStoreSetItem = vi.fn();
+  // Use a stable object so useNavigation() returns the same reference
+  // every call. Without this, LoginPanel's handleLogin re-creates on
+  // every render, causing the useLayoutEffect/userEffect to re-fire
+  // and creating an infinite re-render loop inside act().
+  const stableNavigation = {
+    addListener: vi.fn(() => vi.fn()),
+    navigate: mockNavigate,
+    goBack: mockGoBack,
+    popTo: mockPopTo,
+  };
+  return {
+    mockNavigate,
+    mockGoBack,
+    mockPopTo,
+    mockSignInWithPassword,
+    mockSignUp,
+    mockResend,
+    mockVerifyOtp,
+    mockExchangeCodeForSession,
+    mockSignInWithOAuth,
+    mockOpenAuthSessionAsync,
+    mockSecureStoreDeleteItem,
+    mockSecureStoreGetItem,
+    mockSecureStoreSetItem,
+    stableNavigation,
+  };
+});
 
 vi.mock('@react-navigation/native', () => ({
   useNavigation: () => stableNavigation,
 }));
 
-vi.mock('expo-secure-store', () => ({
-  getItemAsync: vi.fn().mockResolvedValue(null),
-  setItemAsync: vi.fn().mockResolvedValue(undefined),
-  deleteItemAsync: vi.fn().mockResolvedValue(undefined),
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: mockSecureStoreGetItem,
+  setItemAsync: mockSecureStoreSetItem,
+  deleteItemAsync: mockSecureStoreDeleteItem,
+}));
+
+vi.mock("expo-web-browser", () => ({
+  openAuthSessionAsync: mockOpenAuthSessionAsync,
 }));
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -128,11 +144,13 @@ function createTestRenderer() {
   let renderer: TestRenderer.ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(
-      React.createElement(ThemeProvider, null,
-        React.createElement(AuthProvider, { audiencePolicy: adultAudiencePolicy },
-          React.createElement(AuthScreen),
-        ),
-      ),
+      <AudienceProvider initialAgeBandOverride="age14Plus">
+        <ThemeProvider>
+          <AuthProvider audiencePolicy={adultAudiencePolicy}>
+            <AuthScreen {...({} as any)} />
+          </AuthProvider>
+        </ThemeProvider>
+      </AudienceProvider>,
     );
   });
   return renderer!;
@@ -166,7 +184,15 @@ function findPressableByText(
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
-describe('AuthScreen', () => {
+describe("AuthScreen", () => {
+  beforeEach(() => {
+    mockSecureStoreGetItem.mockReset().mockResolvedValue(null);
+    mockSecureStoreSetItem.mockReset().mockResolvedValue(undefined);
+    mockSecureStoreDeleteItem.mockReset().mockResolvedValue(undefined);
+    mockOpenAuthSessionAsync.mockReset().mockResolvedValue({ type: "cancel" });
+    vi.mocked(Linking.getInitialURL).mockResolvedValue(null);
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -336,8 +362,16 @@ describe('AuthScreen', () => {
 
   // ── Navigation Flow Tests ─────────────────────────────────────────────────
 
-  it('moves to the MyPage tab on successful email login', async () => {
-    mockSignInWithPassword.mockResolvedValue({ error: null });
+  it("moves to the MyPage tab on successful email login", async () => {
+    mockSignInWithPassword.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "email-access-token",
+          user: { id: "email-user" },
+        },
+      },
+      error: null,
+    });
     const renderer = createTestRenderer();
 
     // Find email and password TextInputs and fill them
@@ -374,9 +408,17 @@ describe('AuthScreen', () => {
     });
   });
 
-  it('sends email signup code and verifies the in-app code', async () => {
-    mockSignUp.mockResolvedValue({ error: null });
-    mockVerifyOtp.mockResolvedValue({ data: { session: null }, error: null });
+  it("sends email signup code and verifies the in-app code", async () => {
+    mockSignUp.mockResolvedValue({ data: { session: null }, error: null });
+    mockVerifyOtp.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "signup-access-token",
+          user: { id: "signup-user" },
+        },
+      },
+      error: null,
+    });
     const renderer = createTestRenderer();
 
     const signupTab = renderer.root.findAllByType(Pressable).find(
@@ -410,22 +452,11 @@ describe('AuthScreen', () => {
 
     fillInput('닉네임', '공구러');
 
-    act(() => {
-      renderer.root.findAllByType(Pressable).find(
-        (p) => p.props.accessibilityLabel === '다음 단계',
-      )!.props.onPress();
-    });
-
-    act(() => {
-      renderer.root.findAllByType(Pressable).find(
-        (p) => p.props.accessibilityLabel === '전체 동의하기',
-      )!.props.onPress();
-    });
-
     await act(async () => {
-      renderer.root.findAllByType(Pressable).find(
-        (p) => p.props.accessibilityLabel === '가입 완료',
-      )!.props.onPress();
+      renderer.root
+        .findAllByType(Pressable)
+        .find((p) => p.props.accessibilityLabel === "가입하기")!
+        .props.onPress();
     });
 
     expect(mockSignUp).toHaveBeenCalledWith({
@@ -434,8 +465,8 @@ describe('AuthScreen', () => {
       options: {
         emailRedirectTo: 'gongguwish-preview://auth/callback',
         data: {
-          nickname: '공구러',
-          marketing_opt_in: true,
+          nickname: "공구러",
+          marketing_opt_in: false,
         },
       },
     });
@@ -474,23 +505,30 @@ describe('AuthScreen', () => {
     expect(mockSignInWithOAuth).toHaveBeenCalledWith({
       provider: 'kakao',
       options: {
-        redirectTo: 'gongguwish-preview://auth/callback',
+        redirectTo: expect.stringMatching(
+          /^gongguwish-preview:\/\/auth\/callback\?oauth_attempt=/,
+        ),
         skipBrowserRedirect: true,
       },
     });
+    expect(mockOpenAuthSessionAsync).toHaveBeenCalledWith(
+      "https://auth.example/kakao",
+      expect.stringMatching(
+        /^gongguwish-preview:\/\/auth\/callback\?oauth_attempt=/,
+      ),
+    );
   });
 
-  it('성공한 warm OAuth 콜백 후 MyPage 탭으로 한 번만 이동한다', async () => {
-    let handleWarmCallback:
-      | Parameters<typeof Linking.addEventListener>[1]
-      | undefined;
-    vi.mocked(Linking.addEventListener).mockImplementationOnce(
-      (_type, listener) => {
-        handleWarmCallback = listener;
-        return { remove: vi.fn() } as unknown as ReturnType<
-          typeof Linking.addEventListener
-        >;
-      },
+  it("성공한 warm OAuth 콜백 후 MyPage 탭으로 한 번만 이동한다", async () => {
+    mockSignInWithOAuth.mockResolvedValue({
+      data: { url: "https://auth.example/kakao" },
+      error: null,
+    });
+    mockOpenAuthSessionAsync.mockImplementation(
+      async (_url: string, redirectTo: string) => ({
+        type: "success",
+        url: `${redirectTo}&code=kakao-auth-code`,
+      }),
     );
     mockExchangeCodeForSession.mockResolvedValue({
       data: {
@@ -503,13 +541,11 @@ describe('AuthScreen', () => {
     });
 
     const renderer = createTestRenderer();
-    expect(findAllText(renderer, '카카오로 계속하기').length).toBeGreaterThan(0);
-    expect(handleWarmCallback).toBeDefined();
+    const kakaoBtn = findPressableByText(renderer, "카카오로 계속하기");
+    expect(kakaoBtn).toBeDefined();
 
     await act(async () => {
-      handleWarmCallback!({
-        url: 'gongguwish-preview://auth/callback?code=kakao-auth-code',
-      });
+      await kakaoBtn!.props.onPress();
     });
 
     expect(mockExchangeCodeForSession).toHaveBeenCalledWith('kakao-auth-code');
@@ -520,9 +556,15 @@ describe('AuthScreen', () => {
     expect(mockGoBack).not.toHaveBeenCalled();
   });
 
-  it('성공한 cold OAuth 콜백도 MyPage 탭으로 한 번만 이동한다', async () => {
+  it("성공한 cold OAuth 콜백도 MyPage 탭으로 한 번만 이동한다", async () => {
+    const coldAttempt = {
+      createdAt: Date.now(),
+      id: "cold-kakao-attempt",
+      provider: "kakao",
+    };
+    mockSecureStoreGetItem.mockResolvedValueOnce(JSON.stringify(coldAttempt));
     vi.mocked(Linking.getInitialURL).mockResolvedValueOnce(
-      'gongguwish-preview://auth/callback?code=cold-kakao-auth-code',
+      "gongguwish-preview://auth/callback?oauth_attempt=cold-kakao-attempt&code=cold-kakao-auth-code",
     );
     mockExchangeCodeForSession.mockResolvedValue({
       data: {
@@ -549,6 +591,27 @@ describe('AuthScreen', () => {
     expect(mockGoBack).not.toHaveBeenCalled();
   });
 
+  it("저장된 시도와 다른 OAuth 콜백은 코드 교환과 이동을 무시한다", async () => {
+    mockSecureStoreGetItem.mockResolvedValueOnce(
+      JSON.stringify({
+        createdAt: Date.now(),
+        id: "expected-attempt",
+        provider: "kakao",
+      }),
+    );
+    vi.mocked(Linking.getInitialURL).mockResolvedValueOnce(
+      "gongguwish-preview://auth/callback?oauth_attempt=unknown-attempt&code=untrusted-code",
+    );
+
+    await act(async () => {
+      createTestRenderer();
+      await Promise.resolve();
+    });
+
+    expect(mockExchangeCodeForSession).not.toHaveBeenCalled();
+    expect(mockPopTo).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       name: '코드 교환 오류',
@@ -561,35 +624,36 @@ describe('AuthScreen', () => {
       name: '빈 세션',
       result: { data: { session: null }, error: null },
     },
-  ])('$name인 warm OAuth 콜백은 Login 경로를 닫지 않는다', async ({ result }) => {
-    let handleWarmCallback:
-      | Parameters<typeof Linking.addEventListener>[1]
-      | undefined;
-    vi.mocked(Linking.addEventListener).mockImplementationOnce(
-      (_type, listener) => {
-        handleWarmCallback = listener;
-        return { remove: vi.fn() } as unknown as ReturnType<
-          typeof Linking.addEventListener
-        >;
-      },
-    );
-    mockExchangeCodeForSession.mockResolvedValue(result);
-
-    createTestRenderer();
-    expect(handleWarmCallback).toBeDefined();
-
-    await act(async () => {
-      handleWarmCallback!({
-        url: 'gongguwish-preview://auth/callback?code=unverified-kakao-code',
+  ])(
+    "$name인 warm OAuth 콜백은 Login 경로를 닫지 않는다",
+    async ({ result }) => {
+      mockSignInWithOAuth.mockResolvedValue({
+        data: { url: "https://auth.example/kakao" },
+        error: null,
       });
-    });
+      mockOpenAuthSessionAsync.mockImplementation(
+        async (_url: string, redirectTo: string) => ({
+          type: "success",
+          url: `${redirectTo}&code=unverified-kakao-code`,
+        }),
+      );
+      mockExchangeCodeForSession.mockResolvedValue(result);
+
+      const renderer = createTestRenderer();
+      const kakaoBtn = findPressableByText(renderer, "카카오로 계속하기");
+      expect(kakaoBtn).toBeDefined();
+
+      await act(async () => {
+        await kakaoBtn!.props.onPress();
+      });
 
     expect(mockExchangeCodeForSession).toHaveBeenCalledWith(
       'unverified-kakao-code',
     );
     expect(mockPopTo).not.toHaveBeenCalled();
     expect(mockGoBack).not.toHaveBeenCalled();
-  });
+    },
+  );
 
   it('calls signInWithOAuth when Apple login button pressed', async () => {
     mockSignInWithOAuth.mockResolvedValue({ data: { url: 'https://auth.example/apple' }, error: null });
@@ -605,7 +669,9 @@ describe('AuthScreen', () => {
     expect(mockSignInWithOAuth).toHaveBeenCalledWith({
       provider: 'apple',
       options: {
-        redirectTo: 'gongguwish-preview://auth/callback',
+        redirectTo: expect.stringMatching(
+          /^gongguwish-preview:\/\/auth\/callback\?oauth_attempt=/,
+        ),
         skipBrowserRedirect: true,
       },
     });

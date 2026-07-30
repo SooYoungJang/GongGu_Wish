@@ -13,7 +13,7 @@ const linkClass = "font-semibold text-primary-700 underline underline-offset-4";
 export default function TermsPage() {
   return (
     <LegalPage
-      effectiveDate="2026년 7월 29일"
+      effectiveDate="2026년 7월 30일"
       summary="이 약관은 공구위시가 제공하는 공동구매 탐색·캘린더·제보·계정 기능의 이용 조건을 정합니다."
       title="서비스 이용약관"
     >
@@ -25,22 +25,22 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="2. 연령별 이용 범위">
+      <LegalSection title="2. 공개 이용과 계정 연령">
         <ul className={listClass}>
-          <li>만 12세 이하는 서비스를 이용할 수 없습니다.</li>
           <li>
-            만 13세는 계정 없이 공개 콘텐츠를 탐색할 수 있으며 로그인, 회원가입,
-            푸시 알림과 행동 신호 저장 없이 광고 없이 이용합니다.
+            공개 콘텐츠는 연령 구간을 선택하지 않아도 로그인 없이 바로 탐색할 수
+            있습니다.
           </li>
           <li>
-            만 14세 이상은 계정을 만들고 북마크, 알림, 제보 등 정상 기능을
-            이용할 수 있으며 설정과 동의 상태에 따라 광고가 표시될 수 있습니다.
+            로그인과 회원가입은 만 14세 이상만 이용할 수 있습니다. 인증 전에는
+            기존 세션을 복원하거나 광고를 요청하고 검색·조회 같은 행동 신호를
+            기록하지 않습니다.
           </li>
         </ul>
         <p>
-          이용자는 정확한 연령 구간을 선택해야 합니다. 연령 구간을 만 13세 또는
-          그 이하로 변경하면 기존 로그인과 관련 로컬 데이터가 정리될 수
-          있습니다.
+          카카오·네이버·Apple 또는 이메일 인증 버튼을 계속하면 만 14세 이상임을
+          확인하고, 서비스 이용약관에 동의하며 개인정보처리방침을 확인한 것으로
+          봅니다. 이 확인값은 인증 기능을 제공하기 위해 기기에 저장됩니다.
         </p>
       </LegalSection>
 
