@@ -248,6 +248,23 @@ test("follow-up promotions allow diverged history only when the merge tree is un
   );
 });
 
+test("promotion waits for the exact develop Preview Green without hiding failures", () => {
+  const promotionGate = job("promotion-gate");
+
+  assert.match(promotionGate, /timeout-minutes:\s*15/);
+  assert.match(promotionGate, /for attempt in \{1\.\.40\}/);
+  assert.match(promotionGate, /\.head_sha == \$sha/);
+  assert.match(promotionGate, /run_status.*== "completed"/);
+  assert.match(promotionGate, /preview_status.*== "completed"/);
+  assert.match(promotionGate, /preview_conclusion.*== "success"/);
+  assert.match(promotionGate, /\.name == "Preview Green"/);
+  assert.match(promotionGate, /sleep 15/);
+  assert.match(
+    promotionGate,
+    /develop workflow for .* concluded with .*Preview Green/,
+  );
+});
+
 test("every develop SHA runs a lightweight change plan and Preview gate", () => {
   const pushTrigger = workflow.slice(
     workflow.indexOf("  push:\n"),
