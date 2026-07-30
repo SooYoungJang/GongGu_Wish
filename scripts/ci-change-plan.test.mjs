@@ -128,6 +128,25 @@ test("Workflow-only changes run policy checks without dependency review", () => 
   expectOnly(plan, []);
 });
 
+test("explicit Production recovery conservatively revalidates every component", () => {
+  const plan = classifyChangedFiles([".github/workflows/ci.yml"], {
+    productionRecovery: true,
+  });
+
+  assert.equal(plan.quality, true);
+  assert.equal(plan.edgeTests, true);
+  assert.equal(plan.localSupabase, true);
+  assert.equal(plan.workerTests, true);
+  expectOnly(plan, [
+    "supabase",
+    "database",
+    "functions",
+    "worker",
+    "admin",
+    "mobile",
+  ]);
+});
+
 test("Unknown paths fail safe by selecting every component", () => {
   const plan = classifyChangedFiles(["new-runtime/entrypoint.ts"]);
 
@@ -183,10 +202,7 @@ test("Preview Green accepts only Vercel bot statuses for the Admin Preview", () 
 
   assert.doesNotMatch(workflow, /--arg owner "\$GITHUB_REPOSITORY_OWNER"/);
   assert.match(workflow, /\.creator\.login == "vercel\[bot\]"/);
-  assert.match(
-    workflow,
-    /\.environment == "Preview – gong-gu-wish-admin"/,
-  );
+  assert.match(workflow, /\.environment == "Preview – gong-gu-wish-admin"/);
   assert.match(
     workflow,
     /test\("\^https:\/\/gong-gu-wish-admin-\[a-z0-9-\]\+-jsy10835\\\\\.vercel\\\\\.app\/\?\$"\)/,

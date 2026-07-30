@@ -17,6 +17,11 @@ on:
         required: false
         type: boolean
         default: false
+      confirm_production_recovery:
+        description: "Re-run every Production deployment gate for the latest main commit"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -237,10 +242,21 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PRODUCTION_RECOVERY_REQUESTED: ${{ inputs.confirm_production_recovery == true && 'true' || 'false' }}
+          PRODUCTION_RECOVERY_ALLOWED: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_production_recovery == true && 'true' || 'false' }}
         run: |
           set -euo pipefail
           changed_files="$(mktemp)"
           trap 'rm -f "$changed_files"' EXIT
+          recovery_args=()
+
+          if [[ "$PRODUCTION_RECOVERY_REQUESTED" == "true" ]]; then
+            if [[ "$PRODUCTION_RECOVERY_ALLOWED" != "true" ]]; then
+              echo "::error::Production recovery requires an explicit dispatch of the latest main branch."
+              exit 1
+            fi
+            recovery_args+=(--production-recovery)
+          fi
 
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             head="$HEAD_SHA"
@@ -262,7 +278,8 @@ jobs:
           fi
           node scripts/ci-change-plan.mjs \
             --files "$changed_files" \
-            --github-output "$GITHUB_OUTPUT"
+            --github-output "$GITHUB_OUTPUT" \
+            "${recovery_args[@]}"
       - name: Test mobile deployment decision logic
         if: ${{ steps.plan.outputs.mobile == 'true' || steps.plan.outputs.ci == 'true' }}
         run: bash apps/mobile/scripts/ci-deploy-android.test.sh
@@ -506,195 +523,79 @@ jobs:
         with:
           fail-on-severity: high
 
-  # ── Supabase DB Migrate ───────────────────────────────────────────────────
-  supabase-db:
-    name: Supabase DB Migration
+  # ── Supabase Production Integration ─────────────────────────────────────
+  supabase-production:
+    name: Supabase Production Integration
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
-    needs: [change-plan, local-supabase-contracts]
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-plan.outputs.database == 'true' && needs.local-supabase-contracts.result == 'success' }}
+    needs: [change-plan, edge-tests, local-supabase-contracts]
+    if: ${{ always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm_production_recovery == true)) && github.ref == 'refs/heads/main' && needs.change-plan.outputs.supabase == 'true' && needs.local-supabase-contracts.result == 'success' && (needs.change-plan.outputs.edge_tests != 'true' || needs.edge-tests.result == 'success') }}
+    permissions:
+      checks: read
+      contents: read
     steps:
-      - name: Check Supabase deployment credentials
+      - name: Require latest main recovery commit
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [[ -z "$SUPABASE_ACCESS_TOKEN" || -z "$SUPABASE_DB_PASSWORD" ]]; then
-            echo "::error::Supabase deployment credentials are not configured in the selected GitHub environment."
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$GITHUB_SHA" != "$main_sha" ]]; then
+            echo "::error::Production recovery SHA $GITHUB_SHA is not latest main $main_sha."
             exit 1
           fi
-          if [[ "$SUPABASE_ACCESS_TOKEN" != sbp_* ]]; then
-            echo "::error::SUPABASE_ACCESS_TOKEN must be a Supabase personal access token (sbp_...)."
-            exit 1
-          fi
-      - name: Verify Supabase credential isolation
+      - name: Require exact Production project deployment
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          EXPECTED_PROJECT_REF: iosdoheblabfimkjnvfj
-          FORBIDDEN_PROJECT_REF: xwblovggtvbpiusjfokq
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_DETAILS_URL: https://supabase.com/dashboard/project/iosdoheblabfimkjnvfj
         run: |
           set -euo pipefail
-          projects="$(mktemp)"
-          trap 'rm -f "$projects"' EXIT
-          curl --fail --silent --show-error \
-            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            --output "$projects" \
-            https://api.supabase.com/v1/projects
+          response="$(mktemp)"
+          check="$(mktemp)"
+          trap 'rm -f "$response" "$check"' EXIT
 
-          if ! jq -e --arg expected "$EXPECTED_PROJECT_REF" \
-            '.[] | select(.ref == $expected)' "$projects" > /dev/null; then
-            echo "::error::The selected Supabase credential cannot access the expected project $EXPECTED_PROJECT_REF."
-            exit 1
-          fi
-          if jq -e --arg forbidden "$FORBIDDEN_PROJECT_REF" \
-            '.[] | select(.ref == $forbidden)' "$projects" > /dev/null; then
-            echo "::error::The selected Supabase credential can access the forbidden opposite-tier project $FORBIDDEN_PROJECT_REF."
-            exit 1
-          fi
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
-        with:
-          version: latest
+          # Supabase currently uses the provider-owned check name
+          # "Supabase Preview" for linked Production projects as well. The
+          # details URL is therefore the project identity boundary.
+          for attempt in {1..40}; do
+            gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100&filter=latest" > "$response"
+            jq --arg sha "$GITHUB_SHA" '
+              [
+                .check_runs[] |
+                select(
+                  .head_sha == $sha and
+                  .app.slug == "supabase" and
+                  .name == "Supabase Preview"
+                )
+              ] |
+              sort_by(.started_at) |
+              last // empty
+            ' "$response" > "$check"
 
-      # Link the project
-      - run: supabase link --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+            if [[ -s "$check" ]]; then
+              details_url="$(jq -r '.details_url // ""' "$check")"
+              if [[ "$details_url" != "$EXPECTED_DETAILS_URL"* ]]; then
+                echo "::error::Supabase Production reported an unexpected project URL: $details_url"
+                exit 1
+              fi
+              if jq -e '.status == "completed" and .conclusion == "success"' "$check" > /dev/null; then
+                exit 0
+              fi
+              if jq -e '.status == "completed"' "$check" > /dev/null; then
+                conclusion="$(jq -r '.conclusion // "missing"' "$check")"
+                echo "::error::Supabase Production deployment for $GITHUB_SHA concluded with $conclusion."
+                exit 1
+              fi
+            fi
 
-      # The repository also restores legacy migrations that were omitted from
-      # the Supabase folder while their schema already existed remotely. Allow
-      # Supabase CLI to apply those historical files before newer remote rows.
-      - run: supabase db push --include-all
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-
-  # ── Supabase Functions Deploy ──────────────────────────────────────────────
-  supabase-functions:
-    name: Supabase Edge Functions
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    needs:
-      [
-        change-plan,
-        edge-tests,
-        local-supabase-contracts,
-        supabase-db,
-        rls-audit,
-      ]
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-plan.outputs.functions == 'true' && needs.edge-tests.result == 'success' && needs.local-supabase-contracts.result == 'success' && (needs.change-plan.outputs.database != 'true' || needs.rls-audit.result == 'success') }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
-        with:
-          version: latest
-
-      - name: Configure Hiker API secret
-        env:
-          HIKER_API_KEY: ${{ secrets.HIKER_API_KEY }}
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$HIKER_API_KEY" ]]; then
-            echo "::error::HIKER_API_KEY is not configured in the selected GitHub environment."
-            exit 1
-          fi
-          supabase secrets set HIKER_API_KEY="$HIKER_API_KEY" --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-
-      # Deploy all Edge Functions
-      - run: supabase functions deploy health --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - run: supabase functions deploy webhook-handler --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - run: supabase functions deploy admin-api --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - run: supabase functions deploy register-push-token --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - run: supabase functions deploy hiker-lookup --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - run: supabase functions deploy public-submission --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - run: supabase functions deploy refresh-instagram-media --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - run: supabase functions deploy seller-rankings --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - run: supabase functions deploy delete-account --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-  # ── RLS Policy Audit ─────────────────────────────────────────────────────
-  rls-audit:
-    name: RLS Policy Audit
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    needs: [change-plan, supabase-db]
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-plan.outputs.database == 'true' && needs.supabase-db.result == 'success' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
-        with:
-          version: latest
-      - name: Link Supabase project
-        run: supabase link --project-ref ${{ env.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      - name: Diff migrations (check sync)
-        run: supabase db diff --linked
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      - name: Audit RLS policies
-        run: |
-          set -euo pipefail
-          echo "Checking RLS policies are enabled on all public tables..."
-          supabase db query "DO \$\$
-          DECLARE
-            unprotected_tables text;
-          BEGIN
-            SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
-              INTO unprotected_tables
-            FROM pg_tables
-            WHERE schemaname = 'public'
-              AND tablename NOT IN ('_prisma_migrations', 'schema_migrations')
-              AND rowsecurity = false;
-
-            IF unprotected_tables IS NOT NULL THEN
-              RAISE EXCEPTION 'RLS disabled on: %', unprotected_tables;
-            END IF;
-          END
-          \$\$;" --linked
-          echo "RLS audit passed"
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+            if [[ "$attempt" == "40" ]]; then
+              echo "::error::Supabase Production did not complete for exact SHA $GITHUB_SHA."
+              exit 1
+            fi
+            sleep 15
+          done
 
   # ── Cloudflare Worker Checks ─────────────────────────────────────────────
   worker-tests:
@@ -725,19 +626,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-    needs:
-      [
-        change-plan,
-        worker-tests,
-        supabase-preview,
-        rls-audit,
-        supabase-functions,
-      ]
-    if: ${{ always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.change-plan.outputs.worker == 'true' && needs.worker-tests.result == 'success' && ((github.ref == 'refs/heads/main' && (needs.change-plan.outputs.database != 'true' || needs.rls-audit.result == 'success') && (needs.change-plan.outputs.functions != 'true' || needs.supabase-functions.result == 'success')) || (github.ref == 'refs/heads/develop' && (needs.change-plan.outputs.supabase != 'true' || needs.supabase-preview.result == 'success'))) }}
+    needs: [change-plan, worker-tests, supabase-preview, supabase-production]
+    if: ${{ always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm_production_recovery == true)) && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.change-plan.outputs.worker == 'true' && needs.worker-tests.result == 'success' && ((github.ref == 'refs/heads/main' && (needs.change-plan.outputs.supabase != 'true' || needs.supabase-production.result == 'success')) || (github.ref == 'refs/heads/develop' && (needs.change-plan.outputs.supabase != 'true' || needs.supabase-preview.result == 'success'))) }}
     defaults:
       run:
         working-directory: ./workers/api-proxy
     steps:
+      - name: Require latest main recovery commit
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$GITHUB_SHA" != "$main_sha" ]]; then
+            echo "::error::Production recovery SHA $GITHUB_SHA is not latest main $main_sha."
+            exit 1
+          fi
       - name: Check Cloudflare credentials
         working-directory: .
         env:
@@ -841,12 +747,22 @@ jobs:
         test,
         api-tests,
         supabase-preview,
-        rls-audit,
-        supabase-functions,
+        supabase-production,
         deploy-worker,
       ]
-    if: ${{ always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.change-plan.outputs.mobile == 'true' && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && (needs.change-plan.outputs.api != 'true' || needs.api-tests.result == 'success') && ((github.ref == 'refs/heads/main' && (needs.change-plan.outputs.database != 'true' || needs.rls-audit.result == 'success') && (needs.change-plan.outputs.functions != 'true' || needs.supabase-functions.result == 'success') && (needs.change-plan.outputs.worker != 'true' || needs.deploy-worker.result == 'success')) || (github.ref == 'refs/heads/develop' && (needs.change-plan.outputs.supabase != 'true' || needs.supabase-preview.result == 'success') && (needs.change-plan.outputs.worker != 'true' || needs.deploy-worker.result == 'success'))) }}
+    if: ${{ always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm_production_recovery == true)) && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && needs.change-plan.outputs.mobile == 'true' && needs.lint.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && (needs.change-plan.outputs.api != 'true' || needs.api-tests.result == 'success') && ((github.ref == 'refs/heads/main' && (needs.change-plan.outputs.supabase != 'true' || needs.supabase-production.result == 'success') && (needs.change-plan.outputs.worker != 'true' || needs.deploy-worker.result == 'success')) || (github.ref == 'refs/heads/develop' && (needs.change-plan.outputs.supabase != 'true' || needs.supabase-preview.result == 'success') && (needs.change-plan.outputs.worker != 'true' || needs.deploy-worker.result == 'success'))) }}
     steps:
+      - name: Require latest main recovery commit
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$GITHUB_SHA" != "$main_sha" ]]; then
+            echo "::error::Production recovery SHA $GITHUB_SHA is not latest main $main_sha."
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
