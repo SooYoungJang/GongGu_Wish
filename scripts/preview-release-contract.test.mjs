@@ -180,6 +180,42 @@ test("Preview mobile deploys use successful GitHub APK baselines before EAS OTA"
   assert.match(mobileJob, /apk-artifact-url:/);
   assert.match(mobileJob, /steps\.upload-apk\.outputs\.artifact-url/);
   assert.match(mobileJob, /apk-sha256:/);
+  const uploadArtifactStep = mobileJob.match(
+    /- name: Upload local APK artifact[\s\S]*?(?=\n\s+- name: Report local APK artifact)/,
+  )?.[0];
+  assert.ok(uploadArtifactStep, "local APK artifact upload step is required");
+  assert.match(
+    uploadArtifactStep,
+    /if:\s*\$\{\{\s*always\(\)\s*&&\s*steps\.mobile-deploy\.outputs\.mode\s*==\s*'build'\s*\}\}/,
+  );
+  assert.match(
+    uploadArtifactStep,
+    /path:\s*\$\{\{\s*steps\.mobile-deploy\.outputs\.apk-path\s*\}\}/,
+  );
+  assert.match(
+    uploadArtifactStep,
+    /name:\s*\$\{\{\s*steps\.mobile-deploy\.outputs\.artifact-name\s*\}\}/,
+  );
+  assert.match(uploadArtifactStep, /if-no-files-found:\s*error/);
+  assert.doesNotMatch(uploadArtifactStep, /continue-on-error/);
+  const mobileDeployStep = mobileJob.match(
+    /- name: Run fingerprint-aware local Android deployment[\s\S]*?(?=\n\s+- name: Upload local APK artifact)/,
+  )?.[0];
+  assert.ok(mobileDeployStep, "mobile deployment step is required");
+  assert.doesNotMatch(mobileDeployStep, /continue-on-error/);
+  const reportArtifactStep = mobileJob.match(
+    /- name: Report local APK artifact[\s\S]*?(?=\n\s{2}#|$)/,
+  )?.[0];
+  assert.ok(reportArtifactStep, "local APK report step is required");
+  assert.doesNotMatch(reportArtifactStep, /always\(\)/);
+  assert.match(
+    mobileDeployScript,
+    /This account has used its local builds from the free plan this month/,
+  );
+  assert.match(mobileDeployScript, /will reset/);
+  assert.match(mobileDeployScript, /eas_registration="quota-exhausted"/);
+  assert.match(mobileDeployScript, /eas-registration=\$eas_registration/);
+  assert.match(mobileDeployScript, /OTA baseline was not registered/);
   assert.match(mobileDeployScript, /find-preview-runtime-baseline\.mjs/);
   assert.match(mobileDeployScript, /GitHub Actions artifact only/);
   assert.match(previewBaselineSource, /actions\/workflows\/ci\.yml/);

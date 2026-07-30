@@ -173,6 +173,33 @@ publish_ota() {
   exit 0
 }
 
+is_eas_local_build_quota_error() {
+  node - "$1" <<'NODE'
+const fs = require("node:fs");
+
+const lines = fs
+  .readFileSync(process.argv[2], "utf8")
+  .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
+  .replace(/\r/g, "\n")
+  .split("\n")
+  .map((line) => line.trim())
+  .filter(Boolean);
+const quotaIndex = lines.findIndex((line) =>
+  /^This account has used its local builds from the free plan this month, which will reset .+\(on [^)]+\)\.$/.test(
+    line,
+  ),
+);
+const tail = quotaIndex >= 0 ? lines.slice(quotaIndex) : [];
+const isExpectedQuotaFailure =
+  tail.length === 3 &&
+  /^Request ID: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    tail[1] ?? "",
+  ) &&
+  /^Error: GraphQL request failed\.$/.test(tail[2] ?? "");
+process.exitCode = isExpectedQuotaFailure ? 0 : 1;
+NODE
+}
+
 if [[ "$environment" == "preview" ]]; then
   if [[ "$force_preview_apk" != "true" ]]; then
     preview_baseline_artifact_id="$(
@@ -256,65 +283,6 @@ else
   apk_artifact_name="gonggu-wish-production-${GITHUB_SHA:-local}"
 fi
 
-expo_url=""
-if [[ "$environment" == "production" ]]; then
-  if ! upload_json="$(
-    # Production local builds must be registered with EAS before they can
-    # become a compatibility baseline for later OTA updates.
-    eas upload \
-      --platform android \
-      --build-path "$apk_path" \
-      --fingerprint "$fingerprint_hash" \
-      --json \
-      --non-interactive
-  )"; then
-    echo "::error::EAS upload failed for the Production APK."
-    exit 1
-  fi
-
-  expo_url="$(
-    node -e '
-    const fs = require("node:fs");
-    const value = JSON.parse(fs.readFileSync(0, "utf8"));
-    const seen = new Set();
-    const urls = [];
-    const ids = [];
-
-    function visit(node, key = "") {
-      if (node === null || node === undefined || seen.has(node)) return;
-      if (typeof node === "string") {
-        if (/^https:\/\//.test(node) && /url|uri|link|artifact|download/i.test(key)) {
-          urls.push(node);
-        }
-        if (/^[0-9a-f-]{20,}$/i.test(node) && /(^|_)id$/i.test(key)) {
-          ids.push(node);
-        }
-        return;
-      }
-      if (typeof node !== "object") return;
-      seen.add(node);
-      for (const [childKey, child] of Object.entries(node)) visit(child, childKey);
-    }
-
-    visit(value);
-    const preferred = urls.find((url) => /\.apk(?:\?|$)/i.test(url))
-      ?? urls.find((url) => /expo\.dev/i.test(url))
-      ?? urls[0];
-    const fallback = ids[0]
-      ? `https://expo.dev/accounts/sooyoung.jang/projects/gonggu-wish/builds/${ids[0]}`
-      : "";
-    const candidate = preferred ?? fallback;
-    if (candidate) {
-      const parsed = new URL(candidate);
-      if (parsed.protocol !== "https:") {
-        throw new Error("EAS upload returned a non-HTTPS URL");
-      }
-      process.stdout.write(parsed.href);
-    }
-    ' <<<"$upload_json"
-  )"
-fi
-
 {
   echo "mode=build"
   echo "environment=$environment"
@@ -322,8 +290,91 @@ fi
   echo "apk-path=$apk_path"
   echo "artifact-name=$apk_artifact_name"
   echo "apk-sha256=$apk_sha256"
-  echo "expo-url=$expo_url"
 } >>"$GITHUB_OUTPUT"
+
+eas_registration="not-requested"
+expo_url=""
+if [[ "$environment" == "production" ]]; then
+  upload_stderr_path="$RUNNER_TEMP/eas-upload.stderr"
+  rm -f "$upload_stderr_path"
+  if upload_json="$(
+    # Register Production local builds with EAS when the account quota permits
+    # so they can become compatibility baselines for later OTA updates.
+    eas upload \
+      --platform android \
+      --build-path "$apk_path" \
+      --fingerprint "$fingerprint_hash" \
+      --json \
+      --non-interactive \
+      2>"$upload_stderr_path"
+  )"; then
+    upload_succeeded="true"
+  else
+    upload_succeeded="false"
+  fi
+  while IFS= read -r upload_log_line; do
+    printf '%s\n' "$upload_log_line" >&2
+  done <"$upload_stderr_path"
+
+  if [[ "$upload_succeeded" == "true" ]]; then
+    eas_registration="registered"
+    expo_url="$(
+      node -e '
+      const fs = require("node:fs");
+      const value = JSON.parse(fs.readFileSync(0, "utf8"));
+      const seen = new Set();
+      const urls = [];
+      const ids = [];
+
+      function visit(node, key = "") {
+        if (node === null || node === undefined || seen.has(node)) return;
+        if (typeof node === "string") {
+          if (/^https:\/\//.test(node) && /url|uri|link|artifact|download/i.test(key)) {
+            urls.push(node);
+          }
+          if (/^[0-9a-f-]{20,}$/i.test(node) && /(^|_)id$/i.test(key)) {
+            ids.push(node);
+          }
+          return;
+        }
+        if (typeof node !== "object") return;
+        seen.add(node);
+        for (const [childKey, child] of Object.entries(node)) visit(child, childKey);
+      }
+
+      visit(value);
+      const preferred = urls.find((url) => /\.apk(?:\?|$)/i.test(url))
+        ?? urls.find((url) => /expo\.dev/i.test(url))
+        ?? urls[0];
+      const fallback = ids[0]
+        ? `https://expo.dev/accounts/sooyoung.jang/projects/gonggu-wish/builds/${ids[0]}`
+        : "";
+      const candidate = preferred ?? fallback;
+      if (candidate) {
+        const parsed = new URL(candidate);
+        if (parsed.protocol !== "https:") {
+          throw new Error("EAS upload returned a non-HTTPS URL");
+        }
+        process.stdout.write(parsed.href);
+      }
+      ' <<<"$upload_json"
+    )"
+  elif is_eas_local_build_quota_error "$upload_stderr_path"; then
+    eas_registration="quota-exhausted"
+    echo "::warning::EAS local-build quota is exhausted; preserving the verified Production APK as a GitHub Actions artifact without registering an OTA baseline."
+  else
+    rm -f "$upload_stderr_path"
+    echo "::error::EAS upload failed for the Production APK."
+    exit 1
+  fi
+  rm -f "$upload_stderr_path"
+  echo "eas-registration=$eas_registration" >>"$GITHUB_OUTPUT"
+  if [[ "$eas_registration" == "registered" ]]; then
+    echo "expo-url=$expo_url" >>"$GITHUB_OUTPUT"
+  fi
+else
+  echo "eas-registration=$eas_registration" >>"$GITHUB_OUTPUT"
+fi
 
 {
   echo "## Android local APK build"
@@ -335,5 +386,9 @@ fi
     echo "- Distribution: GitHub Actions artifact only"
   elif [[ -n "$expo_url" ]]; then
     echo "- Expo download: $expo_url"
+  elif [[ "$eas_registration" == "quota-exhausted" ]]; then
+    echo "- Distribution: GitHub Actions artifact only"
+    echo "- EAS registration: deferred until the monthly local-build quota resets"
+    echo "- OTA baseline was not registered; the next deployment will build a full APK again"
   fi
 } >>"$GITHUB_STEP_SUMMARY"
