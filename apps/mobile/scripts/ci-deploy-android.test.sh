@@ -90,10 +90,37 @@ case "$command_name" in
     printf 'test-apk' >"$output"
     ;;
   upload)
-    if [[ "${MOCK_UPLOAD_FAIL:-false}" == "true" ]]; then
-      echo "EAS upload quota exhausted" >&2
-      exit 1
-    fi
+    case "${MOCK_UPLOAD_FAIL:-false}" in
+      quota)
+        echo "This account has used its local builds from the free plan this month, which will reset in 1 day, 4 hours (on Sat Aug 01 2026)." >&2
+        echo "Request ID: 43586c48-2b64-423c-97b9-5d3ef44ff4b0" >&2
+        echo "    Error: GraphQL request failed." >&2
+        exit 1
+        ;;
+      quota-phrase-only)
+        echo "This account has used its local builds from the free plan this month." >&2
+        exit 1
+        ;;
+      quota-reset-only)
+        echo "The local-build allowance will reset in 1 day." >&2
+        exit 1
+        ;;
+      quota-near-match)
+        echo "This account has used its cloud builds from the free plan this month, which will reset in 1 day." >&2
+        exit 1
+        ;;
+      quota-mixed-error)
+        echo "This account has used its local builds from the free plan this month, which will reset in 1 day, 4 hours (on Sat Aug 01 2026)." >&2
+        echo "Request ID: 43586c48-2b64-423c-97b9-5d3ef44ff4b0" >&2
+        echo "    Error: GraphQL request failed." >&2
+        echo "Authentication failed after quota evaluation." >&2
+        exit 1
+        ;;
+      true)
+        echo "Unexpected EAS GraphQL failure" >&2
+        exit 1
+        ;;
+    esac
     printf '{"id":"uploaded-build-id","url":"https://expo.dev/artifacts/test.apk"}\n'
     ;;
   *)
@@ -299,7 +326,10 @@ for baseline in \
   case_name="preview-build-$baseline"
   run_deployment "$case_name" "refs/heads/develop" "$baseline" "true" "true"
   grep -Fxq "mode=build" "$test_directory/$case_name/output"
-  grep -Fxq "expo-url=" "$test_directory/$case_name/output"
+  if grep -q '^expo-url=' "$test_directory/$case_name/output"; then
+    echo "A Preview-only APK unexpectedly published an Expo URL output" >&2
+    exit 1
+  fi
   grep -Fxq \
     "artifact-name=gonggu-wish-preview-runtime-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" \
     "$test_directory/$case_name/output"
@@ -351,6 +381,95 @@ if run_deployment \
   "false" \
   "true"; then
   echo "Production unexpectedly tolerated an EAS upload failure" >&2
+  exit 1
+fi
+
+failed_output="$test_directory/production-build-upload-failure/output"
+grep -Fxq "mode=build" "$failed_output"
+grep -Fxq "environment=production" "$failed_output"
+grep -Fxq "fingerprint=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" \
+  "$failed_output"
+grep -Fxq "artifact-name=gonggu-wish-production-abc123" "$failed_output"
+failed_apk_path="$(grep '^apk-path=' "$failed_output" | cut -d= -f2-)"
+[[ -s "$failed_apk_path" ]]
+grep -Eq '^apk-sha256=[0-9a-f]{64}$' "$failed_output"
+expected_apk_sha256="$(
+  node -e 'process.stdout.write(require("node:crypto").createHash("sha256").update("test-apk").digest("hex"))'
+)"
+grep -Fxq "apk-sha256=$expected_apk_sha256" "$failed_output"
+if grep -q '^expo-url=' "$failed_output"; then
+  echo "A failed EAS upload unexpectedly published an Expo URL output" >&2
+  exit 1
+fi
+if grep -q '^eas-registration=' "$failed_output"; then
+  echo "A failed EAS upload unexpectedly published a registration state" >&2
+  exit 1
+fi
+[[ ! -s "$test_directory/production-build-upload-failure/summary" ]]
+grep -Fq "upload --platform android" \
+  "$test_directory/production-build-upload-failure/eas.log"
+
+for false_quota_match in \
+  quota-phrase-only \
+  quota-reset-only \
+  quota-near-match \
+  quota-mixed-error; do
+  case_name="production-build-upload-$false_quota_match"
+  if run_deployment \
+    "$case_name" \
+    "refs/heads/main" \
+    "missing" \
+    "false" \
+    "$false_quota_match"; then
+    echo "Production unexpectedly accepted $false_quota_match as a quota fallback" >&2
+    exit 1
+  fi
+  false_match_output="$test_directory/$case_name/output"
+  grep -Fxq "mode=build" "$false_match_output"
+  grep -Eq '^apk-sha256=[0-9a-f]{64}$' "$false_match_output"
+  if grep -Eq '^(eas-registration|expo-url)=' "$false_match_output"; then
+    echo "A false quota match unexpectedly published successful EAS outputs" >&2
+    exit 1
+  fi
+  [[ ! -s "$test_directory/$case_name/summary" ]]
+done
+
+run_deployment \
+  "production-build-upload-quota" \
+  "refs/heads/main" \
+  "missing" \
+  "false" \
+  "quota"
+quota_output="$test_directory/production-build-upload-quota/output"
+grep -Fxq "mode=build" "$quota_output"
+grep -Fxq "environment=production" "$quota_output"
+grep -Fxq "eas-registration=quota-exhausted" "$quota_output"
+if grep -q '^expo-url=' "$quota_output"; then
+  echo "A quota-deferred EAS registration unexpectedly published an Expo URL output" >&2
+  exit 1
+fi
+quota_apk_path="$(grep '^apk-path=' "$quota_output" | cut -d= -f2-)"
+[[ -s "$quota_apk_path" ]]
+grep -Eq '^apk-sha256=[0-9a-f]{64}$' "$quota_output"
+grep -Fq "upload --platform android" \
+  "$test_directory/production-build-upload-quota/eas.log"
+grep -Fq "GitHub Actions artifact only" \
+  "$test_directory/production-build-upload-quota/summary"
+grep -Fq "OTA baseline was not registered" \
+  "$test_directory/production-build-upload-quota/summary"
+
+run_deployment \
+  "production-build-upload-quota-repeat" \
+  "refs/heads/main" \
+  "missing" \
+  "false" \
+  "quota"
+assert_eas_commands \
+  "production-build-upload-quota-repeat" \
+  "fingerprint:generate build:list build upload"
+if grep -Fq "update --channel production" \
+  "$test_directory/production-build-upload-quota-repeat/eas.log"; then
+  echo "A quota-deferred APK was incorrectly treated as an EAS OTA baseline" >&2
   exit 1
 fi
 
