@@ -7,20 +7,20 @@ import {
 } from "./audiencePolicy";
 
 describe("resolveAudiencePolicy", () => {
-  it("fails closed while the age band is unresolved", () => {
+  it("allows public browsing while unresolved but keeps protected features closed", () => {
     expect(resolveAudiencePolicy(null)).toEqual({
       resolved: false,
-      canUseApp: false,
+      canUseApp: true,
       canAuthenticate: false,
       canRequestAds: false,
       canRecordBehaviorSignals: false,
     });
   });
 
-  it("blocks users under 13 from using the app", () => {
+  it("keeps legacy under-13 users in restricted public browse mode", () => {
     expect(resolveAudiencePolicy("under13")).toEqual({
       resolved: true,
-      canUseApp: false,
+      canUseApp: true,
       canAuthenticate: false,
       canRequestAds: false,
       canRecordBehaviorSignals: false,

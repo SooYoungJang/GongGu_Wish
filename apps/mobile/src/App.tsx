@@ -543,21 +543,6 @@ function ThemedNavigationContainer({
   );
 }
 
-function AudienceProtectedAuthScreen(
-  props: React.ComponentProps<typeof AuthScreen>,
-) {
-  const { policy } = useAudience();
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
-  useEffect(() => {
-    if (!policy.canAuthenticate) navigation.replace("MainTabs");
-  }, [navigation, policy.canAuthenticate]);
-
-  if (!policy.canAuthenticate) return null;
-  return <AuthScreen {...props} />;
-}
-
 function ThemedStackNavigator() {
   const { colors } = useTheme();
   return (
@@ -586,7 +571,7 @@ function ThemedStackNavigator() {
       <Stack.Screen name="CalendarScreen" component={CalendarScreen} />
       <Stack.Screen name="Detail" component={DetailScreen} />
       <Stack.Screen name="FeedDetail" component={FeedDetailScreen} />
-      <Stack.Screen name="Login" component={AudienceProtectedAuthScreen} />
+      <Stack.Screen name="Login" component={AuthScreen} />
       <Stack.Screen
         name="InfluencerGroupBuys"
         component={InfluencerGroupBuysScreen}
@@ -621,7 +606,7 @@ function AudienceApplication() {
             <NotificationPreferencesBoundary>
               <GroupBuyReminderPickerProvider
                 onAuthenticationRequired={() => {
-                  if (policy.canAuthenticate && rootNavigationRef.isReady()) {
+                  if (rootNavigationRef.isReady()) {
                     rootNavigationRef.navigate("Login");
                   }
                 }}
@@ -639,11 +624,6 @@ function AudienceApplication() {
   );
 }
 
-function AudienceApplicationBoundary() {
-  const { ageBand } = useAudience();
-  return <AudienceApplication key={ageBand ?? "unresolved"} />;
-}
-
 export default function App() {
   return (
     <GestureHandlerRootView style={styles.appRoot}>
@@ -653,7 +633,7 @@ export default function App() {
             initialAgeBandOverride={automatedE2E ? "age14Plus" : null}
           >
             <AudienceGate>
-              <AudienceApplicationBoundary />
+              <AudienceApplication />
             </AudienceGate>
           </AudienceProvider>
         </SafeAreaProvider>

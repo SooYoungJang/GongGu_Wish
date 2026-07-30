@@ -307,6 +307,9 @@ beforeEach(() => {
   });
   adsMocks.privacyOptionsRequired = false;
   adsMocks.showPrivacyOptions.mockClear();
+  audienceMocks.policy.canAuthenticate = true;
+  audienceMocks.policy.canRequestAds = true;
+  audienceMocks.policy.canRecordBehaviorSignals = true;
 });
 
 describe('MyPageScreen', () => {
@@ -516,7 +519,29 @@ describe('MyPageScreen', () => {
     );
   });
 
-  it('shows loading state initially', () => {
+  it("offers login even before the 14+ confirmation is stored", async () => {
+    audienceMocks.policy.canAuthenticate = false;
+    audienceMocks.policy.canRequestAds = false;
+    audienceMocks.policy.canRecordBehaviorSignals = false;
+    const renderer = renderMyPageScreen();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("만 13세 모드");
+    const loginButton = renderer.root.findByProps({
+      accessibilityLabel: "로그인하고 활동 이어보기",
+    });
+
+    act(() => {
+      loginButton.props.onPress();
+    });
+
+    expect(navigationMocks.navigate).toHaveBeenCalledWith("Login");
+  });
+
+  it("shows loading state initially", () => {
     const renderer = renderMyPageScreen();
     const json = renderer.toJSON();
     expect(json).not.toBeNull();
@@ -542,12 +567,20 @@ describe('MyPageScreen', () => {
     const renderer = renderScreen(React.createElement(SettingsScreen));
     const rendered = JSON.stringify(renderer.toJSON());
 
-    expect(rendered).toContain('알림 설정');
-    expect(rendered).toContain('화면 테마');
-    expect(rendered).toContain('시스템');
-    expect(rendered).toContain('라이트');
-    expect(rendered).toContain('다크');
-    expect(rendered).not.toContain('공구 마감 임박 알림');
+    expect(rendered).toContain("알림 설정");
+    expect(rendered).toContain("화면 테마");
+    expect(rendered).toContain("시스템");
+    expect(rendered).toContain("라이트");
+    expect(rendered).toContain("다크");
+    expect(rendered).not.toContain("연령 설정");
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          typeof node.props.accessibilityLabel === "string" &&
+          node.props.accessibilityLabel.startsWith("연령 구간"),
+      ),
+    ).toHaveLength(0);
+    expect(rendered).not.toContain("공구 마감 임박 알림");
     expect(
       renderer.root.findAllByProps({ testID: 'deadline-notification-toggle' }),
     ).toHaveLength(0);
@@ -682,7 +715,26 @@ describe('MyPageScreen', () => {
     expect(push.props.value).toBe(false);
   });
 
-  it('moves the push toggle immediately while token registration finishes', async () => {
+  it("keeps the login route available from settings before 14+ confirmation", async () => {
+    audienceMocks.policy.canAuthenticate = false;
+    audienceMocks.policy.canRequestAds = false;
+    audienceMocks.policy.canRecordBehaviorSignals = false;
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    const push = renderer.root.findByProps({ accessibilityLabel: "푸시 알림" });
+
+    expect(push.props.disabled).toBe(false);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("만 13세 모드");
+
+    await act(async () => {
+      await push.props.onValueChange(true);
+      await Promise.resolve();
+    });
+
+    expect(navigationMocks.navigate).toHaveBeenCalledWith("Login");
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  it("moves the push toggle immediately while token registration finishes", async () => {
     authMocks.session = {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },

@@ -73,6 +73,71 @@ describe("AudienceProvider", () => {
     expect(current?.policy.canRequestAds).toBe(false);
   });
 
+  it("does not let late hydration overwrite a newer 14+ confirmation", async () => {
+    let resolveHydration!: (value: string | null) => void;
+    storage.getItem.mockReturnValueOnce(
+      new Promise<string | null>((resolve) => {
+        resolveHydration = resolve;
+      }),
+    );
+
+    act(() => {
+      TestRenderer.create(
+        <AudienceProvider>
+          <Probe />
+        </AudienceProvider>,
+      );
+    });
+
+    await act(async () => {
+      await current?.selectAgeBand("age14Plus");
+    });
+    await act(async () => {
+      resolveHydration("age13");
+      await Promise.resolve();
+    });
+
+    expect(current?.ageBand).toBe("age14Plus");
+    expect(current?.policy.canAuthenticate).toBe(true);
+  });
+
+  it("keeps auth, ads, and behavior signals blocked until 14+ persistence finishes", async () => {
+    let releaseWrite!: () => void;
+    storage.setItem.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        releaseWrite = resolve;
+      }),
+    );
+
+    await act(async () => {
+      TestRenderer.create(
+        <AudienceProvider>
+          <Probe />
+        </AudienceProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    let selection!: Promise<void>;
+    act(() => {
+      selection = current!.selectAgeBand("age14Plus");
+    });
+
+    expect(current?.policy.canAuthenticate).toBe(false);
+    expect(current?.policy.canRequestAds).toBe(false);
+    expect(current?.policy.canRecordBehaviorSignals).toBe(false);
+
+    await act(async () => {
+      releaseWrite();
+      await selection;
+    });
+
+    expect(current?.policy.canAuthenticate).toBe(true);
+    expect(current?.policy.canRequestAds).toBe(true);
+    expect(current?.policy.canRecordBehaviorSignals).toBe(true);
+  });
+
   it("persists only the selected age band", async () => {
     await act(async () => {
       TestRenderer.create(
@@ -93,6 +158,29 @@ describe("AudienceProvider", () => {
       "age14Plus",
     );
     expect(current?.ageBand).toBe("age14Plus");
+  });
+
+  it("fails closed when the 14+ confirmation cannot be persisted", async () => {
+    storage.setItem.mockRejectedValueOnce(new Error("storage unavailable"));
+
+    await act(async () => {
+      TestRenderer.create(
+        <AudienceProvider>
+          <Probe />
+        </AudienceProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await expect(
+      act(async () => {
+        await current?.selectAgeBand("age14Plus");
+      }),
+    ).rejects.toThrow("storage unavailable");
+
+    expect(current?.ageBand).toBeNull();
+    expect(current?.policy.canAuthenticate).toBe(false);
   });
 
   it("runs registered cleanup when an unrestricted user selects age 13", async () => {

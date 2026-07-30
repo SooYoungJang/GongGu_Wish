@@ -9,6 +9,7 @@ import React, {
   type PropsWithChildren,
 } from "react";
 import type { AuthError, Session, User } from "@supabase/supabase-js";
+import * as SecureStore from "expo-secure-store";
 import { Linking } from "react-native";
 
 import type { AudiencePolicy } from "../audience/audiencePolicy";
@@ -18,6 +19,18 @@ import { setAuthToken, clearAuthToken } from "../utils/auth";
 import type { SocialAuthProvider } from "../utils/authHelpers";
 
 export const EMAIL_CODE_TTL_SECONDS = 5 * 60;
+const OAUTH_ATTEMPT_STORAGE_KEY = "gonggu.oauth-attempt.v1";
+const OAUTH_ATTEMPT_TTL_MS = 15 * 60 * 1000;
+
+type OAuthAttempt = {
+  createdAt: number;
+  id: string;
+  provider: SocialAuthProvider;
+};
+
+type OAuthCallbackResult =
+  | { handled: false; error: null }
+  | { handled: true; error: AuthError | null };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +41,10 @@ export interface AuthContextValue {
   session: Session | null;
   /** True while restoring session on mount */
   isLoading: boolean;
+  /** True while the currently selected auth flow owns session changes. */
+  isAudienceAuthIntentPending: boolean;
+  /** Increments only when an explicit auth attempt applies its own session. */
+  authCompletionRevision: number;
   /** Login with email and password */
   signIn: (email: string, password: string) => Promise<AuthError | null>;
   /** Sign up with email, password, and optional metadata (nickname, etc.) */
@@ -50,6 +67,10 @@ export interface AuthContextValue {
   ) => Promise<AuthError | null>;
   /** Sign in/up with OAuth provider (Kakao, Naver custom provider, Apple) */
   signInWithOAuth: (provider: SocialAuthProvider) => Promise<AuthError | null>;
+  /** Skip a stale local session restore while a newly confirmed auth action starts. */
+  startAudienceAuthIntent: () => void;
+  /** Cancel a pending auth intent when age confirmation cannot be persisted. */
+  cancelAudienceAuthIntent: () => void;
   /** Log out the current user */
   signOut: () => Promise<void>;
 }
@@ -63,6 +84,34 @@ function createAudienceRestrictedAuthError(): AuthError {
     name: "AudienceRestrictedError",
     message: "로그인과 회원가입은 만 14세 이상부터 이용할 수 있어요.",
     status: 403,
+  } as AuthError;
+}
+
+function createOAuthCallbackError(url?: string): AuthError {
+  let message = "소셜 로그인 완료 정보를 확인하지 못했습니다.";
+  if (url) {
+    try {
+      const parsed = new URL(url);
+      message =
+        parsed.searchParams.get("error_description") ??
+        parsed.searchParams.get("error") ??
+        message;
+    } catch {
+      // Keep the user-safe fallback for malformed callback URLs.
+    }
+  }
+  return {
+    name: "OAuthCallbackError",
+    message,
+    status: 400,
+  } as AuthError;
+}
+
+function createMissingAuthSessionError(): AuthError {
+  return {
+    name: "MissingAuthSessionError",
+    message: "로그인 세션을 확인하지 못했습니다. 다시 시도해주세요.",
+    status: 500,
   } as AuthError;
 }
 
@@ -85,6 +134,40 @@ function getAuthCodeFromUrl(url: string): string | null {
   }
 }
 
+function getOAuthAttemptIdFromUrl(url: string): string | null {
+  try {
+    return new URL(url).searchParams.get("oauth_attempt");
+  } catch {
+    const [, query = ""] = url.split("?");
+    return new URLSearchParams(query.split("#")[0]).get("oauth_attempt");
+  }
+}
+
+function createOAuthAttemptId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function buildOAuthRedirectUrl(attemptId: string) {
+  const separator = AUTH_REDIRECT_URL.includes("?") ? "&" : "?";
+  return `${AUTH_REDIRECT_URL}${separator}oauth_attempt=${encodeURIComponent(attemptId)}`;
+}
+
+function parseStoredOAuthAttempt(value: string | null): OAuthAttempt | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<OAuthAttempt>;
+    if (
+      typeof parsed.id !== "string" ||
+      typeof parsed.createdAt !== "number" ||
+      !["kakao", "custom:naver", "apple"].includes(parsed.provider as string)
+    )
+      return null;
+    return parsed as OAuthAttempt;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({
@@ -95,9 +178,79 @@ export function AuthProvider({
 }>) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [sessionRestoreComplete, setSessionRestoreComplete] = useState(false);
+  const [isAudienceAuthIntentPending, setIsAudienceAuthIntentPending] =
+    useState(false);
+  const [authCompletionRevision, setAuthCompletionRevision] = useState(0);
+  const isLoading = audiencePolicy.canAuthenticate && !sessionRestoreComplete;
   const canAuthenticateRef = useRef(audiencePolicy.canAuthenticate);
+  const audienceAuthIntentRef = useRef(false);
+  const audienceAuthIntentPreparedRef = useRef(false);
+  const activeOAuthAttemptRef = useRef<OAuthAttempt | null>(null);
+  const oauthCallbackPromiseRef = useRef<{
+    attemptId: string | null;
+    promise: Promise<OAuthCallbackResult>;
+  } | null>(null);
+  const completedOAuthCallbackRef = useRef<{
+    attemptId: string;
+    result: OAuthCallbackResult;
+  } | null>(null);
   canAuthenticateRef.current = audiencePolicy.canAuthenticate;
+
+  const startAudienceAuthIntent = useCallback(() => {
+    if (audienceAuthIntentRef.current) return;
+    audienceAuthIntentRef.current = true;
+    audienceAuthIntentPreparedRef.current = false;
+    setIsAudienceAuthIntentPending(true);
+  }, []);
+
+  const cancelAudienceAuthIntent = useCallback(() => {
+    audienceAuthIntentRef.current = false;
+    audienceAuthIntentPreparedRef.current = false;
+    setIsAudienceAuthIntentPending(false);
+  }, []);
+
+  const clearOAuthAttempt = useCallback(async () => {
+    activeOAuthAttemptRef.current = null;
+    await SecureStore.deleteItemAsync(OAUTH_ATTEMPT_STORAGE_KEY).catch(
+      () => {},
+    );
+  }, []);
+
+  const createOAuthAttempt = useCallback(
+    async (provider: SocialAuthProvider) => {
+      const attempt: OAuthAttempt = {
+        createdAt: Date.now(),
+        id: createOAuthAttemptId(),
+        provider,
+      };
+      completedOAuthCallbackRef.current = null;
+      activeOAuthAttemptRef.current = attempt;
+      await SecureStore.setItemAsync(
+        OAUTH_ATTEMPT_STORAGE_KEY,
+        JSON.stringify(attempt),
+      );
+      return attempt;
+    },
+    [],
+  );
+
+  const loadOAuthAttempt = useCallback(async () => {
+    const attempt =
+      activeOAuthAttemptRef.current ??
+      parseStoredOAuthAttempt(
+        await SecureStore.getItemAsync(OAUTH_ATTEMPT_STORAGE_KEY).catch(
+          () => null,
+        ),
+      );
+    if (!attempt) return null;
+    if (Date.now() - attempt.createdAt > OAUTH_ATTEMPT_TTL_MS) {
+      await clearOAuthAttempt();
+      return null;
+    }
+    activeOAuthAttemptRef.current = attempt;
+    return attempt;
+  }, [clearOAuthAttempt]);
 
   const applySession = useCallback((currentSession: Session | null) => {
     if (!canAuthenticateRef.current) {
@@ -117,30 +270,132 @@ export function AuthProvider({
     }
   }, []);
 
-  const rejectIfPolicyChanged = useCallback(async (): Promise<AuthError | null> => {
-    if (canAuthenticateRef.current) return null;
+  const applyCompletedAuthSession = useCallback(
+    (currentSession: Session | null) => {
+      if (!currentSession) {
+        cancelAudienceAuthIntent();
+        return false;
+      }
+      applySession(currentSession);
+      setAuthCompletionRevision((revision) => revision + 1);
+      cancelAudienceAuthIntent();
+      return true;
+    },
+    [applySession, cancelAudienceAuthIntent],
+  );
+
+  const prepareAudienceAuthIntent = useCallback(async () => {
+    if (!audienceAuthIntentRef.current || audienceAuthIntentPreparedRef.current)
+      return;
 
     const supabase = getSupabase();
-    await Promise.allSettled([supabase.auth.signOut(), clearAuthToken()]);
-    setSession(null);
-    setUser(null);
-    return createAudienceRestrictedAuthError();
-  }, []);
+    await Promise.allSettled([
+      supabase.auth.signOut({ scope: "local" }),
+      clearAuthToken(),
+    ]);
+    applySession(null);
+    audienceAuthIntentPreparedRef.current = true;
+  }, [applySession]);
 
-  const handleAuthCallbackUrl = useCallback(
-    async (url: string) => {
-      if (!canAuthenticateRef.current) return;
-      const code = getAuthCodeFromUrl(url);
-      if (!code) return;
+  const rejectIfPolicyChanged =
+    useCallback(async (): Promise<AuthError | null> => {
+      if (canAuthenticateRef.current) return null;
 
       const supabase = getSupabase();
-      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-      if (await rejectIfPolicyChanged()) return;
-      if (!error) {
-        applySession(data.session);
+      await Promise.allSettled([supabase.auth.signOut(), clearAuthToken()]);
+      setSession(null);
+      setUser(null);
+      return createAudienceRestrictedAuthError();
+    }, []);
+
+  const processOAuthCallbackUrl = useCallback(
+    async (url: string): Promise<OAuthCallbackResult> => {
+      if (!canAuthenticateRef.current) return { handled: false, error: null };
+
+      const callbackAttemptId = getOAuthAttemptIdFromUrl(url);
+      if (!callbackAttemptId) return { handled: false, error: null };
+
+      const completedCallback = completedOAuthCallbackRef.current;
+      if (completedCallback?.attemptId === callbackAttemptId) {
+        return completedCallback.result;
+      }
+
+      const attempt = await loadOAuthAttempt();
+      if (!attempt || attempt.id !== callbackAttemptId) {
+        return { handled: false, error: null };
+      }
+
+      startAudienceAuthIntent();
+      await prepareAudienceAuthIntent();
+      const code = getAuthCodeFromUrl(url);
+      await clearOAuthAttempt();
+      if (!code) {
+        cancelAudienceAuthIntent();
+        return { handled: true, error: createOAuthCallbackError(url) };
+      }
+
+      try {
+        const supabase = getSupabase();
+        const { data, error } =
+          await supabase.auth.exchangeCodeForSession(code);
+        const restrictionError = await rejectIfPolicyChanged();
+        if (restrictionError) {
+          cancelAudienceAuthIntent();
+          return { handled: true, error: restrictionError };
+        }
+        if (error) {
+          cancelAudienceAuthIntent();
+          return { handled: true, error };
+        }
+        if (!applyCompletedAuthSession(data.session)) {
+          return { handled: true, error: createOAuthCallbackError() };
+        }
+        return { handled: true, error: null };
+      } catch (error) {
+        cancelAudienceAuthIntent();
+        throw error;
       }
     },
-    [applySession, rejectIfPolicyChanged],
+    [
+      applyCompletedAuthSession,
+      cancelAudienceAuthIntent,
+      clearOAuthAttempt,
+      loadOAuthAttempt,
+      prepareAudienceAuthIntent,
+      rejectIfPolicyChanged,
+      startAudienceAuthIntent,
+    ],
+  );
+
+  const handleAuthCallbackUrl = useCallback(
+    async (url: string): Promise<OAuthCallbackResult> => {
+      const callbackAttemptId = getOAuthAttemptIdFromUrl(url);
+      const activeCallback = oauthCallbackPromiseRef.current;
+      if (activeCallback?.attemptId === callbackAttemptId) {
+        return activeCallback.promise;
+      }
+
+      const callbackPromise = processOAuthCallbackUrl(url);
+      oauthCallbackPromiseRef.current = {
+        attemptId: callbackAttemptId,
+        promise: callbackPromise,
+      };
+      try {
+        const result = await callbackPromise;
+        if (result.handled && callbackAttemptId) {
+          completedOAuthCallbackRef.current = {
+            attemptId: callbackAttemptId,
+            result,
+          };
+        }
+        return result;
+      } finally {
+        if (oauthCallbackPromiseRef.current?.promise === callbackPromise) {
+          oauthCallbackPromiseRef.current = null;
+        }
+      }
+    },
+    [processOAuthCallbackUrl],
   );
 
   // Restore session on mount
@@ -148,24 +403,40 @@ export function AuthProvider({
     if (!audiencePolicy.canAuthenticate) {
       setSession(null);
       setUser(null);
-      setIsLoading(false);
+      setSessionRestoreComplete(false);
+      clearAuthToken().catch(() => {});
       return;
     }
 
     const supabase = getSupabase();
     let active = true;
+    const skipExistingSessionRestore = audienceAuthIntentRef.current;
+    setSessionRestoreComplete(false);
 
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      if (!active) return;
-      applySession(currentSession);
-      setIsLoading(false);
-    });
+    if (skipExistingSessionRestore) {
+      setSessionRestoreComplete(true);
+    } else {
+      void supabase.auth
+        .getSession()
+        .then(({ data: { session: currentSession } }) => {
+          if (!active || audienceAuthIntentRef.current) return;
+          applySession(currentSession);
+        })
+        .catch(() => {
+          if (!active || audienceAuthIntentRef.current) return;
+          applySession(null);
+        })
+        .finally(() => {
+          if (active) setSessionRestoreComplete(true);
+        });
+    }
 
     // Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       if (!active) return;
+      if (audienceAuthIntentRef.current) return;
       applySession(currentSession);
     });
 
@@ -176,6 +447,8 @@ export function AuthProvider({
   }, [applySession, audiencePolicy.canAuthenticate]);
 
   useEffect(() => {
+    if (!audiencePolicy.canAuthenticate) return;
+
     Linking.getInitialURL()
       .then((url) => {
         if (url) {
@@ -191,21 +464,45 @@ export function AuthProvider({
     return () => {
       subscription.remove();
     };
-  }, [handleAuthCallbackUrl]);
+  }, [audiencePolicy.canAuthenticate, handleAuthCallbackUrl]);
 
   const signIn = useCallback(
     async (email: string, password: string): Promise<AuthError | null> => {
       if (!audiencePolicy.canAuthenticate) {
         return createAudienceRestrictedAuthError();
       }
-      const supabase = getSupabase();
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      return (await rejectIfPolicyChanged()) ?? error;
+      try {
+        await prepareAudienceAuthIntent();
+        const supabase = getSupabase();
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        const restrictionError = await rejectIfPolicyChanged();
+        if (restrictionError) {
+          cancelAudienceAuthIntent();
+          return restrictionError;
+        }
+        if (error) {
+          cancelAudienceAuthIntent();
+          return error;
+        }
+        if (!applyCompletedAuthSession(data?.session ?? null)) {
+          return createMissingAuthSessionError();
+        }
+        return null;
+      } catch (error) {
+        cancelAudienceAuthIntent();
+        throw error;
+      }
     },
-    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
+    [
+      applyCompletedAuthSession,
+      audiencePolicy.canAuthenticate,
+      cancelAudienceAuthIntent,
+      prepareAudienceAuthIntent,
+      rejectIfPolicyChanged,
+    ],
   );
 
   const signUp = useCallback(
@@ -213,17 +510,43 @@ export function AuthProvider({
       if (!audiencePolicy.canAuthenticate) {
         return createAudienceRestrictedAuthError();
       }
-      const supabase = getSupabase();
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: AUTH_REDIRECT_URL,
-        },
-      });
-      return (await rejectIfPolicyChanged()) ?? error;
+      try {
+        await prepareAudienceAuthIntent();
+        const supabase = getSupabase();
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: AUTH_REDIRECT_URL,
+          },
+        });
+        const restrictionError = await rejectIfPolicyChanged();
+        if (restrictionError) {
+          cancelAudienceAuthIntent();
+          return restrictionError;
+        }
+        if (error) {
+          cancelAudienceAuthIntent();
+          return error;
+        }
+        if (data?.session) {
+          applyCompletedAuthSession(data.session);
+        } else {
+          cancelAudienceAuthIntent();
+        }
+        return null;
+      } catch (error) {
+        cancelAudienceAuthIntent();
+        throw error;
+      }
     },
-    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
+    [
+      applyCompletedAuthSession,
+      audiencePolicy.canAuthenticate,
+      cancelAudienceAuthIntent,
+      prepareAudienceAuthIntent,
+      rejectIfPolicyChanged,
+    ],
   );
 
   const signUpWithEmailCode = useCallback(
@@ -235,18 +558,42 @@ export function AuthProvider({
       if (!audiencePolicy.canAuthenticate) {
         return createAudienceRestrictedAuthError();
       }
-      const supabase = getSupabase();
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: AUTH_REDIRECT_URL,
-          data: metadata,
-        },
-      });
-      return (await rejectIfPolicyChanged()) ?? error;
+      try {
+        await prepareAudienceAuthIntent();
+        const supabase = getSupabase();
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: AUTH_REDIRECT_URL,
+            data: metadata,
+          },
+        });
+        const restrictionError = await rejectIfPolicyChanged();
+        if (restrictionError) {
+          cancelAudienceAuthIntent();
+          return restrictionError;
+        }
+        if (error) {
+          cancelAudienceAuthIntent();
+          return error;
+        }
+        if (data?.session) {
+          applyCompletedAuthSession(data.session);
+        }
+        return null;
+      } catch (error) {
+        cancelAudienceAuthIntent();
+        throw error;
+      }
     },
-    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
+    [
+      applyCompletedAuthSession,
+      audiencePolicy.canAuthenticate,
+      cancelAudienceAuthIntent,
+      prepareAudienceAuthIntent,
+      rejectIfPolicyChanged,
+    ],
   );
 
   const resendEmailSignUpCode = useCallback(
@@ -254,6 +601,7 @@ export function AuthProvider({
       if (!audiencePolicy.canAuthenticate) {
         return createAudienceRestrictedAuthError();
       }
+      await prepareAudienceAuthIntent();
       const supabase = getSupabase();
       const { error } = await supabase.auth.resend({
         type: "signup",
@@ -262,9 +610,19 @@ export function AuthProvider({
           emailRedirectTo: AUTH_REDIRECT_URL,
         },
       });
-      return (await rejectIfPolicyChanged()) ?? error;
+      const restrictionError = await rejectIfPolicyChanged();
+      if (restrictionError) {
+        cancelAudienceAuthIntent();
+        return restrictionError;
+      }
+      return error;
     },
-    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
+    [
+      audiencePolicy.canAuthenticate,
+      cancelAudienceAuthIntent,
+      prepareAudienceAuthIntent,
+      rejectIfPolicyChanged,
+    ],
   );
 
   const verifyEmailCode = useCallback(
@@ -272,6 +630,7 @@ export function AuthProvider({
       if (!audiencePolicy.canAuthenticate) {
         return createAudienceRestrictedAuthError();
       }
+      await prepareAudienceAuthIntent();
       const supabase = getSupabase();
       const { data, error } = await supabase.auth.verifyOtp({
         email,
@@ -279,15 +638,22 @@ export function AuthProvider({
         type: "email",
       });
       const restrictionError = await rejectIfPolicyChanged();
-      if (restrictionError) return restrictionError;
+      if (restrictionError) {
+        cancelAudienceAuthIntent();
+        return restrictionError;
+      }
       if (!error) {
-        applySession(data.session);
+        if (!applyCompletedAuthSession(data.session)) {
+          return createMissingAuthSessionError();
+        }
       }
       return error;
     },
     [
-      applySession,
+      applyCompletedAuthSession,
       audiencePolicy.canAuthenticate,
+      cancelAudienceAuthIntent,
+      prepareAudienceAuthIntent,
       rejectIfPolicyChanged,
     ],
   );
@@ -301,47 +667,113 @@ export function AuthProvider({
       if (!audiencePolicy.canAuthenticate) {
         return createAudienceRestrictedAuthError();
       }
-      const supabase = getSupabase();
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: AUTH_REDIRECT_URL,
-          ...(metadata ? { data: metadata } : {}),
-        },
-      });
-      return (await rejectIfPolicyChanged()) ?? error;
+      try {
+        await prepareAudienceAuthIntent();
+        const supabase = getSupabase();
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: AUTH_REDIRECT_URL,
+            ...(metadata ? { data: metadata } : {}),
+          },
+        });
+        const restrictionError = await rejectIfPolicyChanged();
+        if (restrictionError) {
+          cancelAudienceAuthIntent();
+          return restrictionError;
+        }
+        if (error) {
+          cancelAudienceAuthIntent();
+          return error;
+        }
+        if (data?.session) {
+          applyCompletedAuthSession(data.session);
+        } else {
+          cancelAudienceAuthIntent();
+        }
+        return null;
+      } catch (error) {
+        cancelAudienceAuthIntent();
+        throw error;
+      }
     },
-    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
+    [
+      applyCompletedAuthSession,
+      audiencePolicy.canAuthenticate,
+      cancelAudienceAuthIntent,
+      prepareAudienceAuthIntent,
+      rejectIfPolicyChanged,
+    ],
   );
 
   const signOut = useCallback(async () => {
+    cancelAudienceAuthIntent();
+    await clearOAuthAttempt();
     const supabase = getSupabase();
     await supabase.auth.signOut();
     await clearAuthToken();
-  }, []);
+  }, [cancelAudienceAuthIntent, clearOAuthAttempt]);
 
   const signInWithOAuth = useCallback(
     async (provider: SocialAuthProvider): Promise<AuthError | null> => {
       if (!audiencePolicy.canAuthenticate) {
         return createAudienceRestrictedAuthError();
       }
-      const supabase = getSupabase();
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: AUTH_REDIRECT_URL,
-          skipBrowserRedirect: true,
-        },
-      });
-      const restrictionError = await rejectIfPolicyChanged();
-      if (restrictionError) return restrictionError;
-      if (!error && data.url) {
-        await Linking.openURL(data.url);
+      try {
+        await prepareAudienceAuthIntent();
+        const attempt = await createOAuthAttempt(provider);
+        const redirectTo = buildOAuthRedirectUrl(attempt.id);
+        const supabase = getSupabase();
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo,
+            skipBrowserRedirect: true,
+          },
+        });
+        const restrictionError = await rejectIfPolicyChanged();
+        if (restrictionError) {
+          await clearOAuthAttempt();
+          cancelAudienceAuthIntent();
+          return restrictionError;
+        }
+        if (error || !data.url) {
+          await clearOAuthAttempt();
+          cancelAudienceAuthIntent();
+          return error ?? createOAuthCallbackError();
+        }
+
+        const { openAuthSessionAsync } = await import("expo-web-browser");
+        const result = await openAuthSessionAsync(data.url, redirectTo);
+        if (result.type !== "success") {
+          await clearOAuthAttempt();
+          cancelAudienceAuthIntent();
+          return null;
+        }
+
+        const callbackResult = await handleAuthCallbackUrl(result.url);
+        if (!callbackResult.handled) {
+          await clearOAuthAttempt();
+          cancelAudienceAuthIntent();
+          return createOAuthCallbackError(result.url);
+        }
+        return callbackResult.error;
+      } catch (error) {
+        await clearOAuthAttempt();
+        cancelAudienceAuthIntent();
+        throw error;
       }
-      return error;
     },
-    [audiencePolicy.canAuthenticate, rejectIfPolicyChanged],
+    [
+      audiencePolicy.canAuthenticate,
+      cancelAudienceAuthIntent,
+      clearOAuthAttempt,
+      createOAuthAttempt,
+      handleAuthCallbackUrl,
+      prepareAudienceAuthIntent,
+      rejectIfPolicyChanged,
+    ],
   );
 
   const value = useMemo<AuthContextValue>(
@@ -349,6 +781,8 @@ export function AuthProvider({
       user,
       session,
       isLoading,
+      isAudienceAuthIntentPending,
+      authCompletionRevision,
       signIn,
       signUp,
       signUpWithEmailCode,
@@ -356,12 +790,16 @@ export function AuthProvider({
       verifyEmailCode,
       signUpWithMetadata,
       signInWithOAuth,
+      startAudienceAuthIntent,
+      cancelAudienceAuthIntent,
       signOut,
     }),
     [
       user,
       session,
       isLoading,
+      isAudienceAuthIntentPending,
+      authCompletionRevision,
       signIn,
       signUp,
       signUpWithEmailCode,
@@ -369,6 +807,8 @@ export function AuthProvider({
       verifyEmailCode,
       signUpWithMetadata,
       signInWithOAuth,
+      startAudienceAuthIntent,
+      cancelAudienceAuthIntent,
       signOut,
     ],
   );
