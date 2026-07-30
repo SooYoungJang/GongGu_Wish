@@ -232,6 +232,22 @@ test("main pull requests require the latest develop Preview-green SHA", () => {
   assert.match(promotionGate, /\.tree\.sha/);
 });
 
+test("follow-up promotions allow diverged history only when the merge tree is unchanged", () => {
+  const promotionGate = job("promotion-gate");
+  const compareIndex = promotionGate.indexOf("compare_status=");
+  const mergeTreeIndex = promotionGate.indexOf("merge_tree=");
+
+  assert.notEqual(compareIndex, -1);
+  assert.notEqual(mergeTreeIndex, -1);
+  assert.ok(compareIndex < mergeTreeIndex);
+  assert.match(promotionGate, /ahead\|identical\|diverged/);
+  assert.match(promotionGate, /merge_tree.*!=.*head_tree/);
+  assert.match(
+    promotionGate,
+    /tested PR merge tree differs from the Preview-green develop tree/,
+  );
+});
+
 test("every develop SHA runs a lightweight change plan and Preview gate", () => {
   const pushTrigger = workflow.slice(
     workflow.indexOf("  push:\n"),
