@@ -1018,14 +1018,15 @@ jobs:
           set -euo pipefail
           for attempt in {1..20}; do
             mapfile -t deployment_ids < <(
-              gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$GITHUB_SHA&environment=preview&per_page=100" |
+              gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$GITHUB_SHA&per_page=100" |
                 jq -r --arg sha "$GITHUB_SHA" '
                   [
                     .[] |
                     select(
-                      ((.environment // "") | ascii_downcase) == "preview" and
                       .sha == $sha and
-                      .ref == "develop"
+                      .ref == $sha and
+                      .creator.login == "vercel[bot]" and
+                      .environment == "Preview – gong-gu-wish-admin"
                     )
                   ] |
                   sort_by(.created_at) |
@@ -1038,15 +1039,12 @@ jobs:
             for deployment_id in "${deployment_ids[@]}"; do
               deployment_url="$(
               gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" |
-                  jq -r --arg owner "$GITHUB_REPOSITORY_OWNER" '
+                  jq -r '
                     [
                       .[] |
                       select(
-                        (
-                          .creator.login == "vercel[bot]" or
-                          .creator.login == $owner
-                        ) and
-                        ((.environment // "") | ascii_downcase) == "preview" and
+                        .creator.login == "vercel[bot]" and
+                        .environment == "Preview – gong-gu-wish-admin" and
                         .state == "success" and
                         ((.environment_url // "") |
                           test("^https://gong-gu-wish-admin-[a-z0-9-]+-jsy10835\\.vercel\\.app/?$"))

@@ -179,10 +179,10 @@ test("develop publishes a green affected-components Preview release gate", () =>
   assert.match(releaseGate, /GITHUB_SHA/);
   assert.match(
     releaseGate,
-    /deployments\?sha=\$GITHUB_SHA&environment=preview/,
+    /deployments\?sha=\$GITHUB_SHA&per_page=100/,
   );
-  assert.doesNotMatch(releaseGate, /deployments\?[^\n"]*&ref=develop/);
-  assert.match(releaseGate, /\.ref == "develop"/);
+  assert.doesNotMatch(releaseGate, /environment=preview/);
+  assert.match(releaseGate, /\.ref == \$sha/);
   assert.match(releaseGate, /\.gitRef == "develop"/);
   assert.match(releaseGate, /http_code/);
   assert.match(releaseGate, /"200"/);
@@ -541,17 +541,25 @@ test("develop observes the project-bound Cloudflare Git build without retriggeri
   assert.match(workerJob, /\.supabaseProjectRef == "xwblovggtvbpiusjfokq"/);
 });
 
-test("Preview release gate discovers Vercel status on the exact develop deployment", () => {
+test("Preview release gate discovers the exact-SHA Vercel Admin deployment", () => {
   const releaseGate = job("preview-release-gate");
 
+  assert.match(
+    releaseGate,
+    /deployments\?sha=\$GITHUB_SHA&per_page=100/,
+  );
+  assert.doesNotMatch(releaseGate, /environment=preview/);
   assert.match(releaseGate, /\.sha == \$sha/);
-  assert.match(releaseGate, /\.ref == "develop"/);
-  assert.match(releaseGate, /ascii_downcase.*"preview"/s);
+  assert.match(releaseGate, /\.ref == \$sha/);
+  assert.match(
+    releaseGate,
+    /\.environment == "Preview – gong-gu-wish-admin"/,
+  );
   assert.match(releaseGate, /\.creator\.login == "vercel\[bot\]"/);
   assert.match(releaseGate, /\.state == "success"/);
   assert.match(releaseGate, /test\("\^https:\/\/gong-gu-wish-admin-/);
   assert.match(releaseGate, /-jsy10835/);
-  assert.doesNotMatch(releaseGate, /\.ref == \$sha/);
+  assert.doesNotMatch(releaseGate, /\.creator\.login == \$owner/);
   assert.doesNotMatch(releaseGate, /--jq '\.\[0\]\.state/);
 });
 

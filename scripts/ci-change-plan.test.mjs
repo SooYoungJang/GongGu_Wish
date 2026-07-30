@@ -175,16 +175,17 @@ test("Windows policy workarounds remain actionable for future agents", () => {
   assert.match(gitNetwork, /--ignore-scripts/);
 });
 
-test("Preview Green accepts Vercel statuses written by the connected owner", () => {
+test("Preview Green accepts only Vercel bot statuses for the Admin Preview", () => {
   const workflow = readFileSync(
     new URL("../.github/workflows/ci.yml", import.meta.url),
     "utf8",
   );
 
-  assert.match(workflow, /--arg owner "\$GITHUB_REPOSITORY_OWNER"/);
+  assert.doesNotMatch(workflow, /--arg owner "\$GITHUB_REPOSITORY_OWNER"/);
+  assert.match(workflow, /\.creator\.login == "vercel\[bot\]"/);
   assert.match(
     workflow,
-    /\.creator\.login == "vercel\[bot\]" or\s+\.creator\.login == \$owner/,
+    /\.environment == "Preview – gong-gu-wish-admin"/,
   );
   assert.match(
     workflow,
