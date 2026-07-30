@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { classifyChangedFiles } from "./ci-change-plan.mjs";
+import {
+  classifyChangedFiles,
+  shouldBuildVercelProject,
+} from "./ci-change-plan.mjs";
 
 function expectOnly(plan, enabled) {
   const deploymentKeys = [
@@ -60,6 +63,39 @@ test("Mobile changes run only affected workspace checks and mobile deployment", 
   assert.equal(plan.quality, true);
   assert.match(plan.workspaceFilters, /--filter=@gonggu\/mobile/);
   expectOnly(plan, ["mobile"]);
+});
+
+test("Mobile E2E impact includes every journey dependency", () => {
+  for (const file of [
+    ".github/workflows/mobile-ios-e2e.yml",
+    ".maestro/gon-263-critical-journeys.yaml",
+    ".maestro/gon-264-android-accessibility.yaml",
+    ".maestro/gon-229-notification-preferences.yaml",
+    "apps/mobile/src/App.tsx",
+    "packages/shared/src/index.ts",
+    "supabase/migrations/20260722000001_example.sql",
+    "scripts/run-gon263-android-e2e.sh",
+    "scripts/gon229-notification-contract.test.mjs",
+    "package-lock.json",
+  ]) {
+    assert.equal(
+      classifyChangedFiles([file]).mobileE2e,
+      true,
+      `${file} must run Mobile E2E`,
+    );
+  }
+
+  for (const file of [
+    ".github/workflows/ci.yml",
+    "apps/web/src/app/page.tsx",
+    "docs/branch-strategy.md",
+  ]) {
+    assert.equal(
+      classifyChangedFiles([file]).mobileE2e,
+      false,
+      `${file} must not run Mobile E2E`,
+    );
+  }
 });
 
 test("Database migrations run Supabase contracts without rebuilding apps", () => {
@@ -128,6 +164,48 @@ test("Workflow-only changes run policy checks without dependency review", () => 
   expectOnly(plan, []);
 });
 
+test("Vercel Web builds only when its workspace is affected", () => {
+  assert.equal(
+    shouldBuildVercelProject(
+      classifyChangedFiles([".github/workflows/ci.yml"]),
+      "web",
+    ),
+    false,
+  );
+
+  for (const file of [
+    "apps/web/app/page.tsx",
+    "packages/ui-web/src/index.ts",
+    "packages/shared/src/index.ts",
+    "package-lock.json",
+  ]) {
+    assert.equal(
+      shouldBuildVercelProject(classifyChangedFiles([file]), "web"),
+      true,
+      `${file} must build the Vercel Web project`,
+    );
+  }
+});
+
+test("explicit Production recovery conservatively revalidates every component", () => {
+  const plan = classifyChangedFiles([".github/workflows/ci.yml"], {
+    productionRecovery: true,
+  });
+
+  assert.equal(plan.quality, true);
+  assert.equal(plan.edgeTests, true);
+  assert.equal(plan.localSupabase, true);
+  assert.equal(plan.workerTests, true);
+  expectOnly(plan, [
+    "supabase",
+    "database",
+    "functions",
+    "worker",
+    "admin",
+    "mobile",
+  ]);
+});
+
 test("Unknown paths fail safe by selecting every component", () => {
   const plan = classifyChangedFiles(["new-runtime/entrypoint.ts"]);
 
@@ -183,10 +261,7 @@ test("Preview Green accepts only Vercel bot statuses for the Admin Preview", () 
 
   assert.doesNotMatch(workflow, /--arg owner "\$GITHUB_REPOSITORY_OWNER"/);
   assert.match(workflow, /\.creator\.login == "vercel\[bot\]"/);
-  assert.match(
-    workflow,
-    /\.environment == "Preview – gong-gu-wish-admin"/,
-  );
+  assert.match(workflow, /\.environment == "Preview – gong-gu-wish-admin"/);
   assert.match(
     workflow,
     /test\("\^https:\/\/gong-gu-wish-admin-\[a-z0-9-\]\+-jsy10835\\\\\.vercel\\\\\.app\/\?\$"\)/,

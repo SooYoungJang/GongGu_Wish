@@ -63,13 +63,8 @@ function missingCredentialGuard(jobId, firstVariable, secondVariable) {
   return body.slice(start, end);
 }
 
-test("missing Preview or Production deployment credentials fail closed", () => {
+test("missing Production deployment credentials fail closed", () => {
   const guards = [
-    missingCredentialGuard(
-      "supabase-db",
-      "SUPABASE_ACCESS_TOKEN",
-      "SUPABASE_DB_PASSWORD",
-    ),
     missingCredentialGuard(
       "deploy-worker",
       "CLOUDFLARE_API_TOKEN",
@@ -102,37 +97,18 @@ test("runtime clients never fall back to the Production Supabase project", () =>
   }
 });
 
-test("the Production Supabase deployment syncs HIKER_API_KEY before hiker-lookup", () => {
-  const functionsJob = job("supabase-functions");
-  const syncIndex = functionsJob.indexOf(
-    'supabase secrets set HIKER_API_KEY="$HIKER_API_KEY"',
-  );
-  const deployIndex = functionsJob.indexOf(
-    "supabase functions deploy hiker-lookup",
-  );
-
-  assert.notEqual(
-    syncIndex,
-    -1,
-    "the normal branch deployment must sync the Hiker secret",
-  );
-  assert.notEqual(deployIndex, -1, "hiker-lookup must be deployed");
-  assert.ok(syncIndex < deployIndex, "the Hiker secret must be synced first");
-  assert.match(
-    functionsJob.slice(0, deployIndex),
-    /HIKER_API_KEY:\s*\$\{\{\s*secrets\.HIKER_API_KEY\s*\}\}/,
-  );
-  assert.match(functionsJob, /github\.ref == 'refs\/heads\/main'/);
-  assert.doesNotMatch(functionsJob, /refs\/heads\/develop/);
+test("hiker-lookup is declared for project-bound Git deployment", () => {
+  assert.match(supabaseConfig, /^\[functions\.hiker-lookup\]$/m);
+  assert.equal(existsSync("supabase/functions/hiker-lookup/index.ts"), true);
 });
 
 test("the Worker deploy waits for the branch-specific Supabase gate", () => {
   const workerJob = job("deploy-worker");
   const needs = workerJob.match(/^    needs:\s*\[([^\]]+)\]/m)?.[1] ?? "";
 
-  assert.match(needs, /supabase-functions/);
+  assert.match(needs, /supabase-production/);
   assert.match(needs, /supabase-preview/);
-  assert.match(workerJob, /needs\.supabase-functions\.result == 'success'/);
+  assert.match(workerJob, /needs\.supabase-production\.result == 'success'/);
   assert.match(workerJob, /needs\.supabase-preview\.result == 'success'/);
   assert.match(workerJob, /refs\/heads\/main/);
   assert.match(workerJob, /refs\/heads\/develop/);
@@ -177,10 +153,7 @@ test("develop publishes a green affected-components Preview release gate", () =>
   assert.match(releaseGate, /release-identity\.json/);
   assert.match(releaseGate, /xwblovggtvbpiusjfokq/);
   assert.match(releaseGate, /GITHUB_SHA/);
-  assert.match(
-    releaseGate,
-    /deployments\?sha=\$GITHUB_SHA&per_page=100/,
-  );
+  assert.match(releaseGate, /deployments\?sha=\$GITHUB_SHA&per_page=100/);
   assert.doesNotMatch(releaseGate, /environment=preview/);
   assert.match(releaseGate, /\.ref == \$sha/);
   assert.match(releaseGate, /\.gitRef == "develop"/);
@@ -257,6 +230,39 @@ test("main pull requests require the latest develop Preview-green SHA", () => {
   assert.match(promotionGate, /compare\//);
   assert.match(promotionGate, /\.status/);
   assert.match(promotionGate, /\.tree\.sha/);
+});
+
+test("follow-up promotions allow diverged history only when the merge tree is unchanged", () => {
+  const promotionGate = job("promotion-gate");
+  const compareIndex = promotionGate.indexOf("compare_status=");
+  const mergeTreeIndex = promotionGate.indexOf("merge_tree=");
+
+  assert.notEqual(compareIndex, -1);
+  assert.notEqual(mergeTreeIndex, -1);
+  assert.ok(compareIndex < mergeTreeIndex);
+  assert.match(promotionGate, /ahead\|identical\|diverged/);
+  assert.match(promotionGate, /merge_tree.*!=.*head_tree/);
+  assert.match(
+    promotionGate,
+    /tested PR merge tree differs from the Preview-green develop tree/,
+  );
+});
+
+test("promotion waits for the exact develop Preview Green without hiding failures", () => {
+  const promotionGate = job("promotion-gate");
+
+  assert.match(promotionGate, /timeout-minutes:\s*15/);
+  assert.match(promotionGate, /for attempt in \{1\.\.40\}/);
+  assert.match(promotionGate, /\.head_sha == \$sha/);
+  assert.match(promotionGate, /run_status.*== "completed"/);
+  assert.match(promotionGate, /preview_status.*== "completed"/);
+  assert.match(promotionGate, /preview_conclusion.*== "success"/);
+  assert.match(promotionGate, /\.name == "Preview Green"/);
+  assert.match(promotionGate, /sleep 15/);
+  assert.match(
+    promotionGate,
+    /develop workflow for .* concluded with .*Preview Green/,
+  );
 });
 
 test("every develop SHA runs a lightweight change plan and Preview gate", () => {
@@ -377,8 +383,7 @@ test("every needs context reference declares its job dependency", () => {
 });
 
 test("Production jobs use component-specific main promotion conditions", () => {
-  assert.match(job("supabase-db"), /outputs\.database == 'true'/);
-  assert.match(job("supabase-functions"), /outputs\.functions == 'true'/);
+  assert.match(job("supabase-production"), /outputs\.supabase == 'true'/);
   assert.match(job("deploy-worker"), /outputs\.worker == 'true'/);
   assert.match(job("deploy-mobile"), /outputs\.mobile == 'true'/);
 });
@@ -414,9 +419,7 @@ test("repository rules persist the solo-collaborator merge authorization model",
 test("manual Preview operations never trigger the full deployment pipeline", () => {
   for (const jobId of [
     "supabase-preview",
-    "supabase-db",
-    "rls-audit",
-    "supabase-functions",
+    "supabase-production",
     "deploy-worker",
     "deploy-mobile",
     "preview-release-gate",
@@ -443,8 +446,14 @@ test("manual Preview APK recovery is explicit, develop-only, and never targets P
   assert.match(recoveryJob, /FORCE_PREVIEW_APK:\s*"true"/);
   assert.match(recoveryJob, /ci-deploy-android\.sh/);
   assert.match(recoveryJob, /Require a local Preview APK result/);
-  assert.match(recoveryJob, /DEPLOY_MODE:\s*\$\{\{ steps\.mobile-build\.outputs\.mode \}\}/);
-  assert.match(recoveryJob, /APK_PATH:\s*\$\{\{ steps\.mobile-build\.outputs\.apk-path \}\}/);
+  assert.match(
+    recoveryJob,
+    /DEPLOY_MODE:\s*\$\{\{ steps\.mobile-build\.outputs\.mode \}\}/,
+  );
+  assert.match(
+    recoveryJob,
+    /APK_PATH:\s*\$\{\{ steps\.mobile-build\.outputs\.apk-path \}\}/,
+  );
   assert.equal(
     recoveryJob.match(/git\/ref\/heads\/develop/g)?.length,
     2,
@@ -454,7 +463,10 @@ test("manual Preview APK recovery is explicit, develop-only, and never targets P
   assert.doesNotMatch(recoveryJob, /refs\/heads\/main/);
   assert.doesNotMatch(recoveryJob, /environment:\s*production/);
   assert.match(mobileDeployScript, /FORCE_PREVIEW_APK must be true or false/);
-  assert.match(mobileDeployScript, /FORCE_PREVIEW_APK is restricted to the Preview environment/);
+  assert.match(
+    mobileDeployScript,
+    /FORCE_PREVIEW_APK is restricted to the Preview environment/,
+  );
 });
 
 test("Admin deployments publish an exact environment and commit identity", () => {
@@ -472,14 +484,31 @@ test("Admin deployments publish an exact environment and commit identity", () =>
   assert.match(adminIgnoreCommand, /--vercel-admin/);
 });
 
-test("Preview deployment credentials are denied Production targets", () => {
-  const supabaseJob = job("supabase-db");
+test("Vercel Web skips builds when its workspace is unaffected", () => {
+  const webVercelPath = "apps/web/vercel.json";
+
+  assert.equal(existsSync(webVercelPath), true, "Web needs a Vercel config");
+  const webVercelConfig = JSON.parse(readFileSync(webVercelPath, "utf8"));
+  assert.equal(
+    webVercelConfig.ignoreCommand,
+    "node ../../scripts/ci-change-plan.mjs --vercel-web",
+  );
+  assert.match(ciChangePlanSource, /--vercel-web/);
+  assert.match(ciChangePlanSource, /shouldBuildVercelProject/);
+});
+
+test("project-bound Supabase deployments are isolated by exact project URL", () => {
+  const previewIntegration = job("supabase-preview");
+  const productionIntegration = job("supabase-production");
   const workerJob = job("deploy-worker");
   const credentialAudit = job("audit-preview-credentials");
 
-  assert.match(supabaseJob, /api\.supabase\.com\/v1\/projects/);
-  assert.match(supabaseJob, /iosdoheblabfimkjnvfj/);
-  assert.match(supabaseJob, /forbidden.*opposite-tier project/is);
+  assert.match(previewIntegration, /xwblovggtvbpiusjfokq/);
+  assert.doesNotMatch(previewIntegration, /iosdoheblabfimkjnvfj/);
+  assert.match(productionIntegration, /iosdoheblabfimkjnvfj/);
+  assert.doesNotMatch(productionIntegration, /xwblovggtvbpiusjfokq/);
+  assert.doesNotMatch(previewIntegration, /SUPABASE_ACCESS_TOKEN/);
+  assert.doesNotMatch(productionIntegration, /SUPABASE_ACCESS_TOKEN/);
   assert.doesNotMatch(workerJob, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
   assert.doesNotMatch(workerJob, /workers\/builds\/deploy_hooks/);
   assert.match(workerJob, /broad.*credential.*must not/is);
@@ -500,27 +529,6 @@ test("Preview deployment credentials are denied Production targets", () => {
   assert.doesNotMatch(credentialAudit, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
   assert.match(credentialAudit, /Preview-only Vercel deploy hook/);
   assert.match(credentialAudit, /VERCEL_PREVIEW_DEPLOY_HOOK_URL/);
-});
-
-test("Production Supabase credentials reject the Preview project", () => {
-  const body = job("supabase-db");
-
-  assert.doesNotMatch(
-    body,
-    /length == 1/,
-    "supabase-db must not reject harmless unrelated projects",
-  );
-  assert.match(
-    body,
-    /if ! jq[\s\S]*select\(\.ref == \$expected\)/,
-    "supabase-db must require access to its Production project",
-  );
-  assert.match(
-    body,
-    /if jq[\s\S]*select\(\.ref == \$forbidden\)/,
-    "supabase-db must independently reject the Preview project",
-  );
-  assert.match(body, /FORBIDDEN_PROJECT_REF: xwblovggtvbpiusjfokq/);
 });
 
 test("CI bundle-checks every Edge Function entrypoint", () => {
@@ -544,17 +552,11 @@ test("develop observes the project-bound Cloudflare Git build without retriggeri
 test("Preview release gate discovers the exact-SHA Vercel Admin deployment", () => {
   const releaseGate = job("preview-release-gate");
 
-  assert.match(
-    releaseGate,
-    /deployments\?sha=\$GITHUB_SHA&per_page=100/,
-  );
+  assert.match(releaseGate, /deployments\?sha=\$GITHUB_SHA&per_page=100/);
   assert.doesNotMatch(releaseGate, /environment=preview/);
   assert.match(releaseGate, /\.sha == \$sha/);
   assert.match(releaseGate, /\.ref == \$sha/);
-  assert.match(
-    releaseGate,
-    /\.environment == "Preview – gong-gu-wish-admin"/,
-  );
+  assert.match(releaseGate, /\.environment == "Preview – gong-gu-wish-admin"/);
   assert.match(releaseGate, /\.creator\.login == "vercel\[bot\]"/);
   assert.match(releaseGate, /\.state == "success"/);
   assert.match(releaseGate, /test\("\^https:\/\/gong-gu-wish-admin-/);
@@ -627,17 +629,12 @@ test("develop delegates Supabase deployment to the exact Preview integration", (
   assert.match(previewIntegration, /\.name == "Supabase Preview"/);
   assert.match(previewIntegration, /xwblovggtvbpiusjfokq/);
   assert.match(previewIntegration, /\.conclusion == "success"/);
+  assert.match(previewIntegration, /GH_TOKEN:\s*\$\{\{ github\.token \}\}/);
   assert.doesNotMatch(previewIntegration, /SUPABASE_ACCESS_TOKEN/);
 
-  for (const productionJob of [
-    "supabase-db",
-    "rls-audit",
-    "supabase-functions",
-  ]) {
-    const body = job(productionJob);
-    assert.match(body, /github\.ref == 'refs\/heads\/main'/);
-    assert.doesNotMatch(body, /refs\/heads\/develop/);
-  }
+  const productionIntegration = job("supabase-production");
+  assert.match(productionIntegration, /github\.ref == 'refs\/heads\/main'/);
+  assert.doesNotMatch(productionIntegration, /refs\/heads\/develop/);
 
   for (const consumer of [
     "deploy-worker",
@@ -646,4 +643,76 @@ test("develop delegates Supabase deployment to the exact Preview integration", (
   ]) {
     assert.match(job(consumer), /supabase-preview/);
   }
+});
+
+test("Production delegates Supabase deployment to the exact project integration", () => {
+  const productionIntegration = job("supabase-production");
+
+  assert.match(productionIntegration, /environment:\s*production/);
+  assert.match(productionIntegration, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(productionIntegration, /outputs\.supabase == 'true'/);
+  assert.match(productionIntegration, /commits\/\$GITHUB_SHA\/check-runs/);
+  assert.match(productionIntegration, /\.head_sha == \$sha/);
+  assert.match(productionIntegration, /\.app\.slug == "supabase"/);
+  assert.match(productionIntegration, /\.name == "Supabase Preview"/);
+  assert.match(productionIntegration, /iosdoheblabfimkjnvfj/);
+  assert.match(productionIntegration, /\.conclusion == "success"/);
+  assert.equal(
+    productionIntegration.match(/GH_TOKEN:\s*\$\{\{ github\.token \}\}/g)
+      ?.length,
+    2,
+    "Production check and recovery guard both require GitHub API auth",
+  );
+
+  for (const forbidden of [
+    /SUPABASE_ACCESS_TOKEN/,
+    /SUPABASE_DB_PASSWORD/,
+    /supabase\/setup-cli/,
+    /supabase link/,
+    /supabase db push/,
+    /supabase functions deploy/,
+    /supabase secrets set/,
+  ]) {
+    assert.doesNotMatch(productionIntegration, forbidden);
+  }
+
+  for (const removedJob of ["supabase-db", "rls-audit", "supabase-functions"]) {
+    assert.doesNotMatch(workflow, new RegExp(`^  ${removedJob}:`, "m"));
+  }
+
+  for (const consumer of ["deploy-worker", "deploy-mobile"]) {
+    const body = job(consumer);
+    assert.match(body, /supabase-production/);
+    assert.match(body, /needs\.supabase-production\.result == 'success'/);
+  }
+});
+
+test("Production recovery is explicit, main-only, and reuses every deployment gate", () => {
+  assert.match(
+    workflow,
+    /confirm_production_recovery:[\s\S]*type:\s*boolean[\s\S]*default:\s*false/,
+  );
+
+  const changePlan = job("change-plan");
+  assert.match(changePlan, /--production-recovery/);
+  assert.match(changePlan, /inputs\.confirm_production_recovery/);
+  assert.match(changePlan, /github\.ref == 'refs\/heads\/main'/);
+
+  for (const jobId of [
+    "supabase-production",
+    "deploy-worker",
+    "deploy-mobile",
+  ]) {
+    const body = job(jobId);
+    assert.match(body, /github\.event_name == 'workflow_dispatch'/);
+    assert.match(body, /inputs\.confirm_production_recovery == true/);
+    assert.match(body, /git\/ref\/heads\/main/);
+    assert.match(body, /GITHUB_SHA/);
+  }
+
+  assert.doesNotMatch(job("supabase-preview"), /confirm_production_recovery/);
+  assert.doesNotMatch(
+    job("preview-release-gate"),
+    /confirm_production_recovery/,
+  );
 });

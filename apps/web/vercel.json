@@ -1,0 +1,3 @@
+{
+  "ignoreCommand": "node ../../scripts/ci-change-plan.mjs --vercel-web"
+}
