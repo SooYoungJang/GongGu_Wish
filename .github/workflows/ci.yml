@@ -797,7 +797,7 @@ jobs:
         run: bash scripts/ci-deploy-android.sh
       - name: Upload local APK artifact
         id: upload-apk
-        if: steps.mobile-deploy.outputs.mode == 'build'
+        if: ${{ always() && steps.mobile-deploy.outputs.mode == 'build' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.mobile-deploy.outputs.artifact-name }}
