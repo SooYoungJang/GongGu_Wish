@@ -29,6 +29,7 @@ function createPlan() {
     worker: false,
     admin: false,
     mobile: false,
+    mobileE2e: false,
     workspaceFilters: "",
     workspaceTestFilters: "",
   };
@@ -53,7 +54,30 @@ function isDependencyFile(path) {
   );
 }
 
-export function classifyChangedFiles(inputFiles) {
+function isMobileE2eFile(path) {
+  return (
+    path === ".github/workflows/mobile-ios-e2e.yml" ||
+    /^\.maestro\/gon-(?:229|263|264)-.*\.yaml$/.test(path) ||
+    path.startsWith("apps/mobile/") ||
+    path.startsWith("packages/shared/") ||
+    path.startsWith("supabase/") ||
+    path === "scripts/build-gon263-android-e2e.sh" ||
+    path === "scripts/generate-gon263-android-codegen.mjs" ||
+    path === "scripts/gon263-android-e2e-config.test.mjs" ||
+    path === "scripts/gon229-notification-contract.test.mjs" ||
+    /^scripts\/mobile-e2e-api-server.*\.mjs$/.test(path) ||
+    path === "scripts/run-gon263-android-e2e.sh" ||
+    path === "scripts/run-gon264-android-accessibility.sh" ||
+    path === "scripts/run-gon229-android-notifications.sh" ||
+    path === "package.json" ||
+    path === "package-lock.json"
+  );
+}
+
+export function classifyChangedFiles(
+  inputFiles,
+  { productionRecovery = false } = {},
+) {
   const files = inputFiles
     .map((file) => file.trim().replaceAll("\\", "/"))
     .filter(Boolean);
@@ -78,9 +102,10 @@ export function classifyChangedFiles(inputFiles) {
     plan.worker = true;
     plan.admin = true;
     plan.mobile = true;
+    plan.mobileE2e = true;
   };
 
-  if (files.length === 0) {
+  if (productionRecovery || files.length === 0) {
     selectEveryComponent();
   } else {
     plan.docsOnly = files.every(isDocumentation);
@@ -88,6 +113,7 @@ export function classifyChangedFiles(inputFiles) {
     for (const path of files) {
       if (isDocumentation(path)) continue;
       if (isDependencyFile(path)) plan.dependencyReview = true;
+      if (isMobileE2eFile(path)) plan.mobileE2e = true;
 
       if (
         path.startsWith(".github/") ||
@@ -213,24 +239,73 @@ function toOutputs(plan) {
     worker: plan.worker,
     admin: plan.admin,
     mobile: plan.mobile,
+    mobile_e2e: plan.mobileE2e,
     workspace_filters: plan.workspaceFilters,
     workspace_test_filters: plan.workspaceTestFilters,
   };
 }
 
-function readVercelAdminFiles() {
+export function shouldBuildVercelProject(plan, project) {
+  if (project === "admin") return plan.admin;
+  if (project === "web") {
+    return plan.workspaceFilters.split(/\s+/).includes("--filter=@gonggu/web");
+  }
+  throw new Error(`Unknown Vercel project: ${project}`);
+}
+
+function isTreeIdenticalMerge(currentSha) {
+  if (!/^[0-9a-f]{40}$/i.test(currentSha)) {
+    throw new Error("The Vercel commit SHA is not an exact Git commit SHA.");
+  }
+
+  const commitLine = execFileSync(
+    "git",
+    ["rev-list", "--parents", "-n", "1", currentSha],
+    { encoding: "utf8" },
+  ).trim();
+  const [resolvedSha, firstParent, secondParent] = commitLine.split(/\s+/);
+
+  if (!resolvedSha || resolvedSha.toLowerCase() !== currentSha.toLowerCase()) {
+    throw new Error("Unable to resolve the exact Vercel commit.");
+  }
+  if (!secondParent) return false;
+
+  const trees = execFileSync(
+    "git",
+    ["rev-parse", `${currentSha}^{tree}`, `${firstParent}^{tree}`],
+    { encoding: "utf8" },
+  )
+    .trim()
+    .split(/\r?\n/);
+  if (trees.length !== 2 || trees.some((tree) => !/^[0-9a-f]{40}$/i.test(tree))) {
+    throw new Error("Unable to resolve the Vercel merge trees.");
+  }
+
+  return trees[0].toLowerCase() === trees[1].toLowerCase();
+}
+
+function readVercelFiles(project) {
   const previousSha = process.env.VERCEL_GIT_PREVIOUS_SHA;
   const currentSha = process.env.VERCEL_GIT_COMMIT_SHA || "HEAD";
+  const projectLabel = project === "admin" ? "Admin" : "Web";
 
   if (!previousSha) {
     process.stdout.write(
-      "No previous successful Vercel SHA is available; building Admin fail-safe.\n",
+      `No previous successful Vercel SHA is available; building ${projectLabel} fail-safe.\n`,
     );
     process.exitCode = 1;
     return null;
   }
 
   try {
+    if (project === "admin" && isTreeIdenticalMerge(currentSha)) {
+      process.stdout.write(
+        "Tree-identical merge detected; building Admin fail-safe.\n",
+      );
+      process.exitCode = 1;
+      return null;
+    }
+
     return execFileSync(
       "git",
       ["diff", "--no-renames", "--name-only", previousSha, currentSha],
@@ -238,7 +313,7 @@ function readVercelAdminFiles() {
     ).split(/\r?\n/);
   } catch {
     process.stderr.write(
-      "Unable to compare Vercel SHAs; building Admin fail-safe.\n",
+      `Unable to compare Vercel SHAs; building ${projectLabel} fail-safe.\n`,
     );
     process.exitCode = 1;
     return null;
@@ -251,19 +326,26 @@ function runCli() {
   const outputIndex = args.indexOf("--github-output");
   const exitIndex = args.indexOf("--exit-for");
   const vercelAdmin = args.includes("--vercel-admin");
+  const vercelWeb = args.includes("--vercel-web");
+  const vercelProject = vercelAdmin ? "admin" : vercelWeb ? "web" : null;
+  const productionRecovery = args.includes("--production-recovery");
 
-  if (!vercelAdmin && (filesIndex === -1 || !args[filesIndex + 1])) {
+  if (vercelAdmin && vercelWeb) {
+    throw new Error("Choose exactly one Vercel project.");
+  }
+
+  if (!vercelProject && (filesIndex === -1 || !args[filesIndex + 1])) {
     throw new Error(
-      "Usage: node scripts/ci-change-plan.mjs (--files <path> [--github-output <path>] | --vercel-admin)",
+      "Usage: node scripts/ci-change-plan.mjs (--files <path> [--github-output <path>] | --vercel-admin | --vercel-web)",
     );
   }
 
-  const files = vercelAdmin
-    ? readVercelAdminFiles()
+  const files = vercelProject
+    ? readVercelFiles(vercelProject)
     : readFileSync(args[filesIndex + 1], "utf8").split(/\r?\n/);
   if (!files) return;
 
-  const plan = classifyChangedFiles(files);
+  const plan = classifyChangedFiles(files, { productionRecovery });
   const outputs = toOutputs(plan);
 
   if (outputIndex !== -1 && args[outputIndex + 1]) {
@@ -277,9 +359,12 @@ function runCli() {
     `${JSON.stringify({ files: files.filter(Boolean), ...outputs }, null, 2)}\n`,
   );
 
-  let component;
-  if (vercelAdmin) component = "admin";
-  else if (exitIndex !== -1) component = args[exitIndex + 1];
+  if (vercelProject) {
+    process.exitCode = shouldBuildVercelProject(plan, vercelProject) ? 1 : 0;
+    return;
+  }
+
+  const component = exitIndex !== -1 ? args[exitIndex + 1] : null;
   if (component) {
     if (!(component in plan)) {
       throw new Error(`Unknown component for --exit-for: ${component}`);
