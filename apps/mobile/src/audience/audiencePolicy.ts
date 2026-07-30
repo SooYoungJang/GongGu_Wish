@@ -8,9 +8,9 @@ export type AudiencePolicy = {
   canRecordBehaviorSignals: boolean;
 };
 
-const BLOCKED_POLICY: AudiencePolicy = {
+const RESTRICTED_BROWSE_POLICY: AudiencePolicy = {
   resolved: false,
-  canUseApp: false,
+  canUseApp: true,
   canAuthenticate: false,
   canRequestAds: false,
   canRecordBehaviorSignals: false,
@@ -24,16 +24,9 @@ export function parseStoredAgeBand(value: string | null): AgeBand | null {
 }
 
 export function resolveAudiencePolicy(ageBand: AgeBand | null): AudiencePolicy {
-  if (ageBand === null) return BLOCKED_POLICY;
-  if (ageBand === "under13") {
-    return { ...BLOCKED_POLICY, resolved: true };
-  }
-  if (ageBand === "age13") {
-    return {
-      ...BLOCKED_POLICY,
-      resolved: true,
-      canUseApp: true,
-    };
+  if (ageBand === null) return RESTRICTED_BROWSE_POLICY;
+  if (ageBand === "under13" || ageBand === "age13") {
+    return { ...RESTRICTED_BROWSE_POLICY, resolved: true };
   }
   return {
     resolved: true,

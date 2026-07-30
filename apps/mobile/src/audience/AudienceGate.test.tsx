@@ -26,7 +26,7 @@ describe("AudienceGate", () => {
     storage.removeItem.mockReset().mockResolvedValue(undefined);
   });
 
-  it("shows a neutral first-run age-band choice and enters age-13 browse mode", async () => {
+  it("opens public content on first run without asking for an age band", async () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
@@ -40,27 +40,14 @@ describe("AudienceGate", () => {
       await Promise.resolve();
     });
 
-    expect(
-      renderer.root.findByProps({ testID: "age-selection-screen" }),
-    ).toBeTruthy();
-    expect(
-      renderer.root.findAllByProps({ testID: "app-content" }),
-    ).toHaveLength(0);
-
-    await act(async () => {
-      renderer.root.findByProps({ testID: "age-option-age13" }).props.onPress();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(storage.setItem).toHaveBeenCalledWith(
-      "@gonggu/audience/age-band/v1",
-      "age13",
-    );
     expect(renderer.root.findByProps({ testID: "app-content" })).toBeTruthy();
+    expect(
+      renderer.root.findAllByProps({ testID: "age-selection-screen" }),
+    ).toHaveLength(0);
+    expect(storage.setItem).not.toHaveBeenCalled();
   });
 
-  it("blocks under-13 users and lets them correct the selection", async () => {
+  it("keeps legacy under-13 selections in restricted public browse mode", async () => {
     storage.getItem.mockResolvedValueOnce("under13");
     let renderer!: TestRenderer.ReactTestRenderer;
 
@@ -76,24 +63,10 @@ describe("AudienceGate", () => {
       await Promise.resolve();
     });
 
+    expect(renderer.root.findByProps({ testID: "app-content" })).toBeTruthy();
     expect(
-      renderer.root.findByProps({ testID: "under13-blocked-screen" }),
-    ).toBeTruthy();
-    expect(
-      renderer.root.findAllByProps({ testID: "app-content" }),
+      renderer.root.findAllByProps({ testID: "under13-blocked-screen" }),
     ).toHaveLength(0);
-
-    await act(async () => {
-      renderer.root
-        .findByProps({ testID: "change-age-selection" })
-        .props.onPress();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(storage.removeItem).toHaveBeenCalled();
-    expect(
-      renderer.root.findByProps({ testID: "age-selection-screen" }),
-    ).toBeTruthy();
+    expect(storage.removeItem).not.toHaveBeenCalled();
   });
 });
