@@ -43,7 +43,7 @@
     "e2e:dashboard": "node e2e-dashboard/server.mjs"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "eslint": "^9.39.5",
     "husky": "^9.1.7",
     "prettier": "^3.4.2",
