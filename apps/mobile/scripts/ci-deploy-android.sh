@@ -65,6 +65,7 @@ NODE
   trap 'rm -f "$google_services_path"' EXIT
 
   EAS_ENV_READY=true \
+    APP_VARIANT="$environment" \
     FORCE_PREVIEW_APK="$force_preview_apk" \
     GOOGLE_SERVICES_JSON="$google_services_path" \
     eas env:exec "$environment" \
