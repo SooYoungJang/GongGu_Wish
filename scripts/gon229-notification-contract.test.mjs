@@ -102,6 +102,10 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(preferencesFlow, /id: "auth-login-submit"/);
   assert.match(
     preferencesFlow,
+    /id: "auth-login-submit"[\s\S]*?text: "마이페이지"[\s\S]*?text: "설정 열기"[\s\S]*?text: "알림 설정"[\s\S]*?id: "submission-approval-notification-toggle"/,
+  );
+  assert.match(
+    preferencesFlow,
     /assertNotVisible:[\s\S]*?id: "deadline-notification-toggle"/,
   );
   assert.doesNotMatch(
