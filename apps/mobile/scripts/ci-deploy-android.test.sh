@@ -40,6 +40,10 @@ case "$command_name" in
   env:exec)
     environment_name="${1:?environment is required}"
     command_string="${2:?command is required}"
+    if [[ "${APP_VARIANT:-}" != "$environment_name" ]]; then
+      echo "APP_VARIANT must be set before eas env:exec evaluates app config" >&2
+      exit 1
+    fi
     export APP_VARIANT="$environment_name"
     export EXPO_PUBLIC_API_PROXY_URL="https://api.example.test"
     export EXPO_PUBLIC_SUPABASE_ANON_KEY="test-anon-key"

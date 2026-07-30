@@ -253,6 +253,37 @@ export function shouldBuildVercelProject(plan, project) {
   throw new Error(`Unknown Vercel project: ${project}`);
 }
 
+function isTreeIdenticalMerge(currentSha) {
+  if (!/^[0-9a-f]{40}$/i.test(currentSha)) {
+    throw new Error("The Vercel commit SHA is not an exact Git commit SHA.");
+  }
+
+  const commitLine = execFileSync(
+    "git",
+    ["rev-list", "--parents", "-n", "1", currentSha],
+    { encoding: "utf8" },
+  ).trim();
+  const [resolvedSha, firstParent, secondParent] = commitLine.split(/\s+/);
+
+  if (!resolvedSha || resolvedSha.toLowerCase() !== currentSha.toLowerCase()) {
+    throw new Error("Unable to resolve the exact Vercel commit.");
+  }
+  if (!secondParent) return false;
+
+  const trees = execFileSync(
+    "git",
+    ["rev-parse", `${currentSha}^{tree}`, `${firstParent}^{tree}`],
+    { encoding: "utf8" },
+  )
+    .trim()
+    .split(/\r?\n/);
+  if (trees.length !== 2 || trees.some((tree) => !/^[0-9a-f]{40}$/i.test(tree))) {
+    throw new Error("Unable to resolve the Vercel merge trees.");
+  }
+
+  return trees[0].toLowerCase() === trees[1].toLowerCase();
+}
+
 function readVercelFiles(project) {
   const previousSha = process.env.VERCEL_GIT_PREVIOUS_SHA;
   const currentSha = process.env.VERCEL_GIT_COMMIT_SHA || "HEAD";
@@ -267,6 +298,14 @@ function readVercelFiles(project) {
   }
 
   try {
+    if (project === "admin" && isTreeIdenticalMerge(currentSha)) {
+      process.stdout.write(
+        "Tree-identical merge detected; building Admin fail-safe.\n",
+      );
+      process.exitCode = 1;
+      return null;
+    }
+
     return execFileSync(
       "git",
       ["diff", "--no-renames", "--name-only", previousSha, currentSha],
