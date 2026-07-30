@@ -1,11 +1,33 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   classifyChangedFiles,
   shouldBuildVercelProject,
 } from "./ci-change-plan.mjs";
+
+const changePlanCli = fileURLToPath(
+  new URL("./ci-change-plan.mjs", import.meta.url),
+);
+
+function git(cwd, ...args) {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
 
 function expectOnly(plan, enabled) {
   const deploymentKeys = [
@@ -236,6 +258,156 @@ test("An empty push fails safe by selecting every component", () => {
     "admin",
     "mobile",
   ]);
+});
+
+test("tree-identical merge commits force exact-SHA Vercel builds", () => {
+  const repository = mkdtempSync(join(tmpdir(), "gonggu-ci-plan-"));
+
+  try {
+    git(repository, "init", "-b", "main");
+    git(repository, "config", "user.email", "ci@example.test");
+    git(repository, "config", "user.name", "CI Test");
+    git(repository, "config", "commit.gpgsign", "false");
+
+    writeFileSync(join(repository, "README.md"), "baseline\n");
+    git(repository, "add", "README.md");
+    git(repository, "commit", "-m", "baseline");
+    const previousSha = git(repository, "rev-parse", "HEAD");
+
+    mkdirSync(join(repository, "scripts"));
+    writeFileSync(join(repository, "scripts", "ci-policy.mjs"), "export {};\n");
+    git(repository, "add", "scripts/ci-policy.mjs");
+    git(repository, "commit", "-m", "ci-only change");
+    const nonMergeSha = git(repository, "rev-parse", "HEAD");
+
+    git(repository, "checkout", "-b", "metadata-merge");
+    git(repository, "commit", "--allow-empty", "-m", "metadata only");
+    git(repository, "checkout", "main");
+    git(repository, "merge", "--no-ff", "metadata-merge", "-m", "merge metadata");
+    const mergeSha = git(repository, "rev-parse", "HEAD");
+
+    git(repository, "checkout", "-b", "changed-merge");
+    writeFileSync(
+      join(repository, "scripts", "merge-policy.mjs"),
+      "export {};\n",
+    );
+    git(repository, "add", "scripts/merge-policy.mjs");
+    git(repository, "commit", "-m", "merge-only CI change");
+    git(repository, "checkout", "main");
+    git(repository, "merge", "--no-ff", "changed-merge", "-m", "merge CI change");
+    const changedMergeSha = git(repository, "rev-parse", "HEAD");
+
+    for (const projectFlag of ["--vercel-admin", "--vercel-web"]) {
+      const normal = spawnSync(process.execPath, [changePlanCli, projectFlag], {
+        cwd: repository,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          VERCEL_GIT_PREVIOUS_SHA: previousSha,
+          VERCEL_GIT_COMMIT_SHA: nonMergeSha,
+        },
+      });
+      assert.equal(normal.status, 0, `${projectFlag} should skip a CI-only commit`);
+
+      const merge = spawnSync(process.execPath, [changePlanCli, projectFlag], {
+        cwd: repository,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          VERCEL_GIT_PREVIOUS_SHA: previousSha,
+          VERCEL_GIT_COMMIT_SHA: mergeSha,
+        },
+      });
+      if (projectFlag === "--vercel-admin") {
+        assert.equal(
+          merge.status,
+          1,
+          "Admin must build a tree-identical merge commit",
+        );
+        assert.match(merge.stdout, /tree-identical merge/i);
+      } else {
+        assert.equal(
+          merge.status,
+          0,
+          "Web keeps using its changed-file classification",
+        );
+      }
+    }
+
+    const changedMerge = spawnSync(
+      process.execPath,
+      [changePlanCli, "--vercel-admin"],
+      {
+        cwd: repository,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          VERCEL_GIT_PREVIOUS_SHA: previousSha,
+          VERCEL_GIT_COMMIT_SHA: changedMergeSha,
+        },
+      },
+    );
+    assert.equal(
+      changedMerge.status,
+      0,
+      "a tree-changing CI-only merge keeps using changed-file classification",
+    );
+
+    const ordinaryEmptyDiff = spawnSync(
+      process.execPath,
+      [changePlanCli, "--vercel-admin"],
+      {
+        cwd: repository,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          VERCEL_GIT_PREVIOUS_SHA: nonMergeSha,
+          VERCEL_GIT_COMMIT_SHA: nonMergeSha,
+        },
+      },
+    );
+    assert.equal(
+      ordinaryEmptyDiff.status,
+      1,
+      "an ordinary empty diff still builds fail-safe",
+    );
+
+    const malformedSha = spawnSync(
+      process.execPath,
+      [changePlanCli, "--vercel-admin"],
+      {
+        cwd: repository,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          VERCEL_GIT_PREVIOUS_SHA: previousSha,
+          VERCEL_GIT_COMMIT_SHA: "not-a-commit-sha",
+        },
+      },
+    );
+    assert.equal(malformedSha.status, 1, "malformed SHAs must build fail-safe");
+
+    const missingObject = spawnSync(
+      process.execPath,
+      [changePlanCli, "--vercel-admin"],
+      {
+        cwd: repository,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          VERCEL_GIT_PREVIOUS_SHA: previousSha,
+          VERCEL_GIT_COMMIT_SHA: "f".repeat(40),
+        },
+      },
+    );
+    assert.equal(
+      missingObject.status,
+      1,
+      "missing exact-SHA Git objects must build fail-safe",
+    );
+  } finally {
+    rmSync(repository, { recursive: true, force: true });
+  }
 });
 
 test("Windows policy workarounds remain actionable for future agents", () => {
