@@ -65,6 +65,39 @@ test("Mobile changes run only affected workspace checks and mobile deployment", 
   expectOnly(plan, ["mobile"]);
 });
 
+test("Mobile E2E impact includes every journey dependency", () => {
+  for (const file of [
+    ".github/workflows/mobile-ios-e2e.yml",
+    ".maestro/gon-263-critical-journeys.yaml",
+    ".maestro/gon-264-android-accessibility.yaml",
+    ".maestro/gon-229-notification-preferences.yaml",
+    "apps/mobile/src/App.tsx",
+    "packages/shared/src/index.ts",
+    "supabase/migrations/20260722000001_example.sql",
+    "scripts/run-gon263-android-e2e.sh",
+    "scripts/gon229-notification-contract.test.mjs",
+    "package-lock.json",
+  ]) {
+    assert.equal(
+      classifyChangedFiles([file]).mobileE2e,
+      true,
+      `${file} must run Mobile E2E`,
+    );
+  }
+
+  for (const file of [
+    ".github/workflows/ci.yml",
+    "apps/web/src/app/page.tsx",
+    "docs/branch-strategy.md",
+  ]) {
+    assert.equal(
+      classifyChangedFiles([file]).mobileE2e,
+      false,
+      `${file} must not run Mobile E2E`,
+    );
+  }
+});
+
 test("Database migrations run Supabase contracts without rebuilding apps", () => {
   const plan = classifyChangedFiles([
     "supabase/migrations/20260722000001_example.sql",

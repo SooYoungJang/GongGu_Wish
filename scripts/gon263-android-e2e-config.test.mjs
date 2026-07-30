@@ -6,6 +6,23 @@ import test from "node:test";
 const read = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 const require = createRequire(import.meta.url);
 
+test("the required Android check exists for every main PR without running unaffected journeys", () => {
+  const workflow = read(".github/workflows/mobile-ios-e2e.yml");
+  const pullRequestTrigger = workflow.slice(
+    workflow.indexOf("  pull_request:\n"),
+    workflow.indexOf("  workflow_dispatch:\n"),
+  );
+
+  assert.match(pullRequestTrigger, /branches:\s*\[main\]/);
+  assert.doesNotMatch(pullRequestTrigger, /\n\s+paths:/);
+  assert.match(workflow, /^  mobile-e2e-plan:$/m);
+  assert.match(workflow, /node scripts\/ci-change-plan\.mjs/);
+  assert.match(workflow, /outputs\.mobile_e2e/);
+  assert.match(workflow, /name:\s*GON-263 Android journeys/);
+  assert.match(workflow, /needs\.mobile-e2e-plan\.result != 'success'/);
+  assert.match(workflow, /Require successful Mobile E2E change plan/);
+});
+
 test("Android E2E verifies localhost origins through the app journeys", () => {
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
   const seed = read("supabase/seed.sql");

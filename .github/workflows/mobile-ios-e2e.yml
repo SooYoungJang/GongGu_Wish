@@ -3,23 +3,6 @@ name: Mobile E2E
 on:
   pull_request:
     branches: [main]
-    paths:
-      - ".github/workflows/mobile-ios-e2e.yml"
-      - ".maestro/gon-263-*.yaml"
-      - ".maestro/gon-264-*.yaml"
-      - ".maestro/gon-229-*.yaml"
-      - "apps/mobile/**"
-      - "packages/shared/**"
-      - "supabase/**"
-      - "scripts/build-gon263-android-e2e.sh"
-      - "scripts/gon263-android-e2e-config.test.mjs"
-      - "scripts/gon229-notification-contract.test.mjs"
-      - "scripts/mobile-e2e-api-server*.mjs"
-      - "scripts/run-gon263-android-e2e.sh"
-      - "scripts/run-gon264-android-accessibility.sh"
-      - "scripts/run-gon229-android-notifications.sh"
-      - "package.json"
-      - "package-lock.json"
   workflow_dispatch:
     inputs:
       ads_runtime_smoke:
@@ -36,8 +19,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  mobile-e2e-plan:
+    name: Mobile E2E Change Plan
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      affected: ${{ steps.plan.outputs.mobile_e2e }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify Mobile E2E impact
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          changed_files="$(mktemp)"
+          trap 'rm -f "$changed_files"' EXIT
+          git diff --no-renames --name-only "$BASE_SHA" "$HEAD_SHA" > "$changed_files"
+          node scripts/ci-change-plan.mjs \
+            --files "$changed_files" \
+            --github-output "$GITHUB_OUTPUT"
+
   gon-263-android:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.ads_runtime_smoke != true }}
+    needs: [mobile-e2e-plan]
+    if: ${{ always() && ((github.event_name == 'pull_request' && (needs.mobile-e2e-plan.result != 'success' || needs.mobile-e2e-plan.outputs.affected == 'true')) || (github.event_name == 'workflow_dispatch' && inputs.ads_runtime_smoke != true)) }}
     name: GON-263 Android journeys
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -50,6 +60,12 @@ jobs:
       ORG_GRADLE_PROJECT_reactNativeArchitectures: "x86_64"
 
     steps:
+      - name: Require successful Mobile E2E change plan
+        if: ${{ github.event_name == 'pull_request' && needs.mobile-e2e-plan.result != 'success' }}
+        run: |
+          echo "::error::Mobile E2E impact classification failed."
+          exit 1
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

@@ -29,6 +29,7 @@ function createPlan() {
     worker: false,
     admin: false,
     mobile: false,
+    mobileE2e: false,
     workspaceFilters: "",
     workspaceTestFilters: "",
   };
@@ -50,6 +51,26 @@ function isDependencyFile(path) {
     /(^|\/)(deno\.lock|requirements[^/]*\.txt|pyproject\.toml|uv\.lock)$/.test(
       path,
     )
+  );
+}
+
+function isMobileE2eFile(path) {
+  return (
+    path === ".github/workflows/mobile-ios-e2e.yml" ||
+    /^\.maestro\/gon-(?:229|263|264)-.*\.yaml$/.test(path) ||
+    path.startsWith("apps/mobile/") ||
+    path.startsWith("packages/shared/") ||
+    path.startsWith("supabase/") ||
+    path === "scripts/build-gon263-android-e2e.sh" ||
+    path === "scripts/generate-gon263-android-codegen.mjs" ||
+    path === "scripts/gon263-android-e2e-config.test.mjs" ||
+    path === "scripts/gon229-notification-contract.test.mjs" ||
+    /^scripts\/mobile-e2e-api-server.*\.mjs$/.test(path) ||
+    path === "scripts/run-gon263-android-e2e.sh" ||
+    path === "scripts/run-gon264-android-accessibility.sh" ||
+    path === "scripts/run-gon229-android-notifications.sh" ||
+    path === "package.json" ||
+    path === "package-lock.json"
   );
 }
 
@@ -81,6 +102,7 @@ export function classifyChangedFiles(
     plan.worker = true;
     plan.admin = true;
     plan.mobile = true;
+    plan.mobileE2e = true;
   };
 
   if (productionRecovery || files.length === 0) {
@@ -91,6 +113,7 @@ export function classifyChangedFiles(
     for (const path of files) {
       if (isDocumentation(path)) continue;
       if (isDependencyFile(path)) plan.dependencyReview = true;
+      if (isMobileE2eFile(path)) plan.mobileE2e = true;
 
       if (
         path.startsWith(".github/") ||
@@ -216,6 +239,7 @@ function toOutputs(plan) {
     worker: plan.worker,
     admin: plan.admin,
     mobile: plan.mobile,
+    mobile_e2e: plan.mobileE2e,
     workspace_filters: plan.workspaceFilters,
     workspace_test_filters: plan.workspaceTestFilters,
   };
