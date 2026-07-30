@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { classifyChangedFiles } from "./ci-change-plan.mjs";
+import {
+  classifyChangedFiles,
+  shouldBuildVercelProject,
+} from "./ci-change-plan.mjs";
 
 function expectOnly(plan, enabled) {
   const deploymentKeys = [
@@ -126,6 +129,29 @@ test("Workflow-only changes run policy checks without dependency review", () => 
   assert.equal(plan.quality, false);
   assert.equal(plan.test, false);
   expectOnly(plan, []);
+});
+
+test("Vercel Web builds only when its workspace is affected", () => {
+  assert.equal(
+    shouldBuildVercelProject(
+      classifyChangedFiles([".github/workflows/ci.yml"]),
+      "web",
+    ),
+    false,
+  );
+
+  for (const file of [
+    "apps/web/app/page.tsx",
+    "packages/ui-web/src/index.ts",
+    "packages/shared/src/index.ts",
+    "package-lock.json",
+  ]) {
+    assert.equal(
+      shouldBuildVercelProject(classifyChangedFiles([file]), "web"),
+      true,
+      `${file} must build the Vercel Web project`,
+    );
+  }
 });
 
 test("explicit Production recovery conservatively revalidates every component", () => {

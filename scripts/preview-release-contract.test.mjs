@@ -484,6 +484,19 @@ test("Admin deployments publish an exact environment and commit identity", () =>
   assert.match(adminIgnoreCommand, /--vercel-admin/);
 });
 
+test("Vercel Web skips builds when its workspace is unaffected", () => {
+  const webVercelPath = "apps/web/vercel.json";
+
+  assert.equal(existsSync(webVercelPath), true, "Web needs a Vercel config");
+  const webVercelConfig = JSON.parse(readFileSync(webVercelPath, "utf8"));
+  assert.equal(
+    webVercelConfig.ignoreCommand,
+    "node ../../scripts/ci-change-plan.mjs --vercel-web",
+  );
+  assert.match(ciChangePlanSource, /--vercel-web/);
+  assert.match(ciChangePlanSource, /shouldBuildVercelProject/);
+});
+
 test("project-bound Supabase deployments are isolated by exact project URL", () => {
   const previewIntegration = job("supabase-preview");
   const productionIntegration = job("supabase-production");

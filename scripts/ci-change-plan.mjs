@@ -221,13 +221,22 @@ function toOutputs(plan) {
   };
 }
 
-function readVercelAdminFiles() {
+export function shouldBuildVercelProject(plan, project) {
+  if (project === "admin") return plan.admin;
+  if (project === "web") {
+    return plan.workspaceFilters.split(/\s+/).includes("--filter=@gonggu/web");
+  }
+  throw new Error(`Unknown Vercel project: ${project}`);
+}
+
+function readVercelFiles(project) {
   const previousSha = process.env.VERCEL_GIT_PREVIOUS_SHA;
   const currentSha = process.env.VERCEL_GIT_COMMIT_SHA || "HEAD";
+  const projectLabel = project === "admin" ? "Admin" : "Web";
 
   if (!previousSha) {
     process.stdout.write(
-      "No previous successful Vercel SHA is available; building Admin fail-safe.\n",
+      `No previous successful Vercel SHA is available; building ${projectLabel} fail-safe.\n`,
     );
     process.exitCode = 1;
     return null;
@@ -241,7 +250,7 @@ function readVercelAdminFiles() {
     ).split(/\r?\n/);
   } catch {
     process.stderr.write(
-      "Unable to compare Vercel SHAs; building Admin fail-safe.\n",
+      `Unable to compare Vercel SHAs; building ${projectLabel} fail-safe.\n`,
     );
     process.exitCode = 1;
     return null;
@@ -254,16 +263,22 @@ function runCli() {
   const outputIndex = args.indexOf("--github-output");
   const exitIndex = args.indexOf("--exit-for");
   const vercelAdmin = args.includes("--vercel-admin");
+  const vercelWeb = args.includes("--vercel-web");
+  const vercelProject = vercelAdmin ? "admin" : vercelWeb ? "web" : null;
   const productionRecovery = args.includes("--production-recovery");
 
-  if (!vercelAdmin && (filesIndex === -1 || !args[filesIndex + 1])) {
+  if (vercelAdmin && vercelWeb) {
+    throw new Error("Choose exactly one Vercel project.");
+  }
+
+  if (!vercelProject && (filesIndex === -1 || !args[filesIndex + 1])) {
     throw new Error(
-      "Usage: node scripts/ci-change-plan.mjs (--files <path> [--github-output <path>] | --vercel-admin)",
+      "Usage: node scripts/ci-change-plan.mjs (--files <path> [--github-output <path>] | --vercel-admin | --vercel-web)",
     );
   }
 
-  const files = vercelAdmin
-    ? readVercelAdminFiles()
+  const files = vercelProject
+    ? readVercelFiles(vercelProject)
     : readFileSync(args[filesIndex + 1], "utf8").split(/\r?\n/);
   if (!files) return;
 
@@ -281,9 +296,12 @@ function runCli() {
     `${JSON.stringify({ files: files.filter(Boolean), ...outputs }, null, 2)}\n`,
   );
 
-  let component;
-  if (vercelAdmin) component = "admin";
-  else if (exitIndex !== -1) component = args[exitIndex + 1];
+  if (vercelProject) {
+    process.exitCode = shouldBuildVercelProject(plan, vercelProject) ? 1 : 0;
+    return;
+  }
+
+  const component = exitIndex !== -1 ? args[exitIndex + 1] : null;
   if (component) {
     if (!(component in plan)) {
       throw new Error(`Unknown component for --exit-for: ${component}`);
