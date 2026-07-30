@@ -53,7 +53,10 @@ function isDependencyFile(path) {
   );
 }
 
-export function classifyChangedFiles(inputFiles) {
+export function classifyChangedFiles(
+  inputFiles,
+  { productionRecovery = false } = {},
+) {
   const files = inputFiles
     .map((file) => file.trim().replaceAll("\\", "/"))
     .filter(Boolean);
@@ -80,7 +83,7 @@ export function classifyChangedFiles(inputFiles) {
     plan.mobile = true;
   };
 
-  if (files.length === 0) {
+  if (productionRecovery || files.length === 0) {
     selectEveryComponent();
   } else {
     plan.docsOnly = files.every(isDocumentation);
@@ -251,6 +254,7 @@ function runCli() {
   const outputIndex = args.indexOf("--github-output");
   const exitIndex = args.indexOf("--exit-for");
   const vercelAdmin = args.includes("--vercel-admin");
+  const productionRecovery = args.includes("--production-recovery");
 
   if (!vercelAdmin && (filesIndex === -1 || !args[filesIndex + 1])) {
     throw new Error(
@@ -263,7 +267,7 @@ function runCli() {
     : readFileSync(args[filesIndex + 1], "utf8").split(/\r?\n/);
   if (!files) return;
 
-  const plan = classifyChangedFiles(files);
+  const plan = classifyChangedFiles(files, { productionRecovery });
   const outputs = toOutputs(plan);
 
   if (outputIndex !== -1 && args[outputIndex + 1]) {
