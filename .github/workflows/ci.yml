@@ -1237,10 +1237,16 @@ jobs:
           fi
 
           compare_status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE_SHA...$HEAD_SHA" --jq '.status')"
-          if [[ "$compare_status" != "ahead" && "$compare_status" != "identical" ]]; then
-            echo "::error::main and develop have diverged ($compare_status); the Preview-green tree cannot be promoted unchanged."
-            exit 1
-          fi
+          # A completed develop-to-main promotion leaves a merge commit that is
+          # not in develop, so later promotions normally report "diverged".
+          # Content safety is enforced by the tested merge-tree equality below.
+          case "$compare_status" in
+            ahead|identical|diverged) ;;
+            *)
+              echo "::error::main and develop have an invalid promotion relationship ($compare_status)."
+              exit 1
+              ;;
+          esac
 
           head_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$HEAD_SHA" --jq '.tree.sha')"
           merge_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$MERGE_SHA" --jq '.tree.sha')"
