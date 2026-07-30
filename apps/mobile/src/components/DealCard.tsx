@@ -1,8 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
-import type { StyleProp, ViewStyle } from "react-native";
+import type {
+  GestureResponderEvent,
+  StyleProp,
+  ViewStyle,
+} from "react-native";
 import { PriceText } from "./ui/PriceText";
 import { SText } from "./ui/SText";
+import { InstagramIdentity } from "./ui/InstagramIdentity";
+import { GroupBuyReminderButton } from "./GroupBuyReminderButton";
 
 import { categoryColors, spacing } from "../design/tokens";
 import { commerceRadius, type CommerceColorPalette } from "../design/commerce";
@@ -11,12 +17,21 @@ import { formatPriceKrw } from "../utils/price";
 import { isGroupBuyExpired } from "../utils/groupBuyDates";
 import type { CategoryColorName } from "../design/tokens";
 import type { GroupBuy } from "../types";
+import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
 
 type DealCardProps = {
   item: GroupBuy;
   category: CategoryColorName;
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
+  trailingAction?: {
+    accessibilityHint?: string;
+    accessibilityLabel: string;
+    icon: ReactNode;
+    onPress: () => void;
+    selected?: boolean;
+    testID?: string;
+  };
 };
 
 const CATEGORY_LABELS: Record<CategoryColorName, string> = {
@@ -59,13 +74,10 @@ export function buildDealCardAccessibilityLabel(
 ) {
   const productName = item.productName?.trim() || "공동구매 상품";
   const price = formatPriceKrw(item.priceKrw) ?? "미정";
-  const sellerName = item.brandName?.trim();
-  const username = item.rawPost.influencer.instagramUsername
-    ?.trim()
-    .replace(/^@\s*/, "");
-  const seller =
-    [sellerName, username ? `@${username}` : null].filter(Boolean).join(" ") ||
-    "정보 미정";
+  const instagramHandle = formatInstagramHandle(
+    item.rawPost.influencer.instagramUsername,
+  );
+  const seller = instagramHandle || "정보 미정";
 
   return [
     productName,
@@ -76,7 +88,13 @@ export function buildDealCardAccessibilityLabel(
   ].join(", ");
 }
 
-export function DealCard({ item, category, onPress, style }: DealCardProps) {
+export function DealCard({
+  item,
+  category,
+  onPress,
+  style,
+  trailingAction,
+}: DealCardProps) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const token = categoryColors[category];
@@ -86,8 +104,10 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
     item.mediaUrls?.[0] ??
     null;
   const fallbackLabel = CATEGORY_LABELS[category];
-  const username = item.rawPost.influencer.instagramUsername?.trim();
-  const brandLabel = item.brandName?.trim() || fallbackLabel;
+  const handleTrailingActionPress = (event: GestureResponderEvent) => {
+    event.stopPropagation();
+    trailingAction?.onPress();
+  };
 
   return (
     <Pressable
@@ -114,6 +134,7 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
             </SText>
           </View>
         )}
+        <GroupBuyReminderButton item={item} style={s.reminderButton} />
         {item.discountInfo ? (
           <View style={s.saleBadge}>
             <SText variant="caption" style={s.saleBadgeText}>
@@ -127,13 +148,39 @@ export function DealCard({ item, category, onPress, style }: DealCardProps) {
           </SText>
         </View>
       </View>
-      <SText variant="body" numberOfLines={1} style={s.brand}>
-        {username ? `${brandLabel} · @ ${username}` : brandLabel}
-      </SText>
+      <View style={s.instagramSlot} testID="deal-card-instagram-slot">
+        <InstagramIdentity
+          iconTestID="deal-card-instagram-icon"
+          size="body"
+          textStyle={s.instagramHandle}
+          username={item.rawPost.influencer.instagramUsername}
+        />
+      </View>
       <SText variant="caption" numberOfLines={2} style={s.title}>
         {item.productName ?? "공동구매 상품"}
       </SText>
-      <PriceText priceKrw={item.priceKrw} style={s.price} />
+      <View style={s.priceRow}>
+        <View style={s.priceSlot}>
+          <PriceText numberOfLines={1} priceKrw={item.priceKrw} style={s.price} />
+        </View>
+        {trailingAction ? (
+          <Pressable
+            accessibilityHint={trailingAction.accessibilityHint}
+            accessibilityLabel={trailingAction.accessibilityLabel}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !!trailingAction.selected }}
+            hitSlop={6}
+            onPress={handleTrailingActionPress}
+            style={({ pressed }) => [
+              s.trailingAction,
+              pressed && s.trailingActionPressed,
+            ]}
+            testID={trailingAction.testID}
+          >
+            {trailingAction.icon}
+          </Pressable>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -159,6 +206,12 @@ function makeStyles(colors: CommerceColorPalette) {
       resizeMode: "cover",
       width: "100%",
     },
+    reminderButton: {
+      position: "absolute",
+      right: 8,
+      top: 8,
+      zIndex: 2,
+    },
     imageFallback: {
       alignItems: "center",
       borderWidth: 1,
@@ -170,7 +223,7 @@ function makeStyles(colors: CommerceColorPalette) {
       backgroundColor: colors.accent,
       borderRadius: commerceRadius.sm,
       left: 8,
-      maxWidth: "82%",
+      maxWidth: "62%",
       paddingHorizontal: 7,
       paddingVertical: 4,
       position: "absolute",
@@ -192,15 +245,39 @@ function makeStyles(colors: CommerceColorPalette) {
     price: {
       fontSize: 13,
       lineHeight: 18,
-      marginTop: 2,
     },
-    brand: {
-      color: colors.muted,
+    priceRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: spacing.xs,
+      marginTop: 2,
+      minWidth: 0,
+    },
+    priceSlot: {
+      flex: 1,
+      minWidth: 0,
+    },
+    trailingAction: {
+      alignItems: "center",
+      backgroundColor: colors.accentSoft,
+      borderRadius: 16,
+      height: 32,
+      justifyContent: "center",
+      width: 32,
+    },
+    trailingActionPressed: {
+      opacity: 0.64,
+    },
+    instagramHandle: {
       fontSize: 13,
       fontWeight: "700",
       lineHeight: 18,
+    },
+    instagramSlot: {
+      justifyContent: "center",
       marginBottom: 2,
       marginTop: spacing.sm,
+      minHeight: 18,
     },
     deadlineBadge: {
       backgroundColor: colors.overlay,

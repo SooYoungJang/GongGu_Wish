@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { lookupInstagramUrl } from '../api';
 import type { InstagramMediaInfo, MediaAsset } from '../types';
@@ -20,6 +20,10 @@ export interface HikerPostData {
   mediaItems?: MediaAsset[];
   /** Dominant media type: IMAGE or VIDEO */
   mediaType: 'IMAGE' | 'VIDEO' | null;
+  postAudioUrl?: string | null;
+  postAudioStartTimeMs?: number | null;
+  postAudioDurationMs?: number | null;
+  postAudioLookupStatus?: 'FOUND' | 'NONE' | 'RETRYABLE';
   /** Post caption / summary text */
   caption: string | null;
   /** Instagram display name of the account (same as username) */
@@ -59,6 +63,10 @@ function toPostData(info: InstagramMediaInfo): HikerPostData {
     mediaUrls: info.mediaUrls,
     mediaItems: info.mediaItems ?? [],
     mediaType: info.mediaType,
+    postAudioUrl: info.postAudioUrl,
+    postAudioStartTimeMs: info.postAudioStartTimeMs,
+    postAudioDurationMs: info.postAudioDurationMs,
+    postAudioLookupStatus: info.postAudioLookupStatus,
     caption: info.caption,
     likeCount: info.likeCount,
     authorName: info.username,

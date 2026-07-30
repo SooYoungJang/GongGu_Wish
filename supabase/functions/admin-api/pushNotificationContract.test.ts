@@ -31,7 +31,7 @@ Deno.test("rejects an explicitly empty targeted recipient list", () => {
       title: "개별 안내",
       body: "선택 사용자에게만 보냅니다.",
       userIds: [],
-    })
+    }),
   );
 });
 
@@ -48,20 +48,20 @@ Deno.test("normalizes selected user IDs for targeted delivery", () => {
 
 Deno.test("rejects missing or oversized notification fields", () => {
   assertThrows(() =>
-    validatePushNotificationInput({ title: "", body: "본문" })
+    validatePushNotificationInput({ title: "", body: "본문" }),
   );
   assertThrows(() =>
-    validatePushNotificationInput({ title: "제목", body: "x".repeat(1001) })
+    validatePushNotificationInput({ title: "제목", body: "x".repeat(1001) }),
   );
   assertThrows(() =>
-    validatePushNotificationInput({ title: "제목", body: "본문", data: [] })
+    validatePushNotificationInput({ title: "제목", body: "본문", data: [] }),
   );
   assertThrows(() =>
     validatePushNotificationInput({
       title: "제목",
       body: "본문",
       data: { message: "가".repeat(800) },
-    })
+    }),
   );
 });
 
@@ -73,6 +73,19 @@ Deno.test("accepts Expo and Exponent token prefixes only", () => {
 });
 
 Deno.test("validates preference-aware notification audiences", () => {
+  assertEquals(
+    validatePushNotificationInput({
+      title: "제보 승인",
+      body: "제보한 공구가 승인됐어요.",
+      userIds: ["user-1"],
+      data: {
+        notificationType: "submission_approved",
+        submissionId: "submission-1",
+        groupBuyId: "group-buy-1",
+      },
+    }).audience,
+    { type: "submission_approved" },
+  );
   assertEquals(
     validatePushNotificationInput({
       title: "신규 제보",
@@ -114,14 +127,14 @@ Deno.test("rejects malformed preference-aware targets", () => {
         notificationType: "influencer",
         influencerUsername: "bad handle!",
       },
-    })
+    }),
   );
   assertThrows(() =>
     validatePushNotificationInput({
       title: "알 수 없는 유형",
       body: "본문",
       data: { notificationType: "unknown" },
-    })
+    }),
   );
 });
 
@@ -130,11 +143,19 @@ Deno.test("filters recipients by global and type-specific preferences", () => {
     push_enabled: true,
     deadline_reminders_enabled: true,
     new_submissions_enabled: true,
+    submission_approval_notifications_enabled: true,
     followed_influencers: ["seller.one"],
     followed_brands: ["Brand A"],
   };
 
   assertEquals(matchesPushPreferences(base, { type: "general" }), true);
+  assertEquals(
+    matchesPushPreferences(
+      { ...base, submission_approval_notifications_enabled: false },
+      { type: "submission_approved" },
+    ),
+    false,
+  );
   assertEquals(
     matchesPushPreferences(
       { ...base, new_submissions_enabled: false },
@@ -158,7 +179,7 @@ Deno.test("filters recipients by global and type-specific preferences", () => {
       { ...base, new_submissions_enabled: false },
       { type: "brand", target: "brand a" },
     ),
-    false,
+    true,
   );
   assertEquals(
     matchesPushPreferences(

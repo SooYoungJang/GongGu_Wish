@@ -6,6 +6,7 @@ import { AppLivePreview, type AppLivePreviewDeal } from "./AppLivePreview";
 const activeDeal: AppLivePreviewDeal = {
   productName: "제주 감귤 3kg",
   brandName: "귤밭상회",
+  instagramUsername: "gyulbbad",
   category: "과일",
   startDate: "2000-01-01",
   endDate: "2099-12-31",
@@ -55,7 +56,7 @@ describe("AppLivePreview", () => {
     });
     expect(
       dealCard.querySelector(".app-live-preview__deal-card-brand")?.textContent,
-    ).toBe("귤밭상회");
+    ).toBe("@gyulbbad");
     expect(
       dealCard.querySelector(".app-live-preview__deal-card-deadline-badge")
         ?.textContent,
@@ -75,6 +76,19 @@ describe("AppLivePreview", () => {
     expect(screen.getByRole("tabpanel", { name: "상세 화면" })).toBeTruthy();
     expect(screen.getByText("구매하러 가기")).toBeTruthy();
     expect(screen.getByText(activeDeal.summary)).toBeTruthy();
+  });
+
+  it("keeps the card account row empty when Instagram is missing", async () => {
+    const user = userEvent.setup();
+    render(<AppLivePreview deal={{ ...activeDeal, instagramUsername: "" }} />);
+
+    await user.click(screen.getByRole("tab", { name: "공구 카드" }));
+    const account = screen
+      .getByRole("article", { name: "공구 카드 미리보기" })
+      .querySelector(".app-live-preview__deal-card-brand");
+
+    expect(account).not.toBeNull();
+    expect(account?.textContent).toBe("");
   });
 
   it("shows 마감 instead of a negative countdown for expired deals", async () => {
@@ -140,6 +154,34 @@ describe("AppLivePreview", () => {
     expect(screen.getByText("25,900원")).toBeTruthy();
   });
 
+  it("shows the Instagram handle across previews and localizes the category", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppLivePreview
+        deal={{
+          ...activeDeal,
+          instagramUsername: "@gyulbbad",
+          category: "beauty",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("article", { name: "홈 배너 미리보기" }).textContent,
+    ).toContain("@gyulbbad");
+
+    await user.click(screen.getByRole("tab", { name: "공구 카드" }));
+    expect(
+      screen.getByRole("article", { name: "공구 카드 미리보기" }).textContent,
+    ).toContain("@gyulbbad");
+
+    await user.click(screen.getByRole("tab", { name: "상세 화면" }));
+    const detail = screen.getByRole("article", { name: "상세 화면 미리보기" });
+    expect(detail.textContent).toContain("@gyulbbad");
+    expect(detail.textContent).toContain("뷰티");
+    expect(detail.textContent).not.toContain("beauty");
+  });
+
   it("uses the RN discount rule instead of treating product composition as a sale", () => {
     render(
       <AppLivePreview
@@ -189,5 +231,25 @@ describe("AppLivePreview", () => {
 
     expect(screen.getByText("홈에 노출되지 않음")).toBeTruthy();
     expect(screen.getByText("배너 예약")).toBeTruthy();
+  });
+
+  it("hides the sale badge when discountInfo is empty, matching the RN app", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppLivePreview
+        deal={{
+          ...activeDeal,
+          discountInfo: "",
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "공구 카드" }));
+    const dealCard = screen.getByRole("article", {
+      name: "공구 카드 미리보기",
+    });
+    expect(
+      dealCard.querySelector(".app-live-preview__deal-card-sale-badge"),
+    ).toBeNull();
   });
 });

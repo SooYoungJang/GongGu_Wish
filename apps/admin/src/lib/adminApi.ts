@@ -1,10 +1,11 @@
-import { supabase } from "@/supabase/client";
+import { adminRuntimeConfig, supabase } from "@/supabase/client";
 import type {
   AppUser,
   CdnRefreshResult,
   CdnRefreshStatusResponse,
   DashboardResponse,
   GongguSubmission,
+  SubmissionApprovalDeliverySummary,
   GroupBuy,
   HikerLookupResult,
   ListResponse,
@@ -42,10 +43,7 @@ export class AdminApiContractError extends Error {
   }
 }
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as
-  | string
-  | undefined;
+const { adminApiOrigin, supabaseAnonKey } = adminRuntimeConfig;
 
 async function getAccessToken() {
   const { data, error } = await supabase.auth.getSession();
@@ -63,15 +61,8 @@ async function requestAdmin<T>(
     body?: Record<string, unknown>;
   } = {},
 ): Promise<T> {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new AdminApiError(
-      "Vercel 환경 변수 VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY가 필요합니다.",
-      500,
-    );
-  }
-
   const token = await getAccessToken();
-  const response = await fetch(`${supabaseUrl}/functions/v1/admin-api`, {
+  const response = await fetch(adminApiOrigin, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -215,14 +206,21 @@ export const adminApi = {
   },
 
   approveSubmission(id: string, body: Record<string, unknown>) {
-    return requestAdmin<{ submission: GongguSubmission; groupBuy: GroupBuy }>(
-      `/admin/submissions/${id}/approve`,
-      "POST",
-      { body },
-    ).then((result) => ({
+    return requestAdmin<{
+      submission: GongguSubmission;
+      groupBuy: GroupBuy;
+      notificationDelivery: SubmissionApprovalDeliverySummary;
+    }>(`/admin/submissions/${id}/approve`, "POST", { body }).then((result) => ({
       ...result,
       groupBuy: normalizeGroupBuyResponse(result.groupBuy),
     }));
+  },
+
+  retrySubmissionApprovalNotification(id: string) {
+    return requestAdmin<{
+      submission: GongguSubmission;
+      notificationDelivery: SubmissionApprovalDeliverySummary;
+    }>(`/admin/submissions/${id}/notification/retry`, "POST");
   },
 
   rejectSubmission(id: string, reason: string) {

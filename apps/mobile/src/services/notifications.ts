@@ -5,11 +5,20 @@ import Constants from "expo-constants";
 import { callEdgeFunction } from "../lib/postgrest-client";
 import { isAutomatedE2E } from "../lib/automatedE2E";
 import { isExpoPushToken } from "./pushToken";
-import type { NotificationReminderDay } from "./notificationPreferences";
+import {
+  buildGroupBuyOpeningReminderDates,
+  buildGroupBuyReminderDates,
+  type GroupBuyReminderScheduleOptions,
+  type NotificationReminderDay,
+  type OpeningReminderDay,
+} from "./reminderDates";
 import {
   buildGroupBuyNotificationUrl,
   notificationResponseToUrl,
 } from "./notificationPayload";
+
+export { buildGroupBuyOpeningReminderDates, buildGroupBuyReminderDates };
+export type { GroupBuyReminderScheduleOptions };
 
 // Expo Go does not fully support expo-notifications native modules.
 // Lazy-load to avoid importing the module at app startup in Expo Go.
@@ -45,6 +54,25 @@ export type NotificationAvailability =
 export type NotificationPermissionFailureReason =
   | "permission-denied"
   | "permission-request-failed";
+
+export type PushRegistrationResult =
+  | { status: "registered"; token: string }
+  | { status: "cancelled"; reason: "audience-restricted" }
+  | { status: "unsupported"; reason: "expo-go" | "native-module" }
+  | {
+      status: "unavailable";
+      reason: NotificationPermissionFailureReason;
+    }
+  | {
+      status: "failed";
+      reason:
+        | "missing-project-id"
+        | "token-request-failed"
+        | "invalid-token"
+        | "backend-registration-failed";
+    };
+
+const DEFAULT_PUSH_TOKEN_RETRY_DELAYS_MS = [500, 1_500] as const;
 
 export type GroupBuyStartUnavailableReason =
   | "missing-start-date"
@@ -141,10 +169,20 @@ export async function getNotificationPermissionStatus(): Promise<NotificationPer
 export function getEasProjectId(): string | null {
   const projectId =
     Constants.expoConfig?.extra?.eas?.projectId ??
+    Constants.easConfig?.projectId ??
     process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
   return typeof projectId === "string" && projectId.trim()
     ? projectId.trim()
     : null;
+}
+
+function hasHttpStatus(error: unknown, status: number): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error as { status?: unknown }).status === status
+  );
 }
 
 export async function registerForPushNotifications(
@@ -152,41 +190,114 @@ export async function registerForPushNotifications(
   options: {
     requestPermission?: boolean;
     e2eTokenOverride?: string;
+    retryDelaysMs?: readonly number[];
+    refreshAuthToken?: () => Promise<string | null>;
+    shouldContinue?: () => boolean;
+    onRegistrationCancelled?: () => Promise<unknown>;
   } = {},
-): Promise<string | null> {
-  if (IS_EXPO_GO) return null;
+): Promise<PushRegistrationResult> {
+  const shouldContinue = options.shouldContinue ?? (() => true);
+  const cancelled = (): PushRegistrationResult => ({
+    status: "cancelled",
+    reason: "audience-restricted",
+  });
+  const cleanupCancelledRegistration = async () => {
+    try {
+      await options.onRegistrationCancelled?.();
+    } catch {
+      // Audience restriction remains authoritative even if remote cleanup
+      // must be retried by the restricted-mode cleanup bridge.
+    }
+  };
+  if (!shouldContinue()) return cancelled();
+  if (IS_EXPO_GO) return { status: "unsupported", reason: "expo-go" };
 
+  const availability = await getNotificationAvailability(
+    options.requestPermission !== false,
+  );
+  if (!shouldContinue()) return cancelled();
+  if (availability.status !== "available") return availability;
+
+  let token = isAutomatedE2E() ? options.e2eTokenOverride : undefined;
+  if (token === undefined) {
+    const projectId = getEasProjectId();
+    if (!projectId) return { status: "failed", reason: "missing-project-id" };
+    const Notifications = await getNotifications();
+    if (!Notifications) {
+      return { status: "unsupported", reason: "native-module" };
+    }
+    const retryDelaysMs =
+      options.retryDelaysMs ?? DEFAULT_PUSH_TOKEN_RETRY_DELAYS_MS;
+    for (let attempt = 0; token === undefined; attempt += 1) {
+      if (!shouldContinue()) return cancelled();
+      try {
+        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      } catch (error) {
+        if (attempt >= retryDelaysMs.length) {
+          console.warn(
+            "[Notifications] Expo push token request failed",
+            error instanceof Error ? error.message : "unknown error",
+          );
+          return { status: "failed", reason: "token-request-failed" };
+        }
+        const delayMs = retryDelaysMs[attempt] ?? 0;
+        if (delayMs > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+    }
+  }
+  if (!shouldContinue()) return cancelled();
+  if (!isExpoPushToken(token)) {
+    return { status: "failed", reason: "invalid-token" };
+  }
+
+  let registrationError: unknown;
   try {
-    if (
-      (await getNotificationAvailability(options.requestPermission !== false))
-        .status !== "available"
-    ) {
-      return null;
-    }
-
-    let token = isAutomatedE2E() ? options.e2eTokenOverride : undefined;
-    if (token === undefined) {
-      const projectId = getEasProjectId();
-      if (!projectId) return null;
-      const Notifications = await getNotifications();
-      if (!Notifications) return null;
-      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-    }
-    if (!isExpoPushToken(token)) return null;
-
+    if (!shouldContinue()) return cancelled();
     await callEdgeFunction(
       "register-push-token",
       { token, provider: "expo" },
       { authToken },
     );
-    return token;
+    if (!shouldContinue()) {
+      await cleanupCancelledRegistration();
+      return cancelled();
+    }
+    return { status: "registered", token };
   } catch (error) {
-    console.warn(
-      "[Notifications] Push token registration failed",
-      error instanceof Error ? error.message : "unknown error",
-    );
-    return null;
+    registrationError = error;
   }
+
+  if (hasHttpStatus(registrationError, 401) && options.refreshAuthToken) {
+    try {
+      if (!shouldContinue()) return cancelled();
+      const refreshedAuthToken = await options.refreshAuthToken();
+      if (refreshedAuthToken) {
+        if (!shouldContinue()) return cancelled();
+        await callEdgeFunction(
+          "register-push-token",
+          { token, provider: "expo" },
+          { authToken: refreshedAuthToken },
+        );
+        if (!shouldContinue()) {
+          await cleanupCancelledRegistration();
+          return cancelled();
+        }
+        return { status: "registered", token };
+      }
+    } catch (error) {
+      registrationError = error;
+    }
+  }
+
+  console.warn(
+    "[Notifications] Push token registration failed",
+    registrationError instanceof Error
+      ? registrationError.message
+      : "unknown error",
+  );
+  return { status: "failed", reason: "backend-registration-failed" };
 }
 
 export type ScheduledNotification = {
@@ -194,7 +305,8 @@ export type ScheduledNotification = {
   groupBuyId: string;
   productName: string | null;
   triggerDate: Date | null;
-  reminderDay?: NotificationReminderDay;
+  reminderDay?: NotificationReminderDay | OpeningReminderDay;
+  reminderType?: "opening" | "deadline";
 };
 
 export type GroupBuyReminderUnavailableReason =
@@ -209,30 +321,53 @@ export type ScheduleGroupBuyRemindersResult =
   | { status: "unavailable"; reason: GroupBuyReminderUnavailableReason }
   | {
       status: "failed";
-      reason: "invalid-group-buy-id" | "schedule-failed";
+      reason: "invalid-group-buy-id" | "cancel-failed" | "schedule-failed";
       notifications?: ScheduledNotification[];
     };
 
-const DAY_MS = 86_400_000;
+export type GroupBuyOpeningReminderUnavailableReason =
+  | "missing-start-date"
+  | "invalid-start-date"
+  | "invalid-reminder-time"
+  | "past-reminder-window"
+  | NotificationPermissionFailureReason;
 
-export function buildGroupBuyReminderDates(
-  endDate: string,
-  reminderDays: readonly number[],
-  now = Date.now(),
+export type ScheduleGroupBuyOpeningRemindersResult =
+  | { status: "scheduled"; notifications: ScheduledNotification[] }
+  | { status: "unsupported"; reason: "expo-go" | "native-module" }
+  | {
+      status: "unavailable";
+      reason: GroupBuyOpeningReminderUnavailableReason;
+    }
+  | {
+      status: "failed";
+      reason: "invalid-group-buy-id" | "cancel-failed" | "schedule-failed";
+      notifications?: ScheduledNotification[];
+    };
+
+async function cancelExistingGroupBuyReminderNotifications(
+  Notifications: typeof import("expo-notifications"),
+  groupBuyId: string,
 ) {
-  const deadline = new Date(endDate);
-  if (Number.isNaN(deadline.getTime())) return [];
-  const allowed = new Set<number>([1, 3, 7]);
-  return [...new Set(reminderDays)]
-    .filter((day): day is NotificationReminderDay => allowed.has(day))
-    .map((reminderDay) => ({
-      reminderDay,
-      triggerDate: new Date(deadline.getTime() - reminderDay * DAY_MS),
-    }))
-    .filter(({ triggerDate }) => triggerDate.getTime() > now)
-    .sort(
-      (left, right) => left.triggerDate.getTime() - right.triggerDate.getTime(),
-    );
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const matchingIds = scheduled
+    .filter((request) => {
+      const data = request.content.data as Record<string, unknown> | null;
+      return (
+        (data?.notificationType === "deadline" ||
+          data?.notificationType === "opening") &&
+        data.groupBuyId === groupBuyId
+      );
+    })
+    .map((request) => request.identifier);
+  const results = await Promise.allSettled(
+    matchingIds.map((identifier) =>
+      Notifications.cancelScheduledNotificationAsync(identifier),
+    ),
+  );
+  if (results.some((result) => result.status === "rejected")) {
+    throw new Error("Failed to cancel an existing group-buy reminder");
+  }
 }
 
 export async function scheduleGroupBuyReminders(
@@ -240,7 +375,7 @@ export async function scheduleGroupBuyReminders(
   productName: string | null,
   endDate: string | null,
   reminderDays: readonly NotificationReminderDay[],
-  now = Date.now(),
+  options?: number | GroupBuyReminderScheduleOptions,
 ): Promise<ScheduleGroupBuyRemindersResult> {
   const url = buildGroupBuyNotificationUrl(groupBuyId);
   if (!url) return { status: "failed", reason: "invalid-group-buy-id" };
@@ -249,7 +384,7 @@ export async function scheduleGroupBuyReminders(
     return { status: "unavailable", reason: "invalid-end-date" };
   }
 
-  const reminders = buildGroupBuyReminderDates(endDate, reminderDays, now);
+  const reminders = buildGroupBuyReminderDates(endDate, reminderDays, options);
   if (reminders.length === 0) {
     return { status: "unavailable", reason: "past-reminder-window" };
   }
@@ -261,6 +396,14 @@ export async function scheduleGroupBuyReminders(
 
   const scheduled: ScheduledNotification[] = [];
   try {
+    await cancelExistingGroupBuyReminderNotifications(
+      Notifications,
+      groupBuyId.trim(),
+    );
+  } catch {
+    return { status: "failed", reason: "cancel-failed" };
+  }
+  try {
     for (const reminder of reminders) {
       const identifier = await Notifications.scheduleNotificationAsync({
         content: {
@@ -269,6 +412,8 @@ export async function scheduleGroupBuyReminders(
           data: {
             groupBuyId: groupBuyId.trim(),
             notificationType: "deadline",
+            notificationEventId: `deadline:${groupBuyId.trim()}:${reminder.reminderDay}`,
+            reminderDay: reminder.reminderDay,
             url,
           },
         },
@@ -283,6 +428,112 @@ export async function scheduleGroupBuyReminders(
         groupBuyId: groupBuyId.trim(),
         productName,
         reminderDay: reminder.reminderDay,
+        reminderType: "deadline",
+        triggerDate: reminder.triggerDate,
+      });
+    }
+    return { status: "scheduled", notifications: scheduled };
+  } catch {
+    const rollbackResults = await Promise.all(
+      scheduled.map((notification) =>
+        Notifications.cancelScheduledNotificationAsync(notification.id)
+          .then(() => null)
+          .catch(() => notification),
+      ),
+    );
+    const survivingNotifications = rollbackResults.filter(
+      (notification): notification is ScheduledNotification =>
+        notification !== null,
+    );
+    return survivingNotifications.length > 0
+      ? {
+          status: "failed",
+          reason: "schedule-failed",
+          notifications: survivingNotifications,
+        }
+      : { status: "failed", reason: "schedule-failed" };
+  }
+}
+
+export async function scheduleGroupBuyOpeningReminders(
+  groupBuyId: string,
+  productName: string | null,
+  startDate: string | null,
+  reminderDays: readonly OpeningReminderDay[],
+  reminderTimeMinutes: number,
+  options?: number | GroupBuyReminderScheduleOptions,
+): Promise<ScheduleGroupBuyOpeningRemindersResult> {
+  const normalizedGroupBuyId = groupBuyId.trim();
+  const url = buildGroupBuyNotificationUrl(normalizedGroupBuyId);
+  if (!url) return { status: "failed", reason: "invalid-group-buy-id" };
+  if (!startDate) {
+    return { status: "unavailable", reason: "missing-start-date" };
+  }
+  if (Number.isNaN(new Date(startDate).getTime())) {
+    return { status: "unavailable", reason: "invalid-start-date" };
+  }
+  if (
+    !Number.isInteger(reminderTimeMinutes) ||
+    reminderTimeMinutes < 0 ||
+    reminderTimeMinutes >= 24 * 60
+  ) {
+    return { status: "unavailable", reason: "invalid-reminder-time" };
+  }
+
+  const reminders = buildGroupBuyOpeningReminderDates(
+    startDate,
+    reminderDays,
+    reminderTimeMinutes,
+    options,
+  );
+  if (reminders.length === 0) {
+    return { status: "unavailable", reason: "past-reminder-window" };
+  }
+
+  const availability = await getNotificationAvailability();
+  if (availability.status !== "available") return availability;
+  const Notifications = await getNotifications();
+  if (!Notifications) return { status: "unsupported", reason: "native-module" };
+
+  try {
+    await cancelExistingGroupBuyReminderNotifications(
+      Notifications,
+      normalizedGroupBuyId,
+    );
+  } catch {
+    return { status: "failed", reason: "cancel-failed" };
+  }
+
+  const scheduled: ScheduledNotification[] = [];
+  try {
+    for (const reminder of reminders) {
+      const identifier = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "공구 오픈 알림",
+          body:
+            reminder.reminderDay === 0
+              ? `${productName ?? "공동구매"} 공구가 오늘 오픈해요.`
+              : `${productName ?? "공동구매"} 오픈까지 ${reminder.reminderDay}일 남았어요.`,
+          data: {
+            groupBuyId: normalizedGroupBuyId,
+            notificationType: "opening",
+            notificationEventId: `opening:${normalizedGroupBuyId}:${reminder.reminderDay}`,
+            reminderDay: reminder.reminderDay,
+            url,
+          },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: reminder.triggerDate,
+          channelId: "group-buy-start",
+        } as NotificationTriggerInput,
+      });
+      scheduled.push({
+        id: identifier,
+        groupBuyId: normalizedGroupBuyId,
+        productName,
+        reminderDay: reminder.reminderDay,
+        reminderType: "opening",
         triggerDate: reminder.triggerDate,
       });
     }
@@ -338,6 +589,7 @@ export type GroupBuyAlertState =
       status: "unavailable";
       reason:
         | GroupBuyStartUnavailableReason
+        | GroupBuyOpeningReminderUnavailableReason
         | GroupBuyReminderUnavailableReason;
     };
 
@@ -516,37 +768,4 @@ export function subscribeNotificationResponseUrls(
     active = false;
     removeSubscription?.();
   };
-}
-
-// ─── Test helper (dev only) ──────────────────────────────────────────────────
-
-/**
- * Fire a local notification after `delaySeconds` so we can verify the push
- * pipeline end-to-end on a real device. Requires a development build —
- * Expo Go (SDK 53+) removed expo-notifications native support entirely, so
- * even local scheduling returns null there.
- * Returns the scheduled notification id, or null on failure.
- */
-export async function scheduleTestNotification(
-  delaySeconds = 10,
-  groupBuyId?: string,
-): Promise<string | null> {
-  if (IS_EXPO_GO) return null;
-  const Notifications = await getNotifications();
-  if (!Notifications) return null;
-  const url = groupBuyId ? buildGroupBuyNotificationUrl(groupBuyId) : null;
-  const id = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "🛎 푸시 테스트",
-      body: `${delaySeconds}초 뒤 알림이 울렸어요! 푸시가 정상 동작합니다.`,
-      data: url
-        ? { groupBuyId, notificationType: "general", test: true, url }
-        : { test: true },
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: delaySeconds,
-    },
-  });
-  return id;
 }

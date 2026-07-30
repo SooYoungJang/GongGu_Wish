@@ -18,6 +18,13 @@ import type { GroupBuy } from "../../types";
 vi.mock("../../api", () => ({
   fetchGroupBuys: vi.fn(),
 }));
+vi.mock("../../context/GroupBuyReminderPickerContext", () => ({
+  useGroupBuyReminderPicker: () => ({
+    getReminderState: () => ({ status: "idle" }),
+    isReminderEnabled: () => false,
+    openReminderPicker: vi.fn(),
+  }),
+}));
 
 const activityMock = vi.hoisted(() => ({
   bookmarks: [] as Array<{ id: string }>,
@@ -39,6 +46,30 @@ const windowDimensionsMock = vi.hoisted(() => ({
   height: 844,
   width: 390,
 }));
+const adsMock = vi.hoisted(() => ({
+  enabled: false,
+  isReady: false,
+  isSettled: true,
+  nativeUnitIds: {
+    detail: null as string | null,
+    home: null as string | null,
+    reels: null as string | null,
+  },
+  privacyOptionsRequired: false,
+  showPrivacyOptions: vi.fn(async () => false),
+}));
+
+vi.mock("../../ads/AdsContext", () => ({
+  useAds: () => adsMock,
+}));
+
+vi.mock("../../components/ads/NativeAdCard", () => {
+  const ReactMock = require("react");
+  return {
+    NativeAdCard: (props: Record<string, unknown>) =>
+      adsMock.enabled ? ReactMock.createElement("NativeAdCard", props) : null,
+  };
+});
 
 vi.mock("../../hooks/useLocalDeals", () => ({
   useBookmarks: () => ({ bookmarks: activityMock.bookmarks, ready: true }),
@@ -258,19 +289,21 @@ function flattenStyle(style: unknown): Record<string, unknown> {
     : {};
 }
 
+function createCalendar(params: Record<string, unknown> = {}) {
+  return (
+    <ThemeProvider>
+      <CalendarScreen
+        navigation={navigationMock as any}
+        route={{ params, key: "CalendarScreen", name: "CalendarScreen" } as any}
+      />
+    </ThemeProvider>
+  );
+}
+
 function renderCalendar(params: Record<string, unknown> = {}) {
   let renderer: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(
-      <ThemeProvider>
-        <CalendarScreen
-          navigation={navigationMock as any}
-          route={
-            { params, key: "CalendarScreen", name: "CalendarScreen" } as any
-          }
-        />
-      </ThemeProvider>,
-    );
+    renderer = TestRenderer.create(createCalendar(params));
   });
   return renderer!;
 }
@@ -293,6 +326,13 @@ describe("CalendarScreen", () => {
     queryRefetchMock.mockClear();
     navigationMock.goBack.mockClear();
     navigationMock.navigate.mockClear();
+    adsMock.enabled = false;
+    adsMock.isReady = false;
+    adsMock.isSettled = true;
+    adsMock.nativeUnitIds.detail = null;
+    adsMock.nativeUnitIds.home = null;
+    adsMock.nativeUnitIds.reels = null;
+    adsMock.showPrivacyOptions.mockClear();
     mockQueryResult = {
       data: null,
       isFetching: false,
@@ -625,6 +665,128 @@ describe("CalendarScreen", () => {
     };
   });
 
+  it("interleaves a native ad and keeps the selected date index aligned", () => {
+    const dateKeys = ["2026-07-01", "2026-07-02", "2026-07-03"];
+    mockQueryResult = {
+      data: dateKeys.map((dateKey, index) => ({
+        ...sampleGroupBuys[0],
+        id: `calendar-ad-deal-${index + 1}`,
+        startDate: null,
+        endDate: `${dateKey}T23:59:59+09:00`,
+      })),
+      isFetching: false,
+      isError: false,
+    };
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.home = "home-native-unit";
+
+    const renderer = renderCalendar({ initialDate: dateKeys[2] });
+
+    const ad = renderer.root.findByProps({ testID: "calendar-native-ad-1" });
+    const adSlot = renderer.root.findByProps({
+      testID: "calendar-native-ad-slot-1",
+    });
+    const dateList = renderer.root.findByProps({
+      testID: "calendar-date-list",
+    });
+    expect(ad.props.placement).toBe("home");
+    expect(ad.props.variant).toBe("row");
+    expect(flattenStyle(adSlot.props.style).height).toBe(152);
+    expect(dateList.props.initialScrollIndex).toBe(3);
+  });
+
+  it("keeps later calendar ad slots when one request is unavailable", () => {
+    const dateKeys = Array.from(
+      { length: 12 },
+      (_, index) => `2026-07-${String(index + 1).padStart(2, "0")}`,
+    );
+    mockQueryResult = {
+      data: dateKeys.map((dateKey, index) => ({
+        ...sampleGroupBuys[0],
+        id: `calendar-ad-retry-deal-${index + 1}`,
+        startDate: null,
+        endDate: `${dateKey}T23:59:59+09:00`,
+      })),
+      isFetching: false,
+      isError: false,
+    };
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.home = "home-native-unit";
+
+    const renderer = renderCalendar({ initialDate: dateKeys[0] });
+    const adsBeforeFailure = renderer.root.findAll(
+      (node) => String(node.type) === "NativeAdCard",
+    );
+    expect(adsBeforeFailure.length).toBeGreaterThan(1);
+    const failedAd = adsBeforeFailure[0];
+    const failedSequence = String(failedAd.props.testID).replace(
+      "calendar-native-ad-",
+      "",
+    );
+
+    act(() => failedAd.props.onLoadStateChange("unavailable"));
+
+    const adsAfterFailure = renderer.root.findAll(
+      (node) => String(node.type) === "NativeAdCard",
+    );
+    expect(adsAfterFailure).toHaveLength(adsBeforeFailure.length - 1);
+    expect(adsAfterFailure.length).toBeGreaterThan(0);
+    expect(
+      renderer.root.findByProps({
+        testID: `calendar-native-ad-unavailable-${failedSequence}`,
+      }),
+    ).toBeTruthy();
+  });
+
+  it("reanchors the selected date when ads or Dynamic Type change row offsets", () => {
+    const dateKeys = ["2026-07-01", "2026-07-02", "2026-07-03"];
+    mockQueryResult = {
+      data: dateKeys.map((dateKey, index) => ({
+        ...sampleGroupBuys[0],
+        id: `calendar-anchor-deal-${index + 1}`,
+        startDate: null,
+        endDate: `${dateKey}T23:59:59+09:00`,
+      })),
+      isFetching: false,
+      isError: false,
+    };
+    const params = { initialDate: dateKeys[2] };
+    const renderer = renderCalendar(params);
+    listMock.scrollToIndex.mockClear();
+
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.home = "home-native-unit";
+    act(() => {
+      renderer.update(createCalendar(params));
+    });
+    expect(listMock.scrollToIndex).toHaveBeenLastCalledWith({
+      animated: false,
+      index: 3,
+      viewPosition: 0,
+    });
+
+    listMock.scrollToIndex.mockClear();
+    windowDimensionsMock.fontScale = 2;
+    act(() => {
+      renderer.update(createCalendar(params));
+    });
+    expect(listMock.scrollToIndex).toHaveBeenLastCalledWith({
+      animated: false,
+      index: 3,
+      viewPosition: 0,
+    });
+    expect(
+      flattenStyle(
+        renderer.root.findByProps({
+          testID: "calendar-native-ad-slot-1",
+        }).props.style,
+      ).height,
+    ).toBe(224);
+  });
+
   it("keeps the calendar grid compact inside the picker modal", () => {
     const renderer = renderCalendar();
     openCalendarPicker(renderer);
@@ -773,7 +935,7 @@ describe("CalendarScreen", () => {
     });
     expect(text).toContain("오늘의 딜");
     expect(text).toContain("뷰티");
-    expect(text).toContain("@ daily_deal");
+    expect(text).toContain("@daily_deal");
     expect(text).toContain("30% 할인");
 
     const dealButton = renderer.root.find(

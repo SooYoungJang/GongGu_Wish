@@ -70,7 +70,7 @@ export const groupBuyRankingItemSchema = z
     trend: rankingTrendSchema,
     productName: z.string().max(200).nullable(),
     brandName: z.string().max(100).nullable(),
-    username: z.string().min(1),
+    username: z.string().min(1).nullable(),
     category: rankingCategorySchema.exclude(["all"]),
     thumbnailUrl: z.string().min(1).nullable(),
     mediaUrls: z.array(z.string().min(1)),

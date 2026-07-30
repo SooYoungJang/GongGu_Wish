@@ -1,13 +1,18 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../api';
-import { DealShelf, MyPageScreen, notificationEntryToGroupBuy } from '../screens/MyPageScreen';
+import {
+  DealShelf,
+  MyPageScreen,
+  notificationEntryToGroupBuy,
+} from '../screens/MyPageScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
-import { AccessibilityInfo } from 'react-native';
+import { resolveAudiencePolicy } from '../audience/audiencePolicy';
+import { AccessibilityInfo, Linking } from 'react-native';
 
 const navigationMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -19,19 +24,46 @@ const authMocks = vi.hoisted(() => ({
   signOut: vi.fn().mockResolvedValue(undefined),
 }));
 const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
+const notificationMocks = vi.hoisted(() => ({
+  getNotificationPermissionStatus: vi.fn(async () => 'granted'),
+  registerForPushNotifications: vi.fn(
+    async (): Promise<any> => ({
+      status: 'registered',
+      token: 'ExpoPushToken[test-token]',
+    }),
+  ),
+}));
 const dealCardMock = vi.hoisted(() => vi.fn());
 const adsMocks = vi.hoisted(() => ({
   privacyOptionsRequired: false,
   showPrivacyOptions: vi.fn(async () => true),
 }));
+const audienceMocks = vi.hoisted(() => ({
+  ageBand: 'age14Plus' as const,
+  policy: {
+    resolved: true,
+    canUseApp: true,
+    canAuthenticate: true,
+    canRequestAds: true,
+    canRecordBehaviorSignals: true,
+  },
+  selectAgeBand: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../audience/AudienceContext', () => ({
+  useAudience: () => audienceMocks,
+}));
+
+const adultAudiencePolicy = resolveAudiencePolicy('age14Plus');
 const settingsPreferenceMocks = vi.hoisted(() => ({
+  saving: false,
   preferences: {
     pushEnabled: true,
     deadlineRemindersEnabled: true,
-    newSubmissionsEnabled: true,
+    submissionApprovalEnabled: true,
     reminderDays: [1, 3, 7] as Array<1 | 3 | 7>,
-    followedInfluencers: ["seller.one"],
-    followedBrands: ["Brand A"],
+    followedInfluencers: ['seller.one'],
+    followedBrands: ['Brand A'],
   },
   updatePreferences: vi.fn(async (patch: Record<string, unknown>) => patch),
   toggleInfluencer: vi.fn(),
@@ -41,7 +73,11 @@ const settingsPreferenceMocks = vi.hoisted(() => ({
 vi.mock('../ads/AdsContext', () => ({
   useAds: () => ({
     enabled: true,
-    homeNativeUnitId: 'test-native-unit',
+    nativeUnitIds: {
+      detail: 'test-native-unit',
+      home: 'test-native-unit',
+      reels: 'test-native-unit',
+    },
     isReady: true,
     isSettled: true,
     privacyOptionsRequired: adsMocks.privacyOptionsRequired,
@@ -53,12 +89,19 @@ vi.mock('../context/NotificationPreferencesContext', () => ({
   useNotificationPreferences: () => ({
     preferences: settingsPreferenceMocks.preferences,
     ready: true,
-    saving: false,
+    saving: settingsPreferenceMocks.saving,
     error: null,
     updatePreferences: settingsPreferenceMocks.updatePreferences,
     toggleInfluencer: settingsPreferenceMocks.toggleInfluencer,
     toggleBrand: settingsPreferenceMocks.toggleBrand,
   }),
+}));
+
+vi.mock('../services/notifications', () => ({
+  IS_EXPO_GO: false,
+  getNotificationPermissionStatus:
+    notificationMocks.getNotificationPermissionStatus,
+  registerForPushNotifications: notificationMocks.registerForPushNotifications,
 }));
 
 vi.mock('../components/DealCard', () => ({
@@ -72,7 +115,9 @@ vi.mock('../components/DealCard', () => ({
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: authMocks.session } }),
+      getSession: vi
+        .fn()
+        .mockResolvedValue({ data: { session: authMocks.session } }),
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
@@ -99,7 +144,9 @@ vi.mock('../lib/supabase', () => ({
   configureSupabase: vi.fn(),
   getSupabase: vi.fn(() => ({
     auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: authMocks.session } }),
+      getSession: vi
+        .fn()
+        .mockResolvedValue({ data: { session: authMocks.session } }),
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
@@ -130,12 +177,24 @@ vi.mock('@react-navigation/native', () => ({
 }));
 
 // Mock expo-constants / expo-modules-core so useLocalDeals (IS_EXPO_GO) loads
-vi.mock('expo-constants', () => ({ default: { appOwnership: 'expo' } }));
+vi.mock('expo-constants', () => ({
+  default: {
+    appOwnership: 'expo',
+    expoConfig: { extra: {}, version: '0.1.0' },
+  },
+}));
+vi.mock('expo-application', () => ({
+  nativeApplicationVersion: '2.3.4',
+  nativeBuildVersion: '42',
+}));
 vi.mock('expo-modules-core', () => ({}));
 vi.mock('expo-notifications', () => ({
   scheduleNotificationAsync: vi.fn(),
   cancelScheduledNotificationAsync: vi.fn(),
-  SchedulableTriggerInputTypes: { CALENDAR: 'calendar', TIME_INTERVAL: 'timeInterval' },
+  SchedulableTriggerInputTypes: {
+    CALENDAR: 'calendar',
+    TIME_INTERVAL: 'timeInterval',
+  },
 }));
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -149,7 +208,8 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 // Mock react-native with components used by MyPageScreen
 vi.mock('react-native', () => {
   const ReactMock = require('react');
-  const passthrough = (type: string) =>
+  const passthrough =
+    (type: string) =>
     ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement(type, props, children);
   return {
@@ -166,7 +226,11 @@ vi.mock('react-native', () => {
       ReactMock.createElement('Pressable', { onPress, ...props }, children),
     TextInput: (props: any) => ReactMock.createElement('TextInput', props),
     TouchableOpacity: ({ children, onPress, ...props }: any) =>
-      ReactMock.createElement('TouchableOpacity', { onPress, ...props }, children),
+      ReactMock.createElement(
+        'TouchableOpacity',
+        { onPress, ...props },
+        children,
+      ),
     ScrollView: ({ children, ...props }: any) =>
       ReactMock.createElement('ScrollView', props, children),
     FlatList: ({ children, ...props }: any) =>
@@ -196,8 +260,12 @@ function renderScreen(screen: React.ReactElement) {
   let renderer: ReturnType<typeof TestRenderer.create>;
   act(() => {
     renderer = TestRenderer.create(
-      React.createElement(ThemeProvider, null,
-        React.createElement(AuthProvider, null,
+      React.createElement(
+        ThemeProvider,
+        null,
+        React.createElement(
+          AuthProvider,
+          { audiencePolicy: adultAudiencePolicy },
           screen,
         ),
       ),
@@ -211,7 +279,12 @@ function renderMyPageScreen() {
 }
 
 beforeEach(() => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
   vi.mocked(AccessibilityInfo.announceForAccessibility).mockClear();
+  vi.mocked(Linking.openURL).mockClear();
   authMocks.session = null;
   authMocks.signOut.mockClear();
   alertMocks.alert.mockClear();
@@ -219,15 +292,24 @@ beforeEach(() => {
   navigationMocks.goBack.mockClear();
   settingsPreferenceMocks.preferences.pushEnabled = true;
   settingsPreferenceMocks.preferences.deadlineRemindersEnabled = true;
-  settingsPreferenceMocks.preferences.newSubmissionsEnabled = true;
+  settingsPreferenceMocks.preferences.submissionApprovalEnabled = true;
   settingsPreferenceMocks.preferences.reminderDays = [1, 3, 7];
   settingsPreferenceMocks.preferences.followedInfluencers = ['seller.one'];
   settingsPreferenceMocks.preferences.followedBrands = ['Brand A'];
+  settingsPreferenceMocks.saving = false;
   settingsPreferenceMocks.updatePreferences.mockClear();
   settingsPreferenceMocks.toggleInfluencer.mockClear();
   settingsPreferenceMocks.toggleBrand.mockClear();
+  notificationMocks.getNotificationPermissionStatus.mockClear();
+  notificationMocks.registerForPushNotifications.mockReset().mockResolvedValue({
+    status: 'registered',
+    token: 'ExpoPushToken[test-token]',
+  });
   adsMocks.privacyOptionsRequired = false;
   adsMocks.showPrivacyOptions.mockClear();
+  audienceMocks.policy.canAuthenticate = true;
+  audienceMocks.policy.canRequestAds = true;
+  audienceMocks.policy.canRecordBehaviorSignals = true;
 });
 
 describe('MyPageScreen', () => {
@@ -277,7 +359,10 @@ describe('MyPageScreen', () => {
       videoUrl: null,
       mediaUrls: ['https://example.com/deal.png'],
       mediaType: 'IMAGE',
-      rawPost: { postUrl: 'https://instagram.com/p/1', influencer: { instagramUsername: 'seller' } },
+      rawPost: {
+        postUrl: 'https://instagram.com/p/1',
+        influencer: { instagramUsername: 'seller' },
+      },
       scheduledFor: null,
       notificationId: null,
       createdAt: '2026-07-15T00:00:00.000Z',
@@ -291,14 +376,14 @@ describe('MyPageScreen', () => {
     });
   });
 
-  it('uses the home DealCard surface for activity shelves and keeps remove actions', () => {
+  it('uses an active bookmark action inside the shared DealCard price row', () => {
     const item = {
       id: 'deal-1',
       productName: '테스트 공구',
       category: 'beauty',
     } as any;
     const onPressDeal = vi.fn();
-    const onRemoveDeal = vi.fn();
+    const onUnbookmarkDeal = vi.fn();
     const styles = {
       dealShelf: 'dealShelf',
       shelfHeader: 'shelfHeader',
@@ -307,8 +392,6 @@ describe('MyPageScreen', () => {
       miniDealRail: 'miniDealRail',
       shelfDealItem: 'shelfDealItem',
       shelfDealCard: 'shelfDealCard',
-      shelfDealRemove: 'shelfDealRemove',
-      shelfDealRemoveText: 'shelfDealRemoveText',
       emptyShelf: 'emptyShelf',
       emptyShelfText: 'emptyShelfText',
       pressed: 'pressed',
@@ -324,8 +407,7 @@ describe('MyPageScreen', () => {
           items: [item],
           emptyText: '북마크한 공구가 아직 없어요.',
           onPressDeal,
-          onRemoveDeal,
-          removeLabel: '북마크 해제',
+          onUnbookmarkDeal,
           s: styles,
         }),
       );
@@ -337,21 +419,93 @@ describe('MyPageScreen', () => {
         category: 'beauty',
         onPress: expect.any(Function),
         style: styles.shelfDealCard,
+        trailingAction: expect.objectContaining({
+          accessibilityHint: '북마크 목록에서 제거합니다.',
+          accessibilityLabel: '테스트 공구 북마크 해제',
+          onPress: expect.any(Function),
+          selected: true,
+          testID: 'my-page-unbookmark-deal-1',
+        }),
       }),
     );
 
-    const removeButton = renderer!.root.findByProps({
-      accessibilityLabel: '테스트 공구 북마크 해제',
-    });
+    const trailingAction = dealCardMock.mock.calls[0]?.[0].trailingAction;
+    expect(trailingAction.icon.props.name).toBe('bookmark');
+    expect(
+      renderer!.root.findAll((node) =>
+        node.children.some((child) => child === '북마크 해제'),
+      ),
+    ).toHaveLength(0);
     act(() => {
-      removeButton.props.onPress();
+      trailingAction.onPress();
     });
-    expect(onRemoveDeal).toHaveBeenCalledWith(item);
+    expect(onUnbookmarkDeal).toHaveBeenCalledWith(item);
+  });
+
+  it('uses the reminder bell as the only notification removal entry point', () => {
+    const item = {
+      id: 'deal-1',
+      productName: '테스트 공구',
+      category: 'beauty',
+    } as any;
+    const styles = {
+      dealShelf: 'dealShelf',
+      shelfHeader: 'shelfHeader',
+      shelfTitle: 'shelfTitle',
+      shelfSubtitle: 'shelfSubtitle',
+      miniDealRail: 'miniDealRail',
+      shelfDealItem: 'shelfDealItem',
+      shelfDealCard: 'shelfDealCard',
+      emptyShelf: 'emptyShelf',
+      emptyShelfText: 'emptyShelfText',
+      pressed: 'pressed',
+    } as any;
+
+    dealCardMock.mockClear();
+    let renderer: ReturnType<typeof TestRenderer.create>;
+    act(() => {
+      renderer = renderScreen(
+        React.createElement(DealShelf, {
+          title: '알림 설정한 공구',
+          subtitle: '마감 알림을 설정한 공구예요',
+          items: [item],
+          emptyText: '알림을 설정한 공구가 아직 없어요.',
+          onPressDeal: vi.fn(),
+          s: styles,
+        }),
+      );
+    });
+
+    expect(dealCardMock.mock.calls[0]?.[0].trailingAction).toBeUndefined();
+    const text = JSON.stringify(renderer!.toJSON());
+    expect(text).toContain('마감 알림을 설정한 공구예요');
+    expect(text).not.toContain('알림 해제');
   });
 
   it('renders without crashing', () => {
     const renderer = renderMyPageScreen();
     expect(renderer.toJSON()).toBeTruthy();
+  });
+
+  it('renders a Kakao user without an email instead of throwing', async () => {
+    authMocks.session = {
+      access_token: 'kakao-access-token',
+      user: {
+        id: 'kakao-user',
+        email: '',
+        created_at: '2026-07-25T00:00:00.000Z',
+        app_metadata: { provider: 'kakao' },
+        user_metadata: { name: '카카오 사용자' },
+      },
+    };
+
+    const renderer = renderMyPageScreen();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('카카오 사용자');
   });
 
   it('explains that guest bookmarks and notifications require login', async () => {
@@ -365,7 +519,29 @@ describe('MyPageScreen', () => {
     );
   });
 
-  it('shows loading state initially', () => {
+  it("offers login even before the 14+ confirmation is stored", async () => {
+    audienceMocks.policy.canAuthenticate = false;
+    audienceMocks.policy.canRequestAds = false;
+    audienceMocks.policy.canRecordBehaviorSignals = false;
+    const renderer = renderMyPageScreen();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("만 13세 모드");
+    const loginButton = renderer.root.findByProps({
+      accessibilityLabel: "로그인하고 활동 이어보기",
+    });
+
+    act(() => {
+      loginButton.props.onPress();
+    });
+
+    expect(navigationMocks.navigate).toHaveBeenCalledWith("Login");
+  });
+
+  it("shows loading state initially", () => {
     const renderer = renderMyPageScreen();
     const json = renderer.toJSON();
     expect(json).not.toBeNull();
@@ -391,16 +567,64 @@ describe('MyPageScreen', () => {
     const renderer = renderScreen(React.createElement(SettingsScreen));
     const rendered = JSON.stringify(renderer.toJSON());
 
-    expect(rendered).toContain('알림 설정');
-    expect(rendered).toContain('화면 테마');
-    expect(rendered).toContain('시스템');
-    expect(rendered).toContain('라이트');
-    expect(rendered).toContain('다크');
-    expect(rendered).toContain('공구 마감 임박 알림');
-    expect(rendered).toContain('신규 제보 알림');
-    expect(rendered).toContain('D-7');
+    expect(rendered).toContain("알림 설정");
+    expect(rendered).toContain("화면 테마");
+    expect(rendered).toContain("시스템");
+    expect(rendered).toContain("라이트");
+    expect(rendered).toContain("다크");
+    expect(rendered).not.toContain("연령 설정");
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          typeof node.props.accessibilityLabel === "string" &&
+          node.props.accessibilityLabel.startsWith("연령 구간"),
+      ),
+    ).toHaveLength(0);
+    expect(rendered).not.toContain("공구 마감 임박 알림");
+    expect(
+      renderer.root.findAllByProps({ testID: 'deadline-notification-toggle' }),
+    ).toHaveLength(0);
+    expect(rendered).toContain('내 제보 승인 알림');
+    expect(rendered).not.toContain('마감 알림 날짜');
+    expect(rendered).not.toContain('테스트 알림 보내기');
     expect(rendered).toContain('@seller.one');
     expect(rendered).toContain('Brand A');
+  });
+
+  it('shows legal document buttons and the app version in settings', async () => {
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('앱 정보');
+    expect(rendered).toContain('개인정보 처리방침');
+    expect(rendered).toContain('서비스 이용약관');
+    expect(rendered).toContain('앱 버전');
+    expect(rendered).toContain('2.3.4 (42)');
+
+    const privacyPolicyButton = renderer.root.findByProps({
+      accessibilityLabel: '개인정보 처리방침',
+    });
+    const termsOfServiceButton = renderer.root.findByProps({
+      accessibilityLabel: '서비스 이용약관',
+    });
+
+    await act(async () => {
+      await privacyPolicyButton.props.onPress();
+    });
+
+    expect(Linking.openURL).toHaveBeenNthCalledWith(
+      1,
+      'https://gongguwish.com/privacy',
+    );
+
+    await act(async () => {
+      await termsOfServiceButton.props.onPress();
+    });
+
+    expect(Linking.openURL).toHaveBeenNthCalledWith(
+      2,
+      'https://gongguwish.com/terms',
+    );
   });
 
   it('opens required Google ad privacy options from settings', async () => {
@@ -418,7 +642,7 @@ describe('MyPageScreen', () => {
     expect(adsMocks.showPrivacyOptions).toHaveBeenCalledOnce();
   });
 
-  it('persists deadline switches, D-day choices, and follow removals', async () => {
+  it('persists own-submission approval and follow changes', async () => {
     authMocks.session = {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
@@ -428,10 +652,9 @@ describe('MyPageScreen', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    const deadlineSwitch = renderer.root.findByProps({
-      accessibilityLabel: '공구 마감 임박 알림',
+    const submissionApprovalSwitch = renderer.root.findByProps({
+      accessibilityLabel: '내 제보 승인 알림',
     });
-    const d7 = renderer.root.findByProps({ accessibilityLabel: 'D-7 알림' });
     const influencer = renderer.root.findByProps({
       accessibilityLabel: '@seller.one 인플루언서 알림 해제',
     });
@@ -440,22 +663,40 @@ describe('MyPageScreen', () => {
     });
 
     await act(async () => {
-      await deadlineSwitch.props.onValueChange(false);
-      await d7.props.onPress();
+      await submissionApprovalSwitch.props.onValueChange(false);
       await influencer.props.onPress();
       await brand.props.onPress();
     });
 
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
-      deadlineRemindersEnabled: false,
-    });
-    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
-      reminderDays: [1, 3],
+      submissionApprovalEnabled: false,
     });
     expect(settingsPreferenceMocks.toggleInfluencer).toHaveBeenCalledWith(
       'seller.one',
     );
     expect(settingsPreferenceMocks.toggleBrand).toHaveBeenCalledWith('Brand A');
+  });
+
+  it('keeps notification switches interactive while preferences sync', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.saving = true;
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .disabled,
+    ).toBe(false);
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '내 제보 승인 알림' })
+        .props.disabled,
+    ).toBe(false);
   });
 
   it('routes guest notification changes to login without persisting them', async () => {
@@ -474,6 +715,203 @@ describe('MyPageScreen', () => {
     expect(push.props.value).toBe(false);
   });
 
+  it("keeps the login route available from settings before 14+ confirmation", async () => {
+    audienceMocks.policy.canAuthenticate = false;
+    audienceMocks.policy.canRequestAds = false;
+    audienceMocks.policy.canRecordBehaviorSignals = false;
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    const push = renderer.root.findByProps({ accessibilityLabel: "푸시 알림" });
+
+    expect(push.props.disabled).toBe(false);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("만 13세 모드");
+
+    await act(async () => {
+      await push.props.onValueChange(true);
+      await Promise.resolve();
+    });
+
+    expect(navigationMocks.navigate).toHaveBeenCalledWith("Login");
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  it("moves the push toggle immediately while token registration finishes", async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    let resolveRegistration!: (result: {
+      status: 'registered';
+      token: string;
+    }) => void;
+    const registration = new Promise<{
+      status: 'registered';
+      token: string;
+    }>((resolve) => {
+      resolveRegistration = resolve;
+    });
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(
+      registration,
+    );
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const push = renderer.root.findByProps({ accessibilityLabel: '푸시 알림' });
+    act(() => {
+      push.props.onValueChange(true);
+    });
+
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .value,
+    ).toBe(true);
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .disabled,
+    ).toBe(false);
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(notificationMocks.registerForPushNotifications).toHaveBeenCalledWith(
+      'access-token',
+      expect.objectContaining({
+        refreshAuthToken: expect.any(Function),
+        requestPermission: true,
+      }),
+    );
+
+    await act(async () => {
+      resolveRegistration({
+        status: 'registered',
+        token: 'ExpoPushToken[test-token]',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
+  });
+
+  it('rolls the optimistic push toggle back after a native token failure', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    let resolveRegistration!: (result: {
+      status: 'failed';
+      reason: 'token-request-failed';
+    }) => void;
+    const registration = new Promise<{
+      status: 'failed';
+      reason: 'token-request-failed';
+    }>((resolve) => {
+      resolveRegistration = resolve;
+    });
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(
+      registration,
+    );
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const push = renderer.root.findByProps({ accessibilityLabel: '푸시 알림' });
+    act(() => {
+      push.props.onValueChange(true);
+    });
+
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .value,
+    ).toBe(true);
+
+    await act(async () => {
+      resolveRegistration({
+        status: 'failed',
+        reason: 'token-request-failed',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .value,
+    ).toBe(false);
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
+    expect(alertMocks.alert).toHaveBeenCalledWith(
+      '푸시 알림 등록에 실패했어요',
+      expect.stringContaining('앱 설정'),
+    );
+  });
+
+  it('keeps the latest push intent when an older registration finishes', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    let resolveRegistration!: () => void;
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRegistration = () =>
+          resolve({
+            status: 'registered',
+            token: 'ExpoPushToken[test-token]',
+          });
+      }),
+    );
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: '푸시 알림' })
+        .props.onValueChange(true);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: '푸시 알림' })
+        .props.onValueChange(false);
+    });
+
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props
+        .value,
+    ).toBe(false);
+
+    await act(async () => {
+      resolveRegistration();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      pushEnabled: false,
+    });
+    expect(alertMocks.alert).not.toHaveBeenCalled();
+  });
+
   it('places account deletion at the bottom and asks for confirmation', async () => {
     authMocks.session = {
       access_token: 'access-token',
@@ -483,7 +921,9 @@ describe('MyPageScreen', () => {
         created_at: '2026-01-01T00:00:00.000Z',
       },
     };
-    const deleteSpy = vi.spyOn(api, 'deleteAccount').mockResolvedValue(undefined);
+    const deleteSpy = vi
+      .spyOn(api, 'deleteAccount')
+      .mockResolvedValue(undefined);
     const renderer = renderScreen(React.createElement(SettingsScreen));
 
     await act(async () => {
@@ -498,7 +938,11 @@ describe('MyPageScreen', () => {
       deleteButton.props.onPress();
     });
 
-    expect(alertMocks.alert).toHaveBeenCalledWith('회원탈퇴', expect.stringContaining('복구할 수 없어요'), expect.any(Array));
+    expect(alertMocks.alert).toHaveBeenCalledWith(
+      '회원탈퇴',
+      expect.stringContaining('복구할 수 없어요'),
+      expect.any(Array),
+    );
     const options = alertMocks.alert.mock.calls.at(-1)?.[2] as Array<{
       onPress?: () => void;
     }>;
@@ -513,4 +957,8 @@ describe('MyPageScreen', () => {
     expect(deleteSpy).toHaveBeenCalledOnce();
     deleteSpy.mockRestore();
   });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });

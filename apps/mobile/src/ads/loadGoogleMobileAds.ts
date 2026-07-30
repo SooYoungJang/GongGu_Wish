@@ -14,7 +14,12 @@ export function createGoogleMobileAdsModuleLoader<T>({
 
   return () => {
     if (isExpoGo) return Promise.resolve(null);
-    modulePromise ??= importModule().catch(() => null);
+    modulePromise ??= Promise.resolve()
+      .then(importModule)
+      .catch(() => {
+        modulePromise = null;
+        return null;
+      });
     return modulePromise;
   };
 }

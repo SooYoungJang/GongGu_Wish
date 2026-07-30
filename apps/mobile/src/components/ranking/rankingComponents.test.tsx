@@ -18,6 +18,29 @@ const windowDimensionsMock = vi.hoisted(() => ({
   height: 812,
   width: 375,
 }));
+const rankingAdsMock = vi.hoisted(() => ({
+  enabled: false,
+  isReady: false,
+  nativeUnitIds: {
+    detail: null as string | null,
+    home: null as string | null,
+    reels: null as string | null,
+  },
+}));
+
+vi.mock("../../ads/AdsContext", () => ({
+  useAds: () => rankingAdsMock,
+}));
+
+vi.mock("../ads/NativeAdCard", () => {
+  const ReactMock = require("react");
+  return {
+    NativeAdCard: (props: Record<string, unknown>) =>
+      rankingAdsMock.enabled
+        ? ReactMock.createElement("NativeAdCard", props)
+        : null,
+  };
+});
 
 vi.mock("react-native", () => {
   const ReactMock = require("react");
@@ -130,6 +153,11 @@ describe("ranking components", () => {
   beforeEach(() => {
     windowDimensionsMock.fontScale = 1;
     windowDimensionsMock.width = 375;
+    rankingAdsMock.enabled = false;
+    rankingAdsMock.isReady = false;
+    rankingAdsMock.nativeUnitIds.detail = null;
+    rankingAdsMock.nativeUnitIds.home = null;
+    rankingAdsMock.nativeUnitIds.reels = null;
   });
 
   it("stacks ordinary ranking rows and releases text clamps for large fonts", () => {
@@ -351,7 +379,9 @@ describe("ranking components", () => {
     });
 
     expect(
-      renderer!.root.findByProps({ accessibilityLabel: "샘플마켓 알림" }),
+      renderer!.root.findByProps({
+        accessibilityLabel: "샘플마켓 마감 알림 설정",
+      }),
     ).toBeTruthy();
     expect(
       renderer!.root.findByProps({ name: "notifications-outline" }),
@@ -375,7 +405,9 @@ describe("ranking components", () => {
 
     expect(onFollow).toHaveBeenCalledTimes(1);
     expect(
-      renderer!.root.findByProps({ accessibilityLabel: "샘플마켓 알림 해제" }),
+      renderer!.root.findByProps({
+        accessibilityLabel: "샘플마켓 알림 날짜 변경",
+      }),
     ).toBeTruthy();
     expect(renderer!.root.findByProps({ name: "notifications" })).toBeTruthy();
   });
@@ -427,7 +459,7 @@ describe("ranking components", () => {
     const failed = renderer!.root.findByType(
       "Pressable" as unknown as React.ElementType,
     );
-    expect(failed.props.accessibilityLabel).toBe("샘플마켓 알림 재시도");
+    expect(failed.props.accessibilityLabel).toBe("샘플마켓 알림 다시 설정");
     act(() => failed.props.onPress());
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
@@ -478,7 +510,8 @@ describe("ranking components", () => {
     const followButton = renderer!.root
       .findAllByType("Pressable" as unknown as React.ElementType)
       .find(
-        (pressable) => pressable.props.accessibilityLabel === "팔로우대상 알림",
+        (pressable) =>
+          pressable.props.accessibilityLabel === "팔로우대상 마감 알림 설정",
       );
 
     act(() => followButton!.props.onPress());
@@ -494,6 +527,7 @@ describe("ranking components", () => {
       username: "ordinary.seller",
     });
     const onPressSeller = vi.fn();
+    const onPressDetail = vi.fn();
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -501,7 +535,7 @@ describe("ranking components", () => {
         withTheme(
           <SellerRankingRow
             item={item}
-            onPress={vi.fn()}
+            onPress={onPressDetail}
             onPressSeller={onPressSeller}
             onToggleAlert={vi.fn()}
           />,
@@ -512,9 +546,137 @@ describe("ranking components", () => {
     const sellerAction = renderer!.root.findByProps({
       accessibilityLabel: "@ordinary.seller 판매자 공구 보기",
     });
+    const sellerStyle = flattenStyle(
+      sellerAction.props.style({ pressed: false }),
+    );
+    expect(sellerStyle).toMatchObject({
+      alignItems: "center",
+      flex: 1,
+      flexDirection: "row",
+      minHeight: 44,
+    });
+    expect(sellerAction.props.hitSlop).toBeUndefined();
+    const sellerIcon = renderer!.root.findByProps({
+      testID: "ranking-row-seller-icon-4",
+    });
+    expect(sellerIcon.props).toMatchObject({
+      accessible: false,
+      name: "logo-instagram",
+    });
+    const detailAction = renderer!.root.findByProps({
+      accessibilityHint: "공구 상세 보기",
+    });
+    expect(
+      detailAction.findAll(
+        (node) =>
+          node.props.accessibilityLabel ===
+          "@ordinary.seller 판매자 공구 보기",
+      ),
+    ).toHaveLength(0);
+    const footer = renderer!.root.findByProps({ testID: "ranking-row-footer-4" });
+    expect(
+      footer
+        .findAllByType("Pressable" as unknown as React.ElementType)
+        .filter(
+          (node) =>
+            node.props.accessibilityLabel ===
+            "@ordinary.seller 판매자 공구 보기",
+        ),
+    ).toHaveLength(1);
+
     act(() => sellerAction.props.onPress());
 
     expect(onPressSeller).toHaveBeenCalledWith(item);
+    expect(onPressDetail).not.toHaveBeenCalled();
+
+    const infoColumn = renderer!.root.findByProps({
+      testID: "ranking-row-info-4",
+    });
+    const orderedContent = [
+      ...new Set(
+        infoColumn
+          .findAll(
+            (node) =>
+              typeof node.props.testID === "string" &&
+              /^ranking-row-(name|commerce)-4$/.test(node.props.testID),
+          )
+          .map((node) => node.props.testID as string),
+      ),
+    ];
+
+    expect(orderedContent).toEqual([
+      "ranking-row-name-4",
+      "ranking-row-commerce-4",
+    ]);
+  });
+
+  it("does not render the legacy unknown account placeholder", () => {
+    const item = sampleRanking({
+      groupBuyId: "group-without-account",
+      rank: 4,
+      username: "unknown",
+    });
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingRow
+            item={item}
+            onPress={vi.fn()}
+            onPressSeller={vi.fn()}
+            onToggleAlert={vi.fn()}
+          />,
+        ),
+      );
+    });
+
+    expect(flattenText(renderer!.toJSON())).not.toContain("@unknown");
+    expect(
+      renderer!.root.findAllByProps({ testID: "ranking-row-seller-4" }),
+    ).toHaveLength(0);
+  });
+
+  it("keeps the legacy unknown placeholder out of top-ranking card footers", () => {
+    const item = sampleRanking({ rank: 1, username: "unknown" });
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList
+            onPressSeller={vi.fn()}
+            state={{ status: "ready", data: [item] }}
+          />,
+        ),
+      );
+    });
+
+    expect(flattenText(renderer!.toJSON())).not.toContain("@unknown");
+    expect(
+      renderer!.root.findAllByProps({ testID: "ranking-top-seller-1" }),
+    ).toHaveLength(0);
+  });
+
+  it("shows the ranking seller account in the top-card footer", () => {
+    const item = sampleRanking({ rank: 1, username: "ranked.shop" });
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList
+            onPressSeller={vi.fn()}
+            state={{ status: "ready", data: [item] }}
+          />,
+        ),
+      );
+    });
+
+    expect(flattenText(renderer!.toJSON())).toContain("@ranked.shop");
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-top-seller-icon-1" }).props,
+    ).toMatchObject({ accessible: false, name: "logo-instagram" });
   });
 
   it("shows rank movement and deadline instead of popularity scores", () => {
@@ -623,6 +785,65 @@ describe("ranking components", () => {
     expect(
       renderer!.root.findByProps({ testID: "ranking-row-2" }),
     ).toBeTruthy();
+  });
+
+  it("renders rank four directly without a continuation heading", () => {
+    const rankings = [1, 2, 3, 4].map((rank) =>
+      sampleRanking({ groupBuyId: `group-${rank}`, rank }),
+    );
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList state={{ status: "ready", data: rankings }} />,
+        ),
+      );
+    });
+
+    const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
+    expect(
+      renderer!.root.findByProps({ testID: "ranking-row-4" }),
+    ).toBeTruthy();
+    expect(
+      renderer!.root.findAllByProps({ testID: "ranking-list-heading" }),
+    ).toHaveLength(0);
+    expect(text).not.toContain("계속 인기 중");
+    expect(text).not.toContain("4위부터도 같은 기준으로 집계해요");
+  });
+
+  it("keeps later ranking ad slots when one request is unavailable", () => {
+    const rankings = Array.from({ length: 30 }, (_, index) =>
+      sampleRanking({
+        groupBuyId: `ranking-ad-group-${index + 1}`,
+        rank: index + 1,
+      }),
+    );
+    rankingAdsMock.enabled = true;
+    rankingAdsMock.isReady = true;
+    rankingAdsMock.nativeUnitIds.home = "home-native-unit";
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList state={{ status: "ready", data: rankings }} />,
+        ),
+      );
+    });
+
+    const adsBeforeFailure = renderer!.root.findAll(
+      (node) => String(node.type) === "NativeAdCard",
+    );
+    expect(adsBeforeFailure.length).toBeGreaterThan(1);
+
+    act(() => adsBeforeFailure[0].props.onLoadStateChange("unavailable"));
+
+    const adsAfterFailure = renderer!.root.findAll(
+      (node) => String(node.type) === "NativeAdCard",
+    );
+    expect(adsAfterFailure).toHaveLength(adsBeforeFailure.length - 1);
+    expect(adsAfterFailure.length).toBeGreaterThan(0);
   });
 
   it("uses the same editorial divider treatment for every ranking row", () => {

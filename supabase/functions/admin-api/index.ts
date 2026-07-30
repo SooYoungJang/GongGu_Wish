@@ -7,12 +7,25 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
+import { isInstagramCdnUrl } from "../_shared/hiker-instagram-audio.ts";
 import {
   normalizeCommercePatch,
   normalizePersistedPriceKrw,
 } from "./commerceFields.ts";
+import {
+  type CdnRefreshStatusRow,
+  mapCdnRefreshStatusRow,
+} from "./cdnRefreshStatus.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
+import {
+  deliverPendingSubmissionApprovalPushes,
+  type SubmissionApprovalDeliverySummary,
+} from "./submissionApprovalPush.ts";
 import { sendPushNotification } from "./pushNotifications.ts";
+import {
+  mapSubmissionDelivery,
+  type SubmissionNotificationDelivery,
+} from "./submissionDelivery.ts";
 import { mapAdminUser } from "./userContract.ts";
 
 type AdminMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -28,7 +41,6 @@ type MediaAsset = {
   mediaType: "IMAGE" | "VIDEO";
   thumbnailUrl?: string | null;
 };
-
 interface AdminRequest {
   path: string;
   method: AdminMethod;
@@ -48,6 +60,7 @@ const SUBMISSION_SELECT = `
   id,
   product_name,
   brand_name,
+  instagram_username,
   category,
   start_date,
   end_date,
@@ -58,6 +71,10 @@ const SUBMISSION_SELECT = `
   instagram_url,
   image_urls,
   media_items,
+  post_audio_url,
+  post_audio_start_time_ms,
+  post_audio_duration_ms,
+  post_audio_checked_at,
   reporter_name,
   reporter_contact,
   is_anonymous,
@@ -78,6 +95,7 @@ const GROUP_BUY_SELECT = `
   id,
   product_name,
   brand_name,
+  instagram_username,
   category,
   start_date,
   end_date,
@@ -90,6 +108,10 @@ const GROUP_BUY_SELECT = `
   media_urls,
   media_items,
   media_type,
+  post_audio_url,
+  post_audio_start_time_ms,
+  post_audio_duration_ms,
+  post_audio_checked_at,
   confidence,
   status,
   source_type,
@@ -245,6 +267,70 @@ function normalizeMediaUrls(value: unknown): string[] {
     : [];
 }
 
+function normalizePostAudioUrl(value: unknown): string | null {
+  const url = str(value);
+  if (!url) return null;
+  if (!isInstagramCdnUrl(url)) {
+    throw new Error("postAudioUrl must be an HTTPS Instagram CDN URL.");
+  }
+  return url;
+}
+
+function normalizePostAudioInteger(
+  value: unknown,
+  fieldName: string,
+  allowZero: boolean,
+): number | null {
+  if (
+    value === null ||
+    value === undefined ||
+    (typeof value === "string" && value.trim() === "")
+  ) {
+    return null;
+  }
+  const parsed = typeof value === "number" ? value : Number(value);
+  const minimum = allowZero ? 0 : 1;
+  if (!Number.isSafeInteger(parsed) || parsed < minimum) {
+    throw new Error(
+      `${fieldName} must be ${allowZero ? "non-negative" : "positive"}.`,
+    );
+  }
+  return parsed;
+}
+
+export function normalizePostAudioPatch(body: Record<string, unknown>) {
+  const urlTouched = hasOwn(body, "postAudioUrl");
+  const startTouched = hasOwn(body, "postAudioStartTimeMs");
+  const durationTouched = hasOwn(body, "postAudioDurationMs");
+  if (!urlTouched && !startTouched && !durationTouched) return {};
+
+  const patch: Record<string, unknown> = {
+    post_audio_checked_at: new Date().toISOString(),
+  };
+  if (urlTouched) {
+    patch.post_audio_url = normalizePostAudioUrl(body.postAudioUrl);
+  }
+  if (startTouched) {
+    patch.post_audio_start_time_ms = normalizePostAudioInteger(
+      body.postAudioStartTimeMs,
+      "postAudioStartTimeMs",
+      true,
+    );
+  }
+  if (durationTouched) {
+    patch.post_audio_duration_ms = normalizePostAudioInteger(
+      body.postAudioDurationMs,
+      "postAudioDurationMs",
+      false,
+    );
+  }
+  if (patch.post_audio_url === null) {
+    patch.post_audio_start_time_ms = null;
+    patch.post_audio_duration_ms = null;
+  }
+  return patch;
+}
+
 function normalizeSubmissionPatch(
   body: Record<string, unknown>,
   existing: Record<string, unknown>,
@@ -255,6 +341,8 @@ function normalizeSubmissionPatch(
 
   if (hasOwn(body, "productName")) patch.product_name = str(body.productName);
   if (hasOwn(body, "brandName")) patch.brand_name = str(body.brandName);
+  if (hasOwn(body, "instagramUsername"))
+    patch.instagram_username = str(body.instagramUsername);
   if (hasOwn(body, "category")) patch.category = str(body.category);
   if (hasOwn(body, "startDate")) patch.start_date = str(body.startDate);
   if (hasOwn(body, "endDate")) patch.end_date = str(body.endDate);
@@ -269,6 +357,7 @@ function normalizeSubmissionPatch(
   if (hasOwn(body, "mediaItems"))
     patch.media_items = normalizeMediaItems(body.mediaItems);
   if (hasOwn(body, "adminMemo")) patch.admin_memo = str(body.adminMemo);
+  Object.assign(patch, normalizePostAudioPatch(body));
   Object.assign(patch, normalizeCommercePatch(body, existing));
 
   return patch;
@@ -284,6 +373,8 @@ function normalizeGroupBuyPatch(
 
   if (hasOwn(body, "productName")) patch.product_name = str(body.productName);
   if (hasOwn(body, "brandName")) patch.brand_name = str(body.brandName);
+  if (hasOwn(body, "instagramUsername"))
+    patch.instagram_username = str(body.instagramUsername);
   if (hasOwn(body, "category")) patch.category = str(body.category);
   if (hasOwn(body, "startDate")) patch.start_date = str(body.startDate);
   if (hasOwn(body, "endDate")) patch.end_date = str(body.endDate);
@@ -309,6 +400,7 @@ function normalizeGroupBuyPatch(
       body.monthlyFeaturedRank,
     );
   }
+  Object.assign(patch, normalizePostAudioPatch(body));
   Object.assign(patch, normalizeCommercePatch(body, existing));
 
   return patch;
@@ -320,11 +412,35 @@ function compact<T extends Record<string, unknown>>(value: T) {
   );
 }
 
-function mapSubmission(row: Record<string, unknown>) {
+async function getSubmissionNotificationDeliveries(
+  supabase: AdminClient,
+  submissionIds: string[],
+) {
+  if (submissionIds.length === 0) {
+    return new Map<string, SubmissionNotificationDelivery>();
+  }
+  const { data, error } = await supabase.rpc(
+    "get_submission_notification_delivery",
+    { p_submission_ids: [...new Set(submissionIds)] },
+  );
+  if (error) throw new Error(error.message);
+  return new Map<string, SubmissionNotificationDelivery>(
+    ((data ?? []) as Record<string, unknown>[]).map((row) => [
+      String(row.submission_id),
+      mapSubmissionDelivery(row),
+    ]),
+  );
+}
+
+function mapSubmission(
+  row: Record<string, unknown>,
+  notificationDelivery: SubmissionNotificationDelivery | null = null,
+) {
   return {
     id: row.id,
     productName: row.product_name,
     brandName: row.brand_name,
+    instagramUsername: row.instagram_username,
     category: row.category,
     startDate: row.start_date,
     endDate: row.end_date,
@@ -335,6 +451,9 @@ function mapSubmission(row: Record<string, unknown>) {
     instagramUrl: row.instagram_url,
     imageUrls: row.image_urls ?? [],
     mediaItems: row.media_items ?? [],
+    postAudioUrl: row.post_audio_url,
+    postAudioStartTimeMs: row.post_audio_start_time_ms,
+    postAudioDurationMs: row.post_audio_duration_ms,
     reporterName: row.reporter_name,
     reporterContact: row.reporter_contact,
     isAnonymous: row.is_anonymous,
@@ -349,6 +468,7 @@ function mapSubmission(row: Record<string, unknown>) {
     homeBannerEndDate: row.home_banner_end_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    notificationDelivery,
   };
 }
 
@@ -357,6 +477,7 @@ function mapGroupBuy(row: Record<string, unknown>) {
     id: row.id,
     productName: row.product_name,
     brandName: row.brand_name,
+    instagramUsername: row.instagram_username,
     category: row.category,
     startDate: row.start_date,
     endDate: row.end_date,
@@ -369,6 +490,9 @@ function mapGroupBuy(row: Record<string, unknown>) {
     mediaUrls: row.media_urls ?? [],
     mediaItems: row.media_items ?? [],
     mediaType: row.media_type,
+    postAudioUrl: row.post_audio_url,
+    postAudioStartTimeMs: row.post_audio_start_time_ms,
+    postAudioDurationMs: row.post_audio_duration_ms,
     confidence: row.confidence,
     status: row.status,
     sourceType: row.source_type,
@@ -409,8 +533,15 @@ async function listSubmissions(
 
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const deliveries = await getSubmissionNotificationDeliveries(
+    supabase,
+    rows.map((row) => String(row.id)),
+  );
   return {
-    items: (data ?? []).map((row) => mapSubmission(row)),
+    items: rows.map((row) =>
+      mapSubmission(row, deliveries.get(String(row.id)) ?? null),
+    ),
     total: count ?? 0,
   };
 }
@@ -587,6 +718,9 @@ async function approveSubmission(
     brand_name: hasOwn(body, "brandName")
       ? str(body.brandName)
       : existing.brand_name,
+    instagram_username: hasOwn(body, "instagramUsername")
+      ? str(body.instagramUsername)
+      : existing.instagram_username,
     category: hasOwn(body, "category") ? str(body.category) : existing.category,
     start_date: hasOwn(body, "startDate")
       ? str(body.startDate)
@@ -609,6 +743,18 @@ async function approveSubmission(
       ? normalizeMediaItems(body.mediaItems)
       : existing.media_items,
     media_type: str(body.mediaType),
+    post_audio_url: hasOwn(patch, "post_audio_url")
+      ? patch.post_audio_url
+      : existing.post_audio_url,
+    post_audio_start_time_ms: hasOwn(patch, "post_audio_start_time_ms")
+      ? patch.post_audio_start_time_ms
+      : existing.post_audio_start_time_ms,
+    post_audio_duration_ms: hasOwn(patch, "post_audio_duration_ms")
+      ? patch.post_audio_duration_ms
+      : existing.post_audio_duration_ms,
+    post_audio_checked_at: hasOwn(patch, "post_audio_checked_at")
+      ? patch.post_audio_checked_at
+      : existing.post_audio_checked_at,
     is_all_day: hasOwn(body, "isAllDay") ? bool(body.isAllDay) : false,
     is_monthly_featured: hasOwn(body, "isMonthlyFeatured")
       ? bool(body.isMonthlyFeatured)
@@ -663,9 +809,82 @@ async function approveSubmission(
     await supabase.from("group_buys").delete().eq("id", groupBuy.id);
     throw new Error(submissionError.message);
   }
+  let notificationDelivery: SubmissionApprovalDeliverySummary;
+  try {
+    notificationDelivery = await deliverPendingSubmissionApprovalPushes(
+      supabase,
+      { submissionId: id },
+    );
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "submission_approval_push_queue_failed",
+        submissionId: id,
+        groupBuyId: groupBuy.id,
+        error:
+          error instanceof Error
+            ? error.message.slice(0, 500)
+            : "unknown error",
+      }),
+    );
+    notificationDelivery = {
+      status: "retrying",
+      queued: 0,
+      sent: 0,
+      skipped: 0,
+      retrying: 1,
+      failed: 0,
+    };
+  }
   return {
-    submission: mapSubmission(submission),
+    submission: mapSubmission(
+      submission,
+      (await getSubmissionNotificationDeliveries(supabase, [id])).get(id) ??
+        null,
+    ),
     groupBuy: mapGroupBuy(groupBuy),
+    notificationDelivery,
+  };
+}
+
+async function retrySubmissionApprovalNotification(
+  supabase: AdminClient,
+  id: string,
+) {
+  const { data: submission, error: findError } = await supabase
+    .from("gonggu_submissions")
+    .select(SUBMISSION_SELECT)
+    .eq("id", id)
+    .single();
+  if (findError) throw new Error(findError.message);
+  if (!submission) throw new Error("제보를 찾을 수 없습니다.");
+  if (submission.status !== "APPROVED") {
+    throw new Error("승인된 제보의 알림만 재시도할 수 있습니다.");
+  }
+
+  const { error: resetError } = await supabase
+    .from("submission_approval_push_outbox")
+    .update({
+      status: "PENDING",
+      attempt_count: 0,
+      next_attempt_at: new Date().toISOString(),
+      last_error: null,
+      sent_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("submission_id", id)
+    .in("status", ["FAILED", "RETRYING"]);
+  if (resetError) throw new Error(resetError.message);
+
+  const notificationDelivery = await deliverPendingSubmissionApprovalPushes(
+    supabase,
+    { submissionId: id },
+  );
+  const delivery =
+    (await getSubmissionNotificationDeliveries(supabase, [id])).get(id) ?? null;
+  return {
+    submission: mapSubmission(submission, delivery),
+    notificationDelivery,
   };
 }
 
@@ -748,21 +967,6 @@ async function updateUser(
   return mapAdminUser(data);
 }
 
-type CdnRefreshStatusRow = {
-  id: string;
-  productName: string | null;
-  brandName: string | null;
-  category: string | null;
-  videoUrl: string | null;
-  thumbnailUrl: string | null;
-  endDate: string | null;
-  updatedAt: string;
-  mediaRefreshedAt: string | null;
-  cdnExpiresAt: string | null;
-  refreshStatus: "expired" | "expiring" | "healthy" | "unknown" | "no_cdn";
-  instagramUrl: string | null;
-};
-
 type CdnRefreshStatusResponse = {
   items: CdnRefreshStatusRow[];
   summary: {
@@ -774,23 +978,6 @@ type CdnRefreshStatusResponse = {
     noCdn: number;
   };
 };
-
-function mapCdnRow(row: Record<string, unknown>): CdnRefreshStatusRow {
-  return {
-    id: row.id,
-    productName: row.product_name,
-    brandName: row.brand_name,
-    category: row.category,
-    videoUrl: row.video_url,
-    thumbnailUrl: row.thumbnail_url,
-    endDate: row.end_date,
-    updatedAt: row.updated_at,
-    mediaRefreshedAt: row.media_refreshed_at,
-    cdnExpiresAt: row.cdn_expires_at,
-    refreshStatus: row.refresh_status,
-    instagramUrl: row.instagram_url,
-  };
-}
 
 async function listCdnRefreshStatus(
   supabase: AdminClient,
@@ -811,7 +998,7 @@ async function listCdnRefreshStatus(
   if (error) throw new Error(error.message);
 
   const rows = (data ?? []) as Record<string, unknown>[];
-  const items = rows.map((row) => mapCdnRow(row));
+  const items = rows.map((row) => mapCdnRefreshStatusRow(row));
 
   // Most recent media_refreshed_at across all approved VIDEO group buys,
   // representing the last time the hourly batch actually refreshed a CDN URL.
@@ -933,6 +1120,13 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   }
   if (
     path.startsWith("/admin/submissions/") &&
+    path.endsWith("/notification/retry") &&
+    method === "POST"
+  ) {
+    return retrySubmissionApprovalNotification(supabase, path.split("/")[3]);
+  }
+  if (
+    path.startsWith("/admin/submissions/") &&
     path.endsWith("/approve") &&
     method === "POST"
   ) {
@@ -992,7 +1186,7 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   throw new Error(`Unknown route: ${method} ${path}`);
 }
 
-serve(async (req: Request) => {
+export async function handler(req: Request) {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
   }
@@ -1025,4 +1219,6 @@ serve(async (req: Request) => {
     console.error("[admin-api] Error:", message);
     return json({ error: message }, 500);
   }
-});
+}
+
+if (import.meta.main) serve(handler);

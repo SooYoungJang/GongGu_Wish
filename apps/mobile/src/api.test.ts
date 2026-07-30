@@ -4,19 +4,30 @@ import {
   fetchHomeBannerGroupBuys,
   fetchGroupBuyRankings,
   fetchGroupBuys,
+  fetchGroupBuysByInfluencer,
+  fetchNotificationReminders,
   lookupInstagramUrl,
+  logDeepView,
+  logSearchTerm,
+  mapGroupBuyRows,
   postPublicJson,
   refreshGroupBuyMedia,
   syncBookmark,
   syncNotification,
 } from "./api";
 import { configurePostgrest } from "./lib/postgrest-client";
+import { resolveAudiencePolicy } from "./audience/audiencePolicy";
+import { setAudiencePolicySnapshot } from "./audience/behaviorSignalsPolicy";
 
 const sessionMocks = vi.hoisted(() => ({
   getSessionId: vi.fn(),
 }));
+const authTokenMocks = vi.hoisted(() => ({
+  getAuthToken: vi.fn<() => Promise<string | null>>(),
+}));
 
 vi.mock("./utils/session", () => sessionMocks);
+vi.mock("./utils/auth", () => authTokenMocks);
 
 const originalFetch = global.fetch;
 
@@ -24,12 +35,26 @@ describe("public data fetch diagnostics", () => {
   beforeEach(() => {
     configurePostgrest("sb_publishable_1234567890");
     sessionMocks.getSessionId.mockReset();
+    authTokenMocks.getAuthToken.mockReset().mockResolvedValue(null);
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age14Plus"));
     vi.spyOn(console, "log").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
     vi.restoreAllMocks();
+  });
+
+  it("does not emit search, deep-view, bookmark, or session signals in age-13 mode", async () => {
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age13"));
+    global.fetch = vi.fn() as unknown as typeof fetch;
+
+    await logSearchTerm("공구");
+    await logDeepView("group-buy-1");
+    await syncBookmark("group-buy-1", true);
+
+    expect(sessionMocks.getSessionId).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("logs group buy failures separately from feed failures", async () => {
@@ -120,6 +145,109 @@ describe("public data fetch diagnostics", () => {
     const [item] = await fetchGroupBuys();
 
     expect(item.isHomeBanner).toBe(false);
+  });
+
+  it("prefers the Instagram account saved on the group buy", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [
+        {
+          id: "group-buy-with-account",
+          product_name: "계정 우선순위 공구",
+          instagram_username: "saved_shop",
+          confidence: 0,
+          media_urls: [],
+          media_items: [],
+          media_type: null,
+          raw_post_id: {
+            post_url: "https://instagram.com/p/legacy",
+            influencer_id: { instagram_username: "legacy_shop" },
+          },
+        },
+      ],
+    }) as unknown as typeof fetch;
+
+    const [item] = await fetchGroupBuys();
+
+    expect(item.rawPost.influencer.instagramUsername).toBe("saved_shop");
+  });
+
+  it("maps post-level audio fields without replacing embedded video media", () => {
+    const [item] = mapGroupBuyRows([
+      {
+        id: "group-buy-with-post-audio",
+        product_name: "오디오가 있는 캐러셀 공구",
+        confidence: 0,
+        video_url: "https://media.example.invalid/carousel-video.mp4",
+        media_urls: ["https://media.example.invalid/carousel-video.mp4"],
+        media_items: [
+          {
+            url: "https://media.example.invalid/carousel-video.mp4",
+            mediaType: "VIDEO",
+          },
+        ],
+        media_type: "VIDEO",
+        post_audio_url: "https://cdn.example.invalid/audio/carousel-track.m4a",
+        post_audio_start_time_ms: 12_000,
+        post_audio_duration_ms: 30_000,
+        raw_post_id: null,
+      },
+    ]);
+
+    expect({
+      videoUrl: item.videoUrl,
+      postAudioUrl: item.postAudioUrl,
+      postAudioStartTimeMs: item.postAudioStartTimeMs,
+      postAudioDurationMs: item.postAudioDurationMs,
+    }).toEqual({
+      videoUrl: "https://media.example.invalid/carousel-video.mp4",
+      postAudioUrl: "https://cdn.example.invalid/audio/carousel-track.m4a",
+      postAudioStartTimeMs: 12_000,
+      postAudioDurationMs: 30_000,
+    });
+  });
+
+  it("finds both current and legacy group buys for an Instagram account", async () => {
+    const row = (id: string) => ({
+      id,
+      product_name: `${id} 공구`,
+      instagram_username: "saved_shop",
+      confidence: 0,
+      media_urls: [],
+      media_items: [],
+      media_type: null,
+      raw_post_id: null,
+    });
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => [row("current")],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => [row("current"), row("legacy")],
+      }) as unknown as typeof fetch;
+
+    const result = await fetchGroupBuysByInfluencer("@Saved_Shop");
+
+    expect(result.map((item) => item.id)).toEqual(["current", "legacy"]);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(String(vi.mocked(global.fetch).mock.calls[0]?.[0])).toContain(
+      "instagram_username.ilike.Saved_Shop",
+    );
+    expect(String(vi.mocked(global.fetch).mock.calls[1]?.[0])).toContain(
+      "raw_post_id!inner(*,influencer_id!inner(*))",
+    );
+    expect(String(vi.mocked(global.fetch).mock.calls[1]?.[0])).toContain(
+      "instagram_username=ilike.Saved_Shop",
+    );
   });
 
   it("asks PostgREST for only approved, active home banners", async () => {
@@ -321,9 +449,26 @@ describe("public data fetch diagnostics", () => {
         body: JSON.stringify({ groupBuyId: "group-buy-1" }),
       }),
     );
+
+    await refreshGroupBuyMedia("group-buy-1", {
+      force: true,
+      failedPostAudioUrl: "https://example.com/failed-audio.m4a",
+    });
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      expect.stringContaining("/functions/v1/refresh-instagram-media"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          groupBuyId: "group-buy-1",
+          force: true,
+          failedPostAudioUrl: "https://example.com/failed-audio.m4a",
+        }),
+      }),
+    );
   });
 
   it("posts public submissions through the Supabase public-submission function", async () => {
+    authTokenMocks.getAuthToken.mockResolvedValue("signed-in-user-token");
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -343,6 +488,9 @@ describe("public data fetch diagnostics", () => {
       expect.stringContaining("/functions/v1/public-submission"),
       expect.objectContaining({
         method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer signed-in-user-token",
+        }),
         body: JSON.stringify({
           productName: "테스트 공구",
           instagramUrl: "https://www.instagram.com/p/ABC123/",
@@ -366,36 +514,109 @@ describe("public data fetch diagnostics", () => {
     ).rejects.toThrow("제품명은 2자 이상 필수입니다.");
   });
 
-  it("upserts notification mirrors idempotently and reports success", async () => {
-    sessionMocks.getSessionId.mockResolvedValue("session-1");
+  it("replaces authenticated opening reminders through the owner-only v2 RPC", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      status: 201,
+      status: 200,
       headers: { get: () => null },
-      json: async () => ({}),
+      json: async () => [
+        {
+          group_buy_id: "group-buy-1",
+          reminder_type: "OPENING",
+          reminder_days: [0, 2, 6],
+          reminder_time_minutes: 15 * 60 + 30,
+          updated_at: "2026-07-26T01:00:00.000Z",
+        },
+      ],
     }) as unknown as typeof fetch;
 
-    await expect(syncNotification("group-buy-1", true)).resolves.toBe(true);
+    await expect(
+      syncNotification("group-buy-1", {
+        type: "opening",
+        reminderDays: [6, 0, 2, 6],
+        reminderTimeMinutes: 15 * 60 + 30,
+      }),
+    ).resolves.toEqual({
+      status: "synced",
+      preference: {
+        groupBuyId: "group-buy-1",
+        type: "opening",
+        reminderDays: [0, 2, 6],
+        reminderTimeMinutes: 15 * 60 + 30,
+        updatedAt: "2026-07-26T01:00:00.000Z",
+      },
+    });
 
     const [requestUrl, requestInit] =
       vi.mocked(global.fetch).mock.calls[0] ?? [];
-    expect(String(requestUrl)).toContain("/rest/v1/group_buy_notifications");
+    expect(String(requestUrl)).toContain(
+      "/rest/v1/rpc/set_my_group_buy_reminder_v2",
+    );
     expect(JSON.parse(String((requestInit as RequestInit).body))).toEqual({
-      group_buy_id: "group-buy-1",
-      session_id: "session-1",
-    });
-    expect((requestInit as RequestInit).headers).toMatchObject({
-      Prefer: "resolution=merge-duplicates,return=minimal",
+      p_group_buy_id: "group-buy-1",
+      p_reminder_type: "OPENING",
+      p_reminder_days: [0, 2, 6],
+      p_reminder_time_minutes: 15 * 60 + 30,
     });
   });
 
-  it("swallows session lookup failures for popularity sync requests", async () => {
-    const sessionError = new TypeError(
-      "Cannot read property 'reload' of undefined",
-    );
-    sessionMocks.getSessionId.mockRejectedValue(sessionError);
+  it("loads and maps authenticated opening and deadline reminder intents", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [
+        {
+          group_buy_id: "group-buy-1",
+          reminder_type: "OPENING",
+          reminder_days: [0, 3],
+          reminder_time_minutes: 9 * 60 + 15,
+          updated_at: "2026-07-26T01:00:00.000Z",
+        },
+        {
+          group_buy_id: "group-buy-2",
+          reminder_type: "DEADLINE",
+          reminder_days: [3],
+          reminder_time_minutes: null,
+          updated_at: "2026-07-26T02:00:00.000Z",
+        },
+        {
+          group_buy_id: "group-buy-invalid",
+          reminder_type: "UNKNOWN",
+          reminder_days: [1],
+          reminder_time_minutes: null,
+          updated_at: "2026-07-26T03:00:00.000Z",
+        },
+      ],
+    }) as unknown as typeof fetch;
 
-    await expect(syncBookmark("group-buy-1", true)).resolves.toBeUndefined();
-    await expect(syncNotification("group-buy-1", true)).resolves.toBe(false);
+    await expect(fetchNotificationReminders()).resolves.toEqual([
+      {
+        groupBuyId: "group-buy-1",
+        type: "opening",
+        reminderDays: [0, 3],
+        reminderTimeMinutes: 9 * 60 + 15,
+        updatedAt: "2026-07-26T01:00:00.000Z",
+      },
+      {
+        groupBuyId: "group-buy-2",
+        type: "deadline",
+        reminderDays: [3],
+        reminderTimeMinutes: null,
+        updatedAt: "2026-07-26T02:00:00.000Z",
+      },
+    ]);
+
+    expect(String(vi.mocked(global.fetch).mock.calls[0]?.[0])).toContain(
+      "/rest/v1/rpc/get_my_group_buy_reminders_v2",
+    );
+  });
+
+  it("reports a retryable failure when a reminder mirror cannot sync", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+
+    await expect(syncNotification("group-buy-1", [1])).resolves.toEqual({
+      status: "failed",
+    });
   });
 });

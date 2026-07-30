@@ -1,6 +1,7 @@
 {
   "framework": "vite",
   "buildCommand": "npm run build",
+  "ignoreCommand": "node ../../scripts/ci-change-plan.mjs --vercel-admin",
   "outputDirectory": "dist",
   "rewrites": [
     {

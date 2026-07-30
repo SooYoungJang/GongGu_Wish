@@ -2,17 +2,24 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GroupBuy } from "../types";
+import { resolveAudiencePolicy } from "../audience/audiencePolicy";
+import { setAudiencePolicySnapshot } from "../audience/behaviorSignalsPolicy";
 import {
   clearLocalUserData,
   useBookmarks,
   useNotifications,
   useRecentViews,
+  useWishItems,
 } from "./useLocalDeals";
 
 const apiMocks = vi.hoisted(() => ({
   fetchGroupBuysByIds: vi.fn().mockResolvedValue([]),
+  fetchNotificationReminders: vi.fn().mockResolvedValue([]),
   syncBookmark: vi.fn().mockResolvedValue(undefined),
-  syncNotification: vi.fn().mockResolvedValue(undefined),
+  syncNotification: vi.fn().mockResolvedValue({
+    status: "synced",
+    preference: null,
+  }),
 }));
 
 const notificationServiceMocks = vi.hoisted(() => {
@@ -20,7 +27,7 @@ const notificationServiceMocks = vi.hoisted(() => {
     .fn()
     .mockResolvedValue({ status: "cancelled" });
   return {
-    scheduleGroupBuyStart: vi.fn().mockResolvedValue({
+    scheduleGroupBuyOpeningReminders: vi.fn().mockResolvedValue({
       status: "unavailable",
       reason: "missing-start-date",
     }),
@@ -42,7 +49,7 @@ const notificationPreferenceMocks = vi.hoisted(() => ({
   preferences: {
     pushEnabled: true,
     deadlineRemindersEnabled: true,
-    newSubmissionsEnabled: true,
+    submissionApprovalEnabled: true,
     reminderDays: [1, 3, 7] as Array<1 | 3 | 7>,
     followedInfluencers: [] as string[],
     followedBrands: [] as string[],
@@ -60,13 +67,32 @@ vi.mock("../services/notifications", () => notificationServiceMocks);
 
 const storage = vi.hoisted(() => ({
   values: new Map<string, string>(),
+  readPlans: [] as Array<{
+    snapshot: string | null;
+    gate: Promise<void>;
+  }>,
+  nextGetItemError: null as Error | null,
   writeGate: null as Promise<void> | null,
+  writeAttempts: 0,
 }));
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {
-    getItem: vi.fn(async (key: string) => storage.values.get(key) ?? null),
+    getItem: vi.fn(async (key: string) => {
+      if (storage.nextGetItemError) {
+        const error = storage.nextGetItemError;
+        storage.nextGetItemError = null;
+        throw error;
+      }
+      const plannedRead = storage.readPlans.shift();
+      const value = plannedRead
+        ? plannedRead.snapshot
+        : (storage.values.get(key) ?? null);
+      if (plannedRead) await plannedRead.gate;
+      return value;
+    }),
     setItem: vi.fn(async (key: string, value: string) => {
+      storage.writeAttempts += 1;
       if (storage.writeGate) await storage.writeGate;
       storage.values.set(key, value);
     }),
@@ -103,27 +129,35 @@ const GROUP_BUY: GroupBuy = {
 };
 
 describe("useNotifications", () => {
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
+    await clearLocalUserData();
   });
 
   beforeEach(() => {
     storage.values.clear();
+    storage.readPlans.length = 0;
+    storage.nextGetItemError = null;
     storage.writeGate = null;
+    storage.writeAttempts = 0;
     apiMocks.fetchGroupBuysByIds.mockReset().mockResolvedValue([]);
+    apiMocks.fetchNotificationReminders.mockReset().mockResolvedValue([]);
     apiMocks.syncBookmark.mockReset().mockResolvedValue(undefined);
-    apiMocks.syncNotification.mockReset().mockResolvedValue(undefined);
-    notificationServiceMocks.scheduleGroupBuyStart
-      .mockReset()
-      .mockResolvedValue({
-        status: "unavailable",
-        reason: "missing-start-date",
-      });
+    apiMocks.syncNotification.mockReset().mockResolvedValue({
+      status: "synced",
+      preference: null,
+    });
     notificationServiceMocks.scheduleGroupBuyReminders
       .mockReset()
       .mockResolvedValue({
         status: "unavailable",
         reason: "missing-end-date",
+      });
+    notificationServiceMocks.scheduleGroupBuyOpeningReminders
+      .mockReset()
+      .mockResolvedValue({
+        status: "unavailable",
+        reason: "missing-start-date",
       });
     notificationServiceMocks.cancelScheduledNotification
       .mockReset()
@@ -136,7 +170,12 @@ describe("useNotifications", () => {
         }
         return { cancelledIds: [...new Set(ids)], failedIds: [] as string[] };
       });
+    notificationPreferenceMocks.preferences.pushEnabled = true;
+    notificationPreferenceMocks.preferences.deadlineRemindersEnabled = true;
+    notificationPreferenceMocks.preferences.submissionApprovalEnabled = true;
+    notificationPreferenceMocks.preferences.reminderDays = [1, 3, 7];
     authMocks.user = null;
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age14Plus"));
   });
 
   it("동시에 마운트된 다른 화면에도 알림 변경을 즉시 반영한다", async () => {
@@ -187,6 +226,441 @@ describe("useNotifications", () => {
           storage.values.get("@gonggu/notifications/v2/guest") ?? "[]",
         )[0].priceKrw,
       ).toBe(200000);
+    });
+  });
+
+  it("만 13세 모드에서는 최근 본 공구를 로컬에 기록하지 않는다", async () => {
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age13"));
+    storage.values.set(
+      "@gonggu/recent-views/v1",
+      JSON.stringify([{ ...GROUP_BUY, productName: "과거 최근 본 공구" }]),
+    );
+    const recentViews = renderHook(() => useRecentViews());
+    await waitFor(() => expect(recentViews.result.current.ready).toBe(true));
+
+    act(() => recentViews.result.current.recordView(GROUP_BUY));
+
+    expect(recentViews.result.current.recentViews).toEqual([]);
+    expect(apiMocks.fetchGroupBuysByIds).not.toHaveBeenCalled();
+  });
+
+  it("만 13세 모드에서는 개인 활동 캐시를 읽거나 변경하지 않는다", async () => {
+    setAudiencePolicySnapshot(resolveAudiencePolicy("age13"));
+    storage.values.set("@gonggu/bookmarks/v1", JSON.stringify([GROUP_BUY]));
+    storage.values.set(
+      "@gonggu/wish-items/v1",
+      JSON.stringify([{ id: "old-wish" }]),
+    );
+    storage.values.set(
+      "@gonggu/notifications/v2/guest",
+      JSON.stringify([{ groupBuyId: GROUP_BUY.id }]),
+    );
+
+    const bookmarks = renderHook(() => useBookmarks());
+    const notifications = renderHook(() => useNotifications());
+    const wishItems = renderHook(() => useWishItems());
+    await waitFor(() => {
+      expect(bookmarks.result.current.ready).toBe(true);
+      expect(notifications.result.current.ready).toBe(true);
+      expect(wishItems.result.current.ready).toBe(true);
+    });
+
+    await act(async () => {
+      bookmarks.result.current.toggleBookmark(GROUP_BUY);
+      wishItems.result.current.recordWishItem({
+        submissionId: "new-wish",
+        groupBuyId: null,
+        instagramUrl: "https://www.instagram.com/p/example/",
+        productName: "새 위시",
+        thumbnailUrl: null,
+        mediaType: null,
+      });
+      await notifications.result.current.toggleNotification(GROUP_BUY);
+    });
+
+    expect(bookmarks.result.current.bookmarks).toEqual([]);
+    expect(notifications.result.current.notifications).toEqual([]);
+    expect(wishItems.result.current.wishItems).toEqual([]);
+    expect(storage.writeAttempts).toBe(0);
+    expect(apiMocks.syncBookmark).not.toHaveBeenCalled();
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("마운트 직후 기록해도 저장된 최근 본 공구를 유실하지 않는다", async () => {
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const storedDeal = {
+      ...GROUP_BUY,
+      id: "group-buy-existing",
+      productName: "기존 공구",
+    };
+    const newlyViewedDeal = {
+      ...GROUP_BUY,
+      id: "group-buy-new",
+      productName: "새 공구",
+    };
+    storage.values.set("@gonggu/recent-views/v1", JSON.stringify([storedDeal]));
+    storage.readPlans.push({
+      snapshot: JSON.stringify([storedDeal]),
+      gate: readGate,
+    });
+
+    const recentViews = renderHook(() => useRecentViews());
+
+    act(() => {
+      recentViews.result.current.recordView(newlyViewedDeal);
+    });
+    await act(async () => {
+      releaseRead();
+    });
+    await waitFor(() => {
+      expect(recentViews.result.current.ready).toBe(true);
+    });
+
+    expect(
+      recentViews.result.current.recentViews.map((deal) => deal.id),
+    ).toEqual(["group-buy-new", "group-buy-existing"]);
+    await waitFor(() => {
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(["group-buy-new", "group-buy-existing"]);
+    });
+  });
+
+  it("최근 본 공구를 중복 없이 최신순 10개까지만 저장한다", async () => {
+    const storedDeals = Array.from({ length: 10 }, (_, index) => ({
+      ...GROUP_BUY,
+      id: `group-buy-${index}`,
+      productName: `공구 ${index}`,
+    }));
+    storage.values.set("@gonggu/recent-views/v1", JSON.stringify(storedDeals));
+    const recentViews = renderHook(() => useRecentViews());
+
+    await waitFor(() => {
+      expect(recentViews.result.current.ready).toBe(true);
+    });
+    act(() => {
+      recentViews.result.current.recordView(storedDeals[5]);
+    });
+    act(() => {
+      recentViews.result.current.recordView({
+        ...GROUP_BUY,
+        id: "group-buy-new",
+        productName: "새 공구",
+      });
+    });
+
+    const expectedIds = [
+      "group-buy-new",
+      "group-buy-5",
+      "group-buy-0",
+      "group-buy-1",
+      "group-buy-2",
+      "group-buy-3",
+      "group-buy-4",
+      "group-buy-6",
+      "group-buy-7",
+      "group-buy-8",
+    ];
+    expect(
+      recentViews.result.current.recentViews.map((deal) => deal.id),
+    ).toEqual(expectedIds);
+    await waitFor(() => {
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(expectedIds);
+    });
+  });
+
+  it("동시에 마운트된 화면들의 최근 본 공구를 저장소에 모두 누적한다", async () => {
+    const storedDealA = {
+      ...GROUP_BUY,
+      id: "group-buy-a",
+      productName: "공구 A",
+    };
+    const viewedDealB = {
+      ...GROUP_BUY,
+      id: "group-buy-b",
+      productName: "공구 B",
+    };
+    const viewedDealC = {
+      ...GROUP_BUY,
+      id: "group-buy-c",
+      productName: "공구 C",
+    };
+    storage.values.set(
+      "@gonggu/recent-views/v1",
+      JSON.stringify([storedDealA]),
+    );
+    const firstScreen = renderHook(() => useRecentViews());
+    const secondScreen = renderHook(() => useRecentViews());
+
+    await waitFor(() => {
+      expect(firstScreen.result.current.ready).toBe(true);
+      expect(secondScreen.result.current.ready).toBe(true);
+    });
+    act(() => {
+      firstScreen.result.current.recordView(viewedDealB);
+    });
+    act(() => {
+      secondScreen.result.current.recordView(viewedDealC);
+    });
+
+    await waitFor(() => {
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(["group-buy-c", "group-buy-b", "group-buy-a"]);
+    });
+  });
+
+  it("늦게 끝난 이전 refresh 응답이 최신 최근 본 공구를 덮지 않는다", async () => {
+    const storedDealA = {
+      ...GROUP_BUY,
+      id: "group-buy-a",
+      productName: "공구 A",
+    };
+    const latestDealB = {
+      ...GROUP_BUY,
+      id: "group-buy-b",
+      productName: "공구 B",
+    };
+    storage.values.set(
+      "@gonggu/recent-views/v1",
+      JSON.stringify([storedDealA]),
+    );
+    const recentViews = renderHook(() => useRecentViews());
+    await waitFor(() => {
+      expect(recentViews.result.current.ready).toBe(true);
+    });
+
+    let releaseStaleRead!: () => void;
+    let releaseLatestRead!: () => void;
+    const staleReadGate = new Promise<void>((resolve) => {
+      releaseStaleRead = resolve;
+    });
+    const latestReadGate = new Promise<void>((resolve) => {
+      releaseLatestRead = resolve;
+    });
+    storage.readPlans.push(
+      {
+        snapshot: JSON.stringify([storedDealA]),
+        gate: staleReadGate,
+      },
+      {
+        snapshot: JSON.stringify([latestDealB, storedDealA]),
+        gate: latestReadGate,
+      },
+    );
+
+    act(() => {
+      recentViews.result.current.refresh();
+      recentViews.result.current.refresh();
+    });
+    await waitFor(() => {
+      expect(storage.readPlans).toHaveLength(1);
+    });
+
+    await act(async () => {
+      releaseStaleRead();
+    });
+    await waitFor(() => {
+      expect(storage.readPlans).toHaveLength(0);
+    });
+
+    await act(async () => {
+      releaseLatestRead();
+    });
+    await waitFor(() => {
+      expect(
+        recentViews.result.current.recentViews.map((deal) => deal.id),
+      ).toEqual(["group-buy-b", "group-buy-a"]);
+    });
+  });
+
+  it("초기 로드 중 화면이 사라져도 다음 화면의 기록을 보존한다", async () => {
+    const storedDeal = {
+      ...GROUP_BUY,
+      id: "group-buy-existing",
+      productName: "기존 공구",
+    };
+    const newlyViewedDeal = {
+      ...GROUP_BUY,
+      id: "group-buy-new",
+      productName: "새 공구",
+    };
+    let releaseRead!: () => void;
+    const readGate = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    storage.values.set("@gonggu/recent-views/v1", JSON.stringify([storedDeal]));
+    storage.readPlans.push({
+      snapshot: JSON.stringify([storedDeal]),
+      gate: readGate,
+    });
+
+    const firstScreen = renderHook(() => useRecentViews());
+    await waitFor(() => {
+      expect(storage.readPlans).toHaveLength(0);
+    });
+    firstScreen.unmount();
+
+    const secondScreen = renderHook(() => useRecentViews());
+    act(() => {
+      secondScreen.result.current.recordView(newlyViewedDeal);
+    });
+    await act(async () => {
+      releaseRead();
+    });
+
+    await waitFor(() => {
+      expect(secondScreen.result.current.ready).toBe(true);
+      expect(
+        secondScreen.result.current.recentViews.map((deal) => deal.id),
+      ).toEqual(["group-buy-new", "group-buy-existing"]);
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(["group-buy-new", "group-buy-existing"]);
+    });
+  });
+
+  it("지연된 쓰기 중 다른 화면의 기록도 최신순으로 보존한다", async () => {
+    const storedDealA = {
+      ...GROUP_BUY,
+      id: "group-buy-a",
+      productName: "공구 A",
+    };
+    const viewedDealB = {
+      ...GROUP_BUY,
+      id: "group-buy-b",
+      productName: "공구 B",
+    };
+    const viewedDealC = {
+      ...GROUP_BUY,
+      id: "group-buy-c",
+      productName: "공구 C",
+    };
+    storage.values.set(
+      "@gonggu/recent-views/v1",
+      JSON.stringify([storedDealA]),
+    );
+    const firstScreen = renderHook(() => useRecentViews());
+    const secondScreen = renderHook(() => useRecentViews());
+    await waitFor(() => {
+      expect(firstScreen.result.current.ready).toBe(true);
+      expect(secondScreen.result.current.ready).toBe(true);
+    });
+
+    let releaseWrite!: () => void;
+    storage.writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    const writesBeforeRecord = storage.writeAttempts;
+    act(() => {
+      firstScreen.result.current.recordView(viewedDealB);
+    });
+    await waitFor(() => {
+      expect(storage.writeAttempts).toBe(writesBeforeRecord + 1);
+    });
+
+    act(() => {
+      secondScreen.result.current.recordView(viewedDealC);
+    });
+    await act(async () => {
+      releaseWrite();
+      storage.writeGate = null;
+    });
+
+    await waitFor(() => {
+      const expectedIds = ["group-buy-c", "group-buy-b", "group-buy-a"];
+      expect(
+        firstScreen.result.current.recentViews.map((deal) => deal.id),
+      ).toEqual(expectedIds);
+      expect(
+        secondScreen.result.current.recentViews.map((deal) => deal.id),
+      ).toEqual(expectedIds);
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(expectedIds);
+    });
+  });
+
+  it("기록 전 저장소 읽기가 실패해도 다음 화면에서 복구한다", async () => {
+    const storedDealA = {
+      ...GROUP_BUY,
+      id: "group-buy-a",
+      productName: "공구 A",
+    };
+    const viewedDealB = {
+      ...GROUP_BUY,
+      id: "group-buy-b",
+      productName: "공구 B",
+    };
+    storage.values.set(
+      "@gonggu/recent-views/v1",
+      JSON.stringify([storedDealA]),
+    );
+    const recentViews = renderHook(() => useRecentViews());
+    await waitFor(() => {
+      expect(recentViews.result.current.ready).toBe(true);
+    });
+
+    storage.nextGetItemError = new Error("temporary read failure");
+    await act(async () => {
+      recentViews.result.current.recordView(viewedDealB);
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(storage.nextGetItemError).toBeNull();
+    expect(
+      (
+        JSON.parse(
+          storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+        ) as Array<{ id: string }>
+      ).map((deal) => deal.id),
+    ).toEqual(["group-buy-a"]);
+    expect(
+      recentViews.result.current.recentViews.map((deal) => deal.id),
+    ).toEqual(["group-buy-b", "group-buy-a"]);
+
+    recentViews.unmount();
+    const remountedRecentViews = renderHook(() => useRecentViews());
+
+    await waitFor(() => {
+      expect(remountedRecentViews.result.current.ready).toBe(true);
+      expect(
+        remountedRecentViews.result.current.recentViews.map((deal) => deal.id),
+      ).toEqual(["group-buy-b", "group-buy-a"]);
+      expect(
+        (
+          JSON.parse(
+            storage.values.get("@gonggu/recent-views/v1") ?? "[]",
+          ) as Array<{ id: string }>
+        ).map((deal) => deal.id),
+      ).toEqual(["group-buy-b", "group-buy-a"]);
     });
   });
 
@@ -269,32 +743,33 @@ describe("useNotifications", () => {
   });
 
   it("저장 중 새로 마운트된 화면에도 완료된 알림 상태를 전파한다", async () => {
-    let releaseWrite!: () => void;
-    storage.writeGate = new Promise<void>((resolve) => {
-      releaseWrite = resolve;
-    });
     const ranking = renderHook(() => useNotifications());
 
     await waitFor(() => {
       expect(ranking.result.current.ready).toBe(true);
     });
 
+    let releaseWrite!: () => void;
+    storage.writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
     let togglePromise!: Promise<unknown>;
     act(() => {
       togglePromise = ranking.result.current.toggleNotification(GROUP_BUY);
     });
 
     const reels = renderHook(() => useNotifications());
-    await waitFor(() => {
-      expect(reels.result.current.ready).toBe(true);
-    });
 
     await act(async () => {
       releaseWrite();
+      storage.writeGate = null;
       await togglePromise;
     });
 
-    expect(reels.result.current.isNotifying(GROUP_BUY.id)).toBe(true);
+    await waitFor(() => {
+      expect(reels.result.current.ready).toBe(true);
+      expect(reels.result.current.isNotifying(GROUP_BUY.id)).toBe(true);
+    });
   });
 
   it("회원탈퇴 후 로컬 활동 데이터를 비운다", async () => {
@@ -308,6 +783,7 @@ describe("useNotifications", () => {
       "@gonggu/wish-items/v1",
       JSON.stringify([{ id: "wish-1" }]),
     );
+    storage.values.set("search:recent", JSON.stringify(["과거 검색어"]));
     storage.values.set(
       "@gonggu/notification-preferences/v1/guest",
       JSON.stringify({ followedBrands: ["Brand A"] }),
@@ -323,6 +799,7 @@ describe("useNotifications", () => {
     expect(storage.values.has("@gonggu/recent-views/v1")).toBe(false);
     expect(storage.values.has("@gonggu/notifications/v1")).toBe(false);
     expect(storage.values.has("@gonggu/wish-items/v1")).toBe(false);
+    expect(storage.values.has("search:recent")).toBe(false);
     expect(
       storage.values.has("@gonggu/notification-preferences/v1/guest"),
     ).toBe(false);
@@ -332,24 +809,28 @@ describe("useNotifications", () => {
   });
 
   it("serializes different group-buy writes without dropping either entry", async () => {
-    notificationServiceMocks.scheduleGroupBuyStart
+    notificationServiceMocks.scheduleGroupBuyReminders
       .mockResolvedValueOnce({
         status: "scheduled",
-        notification: {
-          id: "native-a",
-          groupBuyId: "group-buy-a",
-          productName: "공구 A",
-          triggerDate: new Date("2026-07-20T12:00:00.000Z"),
-        },
+        notifications: [
+          {
+            id: "native-a",
+            groupBuyId: "group-buy-a",
+            productName: "공구 A",
+            triggerDate: new Date("2026-07-20T00:00:00.000Z"),
+          },
+        ],
       })
       .mockResolvedValueOnce({
         status: "scheduled",
-        notification: {
-          id: "native-b",
-          groupBuyId: "group-buy-b",
-          productName: "공구 B",
-          triggerDate: new Date("2026-07-20T13:00:00.000Z"),
-        },
+        notifications: [
+          {
+            id: "native-b",
+            groupBuyId: "group-buy-b",
+            productName: "공구 B",
+            triggerDate: new Date("2026-07-21T00:00:00.000Z"),
+          },
+        ],
       });
     const notifications = renderHook(() => useNotifications());
     await waitFor(() => expect(notifications.result.current.ready).toBe(true));
@@ -360,13 +841,13 @@ describe("useNotifications", () => {
           ...GROUP_BUY,
           id: "group-buy-a",
           productName: "공구 A",
-          startDate: "2026-07-20T13:00:00.000Z",
+          endDate: "2026-07-27T00:00:00.000Z",
         }),
         notifications.result.current.toggleNotification({
           ...GROUP_BUY,
           id: "group-buy-b",
           productName: "공구 B",
-          startDate: "2026-07-20T14:00:00.000Z",
+          endDate: "2026-07-28T00:00:00.000Z",
         }),
       ]);
     });
@@ -411,7 +892,7 @@ describe("useNotifications", () => {
       notificationServiceMocks.cancelScheduledNotifications,
     ).toHaveBeenCalledWith(["native-disable"]);
     expect(
-      notificationServiceMocks.scheduleGroupBuyStart,
+      notificationServiceMocks.scheduleGroupBuyReminders,
     ).not.toHaveBeenCalled();
     expect(notifications.result.current.isNotifying(GROUP_BUY.id)).toBe(false);
   });
@@ -457,7 +938,7 @@ describe("useNotifications", () => {
       await notifications.result.current.rescheduleNotifications({
         pushEnabled: true,
         deadlineRemindersEnabled: true,
-        newSubmissionsEnabled: true,
+        submissionApprovalEnabled: true,
         reminderDays: [3],
         followedInfluencers: [],
         followedBrands: [],
@@ -476,14 +957,16 @@ describe("useNotifications", () => {
 
   it("예약 결과를 관심 저장 상태와 분리해 노출한다", async () => {
     const scheduledFor = "2026-07-16T17:00:00.000Z";
-    notificationServiceMocks.scheduleGroupBuyStart.mockResolvedValueOnce({
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
       status: "scheduled",
-      notification: {
-        id: "native-notification-1",
-        groupBuyId: GROUP_BUY.id,
-        productName: GROUP_BUY.productName,
-        triggerDate: new Date(scheduledFor),
-      },
+      notifications: [
+        {
+          id: "native-notification-1",
+          groupBuyId: GROUP_BUY.id,
+          productName: GROUP_BUY.productName,
+          triggerDate: new Date(scheduledFor),
+        },
+      ],
     });
     const notifications = renderHook(() => useNotifications());
 
@@ -494,7 +977,7 @@ describe("useNotifications", () => {
     await act(async () => {
       await notifications.result.current.toggleNotification({
         ...GROUP_BUY,
-        startDate: "2026-07-16T18:00:00.000Z",
+        endDate: "2026-07-23T00:00:00.000Z",
       });
     });
 
@@ -505,6 +988,8 @@ describe("useNotifications", () => {
       status: "enabled",
       notificationId: "native-notification-1",
       scheduledFor,
+      notificationIds: ["native-notification-1"],
+      scheduledForDates: [scheduledFor],
     });
   });
 
@@ -524,7 +1009,7 @@ describe("useNotifications", () => {
       notifications.result.current.getNotificationState(GROUP_BUY.id),
     ).toEqual({
       status: "unavailable",
-      reason: "missing-start-date",
+      reason: "missing-end-date",
     });
   });
 
@@ -582,7 +1067,316 @@ describe("useNotifications", () => {
     expect(notifications.result.current.isNotifying(item.id)).toBe(false);
   });
 
-  it("reconciles existing native IDs when reminder preferences change", async () => {
+  it("schedules and mirrors only the reminder days selected for the item", async () => {
+    authMocks.user = { id: "user-1" };
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
+      status: "scheduled",
+      notifications: [
+        {
+          id: "deadline-3",
+          groupBuyId: GROUP_BUY.id,
+          productName: GROUP_BUY.productName,
+          reminderDay: 3,
+          triggerDate: new Date("2026-07-24T00:00:00.000Z"),
+        },
+      ],
+    });
+    const item = {
+      ...GROUP_BUY,
+      endDate: "2026-07-27T00:00:00.000Z",
+    };
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(item, [3]);
+    });
+
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [3]);
+    expect(
+      notifications.result.current.getNotificationReminderDays(item.id),
+    ).toEqual([3]);
+    await waitFor(() => {
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(item.id, [3]);
+    });
+  });
+
+  it("stores, schedules, and mirrors opening reminders with their shared time", async () => {
+    authMocks.user = { id: "user-1" };
+    notificationServiceMocks.scheduleGroupBuyOpeningReminders.mockResolvedValueOnce(
+      {
+        status: "scheduled",
+        notifications: [
+          {
+            id: "opening-3",
+            groupBuyId: GROUP_BUY.id,
+            productName: GROUP_BUY.productName,
+            reminderDay: 3,
+            reminderType: "opening",
+            triggerDate: new Date("2026-07-24T06:30:00.000Z"),
+          },
+        ],
+      },
+    );
+    const item = {
+      ...GROUP_BUY,
+      startDate: "2026-07-27T00:00:00.000Z",
+      endDate: "2026-08-03T00:00:00.000Z",
+    };
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(item, {
+        type: "opening",
+        reminderDays: [0, 3],
+        reminderTimeMinutes: 15 * 60 + 30,
+      });
+    });
+
+    expect(
+      notificationServiceMocks.scheduleGroupBuyOpeningReminders,
+    ).toHaveBeenCalledWith(
+      item.id,
+      item.productName,
+      item.startDate,
+      [0, 3],
+      15 * 60 + 30,
+    );
+    expect(
+      notifications.result.current.getNotificationReminderPreference(item.id),
+    ).toEqual({
+      type: "opening",
+      reminderDays: [0, 3],
+      reminderTimeMinutes: 15 * 60 + 30,
+    });
+    await waitFor(() => {
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(item.id, {
+        type: "opening",
+        reminderDays: [0, 3],
+        reminderTimeMinutes: 15 * 60 + 30,
+      });
+    });
+  });
+
+  it("uses global push and per-item days when the legacy deadline preference is disabled", async () => {
+    authMocks.user = { id: "user-1" };
+    notificationPreferenceMocks.preferences.deadlineRemindersEnabled = false;
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
+      status: "scheduled",
+      notifications: [
+        {
+          id: "deadline-5",
+          groupBuyId: GROUP_BUY.id,
+          productName: GROUP_BUY.productName,
+          reminderDay: 5,
+          triggerDate: new Date("2026-07-22T00:00:00.000Z"),
+        },
+        {
+          id: "deadline-2",
+          groupBuyId: GROUP_BUY.id,
+          productName: GROUP_BUY.productName,
+          reminderDay: 2,
+          triggerDate: new Date("2026-07-25T00:00:00.000Z"),
+        },
+      ],
+    });
+    const item = {
+      ...GROUP_BUY,
+      endDate: "2026-07-27T00:00:00.000Z",
+    };
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(item, [2, 5]);
+    });
+
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [2, 5]);
+    expect(
+      notifications.result.current.getNotificationReminderDays(item.id),
+    ).toEqual([2, 5]);
+    await waitFor(() => {
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(item.id, [2, 5]);
+    });
+  });
+
+  it("restores authenticated reminder selections from the server", async () => {
+    authMocks.user = { id: "user-1" };
+    const item = {
+      ...GROUP_BUY,
+      endDate: "2099-07-27T00:00:00.000Z",
+    };
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
+      status: "scheduled",
+      notifications: [
+        {
+          id: "restored-deadline-3",
+          groupBuyId: item.id,
+          productName: item.productName,
+          reminderDay: 3,
+          triggerDate: new Date("2026-07-24T00:00:00.000Z"),
+        },
+      ],
+    });
+    apiMocks.fetchNotificationReminders.mockResolvedValue([
+      {
+        groupBuyId: item.id,
+        reminderDays: [1, 3],
+        updatedAt: "2026-07-20T00:00:00.000Z",
+      },
+    ]);
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([item]);
+    const notifications = renderHook(() => useNotifications());
+    const secondSubscriber = renderHook(() => useNotifications());
+
+    await waitFor(() => {
+      expect(notifications.result.current.ready).toBe(true);
+      expect(secondSubscriber.result.current.ready).toBe(true);
+      expect(
+        notifications.result.current.getNotificationReminderDays(item.id),
+      ).toEqual([1, 3]);
+    });
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1, 3]);
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it("prunes an expired remote reminder intent on startup", async () => {
+    authMocks.user = { id: "user-1" };
+    const expiredItem = {
+      ...GROUP_BUY,
+      endDate: "2020-07-27T00:00:00.000Z",
+    };
+    apiMocks.fetchNotificationReminders.mockResolvedValue([
+      {
+        groupBuyId: expiredItem.id,
+        type: "deadline",
+        reminderDays: [1],
+        reminderTimeMinutes: null,
+        updatedAt: "2020-07-20T00:00:00.000Z",
+      },
+    ]);
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([expiredItem]);
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+
+    expect(notifications.result.current.isNotifying(expiredItem.id)).toBe(
+      false,
+    );
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(
+        expiredItem.id,
+        [],
+      );
+    });
+  });
+
+  it("serializes a startup refresh before a newer item reminder mutation", async () => {
+    authMocks.user = { id: "user-1" };
+    const item = {
+      ...GROUP_BUY,
+      endDate: "2099-07-27T00:00:00.000Z",
+    };
+    let releaseRemote!: (
+      value: Array<{
+        groupBuyId: string;
+        reminderDays: Array<1 | 3 | 7>;
+        updatedAt: string;
+      }>,
+    ) => void;
+    apiMocks.fetchNotificationReminders.mockReturnValueOnce(
+      new Promise((resolve) => {
+        releaseRemote = resolve;
+      }),
+    );
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([item]);
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => {
+      expect(apiMocks.fetchNotificationReminders).toHaveBeenCalledOnce();
+    });
+    let mutation!: Promise<unknown>;
+    act(() => {
+      mutation = notifications.result.current.setNotificationReminders(
+        item,
+        [3],
+      );
+    });
+    await act(async () => {
+      releaseRemote([
+        {
+          groupBuyId: item.id,
+          reminderDays: [1],
+          updatedAt: "2026-07-20T00:00:00.000Z",
+        },
+      ]);
+      await mutation;
+    });
+
+    expect(
+      notifications.result.current.getNotificationReminderDays(item.id),
+    ).toEqual([3]);
+    await waitFor(() => {
+      expect(apiMocks.syncNotification).toHaveBeenLastCalledWith(item.id, [3]);
+    });
+  });
+
+  it("recovers a native schedule left pending by an interrupted app process", async () => {
+    authMocks.user = { id: "user-1" };
+    const item = {
+      ...GROUP_BUY,
+      endDate: "2099-07-27T00:00:00.000Z",
+    };
+    storage.values.set(
+      "@gonggu/notifications/v2/user%3Auser-1",
+      JSON.stringify([
+        {
+          ...item,
+          groupBuyId: item.id,
+          reminderDays: [1],
+          notificationId: null,
+          notificationIds: [],
+          scheduledFor: null,
+          scheduledForDates: [],
+          alertState: { status: "pending", action: "enable" },
+          createdAt: "2026-07-20T00:00:00.000Z",
+        },
+      ]),
+    );
+    storage.values.set(
+      "@gonggu/notifications/server-migrated/v1/user%3Auser-1",
+      "true",
+    );
+    apiMocks.fetchNotificationReminders.mockResolvedValue([
+      {
+        groupBuyId: item.id,
+        reminderDays: [1],
+        updatedAt: "2026-07-20T00:00:00.000Z",
+      },
+    ]);
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([item]);
+    const notifications = renderHook(() => useNotifications());
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+
+    expect(
+      notificationServiceMocks.scheduleGroupBuyReminders,
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1]);
+  });
+
+  it("reconciles existing native IDs when item reminder days change", async () => {
     notificationServiceMocks.scheduleGroupBuyReminders
       .mockResolvedValueOnce({
         status: "scheduled",
@@ -614,14 +1408,7 @@ describe("useNotifications", () => {
     await waitFor(() => expect(notifications.result.current.ready).toBe(true));
     await act(async () => {
       await notifications.result.current.toggleNotification(item);
-      await notifications.result.current.rescheduleNotifications({
-        pushEnabled: true,
-        deadlineRemindersEnabled: true,
-        newSubmissionsEnabled: true,
-        reminderDays: [3],
-        followedInfluencers: [],
-        followedBrands: [],
-      });
+      await notifications.result.current.setNotificationReminders(item, [3]);
     });
 
     expect(
@@ -640,7 +1427,7 @@ describe("useNotifications", () => {
 
   it("serializes rapid double taps into one schedule and one cancellation", async () => {
     let releaseSchedule!: (result: unknown) => void;
-    notificationServiceMocks.scheduleGroupBuyStart.mockReturnValueOnce(
+    notificationServiceMocks.scheduleGroupBuyReminders.mockReturnValueOnce(
       new Promise((resolve) => {
         releaseSchedule = resolve;
       }),
@@ -648,7 +1435,7 @@ describe("useNotifications", () => {
     const notifications = renderHook(() => useNotifications());
     const item = {
       ...GROUP_BUY,
-      startDate: "2026-07-16T18:00:00.000Z",
+      endDate: "2026-07-23T00:00:00.000Z",
     };
 
     await waitFor(() => {
@@ -664,34 +1451,39 @@ describe("useNotifications", () => {
 
     await waitFor(() => {
       expect(
-        notificationServiceMocks.scheduleGroupBuyStart,
+        notificationServiceMocks.scheduleGroupBuyReminders,
       ).toHaveBeenCalledTimes(1);
     });
 
     await act(async () => {
       releaseSchedule({
         status: "scheduled",
-        notification: {
-          id: "native-notification-rapid",
-          groupBuyId: item.id,
-          productName: item.productName,
-          triggerDate: new Date("2026-07-16T17:00:00.000Z"),
-        },
+        notifications: [
+          {
+            id: "native-notification-rapid",
+            groupBuyId: item.id,
+            productName: item.productName,
+            triggerDate: new Date("2026-07-16T17:00:00.000Z"),
+          },
+        ],
       });
       await Promise.all([firstToggle, secondToggle]);
     });
 
     expect(
-      notificationServiceMocks.scheduleGroupBuyStart,
+      notificationServiceMocks.scheduleGroupBuyReminders,
     ).toHaveBeenCalledTimes(1);
     expect(
-      notificationServiceMocks.cancelScheduledNotification,
-    ).toHaveBeenCalledWith("native-notification-rapid");
+      notificationServiceMocks.cancelScheduledNotifications,
+    ).toHaveBeenCalledWith(["native-notification-rapid"]);
     expect(notifications.result.current.isNotifying(item.id)).toBe(false);
   });
 
   it("keeps failed server mirrors in a retryable outbox", async () => {
-    apiMocks.syncNotification.mockReset().mockResolvedValue(false);
+    authMocks.user = { id: "user-1" };
+    apiMocks.syncNotification.mockReset().mockResolvedValue({
+      status: "failed",
+    });
     const notifications = renderHook(() => useNotifications());
 
     await waitFor(() => {
@@ -704,29 +1496,83 @@ describe("useNotifications", () => {
     await waitFor(() => {
       expect(apiMocks.syncNotification).toHaveBeenCalledWith(
         GROUP_BUY.id,
-        true,
+        [1, 3, 7],
       );
     });
     expect(
       JSON.parse(
-        storage.values.get("@gonggu/notifications/outbox/v1/guest") ?? "[]",
+        storage.values.get("@gonggu/notifications/outbox/v1/user%3Auser-1") ??
+          "[]",
       ),
     ).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ groupBuyId: GROUP_BUY.id, enabled: true }),
+        expect.objectContaining({
+          groupBuyId: GROUP_BUY.id,
+          reminderDays: [1, 3, 7],
+        }),
       ]),
     );
 
-    apiMocks.syncNotification.mockResolvedValue(true);
+    apiMocks.syncNotification.mockResolvedValue({
+      status: "synced",
+      preference: null,
+    });
     await act(async () => {
       notifications.result.current.refresh();
       await waitFor(() => {
         expect(
           JSON.parse(
-            storage.values.get("@gonggu/notifications/outbox/v1/guest") ?? "[]",
+            storage.values.get(
+              "@gonggu/notifications/outbox/v1/user%3Auser-1",
+            ) ?? "[]",
           ),
         ).toEqual([]);
       });
+    });
+  });
+
+  it("keeps concurrent reminder mirror intents for different items", async () => {
+    authMocks.user = { id: "user-1" };
+    apiMocks.syncNotification.mockReset().mockResolvedValue({
+      status: "failed",
+    });
+    const notifications = renderHook(() => useNotifications());
+    const first = {
+      ...GROUP_BUY,
+      id: "group-buy-a",
+      endDate: "2026-07-27T00:00:00.000Z",
+    };
+    const second = {
+      ...GROUP_BUY,
+      id: "group-buy-b",
+      endDate: "2026-07-28T00:00:00.000Z",
+    };
+
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    await act(async () => {
+      await Promise.all([
+        notifications.result.current.setNotificationReminders(first, [1]),
+        notifications.result.current.setNotificationReminders(second, [3]),
+      ]);
+    });
+    await waitFor(() => {
+      expect(
+        JSON.parse(
+          storage.values.get("@gonggu/notifications/outbox/v1/user%3Auser-1") ??
+            "[]",
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            groupBuyId: first.id,
+            reminderDays: [1],
+          }),
+          expect.objectContaining({
+            groupBuyId: second.id,
+            reminderDays: [3],
+          }),
+        ]),
+      );
     });
   });
 
@@ -745,8 +1591,13 @@ describe("useNotifications", () => {
     });
 
     expect(notifications.result.current.notifications).toHaveLength(0);
-    expect(storage.values.has("@gonggu/notifications/v2/user%3Auser-1")).toBe(
-      false,
-    );
+    expect(
+      JSON.parse(
+        storage.values.get("@gonggu/notifications/v2/user%3Auser-1") ?? "null",
+      ),
+    ).toEqual([]);
+    expect(
+      JSON.parse(storage.values.get("@gonggu/notifications/v2/guest") ?? "[]"),
+    ).toHaveLength(1);
   });
 });

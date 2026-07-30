@@ -41,7 +41,7 @@ trap restore_android_accessibility_settings EXIT
 
 adb shell settings put system font_scale 2.0
 adb shell cmd uimode night yes
-adb shell am force-stop com.gonggu.wish
+adb shell am force-stop com.gonggu.wish.preview
 
 set +e
 maestro test .maestro/gon-264-android-accessibility.yaml 2>&1 \

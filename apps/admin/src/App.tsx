@@ -35,6 +35,8 @@ import type {
   MediaAsset,
   AppUser,
   SubmissionStatus,
+  SubmissionApprovalDeliverySummary,
+  SubmissionNotificationDelivery,
 } from "@/types";
 import "./App.css";
 
@@ -51,6 +53,7 @@ type TabKey =
 type SubmissionForm = {
   productName: string;
   brandName: string;
+  instagramUsername: string;
   category: string;
   startDate: string;
   endDate: string;
@@ -64,6 +67,9 @@ type SubmissionForm = {
   mediaUrlsText: string;
   mediaItems: MediaAsset[];
   mediaType: "" | "IMAGE" | "VIDEO";
+  postAudioUrl: string;
+  postAudioStartTimeMs: number | null;
+  postAudioDurationMs: number | null;
   isHomeBanner: boolean;
   homeBannerStartDate: string;
   homeBannerEndDate: string;
@@ -72,6 +78,7 @@ type SubmissionForm = {
 type GroupBuyForm = {
   productName: string;
   brandName: string;
+  instagramUsername: string;
   category: string;
   startDate: string;
   endDate: string;
@@ -204,6 +211,38 @@ function formatDateTime(value: string | null | undefined) {
   }).format(new Date(value));
 }
 
+function submissionDeliveryLabel(
+  delivery: SubmissionNotificationDelivery | null | undefined,
+) {
+  if (!delivery) return "정보 없음";
+  const labels: Record<SubmissionNotificationDelivery["status"], string> = {
+    NOT_STARTED: "승인 전",
+    NO_RECIPIENTS: "연결 제보자 없음",
+    PENDING: "전송 중",
+    SENT: "전송 완료",
+    PARTIAL: "일부 전송",
+    SKIPPED: "수신 제외",
+    FAILED: "전송 실패",
+  };
+  return labels[delivery.status];
+}
+
+function approvalDeliveryNotice(
+  delivery: SubmissionApprovalDeliverySummary,
+  linkedSubmitterCount: number,
+) {
+  if (delivery.sent > 0) {
+    return `공구로 등록하고 제보자 ${delivery.sent.toLocaleString()}명에게 승인 알림을 보냈습니다.`;
+  }
+  if (delivery.retrying > 0 || delivery.failed > 0) {
+    return "공구로 등록했습니다. 승인 알림은 서버에서 재시도합니다.";
+  }
+  if (linkedSubmitterCount > 0) {
+    return "공구로 등록했습니다. 알림 수신 조건에 맞는 제보자는 없었습니다.";
+  }
+  return "공구로 등록했습니다. 연결된 로그인 제보자는 없습니다.";
+}
+
 function deriveImageUrls(
   mediaItems: MediaAsset[],
   fallbackThumbnail: string,
@@ -263,13 +302,14 @@ export function formToPreviewDeal(
 
   return canonicalizeHomeBannerForm({
     productName: form.productName.trim() || "상품명을 입력해주세요",
-    brandName: form.brandName.trim() || "브랜드/계정 미지정",
+    brandName: form.brandName.trim() || "브랜드 미지정",
+    instagramUsername: form.instagramUsername?.trim() ?? "",
     category:
       CATEGORY_OPTIONS.find((option) => option.value === form.category)
         ?.label ?? "카테고리 미지정",
     startDate: form.startDate || "미정",
     endDate: form.endDate || "미정",
-    discountInfo: form.discountInfo.trim() || "혜택 정보 미입력",
+    discountInfo: form.discountInfo.trim(),
     priceKrw,
     summary: form.summary.trim() || "요약을 입력하면 상세 화면에 표시됩니다.",
     imageUrl,
@@ -293,6 +333,7 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
   return canonicalizeHomeBannerForm({
     productName: text(item.productName),
     brandName: text(item.brandName),
+    instagramUsername: text(item.instagramUsername),
     category: text(item.category),
     startDate: dateInput(item.startDate),
     endDate: dateInput(item.endDate),
@@ -309,6 +350,9 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
         : (item.imageUrls ?? []).join("\n"),
     mediaItems,
     mediaType,
+    postAudioUrl: text(item.postAudioUrl),
+    postAudioStartTimeMs: item.postAudioStartTimeMs ?? null,
+    postAudioDurationMs: item.postAudioDurationMs ?? null,
     isHomeBanner: Boolean(item.isHomeBanner),
     homeBannerStartDate: dateInput(item.homeBannerStartDate),
     homeBannerEndDate: dateInput(item.homeBannerEndDate),
@@ -319,6 +363,7 @@ function groupBuyToForm(item: GroupBuy): GroupBuyForm {
   return canonicalizeHomeBannerForm({
     productName: text(item.productName),
     brandName: text(item.brandName),
+    instagramUsername: text(item.instagramUsername),
     category: text(item.category),
     startDate: dateInput(item.startDate),
     endDate: dateInput(item.endDate),
@@ -357,6 +402,7 @@ function submissionPayload(form: SubmissionForm) {
   return {
     productName: form.productName,
     brandName: form.brandName,
+    instagramUsername: form.instagramUsername,
     category: form.category,
     startDate: form.startDate,
     endDate: form.endDate,
@@ -372,6 +418,13 @@ function submissionPayload(form: SubmissionForm) {
     mediaUrls,
     mediaItems,
     mediaType: inferFormMediaType(mediaItems, mediaUrls) || null,
+    postAudioUrl: form.postAudioUrl || null,
+    postAudioStartTimeMs: form.postAudioUrl
+      ? form.postAudioStartTimeMs ?? 0
+      : null,
+    postAudioDurationMs: form.postAudioUrl
+      ? form.postAudioDurationMs
+      : null,
     isHomeBanner: canonicalForm.isHomeBanner,
     homeBannerStartDate: canonicalForm.homeBannerStartDate,
     homeBannerEndDate: canonicalForm.homeBannerEndDate,
@@ -387,6 +440,7 @@ function groupBuyPayload(form: GroupBuyForm) {
   return {
     productName: form.productName,
     brandName: form.brandName,
+    instagramUsername: form.instagramUsername,
     category: form.category,
     startDate: form.startDate,
     endDate: form.endDate,
@@ -956,8 +1010,17 @@ function AdminShell({ session }: { session: Session }) {
       const submissionId = selectedSubmission.id;
       const approvalPayload = submissionPayload(submissionForm);
       invalidateHikerLookup(false);
-      await adminApi.approveSubmission(submissionId, approvalPayload);
-      setNotice({ tone: "success", message: "위시를 공구로 등록했습니다." });
+      const result = await adminApi.approveSubmission(
+        submissionId,
+        approvalPayload,
+      );
+      setNotice({
+        tone: "success",
+        message: approvalDeliveryNotice(
+          result.notificationDelivery,
+          result.submission.notificationDelivery?.linkedSubmitterCount ?? 0,
+        ),
+      });
       closeDetail();
       await loadSubmissions();
       await loadDashboard();
@@ -965,6 +1028,33 @@ function AdminShell({ session }: { session: Session }) {
       setNotice({
         tone: "error",
         message: error instanceof Error ? error.message : "승인 실패",
+      });
+    } finally {
+      setSubmissionActionLoading(false);
+    }
+  }
+
+  async function retrySubmissionApprovalNotification() {
+    if (!selectedSubmission) return;
+    setSubmissionActionLoading(true);
+    try {
+      const result = await adminApi.retrySubmissionApprovalNotification(
+        selectedSubmission.id,
+      );
+      selectSubmission(result.submission, false);
+      setNotice({
+        tone: result.notificationDelivery.failed > 0 ? "error" : "success",
+        message: approvalDeliveryNotice(
+          result.notificationDelivery,
+          result.submission.notificationDelivery?.linkedSubmitterCount ?? 0,
+        ),
+      });
+      await loadSubmissions();
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : "승인 알림 재시도 실패",
       });
     } finally {
       setSubmissionActionLoading(false);
@@ -1449,6 +1539,9 @@ function AdminShell({ session }: { session: Session }) {
             onLookupHiker={() => void lookupHiker()}
             onReject={() => void rejectSubmission()}
             onRejectReasonChange={setRejectReason}
+            onRetryNotification={() =>
+              void retrySubmissionApprovalNotification()
+            }
             onSave={() => void saveSubmission()}
             rejectReason={rejectReason}
             selected={selectedSubmission}
@@ -1494,6 +1587,9 @@ function AdminShell({ session }: { session: Session }) {
                 onLookupHiker={() => void lookupHiker()}
                 onReject={() => void rejectSubmission()}
                 onRejectReasonChange={setRejectReason}
+                onRetryNotification={() =>
+                  void retrySubmissionApprovalNotification()
+                }
                 onSave={() => void saveSubmission()}
                 onSelect={selectSubmission}
                 onToggleAllSelected={togglePageSubmissionSelection}
@@ -1758,6 +1854,9 @@ function applyHikerResult(
   // existing form value (per product request: Hiker 조회 refreshes the form).
   // Rule-based suggestions only fill empty fields.
   const isLlm = suggestions.source === "llm";
+  const shouldApplyPostAudio =
+    result.postAudioLookupStatus !== "RETRYABLE" &&
+    result.postAudioUrl !== undefined;
 
   return {
     ...form,
@@ -1766,7 +1865,11 @@ function applyHikerResult(
     brandName:
       isLlm && suggestions.brandName
         ? suggestions.brandName
-        : form.brandName || result.username || "",
+        : form.brandName || "",
+    instagramUsername:
+      isLlm && suggestions.brandName
+        ? ""
+        : form.instagramUsername || result.username || "",
     discountInfo:
       isLlm && suggestions.discountInfo
         ? suggestions.discountInfo
@@ -1782,6 +1885,22 @@ function applyHikerResult(
     mediaUrlsText: mediaUrls.join("\n"),
     mediaItems,
     mediaType: suggestions.mediaType ?? result.mediaType ?? form.mediaType,
+    postAudioUrl:
+      !shouldApplyPostAudio
+        ? form.postAudioUrl
+        : result.postAudioUrl ?? "",
+    postAudioStartTimeMs:
+      !shouldApplyPostAudio
+        ? form.postAudioStartTimeMs
+        : result.postAudioUrl
+          ? result.postAudioStartTimeMs ?? 0
+          : null,
+    postAudioDurationMs:
+      !shouldApplyPostAudio
+        ? form.postAudioDurationMs
+        : result.postAudioUrl
+          ? result.postAudioDurationMs ?? null
+          : null,
   };
 }
 function tabTitle(tab: TabKey) {
@@ -2078,6 +2197,7 @@ function SubmissionPanel(props: {
   onLookupHiker: () => void;
   onReject: () => void;
   onRejectReasonChange: (value: string) => void;
+  onRetryNotification: () => void;
   onSave: () => void;
   onSelect: (item: GongguSubmission | null) => void;
   onStatusChange: (value: "ALL" | SubmissionStatus) => void;
@@ -2197,6 +2317,7 @@ function SubmissionPanel(props: {
                   <th>제보자</th>
                   <th>원본</th>
                   <th>접수</th>
+                  <th>승인 알림</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -2237,6 +2358,14 @@ function SubmissionPanel(props: {
                     </td>
                     <td className="truncate">{item.instagramUrl}</td>
                     <td>{formatDateTime(item.createdAt)}</td>
+                    <td>
+                      <strong>
+                        {item.notificationDelivery?.linkedSubmitterCount ?? 0}명
+                      </strong>
+                      <span>
+                        {submissionDeliveryLabel(item.notificationDelivery)}
+                      </span>
+                    </td>
                     <td>
                       <StatusBadge status={item.status} />
                     </td>
@@ -2279,6 +2408,7 @@ function SubmissionPanel(props: {
           onLookupHiker={props.onLookupHiker}
           onReject={props.onReject}
           onRejectReasonChange={props.onRejectReasonChange}
+          onRetryNotification={props.onRetryNotification}
           onSave={props.onSave}
           rejectReason={props.rejectReason}
           selected={props.selected}
@@ -2362,6 +2492,11 @@ function MobileSubmissionCards({
               <strong>{formatDateTime(item.createdAt)}</strong>
               <span>원본</span>
               <strong>{item.instagramUrl || "-"}</strong>
+              <span>승인 알림</span>
+              <strong>
+                {item.notificationDelivery?.linkedSubmitterCount ?? 0}명 ·{" "}
+                {submissionDeliveryLabel(item.notificationDelivery)}
+              </strong>
             </div>
           </article>
         );
@@ -2379,6 +2514,7 @@ function SubmissionEditor(props: {
   onLookupHiker: () => void;
   onReject: () => void;
   onRejectReasonChange: (value: string) => void;
+  onRetryNotification: () => void;
   onSave: () => void;
   rejectReason: string;
   selected: GongguSubmission | null;
@@ -2406,6 +2542,13 @@ function SubmissionEditor(props: {
   };
 
   const canApprove = props.selected.status === "PENDING";
+  const canRetryNotification =
+    props.selected.status === "APPROVED" &&
+    Boolean(
+      props.selected.notificationDelivery &&
+      (props.selected.notificationDelivery.failedCount > 0 ||
+        props.selected.notificationDelivery.retryingCount > 0),
+    );
   return (
     <aside className="detail-panel">
       {props.hikerLookupLoading ? (
@@ -2490,9 +2633,14 @@ function SubmissionEditor(props: {
           onChange={(value) => setField("category", value)}
         />
         <TextField
-          label="브랜드/계정"
+          label="브랜드명"
           value={form.brandName}
           onChange={(value) => setField("brandName", value)}
+        />
+        <TextField
+          label="인스타 계정"
+          value={form.instagramUsername}
+          onChange={(value) => setField("instagramUsername", value)}
         />
         <TextField
           label="구매 URL"
@@ -2604,12 +2752,34 @@ function SubmissionEditor(props: {
           <strong>{props.selected.groupBuyId || "-"}</strong>
         </div>
         <div>
+          <span>연결 로그인 제보자</span>
+          <strong>
+            {props.selected.notificationDelivery?.linkedSubmitterCount ?? 0}명
+          </strong>
+        </div>
+        <div>
+          <span>승인 알림</span>
+          <strong>
+            {submissionDeliveryLabel(props.selected.notificationDelivery)}
+          </strong>
+        </div>
+        <div>
           <span>콘텐츠 해시</span>
           <strong>{props.selected.contentHash || "-"}</strong>
         </div>
       </div>
 
       <div className="action-row action-row--end">
+        {canRetryNotification ? (
+          <button
+            className="button button--secondary"
+            disabled={props.actionLoading}
+            onClick={props.onRetryNotification}
+            type="button"
+          >
+            승인 알림 재시도
+          </button>
+        ) : null}
         <button
           className="button button--secondary"
           disabled={props.actionLoading}
@@ -2903,9 +3073,14 @@ function GroupBuyEditor(props: {
           onChange={(value) => setField("category", value)}
         />
         <TextField
-          label="브랜드/계정"
+          label="브랜드명"
           value={form.brandName}
           onChange={(value) => setField("brandName", value)}
+        />
+        <TextField
+          label="인스타 계정"
+          value={form.instagramUsername}
+          onChange={(value) => setField("instagramUsername", value)}
         />
         <TextField
           label="구매 URL"

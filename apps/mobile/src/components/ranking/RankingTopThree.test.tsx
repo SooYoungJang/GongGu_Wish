@@ -376,7 +376,7 @@ describe("RankingTopThree", () => {
       accessibilityHint: "공구 상세 보기",
     });
     const alertAction = renderer!.root.findByProps({
-      accessibilityLabel: "분리된 공구 알림",
+      accessibilityLabel: "분리된 공구 마감 알림 설정",
     });
 
     act(() => detailAction.props.onPress());

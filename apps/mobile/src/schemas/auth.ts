@@ -72,28 +72,3 @@ export const signupStep2Schema = z.object({
 });
 
 export type SignupStep2Form = z.infer<typeof signupStep2Schema>;
-
-// ─── Signup Step 3: Agreements ──────────────────────────────────────────────
-
-export interface AgreementItem {
-  key: string;
-  label: string;
-  required: boolean;
-  detailLink?: string;
-}
-
-export const AGREEMENTS: AgreementItem[] = [
-  { key: 'agreeService', label: '이용약관 동의', required: true, detailLink: '#' },
-  { key: 'agreePrivacy', label: '개인정보 수집 및 이용 동의', required: true, detailLink: '#' },
-  { key: 'agreeMarketing', label: '마케팅 정보 수신 동의 (선택)', required: false },
-  { key: 'agreeAge', label: '만 14세 이상입니다', required: true },
-];
-
-export const signupStep3Schema = z.object({
-  agreeService: z.literal(true, { errorMap: () => ({ message: '이용약관에 동의해주세요.' }) }),
-  agreePrivacy: z.literal(true, { errorMap: () => ({ message: '개인정보 수집 및 이용에 동의해주세요.' }) }),
-  agreeMarketing: z.boolean().optional().default(false),
-  agreeAge: z.literal(true, { errorMap: () => ({ message: '만 14세 이상만 가입 가능합니다.' }) }),
-});
-
-export type SignupStep3Form = z.infer<typeof signupStep3Schema>;

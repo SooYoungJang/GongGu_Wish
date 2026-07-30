@@ -1,20 +1,7 @@
 name: Supabase Integration Contracts
 
 on:
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - "apps/mobile/**"
-      - "packages/shared/**"
-      - "supabase/**"
-      - ".github/workflows/supabase-integration.yml"
-  push:
-    branches: [main, develop]
-    paths:
-      - "apps/mobile/**"
-      - "packages/shared/**"
-      - "supabase/**"
-      - ".github/workflows/supabase-integration.yml"
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -30,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -45,6 +32,34 @@ jobs:
         run: >-
           supabase start
           -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
+      - name: Boot every Edge Function
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          anon_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+          test -n "$anon_key"
+          response="$(mktemp)"
+          trap 'rm -f "$response"' EXIT
+
+          for entrypoint in supabase/functions/*/index.ts; do
+            function_name="$(basename "$(dirname "$entrypoint")")"
+            http_code="$(curl --silent --show-error \
+              --max-time 90 \
+              --request OPTIONS \
+              --header "apikey: $anon_key" \
+              --header "Authorization: Bearer $anon_key" \
+              --output "$response" \
+              --write-out '%{http_code}' \
+              "$API_URL/functions/v1/$function_name")"
+
+            if grep -q '"code":"BOOT_ERROR"' "$response"; then
+              echo "::error::Failed to boot $function_name (HTTP $http_code)."
+              sed -n '1,20p' "$response"
+              exit 1
+            fi
+            echo "Booted $function_name (HTTP $http_code)."
+          done
       - name: Verify Admin, PostgREST, mobile, and ranking contracts
         shell: bash
         run: |
@@ -56,6 +71,37 @@ jobs:
           test -n "$LOCAL_SUPABASE_ANON_KEY"
           test -n "$LOCAL_SUPABASE_SERVICE_ROLE_KEY"
           npm run test:integration:supabase --workspace=@gonggu/mobile
+      - name: Audit local RLS policies
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db query "DO \$\$
+          DECLARE
+            unprotected_tables text;
+          BEGIN
+            SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
+              INTO unprotected_tables
+            FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename NOT IN ('_prisma_migrations', 'schema_migrations')
+              AND rowsecurity = false;
+
+            IF unprotected_tables IS NOT NULL THEN
+              RAISE EXCEPTION 'RLS disabled on: %', unprotected_tables;
+            END IF;
+          END
+          \$\$;"
+      - name: Print Edge Runtime logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="$(docker ps -a --filter 'name=supabase_edge_runtime_' --format '{{.ID}}' | head -n 1)"
+          if [[ -z "$container" ]]; then
+            echo "::warning::Supabase Edge Runtime container was not found."
+            exit 0
+          fi
+          docker logs "$container" 2>&1 | tail -n 300
       - name: Stop isolated Supabase stack
         if: always()
         run: supabase stop

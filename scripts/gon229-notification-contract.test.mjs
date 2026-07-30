@@ -60,11 +60,15 @@ test("Android notification runtime covers consent, deep links, and persistence",
   const notificationPayload = read(
     "apps/mobile/src/services/notificationPayload.ts",
   );
+  const reminderPicker = read(
+    "apps/mobile/src/context/GroupBuyReminderPickerContext.tsx",
+  );
   const flow = read(".maestro/gon-229-notification-tap.yaml");
   const preferencesFlow = read(
     ".maestro/gon-229-notification-preferences.yaml",
   );
   const runner = read("scripts/run-gon229-android-notifications.sh");
+  const expoConfig = read("apps/mobile/app.config.js");
   const windowsBuild = read("scripts/android-build-install.ps1");
   const orchestrator = read("scripts/run-gon263-android-e2e.sh");
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
@@ -73,7 +77,9 @@ test("Android notification runtime covers consent, deep links, and persistence",
   const localFixtureServer = read("scripts/mobile-e2e-api-server.mjs");
   const sharedFixtureId = "gon263-e2e-price-200000";
 
-  assert.equal(easConfig.build.development.environment, "development");
+  assert.equal(easConfig.build.preview.environment, "preview");
+  assert.equal(easConfig.build.preview.channel, "preview");
+  assert.equal(easConfig.build.preview.env.APP_VARIANT, "preview");
   assert.match(app, /requestPermission: false/);
   assert.match(app, /Constants\.expoConfig\?\.extra\?\.e2eSupabaseUrl/);
   assert.match(settings, /testID="push-notification-toggle"/);
@@ -82,22 +88,48 @@ test("Android notification runtime covers consent, deep links, and persistence",
     read("apps/mobile/src/lib/automatedE2E.ts"),
     /process\.env\.EXPO_PUBLIC_E2E_MODE === "true"/,
   );
-  assert.match(settings, new RegExp(sharedFixtureId));
   assert.match(supabaseSeed, new RegExp(sharedFixtureId));
   assert.match(localFixtureServer, new RegExp(sharedFixtureId));
-  assert.match(settings, /testID=\{`deadline-reminder-day-\$\{day\}`\}/);
+  assert.match(reminderPicker, /testID=\{`group-buy-reminder-day-\$\{day\}`\}/);
   assert.match(notifications, /clearLastNotificationResponseAsync/);
   assert.match(notifications, /buildGroupBuyNotificationUrl/);
-  assert.match(notificationPayload, /gongguwish:\/\/group-buy\//);
-  assert.match(flow, /text: "\.\*푸시 테스트\.\*"/);
+  assert.match(notificationPayload, /AUTH_REDIRECT_URL/);
+  assert.match(notificationPayload, /NOTIFICATION_URL_PREFIX/);
+  assert.doesNotMatch(flow, /푸시 테스트/);
   assert.match(preferencesFlow, /text: "공구위시 로그인 화면"/);
   assert.match(preferencesFlow, /id: "fl-input-email"/);
   assert.match(preferencesFlow, /id: "fl-input-password"/);
   assert.match(preferencesFlow, /id: "auth-login-submit"/);
+  assert.match(
+    preferencesFlow,
+    /id: "auth-login-submit"[\s\S]*?text: "마이페이지"[\s\S]*?text: "설정 열기"[\s\S]*?text: "알림 설정"[\s\S]*?id: "submission-approval-notification-toggle"/,
+  );
+  assert.match(
+    preferencesFlow,
+    /assertNotVisible:[\s\S]*?id: "deadline-notification-toggle"/,
+  );
+  assert.doesNotMatch(
+    preferencesFlow,
+    /tapOn:\s*\n\s+id: "deadline-notification-toggle"/,
+  );
+  assert.match(
+    preferencesFlow,
+    /scrollUntilVisible:[\s\S]*?id: "group-buy-reminder-button-gon263-e2e-beauty"[\s\S]*?direction: DOWN/,
+  );
   assert.match(authScreen, /testID="auth-login-submit"/);
   assert.match(flow, /id: "follow-influencer-notifications"/);
-  assert.match(flow, /text: "@gon263_price ×"/);
-  assert.match(runner, /cmd statusbar expand-notifications/);
+  assert.match(flow, /id: "group-buy-reminder-day-1"/);
+  assert.match(flow, /text: "@gon263_price 인플루언서 알림 해제"/);
+  assert.match(flow, /text: "GON-263 Brand 브랜드 알림 해제"/);
+  assert.match(flow, /centerElement: true/);
+  assert.doesNotMatch(flow, /@gon263_price ×/);
+  assert.match(runner, /android\.intent\.action\.VIEW/);
+  assert.match(expoConfig, /preview:[\s\S]*?scheme: "gongguwish-preview"/);
+  assert.match(
+    runner,
+    /gongguwish-preview:\/\/group-buy\/gon263-e2e-price-200000/,
+  );
+  assert.doesNotMatch(runner, /statusbar expand-notifications/);
   assert.match(runner, /auth\/v1\/signup/);
   assert.match(runner, /gon229\.e2e@example\.com/);
   assert.match(windowsBuild, /\[switch\]\$AutomatedE2E/);
@@ -117,7 +149,8 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(windowsBuild, /gradlew\.bat \$installTask[^\n]*--no-daemon/);
   assert.match(windowsBuild, /Gradle \$installTask failed with exit code/);
   assert.match(orchestrator, /run-gon229-android-notifications\.sh/);
-  assert.match(workflow, /gon229-notification-state\.txt/);
+  assert.match(workflow, /gon229-deep-link-state\.txt/);
+  assert.doesNotMatch(workflow, /gon229-notification-drawer\.xml/);
   assert.match(ciWorkflow, /supabase functions deploy register-push-token/);
   assert.doesNotMatch(workflow, /gon229[^\n]*ios/i);
 });
@@ -144,7 +177,12 @@ test("Android push registration is wired to Firebase and reports failures", () =
   );
   assert.ok(androidClient, "Firebase config must include com.gonggu.wish");
   assert.match(settings, /registerForPushNotifications/);
-  assert.match(settings, /requestPermission:\s*false/);
+  assert.match(settings, /requestPermission:\s*true/);
+  assert.match(settings, /pendingPushEnabled/);
+  assert.match(settings, /latestPushRevision/);
+  assert.match(settings, /pendingPushIntent/);
+  assert.match(settings, /pushWorkerRunning/);
+  assert.match(settings, /waitForPushTogglePaint/);
   assert.match(
     settings,
     /e2eTokenOverride:\s*"ExpoPushToken\[gon229-local-e2e\]"/,
@@ -154,7 +192,9 @@ test("Android push registration is wired to Firebase and reports failures", () =
   assert.match(notifications, /options\.e2eTokenOverride/);
   assert.match(notifications, /console\.warn\(/);
   assert.match(
-    read("supabase/migrations/20260719000001_disable_notification_defaults.sql"),
+    read(
+      "supabase/migrations/20260719000001_disable_notification_defaults.sql",
+    ),
     /GRANT SELECT, INSERT, UPDATE ON TABLE public\.users TO service_role/,
   );
   assert.match(gitignore, /\*-firebase-adminsdk-\*\.json/);
@@ -170,6 +210,9 @@ test("notification and bookmark actions require authentication", () => {
   const store = read("apps/mobile/src/screens/StoreScreen.tsx");
   const settings = read("apps/mobile/src/screens/SettingsScreen.tsx");
   const myPage = read("apps/mobile/src/screens/MyPageScreen.tsx");
+  const reminderPicker = read(
+    "apps/mobile/src/context/GroupBuyReminderPickerContext.tsx",
+  );
   const migration = read(
     "supabase/migrations/20260719000001_disable_notification_defaults.sql",
   );
@@ -177,7 +220,7 @@ test("notification and bookmark actions require authentication", () => {
   for (const source of [defaults, edgeContract]) {
     assert.match(source, /pushEnabled:\s*false/);
     assert.match(source, /deadlineRemindersEnabled:\s*false/);
-    assert.match(source, /newSubmissionsEnabled:\s*false/);
+    assert.match(source, /submissionApprovalEnabled:\s*false/);
   }
   assert.match(authGate, /navigation\.navigate\("Login"\)/);
   assert.match(authGate, /isAuthenticated/);
@@ -188,7 +231,7 @@ test("notification and bookmark actions require authentication", () => {
   assert.match(detail, /handleBrandFollowPress/);
   assert.match(store, /handleToggleNotification/);
   assert.match(store, /if \(!requireAuth\(\)\) return/);
-  assert.match(settings, /const pushEnabled = isAuthenticated/);
+  assert.match(settings, /const pushEnabled\s*=\s*isAuthenticated/);
   assert.match(settings, /const handleFollowInfluencerPress/);
   assert.match(settings, /const handleFollowBrandPress/);
   assert.match(
@@ -196,9 +239,10 @@ test("notification and bookmark actions require authentication", () => {
     /const handleRemoveBookmark[\s\S]*?if \(!requireAuth\(\)\) return;[\s\S]*?removeBookmark\(item\.id\)/,
   );
   assert.match(
-    myPage,
-    /const handleRemoveNotification[\s\S]*?if \(!requireAuth\(\)\) return;[\s\S]*?removeNotification\(item\.id\)/,
+    reminderPicker,
+    /if \(!user\) \{[\s\S]*?onAuthenticationRequired\?\.\(\)/,
   );
+  assert.doesNotMatch(myPage, /handleRemoveNotification/);
   assert.match(migration, /ALTER COLUMN push_enabled SET DEFAULT false/);
   assert.match(
     migration,
@@ -207,5 +251,32 @@ test("notification and bookmark actions require authentication", () => {
   assert.match(
     migration,
     /ALTER COLUMN new_submissions_enabled SET DEFAULT false/,
+  );
+});
+
+test("approved submissions deliver preference-aware approval push", () => {
+  const adminApi = read("supabase/functions/admin-api/index.ts");
+  const delivery = read(
+    "supabase/functions/admin-api/submissionApprovalPush.ts",
+  );
+  const preferenceContract = read(
+    "supabase/functions/admin-api/pushNotificationContract.ts",
+  );
+  const publicSubmission = read(
+    "supabase/functions/public-submission/index.ts",
+  );
+
+  assert.match(adminApi, /deliverPendingSubmissionApprovalPushes\(/);
+  assert.match(delivery, /notificationType:\s*"submission_approved"/);
+  assert.match(delivery, /"claim_submission_approval_push_events"/);
+  assert.match(delivery, /\.from\("submission_approval_push_outbox"\)/);
+  assert.match(
+    preferenceContract,
+    /case "submission_approved":[\s\S]*?row\.submission_approval_notifications_enabled === true/,
+  );
+  assert.match(publicSubmission, /deliverPendingSubmissionApprovalPushes/);
+  assert.match(
+    publicSubmission,
+    /const submission = await markSubmissionApproved\([\s\S]*?const notificationDelivery = await deliverApprovalPush\(/,
   );
 });

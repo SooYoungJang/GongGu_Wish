@@ -6,11 +6,14 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 export class SupabaseService {
   private readonly adminClient: SupabaseClient;
   private readonly anonClient: SupabaseClient;
+  private readonly supabaseUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    const supabaseUrl =
-      this.configService.get<string>('SUPABASE_URL') ??
-      'https://iosdoheblabfimkjnvfj.supabase.co';
+    const supabaseUrl = this.configService.get<string>('SUPABASE_URL')?.trim();
+    if (!supabaseUrl) {
+      throw new Error('SUPABASE_URL is required');
+    }
+    this.supabaseUrl = supabaseUrl;
     const supabaseServiceKey =
       this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const supabaseAnonKey =
@@ -70,10 +73,10 @@ export class SupabaseService {
    * Get the project reference ID.
    */
   get projectRef(): string {
-    const url =
-      this.configService.get<string>('SUPABASE_URL') ??
-      'https://iosdoheblabfimkjnvfj.supabase.co';
-    const match = url.match(/https:\/\/(.+)\.supabase\.co/);
-    return match?.[1] ?? 'iosdoheblabfimkjnvfj';
+    const match = this.supabaseUrl.match(/^https:\/\/([a-z0-9]+)\.supabase\.co\/?$/);
+    if (!match) {
+      throw new Error('SUPABASE_URL must use a Supabase project origin');
+    }
+    return match[1];
   }
 }

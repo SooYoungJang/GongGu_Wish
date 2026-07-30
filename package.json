@@ -21,7 +21,7 @@
     "db:migrate": "turbo run db:migrate --filter=@gonggu/api",
     "api:dev": "turbo run dev --filter=@gonggu/api",
     "mobile:start": "turbo run start --filter=@gonggu/mobile",
-    "mobile:dev": "npm run start:dev --workspace=@gonggu/mobile",
+    "mobile:dev": "npm run start:preview --workspace=@gonggu/mobile",
     "web:dev": "turbo run dev --filter=@gonggu/web",
     "admin:dev": "turbo run dev --filter=@gonggu/admin",
     "admin:build": "turbo run build --filter=@gonggu/admin",
@@ -55,9 +55,10 @@
   },
   "packageManager": "npm@10.9.0",
   "dependencies": {
-    "react-native-worklets": "^0.7.1",
     "expo": "~55.0.26",
-    "react": "19.2.7",
-    "react-native": "0.83.6"
+    "expo-asset": "~55.0.18",
+    "react": "19.2.8",
+    "react-native": "0.83.6",
+    "react-native-worklets": "^0.7.1"
   }
 }

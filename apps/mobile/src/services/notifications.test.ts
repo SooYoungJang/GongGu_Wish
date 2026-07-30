@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { callEdgeFunction } = vi.hoisted(() => ({ callEdgeFunction: vi.fn() }));
 const constantsMock = vi.hoisted(() => ({
   appOwnership: "standalone",
+  easConfig: {} as { projectId?: string },
   expoConfig: {
     extra: {
       automatedE2E: true,
@@ -55,9 +56,9 @@ import {
   getLastNotificationResponseUrl,
   registerForPushNotifications,
   requestNotificationPermissions,
+  scheduleGroupBuyOpeningReminders,
   scheduleGroupBuyReminders,
   scheduleGroupBuyStart,
-  scheduleTestNotification,
 } from "./notifications";
 
 describe("registerForPushNotifications", () => {
@@ -84,6 +85,9 @@ describe("registerForPushNotifications", () => {
     notificationMocks.cancelScheduledNotificationAsync
       .mockReset()
       .mockResolvedValue(undefined);
+    notificationMocks.getAllScheduledNotificationsAsync
+      .mockReset()
+      .mockResolvedValue([]);
     notificationMocks.getLastNotificationResponse
       .mockReset()
       .mockReturnValue(null);
@@ -91,11 +95,15 @@ describe("registerForPushNotifications", () => {
       .mockReset()
       .mockResolvedValue(undefined);
     constantsMock.expoConfig.extra.eas.projectId = "project-123";
+    delete constantsMock.easConfig.projectId;
   });
 
   it("registers the Expo token through the authenticated Edge Function", async () => {
-    await expect(registerForPushNotifications("access-token")).resolves.toBe(
-      "ExpoPushToken[test-token]",
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "registered",
+        token: "ExpoPushToken[test-token]",
+      },
     );
     expect(callEdgeFunction).toHaveBeenCalledWith(
       "register-push-token",
@@ -107,13 +115,53 @@ describe("registerForPushNotifications", () => {
     );
   });
 
+  it("does not request or register a push token when audience policy blocks it", async () => {
+    await expect(
+      registerForPushNotifications("access-token", {
+        shouldContinue: () => false,
+      }),
+    ).resolves.toEqual({
+      status: "cancelled",
+      reason: "audience-restricted",
+    });
+
+    expect(notificationMocks.getPermissionsAsync).not.toHaveBeenCalled();
+    expect(notificationMocks.getExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(callEdgeFunction).not.toHaveBeenCalled();
+  });
+
+  it("removes a token registered while audience policy changes in flight", async () => {
+    let allowed = true;
+    const onRegistrationCancelled = vi.fn().mockResolvedValue(undefined);
+    callEdgeFunction.mockImplementationOnce(async () => {
+      allowed = false;
+      return { data: { registered: true, provider: "expo" } };
+    });
+
+    await expect(
+      registerForPushNotifications("access-token", {
+        shouldContinue: () => allowed,
+        onRegistrationCancelled,
+      }),
+    ).resolves.toEqual({
+      status: "cancelled",
+      reason: "audience-restricted",
+    });
+
+    expect(callEdgeFunction).toHaveBeenCalledOnce();
+    expect(onRegistrationCancelled).toHaveBeenCalledOnce();
+  });
+
   it("uses an explicit E2E token without contacting Expo", async () => {
     await expect(
       registerForPushNotifications("access-token", {
         requestPermission: false,
         e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]",
       }),
-    ).resolves.toBe("ExpoPushToken[gon229-local-e2e]");
+    ).resolves.toEqual({
+      status: "registered",
+      token: "ExpoPushToken[gon229-local-e2e]",
+    });
 
     expect(notificationMocks.getExpoPushTokenAsync).not.toHaveBeenCalled();
     expect(callEdgeFunction).toHaveBeenCalledWith(
@@ -134,7 +182,10 @@ describe("registerForPushNotifications", () => {
         requestPermission: false,
         e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]",
       }),
-    ).resolves.toBe("ExpoPushToken[gon229-local-e2e]");
+    ).resolves.toEqual({
+      status: "registered",
+      token: "ExpoPushToken[gon229-local-e2e]",
+    });
 
     expect(notificationMocks.getExpoPushTokenAsync).not.toHaveBeenCalled();
     expect(callEdgeFunction).toHaveBeenCalledOnce();
@@ -157,7 +208,7 @@ describe("registerForPushNotifications", () => {
         content: expect.objectContaining({
           data: {
             groupBuyId: "group-buy-1",
-            url: "gongguwish://group-buy/group-buy-1",
+            url: "gongguwish-preview://group-buy/group-buy-1",
           },
         }),
       }),
@@ -225,9 +276,117 @@ describe("registerForPushNotifications", () => {
       registerForPushNotifications("access-token", {
         requestPermission: false,
       }),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({
+      status: "unavailable",
+      reason: "permission-denied",
+    });
     expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
     expect(callEdgeFunction).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing EAS project ID without requesting a token", async () => {
+    delete constantsMock.expoConfig.extra.eas.projectId;
+
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "failed",
+        reason: "missing-project-id",
+      },
+    );
+    expect(notificationMocks.getExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(callEdgeFunction).not.toHaveBeenCalled();
+  });
+
+  it("uses the native EAS project ID when the update manifest omits it", async () => {
+    delete constantsMock.expoConfig.extra.eas.projectId;
+    constantsMock.easConfig.projectId = "native-project-456";
+
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "registered",
+        token: "ExpoPushToken[test-token]",
+      },
+    );
+    expect(notificationMocks.getExpoPushTokenAsync).toHaveBeenCalledWith({
+      projectId: "native-project-456",
+    });
+  });
+
+  it("retries Expo token acquisition while a new install is still connecting", async () => {
+    notificationMocks.getExpoPushTokenAsync
+      .mockRejectedValueOnce(new Error("SERVICE_NOT_AVAILABLE"))
+      .mockResolvedValueOnce({ data: "ExpoPushToken[retry-token]" });
+
+    await expect(
+      registerForPushNotifications("access-token", { retryDelaysMs: [0] }),
+    ).resolves.toEqual({
+      status: "registered",
+      token: "ExpoPushToken[retry-token]",
+    });
+    expect(notificationMocks.getExpoPushTokenAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes an expired Supabase session before retrying backend registration", async () => {
+    callEdgeFunction
+      .mockRejectedValueOnce(
+        Object.assign(new Error("session expired"), { status: 401 }),
+      )
+      .mockResolvedValueOnce({
+        data: { registered: true, provider: "expo" },
+      });
+    const refreshAuthToken = vi.fn().mockResolvedValue("fresh-access-token");
+
+    await expect(
+      registerForPushNotifications("expired-access-token", {
+        refreshAuthToken,
+      }),
+    ).resolves.toEqual({
+      status: "registered",
+      token: "ExpoPushToken[test-token]",
+    });
+    expect(refreshAuthToken).toHaveBeenCalledOnce();
+    expect(callEdgeFunction).toHaveBeenNthCalledWith(
+      2,
+      "register-push-token",
+      { token: "ExpoPushToken[test-token]", provider: "expo" },
+      { authToken: "fresh-access-token" },
+    );
+  });
+
+  it("rejects an invalid Expo token before backend registration", async () => {
+    notificationMocks.getExpoPushTokenAsync.mockResolvedValueOnce({
+      data: "not-an-expo-token",
+    });
+
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "failed",
+        reason: "invalid-token",
+      },
+    );
+    expect(callEdgeFunction).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes Expo token failures from backend registration failures", async () => {
+    notificationMocks.getExpoPushTokenAsync.mockRejectedValueOnce(
+      new Error("FCM is unavailable"),
+    );
+
+    await expect(
+      registerForPushNotifications("access-token", { retryDelaysMs: [] }),
+    ).resolves.toEqual({
+      status: "failed",
+      reason: "token-request-failed",
+    });
+    expect(callEdgeFunction).not.toHaveBeenCalled();
+
+    callEdgeFunction.mockRejectedValueOnce(new Error("request failed"));
+    await expect(registerForPushNotifications("access-token")).resolves.toEqual(
+      {
+        status: "failed",
+        reason: "backend-registration-failed",
+      },
+    );
   });
 
   it("creates Android channels before requesting first-run permission", async () => {
@@ -269,7 +428,7 @@ describe("registerForPushNotifications", () => {
         request: {
           content: {
             data: {
-              url: "gongguwish://group-buy/group-buy-1",
+              url: "gongguwish-preview://group-buy/group-buy-1",
             },
           },
         },
@@ -277,31 +436,14 @@ describe("registerForPushNotifications", () => {
     });
 
     await expect(getLastNotificationResponseUrl()).resolves.toBe(
-      "gongguwish://group-buy/group-buy-1",
+      "gongguwish-preview://group-buy/group-buy-1",
     );
     expect(
       notificationMocks.clearLastNotificationResponseAsync,
     ).toHaveBeenCalledOnce();
   });
 
-  it("embeds a canonical detail URL in the Android E2E test notification", async () => {
-    await expect(scheduleTestNotification(3, "group-buy-1")).resolves.toBe(
-      "scheduled-1",
-    );
-    expect(notificationMocks.scheduleNotificationAsync).toHaveBeenCalledWith({
-      content: expect.objectContaining({
-        data: {
-          groupBuyId: "group-buy-1",
-          notificationType: "general",
-          test: true,
-          url: "gongguwish://group-buy/group-buy-1",
-        },
-      }),
-      trigger: expect.objectContaining({ seconds: 3 }),
-    });
-  });
-
-  it("builds chronological future D-7, D-3, and D-1 reminder dates", () => {
+  it("builds future D-days at 9 AM in Asia/Seoul", () => {
     const now = Date.parse("2026-07-10T12:00:00.000Z");
     expect(
       buildGroupBuyReminderDates(
@@ -313,10 +455,83 @@ describe("registerForPushNotifications", () => {
         date: item.triggerDate.toISOString(),
       })),
     ).toEqual([
-      { day: 7, date: "2026-07-13T12:00:00.000Z" },
-      { day: 3, date: "2026-07-17T12:00:00.000Z" },
-      { day: 1, date: "2026-07-19T12:00:00.000Z" },
+      { day: 7, date: "2026-07-13T00:00:00.000Z" },
+      { day: 3, date: "2026-07-17T00:00:00.000Z" },
+      { day: 1, date: "2026-07-19T00:00:00.000Z" },
     ]);
+  });
+
+  it("excludes selected D-days whose 9 AM trigger has already passed", () => {
+    const now = Date.parse("2026-07-10T12:00:00.000Z");
+
+    expect(
+      buildGroupBuyReminderDates(
+        "2026-07-13T12:00:00.000Z",
+        [1, 3, 7],
+        now,
+      ).map((item) => ({
+        day: item.reminderDay,
+        date: item.triggerDate.toISOString(),
+      })),
+    ).toEqual([
+      {
+        day: 1,
+        date: "2026-07-12T00:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("treats a trigger exactly at now as already passed", () => {
+    expect(
+      buildGroupBuyReminderDates(
+        "2026-07-13T12:00:00.000Z",
+        [3],
+        Date.parse("2026-07-10T00:00:00.000Z"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("schedules selected opening days at the shared KST time", async () => {
+    notificationMocks.scheduleNotificationAsync
+      .mockResolvedValueOnce("opening-3")
+      .mockResolvedValueOnce("opening-0");
+
+    const result = await scheduleGroupBuyOpeningReminders(
+      "group-buy-1",
+      "테스트 공구",
+      "2026-07-20T00:00:00.000Z",
+      [0, 3],
+      15 * 60 + 30,
+      Date.parse("2026-07-10T12:00:00.000Z"),
+    );
+
+    expect(result.status).toBe("scheduled");
+    if (result.status === "scheduled") {
+      expect(result.notifications.map((item) => item.id)).toEqual([
+        "opening-3",
+        "opening-0",
+      ]);
+    }
+    expect(notificationMocks.scheduleNotificationAsync).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        content: expect.objectContaining({
+          title: "공구 오픈 알림",
+          data: {
+            groupBuyId: "group-buy-1",
+            notificationType: "opening",
+            notificationEventId: "opening:group-buy-1:3",
+            reminderDay: 3,
+            url: "gongguwish-preview://group-buy/group-buy-1",
+          },
+        }),
+        trigger: expect.objectContaining({
+          type: "date",
+          date: new Date("2026-07-17T06:30:00.000Z"),
+          channelId: "group-buy-start",
+        }),
+      }),
+    );
   });
 
   it("schedules every selected future deadline reminder with a canonical URL", async () => {
@@ -352,16 +567,110 @@ describe("registerForPushNotifications", () => {
           data: {
             groupBuyId: "group-buy-1",
             notificationType: "deadline",
-            url: "gongguwish://group-buy/group-buy-1",
+            notificationEventId: "deadline:group-buy-1:7",
+            reminderDay: 7,
+            url: "gongguwish-preview://group-buy/group-buy-1",
           },
         }),
         trigger: expect.objectContaining({
           type: "date",
-          date: new Date("2026-07-13T12:00:00.000Z"),
+          date: new Date("2026-07-13T00:00:00.000Z"),
           channelId: "group-buy-deadline",
         }),
       }),
     );
+  });
+
+  it("cancels orphaned logical reminders before scheduling replacements", async () => {
+    notificationMocks.getAllScheduledNotificationsAsync.mockResolvedValueOnce([
+      {
+        identifier: "orphaned-deadline",
+        content: {
+          data: {
+            groupBuyId: "group-buy-1",
+            notificationType: "deadline",
+            reminderDay: 3,
+          },
+        },
+      },
+      {
+        identifier: "different-group-buy",
+        content: {
+          data: {
+            groupBuyId: "group-buy-2",
+            notificationType: "deadline",
+            reminderDay: 3,
+          },
+        },
+      },
+      {
+        identifier: "pending-opening",
+        content: {
+          data: {
+            groupBuyId: "group-buy-1",
+            notificationType: "opening",
+            reminderDay: 0,
+          },
+        },
+      },
+    ]);
+
+    await scheduleGroupBuyReminders(
+      "group-buy-1",
+      "테스트 공구",
+      "2026-07-20T12:00:00.000Z",
+      [3],
+      Date.parse("2026-07-10T12:00:00.000Z"),
+    );
+
+    expect(
+      notificationMocks.cancelScheduledNotificationAsync,
+    ).toHaveBeenCalledWith("orphaned-deadline");
+    expect(
+      notificationMocks.cancelScheduledNotificationAsync,
+    ).toHaveBeenCalledWith("pending-opening");
+    expect(
+      notificationMocks.cancelScheduledNotificationAsync,
+    ).not.toHaveBeenCalledWith("different-group-buy");
+  });
+
+  it("does not schedule a replacement when any existing reminder cannot cancel", async () => {
+    notificationMocks.getAllScheduledNotificationsAsync.mockResolvedValueOnce([
+      {
+        identifier: "deadline-existing",
+        content: {
+          data: {
+            groupBuyId: "group-buy-1",
+            notificationType: "deadline",
+          },
+        },
+      },
+      {
+        identifier: "opening-existing",
+        content: {
+          data: {
+            groupBuyId: "group-buy-1",
+            notificationType: "opening",
+          },
+        },
+      },
+    ]);
+    notificationMocks.cancelScheduledNotificationAsync.mockImplementation(
+      async (identifier: string) => {
+        if (identifier === "opening-existing") throw new Error("cancel failed");
+      },
+    );
+
+    await expect(
+      scheduleGroupBuyReminders(
+        "group-buy-1",
+        "테스트 공구",
+        "2026-07-20T12:00:00.000Z",
+        [3],
+        Date.parse("2026-07-10T12:00:00.000Z"),
+      ),
+    ).resolves.toEqual({ status: "failed", reason: "cancel-failed" });
+    expect(notificationMocks.scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 
   it("rolls back partial native schedules when a later reminder fails", async () => {

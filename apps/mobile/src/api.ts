@@ -17,6 +17,7 @@ import {
   groupBuyRankingResponseSchema,
 } from "@gonggu/shared/schemas/ranking";
 import { getHomeBannerDateKey } from "@gonggu/shared/utils/homeBanner";
+import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagram";
 
 import type {
   GroupBuyRankingItem as SharedGroupBuyRankingItem,
@@ -51,6 +52,7 @@ import {
 import { ApiError, type ApiValidationError } from "./lib/api-types";
 import { normalizePriceKrw } from "./utils/price";
 import { filterActiveGroupBuys } from "./utils/groupBuyDates";
+import { canRecordBehaviorSignals } from "./audience/behaviorSignalsPolicy";
 
 // ─── Re-export ApiError for consumers that import it ─────────────────────────
 export type { ApiValidationError } from "./lib/api-types";
@@ -175,6 +177,19 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
       item.homeBannerEndDate !== undefined
         ? item.homeBannerEndDate
         : item.home_banner_end_date;
+    const directInstagramUsername =
+      normalizeOptionalInstagramUsername(item.instagramUsername) ??
+      normalizeOptionalInstagramUsername(item.instagram_username);
+    const legacyInstagramUsername =
+      normalizeOptionalInstagramUsername(
+        item.rawPostId?.influencerId?.instagramUsername,
+      ) ??
+      normalizeOptionalInstagramUsername(
+        item.raw_post_id?.influencer_id?.instagramUsername,
+      ) ??
+      normalizeOptionalInstagramUsername(
+        item.raw_post_id?.influencer_id?.instagram_username,
+      );
 
     return {
       id: item.id,
@@ -193,6 +208,11 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
       mediaUrls: item.mediaUrls ?? item.media_urls ?? [],
       mediaItems: item.mediaItems ?? item.media_items ?? [],
       mediaType: item.mediaType ?? item.media_type ?? null,
+      postAudioUrl: item.postAudioUrl ?? item.post_audio_url ?? null,
+      postAudioStartTimeMs:
+        item.postAudioStartTimeMs ?? item.post_audio_start_time_ms ?? null,
+      postAudioDurationMs:
+        item.postAudioDurationMs ?? item.post_audio_duration_ms ?? null,
       ...(item.isMonthlyFeatured !== undefined
         ? { isMonthlyFeatured: item.isMonthlyFeatured }
         : {}),
@@ -214,10 +234,7 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
           "",
         influencer: {
           instagramUsername:
-            item.rawPostId?.influencerId?.instagramUsername ??
-            item.raw_post_id?.influencer_id?.instagramUsername ??
-            item.raw_post_id?.influencer_id?.instagram_username ??
-            "",
+            directInstagramUsername ?? legacyInstagramUsername ?? "",
         },
       },
     };
@@ -344,6 +361,7 @@ export async function logSearchTerm(
   keyword: string,
   groupBuyId?: string,
 ): Promise<void> {
+  if (!canRecordBehaviorSignals()) return;
   const trimmed = keyword.trim();
   if (!trimmed) return;
   try {
@@ -407,9 +425,11 @@ export type PopularGroupBuy = {
  * POST /rest/v1/group_buy_views
  */
 export async function logDeepView(groupBuyId: string): Promise<void> {
+  if (!canRecordBehaviorSignals()) return;
   try {
     const { getSessionId } = await import("./utils/session");
     const sessionId = await getSessionId();
+    if (!sessionId) return;
     await postgrestFetch("group_buy_views", {
       method: "POST",
       body: {
@@ -435,9 +455,11 @@ export async function syncBookmark(
   groupBuyId: string,
   bookmark: boolean,
 ): Promise<void> {
+  if (!canRecordBehaviorSignals()) return;
   try {
     const { getSessionId } = await import("./utils/session");
     const sessionId = await getSessionId();
+    if (!sessionId) return;
     if (bookmark) {
       await postgrestFetch("group_buy_bookmarks", {
         method: "POST",
@@ -462,32 +484,208 @@ export async function syncBookmark(
  * Mirror a notification opt-in to the server for popularity aggregation.
  * enabled=true inserts, enabled=false deletes by (group_buy_id, session_id).
  */
-export async function syncNotification(
-  groupBuyId: string,
-  enabled: boolean,
-): Promise<boolean> {
-  try {
-    const { getSessionId } = await import("./utils/session");
-    const sessionId = await getSessionId();
-    if (enabled) {
-      await postgrestFetch("group_buy_notifications", {
-        method: "POST",
-        body: { group_buy_id: groupBuyId, session_id: sessionId },
-        prefer: "resolution=merge-duplicates,return=minimal",
-      });
-    } else {
-      await postgrestFetch(
-        `group_buy_notifications?group_buy_id=eq.${encodeURIComponent(groupBuyId)}&session_id=eq.${encodeURIComponent(sessionId)}`,
-        { method: "DELETE" },
-      );
+export type GroupBuyReminderDay = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type GroupBuyOpeningReminderDay = 0 | GroupBuyReminderDay;
+
+type GroupBuyReminderPreferenceBase = {
+  groupBuyId: string;
+  updatedAt: string;
+};
+
+export type GroupBuyReminderPreference = GroupBuyReminderPreferenceBase &
+  (
+    | {
+        type: "opening";
+        reminderDays: GroupBuyOpeningReminderDay[];
+        reminderTimeMinutes: number;
+      }
+    | {
+        type: "deadline";
+        reminderDays: GroupBuyReminderDay[];
+        reminderTimeMinutes: null;
+      }
+  );
+
+export type GroupBuyReminderUpdate =
+  | {
+      type: "opening";
+      reminderDays: readonly GroupBuyOpeningReminderDay[];
+      reminderTimeMinutes: number;
     }
-    return true;
+  | {
+      type: "deadline";
+      reminderDays: readonly GroupBuyReminderDay[];
+      reminderTimeMinutes: null;
+    };
+
+export type GroupBuyReminderSyncResult =
+  | { status: "synced"; preference: GroupBuyReminderPreference | null }
+  | { status: "failed" };
+
+type GroupBuyReminderRow = {
+  group_buy_id?: unknown;
+  groupBuyId?: unknown;
+  reminder_days?: unknown;
+  reminderDays?: unknown;
+  reminder_type?: unknown;
+  reminderType?: unknown;
+  reminder_time_minutes?: unknown;
+  reminderTimeMinutes?: unknown;
+  updated_at?: unknown;
+  updatedAt?: unknown;
+};
+
+function normalizeGroupBuyReminderRow(
+  value: GroupBuyReminderRow,
+): GroupBuyReminderPreference | null {
+  const groupBuyId =
+    typeof value.groupBuyId === "string"
+      ? value.groupBuyId
+      : value.group_buy_id;
+  const reminderDaysValue = Array.isArray(value.reminderDays)
+    ? value.reminderDays
+    : value.reminder_days;
+  const updatedAt =
+    typeof value.updatedAt === "string" ? value.updatedAt : value.updated_at;
+  const reminderTypeValue =
+    typeof value.reminderType === "string"
+      ? value.reminderType
+      : value.reminder_type;
+  const normalizedReminderType =
+    typeof reminderTypeValue === "string"
+      ? reminderTypeValue.toUpperCase()
+      : "DEADLINE";
+  if (
+    normalizedReminderType !== "OPENING" &&
+    normalizedReminderType !== "DEADLINE"
+  ) {
+    return null;
+  }
+  const reminderType =
+    normalizedReminderType === "OPENING" ? "opening" : "deadline";
+  const reminderTimeMinutes =
+    typeof value.reminderTimeMinutes === "number"
+      ? value.reminderTimeMinutes
+      : value.reminder_time_minutes;
+  if (
+    typeof groupBuyId !== "string" ||
+    typeof updatedAt !== "string" ||
+    !Array.isArray(reminderDaysValue)
+  ) {
+    return null;
+  }
+  const allowed = new Set<number>(
+    reminderType === "opening"
+      ? [0, 1, 2, 3, 4, 5, 6, 7]
+      : [1, 2, 3, 4, 5, 6, 7],
+  );
+  const reminderDays = [...new Set(reminderDaysValue)]
+    .filter((day): day is number => typeof day === "number" && allowed.has(day))
+    .sort((left, right) => left - right);
+  if (reminderDays.length === 0) return null;
+  if (reminderType === "opening") {
+    if (
+      !Number.isInteger(reminderTimeMinutes) ||
+      Number(reminderTimeMinutes) < 0 ||
+      Number(reminderTimeMinutes) >= 24 * 60
+    ) {
+      return null;
+    }
+    return {
+      groupBuyId,
+      type: "opening",
+      reminderDays: reminderDays as GroupBuyOpeningReminderDay[],
+      reminderTimeMinutes: Number(reminderTimeMinutes),
+      updatedAt,
+    };
+  }
+  return {
+    groupBuyId,
+    type: "deadline",
+    reminderDays: reminderDays as GroupBuyReminderDay[],
+    reminderTimeMinutes: null,
+    updatedAt,
+  };
+}
+
+export async function fetchNotificationReminders(): Promise<
+  GroupBuyReminderPreference[] | null
+> {
+  try {
+    const rows = await postgrestPost<GroupBuyReminderRow[]>(
+      "rpc/get_my_group_buy_reminders_v2",
+      {},
+    );
+    return (Array.isArray(rows) ? rows : [])
+      .map(normalizeGroupBuyReminderRow)
+      .filter((row): row is GroupBuyReminderPreference => row !== null);
   } catch (error) {
     console.log(
-      "[Notification] sync notification failed:",
+      "[Notification] fetch reminder preferences failed:",
       error instanceof Error ? error.message : String(error),
     );
-    return false;
+    return null;
+  }
+}
+
+export async function syncNotification(
+  groupBuyId: string,
+  reminder: GroupBuyReminderUpdate | readonly GroupBuyReminderDay[] | boolean,
+): Promise<GroupBuyReminderSyncResult> {
+  const update: GroupBuyReminderUpdate =
+    typeof reminder === "boolean" || Array.isArray(reminder)
+      ? {
+          type: "deadline",
+          reminderDays:
+            reminder === true
+              ? ([1, 3, 7] as const)
+              : reminder === false
+                ? []
+                : (reminder as readonly GroupBuyReminderDay[]),
+          reminderTimeMinutes: null,
+        }
+      : (reminder as GroupBuyReminderUpdate);
+  if (
+    update.type === "opening" &&
+    (!Number.isInteger(update.reminderTimeMinutes) ||
+      update.reminderTimeMinutes < 0 ||
+      update.reminderTimeMinutes >= 24 * 60)
+  ) {
+    return { status: "failed" };
+  }
+  const allowedDays = new Set<number>(
+    update.type === "opening"
+      ? [0, 1, 2, 3, 4, 5, 6, 7]
+      : [1, 2, 3, 4, 5, 6, 7],
+  );
+  const requestedDays = update.reminderDays;
+  const normalizedDays = [...new Set(requestedDays)]
+    .sort((left, right) => left - right)
+    .filter((day) => allowedDays.has(day));
+  try {
+    const rows = await postgrestPost<GroupBuyReminderRow[]>(
+      "rpc/set_my_group_buy_reminder_v2",
+      {
+        p_group_buy_id: groupBuyId,
+        p_reminder_type: update.type.toUpperCase(),
+        p_reminder_days: normalizedDays,
+        p_reminder_time_minutes:
+          update.type === "opening" ? update.reminderTimeMinutes : null,
+      },
+    );
+    return {
+      status: "synced",
+      preference:
+        Array.isArray(rows) && rows.length > 0
+          ? normalizeGroupBuyReminderRow(rows[0])
+          : null,
+    };
+  } catch (error) {
+    console.log(
+      "[Notification] sync reminder preference failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return { status: "failed" };
   }
 }
 
@@ -566,16 +764,43 @@ export async function fetchPopularGroupBuysWithDetail(
 
 /**
  * Fetch group buys filtered by influencer username.
- * Uses PostgREST with embedded filter on raw_post -> influencer.
+ * Queries both the current group-buy field and the legacy raw-post relation.
  */
 export async function fetchGroupBuysByInfluencer(
   instagramUsername: string,
 ): Promise<GroupBuy[]> {
-  const normalizedUsername = instagramUsername.replace(/^@/, "").toLowerCase();
-  const { data } = await postgrestGet<any[]>(
-    `group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&raw_post_id.influencer_id.instagram_username=eq.${encodeURIComponent(normalizedUsername)}&order=created_at.desc`,
+  const normalizedUsername =
+    normalizeOptionalInstagramUsername(instagramUsername);
+  if (!normalizedUsername) return [];
+
+  const encodedUsername = encodeURIComponent(normalizedUsername);
+  const encodedUsernameWithAt = encodeURIComponent(`@${normalizedUsername}`);
+  const directQueryPrefix =
+    "group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED";
+  const legacyQueryPrefix =
+    "group_buys?select=*,raw_post_id!inner(*,influencer_id!inner(*))&status=eq.APPROVED";
+  const [directResponse, legacyResponse] = await Promise.all([
+    postgrestGet<any[]>(
+      `${directQueryPrefix}&or=(instagram_username.ilike.${encodedUsername},instagram_username.ilike.${encodedUsernameWithAt})&order=created_at.desc`,
+    ),
+    postgrestGet<any[]>(
+      `${legacyQueryPrefix}&raw_post_id.influencer_id.instagram_username=ilike.${encodedUsername}&order=created_at.desc`,
+    ),
+  ]);
+  const rowsById = new Map<string, any>();
+  for (const row of [
+    ...(directResponse.data ?? []),
+    ...(legacyResponse.data ?? []),
+  ]) {
+    if (row?.id && !rowsById.has(row.id)) rowsById.set(row.id, row);
+  }
+  const rows = [...rowsById.values()].sort((left, right) =>
+    String(right.created_at ?? right.createdAt ?? "").localeCompare(
+      String(left.created_at ?? left.createdAt ?? ""),
+    ),
   );
-  return filterActiveGroupBuys(mapGroupBuyRows(data || []));
+
+  return filterActiveGroupBuys(mapGroupBuyRows(rows));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -645,6 +870,9 @@ export type RefreshedInstagramMedia = {
     | "mediaUrls"
     | "mediaItems"
     | "mediaType"
+    | "postAudioUrl"
+    | "postAudioStartTimeMs"
+    | "postAudioDurationMs"
   >;
   error?: string;
 };
@@ -655,9 +883,13 @@ export type RefreshedInstagramMedia = {
  */
 export async function refreshGroupBuyMedia(
   groupBuyId: string,
+  options?: { force?: boolean; failedPostAudioUrl?: string },
 ): Promise<RefreshedInstagramMedia> {
+  const failedPostAudioUrl = options?.failedPostAudioUrl?.trim();
   return callEdgeFunction<RefreshedInstagramMedia>("refresh-instagram-media", {
     groupBuyId,
+    ...(options?.force === true ? { force: true } : {}),
+    ...(failedPostAudioUrl ? { failedPostAudioUrl } : {}),
   });
 }
 

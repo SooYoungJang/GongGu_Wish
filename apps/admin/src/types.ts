@@ -1,6 +1,15 @@
-export type SubmissionStatus = "PENDING" | "APPROVED" | "REJECTED" | "DUPLICATE" | "CANCELLED";
+export type SubmissionStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "DUPLICATE"
+  | "CANCELLED";
 
-export type GroupBuyStatus = "APPROVED" | "REVIEW_REQUIRED" | "REJECTED" | "EXPIRED";
+export type GroupBuyStatus =
+  | "APPROVED"
+  | "REVIEW_REQUIRED"
+  | "REJECTED"
+  | "EXPIRED";
 
 export type MediaAsset = {
   url: string;
@@ -8,10 +17,38 @@ export type MediaAsset = {
   thumbnailUrl?: string | null;
 };
 
+export type SubmissionNotificationDelivery = {
+  status:
+    | "NOT_STARTED"
+    | "NO_RECIPIENTS"
+    | "PENDING"
+    | "SENT"
+    | "PARTIAL"
+    | "SKIPPED"
+    | "FAILED";
+  linkedSubmitterCount: number;
+  pendingCount: number;
+  processingCount: number;
+  sentCount: number;
+  skippedCount: number;
+  retryingCount: number;
+  failedCount: number;
+};
+
+export type SubmissionApprovalDeliverySummary = {
+  status: "sent" | "skipped" | "retrying" | "failed";
+  queued: number;
+  sent: number;
+  skipped: number;
+  retrying: number;
+  failed: number;
+};
+
 export type GongguSubmission = {
   id: string;
   productName: string | null;
   brandName: string | null;
+  instagramUsername: string | null;
   category: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -22,6 +59,9 @@ export type GongguSubmission = {
   instagramUrl: string | null;
   imageUrls: string[];
   mediaItems: MediaAsset[];
+  postAudioUrl?: string | null;
+  postAudioStartTimeMs?: number | null;
+  postAudioDurationMs?: number | null;
   reporterName: string | null;
   reporterContact: string | null;
   isAnonymous: boolean;
@@ -36,12 +76,14 @@ export type GongguSubmission = {
   homeBannerEndDate: string | null;
   createdAt: string;
   updatedAt: string;
+  notificationDelivery?: SubmissionNotificationDelivery | null;
 };
 
 export type GroupBuy = {
   id: string;
   productName: string | null;
   brandName: string | null;
+  instagramUsername: string | null;
   category: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -54,6 +96,9 @@ export type GroupBuy = {
   mediaUrls: string[];
   mediaItems: MediaAsset[];
   mediaType: "IMAGE" | "VIDEO" | null;
+  postAudioUrl?: string | null;
+  postAudioStartTimeMs?: number | null;
+  postAudioDurationMs?: number | null;
   status: GroupBuyStatus;
   sourceType: string | null;
   submissionId: string | null;
@@ -103,7 +148,12 @@ export type PushNotificationInput = {
 
 export type PushNotificationResult = {
   provider: "expo";
-  audienceType?: "general" | "new_submission" | "deadline" | "influencer" | "brand";
+  audienceType?:
+    | "general"
+    | "new_submission"
+    | "deadline"
+    | "influencer"
+    | "brand";
   targeted: number;
   preferenceFiltered?: number;
   sent: number;
@@ -123,6 +173,10 @@ export type HikerLookupResult = {
   mediaUrls: string[];
   mediaItems: MediaAsset[];
   mediaType: "IMAGE" | "VIDEO" | null;
+  postAudioUrl?: string | null;
+  postAudioStartTimeMs?: number | null;
+  postAudioDurationMs?: number | null;
+  postAudioLookupStatus?: "FOUND" | "NONE" | "RETRYABLE";
   caption: string | null;
   likeCount: number | null;
   username: string | null;
@@ -140,7 +194,12 @@ export type HikerLlmSuggestions = {
   priceKrw: string;
 };
 
-export type CdnRefreshStatus = "expired" | "expiring" | "healthy" | "unknown" | "no_cdn";
+export type CdnRefreshStatus =
+  | "expired"
+  | "expiring"
+  | "healthy"
+  | "unknown"
+  | "no_cdn";
 
 export type CdnRefreshRow = {
   id: string;

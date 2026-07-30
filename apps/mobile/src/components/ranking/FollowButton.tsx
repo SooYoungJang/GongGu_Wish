@@ -31,19 +31,11 @@ export function GroupBuyAlertButton({
   const label = isPending
     ? `${groupBuyName} 알림 처리 중`
     : isRetry
-      ? `${groupBuyName} 알림 재시도`
-      : notificationState.status === "unsupported" ||
-          notificationState.status === "unavailable"
-        ? `${groupBuyName} 알림 설정 불가`
-        : `${groupBuyName} ${isEnabled ? "알림 해제" : "알림"}`;
+      ? `${groupBuyName} 알림 다시 설정`
+      : `${groupBuyName} ${isEnabled ? "알림 날짜 변경" : "마감 알림 설정"}`;
   const hint = isPending
     ? "공구 알림 처리 중입니다"
-    : isRetry
-      ? "공구 알림을 다시 설정합니다"
-      : notificationState.status === "unsupported" ||
-          notificationState.status === "unavailable"
-        ? "현재 환경에서 공구 알림을 설정할 수 없습니다"
-        : "공구 알림 설정을 변경합니다";
+    : "D-7부터 D-1 사이의 마감 알림 날짜를 선택합니다";
 
   return (
     <Pressable

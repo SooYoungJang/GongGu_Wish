@@ -216,10 +216,22 @@ web3 = 30
 # provider = "hcaptcha"
 # secret = ""
 
+[functions.admin-api]
+[functions.process-notification-outbox]
+[functions.health]
 [functions.refresh-instagram-media]
+# The function accepts user JWTs, service-role calls, and a Vault-backed cron
+# secret. JWT verification is performed inside the handler so cron can use its
+# non-JWT credential; unauthenticated requests are rejected there.
+verify_jwt = false
 [functions.seller-rankings]
 # Rankings expose only the same approved rows available through public
 # PostgREST. Mobile callers may be signed out, so no user JWT is required.
+verify_jwt = false
+
+[functions.public-submission]
+# Public submission intake uses the service role key internally; no user JWT
+# is required, so callers without an auth session can still submit.
 verify_jwt = false
 
 [functions.hiker-lookup]
@@ -230,14 +242,13 @@ verify_jwt = false
 # function silently falls back to client-side rule-based inference.
 verify_jwt = false
 
-[functions.naver-auth]
-verify_jwt = false
-
 [functions.delete-account]
 verify_jwt = true
 
 [functions.register-push-token]
 verify_jwt = true
+
+[functions.webhook-handler]
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.

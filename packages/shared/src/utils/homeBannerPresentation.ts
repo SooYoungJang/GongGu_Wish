@@ -176,8 +176,8 @@ export function getHomeBannerStatusCopy(
   if (discountPercent) {
     return {
       accentLabel: `${discountPercent}%`,
-      accessibilityLabel: `${discountPercent}% 할인, 상세에서 가격 확인`,
-      detailLabel: "상세에서 가격 확인",
+      accessibilityLabel: `${discountPercent}% 할인, 가격 미정`,
+      detailLabel: "가격 미정",
       priceKrw,
     };
   }
@@ -194,8 +194,8 @@ export function getHomeBannerStatusCopy(
 
   return {
     accentLabel: "공구 진행 중",
-    accessibilityLabel: "공구 진행 중, 상세에서 가격 확인",
-    detailLabel: "상세에서 가격 확인",
+    accessibilityLabel: "공구 진행 중, 가격 미정",
+    detailLabel: "가격 미정",
     priceKrw,
   };
 }

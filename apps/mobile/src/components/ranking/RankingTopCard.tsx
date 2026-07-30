@@ -1,7 +1,9 @@
 import { memo, useCallback, useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { Image, Pressable, useWindowDimensions, View } from "react-native";
 
 import { useCommerceTheme } from "../../design/useCommerceTheme";
+import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
 import {
   formatRankingDeadline,
   getRankingItemAccessibilityLabel,
@@ -10,6 +12,7 @@ import type {
   GroupBuyRankingItem,
   RankingListItem,
 } from "../../features/ranking/types";
+import { InstagramIdentity } from "../ui/InstagramIdentity";
 import { PriceText } from "../ui/PriceText";
 import { SText } from "../ui/SText";
 import { GroupBuyAlertButton } from "./FollowButton";
@@ -38,7 +41,8 @@ export const RankingTopCard = memo(function RankingTopCard({
   const { shadow } = theme;
   const { fontScale } = useWindowDimensions();
   const s = useMemo(() => makeRankingTopStyles(theme), [theme]);
-  const displayName = getDisplayName(item);
+  const instagramHandle = formatInstagramHandle(item.username);
+  const displayName = getDisplayName(item, instagramHandle);
   const isHero = variant === "hero";
   const largeText = fontScale >= 1.3;
   const imageUrl = item.thumbnailUrl ?? item.mediaUrls[0] ?? null;
@@ -139,47 +143,64 @@ export const RankingTopCard = memo(function RankingTopCard({
       </Pressable>
 
       <View style={[s.cardFooter, largeText ? s.cardFooterLargeText : null]}>
-        {onPressSeller ? (
-          <Pressable
-            accessibilityHint="판매자의 공구 목록 보기"
-            accessibilityLabel={`@${item.username} 판매자 공구 보기`}
-            accessibilityRole="button"
-            onPress={handlePressSeller}
-            style={({ pressed }) => [
-              s.sellerAction,
-              pressed ? s.pressed : null,
-            ]}
-          >
-            <SText
-              numberOfLines={largeText ? undefined : 1}
-              style={s.username}
-              testID={`ranking-top-seller-${item.rank}`}
-              variant="caption"
+        {instagramHandle ? (
+          onPressSeller ? (
+            <Pressable
+              accessibilityHint="판매자의 공구 목록 보기"
+              accessibilityLabel={`${instagramHandle} 판매자 공구 보기`}
+              accessibilityRole="button"
+              onPress={handlePressSeller}
+              style={({ pressed }) => [
+                s.sellerAction,
+                pressed ? s.pressed : null,
+              ]}
             >
-              @{item.username}
-            </SText>
-          </Pressable>
-        ) : (
-          <SText
-            numberOfLines={largeText ? undefined : 1}
-            style={s.username}
-            testID={`ranking-top-seller-${item.rank}`}
-            variant="caption"
-          >
-            @{item.username}
-          </SText>
-        )}
-        <GroupBuyAlertButton
-          groupBuyName={displayName}
-          isEnabled={item.isNotifying ?? false}
-          notificationState={item.notificationState}
-          onPress={handleToggleAlert}
-        />
+              <InstagramIdentity
+                allowWrapping={largeText}
+                iconTestID={`ranking-top-seller-icon-${item.rank}`}
+                size="body"
+                style={s.sellerIdentity}
+                testID={`ranking-top-seller-${item.rank}`}
+                textStyle={s.username}
+                username={item.username}
+              />
+              <Ionicons
+                accessible={false}
+                color={theme.colors.weak}
+                name="chevron-forward"
+                size={16}
+              />
+            </Pressable>
+          ) : (
+            <View style={s.sellerStatic}>
+              <InstagramIdentity
+                allowWrapping={largeText}
+                iconTestID={`ranking-top-seller-icon-${item.rank}`}
+                size="body"
+                style={s.sellerIdentity}
+                testID={`ranking-top-seller-${item.rank}`}
+                textStyle={s.username}
+                username={item.username}
+              />
+            </View>
+          )
+        ) : null}
+        <View style={s.alertAction}>
+          <GroupBuyAlertButton
+            groupBuyName={displayName}
+            isEnabled={item.isNotifying ?? false}
+            notificationState={item.notificationState}
+            onPress={handleToggleAlert}
+          />
+        </View>
       </View>
     </View>
   );
 });
 
-function getDisplayName(item: GroupBuyRankingItem) {
-  return (item.productName ?? item.brandName ?? item.username) || "공구";
+function getDisplayName(
+  item: GroupBuyRankingItem,
+  instagramHandle: string | null,
+) {
+  return (item.productName ?? item.brandName ?? instagramHandle) || "공구";
 }

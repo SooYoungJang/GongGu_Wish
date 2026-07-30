@@ -12,18 +12,25 @@
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-const DEFAULT_SUPABASE_URL = 'https://iosdoheblabfimkjnvfj.supabase.co';
 const REST_VERSION = '/rest/v1';
 
-let _supabaseUrl = DEFAULT_SUPABASE_URL;
+let _supabaseUrl: string | undefined;
 let _anonKey = '';
 
 export function configurePostgrest(url: string, anonKey: string): void {
-  _supabaseUrl = url;
+  const configuredUrl = url.trim().replace(/\/+$/, '');
+  if (!configuredUrl) {
+    throw new Error('Supabase origin must be configured');
+  }
+
+  _supabaseUrl = configuredUrl;
   _anonKey = anonKey;
 }
 
 export function getPostgrestUrl(): string {
+  if (!_supabaseUrl) {
+    throw new Error('Supabase origin must be configured');
+  }
   return `${_supabaseUrl}${REST_VERSION}`;
 }
 

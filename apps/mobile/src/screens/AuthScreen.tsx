@@ -12,8 +12,8 @@
  *  - Social login buttons (Android: Kakao / Naver, iOS: Kakao / Naver / Apple)
  *  - Floating label inputs with Zod validation
  *  - Password visibility toggle & "Forgot password" link
- *  - 3-step Progressive Disclosure for signup
- *  - Agreement checkboxes (all-agree + required/optional)
+ *  - Progressive Disclosure for email signup
+ *  - Shared legal notice for every authentication method
  *  - Responsive (mobile-first) + WCAG AA accessibility
  */
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -27,39 +27,53 @@ import {
   View,
   type TextInputProps,
   type TextStyle,
-} from 'react-native';
-import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
-import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
+import { AuthLegalNotice } from "../components/auth/AuthLegalNotice";
+import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { EMAIL_CODE_TTL_SECONDS, useAuth } from '../context/AuthContext';
-import { BackButton } from '../components/BackButton';
-import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../types';
+import { EMAIL_CODE_TTL_SECONDS, useAuth } from "../context/AuthContext";
+import { CenteredBackHeader } from "../components/CenteredBackHeader";
+import type {
+  NativeStackScreenProps,
+  NativeStackNavigationProp,
+} from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../types";
 import {
   loginSchema,
   signupStep1Schema,
   signupStep2Schema,
-  signupStep3Schema,
-  AGREEMENTS,
   type LoginForm,
   type SignupStep1Form,
   type SignupStep2Form,
-  type SignupStep3Form,
-} from '../schemas/auth';
+} from "../schemas/auth";
 import {
   getSocialProvidersForPlatform,
   mapAuthErrorMessage,
   type SocialAuthProvider,
-} from '../utils/authHelpers';
-import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
-import { spacing } from '../design/tokens';
-import { useCommerceTheme } from '../design/useCommerceTheme';
+} from "../utils/authHelpers";
+import { commerceRadius, type CommerceColorPalette } from "../design/commerce";
+import { useCommerceTheme } from "../design/useCommerceTheme";
+import { useAudienceConfirmedAction } from "../hooks/useAudienceConfirmedAction";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type AuthTab = 'login' | 'signup';
-type SignupStep = 1 | 2 | 3 | 4;
+type AuthTab = "login" | "signup";
+type SignupStep = 1 | 2 | 3;
+
+type LoginAuthAction =
+  | { kind: "email"; email: string; password: string }
+  | { kind: "oauth"; provider: SocialAuthProvider };
+
+type SignupAuthAction =
+  | {
+      kind: "email";
+      email: string;
+      password: string;
+      metadata: Record<string, unknown>;
+    }
+  | { kind: "oauth"; provider: SocialAuthProvider };
 
 type FocusEvent = { type: 'focus'; inputId: string } | { type: 'blur'; inputId: string } | { type: 'reset' };
 
@@ -102,9 +116,8 @@ const makeStyles = (colors: CommerceColorPalette) =>
     flex: {
       flex: 1,
     },
-    backButton: {
-      position: 'absolute',
-      zIndex: 10,
+    topBar: {
+      marginBottom: 8,
     },
     authScrollContent: {
       paddingHorizontal: 24,
@@ -126,24 +139,13 @@ const makeStyles = (colors: CommerceColorPalette) =>
     // Header — refined coral wave
     header: {
       alignItems: 'center',
-      marginBottom: 32,
-    },
-    appName: {
-      fontWeight: '800',
-      fontSize: 22,
-      color: colors.text,
-      letterSpacing: -0.5,
-    },
-    appNameAccent: {
-      color: colors.accent,
-      fontWeight: '800',
-      fontSize: 22,
+      marginBottom: 24,
     },
     welcomeText: {
       fontWeight: '400',
       fontSize: 14,
       color: colors.muted,
-      marginTop: 6,
+      marginTop: 0,
       letterSpacing: -0.2,
     },
 
@@ -312,15 +314,6 @@ const makeStyles = (colors: CommerceColorPalette) =>
 
     // ── Agreement ──
 
-    agreeGroup: {
-      gap: 12,
-      marginBottom: 20,
-    },
-    agreeAll: {
-      paddingBottom: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.borderLight,
-    },
     agreeItem: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -344,25 +337,12 @@ const makeStyles = (colors: CommerceColorPalette) =>
       fontSize: 13,
       fontWeight: '700',
     },
-    agreeLabelAll: {
-      fontSize: 14,
-      color: colors.text,
-      flex: 1,
-    },
-    agreeLabelBold: {
-      fontWeight: '700',
-    },
     agreeLabel: {
       fontSize: 14,
       color: colors.text,
       flex: 1,
       letterSpacing: -0.2,
     },
-    agreeDetail: {
-      fontSize: 12,
-      color: colors.muted,
-    },
-
     // ── Social Button Styles ──
 
     appleIcon: {
@@ -428,14 +408,47 @@ const makeStyles = (colors: CommerceColorPalette) =>
 
 export function AuthScreen(_props: AuthScreenProps) {
   const { colors } = useCommerceTheme();
+  const {
+    authCompletionRevision,
+    cancelAudienceAuthIntent,
+    isAudienceAuthIntentPending,
+    user,
+  } = useAuth();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<AuthTab>('login');
+  const [activeTab, setActiveTab] = useState<AuthTab>("login");
+  const [authBusy, setAuthBusy] = useState(false);
+  const authFlowLocked = authBusy || isAudienceAuthIntentPending;
 
   const [actionBar, setActionBar] = useState<ActionBarConfig | null>(null);
   const [focusedInputId, setFocusedInputId] = useState<string | null>(null);
   const [authRuntimeMarker] = useState(() => `gon-211-${Date.now()}`);
+  const authNavigationCompletedRef = useRef(false);
+  const observedAuthCompletionRef = useRef(authCompletionRevision);
 
   const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const completeAuthNavigation = useCallback(() => {
+    if (authNavigationCompletedRef.current) return;
+    authNavigationCompletedRef.current = true;
+    navigation.popTo('MainTabs', { screen: 'MyPage' });
+  }, [navigation]);
+
+  useEffect(
+    () =>
+      navigation.addListener("beforeRemove", () => {
+        cancelAudienceAuthIntent();
+      }),
+    [cancelAudienceAuthIntent, navigation],
+  );
+
+  useEffect(() => {
+    if (authCompletionRevision === observedAuthCompletionRef.current) return;
+    if (!user || authFlowLocked) return;
+    observedAuthCompletionRef.current = authCompletionRevision;
+    completeAuthNavigation();
+  }, [authCompletionRevision, authFlowLocked, completeAuthNavigation, user]);
 
   // Reset focus state on tab switch; child panels own actionBar reporting.
   useEffect(() => {
@@ -529,20 +542,28 @@ export function AuthScreen(_props: AuthScreenProps) {
       accessibilityLabel="공구위시 로그인 화면"
       testID={`auth-screen-${authRuntimeMarker}`}
     >
-      <BackButton
-        style={[styles.backButton, { left: spacing.xs, top: insets.top + spacing.xs }]}
-      />
       <View style={[styles.flex, { paddingTop: insets.top }]}>
+        <CenteredBackHeader
+          style={styles.topBar}
+          testID="auth-navigation-header"
+          title="공구위시"
+        />
         <KeyboardFormScreen
           footer={stickyFooter}
           contentContainerStyle={styles.authScrollContent}
         >
           <AuthHeader />
-          <AuthTabs activeTab={activeTab} onTabChange={setActiveTab} />
+          <AuthTabs
+            activeTab={activeTab}
+            disabled={authFlowLocked}
+            onTabChange={setActiveTab}
+          />
           <AuthContentArea
             activeTab={activeTab}
             onActionBarChange={setActionBar}
+            onBusyChange={setAuthBusy}
             hideActions={shouldShowStickyAction}
+            onAuthSuccess={completeAuthNavigation}
             onInputFocus={onInputFocus}
             onInputBlur={onInputBlur}
           />
@@ -552,17 +573,14 @@ export function AuthScreen(_props: AuthScreenProps) {
   );
 }
 
-// ─── Header: App Name + Welcome ─────────────────────────────────────────────
+// ─── Welcome ────────────────────────────────────────────────────────────────
 
 function AuthHeader() {
   const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
-    <View style={styles.header} accessible accessibilityLabel="공구위시">
-      <Text style={styles.appName}>
-        공구<Text style={styles.appNameAccent}>위시</Text>
-      </Text>
+    <View style={styles.header}>
       <Text style={styles.welcomeText}>함께 사면 더 즐거운 공동구매</Text>
     </View>
   );
@@ -570,24 +588,37 @@ function AuthHeader() {
 
 // ─── Tab Bar: Login / Signup ────────────────────────────────────────────────
 
-function AuthTabs({ activeTab, onTabChange }: { activeTab: AuthTab; onTabChange: (tab: AuthTab) => void }) {
+function AuthTabs({
+  activeTab,
+  disabled,
+  onTabChange,
+}: {
+  activeTab: AuthTab;
+  disabled: boolean;
+  onTabChange: (tab: AuthTab) => void;
+}) {
   const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const switchTab = useCallback((tab: AuthTab) => {
-    onTabChange(tab);
-  }, [onTabChange]);
+  const switchTab = useCallback(
+    (tab: AuthTab) => {
+      if (disabled) return;
+      onTabChange(tab);
+    },
+    [disabled, onTabChange],
+  );
 
   return (
     <View style={styles.tabBar} accessibilityRole="tablist" accessibilityLabel="인증 방식 선택">
       <Pressable
         accessible
         accessibilityRole="tab"
-        accessibilityState={{ selected: activeTab === 'login' }}
+        accessibilityState={{ disabled, selected: activeTab === "login" }}
         accessibilityLabel="로그인 탭"
         accessibilityHint="이메일로 로그인합니다"
-        onPress={() => switchTab('login')}
-        style={[styles.tabBtn, activeTab === 'login' && styles.tabBtnActive]}
+        onPress={() => switchTab("login")}
+        disabled={disabled}
+        style={[styles.tabBtn, activeTab === "login" && styles.tabBtnActive]}
       >
         <Text style={[styles.tabBtnText, activeTab === 'login' && styles.tabBtnTextActive]}>
           로그인
@@ -596,11 +627,12 @@ function AuthTabs({ activeTab, onTabChange }: { activeTab: AuthTab; onTabChange:
       <Pressable
         accessible
         accessibilityRole="tab"
-        accessibilityState={{ selected: activeTab === 'signup' }}
+        accessibilityState={{ disabled, selected: activeTab === "signup" }}
         accessibilityLabel="회원가입 탭"
         accessibilityHint="새 계정을 만듭니다"
-        onPress={() => switchTab('signup')}
-        style={[styles.tabBtn, activeTab === 'signup' && styles.tabBtnActive]}
+        onPress={() => switchTab("signup")}
+        disabled={disabled}
+        style={[styles.tabBtn, activeTab === "signup" && styles.tabBtnActive]}
       >
         <Text style={[styles.tabBtnText, activeTab === 'signup' && styles.tabBtnTextActive]}>
           회원가입
@@ -612,19 +644,43 @@ function AuthTabs({ activeTab, onTabChange }: { activeTab: AuthTab; onTabChange:
 
 // ─── Auth Content Area ──────────────────────────────────────────────────────
 
-function AuthContentArea({ activeTab, onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
+function AuthContentArea({
+  activeTab,
+  onActionBarChange,
+  onBusyChange,
+  hideActions,
+  onAuthSuccess,
+  onInputFocus,
+  onInputBlur,
+}: {
   activeTab: AuthTab;
   onActionBarChange?: (config: ActionBarConfig) => void;
+  onBusyChange: (busy: boolean) => void;
   hideActions?: boolean;
+  onAuthSuccess: () => void;
   onInputFocus?: (inputId: string) => void;
   onInputBlur?: (inputId: string) => void;
 }) {
   return (
     <View>
-      {activeTab === 'login' ? (
-        <LoginPanel onActionBarChange={onActionBarChange} hideActions={hideActions} onInputFocus={onInputFocus} onInputBlur={onInputBlur} />
+      {activeTab === "login" ? (
+        <LoginPanel
+          onActionBarChange={onActionBarChange}
+          onBusyChange={onBusyChange}
+          hideActions={hideActions}
+          onAuthSuccess={onAuthSuccess}
+          onInputFocus={onInputFocus}
+          onInputBlur={onInputBlur}
+        />
       ) : (
-        <SignupPanel onActionBarChange={onActionBarChange} hideActions={hideActions} onInputFocus={onInputFocus} onInputBlur={onInputBlur} />
+        <SignupPanel
+          onActionBarChange={onActionBarChange}
+          onBusyChange={onBusyChange}
+          hideActions={hideActions}
+          onAuthSuccess={onAuthSuccess}
+          onInputFocus={onInputFocus}
+          onInputBlur={onInputBlur}
+        />
       )}
     </View>
   );
@@ -632,16 +688,30 @@ function AuthContentArea({ activeTab, onActionBarChange, hideActions, onInputFoc
 
 // ─── Login Panel ────────────────────────────────────────────────────────────
 
-function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
+function LoginPanel({
+  onActionBarChange,
+  onBusyChange,
+  hideActions,
+  onAuthSuccess,
+  onInputFocus,
+  onInputBlur,
+}: {
   onActionBarChange?: (config: ActionBarConfig) => void;
+  onBusyChange: (busy: boolean) => void;
   hideActions?: boolean;
+  onAuthSuccess: () => void;
   onInputFocus?: (inputId: string) => void;
   onInputBlur?: (inputId: string) => void;
 }) {
   const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { signIn, signInWithOAuth } = useAuth();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const {
+    cancelAudienceAuthIntent,
+    isLoading,
+    signIn,
+    signInWithOAuth,
+    startAudienceAuthIntent,
+  } = useAuth();
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const [focusedLoginField, setFocusedLoginField] = useState<string | null>(null);
@@ -654,6 +724,60 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
   const [submitting, setSubmitting] = useState(false);
   const [socialSubmitting, setSocialSubmitting] = useState<string | null>(null);
   const socialProviders = useMemo(() => getSocialProvidersForPlatform(), []);
+
+  const executeLoginAction = useCallback(
+    async (action: LoginAuthAction) => {
+      setSubmitError(null);
+
+      if (action.kind === "oauth") {
+        setSocialSubmitting(action.provider);
+        try {
+          const error = await signInWithOAuth(action.provider);
+          if (error) {
+            setSubmitError(mapAuthErrorMessage(error));
+          }
+          // OAuth redirect will handle navigation; no goBack() needed
+        } catch {
+          setSubmitError("소셜 로그인에 실패했습니다. 다시 시도해주세요.");
+        } finally {
+          setSocialSubmitting(null);
+        }
+        return;
+      }
+
+      setSubmitting(true);
+      try {
+        const authError = await signIn(action.email, action.password);
+        if (authError) {
+          setSubmitError(mapAuthErrorMessage(authError));
+        } else {
+          onAuthSuccess();
+        }
+      } catch {
+        setSubmitError("오류가 발생했습니다. 다시 시도해주세요.");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [onAuthSuccess, signIn, signInWithOAuth],
+  );
+
+  const handleConfirmationFailure = useCallback(() => {
+    cancelAudienceAuthIntent();
+    setSubmitError("연령 확인 정보를 저장하지 못했습니다. 다시 시도해주세요.");
+  }, [cancelAudienceAuthIntent]);
+
+  const { confirming, run: runConfirmedAuthAction } =
+    useAudienceConfirmedAction(executeLoginAction, {
+      onConfirmationFailure: handleConfirmationFailure,
+      onActionStart: startAudienceAuthIntent,
+      ready: !isLoading,
+    });
+
+  const authBusy = confirming || submitting || socialSubmitting !== null;
+  useEffect(() => {
+    onBusyChange(authBusy);
+  }, [authBusy, onBusyChange]);
 
   const handleLogin = useCallback(async () => {
     setSubmitError(null);
@@ -671,20 +795,16 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
     }
     setErrors({});
 
-    setSubmitting(true);
     try {
-      const authError = await signIn(result.data.email, result.data.password);
-      if (authError) {
-        setSubmitError(mapAuthErrorMessage(authError));
-      } else {
-        navigation.goBack();
-      }
+      await runConfirmedAuthAction({
+        kind: "email",
+        email: result.data.email,
+        password: result.data.password,
+      });
     } catch {
-      setSubmitError('오류가 발생했습니다. 다시 시도해주세요.');
-    } finally {
-      setSubmitting(false);
+      // The confirmation failure callback already exposes a readable message.
     }
-  }, [email, password, signIn, navigation]);
+  }, [email, password, runConfirmedAuthAction]);
 
   const handleForgotPassword = useCallback(() => {
     Alert.alert('준비중', '비밀번호 찾기 기능은 준비 중입니다.\n곧 업데이트될 예정입니다.');
@@ -710,42 +830,47 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
 
   const handleSocialLogin = useCallback(
     async (provider: SocialAuthProvider) => {
-      setSocialSubmitting(provider);
-      setSubmitError(null);
       try {
-        const error = await signInWithOAuth(provider);
-        if (error) {
-          setSubmitError(mapAuthErrorMessage(error));
-        }
-        // OAuth redirect will handle navigation; no goBack() needed
+        await runConfirmedAuthAction({ kind: "oauth", provider });
       } catch {
-        setSubmitError('소셜 로그인에 실패했습니다. 다시 시도해주세요.');
-      } finally {
-        setSocialSubmitting(null);
+        // The confirmation failure callback already exposes a readable message.
       }
     },
-    [signInWithOAuth],
+    [runConfirmedAuthAction],
   );
 
   // ── Report action bar config ─────────────────────────────────────────
   useEffect(() => {
     const primaryText =
-      focusedLoginField === 'login-email'
-        ? '다음'
-        : (submitting ? '로그인 중...' : '로그인');
+      focusedLoginField === "login-email"
+        ? "다음"
+        : submitting
+          ? "로그인 중..."
+          : confirming
+            ? "확인 중..."
+            : "로그인";
 
     onActionBarChange?.({
       variant: 'login',
       primary: {
         text: primaryText,
         onPress: handleLoginPrimaryAction,
-        disabled: submitting,
+        disabled: submitting || confirming || socialSubmitting !== null,
       },
     });
-  }, [submitting, focusedLoginField, handleLoginPrimaryAction, onActionBarChange]);
+  }, [
+    confirming,
+    submitting,
+    socialSubmitting,
+    focusedLoginField,
+    handleLoginPrimaryAction,
+    onActionBarChange,
+  ]);
 
   return (
     <View accessibilityLabel="로그인">
+      <AuthLegalNotice />
+
       {/* Social Login — refined: no title */}
       <View style={styles.socialSection}>
         {socialProviders.map((sp) => (
@@ -759,7 +884,7 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
             iconStyle={sp.iconStyle as TextStyle}
             accessibilityLabel={sp.accessibilityLabel}
             onPress={() => handleSocialLogin(sp.provider)}
-            disabled={socialSubmitting !== null}
+            disabled={socialSubmitting !== null || submitting || confirming}
           />
         ))}
       </View>
@@ -784,7 +909,7 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
           keyboardType="email-address"
           inputMode="email"
           error={errors.email}
-          editable={!submitting}
+          editable={!submitting && !confirming}
           focusId="login-email"
           onAuthInputFocus={(id) => { setFocusedLoginField(id); onInputFocus?.(id); }}
           onAuthInputBlur={(id) => { setFocusedLoginField((cur) => (cur === id ? null : cur)); onInputBlur?.(id); }}
@@ -799,7 +924,7 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
           autoCapitalize="none"
           autoComplete="current-password"
           error={errors.password}
-          editable={!submitting}
+          editable={!submitting && !confirming}
           focusId="login-password"
           onAuthInputFocus={(id) => { setFocusedLoginField(id); onInputFocus?.(id); }}
           onAuthInputBlur={(id) => { setFocusedLoginField((cur) => (cur === id ? null : cur)); onInputBlur?.(id); }}
@@ -833,7 +958,11 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
         </View>
 
         {submitError ? (
-          <Text style={[styles.errorText, { marginBottom: 12, marginTop: 4 }]}>
+          <Text
+            accessibilityLiveRegion="assertive"
+            accessibilityRole="alert"
+            style={[styles.errorText, { marginBottom: 12, marginTop: 4 }]}
+          >
             {submitError}
           </Text>
         ) : null}
@@ -844,17 +973,21 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
             accessibilityRole="button"
             accessibilityLabel="로그인"
             testID="auth-login-submit"
-            accessibilityState={{ disabled: submitting }}
+            accessibilityState={{ disabled: submitting || confirming }}
             onPress={handleLogin}
-            disabled={submitting}
+            disabled={submitting || confirming}
             style={({ pressed }) => [
               styles.ctaBtn,
-              submitting && styles.ctaBtnDisabled,
-              pressed && !submitting && styles.ctaBtnPressed,
+              (submitting || confirming) && styles.ctaBtnDisabled,
+              pressed && !submitting && !confirming && styles.ctaBtnPressed,
             ]}
           >
             <Text style={styles.ctaBtnText}>
-              {submitting ? '로그인 중...' : '로그인'}
+              {submitting
+                ? "로그인 중..."
+                : confirming
+                  ? "확인 중..."
+                  : "로그인"}
             </Text>
           </Pressable>
         )}
@@ -865,21 +998,32 @@ function LoginPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur 
 
 // ─── Signup Panel (3-Step Progressive Disclosure) ──────────────────────────
 
-function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur }: {
+function SignupPanel({
+  onActionBarChange,
+  onBusyChange,
+  hideActions,
+  onAuthSuccess,
+  onInputFocus,
+  onInputBlur,
+}: {
   onActionBarChange?: (config: ActionBarConfig) => void;
+  onBusyChange: (busy: boolean) => void;
   hideActions?: boolean;
+  onAuthSuccess: () => void;
   onInputFocus?: (inputId: string) => void;
   onInputBlur?: (inputId: string) => void;
 }) {
   const { colors } = useCommerceTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
+    cancelAudienceAuthIntent,
+    isLoading,
     resendEmailSignUpCode,
     signInWithOAuth,
     signUpWithEmailCode,
+    startAudienceAuthIntent,
     verifyEmailCode,
   } = useAuth();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [step, setStep] = useState<SignupStep>(1);
   const socialProviders = useMemo(() => getSocialProvidersForPlatform(), []);
@@ -906,15 +1050,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
   const [phone, setPhone] = useState('');
   const [step2Errors, setStep2Errors] = useState<Partial<Record<keyof SignupStep2Form, string>>>({});
 
-  // Step 3 state
-  const [agreements, setAgreements] = useState<Record<string, boolean>>({
-    agreeAll: false,
-    agreeService: false,
-    agreePrivacy: false,
-    agreeMarketing: false,
-    agreeAge: false,
-  });
-  const [step3Errors, setStep3Errors] = useState<Partial<Record<keyof SignupStep3Form, string>>>({});
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [socialSubmitting, setSocialSubmitting] = useState<string | null>(null);
@@ -924,7 +1060,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
   const [secondsLeft, setSecondsLeft] = useState(EMAIL_CODE_TTL_SECONDS);
 
   useEffect(() => {
-    if (step !== 4 || !codeExpiresAt) return undefined;
+    if (step !== 3 || !codeExpiresAt) return undefined;
 
     const tick = () => {
       setSecondsLeft(Math.max(0, Math.ceil((codeExpiresAt - Date.now()) / 1000)));
@@ -958,23 +1094,8 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
       }
       setStep1Errors({});
       setStep(2);
-    } else if (step === 2) {
-      const result = signupStep2Schema.safeParse({ nickname, phone });
-      if (!result.success) {
-        const fieldErrors: Record<string, string> = {};
-        for (const issue of result.error.issues) {
-          const field = issue.path[0] as string;
-          if (!fieldErrors[field]) {
-            fieldErrors[field] = issue.message;
-          }
-        }
-        setStep2Errors(fieldErrors);
-        return;
-      }
-      setStep2Errors({});
-      setStep(3);
     }
-  }, [step, email, password, confirmPassword, nickname, phone]);
+  }, [step, email, password, confirmPassword]);
 
   const goToPrevStep = useCallback((target: SignupStep) => {
     setStep(target);
@@ -1043,56 +1164,82 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
     goToNextStep();
   }, [step1Fields, goToNextStep, email, password, confirmPassword, validateStep1Field, focusedStep1Field]);
 
-  // ── Agreement handling ───────────────────────────────────────────────────
+  // ── Submit ───────────────────────────────────────────────────────────────
 
-  const toggleAllAgree = useCallback((checked: boolean) => {
-    setAgreements((prev) => ({
-      ...prev,
-      agreeAll: checked,
-      agreeService: checked,
-      agreePrivacy: checked,
-      agreeMarketing: checked,
-      agreeAge: checked,
-    }));
-  }, []);
+  const executeSignupAction = useCallback(
+    async (action: SignupAuthAction) => {
+      setSubmitError(null);
 
-  const toggleAgree = useCallback((key: string, checked: boolean) => {
-    setAgreements((prev) => {
-      const next = { ...prev, [key]: checked };
-      const requiredKeys = AGREEMENTS.filter((a) => a.required).map((a) => a.key);
-      const allRequiredChecked = requiredKeys.every((k) => next[k] === true);
-      next.agreeAll = allRequiredChecked;
-      return next;
+      if (action.kind === "oauth") {
+        setSocialSubmitting(action.provider);
+        try {
+          const error = await signInWithOAuth(action.provider);
+          if (error) {
+            setSubmitError(mapAuthErrorMessage(error));
+          }
+        } catch {
+          setSubmitError("소셜 회원가입에 실패했습니다. 다시 시도해주세요.");
+        } finally {
+          setSocialSubmitting(null);
+        }
+        return;
+      }
+
+      setSubmitting(true);
+      try {
+        const authError = await signUpWithEmailCode(
+          action.email,
+          action.password,
+          action.metadata,
+        );
+        if (authError) {
+          setSubmitError(mapAuthErrorMessage(authError));
+        } else {
+          setVerificationCode("");
+          setVerificationError(null);
+          startEmailCodeTimer();
+          setStep(3);
+        }
+      } catch {
+        setSubmitError("오류가 발생했습니다. 다시 시도해주세요.");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [signInWithOAuth, signUpWithEmailCode, startEmailCodeTimer],
+  );
+
+  const handleConfirmationFailure = useCallback(() => {
+    cancelAudienceAuthIntent();
+    setSubmitError("연령 확인 정보를 저장하지 못했습니다. 다시 시도해주세요.");
+  }, [cancelAudienceAuthIntent]);
+
+  const { confirming, run: runConfirmedAuthAction } =
+    useAudienceConfirmedAction(executeSignupAction, {
+      onConfirmationFailure: handleConfirmationFailure,
+      onActionStart: startAudienceAuthIntent,
+      ready: !isLoading,
     });
-  }, []);
+
+  const authBusy = confirming || submitting || socialSubmitting !== null;
+  useEffect(() => {
+    onBusyChange(authBusy);
+  }, [authBusy, onBusyChange]);
 
   const handleSocialSignup = useCallback(
     async (provider: SocialAuthProvider) => {
-      setSocialSubmitting(provider);
-      setSubmitError(null);
       try {
-        const error = await signInWithOAuth(provider);
-        if (error) {
-          setSubmitError(mapAuthErrorMessage(error));
-        }
+        await runConfirmedAuthAction({ kind: "oauth", provider });
       } catch {
-        setSubmitError('소셜 회원가입에 실패했습니다. 다시 시도해주세요.');
-      } finally {
-        setSocialSubmitting(null);
+        // The confirmation failure callback already exposes a readable message.
       }
     },
-    [signInWithOAuth],
+    [runConfirmedAuthAction],
   );
-
-  // ── Submit ───────────────────────────────────────────────────────────────
 
   const handleCompleteSignup = useCallback(async () => {
     setSubmitError(null);
-    const agreeData: Record<string, boolean> = {};
-    for (const a of AGREEMENTS) {
-      agreeData[a.key] = agreements[a.key] ?? false;
-    }
-    const result = signupStep3Schema.safeParse(agreeData);
+    const result = signupStep2Schema.safeParse({ nickname, phone });
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
       for (const issue of result.error.issues) {
@@ -1101,33 +1248,33 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
           fieldErrors[field] = issue.message;
         }
       }
-      setStep3Errors(fieldErrors);
+      setStep2Errors(fieldErrors);
       return;
     }
-    setStep3Errors({});
+    setStep2Errors({});
 
-    setSubmitting(true);
     try {
-      const metadata = {
-        nickname,
-        ...(phone ? { phone } : {}),
-        marketing_opt_in: agreements.agreeMarketing === true,
-      };
-      const authError = await signUpWithEmailCode(email, password, metadata);
-      if (authError) {
-        setSubmitError(mapAuthErrorMessage(authError));
-      } else {
-        setVerificationCode('');
-        setVerificationError(null);
-        startEmailCodeTimer();
-        setStep(4);
-      }
+      await runConfirmedAuthAction({
+        kind: "email",
+        email,
+        password,
+        metadata: {
+          nickname: result.data.nickname,
+          ...(result.data.phone ? { phone: result.data.phone } : {}),
+          marketing_opt_in: marketingOptIn,
+        },
+      });
     } catch {
-      setSubmitError('오류가 발생했습니다. 다시 시도해주세요.');
-    } finally {
-      setSubmitting(false);
+      // The confirmation failure callback already exposes a readable message.
     }
-  }, [email, password, nickname, phone, agreements, signUpWithEmailCode, startEmailCodeTimer]);
+  }, [
+    email,
+    marketingOptIn,
+    nickname,
+    password,
+    phone,
+    runConfirmedAuthAction,
+  ]);
 
   const handleVerifyEmailCode = useCallback(async () => {
     setVerificationError(null);
@@ -1147,14 +1294,14 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
       if (authError) {
         setVerificationError(mapAuthErrorMessage(authError));
       } else {
-        navigation.goBack();
+        onAuthSuccess();
       }
     } catch {
       setVerificationError('인증번호 확인에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setSubmitting(false);
     }
-  }, [email, navigation, secondsLeft, verificationCode, verifyEmailCode]);
+  }, [email, onAuthSuccess, secondsLeft, verificationCode, verifyEmailCode]);
 
   const handleResendEmailCode = useCallback(async () => {
     setVerificationError(null);
@@ -1178,26 +1325,32 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
   useEffect(() => {
     if (step === 1) {
       onActionBarChange?.({
-        variant: 'signup',
-        primary: { text: '다음', onPress: handleStep1Next, disabled: submitting },
+        variant: "signup",
+        primary: {
+          text: "다음",
+          onPress: handleStep1Next,
+          disabled: submitting || confirming,
+        },
       });
     } else if (step === 2) {
       onActionBarChange?.({
-        variant: 'signup',
-        primary: { text: '다음', onPress: goToNextStep, disabled: submitting },
-        secondary: { text: '이전', onPress: () => goToPrevStep(1), disabled: submitting },
+        variant: "signup",
+        primary: {
+          text: submitting
+            ? "가입 처리 중..."
+            : confirming
+              ? "확인 중..."
+              : "가입하기",
+          onPress: handleCompleteSignup,
+          disabled: submitting || confirming,
+        },
+        secondary: {
+          text: "이전",
+          onPress: () => goToPrevStep(1),
+          disabled: submitting || confirming,
+        },
       });
     } else if (step === 3) {
-      onActionBarChange?.({
-        variant: 'signup',
-        primary: {
-          text: submitting ? '가입 처리 중...' : '가입 완료',
-          onPress: handleCompleteSignup,
-          disabled: submitting,
-        },
-        secondary: { text: '이전', onPress: () => goToPrevStep(2), disabled: submitting },
-      });
-    } else if (step === 4) {
       onActionBarChange?.({
         variant: 'signup',
         primary: {
@@ -1210,8 +1363,8 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
     }
   }, [
     step,
+    confirming,
     submitting,
-    goToNextStep,
     handleStep1Next,
     goToPrevStep,
     handleCompleteSignup,
@@ -1226,6 +1379,8 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
 
   return (
     <View accessibilityLabel="회원가입">
+      <AuthLegalNotice />
+
       <View style={styles.socialSection}>
         {socialProviders.map((sp) => (
           <SocialButton
@@ -1238,7 +1393,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             iconStyle={sp.iconStyle as TextStyle}
             accessibilityLabel={sp.accessibilityLabel}
             onPress={() => handleSocialSignup(sp.provider)}
-            disabled={socialSubmitting !== null || submitting}
+            disabled={socialSubmitting !== null || submitting || confirming}
           />
         ))}
       </View>
@@ -1250,7 +1405,11 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
       </View>
 
       {submitError ? (
-        <Text style={[styles.errorText, { marginBottom: 12 }]}>
+        <Text
+          accessibilityLiveRegion="assertive"
+          accessibilityRole="alert"
+          style={[styles.errorText, { marginBottom: 12 }]}
+        >
           {submitError}
         </Text>
       ) : null}
@@ -1260,10 +1419,10 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
         style={styles.stepProgress}
         accessible
         accessibilityRole="progressbar"
-        accessibilityValue={{ now: step, min: 1, max: 4 }}
+        accessibilityValue={{ now: step, min: 1, max: 3 }}
         accessibilityLabel="회원가입 진행 단계"
       >
-        {([1, 2, 3, 4] as const).map((s) => (
+        {([1, 2, 3] as const).map((s) => (
           <View
             key={s}
             style={[
@@ -1292,7 +1451,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             keyboardType="email-address"
             inputMode="email"
             error={step1Errors.email}
-            editable={!submitting}
+            editable={!submitting && !confirming}
             focusId="signup-email"
             onAuthInputFocus={(id) => { setFocusedStep1Field(id); onInputFocus?.(id); }}
             onAuthInputBlur={(id) => { setFocusedStep1Field((cur) => (cur === id ? null : cur)); onInputBlur?.(id); }}
@@ -1307,7 +1466,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             autoCapitalize="none"
             autoComplete="new-password"
             error={step1Errors.password}
-            editable={!submitting}
+            editable={!submitting && !confirming}
             focusId="signup-password"
             onAuthInputFocus={(id) => { setFocusedStep1Field(id); onInputFocus?.(id); }}
             onAuthInputBlur={(id) => { setFocusedStep1Field((cur) => (cur === id ? null : cur)); onInputBlur?.(id); }}
@@ -1336,7 +1495,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             autoCapitalize="none"
             autoComplete="new-password"
             error={step1Errors.confirmPassword}
-            editable={!submitting}
+            editable={!submitting && !confirming}
             focusId="signup-confirm-password"
             onAuthInputFocus={(id) => { setFocusedStep1Field(id); onInputFocus?.(id); }}
             onAuthInputBlur={(id) => { setFocusedStep1Field((cur) => (cur === id ? null : cur)); onInputBlur?.(id); }}
@@ -1363,8 +1522,12 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
                 accessibilityRole="button"
                 accessibilityLabel="다음 단계"
                 onPress={handleStep1Next}
-                disabled={submitting}
-                style={({ pressed }) => [styles.stepNavBtn, styles.stepNavBtnPrimary, pressed && styles.ctaBtnPressed]}
+                disabled={submitting || confirming}
+                style={({ pressed }) => [
+                  styles.stepNavBtn,
+                  styles.stepNavBtnPrimary,
+                  pressed && styles.ctaBtnPressed,
+                ]}
               >
                 <Text style={styles.stepNavBtnPrimaryText}>다음</Text>
               </Pressable>
@@ -1387,7 +1550,7 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             autoCapitalize="none"
             autoComplete="name"
             error={step2Errors.nickname}
-            editable={!submitting}
+            editable={!submitting && !confirming}
             focusId="signup-nickname"
             onAuthInputFocus={onInputFocus}
             onAuthInputBlur={onInputBlur}
@@ -1402,11 +1565,34 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
             keyboardType="phone-pad"
             inputMode="numeric"
             error={step2Errors.phone}
-            editable={!submitting}
+            editable={!submitting && !confirming}
             focusId="signup-phone"
             onAuthInputFocus={onInputFocus}
             onAuthInputBlur={onInputBlur}
           />
+
+          <Pressable
+            accessible
+            accessibilityLabel="마케팅 정보 수신 동의 (선택)"
+            accessibilityRole="checkbox"
+            accessibilityState={{
+              checked: marketingOptIn,
+              disabled: submitting || confirming,
+            }}
+            disabled={submitting || confirming}
+            onPress={() => setMarketingOptIn((current) => !current)}
+            style={styles.agreeItem}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                marketingOptIn && styles.checkboxChecked,
+              ]}
+            >
+              {marketingOptIn ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+            <Text style={styles.agreeLabel}>마케팅 정보 수신 동의 (선택)</Text>
+          </Pressable>
 
           {!hideActions && (
             <View style={styles.stepNav}>
@@ -1414,119 +1600,35 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
                 accessible
                 accessibilityRole="button"
                 onPress={() => goToPrevStep(1)}
-                disabled={submitting}
-                style={({ pressed }) => [styles.stepNavBtn, styles.stepNavBtnSecondary, pressed && styles.btnPressed]}
+                disabled={submitting || confirming}
+                style={({ pressed }) => [
+                  styles.stepNavBtn,
+                  styles.stepNavBtnSecondary,
+                  pressed && styles.btnPressed,
+                ]}
               >
                 <Text style={styles.stepNavBtnSecondaryText}>이전</Text>
               </Pressable>
               <Pressable
                 accessible
                 accessibilityRole="button"
-                accessibilityLabel="다음 단계"
-                onPress={goToNextStep}
-                disabled={submitting}
-                style={({ pressed }) => [styles.stepNavBtn, styles.stepNavBtnPrimary, { flex: 2 }, pressed && styles.ctaBtnPressed]}
-              >
-                <Text style={styles.stepNavBtnPrimaryText}>다음</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* Step 3: Agreement */}
-      {step === 3 && (
-        <View accessibilityLabel="3단계: 약관 동의">
-          <Text style={styles.stepTitle}>약관 동의</Text>
-          <Text style={styles.stepDesc}>서비스 이용을 위해 약관에 동의해주세요</Text>
-
-          {/* All agree toggle */}
-          <View style={styles.agreeGroup}>
-            <Pressable
-              accessible
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: agreements.agreeAll }}
-              accessibilityLabel="전체 동의하기"
-              onPress={() => toggleAllAgree(!agreements.agreeAll)}
-              style={[styles.agreeItem, styles.agreeAll]}
-            >
-              <View style={[styles.checkbox, agreements.agreeAll && styles.checkboxChecked]}>
-                {agreements.agreeAll && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-              <Text style={styles.agreeLabelAll}>
-                <Text style={styles.agreeLabelBold}>전체 동의하기</Text>
-              </Text>
-            </Pressable>
-
-            {AGREEMENTS.map((item) => (
-              <Pressable
-                key={item.key}
-                accessible
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: agreements[item.key] ?? false }}
-                accessibilityLabel={`${item.label}${item.required ? ' (필수)' : ' (선택)'}`}
-                onPress={() => toggleAgree(item.key, !agreements[item.key])}
-                style={styles.agreeItem}
-              >
-                <View style={[styles.checkbox, agreements[item.key] && styles.checkboxChecked]}>
-                  {agreements[item.key] && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <Text style={styles.agreeLabel}>{item.label}</Text>
-                {item.detailLink && (
-                  <Pressable
-                    accessible
-                    accessibilityRole="button"
-                    accessibilityLabel={`${item.label} 내용 보기`}
-                    onPress={() => {}}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.agreeDetail}>보기</Text>
-                  </Pressable>
-                )}
-              </Pressable>
-            ))}
-          </View>
-
-          {Object.keys(step3Errors).length > 0 && (
-            <Text style={[styles.errorText, { marginBottom: 12 }]}>
-              {Object.values(step3Errors)[0]}
-            </Text>
-          )}
-
-          {submitError ? (
-            <Text style={[styles.errorText, { marginBottom: 12 }]}>
-              {submitError}
-            </Text>
-          ) : null}
-
-          {!hideActions && (
-            <View style={styles.stepNav}>
-              <Pressable
-                accessible
-                accessibilityRole="button"
-                onPress={() => goToPrevStep(2)}
-                disabled={submitting}
-                style={({ pressed }) => [styles.stepNavBtn, styles.stepNavBtnSecondary, pressed && styles.btnPressed]}
-              >
-                <Text style={styles.stepNavBtnSecondaryText}>이전</Text>
-              </Pressable>
-              <Pressable
-                accessible
-                accessibilityRole="button"
-                accessibilityLabel="가입 완료"
-                accessibilityState={{ disabled: submitting }}
+                accessibilityLabel="가입하기"
                 onPress={handleCompleteSignup}
-                disabled={submitting}
+                disabled={submitting || confirming}
                 style={({ pressed }) => [
                   styles.stepNavBtn,
                   styles.stepNavBtnPrimary,
                   { flex: 2 },
-                  pressed && styles.ctaBtnPressed,
-                  submitting && styles.ctaBtnDisabled,
+                  pressed && !submitting && !confirming && styles.ctaBtnPressed,
+                  (submitting || confirming) && styles.ctaBtnDisabled,
                 ]}
               >
                 <Text style={styles.stepNavBtnPrimaryText}>
-                  {submitting ? '가입 처리 중...' : '가입 완료'}
+                  {submitting
+                    ? "가입 처리 중..."
+                    : confirming
+                      ? "확인 중..."
+                      : "가입하기"}
                 </Text>
               </Pressable>
             </View>
@@ -1534,9 +1636,9 @@ function SignupPanel({ onActionBarChange, hideActions, onInputFocus, onInputBlur
         </View>
       )}
 
-      {/* Step 4: Email Verification */}
-      {step === 4 && (
-        <View accessibilityLabel="4단계: 이메일 인증">
+      {/* Step 3: Email Verification */}
+      {step === 3 && (
+        <View accessibilityLabel="3단계: 이메일 인증">
           <Text style={styles.stepTitle}>이메일 인증</Text>
           <Text style={styles.stepDesc}>{email}로 받은 인증번호를 입력해주세요</Text>
 
@@ -1805,7 +1907,16 @@ const AuthInput = forwardRef<TextInput, AuthInputProps>(function AuthInput({
         {rightElement}
       </View>
       {error ? (
-        <Text style={{ fontSize: 12, color: colors.error, marginTop: 4, paddingLeft: 4 }}>
+        <Text
+          accessibilityLiveRegion="polite"
+          accessibilityRole="alert"
+          style={{
+            fontSize: 12,
+            color: colors.error,
+            marginTop: 4,
+            paddingLeft: 4,
+          }}
+        >
           {error}
         </Text>
       ) : (

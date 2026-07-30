@@ -63,6 +63,20 @@ test("ranking responses preserve filters and canonical fixture identity", () => 
   );
 });
 
+test("default ranking keeps the canonical detail fixture at rank four", () => {
+  const response = buildRankingResponse({
+    category: "all",
+    period: "weekly",
+    sort: "popular",
+    limit: 20,
+  });
+  const rankFour = response.data.find((item) => item.rank === 4);
+
+  assert.equal(rankFour?.groupBuyId, "gon263-canonical-recent");
+  assert.equal(rankFour?.productName, "GON-263 canonical 상세");
+  assert.equal(rankFour?.username, "gon263_recent");
+});
+
 test("the local video fixture supports native byte-range playback", async () => {
   const server = createMobileE2EServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

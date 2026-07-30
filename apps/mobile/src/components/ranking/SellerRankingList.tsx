@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -7,11 +7,23 @@ import {
   type FlatListProps,
   type FlatList,
   type ListRenderItem,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import type { Ref } from "react";
 
 import { AsyncStateNotice } from "../ui/AsyncStateNotice";
-import { SText } from "../ui/SText";
+import { NativeAdCard } from "../ads/NativeAdCard";
+import type { NativeAdLoadStatus } from "../ads/NativeAdCard.types";
+import { useAds } from "../../ads/AdsContext";
+import {
+  insertReelsAdSlots,
+  isReelsContentItem,
+  REELS_AD_GAP_MAX,
+  REELS_AD_GAP_MIN,
+  seedAdRandomFromIds,
+  type ReelsFeedItem,
+} from "../../screens/reelsAdPlacement";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
 import type {
   GroupBuyRankingItem,
@@ -32,12 +44,47 @@ export interface SellerRankingListProps {
   onToggleAlert?: RankingItemAction;
   topInset?: number;
   onScroll?: FlatListProps<RankingListItem>["onScroll"];
-  listRef?: Ref<FlatList<RankingListItem>>;
+  listRef?: Ref<FlatList<RankingFeedItem>>;
 }
 
 const NOOP = () => undefined;
-const KEY_EXTRACTOR = (item: RankingListItem) => item.groupBuyId;
 const EMPTY_RANKINGS: readonly RankingListItem[] = [];
+
+// insertReelsAdSlots requires { id: string }; RankingListItem uses groupBuyId.
+export type RankingAdItem = { id: string } & RankingListItem;
+export type RankingFeedItem = ReelsFeedItem<RankingAdItem>;
+
+const FEED_KEY_EXTRACTOR = (item: RankingFeedItem) => item.key;
+
+function wrapForAdInsertion(
+  items: RankingListItem[],
+): RankingAdItem[] {
+  return items.map((item) => ({ ...item, id: item.groupBuyId }));
+}
+
+function RankingNativeAdSlot({
+  sequence,
+  style,
+}: {
+  sequence: number;
+  style: StyleProp<ViewStyle>;
+}) {
+  const [loadStatus, setLoadStatus] =
+    useState<NativeAdLoadStatus>("loading");
+
+  if (loadStatus === "unavailable") return null;
+
+  return (
+    <View style={style}>
+      <NativeAdCard
+        onLoadStateChange={setLoadStatus}
+        placement="home"
+        testID={`ranking-native-ad-${sequence}`}
+        variant="row"
+      />
+    </View>
+  );
+}
 
 export function SellerRankingList({
   state,
@@ -63,7 +110,7 @@ export function SellerRankingList({
     [resolvedTopInset, s.statusContainer],
   );
   const readyData = state.status === "ready" ? state.data : EMPTY_RANKINGS;
-  const { remainingItems, topThree } = useMemo(() => {
+  const topThree = useMemo(() => {
     let leadingTopCount = 0;
     while (leadingTopCount < Math.min(3, readyData.length)) {
       const rank = readyData[leadingTopCount].rank;
@@ -71,11 +118,32 @@ export function SellerRankingList({
       leadingTopCount += 1;
     }
 
-    return {
-      topThree: readyData.slice(0, leadingTopCount),
-      remainingItems: readyData.slice(leadingTopCount),
-    };
+    return readyData.slice(0, leadingTopCount);
   }, [readyData]);
+  const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
+  const canShowRankingAds =
+    adsEnabled && adsReady && Boolean(nativeUnitIds.home);
+  const feedItems = useMemo<RankingFeedItem[]>(() => {
+    const rankingIds = readyData.map((item) => item.groupBuyId);
+    const random = seedAdRandomFromIds(rankingIds);
+    const smallestFirstGap = Math.max(REELS_AD_GAP_MIN, topThree.length);
+    const largestFirstGap = Math.min(REELS_AD_GAP_MAX, readyData.length);
+    const firstAdAfter =
+      largestFirstGap >= smallestFirstGap
+        ? Math.floor(random() * (largestFirstGap - smallestFirstGap + 1)) +
+          smallestFirstGap
+        : undefined;
+    const topThreeIds = new Set(topThree.map((item) => item.groupBuyId));
+    return insertReelsAdSlots(wrapForAdInsertion(readyData.slice()), {
+      enabled: canShowRankingAds,
+      firstAdAfter,
+      includeTrailingAd: true,
+      random,
+    }).filter(
+      (item) =>
+        !isReelsContentItem(item) || !topThreeIds.has(item.content.groupBuyId),
+    );
+  }, [canShowRankingAds, readyData, topThree]);
   const footerStyle = useMemo(
     () => [s.footer, { height: bottomPadding }],
     [bottomPadding, s.footer],
@@ -84,16 +152,23 @@ export function SellerRankingList({
     () => ({ bottom: bottomPadding }),
     [bottomPadding],
   );
-  const renderItem: ListRenderItem<RankingListItem> = useCallback(
-    ({ item }) => (
-      <SellerRankingRow
-        item={item}
-        onPress={onPressItem ?? NOOP}
-        onPressSeller={onPressSeller}
-        onToggleAlert={onToggleAlert ?? NOOP}
-      />
-    ),
-    [onPressItem, onPressSeller, onToggleAlert],
+  const renderItem: ListRenderItem<RankingFeedItem> = useCallback(
+    ({ item }) => {
+      if (!isReelsContentItem(item)) {
+        return (
+          <RankingNativeAdSlot sequence={item.sequence} style={s.adCard} />
+        );
+      }
+      return (
+        <SellerRankingRow
+          item={item.content}
+          onPress={onPressItem ?? NOOP}
+          onPressSeller={onPressSeller}
+          onToggleAlert={onToggleAlert ?? NOOP}
+        />
+      );
+    },
+    [onPressItem, onPressSeller, onToggleAlert, s.adCard],
   );
   if (state.status === "loading") {
     return (
@@ -149,8 +224,8 @@ export function SellerRankingList({
       accessibilityRole="list"
       alwaysBounceVertical={false}
       contentContainerStyle={contentContainerStyle}
-      data={remainingItems}
-      keyExtractor={KEY_EXTRACTOR}
+      data={feedItems}
+      keyExtractor={FEED_KEY_EXTRACTOR}
       ListHeaderComponent={
         <>
           {state.refreshError ? (
@@ -170,16 +245,6 @@ export function SellerRankingList({
               onToggleAlert={onToggleAlert ?? NOOP}
             />
           ) : null}
-          {remainingItems.length > 0 ? (
-            <View style={s.listHeading} testID="ranking-list-heading">
-              <SText accessibilityRole="header" style={s.listHeadingTitle} variant="cardTitle">
-                계속 인기 중
-              </SText>
-              <SText style={s.listHeadingCaption} variant="caption">
-                4위부터도 같은 기준으로 집계해요
-              </SText>
-            </View>
-          ) : null}
         </>
       }
       ListFooterComponent={<View style={footerStyle} />}
@@ -198,8 +263,11 @@ export function SellerRankingList({
 }
 
 function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
-  const { colors, spacing, typography } = theme;
+  const { colors, spacing } = theme;
   return StyleSheet.create({
+    adCard: {
+      marginVertical: spacing.sm,
+    },
     content: {
       paddingHorizontal: spacing.lg,
     },
@@ -212,18 +280,6 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
     list: {
       backgroundColor: colors.bg,
       flex: 1,
-    },
-    listHeading: {
-      gap: spacing.xxs,
-      paddingBottom: spacing.sm,
-      paddingTop: spacing.xs,
-    },
-    listHeadingCaption: {
-      color: colors.muted,
-    },
-    listHeadingTitle: {
-      color: colors.text,
-      ...typography.sectionTitle,
     },
     statusContainer: {
       alignItems: "center",

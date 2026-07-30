@@ -1,15 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { callEdgeFunction } from "../lib/postgrest-client";
+import {
+  DEFAULT_NOTIFICATION_REMINDER_DAYS,
+  NOTIFICATION_REMINDER_DAYS,
+  type NotificationReminderDay,
+} from "./reminderDates";
 
-export const NOTIFICATION_REMINDER_DAYS = [1, 3, 7] as const;
-export type NotificationReminderDay =
-  (typeof NOTIFICATION_REMINDER_DAYS)[number];
+export { DEFAULT_NOTIFICATION_REMINDER_DAYS, NOTIFICATION_REMINDER_DAYS };
+export type { NotificationReminderDay };
 
 export type NotificationPreferences = {
   pushEnabled: boolean;
   deadlineRemindersEnabled: boolean;
-  newSubmissionsEnabled: boolean;
+  submissionApprovalEnabled: boolean;
   reminderDays: NotificationReminderDay[];
   followedInfluencers: string[];
   followedBrands: string[];
@@ -18,8 +22,8 @@ export type NotificationPreferences = {
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   pushEnabled: false,
   deadlineRemindersEnabled: false,
-  newSubmissionsEnabled: false,
-  reminderDays: [1, 3, 7],
+  submissionApprovalEnabled: false,
+  reminderDays: [...DEFAULT_NOTIFICATION_REMINDER_DAYS],
   followedInfluencers: [],
   followedBrands: [],
 };
@@ -39,7 +43,7 @@ function normalizeReminderDays(value: unknown): NotificationReminderDay[] {
     return [...DEFAULT_NOTIFICATION_PREFERENCES.reminderDays];
   }
 
-  const allowed = new Set<number>(NOTIFICATION_REMINDER_DAYS);
+  const allowed = new Set<number>(DEFAULT_NOTIFICATION_REMINDER_DAYS);
   const normalized = [
     ...new Set(
       value.filter(
@@ -98,10 +102,12 @@ export function normalizeNotificationPreferences(
       typeof source.deadlineRemindersEnabled === "boolean"
         ? source.deadlineRemindersEnabled
         : DEFAULT_NOTIFICATION_PREFERENCES.deadlineRemindersEnabled,
-    newSubmissionsEnabled:
-      typeof source.newSubmissionsEnabled === "boolean"
-        ? source.newSubmissionsEnabled
-        : DEFAULT_NOTIFICATION_PREFERENCES.newSubmissionsEnabled,
+    submissionApprovalEnabled:
+      typeof source.submissionApprovalEnabled === "boolean"
+        ? source.submissionApprovalEnabled
+        : typeof source.newSubmissionsEnabled === "boolean"
+          ? source.newSubmissionsEnabled
+          : DEFAULT_NOTIFICATION_PREFERENCES.submissionApprovalEnabled,
     reminderDays: normalizeReminderDays(source.reminderDays),
     followedInfluencers: normalizeFollowTargets(
       source.followedInfluencers,

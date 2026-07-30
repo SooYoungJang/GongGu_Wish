@@ -50,7 +50,7 @@ export type RankingRpcRow = {
   trend_delta: number | string;
   product_name: string | null;
   brand_name: string | null;
-  username: string;
+  username: string | null;
   category: string;
   thumbnail_url: string | null;
   media_urls: string[] | null;
@@ -74,7 +74,7 @@ export type GroupBuyRankingItem = {
   trend: { kind: "up" | "down"; delta: number } | { kind: "same" | "new" };
   productName: string | null;
   brandName: string | null;
-  username: string;
+  username: string | null;
   category: Exclude<RankingCategory, "all">;
   thumbnailUrl: string | null;
   mediaUrls: string[];
@@ -125,6 +125,17 @@ const isRankingSort = (value: unknown): value is RankingSort =>
   value === "rising" ||
   value === "deadlineSoon" ||
   value === "newDeal";
+
+function normalizeRankingUsername(value: string | null): string | null {
+  const normalized =
+    value
+      ?.trim()
+      .replace(/^@+\s*/, "")
+      .trim() ?? "";
+  return normalized && normalized.toLowerCase() !== "unknown"
+    ? normalized
+    : null;
+}
 
 export function normalizeRankingCategory(value: unknown): RankingCategory {
   if (value === undefined || value === null || value === "") return "all";
@@ -303,7 +314,7 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
   // The legacy RPC trend fields contain score movement; rank movement is derived here.
   const previousRank = score - scoreDelta > 0 ? reportedPreviousRank : null;
   const mediaUrls = row.media_urls ?? [];
-  if (!row.group_buy_id || !row.username || !row.score_version) {
+  if (!row.group_buy_id || !row.score_version) {
     throw new Error("ranking row identity is invalid");
   }
   if (!["up", "down", "same", "new"].includes(row.trend_kind)) {
@@ -324,7 +335,7 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
     trend,
     productName: row.product_name,
     brandName: row.brand_name,
-    username: row.username,
+    username: normalizeRankingUsername(row.username),
     category,
     thumbnailUrl: row.thumbnail_url,
     mediaUrls,

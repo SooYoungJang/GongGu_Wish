@@ -1,8 +1,10 @@
+import type { ResolvedNativeAdUnitIds } from "./adConfig";
+
 export type AdsContextValue = {
   enabled: boolean;
   isReady: boolean;
   isSettled: boolean;
-  homeNativeUnitId: string | null;
+  nativeUnitIds: ResolvedNativeAdUnitIds;
   privacyOptionsRequired: boolean;
   showPrivacyOptions: () => Promise<boolean>;
 };

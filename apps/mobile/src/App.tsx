@@ -1,48 +1,95 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, BackHandler, Platform, StatusBar, StyleSheet, ToastAndroid, useWindowDimensions, View } from 'react-native';
-import { BlurView } from 'expo-blur';
-import Constants from 'expo-constants';
-import * as SystemUI from 'expo-system-ui';
-import { NavigationContainer, NavigatorScreenParams, DefaultTheme, DarkTheme, useNavigation } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  AppState,
+  BackHandler,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  ToastAndroid,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { BlurView } from "expo-blur";
+import Constants from "expo-constants";
+import * as SystemUI from "expo-system-ui";
+import {
+  createNavigationContainerRef,
+  NavigationContainer,
+  NavigatorScreenParams,
+  DefaultTheme,
+  DarkTheme,
+  useNavigation,
+} from "@react-navigation/native";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { QueryClientProvider } from "@tanstack/react-query";
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { KeyboardProvider } from "react-native-keyboard-controller";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Ionicons } from "@expo/vector-icons";
 
-import { AdsProvider } from './ads/AdsContext';
-import type { MainTabParamList, RootStackParamList } from './types';
-import { configurePostgrest } from './lib/postgrest-client';
-import { configureSupabase } from './lib/supabase';
-import { resolveDataApiUrl, resolveSupabaseAnonKey, resolveSupabaseUrl } from './lib/supabase-config';
-import { isAutomatedE2E } from './lib/automatedE2E';
-import { registerForPushNotifications } from './services/notifications';
-import { BackButton } from './components/BackButton';
-import { getCommerceColors } from './design/commerce';
+import { AdsProvider } from "./ads/AdsContext";
+import { AdsRuntimeSmokeProbe } from "./ads/AdsRuntimeSmokeProbe";
+import { AudienceGate } from "./audience/AudienceGate";
+import {
+  AudienceProvider,
+  useAudience,
+} from "./audience/AudienceContext";
+import { RestrictedAudienceCleanupBridge } from "./audience/RestrictedAudienceCleanupBridge";
+import type { MainTabParamList, RootStackParamList } from "./types";
+import { configurePostgrest } from "./lib/postgrest-client";
+import { configureSupabase } from "./lib/supabase";
+import {
+  resolveDataApiUrl,
+  resolveSupabaseAnonKey,
+  resolveSupabaseUrl,
+} from "./lib/supabase-config";
+import { isAutomatedE2E } from "./lib/automatedE2E";
+import { registerForPushNotifications } from "./services/notifications";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  syncNotificationPreferences,
+} from "./services/notificationPreferences";
+import { BackButton } from "./components/BackButton";
+import { NavigationHeaderTitle } from "./components/CenteredBackHeader";
+import { getCommerceColors } from "./design/commerce";
+import { spacing } from "./design/tokens";
 import {
   decideMainTabsBack,
   useFocusedAndroidBackHandler,
-} from './navigation/androidBack';
+} from "./navigation/androidBack";
 import {
   createTabBarButtonRenderer,
   getTabBarVisibilityStyle,
-} from './navigation/tabBarVisibility';
-import { mobileQueryClient, syncQueryFocus } from './lib/query-client';
-import { notificationLinking } from './navigation/notificationLinking';
+} from "./navigation/tabBarVisibility";
+import { mobileQueryClient, syncQueryFocus } from "./lib/query-client";
+import { notificationLinking } from "./navigation/notificationLinking";
 
 // Initialize PostgREST client with the Supabase anon key
 const automatedE2E = isAutomatedE2E();
-const anonKey = resolveSupabaseAnonKey(automatedE2E
-  ? Constants.expoConfig?.extra?.e2eSupabaseAnonKey
-  : process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
-const supabaseUrl = resolveSupabaseUrl(automatedE2E
-  ? Constants.expoConfig?.extra?.e2eSupabaseUrl
-  : process.env.EXPO_PUBLIC_SUPABASE_URL, {
-  requireLocal: automatedE2E,
-});
+const anonKey = resolveSupabaseAnonKey(
+  automatedE2E
+    ? Constants.expoConfig?.extra?.e2eSupabaseAnonKey
+    : process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+);
+const supabaseUrl = resolveSupabaseUrl(
+  automatedE2E
+    ? Constants.expoConfig?.extra?.e2eSupabaseUrl
+    : process.env.EXPO_PUBLIC_SUPABASE_URL,
+  {
+    requireLocal: automatedE2E,
+  },
+);
 const dataApiUrl = resolveDataApiUrl(
   supabaseUrl,
   automatedE2E ? undefined : process.env.EXPO_PUBLIC_API_PROXY_URL,
@@ -52,25 +99,26 @@ configurePostgrest(anonKey, dataApiUrl);
 // Initialize Supabase Auth client
 configureSupabase(anonKey, supabaseUrl);
 
-import { AdminScreen } from './screens/AdminScreen';
-import { AuthScreen } from './screens/AuthScreen';
-import { CalendarScreen } from './screens/CalendarScreen';
-import { FeedDetailScreen } from './screens/FeedDetailScreen';
-import { HomeScreen } from './screens/HomeScreen';
-import { InfluencerGroupBuysScreen } from './screens/InfluencerGroupBuysScreen';
-import { DetailScreen } from './screens/DetailScreen';
-import { MyPageScreen } from './screens/MyPageScreen';
-import { StoreScreen } from './screens/StoreScreen';
-import { SearchScreen } from './screens/SearchScreen';
-import { ReelsScreen } from './screens/ReelsScreen';
-import { SettingsScreen } from './screens/SettingsScreen';
-import { ThemeProvider, useTheme } from './context/ThemeContext';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AdminScreen } from "./screens/AdminScreen";
+import { AuthScreen } from "./screens/AuthScreen";
+import { CalendarScreen } from "./screens/CalendarScreen";
+import { FeedDetailScreen } from "./screens/FeedDetailScreen";
+import { HomeScreen } from "./screens/HomeScreen";
+import { InfluencerGroupBuysScreen } from "./screens/InfluencerGroupBuysScreen";
+import { DetailScreen } from "./screens/DetailScreen";
+import { MyPageScreen } from "./screens/MyPageScreen";
+import { StoreScreen } from "./screens/StoreScreen";
+import { SearchScreen } from "./screens/SearchScreen";
+import { ReelsScreen } from "./screens/ReelsScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
+import { ThemeProvider, useTheme } from "./context/ThemeContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import {
   NotificationPreferencesProvider,
   useNotificationPreferences,
-} from './context/NotificationPreferencesContext';
-import { useNotifications } from './hooks/useLocalDeals';
+} from "./context/NotificationPreferencesContext";
+import { GroupBuyReminderPickerProvider } from "./context/GroupBuyReminderPickerContext";
+import { useNotifications } from "./hooks/useLocalDeals";
 
 type RootStackWithTabs = RootStackParamList & {
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
@@ -78,19 +126,30 @@ type RootStackWithTabs = RootStackParamList & {
 
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const rootNavigationRef = createNavigationContainerRef<RootStackWithTabs>();
 const TAB_BAR_HEIGHT = 58;
 const EXIT_BACK_PRESS_WINDOW_MS = 2000;
 const REELS_TAB_COLORS = getCommerceColors(true);
 
-import { SubmitScreen } from './screens/SubmitScreen';
+import { SubmitScreen } from "./screens/SubmitScreen";
 
 // Each GNB icon: when focused the inside is filled with the accent color,
 // when not focused the inside stays transparent so only the outline shows.
 
-function RankingTabGlyph({ color, focused }: { color: string; focused: boolean }) {
+function RankingTabGlyph({
+  color,
+  focused,
+}: {
+  color: string;
+  focused: boolean;
+}) {
   return (
     <View style={styles.tabGlyphFrame}>
-      <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={24} color={color} />
+      <Ionicons
+        name={focused ? "trophy" : "trophy-outline"}
+        size={24}
+        color={color}
+      />
     </View>
   );
 }
@@ -108,54 +167,82 @@ function ReelsTabGlyph({ color }: { color: string; focused: boolean }) {
 function HomeTabGlyph({ color, focused }: { color: string; focused: boolean }) {
   return (
     <View style={styles.tabGlyphFrame}>
-      <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
+      <Ionicons
+        name={focused ? "home" : "home-outline"}
+        size={24}
+        color={color}
+      />
     </View>
   );
 }
 
-function SearchTabGlyph({ color, focused }: { color: string; focused: boolean }) {
+function SearchTabGlyph({
+  color,
+  focused,
+}: {
+  color: string;
+  focused: boolean;
+}) {
   return (
     <View style={styles.tabGlyphFrame}>
-      <Ionicons name={focused ? 'search' : 'search-outline'} size={24} color={color} />
+      <Ionicons
+        name={focused ? "search" : "search-outline"}
+        size={24}
+        color={color}
+      />
     </View>
   );
 }
 
-function MyPageTabGlyph({ color, focused }: { color: string; focused: boolean }) {
+function MyPageTabGlyph({
+  color,
+  focused,
+}: {
+  color: string;
+  focused: boolean;
+}) {
   return (
     <View style={styles.tabGlyphFrame}>
-      <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
+      <Ionicons
+        name={focused ? "person" : "person-outline"}
+        size={24}
+        color={color}
+      />
     </View>
   );
 }
 
-function tabIcon(routeName: keyof MainTabParamList, color: string, focused: boolean) {
+function tabIcon(
+  routeName: keyof MainTabParamList,
+  color: string,
+  focused: boolean,
+) {
   switch (routeName) {
-    case 'Ranking':
+    case "Ranking":
       return <RankingTabGlyph color={color} focused={focused} />;
-    case 'Reels':
+    case "Reels":
       return <ReelsTabGlyph color={color} focused={focused} />;
-    case 'Home':
+    case "Home":
       return <HomeTabGlyph color={color} focused={focused} />;
-    case 'Search':
+    case "Search":
       return <SearchTabGlyph color={color} focused={focused} />;
-    case 'MyPage':
+    case "MyPage":
       return <MyPageTabGlyph color={color} focused={focused} />;
   }
 }
 
 function tabLabel(routeName: keyof MainTabParamList) {
   switch (routeName) {
-    case 'Ranking':
-      return '랭킹';
-    case 'Reels':
-      return '릴스';
-    case 'Home':
-      return '홈';
-    case 'Search':
-      return '검색';
-    case 'MyPage':
-      return '마이';
+    case "Ranking":
+      return "랭킹";
+    case "Reels":
+      return "릴스";
+    case "Home":
+      return "홈";
+    case "Search":
+      return "검색";
+    case "MyPage":
+      return "마이";
   }
 }
 
@@ -164,10 +251,10 @@ function MainTabs() {
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isNarrow = screenWidth <= 375;
-  const isIOS = Platform.OS === 'ios';
+  const isIOS = Platform.OS === "ios";
   const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 12, 0);
   const tabBarBottomPadding = Math.max(insets.bottom - 8, isNarrow ? 2 : 4);
-  const tabBarBackgroundColor = isIOS ? 'transparent' : colors.bottomBarBg;
+  const tabBarBackgroundColor = isIOS ? "transparent" : colors.bottomBarBg;
   // Keep the GNB mounted so opening a Reels sheet does not invalidate the
   // navigator layout. Each button defers its own accessibility-tree update
   // until the sheet transition settles, avoiding a second navigator render.
@@ -177,11 +264,12 @@ function MainTabs() {
     [reelsSheetOpen],
   );
 
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   // Active tab name inside the bottom tab navigator, mirrored into a ref from
   // the tab navigator's state events so the back handler reads a fresh value
   // without re-subscribing on every tab switch.
-  const activeTabNameRef = useRef<keyof MainTabParamList>('Home');
+  const activeTabNameRef = useRef<keyof MainTabParamList>("Home");
   const lastHomeBackPressAtRef = useRef(0);
 
   // This listener exists only while MainTabs is the focused root stack screen.
@@ -196,12 +284,12 @@ function MainTabs() {
     );
     lastHomeBackPressAtRef.current = decision.nextHomeBackPressAt;
 
-    if (decision.action === 'navigate-home') {
-      navigation.navigate('MainTabs', { screen: 'Home' });
-    } else if (decision.action === 'exit-app') {
+    if (decision.action === "navigate-home") {
+      navigation.navigate("MainTabs", { screen: "Home" });
+    } else if (decision.action === "exit-app") {
       BackHandler.exitApp();
     } else {
-      ToastAndroid.show('종료하려면 다시 누르세요', ToastAndroid.SHORT);
+      ToastAndroid.show("종료하려면 다시 누르세요", ToastAndroid.SHORT);
     }
     return true;
   }, [navigation]);
@@ -213,10 +301,12 @@ function MainTabs() {
       initialRouteName="Home"
       screenListeners={{
         state: (event) => {
-          const activeRouteName = event.data.state.routes[event.data.state.index]?.name;
+          const activeRouteName =
+            event.data.state.routes[event.data.state.index]?.name;
           if (activeRouteName) {
-            activeTabNameRef.current = activeRouteName as keyof MainTabParamList;
-            if (activeRouteName !== 'Home') {
+            activeTabNameRef.current =
+              activeRouteName as keyof MainTabParamList;
+            if (activeRouteName !== "Home") {
               lastHomeBackPressAtRef.current = 0;
             }
           }
@@ -225,39 +315,48 @@ function MainTabs() {
       screenOptions={({ route, navigation }) => {
         const navState = navigation.getState();
         const activeRouteName = navState.routes[navState.index]?.name;
-        const isReelsActive = activeRouteName === 'Reels';
+        const isReelsActive = activeRouteName === "Reels";
         return {
           headerShown: false,
           tabBarButton: renderTabBarButton,
           tabBarIconStyle: styles.tabIconSlot,
-          tabBarItemStyle: [
-            styles.tabButton,
-          ],
+          tabBarItemStyle: [styles.tabButton],
           tabBarAccessibilityLabel: `${tabLabel(route.name)} 탭`,
           // Stable selector for E2E (Maestro): id "tab-<routeName>"
           tabBarTestID: `tab-${route.name}`,
-          tabBarIcon: ({ focused, color }) => tabIcon(route.name, color, focused),
+          tabBarIcon: ({ focused, color }) =>
+            tabIcon(route.name, color, focused),
           tabBarShowLabel: false,
           tabBarLabel: tabLabel(route.name),
-          tabBarActiveTintColor: isReelsActive ? REELS_TAB_COLORS.text : colors.text,
-          tabBarInactiveTintColor: isReelsActive ? REELS_TAB_COLORS.tabInactive : colors.tabInactive,
+          tabBarActiveTintColor: isReelsActive
+            ? REELS_TAB_COLORS.text
+            : colors.text,
+          tabBarInactiveTintColor: isReelsActive
+            ? REELS_TAB_COLORS.tabInactive
+            : colors.tabInactive,
           tabBarBackground: isIOS
             ? () => (
-              <BlurView
-                intensity={isReelsActive ? 42 : 34}
-                tint={isReelsActive ? 'systemChromeMaterialDark' : 'systemChromeMaterial'}
-                style={StyleSheet.absoluteFill}
-              />
-            )
+                <BlurView
+                  intensity={isReelsActive ? 42 : 34}
+                  tint={
+                    isReelsActive
+                      ? "systemChromeMaterialDark"
+                      : "systemChromeMaterial"
+                  }
+                  style={StyleSheet.absoluteFill}
+                />
+              )
             : undefined,
           tabBarStyle: [
             styles.tabBar,
             {
-              backgroundColor: isReelsActive ? REELS_TAB_COLORS.bottomBarBg : tabBarBackgroundColor,
+              backgroundColor: isReelsActive
+                ? REELS_TAB_COLORS.bottomBarBg
+                : tabBarBackgroundColor,
               borderColor: isReelsActive
                 ? REELS_TAB_COLORS.bottomBarBorder
                 : isIOS
-                  ? 'rgba(255, 255, 255, 0.20)'
+                  ? "rgba(255, 255, 255, 0.20)"
                   : colors.bottomBarBorder,
               height: tabBarHeight,
               paddingBottom: tabBarBottomPadding,
@@ -281,16 +380,20 @@ function MainTabs() {
 function QueryFocusBridge() {
   useEffect(() => {
     syncQueryFocus(AppState.currentState);
-    const subscription = AppState.addEventListener('change', syncQueryFocus);
+    const subscription = AppState.addEventListener("change", syncQueryFocus);
     return () => subscription.remove();
   }, []);
 
   return null;
 }
 
-function NotificationPreferencesBoundary({ children }: { children: React.ReactNode }) {
+function NotificationPreferencesBoundary({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { session, user } = useAuth();
-  const namespace = user?.id ? `user:${user.id}` : 'guest';
+  const namespace = user?.id ? `user:${user.id}` : "guest";
   return (
     <NotificationPreferencesProvider
       authToken={session?.access_token}
@@ -302,32 +405,49 @@ function NotificationPreferencesBoundary({ children }: { children: React.ReactNo
 }
 
 function NotificationScheduleBridge() {
+  const { policy } = useAudience();
   const { preferences, ready: preferencesReady } = useNotificationPreferences();
-  const { ready: notificationsReady, rescheduleNotifications } = useNotifications();
+  const {
+    ready: notificationsReady,
+    refresh: refreshNotifications,
+    rescheduleNotifications,
+  } = useNotifications();
   const lastScheduleSignatureRef = useRef<string | null>(null);
   const scheduleSignature = JSON.stringify({
     pushEnabled: preferences.pushEnabled,
-    deadlineRemindersEnabled: preferences.deadlineRemindersEnabled,
-    reminderDays: preferences.reminderDays,
   });
 
   useEffect(() => {
-    if (!preferencesReady || !notificationsReady) return;
+    if (
+      !policy.canAuthenticate ||
+      !preferencesReady ||
+      !notificationsReady
+    )
+      return;
     if (lastScheduleSignatureRef.current === scheduleSignature) return;
     lastScheduleSignatureRef.current = scheduleSignature;
     void rescheduleNotifications(preferences).catch((error) => {
       console.warn({
-        event: 'notification_schedule_reconcile_failed',
+        event: "notification_schedule_reconcile_failed",
         errorName: error instanceof Error ? error.name : typeof error,
       });
     });
   }, [
     notificationsReady,
+    policy.canAuthenticate,
     preferences,
     preferencesReady,
     rescheduleNotifications,
     scheduleSignature,
   ]);
+
+  useEffect(() => {
+    if (!policy.canAuthenticate) return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") refreshNotifications();
+    });
+    return () => subscription.remove();
+  }, [policy.canAuthenticate, refreshNotifications]);
 
   return null;
 }
@@ -336,10 +456,15 @@ function NotificationScheduleBridge() {
  * Wraps NavigationContainer with the current theme's background color
  * so dark-mode screen transitions don't flash white.
  */
-function ThemedNavigationContainer({ children }: { children: React.ReactNode }) {
+function ThemedNavigationContainer({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { colors, isDark } = useTheme();
   const { user, session, isLoading: authLoading } = useAuth();
   const { preferences, ready: preferencesReady } = useNotificationPreferences();
+  const { policy: audiencePolicy } = useAudience();
   const userId = user?.id;
   const accessToken = session?.access_token;
   const bg = colors.bg;
@@ -351,18 +476,31 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (
       authLoading ||
+      !audiencePolicy.canAuthenticate ||
       !preferencesReady ||
       !preferences.pushEnabled ||
       !userId ||
       !accessToken
-    ) return;
+    )
+      return;
+    let active = true;
     registerForPushNotifications(accessToken, {
       requestPermission: false,
+      shouldContinue: () => active,
+      onRegistrationCancelled: () =>
+        syncNotificationPreferences(
+          accessToken,
+          DEFAULT_NOTIFICATION_PREFERENCES,
+        ),
     }).catch(() => {
       // push registration is best-effort; delivery can be enabled again on next launch
     });
+    return () => {
+      active = false;
+    };
   }, [
     accessToken,
+    audiencePolicy.canAuthenticate,
     authLoading,
     preferences.pushEnabled,
     preferencesReady,
@@ -388,9 +526,16 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
 
   return (
     <>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={bg} />
+      <StatusBar
+        barStyle={isDark ? "light-content" : "dark-content"}
+        backgroundColor={bg}
+      />
       <View style={{ flex: 1, backgroundColor: bg }}>
-        <NavigationContainer linking={notificationLinking} theme={navTheme}>
+        <NavigationContainer
+          linking={notificationLinking}
+          ref={rootNavigationRef}
+          theme={navTheme}
+        >
           {children}
         </NavigationContainer>
       </View>
@@ -403,16 +548,21 @@ function ThemedStackNavigator() {
   return (
     <Stack.Navigator
       initialRouteName={
-        Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
-          ? 'Admin'
-          : 'MainTabs'
+        Platform.OS === "web" &&
+        typeof window !== "undefined" &&
+        window.location.pathname.startsWith("/admin")
+          ? "Admin"
+          : "MainTabs"
       }
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.bg },
         headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.text,
-        headerTitleStyle: { color: colors.text },
+        headerTitle: ({ children }) => (
+          <NavigationHeaderTitle title={children} />
+        ),
+        headerTitleAlign: "center",
         headerShadowVisible: false,
       }}
     >
@@ -422,7 +572,10 @@ function ThemedStackNavigator() {
       <Stack.Screen name="Detail" component={DetailScreen} />
       <Stack.Screen name="FeedDetail" component={FeedDetailScreen} />
       <Stack.Screen name="Login" component={AuthScreen} />
-      <Stack.Screen name="InfluencerGroupBuys" component={InfluencerGroupBuysScreen} />
+      <Stack.Screen
+        name="InfluencerGroupBuys"
+        component={InfluencerGroupBuysScreen}
+      />
       <Stack.Screen name="SearchScreen" component={SearchScreen} />
       <Stack.Screen name="Admin" component={AdminScreen} />
       <Stack.Screen
@@ -430,12 +583,44 @@ function ThemedStackNavigator() {
         component={SettingsScreen}
         options={{
           headerShown: true,
-          title: '설정',
+          title: "설정",
           headerBackVisible: false,
-          headerLeft: () => <BackButton />,
+          headerLeft: () => <BackButton style={styles.stackHeaderBackButton} />,
         }}
       />
     </Stack.Navigator>
+  );
+}
+
+function AudienceApplication() {
+  const { policy } = useAudience();
+
+  return (
+    <AdsProvider audiencePolicy={policy}>
+      <QueryClientProvider client={mobileQueryClient}>
+        <QueryFocusBridge />
+        <ThemeProvider>
+          <AdsRuntimeSmokeProbe />
+          <AuthProvider audiencePolicy={policy}>
+            <RestrictedAudienceCleanupBridge />
+            <NotificationPreferencesBoundary>
+              <GroupBuyReminderPickerProvider
+                onAuthenticationRequired={() => {
+                  if (rootNavigationRef.isReady()) {
+                    rootNavigationRef.navigate("Login");
+                  }
+                }}
+              >
+                <NotificationScheduleBridge />
+                <ThemedNavigationContainer>
+                  <ThemedStackNavigator />
+                </ThemedNavigationContainer>
+              </GroupBuyReminderPickerProvider>
+            </NotificationPreferencesBoundary>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </AdsProvider>
   );
 }
 
@@ -444,21 +629,13 @@ export default function App() {
     <GestureHandlerRootView style={styles.appRoot}>
       <KeyboardProvider>
         <SafeAreaProvider>
-          <AdsProvider>
-            <QueryClientProvider client={mobileQueryClient}>
-              <QueryFocusBridge />
-              <ThemeProvider>
-                <AuthProvider>
-                  <NotificationPreferencesBoundary>
-                    <NotificationScheduleBridge />
-                    <ThemedNavigationContainer>
-                      <ThemedStackNavigator />
-                    </ThemedNavigationContainer>
-                  </NotificationPreferencesBoundary>
-                </AuthProvider>
-              </ThemeProvider>
-            </QueryClientProvider>
-          </AdsProvider>
+          <AudienceProvider
+            initialAgeBandOverride={automatedE2E ? "age14Plus" : null}
+          >
+            <AudienceGate>
+              <AudienceApplication />
+            </AudienceGate>
+          </AudienceProvider>
         </SafeAreaProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
@@ -469,55 +646,58 @@ const styles = StyleSheet.create({
   appRoot: {
     flex: 1,
   },
+  stackHeaderBackButton: {
+    marginLeft: spacing.sm,
+  },
   tabBar: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderTopWidth: 1,
     height: TAB_BAR_HEIGHT,
     left: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
     paddingTop: 2,
-    position: 'absolute',
+    position: "absolute",
     right: 0,
   },
   tabButton: {
-    alignItems: 'center',
+    alignItems: "center",
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     minHeight: 42,
     paddingTop: 0,
   },
   tabIconSlot: {
     height: 28,
     marginBottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     width: 34,
   },
   tabGlyphFrame: {
-    alignItems: 'center',
+    alignItems: "center",
     height: 28,
-    justifyContent: 'center',
-    position: 'relative',
+    justifyContent: "center",
+    position: "relative",
     width: 34,
   },
   reelsFrame: {
-    alignItems: 'center',
-    borderColor: 'transparent',
+    alignItems: "center",
+    borderColor: "transparent",
     borderRadius: 6,
-    borderStyle: 'solid',
+    borderStyle: "solid",
     borderWidth: 1.6,
     height: 22,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 22,
   },
   reelsTriangle: {
-    borderBottomColor: 'transparent',
+    borderBottomColor: "transparent",
     borderBottomWidth: 5.5,
     borderLeftWidth: 8,
     borderRightWidth: 0,
-    borderStyle: 'solid',
-    borderTopColor: 'transparent',
+    borderStyle: "solid",
+    borderTopColor: "transparent",
     borderTopWidth: 5.5,
     height: 0,
     marginLeft: 1,

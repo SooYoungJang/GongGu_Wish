@@ -50,7 +50,7 @@ type RankingRpcRow = {
   trend_delta: number | string;
   product_name: string | null;
   brand_name: string | null;
-  username: string;
+  username: string | null;
   category: string;
   thumbnail_url: string | null;
   media_urls: string[] | null;
@@ -73,6 +73,17 @@ type RankingCursor = {
   numericValue?: number;
   timestampValue?: string | null;
 };
+
+function normalizeRankingUsername(value: string | null): string | null {
+  const normalized =
+    value
+      ?.trim()
+      .replace(/^@+\s*/, "")
+      .trim() ?? "";
+  return normalized && normalized.toLocaleLowerCase("en-US") !== "unknown"
+    ? normalized
+    : null;
+}
 
 function toFiniteNumber(value: number | string, field: string): number {
   const parsed = Number(value);
@@ -226,7 +237,6 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
 
   if (
     !row.group_buy_id ||
-    !row.username ||
     !RANKING_CATEGORIES.includes(row.category as RankingCategory) ||
     row.category === "all"
   ) {
@@ -254,7 +264,7 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
     trend,
     productName: row.product_name,
     brandName: row.brand_name,
-    username: row.username,
+    username: normalizeRankingUsername(row.username),
     category: row.category as GroupBuyRankingItem["category"],
     thumbnailUrl: row.thumbnail_url,
     mediaUrls,

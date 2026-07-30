@@ -27,9 +27,14 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { FlashList } from "@shopify/flash-list";
+import { getGroupBuyCategoryLabel } from "@gonggu/shared/utils/groupBuyCategory";
+import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagram";
 import { VideoView, useVideoPlayer, type VideoPlayerStatus } from "expo-video";
 import PagerView from "react-native-pager-view";
 import {
@@ -50,11 +55,26 @@ import Reanimated, {
   type SharedValue,
 } from "react-native-reanimated";
 
-import { fetchGroupBuyById, fetchGroupBuys, logDeepView } from "../api";
+import {
+  fetchGroupBuyById,
+  fetchGroupBuys,
+  logDeepView,
+  refreshGroupBuyMedia,
+} from "../api";
 import { Ionicons } from "@expo/vector-icons";
-import { BackButton } from "../components/BackButton";
+import { CenteredBackHeader } from "../components/CenteredBackHeader";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
+import { NativeAdCard } from "../components/ads/NativeAdCard";
+import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
+import { useAds } from "../ads/AdsContext";
+import {
+  insertReelsAdSlots,
+  isReelsContentItem,
+  seedAdRandomFromIds,
+  type ReelsFeedItem,
+} from "./reelsAdPlacement";
 import { PriceText } from "../components/ui/PriceText";
+import { InstagramIdentity } from "../components/ui/InstagramIdentity";
 import {
   useBookmarks,
   useNotifications,
@@ -68,6 +88,8 @@ import {
 } from "../design/bottomSheetMotion";
 import { useTheme } from "../context/ThemeContext";
 import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
+import { useGroupBuyReminderPicker } from "../context/GroupBuyReminderPickerContext";
+import { usePostAudioPlayer } from "../hooks/usePostAudioPlayer";
 import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatEndDate, getDaysRemaining } from "../utils";
@@ -292,7 +314,11 @@ type VideoSlideProps = {
   thumbnailUrl?: string | null;
   replayKey?: number;
   muted?: boolean;
+  shouldPlay?: boolean;
+  showMuteControl?: boolean;
+  suppressEmbeddedAudio?: boolean;
   onMutedChange?: (muted: boolean) => void;
+  onShouldPlayChange?: (shouldPlay: boolean) => void;
   onPlaybackStateChange?: (isPlaying: boolean) => void;
   s: ReturnType<typeof makeStyles>;
 };
@@ -303,13 +329,29 @@ const VideoSlide = memo(function VideoSlide({
   replayKey,
   thumbnailUrl,
   muted,
+  shouldPlay: controlledShouldPlay,
+  showMuteControl = true,
+  suppressEmbeddedAudio = false,
   onMutedChange,
+  onShouldPlayChange,
   onPlaybackStateChange,
   s,
 }: VideoSlideProps) {
-  const [shouldPlay, setShouldPlay] = useState(true);
+  const [localShouldPlay, setLocalShouldPlay] = useState(true);
+  const shouldPlay = controlledShouldPlay ?? localShouldPlay;
+  const updateShouldPlay = useCallback(
+    (nextShouldPlay: boolean) => {
+      setLocalShouldPlay(nextShouldPlay);
+      onShouldPlayChange?.(nextShouldPlay);
+    },
+    [onShouldPlayChange],
+  );
   const [localMuted, setLocalMuted] = useState(muted ?? false);
   const isMuted = muted ?? localMuted;
+  const effectiveMuted = isMuted || suppressEmbeddedAudio;
+  const audioMixingMode = suppressEmbeddedAudio
+    ? "mixWithOthers"
+    : "doNotMix";
   const [areControlsVisible, setControlsVisible] = useState(false);
   const [hasFirstFrame, setHasFirstFrame] = useState(false);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -322,9 +364,9 @@ const VideoSlide = memo(function VideoSlide({
 
   const player = useVideoPlayer(source, (p) => {
     p.loop = true;
-    p.muted = false;
+    p.muted = effectiveMuted;
     p.volume = 1;
-    p.audioMixingMode = "doNotMix";
+    p.audioMixingMode = audioMixingMode;
     p.allowsExternalPlayback = false;
   });
   const [playerStatus, setPlayerStatus] = useState<VideoPlayerStatus>(
@@ -363,11 +405,11 @@ const VideoSlide = memo(function VideoSlide({
 
   useEffect(() => {
     safelyCallVideoPlayer(() => {
-      player.muted = isMuted;
+      player.muted = effectiveMuted;
       player.volume = 1;
-      player.audioMixingMode = "doNotMix";
+      player.audioMixingMode = audioMixingMode;
     });
-  }, [isMuted, player]);
+  }, [audioMixingMode, effectiveMuted, player]);
 
   useEffect(() => {
     return () => {
@@ -421,9 +463,9 @@ const VideoSlide = memo(function VideoSlide({
 
   useEffect(() => {
     safelyCallVideoPlayer(() => {
-      player.muted = isMuted;
+      player.muted = effectiveMuted;
       player.volume = 1;
-      player.audioMixingMode = "doNotMix";
+      player.audioMixingMode = audioMixingMode;
 
       if (isActive && shouldPlay) {
         player.play();
@@ -432,7 +474,7 @@ const VideoSlide = memo(function VideoSlide({
         if (!isActive) player.currentTime = 0;
       }
     });
-  }, [isActive, isMuted, player, shouldPlay]);
+  }, [audioMixingMode, effectiveMuted, isActive, player, shouldPlay]);
 
   const replayKeyRef = useRef(replayKey);
   const isActiveRef = useRef(isActive);
@@ -443,12 +485,12 @@ const VideoSlide = memo(function VideoSlide({
     replayKeyRef.current = replayKey;
     if (!isActive || !wasActive) return;
 
-    setShouldPlay(true);
+    updateShouldPlay(true);
     safelyCallVideoPlayer(() => {
       player.currentTime = 0;
       player.play();
     });
-  }, [isActive, player, replayKey]);
+  }, [isActive, player, replayKey, updateShouldPlay]);
 
   useEffect(() => {
     setHasFirstFrame(false);
@@ -464,22 +506,28 @@ const VideoSlide = memo(function VideoSlide({
 
   const togglePlayback = useCallback(() => {
     showControlsTemporarily();
-    setShouldPlay((current) => {
-      const next = !current;
-      safelyCallVideoPlayer(() => {
-        player.muted = isMuted;
-        player.volume = 1;
-        player.audioMixingMode = "doNotMix";
+    const next = !shouldPlay;
+    safelyCallVideoPlayer(() => {
+      player.muted = effectiveMuted;
+      player.volume = 1;
+      player.audioMixingMode = audioMixingMode;
 
-        if (next && isActive) {
-          player.play();
-        } else {
-          player.pause();
-        }
-      });
-      return next;
+      if (next && isActive) {
+        player.play();
+      } else {
+        player.pause();
+      }
     });
-  }, [isActive, isMuted, player, showControlsTemporarily]);
+    updateShouldPlay(next);
+  }, [
+    audioMixingMode,
+    effectiveMuted,
+    isActive,
+    player,
+    shouldPlay,
+    showControlsTemporarily,
+    updateShouldPlay,
+  ]);
 
   const toggleMuted = useCallback(() => {
     showControlsTemporarily();
@@ -502,9 +550,9 @@ const VideoSlide = memo(function VideoSlide({
           setPlayerStatus("readyToPlay");
           setPlayerError(null);
           safelyCallVideoPlayer(() => {
-            player.muted = isMuted;
+            player.muted = effectiveMuted;
             player.volume = 1;
-            player.audioMixingMode = "doNotMix";
+            player.audioMixingMode = audioMixingMode;
             if (isActive && shouldPlay) player.play();
           });
         }}
@@ -550,18 +598,23 @@ const VideoSlide = memo(function VideoSlide({
       />
       {areControlsVisible || !shouldPlay ? (
         <View style={s.videoControlsOverlay} pointerEvents="box-none">
-          <Pressable
-            accessibilityLabel={isMuted ? "음소거 해제" : "음소거"}
-            accessibilityRole="button"
-            onPress={toggleMuted}
-            style={({ pressed }) => [s.muteOverlayButton, pressed && s.pressed]}
-          >
-            <Ionicons
-              name={isMuted ? "volume-mute" : "volume-high"}
-              size={20}
-              color="#FFFFFF"
-            />
-          </Pressable>
+          {showMuteControl ? (
+            <Pressable
+              accessibilityLabel={isMuted ? "음소거 해제" : "음소거"}
+              accessibilityRole="button"
+              onPress={toggleMuted}
+              style={({ pressed }) => [
+                s.muteOverlayButton,
+                pressed && s.pressed,
+              ]}
+            >
+              <Ionicons
+                name={isMuted ? "volume-mute" : "volume-high"}
+                size={20}
+                color="#FFFFFF"
+              />
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityLabel={shouldPlay ? "동영상 일시정지" : "동영상 재생"}
             accessibilityRole="button"
@@ -583,15 +636,23 @@ const VideoSlide = memo(function VideoSlide({
 type ReelActionProps = {
   icon: ReactNode;
   label: string;
+  accessibilityLabel?: string;
   onPress: () => void;
   s: ReturnType<typeof makeStyles>;
   testID?: string;
 };
 
-function ReelAction({ icon, label, onPress, s, testID }: ReelActionProps) {
+function ReelAction({
+  icon,
+  label,
+  accessibilityLabel,
+  onPress,
+  s,
+  testID,
+}: ReelActionProps) {
   return (
     <Pressable
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [s.railButton, pressed && s.pressed]}
@@ -797,8 +858,10 @@ function DetailSearchSheet({
               }
               renderItem={({ item }) => {
                 const thumb = getGroupBuyThumb(item);
-                const sellerName =
-                  item.rawPost.influencer.instagramUsername.replace(/^@/, "");
+                const sellerName = normalizeOptionalInstagramUsername(
+                  item.rawPost.influencer.instagramUsername,
+                );
+                const brandName = item.brandName?.trim() || null;
                 return (
                   <Pressable
                     accessibilityLabel={`${item.productName ?? "상품"} 보기`}
@@ -832,14 +895,42 @@ function DetailSearchSheet({
                       >
                         {item.productName ?? "제품명 미확인"}
                       </SText>
-                      <SText
-                        variant="caption"
-                        style={s.detailSearchResultMeta}
-                        numberOfLines={1}
-                      >
-                        {item.brandName ?? `@${sellerName}`} ·{" "}
-                        {formatEndDate(item.endDate)}
-                      </SText>
+                      <View style={s.detailSearchResultMetaRow}>
+                        {brandName ? (
+                          <SText
+                            numberOfLines={1}
+                            style={s.detailSearchResultMeta}
+                            variant="caption"
+                          >
+                            {brandName}
+                          </SText>
+                        ) : null}
+                        {sellerName ? (
+                          <InstagramIdentity
+                            iconTestID={`detail-search-instagram-icon-${item.id}`}
+                            style={s.detailSearchInstagram}
+                            textStyle={s.detailSearchInstagramText}
+                            tone="inverse"
+                            username={sellerName}
+                          />
+                        ) : null}
+                        {!brandName && !sellerName ? (
+                          <SText
+                            numberOfLines={1}
+                            style={s.detailSearchResultMeta}
+                            variant="caption"
+                          >
+                            판매자 정보 미정
+                          </SText>
+                        ) : null}
+                        <SText
+                          numberOfLines={1}
+                          style={s.detailSearchResultMeta}
+                          variant="caption"
+                        >
+                          · {formatEndDate(item.endDate)}
+                        </SText>
+                      </View>
                     </View>
                     <Ionicons
                       name="chevron-forward"
@@ -880,6 +971,7 @@ export type ProductReelPageProps = {
   bottomInset: number;
   onBack: () => void;
   showBackButton?: boolean;
+  showDetailAd?: boolean;
   onCloseSearchSheet?: () => void;
   muted?: boolean;
   onMutedChange?: (muted: boolean) => void;
@@ -904,6 +996,7 @@ function ProductReelPageComponent({
   bottomInset,
   onBack,
   showBackButton = true,
+  showDetailAd = false,
   onCloseSearchSheet,
   muted,
   onMutedChange,
@@ -913,6 +1006,101 @@ function ProductReelPageComponent({
 }: ProductReelPageProps) {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
+  const [shouldPlayMedia, setShouldPlayMedia] = useState(true);
+  const [localMuted, setLocalMuted] = useState(muted ?? false);
+  const [resolvedPostAudio, setResolvedPostAudio] = useState(() => ({
+    url: groupBuy.postAudioUrl ?? null,
+    startTimeMs: groupBuy.postAudioStartTimeMs ?? null,
+    durationMs: groupBuy.postAudioDurationMs ?? null,
+  }));
+  const postAudioRefreshAttemptedRef = useRef(false);
+  const isMuted = muted ?? localMuted;
+  const handleMutedChange = useCallback(
+    (nextMuted: boolean) => {
+      setLocalMuted(nextMuted);
+      onMutedChange?.(nextMuted);
+    },
+    [onMutedChange],
+  );
+  const postAudio = usePostAudioPlayer({
+    url: resolvedPostAudio.url,
+    startTimeMs: resolvedPostAudio.startTimeMs,
+    durationMs: resolvedPostAudio.durationMs,
+    isActive: isActive && playbackAllowed && shouldPlayMedia,
+    muted: isMuted,
+    replayKey,
+  });
+  const shouldPrioritizePostAudio = postAudio.isReady;
+
+  useEffect(() => {
+    setShouldPlayMedia(true);
+  }, [activeMediaIndex, groupBuy.id, replayKey]);
+
+  useEffect(() => {
+    postAudioRefreshAttemptedRef.current = false;
+    setResolvedPostAudio({
+      url: groupBuy.postAudioUrl ?? null,
+      startTimeMs: groupBuy.postAudioStartTimeMs ?? null,
+      durationMs: groupBuy.postAudioDurationMs ?? null,
+    });
+  }, [
+    groupBuy.id,
+    groupBuy.postAudioDurationMs,
+    groupBuy.postAudioStartTimeMs,
+    groupBuy.postAudioUrl,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isActive ||
+      !postAudio.hasError ||
+      !resolvedPostAudio.url ||
+      postAudioRefreshAttemptedRef.current
+    ) {
+      return;
+    }
+
+    postAudioRefreshAttemptedRef.current = true;
+    const failedPostAudioUrl = resolvedPostAudio.url;
+    let cancelled = false;
+    void refreshGroupBuyMedia(groupBuy.id, {
+      force: true,
+      failedPostAudioUrl,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        const refreshedPostAudioUrl = result.media.postAudioUrl?.trim() || null;
+        const hasFreshPostAudio =
+          result.refreshed === true &&
+          result.source === "hiker" &&
+          !result.error &&
+          refreshedPostAudioUrl !== null &&
+          refreshedPostAudioUrl !== failedPostAudioUrl;
+
+        setResolvedPostAudio(
+          hasFreshPostAudio
+            ? {
+                url: refreshedPostAudioUrl,
+                startTimeMs: result.media.postAudioStartTimeMs ?? null,
+                durationMs: result.media.postAudioDurationMs ?? null,
+              }
+            : { url: null, startTimeMs: null, durationMs: null },
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedPostAudio({
+            url: null,
+            startTimeMs: null,
+            durationMs: null,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [groupBuy.id, isActive, postAudio.hasError, resolvedPostAudio.url]);
   const { colors } = useTheme();
   const { isAuthenticated, requireAuth } = useAuthGate();
   const {
@@ -951,63 +1139,50 @@ function ProductReelPageComponent({
     onPlaybackStateChange,
   ]);
   const { isBookmarked, toggleBookmark } = useBookmarks();
-  const {
-    getNotificationState,
-    isNotifying,
-    retryNotification,
-    toggleNotification,
-  } = useNotifications();
+  const { getNotificationState, isNotifying } = useNotifications();
+  const { openReminderPicker } = useGroupBuyReminderPicker();
   const notificationState = getNotificationState(groupBuy.id);
-  const notificationEnabled =
-    isAuthenticated && isNotifying(groupBuy.id);
+  const notificationEnabled = isAuthenticated && isNotifying(groupBuy.id);
   const notificationLabel =
     notificationState.status === "pending"
       ? "알림 처리 중"
       : notificationState.status === "failed"
-        ? "알림 재시도"
+        ? "알림 다시 설정"
         : notificationState.status === "unsupported" ||
             notificationState.status === "unavailable"
-          ? "알림 설정 불가"
+          ? "알림 설정"
           : notificationEnabled
-            ? "알림설정됨"
+            ? "알림 변경"
             : "알림";
   const handleNotificationPress = useCallback(() => {
     if (!requireAuth()) return;
-    if (
-      notificationState.status === "failed" ||
-      notificationState.status === "unsupported" ||
-      notificationState.status === "unavailable"
-    ) {
-      void retryNotification(groupBuy);
-      return;
-    }
-    void toggleNotification(groupBuy);
-  }, [
-    groupBuy,
-    notificationState.status,
-    requireAuth,
-    retryNotification,
-    toggleNotification,
-  ]);
+    openReminderPicker(groupBuy);
+  }, [groupBuy, openReminderPicker, requireAuth]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
   const isUrgent = daysRemaining >= 0 && daysRemaining <= 3;
-  const sellerName = groupBuy.rawPost.influencer.instagramUsername.replace(
-    /^@/,
-    "",
-  );
-  const isInfluencerFollowed = isAuthenticated && preferences.followedInfluencers.some(
-    (target) =>
-      target.toLocaleLowerCase("en-US") ===
-      sellerName.toLocaleLowerCase("en-US"),
-  );
+  const sellerName =
+    normalizeOptionalInstagramUsername(
+      groupBuy.rawPost.influencer.instagramUsername,
+    ) ?? "";
+  const sellerHandle = sellerName ? `@${sellerName}` : null;
+  const categoryLabel = getGroupBuyCategoryLabel(groupBuy.category);
+  const isInfluencerFollowed =
+    isAuthenticated &&
+    preferences.followedInfluencers.some(
+      (target) =>
+        target.toLocaleLowerCase("en-US") ===
+        sellerName.toLocaleLowerCase("en-US"),
+    );
   const brandName = groupBuy.brandName?.trim() ?? "";
-  const isBrandFollowed = isAuthenticated && preferences.followedBrands.some(
-    (target) =>
-      target.toLocaleLowerCase("en-US") ===
-      brandName.toLocaleLowerCase("en-US"),
-  );
+  const isBrandFollowed =
+    isAuthenticated &&
+    preferences.followedBrands.some(
+      (target) =>
+        target.toLocaleLowerCase("en-US") ===
+        brandName.toLocaleLowerCase("en-US"),
+    );
   const followControlsDisabled =
     !notificationPreferencesReady || notificationPreferencesSaving;
   const handleBookmarkPress = useCallback(() => {
@@ -1571,9 +1746,10 @@ function ProductReelPageComponent({
 
   const handleShare = async () => {
     const productName = groupBuy.productName ?? "공동구매";
+    const sellerSuffix = sellerHandle ? ` (${sellerHandle})` : "";
     try {
       await Share.share({
-        message: `${productName} (@${sellerName})\n${groupBuy.purchaseUrl ?? groupBuy.rawPost.postUrl}`,
+        message: `${productName}${sellerSuffix}\n${groupBuy.purchaseUrl ?? groupBuy.rawPost.postUrl}`,
       });
     } catch {
       Alert.alert("오류", "공유에 실패했습니다.");
@@ -1612,18 +1788,22 @@ function ProductReelPageComponent({
     () => ({
       activeMediaIndex,
       isActive,
-      muted,
+      isMuted,
       playbackAllowed,
       replayKey,
+      shouldPlayMedia,
       shouldPreloadVideo,
+      shouldPrioritizePostAudio,
     }),
     [
       activeMediaIndex,
       isActive,
-      muted,
+      isMuted,
       playbackAllowed,
       replayKey,
+      shouldPlayMedia,
       shouldPreloadVideo,
+      shouldPrioritizePostAudio,
     ],
   );
   const handleActiveMediaPlaybackStateChange = useCallback(
@@ -1651,8 +1831,12 @@ function ProductReelPageComponent({
                 isActive={mediaActive}
                 replayKey={replayKey}
                 thumbnailUrl={thumbnailUrl}
-                muted={muted}
-                onMutedChange={onMutedChange}
+                muted={isMuted}
+                shouldPlay={shouldPlayMedia}
+                showMuteControl={!resolvedPostAudio.url}
+                suppressEmbeddedAudio={shouldPrioritizePostAudio}
+                onMutedChange={handleMutedChange}
+                onShouldPlayChange={setShouldPlayMedia}
                 onPlaybackStateChange={
                   mediaActive ? handleActiveMediaPlaybackStateChange : undefined
                 }
@@ -1685,14 +1869,17 @@ function ProductReelPageComponent({
       activeMediaIndex,
       groupBuy.thumbnailUrl,
       handleActiveMediaPlaybackStateChange,
+      handleMutedChange,
       isActive,
+      isMuted,
       mediaWidth,
-      muted,
-      onMutedChange,
       pageHeight,
       playbackAllowed,
+      resolvedPostAudio.url,
       s,
+      shouldPlayMedia,
       shouldPreloadVideo,
+      shouldPrioritizePostAudio,
       replayKey,
     ],
   );
@@ -1753,22 +1940,16 @@ function ProductReelPageComponent({
           reelChromeStyle,
         ]}
       >
-        {showBackButton ? (
-          <BackButton
-            color="#FFFFFF"
-            onPress={onBack}
-            style={s.topIconButton}
-            testID="detail-back-button"
-          />
-        ) : (
-          <View style={s.topIconButton} />
-        )}
-        <View style={s.reelsTitleRow}>
-          <SText variant="cardTitle" style={s.reelsTitle}>
-            릴스
-          </SText>
-        </View>
-        <View style={s.topIconButton} />
+        <CenteredBackHeader
+          backButtonColor="#FFFFFF"
+          backButtonTestID="detail-back-button"
+          onBack={onBack}
+          showBackButton={showBackButton}
+          style={s.reelHeader}
+          testID="detail-navigation-header"
+          title="릴스"
+          titleVariant="overlay"
+        />
       </Reanimated.View>
 
       {mediaItems.length > 1 ? (
@@ -1806,17 +1987,47 @@ function ProductReelPageComponent({
             reelChromeStyle,
           ]}
         >
+          {resolvedPostAudio.url ? (
+            <ReelAction
+              accessibilityLabel={
+                isMuted
+                  ? "게시물 음악 음소거 해제"
+                  : "게시물 음악 음소거"
+              }
+              icon={
+                <Ionicons
+                  name={isMuted ? "volume-mute" : "volume-high"}
+                  size={26}
+                  color="#FFFFFF"
+                />
+              }
+              label={isMuted ? "소리 켜기" : "음소거"}
+              onPress={() => handleMutedChange(!isMuted)}
+              s={s}
+              testID="detail-post-audio-toggle"
+            />
+          ) : null}
           <ReelAction
             icon={
               <Ionicons
                 name={
-                  isAuthenticated && isBookmarked(groupBuy.id) ? "bookmark" : "bookmark-outline"
+                  isAuthenticated && isBookmarked(groupBuy.id)
+                    ? "bookmark"
+                    : "bookmark-outline"
                 }
                 size={26}
-                color={isAuthenticated && isBookmarked(groupBuy.id) ? colors.accent : "#FFFFFF"}
+                color={
+                  isAuthenticated && isBookmarked(groupBuy.id)
+                    ? colors.accent
+                    : "#FFFFFF"
+                }
               />
             }
-            label={isAuthenticated && isBookmarked(groupBuy.id) ? "북마크됨" : "북마크"}
+            label={
+              isAuthenticated && isBookmarked(groupBuy.id)
+                ? "북마크됨"
+                : "북마크"
+            }
             onPress={handleBookmarkPress}
             s={s}
           />
@@ -1865,16 +2076,23 @@ function ProductReelPageComponent({
           ]}
         >
           <View style={s.bottomInfoScrim} pointerEvents="none" />
-          <View style={s.sellerRow}>
-            <View style={s.avatar}>
-              <SText variant="caption" style={s.avatarText}>
-                {sellerName.slice(0, 1).toUpperCase()}
-              </SText>
+          {sellerHandle ? (
+            <View style={s.sellerRow}>
+              <View style={s.avatar}>
+                <SText variant="caption" style={s.avatarText}>
+                  {sellerName.slice(0, 1).toUpperCase()}
+                </SText>
+              </View>
+              <InstagramIdentity
+                iconTestID={`detail-reel-instagram-icon-${groupBuy.id}`}
+                size="title"
+                style={s.sellerIdentity}
+                textStyle={s.sellerName}
+                tone="inverse"
+                username={sellerName}
+              />
             </View>
-            <SText variant="cardTitle" style={s.sellerName} numberOfLines={1}>
-              {sellerName}
-            </SText>
-          </View>
+          ) : null}
 
           <View style={s.followTargetRow}>
             {sellerName ? (
@@ -1986,10 +2204,10 @@ function ProductReelPageComponent({
                 {isExpired ? "마감" : isUrgent ? "마감 임박" : deadlineLabel}
               </SText>
             </View>
-            {groupBuy.category ? (
+            {categoryLabel ? (
               <View style={s.metaPill}>
                 <SText variant="caption" style={s.metaPillText}>
-                  {groupBuy.category}
+                  {categoryLabel}
                 </SText>
               </View>
             ) : null}
@@ -2038,19 +2256,23 @@ function ProductReelPageComponent({
                 </View>
                 <View style={s.summarySheetHeader}>
                   <View style={s.summarySheetSeller}>
-                    <View style={s.summarySheetAvatar}>
-                      <SText variant="caption" style={s.avatarText}>
-                        {sellerName.slice(0, 1).toUpperCase()}
-                      </SText>
-                    </View>
+                    {sellerHandle ? (
+                      <View style={s.summarySheetAvatar}>
+                        <SText variant="caption" style={s.avatarText}>
+                          {sellerName.slice(0, 1).toUpperCase()}
+                        </SText>
+                      </View>
+                    ) : null}
                     <View style={s.summarySheetTitleBlock}>
-                      <SText
-                        variant="cardTitle"
-                        style={s.summarySheetSellerName}
-                        numberOfLines={1}
-                      >
-                        {sellerName}
-                      </SText>
+                      {sellerHandle ? (
+                        <InstagramIdentity
+                          iconTestID={`detail-summary-instagram-icon-${groupBuy.id}`}
+                          size="body"
+                          textStyle={s.summarySheetSellerName}
+                          tone="inverse"
+                          username={sellerName}
+                        />
+                      ) : null}
                       <SText
                         variant="caption"
                         style={s.summarySheetProductName}
@@ -2100,6 +2322,15 @@ function ProductReelPageComponent({
                 <SText variant="body" style={s.summarySheetText}>
                   {summary}
                 </SText>
+                {showDetailAd && isActive && isSummaryVisible ? (
+                  <View style={s.summarySheetAd}>
+                    <NativeAdCard
+                      placement="detail"
+                      testID="detail-native-ad"
+                      variant="row"
+                    />
+                  </View>
+                ) : null}
               </GestureScrollView>
             </GestureDetector>
           </Reanimated.View>
@@ -2119,12 +2350,7 @@ function NotificationLinkedDetail({
   navigation: DetailScreenProps["navigation"];
 }) {
   const { colors } = useTheme();
-  const {
-    data,
-    isError,
-    isFetching,
-    refetch,
-  } = useQuery({
+  const { data, isError, isFetching, refetch } = useQuery({
     queryKey: ["group-buy", groupBuyId],
     queryFn: () => fetchGroupBuyById(groupBuyId),
   });
@@ -2135,10 +2361,18 @@ function NotificationLinkedDetail({
 
   return (
     <SafeAreaView style={{ backgroundColor: colors.bg, flex: 1 }}>
-      <BackButton onPress={() => navigation.goBack()} />
+      <CenteredBackHeader
+        onBack={() => navigation.goBack()}
+        testID="notification-detail-navigation-header"
+        title="공구 상세"
+      />
       <View
         style={{ flex: 1, justifyContent: "center", padding: spacing.lg }}
-        testID={isError ? "notification-linked-detail-error" : "notification-linked-detail-loading"}
+        testID={
+          isError
+            ? "notification-linked-detail-error"
+            : "notification-linked-detail-loading"
+        }
       >
         {isError ? (
           <AsyncStateNotice
@@ -2190,6 +2424,10 @@ function DetailScreenContent({
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const verticalPagerRef = useRef<PagerView>(null);
+  const hasDepartedRouteRef = useRef(false);
+  useEffect(() => {
+    hasDepartedRouteRef.current = false;
+  }, [groupBuy.id]);
   const [summarySheetGate, setSummarySheetGate] = useState({
     isOpen: false,
     canSwipeReel: true,
@@ -2258,10 +2496,72 @@ function DetailScreenContent({
     );
     return currentIndex >= 0 ? currentIndex : initialReelIndex;
   }, [activeProductId, initialReelIndex, reelItems]);
+  // Interleave native-ad pages into the detail pager (same pattern as Reels).
+  // When ads are disabled, insertReelsAdSlots returns a 1:1 content-only feed.
+  const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
+  const canShowDetailAds =
+    adsEnabled && adsReady && Boolean(nativeUnitIds.detail);
+  const feedItems = useMemo(
+    () =>
+      insertReelsAdSlots(reelItems, {
+        boundFirstGapToFeed: true,
+        enabled: canShowDetailAds,
+        random: seedAdRandomFromIds(reelItems.map((item) => item.id)),
+      }),
+    [canShowDetailAds, reelItems],
+  );
+  // Map the active organic product index to its position in the ad-interleaved
+  // feed, so the pager opens on the right page even when ad breaks precede it.
+  const activeDisplayIndex = useMemo(() => {
+    let organicCount = 0;
+    for (let i = 0; i < feedItems.length; i++) {
+      const entry = feedItems[i];
+      if (isReelsContentItem(entry)) {
+        if (organicCount === activeProductIndex) return i;
+        organicCount++;
+      }
+    }
+    return initialReelIndex;
+  }, [feedItems, activeProductIndex, initialReelIndex]);
+  const detailPagerKey = useMemo(
+    () => feedItems.map((entry) => entry.key).join("|"),
+    [feedItems],
+  );
+  const [activePagerIndex, setActivePagerIndex] = useState(activeDisplayIndex);
+  const [isOnAdPage, setIsOnAdPage] = useState(false);
   const [canonicalAlignedRouteId, setCanonicalAlignedRouteId] = useState<
     string | null
   >(null);
-  const activeGroupBuy = reelItems[activeProductIndex] ?? groupBuy;
+  const feedItemsRef = useRef(feedItems);
+  const activePagerIndexRef = useRef(activePagerIndex);
+  feedItemsRef.current = feedItems;
+  activePagerIndexRef.current = activePagerIndex;
+  const handleDetailAdLoadStateChange = useCallback(
+    (status: NativeAdLoadStatus) => {
+      if (status !== "unavailable") return;
+
+      const currentFeed = feedItemsRef.current;
+      const selectedIndex = activePagerIndexRef.current;
+      const selectedEntry = currentFeed[selectedIndex];
+      if (selectedEntry && !isReelsContentItem(selectedEntry)) {
+        const nextEntry = currentFeed
+          .slice(selectedIndex + 1)
+          .find(isReelsContentItem);
+        const fallbackEntry = [...currentFeed.slice(0, selectedIndex)]
+          .reverse()
+          .find(isReelsContentItem);
+        const recoveryEntry = nextEntry ?? fallbackEntry;
+        if (recoveryEntry) setActiveProductId(recoveryEntry.content.id);
+        setIsOnAdPage(false);
+      }
+    },
+    [],
+  );
+  // No product is "active" while the user rests on a sponsored page, so
+  // playback tracking and deep-view timers pause until they swipe back.
+  const activeGroupBuy = isOnAdPage
+    ? groupBuy
+    : (reelItems[activeProductIndex] ?? groupBuy);
   const hasCanonicalRouteGroupBuy = Boolean(
     groupBuys?.some((item) => item.id === groupBuy.id),
   );
@@ -2300,7 +2600,11 @@ function DetailScreenContent({
       .slice(0, 30);
   }, [groupBuy, searchItems, debouncedQuery]);
   useEffect(() => {
-    if (canonicalAlignedRouteId !== groupBuy.id || !hasCanonicalActiveGroupBuy)
+    if (
+      isOnAdPage ||
+      canonicalAlignedRouteId !== groupBuy.id ||
+      !hasCanonicalActiveGroupBuy
+    )
       return;
     recordView(activeGroupBuy);
   }, [
@@ -2308,14 +2612,12 @@ function DetailScreenContent({
     canonicalAlignedRouteId,
     groupBuy.id,
     hasCanonicalActiveGroupBuy,
+    isOnAdPage,
     recordView,
   ]);
   useEffect(() => {
     setActivePlayerPlaying(false);
-  }, [
-    activeGroupBuy.id,
-    isPlaybackActive,
-  ]);
+  }, [activeGroupBuy.id, isPlaybackActive]);
   // ── Deep view tracking: count a view only after 30s of continuous watch ──
   const deepViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackEligibleRef = useRef(false);
@@ -2424,16 +2726,36 @@ function DetailScreenContent({
   }, [activeProductIndex]);
 
   useEffect(() => {
-    if (!hasCanonicalRouteGroupBuy) return;
-    setActiveProductId(groupBuy.id);
-    verticalPagerRef.current?.setPageWithoutAnimation?.(initialReelIndex);
+    if (!hasCanonicalRouteGroupBuy || canonicalAlignedRouteId === groupBuy.id) {
+      return;
+    }
+    if (!hasDepartedRouteRef.current) {
+      const routeDisplayIndex = feedItems.findIndex(
+        (entry) =>
+          isReelsContentItem(entry) && entry.content.id === groupBuy.id,
+      );
+      if (routeDisplayIndex < 0) return;
+      setActiveProductId(groupBuy.id);
+      setActivePagerIndex(routeDisplayIndex);
+      setIsOnAdPage(false);
+      verticalPagerRef.current?.setPageWithoutAnimation?.(routeDisplayIndex);
+    }
     setCanonicalAlignedRouteId(groupBuy.id);
   }, [
+    canonicalAlignedRouteId,
+    feedItems,
     groupBuy.id,
     hasCanonicalRouteGroupBuy,
-    initialReelIndex,
-    reelItems.length,
   ]);
+
+  useEffect(() => {
+    const selectedEntry = feedItems[activePagerIndex];
+    if (isOnAdPage && selectedEntry && !isReelsContentItem(selectedEntry)) {
+      return;
+    }
+    setIsOnAdPage(false);
+    setActivePagerIndex(activeDisplayIndex);
+  }, [activeDisplayIndex, activePagerIndex, feedItems, isOnAdPage]);
 
   const handleSelectSearchResult = useCallback(
     (item: GroupBuy) => {
@@ -2442,13 +2764,28 @@ function DetailScreenContent({
       setSearchQuery("");
       setSummarySheetGate({ isOpen: false, canSwipeReel: true });
       if (nextIndex >= 0) {
+        if (item.id !== groupBuy.id) hasDepartedRouteRef.current = true;
         setActiveProductId(item.id);
-        verticalPagerRef.current?.setPage?.(nextIndex);
+        const nextDisplayIndex = feedItems.findIndex(
+          (entry) => isReelsContentItem(entry) && entry.content.id === item.id,
+        );
+        const targetDisplayIndex =
+          nextDisplayIndex >= 0 ? nextDisplayIndex : activeDisplayIndex;
+        setActivePagerIndex(targetDisplayIndex);
+        setIsOnAdPage(false);
+        verticalPagerRef.current?.setPage?.(targetDisplayIndex);
         return;
       }
       navigation.push("Detail", { groupBuy: item });
     },
-    [navigation, reelItems, resetSearchSheetClosed],
+    [
+      navigation,
+      reelItems,
+      feedItems,
+      activeDisplayIndex,
+      groupBuy.id,
+      resetSearchSheetClosed,
+    ],
   );
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
@@ -2457,10 +2794,11 @@ function DetailScreenContent({
       <ProductReelPage
         key={item.id}
         groupBuy={item}
-        isActive={isScreenFocused && index === activeProductIndex}
+        isActive={
+          isScreenFocused && index === activeProductIndex && !isOnAdPage
+        }
         playbackAllowed={
-          isPlaybackActive &&
-          index === activeProductIndex
+          isPlaybackActive && index === activeProductIndex && !isOnAdPage
         }
         isSearchSheetVisible={isSearchSheetVisible}
         searchSheetMetrics={searchSheetMetrics}
@@ -2471,6 +2809,7 @@ function DetailScreenContent({
         topInset={insets.top}
         bottomInset={insets.bottom}
         onBack={handleBack}
+        showDetailAd
         onCloseSearchSheet={closeSearchSheet}
         onPlaybackStateChange={handlePlaybackStateChange}
         onSummarySheetStateChange={handleSummarySheetStateChange}
@@ -2485,6 +2824,7 @@ function DetailScreenContent({
       handleBack,
       insets.bottom,
       insets.top,
+      isOnAdPage,
       isPlaybackActive,
       isSearchSheetVisible,
       navigation,
@@ -2499,11 +2839,26 @@ function DetailScreenContent({
     <View style={s.safeArea}>
       <StatusBar barStyle="light-content" />
       <PagerView
+        key={detailPagerKey}
         ref={verticalPagerRef}
-        initialPage={initialReelIndex}
+        initialPage={activeDisplayIndex}
         offscreenPageLimit={1}
         onPageSelected={(event) => {
-          const nextIndex = event.nativeEvent.position;
+          const nextDisplay = event.nativeEvent.position;
+          setActivePagerIndex(nextDisplay);
+          const entry = feedItems[nextDisplay];
+          if (
+            entry &&
+            (!isReelsContentItem(entry) || entry.content.id !== groupBuy.id)
+          ) {
+            hasDepartedRouteRef.current = true;
+          }
+          if (entry && !isReelsContentItem(entry)) {
+            setIsOnAdPage(true);
+            return;
+          }
+          setIsOnAdPage(false);
+          const nextIndex = entry ? reelItems.indexOf(entry.content) : -1;
           if (
             nextIndex !== activeProductIndex &&
             nextIndex >= 0 &&
@@ -2516,26 +2871,64 @@ function DetailScreenContent({
         overdrag
         scrollEnabled={
           screenHeight > 0 &&
-          reelItems.length > 1 &&
+          feedItems.length > 1 &&
           !summarySheetGate.isOpen &&
           !isSearchSheetVisible
         }
         style={s.verticalPager}
       >
-        {reelItems.map((item, index) => (
-          <View
-            key={item.id}
-            collapsable={false}
-            style={[
-              s.verticalPagerPage,
-              {
-                height: screenHeight,
-              },
-            ]}
-          >
-            {renderReelItem({ item, index })}
-          </View>
-        ))}
+        {feedItems.map((entry, index) => {
+          if (!isReelsContentItem(entry)) {
+            return (
+              <View
+                key={entry.key}
+                collapsable={false}
+                style={[s.verticalPagerPage, { height: screenHeight }]}
+              >
+                <View style={s.reelAdPage}>
+                  <View
+                    accessibilityLiveRegion="polite"
+                    style={s.reelAdLoading}
+                  >
+                    <SText variant="caption" style={s.reelAdLoadingLabel}>
+                      광고
+                    </SText>
+                    <SText variant="body" style={s.reelAdLoadingText}>
+                      광고를 불러오는 중이에요
+                    </SText>
+                  </View>
+                  <NativeAdCard
+                    loadEnabled={Math.abs(index - activePagerIndex) <= 1}
+                    onLoadStateChange={handleDetailAdLoadStateChange}
+                    placement="detail"
+                    reelBottomInset={
+                      insets.bottom + DETAIL_SEARCH_CHROME_OFFSET
+                    }
+                    testID={`detail-native-ad-${entry.sequence}`}
+                    variant="reel"
+                    visible={index === activePagerIndex}
+                  />
+                </View>
+              </View>
+            );
+          }
+          const item = entry.content;
+          const organicIndex = reelItems.indexOf(item);
+          return (
+            <View
+              key={entry.key}
+              collapsable={false}
+              style={[
+                s.verticalPagerPage,
+                {
+                  height: screenHeight,
+                },
+              ]}
+            >
+              {renderReelItem({ item, index: organicIndex })}
+            </View>
+          );
+        })}
       </PagerView>
       {!summarySheetGate.isOpen && !isSearchSheetVisible ? (
         <DetailSearchDock
@@ -2577,6 +2970,31 @@ export function makeStyles(
     verticalPagerPage: {
       backgroundColor: "#05070A",
       width: "100%",
+    },
+    reelAdPage: {
+      backgroundColor: "#05070A",
+      flex: 1,
+    },
+    reelAdLoading: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    reelAdLoadingLabel: {
+      backgroundColor: "rgba(255,255,255,0.12)",
+      borderRadius: 4,
+      color: "rgba(255,255,255,0.72)",
+      fontSize: 12,
+      fontWeight: "700",
+      marginBottom: 12,
+      overflow: "hidden",
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    reelAdLoadingText: {
+      color: "rgba(255,255,255,0.72)",
+      fontSize: 14,
+      fontWeight: "500",
     },
     detailSearchDock: {
       bottom: 0,
@@ -2706,8 +3124,25 @@ export function makeStyles(
     },
     detailSearchResultMeta: {
       color: "rgba(255,255,255,0.56)",
+      flexShrink: 1,
       fontSize: 12,
       fontWeight: "700",
+    },
+    detailSearchResultMetaRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: spacing.xs,
+      minWidth: 0,
+    },
+    detailSearchInstagram: {
+      flexShrink: 1,
+      maxWidth: "45%",
+    },
+    detailSearchInstagramText: {
+      color: "rgba(255,255,255,0.66)",
+      fontSize: 12,
+      fontWeight: "700",
+      lineHeight: 16,
     },
     detailSearchEmpty: {
       alignItems: "center",
@@ -2849,29 +3284,12 @@ export function makeStyles(
       flexDirection: "row",
       justifyContent: "space-between",
       left: 0,
-      paddingHorizontal: spacing.lg,
       position: "absolute",
       right: 0,
       top: 0,
     },
-    topIconButton: {
-      alignItems: "center",
-      height: 44,
-      justifyContent: "center",
-      width: 44,
-    },
-    reelsTitleRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: spacing.xl,
-    },
-    reelsTitle: {
-      color: "#FFFFFF",
-      fontSize: 20,
-      fontWeight: "800",
-      textShadowColor: "rgba(0,0,0,0.36)",
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 4,
+    reelHeader: {
+      flex: 1,
     },
     mediaDots: {
       alignItems: "center",
@@ -3027,13 +3445,14 @@ export function makeStyles(
       fontWeight: "900",
     },
     sellerName: {
-      color: "#FFFFFF",
-      flexShrink: 1,
       fontSize: 16,
       fontWeight: "800",
       textShadowColor: "rgba(0,0,0,0.42)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
+    },
+    sellerIdentity: {
+      flex: 1,
     },
     followTargetRow: {
       flexDirection: "row",
@@ -3192,7 +3611,6 @@ export function makeStyles(
       minWidth: 0,
     },
     summarySheetSellerName: {
-      color: "#FFFFFF",
       fontSize: 15,
       fontWeight: "700",
     },
@@ -3236,6 +3654,9 @@ export function makeStyles(
       fontWeight: "500",
       lineHeight: 22,
       paddingBottom: spacing.xl,
+    },
+    summarySheetAd: {
+      paddingBottom: spacing.lg,
     },
     pressed: { opacity: 0.72 },
   });

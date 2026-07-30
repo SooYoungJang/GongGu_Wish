@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   fromNotificationPreferenceColumns,
+  resolveAuthUserProfileEmail,
   toNotificationPreferenceColumns,
   validatePushRegistrationInput,
 } from "./contract.ts";
@@ -78,7 +79,7 @@ async function registerToken(req: Request) {
   const { data: existing, error: lookupError } = await supabase
     .from("users")
     .select(
-      "id, push_token, push_enabled, deadline_reminders_enabled, new_submissions_enabled, notification_reminder_days, followed_influencers, followed_brands",
+      "id, push_token, push_enabled, deadline_reminders_enabled, new_submissions_enabled, submission_approval_notifications_enabled, notification_reminder_days, followed_influencers, followed_brands",
     )
     .eq("id", authData.user.id)
     .maybeSingle();
@@ -111,6 +112,7 @@ async function registerToken(req: Request) {
     ? { push_token: null, push_provider: null }
     : {};
 
+  let profileEmailSource: string | null = null;
   if (existing) {
     const { error } = await supabase
       .from("users")
@@ -122,12 +124,11 @@ async function registerToken(req: Request) {
       .eq("id", authData.user.id);
     if (error) throw new Error(error.message);
   } else {
-    if (!authData.user.email) {
-      return json({ error: "사용자 이메일을 확인할 수 없습니다." }, 400);
-    }
+    const profileEmail = resolveAuthUserProfileEmail(authData.user);
+    profileEmailSource = profileEmail.source;
     const { error } = await supabase.from("users").insert({
       id: authData.user.id,
-      email: authData.user.email,
+      email: profileEmail.email,
       ...toNotificationPreferenceColumns(
         input.preferences ?? DEFAULT_NOTIFICATION_PREFERENCES,
       ),
@@ -155,11 +156,14 @@ async function registerToken(req: Request) {
     tokenClaimed = true;
   }
 
-  console.info(JSON.stringify({
-    event: "push_registration_updated",
-    preferencesSynced: Boolean(input.preferences),
-    tokenAction: input.tokenAction,
-  }));
+  console.info(
+    JSON.stringify({
+      event: "push_registration_updated",
+      preferencesSynced: Boolean(input.preferences),
+      tokenAction: input.tokenAction,
+      profileEmailSource,
+    }),
+  );
   return json({
     data: {
       preferencesSynced: Boolean(input.preferences),

@@ -20,10 +20,24 @@ vi.mock("react-native", () => {
   };
 });
 
+vi.mock("@expo/vector-icons", () => ({
+  Ionicons: (props: Record<string, unknown>) => {
+    const ReactMock = require("react");
+    return ReactMock.createElement("Ionicons", props);
+  },
+}));
+
 vi.mock("./ui/SText", () => ({
   SText: ({ children, ...props }: { children?: React.ReactNode }) => {
     const ReactMock = require("react");
     return ReactMock.createElement("SText", props, children);
+  },
+}));
+
+vi.mock("./GroupBuyReminderButton", () => ({
+  GroupBuyReminderButton: (props: unknown) => {
+    const ReactMock = require("react");
+    return ReactMock.createElement("GroupBuyReminderButton", props);
   },
 }));
 
@@ -86,9 +100,7 @@ describe("DealCard", () => {
         { ...item, endDate: "2026-07-20T00:00:00.000Z" },
         Date.parse("2026-07-17T00:00:00.000Z"),
       ),
-    ).toBe(
-      "제주 감귤 3kg, 가격 25,900원, 판매자 귤밭상회 @sample, 3일 남음, 상세 보기",
-    );
+    ).toBe("제주 감귤 3kg, 가격 25,900원, 판매자 @sample, 3일 남음, 상세 보기");
   });
 
   it("announces a previous-day deadline as expired instead of today", () => {
@@ -133,6 +145,103 @@ describe("DealCard", () => {
       "Pressable" as unknown as React.ElementType,
     );
     expect(card.props.accessibilityLabel).toContain("가격 25,900원");
-    expect(card.props.accessibilityLabel).toContain("판매자 귤밭상회 @sample");
+    expect(card.props.accessibilityLabel).toContain("판매자 @sample");
+    expect(
+      renderer!.root.findByType(
+        "GroupBuyReminderButton" as unknown as React.ElementType,
+      ).props.item,
+    ).toEqual(item);
+  });
+
+  it("shows only the Instagram handle in the seller slot", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DealCard
+          item={{ ...item, thumbnailUrl: "https://example.com/deal.jpg" }}
+          category="food"
+          onPress={vi.fn()}
+        />,
+      );
+    });
+
+    const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
+    expect(text).toContain("@sample");
+    expect(text).not.toContain("귤밭상회");
+    expect(text).not.toContain("식품");
+    expect(renderer!.root.findByProps({ testID: "deal-card-instagram-icon" }).props)
+      .toMatchObject({ accessible: false, name: "logo-instagram" });
+  });
+
+  it("keeps an empty seller slot when the Instagram account is missing", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DealCard
+          item={{
+            ...item,
+            thumbnailUrl: "https://example.com/deal.jpg",
+            rawPost: {
+              ...item.rawPost,
+              influencer: {
+                ...item.rawPost.influencer,
+                instagramUsername: "",
+              },
+            },
+          }}
+          category="food"
+          onPress={vi.fn()}
+        />,
+      );
+    });
+
+    const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
+    const sellerSlot = renderer!.root.findByProps({
+      testID: "deal-card-instagram-slot",
+    });
+
+    expect(text).not.toContain("귤밭상회");
+    expect(text).not.toContain("식품");
+    expect(sellerSlot.props.style).toMatchObject({ minHeight: 18 });
+  });
+
+  it("isolates a trailing action from the parent card navigation", () => {
+    const onPress = vi.fn();
+    const onActionPress = vi.fn();
+    const stopPropagation = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DealCard
+          item={item}
+          category="food"
+          onPress={onPress}
+          trailingAction={{
+            accessibilityHint: "북마크 목록에서 제거합니다.",
+            accessibilityLabel: "제주 감귤 3kg 북마크 해제",
+            icon: React.createElement("BookmarkIcon"),
+            onPress: onActionPress,
+            selected: true,
+            testID: "deal-card-bookmark-action",
+          }}
+        />,
+      );
+    });
+
+    const action = renderer!.root.findByProps({
+      testID: "deal-card-bookmark-action",
+    });
+    expect(action.props.accessibilityRole).toBe("button");
+    expect(action.props.accessibilityState).toEqual({ selected: true });
+    expect(action.props.hitSlop).toBe(6);
+
+    act(() => action.props.onPress({ stopPropagation }));
+
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(onActionPress).toHaveBeenCalledOnce();
+    expect(onPress).not.toHaveBeenCalled();
   });
 });

@@ -39,4 +39,22 @@ describe("createGoogleMobileAdsModuleLoader", () => {
 
     await expect(loadModule()).resolves.toBeNull();
   });
+
+  it("retries after a transient import failure so every ad placement can recover", async () => {
+    const module = { NativeAd: {} };
+    const importModule = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("native module not ready during startup"),
+      )
+      .mockResolvedValueOnce(module);
+    const loadModule = createGoogleMobileAdsModuleLoader({
+      importModule,
+      isExpoGo: false,
+    });
+
+    await expect(loadModule()).resolves.toBeNull();
+    await expect(loadModule()).resolves.toBe(module);
+    expect(importModule).toHaveBeenCalledTimes(2);
+  });
 });

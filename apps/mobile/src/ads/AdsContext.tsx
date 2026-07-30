@@ -1,5 +1,6 @@
 import { createContext, type PropsWithChildren, useContext } from "react";
 
+import type { AudiencePolicy } from "../audience/audiencePolicy";
 import type { AdsContextValue } from "./AdsContext.types";
 
 export type { AdsContextValue } from "./AdsContext.types";
@@ -10,14 +11,20 @@ export const disabledAds: AdsContextValue = {
   enabled: false,
   isReady: false,
   isSettled: true,
-  homeNativeUnitId: null,
+  nativeUnitIds: { detail: null, home: null, reels: null },
   privacyOptionsRequired: false,
   showPrivacyOptions: showNoPrivacyOptions,
 };
 
 export const AdsContext = createContext<AdsContextValue>(disabledAds);
 
-export function AdsProvider({ children }: PropsWithChildren) {
+export function AdsProvider({
+  children,
+}: PropsWithChildren<{
+  adAccessResolved?: boolean;
+  adsRemoved?: boolean;
+  audiencePolicy: AudiencePolicy;
+}>) {
   return (
     <AdsContext.Provider value={disabledAds}>{children}</AdsContext.Provider>
   );

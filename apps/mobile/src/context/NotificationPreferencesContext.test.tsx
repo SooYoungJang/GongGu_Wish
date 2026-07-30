@@ -38,7 +38,7 @@ describe("NotificationPreferencesProvider", () => {
         preferences: {
           pushEnabled: true,
           deadlineRemindersEnabled: true,
-          newSubmissionsEnabled: true,
+          submissionApprovalEnabled: true,
           reminderDays: [1, 3, 7],
           followedInfluencers: [],
           followedBrands: [],
@@ -53,7 +53,7 @@ describe("NotificationPreferencesProvider", () => {
         preferences: {
           pushEnabled: false,
           deadlineRemindersEnabled: true,
-          newSubmissionsEnabled: false,
+          submissionApprovalEnabled: false,
           reminderDays: [3],
           followedInfluencers: ["server.seller"],
           followedBrands: [],
@@ -92,7 +92,7 @@ describe("NotificationPreferencesProvider", () => {
     const local = {
       pushEnabled: true,
       deadlineRemindersEnabled: true,
-      newSubmissionsEnabled: true,
+      submissionApprovalEnabled: true,
       reminderDays: [1, 3, 7],
       followedInfluencers: [],
       followedBrands: [],

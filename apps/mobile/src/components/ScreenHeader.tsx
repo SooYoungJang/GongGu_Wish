@@ -8,7 +8,7 @@ import { useCommerceTheme } from '../design/useCommerceTheme';
 
 type ScreenHeaderProps = {
   eyebrow?: string;
-  title: string;
+  title: React.ReactNode;
   subtitle?: string;
   right?: React.ReactNode;
   children?: React.ReactNode;
@@ -27,7 +27,11 @@ export function ScreenHeader({ eyebrow, title, subtitle, right, children }: Scre
               <SText variant="caption" style={s.eyebrowText}>{eyebrow}</SText>
             </View>
           ) : null}
-          <SText variant="cardTitle" style={s.title}>{title}</SText>
+          {typeof title === 'string' ? (
+            <SText variant="cardTitle" style={s.title}>{title}</SText>
+          ) : (
+            title
+          )}
         </View>
         {right ? <View style={s.right}>{right}</View> : null}
       </View>

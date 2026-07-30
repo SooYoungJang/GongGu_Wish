@@ -273,6 +273,14 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
         mediaUrls: hikerData?.mediaUrls ?? [],
         mediaItems: hikerData?.mediaItems ?? [],
         mediaType: hikerData?.mediaType ?? undefined,
+        ...(hikerData?.postAudioUrl !== undefined &&
+        hikerData.postAudioLookupStatus !== 'RETRYABLE'
+          ? {
+              postAudioUrl: hikerData.postAudioUrl,
+              postAudioStartTimeMs: hikerData.postAudioStartTimeMs ?? null,
+              postAudioDurationMs: hikerData.postAudioDurationMs ?? null,
+            }
+          : {}),
         summary: summary.trim() || undefined,
         isAnonymous: true,
       });

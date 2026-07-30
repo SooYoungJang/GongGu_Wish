@@ -18,7 +18,8 @@ function createMockState() {
     id: "submission-live-preview",
     productName: "대기중 라이브 프리뷰 위시",
     brandName: "프리뷰 브랜드",
-    category: "living",
+    instagramUsername: "preview_shop",
+    category: "beauty",
     startDate: "2020-07-10T00:00:00.000Z",
     endDate: "2099-12-31T00:00:00.000Z",
     purchaseUrl: "https://example.test/submission",
@@ -55,7 +56,8 @@ function createMockState() {
     id: "group-buy-live-preview",
     productName: "승인된 모바일 라이브 프리뷰 공구",
     brandName: "프리뷰 브랜드",
-    category: "living",
+    instagramUsername: "preview_shop",
+    category: "beauty",
     startDate: "2020-07-10T00:00:00.000Z",
     endDate: "2099-12-31T00:00:00.000Z",
     purchaseUrl: "https://example.test/group-buy",
@@ -115,7 +117,7 @@ function dashboard(state: MockState) {
     pendingQueue: [state.submission],
     recentUsers: [],
     recentGroupBuys: [state.groupBuy],
-    categoryDistribution: { living: 1 },
+    categoryDistribution: { beauty: 1 },
   };
 }
 
@@ -353,6 +355,9 @@ test("모킹된 관리자 로그인으로 라이브 프리뷰와 중앙 날짜 �
   await expect(
     preview.locator(".app-live-preview__home-banner-price-value"),
   ).toHaveCSS("font-weight", "900");
+  await expect(
+    preview.locator(".app-live-preview__home-banner-account"),
+  ).toHaveText("@preview_shop");
   await preview.locator(".app-live-preview__home-banner").screenshot({
     path: resolve(evidenceDir, `${evidencePrefix}-home-banner.png`),
   });
@@ -366,7 +371,7 @@ test("모킹된 관리자 로그인으로 라이브 프리뷰와 중앙 날짜 �
   ).toContainText("배송비 무료");
   await expect(
     preview.locator(".app-live-preview__deal-card-brand"),
-  ).toHaveText("프리뷰 브랜드");
+  ).toHaveText("@preview_shop");
   await expect(
     preview.locator(".app-live-preview__deal-card-price"),
   ).toHaveText("가격 12,900원");
@@ -391,6 +396,12 @@ test("모킹된 관리자 로그인으로 라이브 프리뷰와 중앙 날짜 �
 
   await preview.getByRole("tab", { name: "상세 화면" }).click();
   await expect(preview.getByRole("tabpanel")).toContainText("12,900원");
+  await expect(preview.getByRole("tabpanel")).toContainText("@preview_shop");
+  await expect(preview.getByRole("tabpanel")).toContainText("뷰티");
+  await expect(preview.getByRole("tabpanel")).not.toContainText("beauty");
+  await preview.locator(".app-live-preview__detail").screenshot({
+    path: resolve(evidenceDir, `${evidencePrefix}-detail.png`),
+  });
 
   await submissionDetail.getByLabel("가격 (원)").fill("15900");
   await expect(submissionDetail.getByLabel("비디오 URL")).toHaveCount(0);

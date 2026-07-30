@@ -1,6 +1,10 @@
 const videoMock = vi.hoisted(() => ({
   players: [] as any[],
 }));
+const audioMock = vi.hoisted(() => ({
+  players: [] as any[],
+  setAudioModeAsync: vi.fn(async () => undefined),
+}));
 const appStateMock = vi.hoisted(() => ({
   currentState: "active",
   listener: null as null | ((nextState: string) => void),
@@ -25,6 +29,7 @@ const hardwareBackMock = vi.hoisted(() => ({
 }));
 const platformMock = vi.hoisted(() => ({ os: "ios" }));
 const logDeepViewMock = vi.hoisted(() => vi.fn());
+const refreshGroupBuyMediaMock = vi.hoisted(() => vi.fn());
 const queryMock = vi.hoisted(() => ({
   groupBuys: undefined as any,
   linkedGroupBuy: undefined as any,
@@ -44,11 +49,14 @@ const authGateMock = vi.hoisted(() => ({
   isAuthenticated: true,
   requireAuth: vi.fn(() => true),
 }));
+const reminderPickerMock = vi.hoisted(() => ({
+  openReminderPicker: vi.fn(),
+}));
 const notificationPreferencesMock = vi.hoisted(() => ({
   preferences: {
     pushEnabled: true,
     deadlineRemindersEnabled: true,
-    newSubmissionsEnabled: true,
+    submissionApprovalEnabled: true,
     reminderDays: [1, 3, 7],
     followedInfluencers: [] as string[],
     followedBrands: [] as string[],
@@ -56,6 +64,28 @@ const notificationPreferencesMock = vi.hoisted(() => ({
   toggleInfluencer: vi.fn(),
   toggleBrand: vi.fn(),
 }));
+const adsMock = vi.hoisted(() => ({
+  enabled: false,
+  isReady: false,
+  isSettled: true,
+  nativeUnitIds: {
+    detail: null as string | null,
+    home: null as string | null,
+    reels: null as string | null,
+  },
+  privacyOptionsRequired: false,
+  showPrivacyOptions: vi.fn(async () => false),
+}));
+vi.mock("../ads/AdsContext", () => ({
+  useAds: () => adsMock,
+}));
+vi.mock("../components/ads/NativeAdCard", () => {
+  const ReactMock = require("react");
+  return {
+    NativeAdCard: (props: Record<string, unknown>) =>
+      adsMock.enabled ? ReactMock.createElement("NativeAdCard", props) : null,
+  };
+});
 vi.mock("../context/NotificationPreferencesContext", () => ({
   useNotificationPreferences: () => ({
     preferences: notificationPreferencesMock.preferences,
@@ -66,6 +96,9 @@ vi.mock("../context/NotificationPreferencesContext", () => ({
     toggleInfluencer: notificationPreferencesMock.toggleInfluencer,
     toggleBrand: notificationPreferencesMock.toggleBrand,
   }),
+}));
+vi.mock("../context/GroupBuyReminderPickerContext", () => ({
+  useGroupBuyReminderPicker: () => reminderPickerMock,
 }));
 vi.mock("../hooks/useLocalDeals", () => ({
   useBookmarks: () => ({
@@ -154,6 +187,53 @@ vi.mock("expo-video", () => ({
   },
 }));
 
+vi.mock("expo-audio", () => ({
+  setAudioModeAsync: audioMock.setAudioModeAsync,
+  useAudioPlayer: (source: any, options?: any) => {
+    const ReactMock = require("react");
+    const playerRef = ReactMock.useRef(null as any);
+    if (!playerRef.current) {
+      const player = {
+        source,
+        options,
+        loop: false,
+        muted: false,
+        volume: 1,
+        play: vi.fn(),
+        pause: vi.fn(),
+        seekTo: vi.fn(async () => undefined),
+        currentStatus: {
+          id: `audio-${audioMock.players.length + 1}`,
+          currentTime: 0,
+          duration: 120,
+          error: null,
+          isBuffering: false,
+          isLoaded: Boolean(source),
+          playbackState: source ? "ready" : "idle",
+          playing: false,
+        },
+      };
+      player.play.mockImplementation(() => {
+        player.currentStatus.playing = true;
+      });
+      player.pause.mockImplementation(() => {
+        player.currentStatus.playing = false;
+      });
+      audioMock.players.push(player);
+      playerRef.current = player;
+    } else if (playerRef.current.source !== source) {
+      playerRef.current.source = source;
+      playerRef.current.currentStatus.currentTime = 0;
+      playerRef.current.currentStatus.isLoaded = Boolean(source);
+      playerRef.current.currentStatus.playbackState = source ? "ready" : "idle";
+      playerRef.current.currentStatus.playing = false;
+    }
+    playerRef.current.options = options;
+    return playerRef.current;
+  },
+  useAudioPlayerStatus: (player: any) => player.currentStatus,
+}));
+
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey?: unknown[] }) =>
     options.queryKey?.[0] === "group-buy"
@@ -177,6 +257,7 @@ vi.mock("../api", () => ({
   fetchGroupBuyById: vi.fn(),
   fetchGroupBuys: vi.fn(),
   logDeepView: logDeepViewMock,
+  refreshGroupBuyMedia: refreshGroupBuyMediaMock,
 }));
 
 vi.mock("@shopify/flash-list", () => {
@@ -229,7 +310,7 @@ vi.mock("react-native-pager-view", () => {
 });
 
 import React, { type ReactNode } from "react";
-import { Alert, Animated, Linking } from "react-native";
+import { Alert, Animated, Linking, Share } from "react-native";
 import { withTiming } from "react-native-reanimated";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -499,9 +580,7 @@ function expectPreparedSummarySheetClosed(
   });
   expect(overlay.props.pointerEvents).toBe("none");
   expect(overlay.props.accessibilityElementsHidden).toBe(true);
-  expect(overlay.props.importantForAccessibility).toBe(
-    "no-hide-descendants",
-  );
+  expect(overlay.props.importantForAccessibility).toBe("no-hide-descendants");
   expect(
     renderer.root.findAllByProps({
       testID: "reels-summary-sheet-backdrop",
@@ -629,18 +708,30 @@ beforeEach(() => {
   platformMock.os = "ios";
   logDeepViewMock.mockReset();
   logDeepViewMock.mockResolvedValue(undefined);
+  refreshGroupBuyMediaMock.mockReset();
+  refreshGroupBuyMediaMock.mockRejectedValue(new Error("refresh unavailable"));
   videoMock.players = [];
+  audioMock.players = [];
+  audioMock.setAudioModeAsync.mockClear();
   queryMock.groupBuys = undefined;
   queryMock.linkedGroupBuy = undefined;
   queryMock.linkedIsError = false;
   queryMock.linkedIsFetching = false;
   queryMock.linkedRefetch.mockReset();
+  adsMock.enabled = false;
+  adsMock.isReady = false;
+  adsMock.isSettled = true;
+  adsMock.nativeUnitIds.detail = null;
+  adsMock.nativeUnitIds.home = null;
+  adsMock.nativeUnitIds.reels = null;
+  adsMock.showPrivacyOptions.mockClear();
   recentViewsMock.recordView.mockReset();
   localDealActionMocks.toggleBookmark.mockReset();
   localDealActionMocks.retryNotification.mockReset();
   localDealActionMocks.toggleNotification.mockReset();
   authGateMock.isAuthenticated = true;
   authGateMock.requireAuth.mockReset().mockReturnValue(true);
+  reminderPickerMock.openReminderPicker.mockReset();
   notificationPreferencesMock.preferences.followedInfluencers = [];
   notificationPreferencesMock.preferences.followedBrands = [];
   notificationPreferencesMock.toggleInfluencer.mockReset();
@@ -650,6 +741,7 @@ beforeEach(() => {
   pagerViewMock.setPageWithoutAnimation.mockClear();
   (Alert.alert as any).mockClear();
   (Linking.openURL as any).mockClear();
+  (Share.share as any).mockClear();
   (Animated.timing as any).mockClear();
   (Animated.spring as any).mockClear();
 });
@@ -659,16 +751,79 @@ describe("DetailScreen", () => {
     expect((ProductReelPage as any).$$typeof).toBe(Symbol.for("react.memo"));
   });
 
+  it("shows the Instagram handle and a Korean category label on reel details", () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      category: "beauty",
+      rawPost: {
+        ...baseGroupBuy.rawPost,
+        influencer: { instagramUsername: "@hanssang_home" },
+      },
+    };
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const text = flattenText(renderer!.toJSON());
+    expect(text).toContain("@hanssang_home");
+    expect(
+      renderer!.root.findByProps({
+        testID: `detail-reel-instagram-icon-${groupBuy.id}`,
+      }).props,
+    ).toMatchObject({ accessible: false, name: "logo-instagram" });
+    expect(text).toContain("뷰티");
+    expect(text).not.toContain("beauty");
+  });
+
+  it("omits an unknown Instagram account from the detail and share text", async () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      rawPost: {
+        ...baseGroupBuy.rawPost,
+        influencer: { instagramUsername: "unknown" },
+      },
+    };
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    expect(flattenText(renderer!.toJSON())).not.toContain("@unknown");
+    await act(async () => {
+      renderer!.root
+        .findByProps({ accessibilityLabel: "공유" })
+        .props.onPress();
+    });
+    expect(Share.share).toHaveBeenCalledWith({
+      message: "퍼스트 바이크\nhttps://example.com/buy",
+    });
+  });
+
   it("connects influencer and brand follow controls to notification preferences", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
         <DetailScreen
-          route={{
-            key: "Detail",
-            name: "Detail",
-            params: { groupBuy: baseGroupBuy },
-          } as any}
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
           navigation={{ addListener: vi.fn(() => () => {}) } as any}
         />,
       );
@@ -702,11 +857,13 @@ describe("DetailScreen", () => {
     act(() => {
       renderer = TestRenderer.create(
         <DetailScreen
-          route={{
-            key: "Detail",
-            name: "Detail",
-            params: { groupBuy: baseGroupBuy },
-          } as any}
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
           navigation={{ addListener: vi.fn(() => () => {}) } as any}
         />,
       );
@@ -727,6 +884,7 @@ describe("DetailScreen", () => {
     expect(authGateMock.requireAuth).toHaveBeenCalledTimes(4);
     expect(localDealActionMocks.toggleBookmark).not.toHaveBeenCalled();
     expect(localDealActionMocks.toggleNotification).not.toHaveBeenCalled();
+    expect(reminderPickerMock.openReminderPicker).not.toHaveBeenCalled();
     expect(notificationPreferencesMock.toggleInfluencer).not.toHaveBeenCalled();
     expect(notificationPreferencesMock.toggleBrand).not.toHaveBeenCalled();
   });
@@ -737,11 +895,13 @@ describe("DetailScreen", () => {
     act(() => {
       renderer = TestRenderer.create(
         <DetailScreen
-          route={{
-            key: "Detail",
-            name: "Detail",
-            params: { groupBuyId: baseGroupBuy.id },
-          } as any}
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuyId: baseGroupBuy.id },
+            } as any
+          }
           navigation={{ addListener: vi.fn(() => () => {}) } as any}
         />,
       );
@@ -760,11 +920,13 @@ describe("DetailScreen", () => {
     act(() => {
       renderer = TestRenderer.create(
         <DetailScreen
-          route={{
-            key: "Detail",
-            name: "Detail",
-            params: { groupBuyId: "missing" },
-          } as any}
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuyId: "missing" },
+            } as any
+          }
           navigation={{ goBack: vi.fn() } as any}
         />,
       );
@@ -812,8 +974,9 @@ describe("DetailScreen", () => {
       );
     });
 
-    const canonicalPage = findProductReelPages(renderer!)
-      .find((node) => node.props.groupBuy.id === canonicalItem.id);
+    const canonicalPage = findProductReelPages(renderer!).find(
+      (node) => node.props.groupBuy.id === canonicalItem.id,
+    );
     expect(canonicalPage?.props.groupBuy).toMatchObject({
       id: canonicalItem.id,
       purchaseUrl: canonicalItem.purchaseUrl,
@@ -1186,7 +1349,157 @@ describe("DetailScreen", () => {
       verticalPager.props.onPageSelected({ nativeEvent: { position: 1 } });
     });
 
+    const activePage = findProductReelPages(renderer!).find(
+      (node) => node.props.isActive,
+    );
+    expect(activePage?.props.groupBuy.id).toBe(nextGroupBuy.id);
     expect(flattenText(renderer!.toJSON())).toContain("다음 공구");
+  });
+
+  it("does not snap back when a late query adds the route product", () => {
+    const nextGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: "late-query-next",
+      productName: "늦은 쿼리 다음 공구",
+    };
+    queryMock.groupBuys = [nextGroupBuy];
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    const detailElement = () => (
+      <DetailScreen
+        route={
+          {
+            key: "Detail",
+            name: "Detail",
+            params: { groupBuy: baseGroupBuy },
+          } as any
+        }
+        navigation={
+          { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+        }
+      />
+    );
+    act(() => {
+      renderer = TestRenderer.create(detailElement());
+    });
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 1 },
+      });
+    });
+
+    queryMock.groupBuys = [baseGroupBuy, nextGroupBuy];
+    act(() => {
+      renderer!.update(detailElement());
+    });
+
+    const activePage = findProductReelPages(renderer!).find(
+      (node) => node.props.isActive,
+    );
+    expect(activePage?.props.groupBuy.id).toBe(nextGroupBuy.id);
+    expect(pagerViewMock.setPageWithoutAnimation).not.toHaveBeenCalled();
+  });
+
+  it("shows the selected native ad page and recovers to the following product", () => {
+    const secondGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: "group-buy-2",
+      productName: "두 번째 공구",
+    };
+    const thirdGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: "candidate-3",
+      productName: "세 번째 공구",
+    };
+    queryMock.groupBuys = [baseGroupBuy, secondGroupBuy, thirdGroupBuy];
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.detail = "detail-native-unit";
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={
+            { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+          }
+        />,
+      );
+    });
+
+    const ad = renderer!.root.findByProps({ testID: "detail-native-ad-1" });
+    expect(ad.props.reelBottomInset).toBe(34 + 72);
+    expect(ad.props.variant).toBe("reel");
+    expect(ad.props.visible).toBe(false);
+
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 2 },
+      });
+    });
+    expect(
+      renderer!.root.findByProps({ testID: "detail-native-ad-1" }).props
+        .visible,
+    ).toBe(true);
+
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 3 },
+      });
+    });
+    const activePage = findProductReelPages(renderer!).find(
+      (node) => node.props.isActive,
+    );
+    expect(activePage?.props.groupBuy.id).toBe(thirdGroupBuy.id);
+
+    act(() => {
+      renderer!.unmount();
+    });
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={
+            { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+          }
+        />,
+      );
+    });
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 2 },
+      });
+    });
+    const selectedAd = renderer!.root.findByProps({
+      testID: "detail-native-ad-1",
+    });
+    const selectedAdNodeCount = renderer!.root.findAllByProps({
+      testID: "detail-native-ad-1",
+    }).length;
+    act(() => {
+      selectedAd.props.onLoadStateChange("unavailable");
+    });
+
+    const recoveredPage = findProductReelPages(renderer!).find(
+      (node) => node.props.isActive,
+    );
+    expect(recoveredPage?.props.groupBuy.id).toBe(thirdGroupBuy.id);
+    expect(
+      renderer!.root.findAllByProps({ testID: "detail-native-ad-1" }),
+    ).toHaveLength(selectedAdNodeCount);
   });
 
   it("keeps the playback callback stable across detail page changes", () => {
@@ -1216,16 +1529,19 @@ describe("DetailScreen", () => {
               params: { groupBuy: baseGroupBuy },
             } as any
           }
-          navigation={{
-            goBack: vi.fn(),
-            addListener: vi.fn(() => () => {}),
-          } as any}
+          navigation={
+            {
+              goBack: vi.fn(),
+              addListener: vi.fn(() => () => {}),
+            } as any
+          }
         />,
       );
     });
 
-    const initialCallback = findProductReelPages(renderer!)
-      .find((node) => node.props.isActive)?.props.onPlaybackStateChange;
+    const initialCallback = findProductReelPages(renderer!).find(
+      (node) => node.props.isActive,
+    )?.props.onPlaybackStateChange;
 
     act(() => {
       findVerticalPager(renderer!).props.onPageSelected({
@@ -2350,15 +2666,17 @@ describe("DetailScreen video playback", () => {
         node.props.accessibilityLabel === "상품 검색",
     );
 
-    expect(findPages().find((node) => node.props.isActive)?.props.playbackAllowed)
-      .toBe(true);
+    expect(
+      findPages().find((node) => node.props.isActive)?.props.playbackAllowed,
+    ).toBe(true);
 
     act(() => {
       searchButton.props.onPress();
     });
 
-    expect(findPages().find((node) => node.props.isActive)?.props.playbackAllowed)
-      .toBe(true);
+    expect(
+      findPages().find((node) => node.props.isActive)?.props.playbackAllowed,
+    ).toBe(true);
 
     act(() => {
       renderer!.unmount();
@@ -2508,6 +2826,427 @@ describe("DetailScreen video playback", () => {
     expect(videoMock.players[0]?.volume).toBe(1);
     expect(videoMock.players[0]?.audioMixingMode).toBe("doNotMix");
     expect(videoMock.players[0]?.play).toHaveBeenCalled();
+  });
+
+  it("plays post music from its segment and prioritizes it over embedded video audio", async () => {
+    const postAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/carousel-track.m4a";
+    const videoUrl =
+      "https://scontent-test.cdninstagram.com/video/carousel-slide.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [videoUrl],
+      mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+      mediaType: "VIDEO",
+      postAudioUrl,
+      postAudioStartTimeMs: 12_000,
+      postAudioDurationMs: 30_000,
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === postAudioUrl,
+    );
+    expect(audioPlayer).toBeDefined();
+    expect(audioPlayer.options).toMatchObject({ updateInterval: 250 });
+    expect(audioPlayer.seekTo).toHaveBeenCalledWith(12);
+    expect(audioPlayer.play).toHaveBeenCalled();
+    expect(audioPlayer.muted).toBe(false);
+    expect(audioMock.setAudioModeAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+      }),
+    );
+    expect(
+      videoMock.players.some(
+        (player) =>
+          player.muted === true && player.audioMixingMode === "mixWithOthers",
+      ),
+    ).toBe(true);
+
+    const postAudioMuteButton = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "게시물 음악 음소거",
+    );
+    act(() => {
+      postAudioMuteButton.props.onPress();
+    });
+    expect(audioPlayer.muted).toBe(true);
+    expect(
+      renderer!.root.find(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === "게시물 음악 음소거 해제",
+      ),
+    ).toBeDefined();
+  });
+
+  it("pauses and resumes post music with the visible video playback control", async () => {
+    const postAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/controlled-track.m4a";
+    const videoUrl =
+      "https://scontent-test.cdninstagram.com/video/controlled-video.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [videoUrl],
+      mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+      mediaType: "VIDEO",
+      postAudioUrl,
+      postAudioStartTimeMs: 0,
+      postAudioDurationMs: null,
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+      await Promise.resolve();
+    });
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === postAudioUrl,
+    );
+    audioPlayer.pause.mockClear();
+    audioPlayer.play.mockClear();
+
+    act(() => {
+      renderer!.root.find(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === "동영상 컨트롤 표시",
+      ).props.onPress();
+    });
+    act(() => {
+      renderer!.root.find(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === "동영상 일시정지",
+      ).props.onPress();
+    });
+    expect(audioPlayer.pause).toHaveBeenCalled();
+
+    await act(async () => {
+      renderer!.root.find(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === "동영상 재생",
+      ).props.onPress();
+      await Promise.resolve();
+    });
+    expect(audioPlayer.play).toHaveBeenCalled();
+  });
+
+  it("keeps post music on image posts and pauses it when playback becomes inactive", async () => {
+    const postAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/image-post-track.m4a";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      mediaType: "IMAGE",
+      mediaUrls: ["https://cdn.example.com/image-post.jpg"],
+      mediaItems: [
+        {
+          url: "https://cdn.example.com/image-post.jpg",
+          mediaType: "IMAGE",
+        },
+      ],
+      videoUrl: null,
+      postAudioUrl,
+      postAudioStartTimeMs: 0,
+      postAudioDurationMs: null,
+    };
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === postAudioUrl,
+    );
+    expect(audioPlayer).toBeDefined();
+    expect(audioPlayer.play).toHaveBeenCalled();
+    expect(audioPlayer.loop).toBe(true);
+    expect(
+      renderer!.root.findAll((node) => String(node.type) === "VideoView"),
+    ).toHaveLength(0);
+
+    audioPlayer.pause.mockClear();
+    playbackLifecycleMock.isAppActive = false;
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+    });
+    expect(audioPlayer.pause).toHaveBeenCalled();
+  });
+
+  it("loops only the configured post music segment", async () => {
+    const postAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/segment-track.m4a";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      postAudioUrl,
+      postAudioStartTimeMs: 12_000,
+      postAudioDurationMs: 30_000,
+    };
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === postAudioUrl,
+    );
+    audioPlayer.seekTo.mockClear();
+    audioPlayer.play.mockClear();
+    audioPlayer.currentStatus.currentTime = 42;
+
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+    });
+
+    expect(audioPlayer.loop).toBe(false);
+    expect(audioPlayer.seekTo).toHaveBeenCalledWith(12);
+    expect(audioPlayer.play).toHaveBeenCalled();
+  });
+
+  it("forces one media refresh and retries a failed post music URL", async () => {
+    const staleAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/stale-track.m4a";
+    const refreshedAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/refreshed-track.m4a";
+    const videoUrl =
+      "https://scontent-test.cdninstagram.com/video/audio-refresh.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [videoUrl],
+      mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+      mediaType: "VIDEO",
+      postAudioUrl: staleAudioUrl,
+      postAudioStartTimeMs: 4_000,
+      postAudioDurationMs: 20_000,
+    };
+    refreshGroupBuyMediaMock.mockResolvedValue({
+      groupBuyId: groupBuy.id,
+      refreshed: true,
+      source: "hiker",
+      instagramUrl: groupBuy.rawPost.postUrl,
+      media: {
+        imageUrl: null,
+        thumbnailUrl: null,
+        videoUrl,
+        mediaUrls: [videoUrl],
+        mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+        mediaType: "VIDEO",
+        postAudioUrl: refreshedAudioUrl,
+        postAudioStartTimeMs: 5_000,
+        postAudioDurationMs: 25_000,
+      },
+    });
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === staleAudioUrl,
+    );
+    audioPlayer.currentStatus.isLoaded = false;
+    audioPlayer.currentStatus.playbackState = "error";
+
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(refreshGroupBuyMediaMock).toHaveBeenCalledTimes(1);
+    expect(refreshGroupBuyMediaMock).toHaveBeenCalledWith(groupBuy.id, {
+      force: true,
+      failedPostAudioUrl: staleAudioUrl,
+    });
+    expect(audioPlayer.source).toBe(refreshedAudioUrl);
+    expect(audioPlayer.seekTo).toHaveBeenCalledWith(5);
+    expect(audioPlayer.play).toHaveBeenCalled();
+
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+    });
+    expect(refreshGroupBuyMediaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to embedded video audio when refreshed post music is unavailable", async () => {
+    const staleAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/missing-track.m4a";
+    const videoUrl =
+      "https://scontent-test.cdninstagram.com/video/audio-fallback.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [videoUrl],
+      mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+      mediaType: "VIDEO",
+      postAudioUrl: staleAudioUrl,
+      postAudioStartTimeMs: 0,
+      postAudioDurationMs: null,
+    };
+    refreshGroupBuyMediaMock.mockResolvedValue({
+      groupBuyId: groupBuy.id,
+      refreshed: true,
+      source: "hiker",
+      instagramUrl: groupBuy.rawPost.postUrl,
+      media: {
+        imageUrl: null,
+        thumbnailUrl: null,
+        videoUrl,
+        mediaUrls: [videoUrl],
+        mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+        mediaType: "VIDEO",
+        postAudioUrl: null,
+        postAudioStartTimeMs: null,
+        postAudioDurationMs: null,
+      },
+    });
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === staleAudioUrl,
+    );
+    audioPlayer.currentStatus.isLoaded = false;
+    audioPlayer.currentStatus.playbackState = "error";
+
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(audioPlayer.source).toBeNull();
+    expect(refreshGroupBuyMediaMock).toHaveBeenCalledTimes(1);
+    expect(
+      videoMock.players.some(
+        (player) =>
+          player.muted === false && player.audioMixingMode === "doNotMix",
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a skipped refresh that returns the same failed post music URL", async () => {
+    const staleAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/still-stale-track.m4a";
+    const videoUrl =
+      "https://scontent-test.cdninstagram.com/video/skipped-audio-fallback.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [videoUrl],
+      mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+      mediaType: "VIDEO",
+      postAudioUrl: staleAudioUrl,
+      postAudioStartTimeMs: 0,
+      postAudioDurationMs: null,
+    };
+    refreshGroupBuyMediaMock.mockResolvedValue({
+      groupBuyId: groupBuy.id,
+      refreshed: false,
+      source: "skipped",
+      instagramUrl: groupBuy.rawPost.postUrl,
+      media: {
+        imageUrl: null,
+        thumbnailUrl: null,
+        videoUrl,
+        mediaUrls: [videoUrl],
+        mediaItems: [{ url: videoUrl, mediaType: "VIDEO" }],
+        mediaType: "VIDEO",
+        postAudioUrl: staleAudioUrl,
+        postAudioStartTimeMs: 0,
+        postAudioDurationMs: null,
+      },
+      error: "Refresh is cooling down",
+    });
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === staleAudioUrl,
+    );
+    audioPlayer.currentStatus.isLoaded = false;
+    audioPlayer.currentStatus.playbackState = "error";
+
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(refreshGroupBuyMediaMock).toHaveBeenCalledTimes(1);
+    expect(audioPlayer.source).toBeNull();
+    expect(
+      videoMock.players.some(
+        (player) =>
+          player.muted === false && player.audioMixingMode === "doNotMix",
+      ),
+    ).toBe(true);
   });
 
   it("shows playback and mute controls when the video is tapped", () => {

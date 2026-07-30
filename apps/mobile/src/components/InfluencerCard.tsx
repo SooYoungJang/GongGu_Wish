@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { InstagramIdentity } from './ui/InstagramIdentity';
 import { SText } from './ui/SText';
 
 import { borderRadius, spacing } from '../design/tokens';
@@ -16,24 +17,32 @@ type InfluencerCardProps = {
 export function InfluencerCard({ influencer, onPress }: InfluencerCardProps) {
   const { colors, shadows } = useTheme();
   const s = useMemo(() => makeStyles(colors, shadows), [colors, shadows]);
+  const displayName = influencer.displayName?.trim() || null;
+  const avatarLabel = displayName ?? influencer.instagramUsername;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${influencer.displayName ?? influencer.instagramUsername} 선택`}
+      accessibilityLabel={`${avatarLabel} 선택`}
       onPress={onPress}
       style={({ pressed }) => [s.card, pressed && s.pressed]}
     >
       <View style={s.avatar}>
         <SText variant="cardTitle" style={s.avatarText}>
-          {(influencer.displayName ?? influencer.instagramUsername).slice(0, 2).toUpperCase()}
+          {avatarLabel.slice(0, 2).toUpperCase()}
         </SText>
       </View>
       <View style={s.info}>
-        <SText variant="cardTitle" style={s.displayName} numberOfLines={1}>
-          {influencer.displayName ?? `@${influencer.instagramUsername}`}
-        </SText>
-        <SText variant="caption" style={s.username}>@{influencer.instagramUsername}</SText>
+        {displayName ? (
+          <SText variant="cardTitle" style={s.displayName} numberOfLines={1}>
+            {displayName}
+          </SText>
+        ) : null}
+        <InstagramIdentity
+          size={displayName ? "compact" : "body"}
+          textStyle={[s.username, !displayName && s.usernamePrimary]}
+          username={influencer.instagramUsername}
+        />
       </View>
     </Pressable>
   );
@@ -66,5 +75,6 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     info: { flex: 1 },
     displayName: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
     username: { fontSize: 12, fontWeight: '600' },
+    usernamePrimary: { fontSize: 15, fontWeight: '700', lineHeight: 20 },
   });
 }

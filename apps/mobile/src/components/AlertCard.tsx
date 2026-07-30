@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { InstagramIdentity } from './ui/InstagramIdentity';
 import { SText } from './ui/SText';
 
 import { spacing } from '../design/tokens';
@@ -32,7 +33,12 @@ export function AlertCard({ item, onPress }: AlertCardProps) {
 
       <View style={s.info}>
         <View style={s.topRow}>
-          <SText variant="caption" style={s.influencerName} numberOfLines={1}>@{influencerUsername}</SText>
+          <InstagramIdentity
+            iconTestID="alert-card-instagram-icon"
+            style={s.influencerIdentity}
+            textStyle={s.influencerName}
+            username={influencerUsername}
+          />
           <View style={s.deadlinePill}>
             <SText variant="caption" style={s.deadlineText}>{deadlineLabel}</SText>
           </View>
@@ -102,7 +108,8 @@ function makeStyles(colors: CommerceColorPalette) {
       justifyContent: 'space-between',
       marginBottom: spacing.xs,
     },
-    influencerName: { color: colors.muted, flex: 1, fontSize: 12, fontWeight: '800' },
+    influencerIdentity: { flex: 1 },
+    influencerName: { fontSize: 12, fontWeight: '800' },
     productName: {
       color: colors.text,
       fontSize: 16,

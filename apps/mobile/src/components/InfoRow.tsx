@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { SText } from './ui/SText';
@@ -6,15 +6,19 @@ import { spacing } from '../design/tokens';
 import type { CommerceColorPalette } from '../design/commerce';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 
-export function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
+export function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
-  if (!value) return null;
+  if (value === null || value === undefined || value === '') return null;
   return (
     <View style={s.infoRow}>
       <SText variant="label" style={s.infoLabel}>{label}</SText>
-      <SText variant="body" style={s.infoValue}>{value}</SText>
+      {typeof value === 'string' || typeof value === 'number' ? (
+        <SText variant="body" style={s.infoValue}>{value}</SText>
+      ) : (
+        <View style={s.infoValueContent}>{value}</View>
+      )}
     </View>
   );
 }
@@ -40,6 +44,10 @@ function makeStyles(colors: CommerceColorPalette) {
       fontSize: 14,
       fontWeight: '600',
       lineHeight: 20,
+    },
+    infoValueContent: {
+      flex: 1,
+      minWidth: 0,
     },
   });
 }

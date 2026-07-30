@@ -8,6 +8,13 @@ import { spacing } from '../design/tokens';
 import type { GroupBuy } from '../types';
 
 const mockWindowDimensions = vi.hoisted(() => ({ width: 393 }));
+vi.mock('../context/GroupBuyReminderPickerContext', () => ({
+  useGroupBuyReminderPicker: () => ({
+    getReminderState: () => ({ status: 'idle' }),
+    isReminderEnabled: () => false,
+    openReminderPicker: vi.fn(),
+  }),
+}));
 const fallbackGroupBuysMock = vi.hoisted(() => [
   {
     id: 'local-fixture-only',
@@ -47,18 +54,20 @@ vi.mock('../components/ads/NativeAdCard', () => {
     NativeAdCard: ({
       onLoadStateChange,
       testID,
+      variant,
     }: {
       onLoadStateChange?: React.Dispatch<
         'loaded' | 'loading' | 'unavailable'
       >;
       testID?: string;
+      variant?: string;
     }) => {
       ReactMock.useEffect(() => {
         nativeAdMock.mountCount += 1;
         onLoadStateChange?.(nativeAdMock.status);
       }, [onLoadStateChange]);
       return nativeAdMock.status === 'loaded'
-        ? ReactMock.createElement('NativeAdCard', { testID })
+        ? ReactMock.createElement('NativeAdCard', { testID, variant })
         : null;
     },
   };
@@ -1029,7 +1038,7 @@ describe('HomeScreenContent redesign', () => {
       .join(' ');
     expect(bannerText).not.toContain('30%');
     expect(bannerText).toContain('공구 진행 중');
-    expect(bannerText).toContain('상세에서 가격 확인');
+    expect(bannerText).toContain('가격 미정');
   });
 
   it('does not mistake a leading natural-content percentage for a discount', () => {
@@ -1093,7 +1102,7 @@ describe('HomeScreenContent redesign', () => {
       .flatMap((node) => node.props.children ?? [])
       .join(' ');
     expect(bannerText).toContain('30%');
-    expect(bannerText).toContain('상세에서 가격 확인');
+    expect(bannerText).toContain('가격 미정');
     expect(bannerText).not.toContain('30원');
   });
 
@@ -1213,7 +1222,7 @@ describe('HomeScreenContent redesign', () => {
       .join(' ');
     expect(bannerText).toContain('이미지 준비 중');
     expect(bannerText).toContain('공구 진행 중');
-    expect(bannerText).toContain('상세에서 가격 확인');
+    expect(bannerText).toContain('가격 미정');
     expect(bannerText).not.toMatch(/(^|\s)@(\s|$)/);
     expect(bannerText).not.toContain('혜택 확인');
   });
@@ -1297,7 +1306,7 @@ describe('HomeScreenContent redesign', () => {
 
     const text = flattenText(renderer.toJSON());
     expect(text).toContain('30%');
-    expect(text).toContain('상세에서 가격 확인');
+    expect(text).toContain('가격 미정');
     expect(text).not.toContain('시작일');
     expect(text).not.toContain('마감일');
 
@@ -1333,15 +1342,18 @@ describe('HomeScreenContent redesign', () => {
     ).not.toHaveLength(0);
   });
 
-  it('keeps account metadata out of the reference-style image overlay', () => {
+  it('shows the Instagram account in the promo image overlay', () => {
     const renderer = renderHomeContent({
       groupBuys: [sampleGroupBuys[0]],
     });
 
     const text = flattenText(renderer.toJSON());
-    expect(text).not.toContain('@beauty_pick');
+    expect(text).toContain('@beauty_pick');
+    expect(
+      renderer.root.findByProps({ testID: 'promo-account-icon-gb-1' }).props,
+    ).toMatchObject({ accessible: false, name: 'logo-instagram' });
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
-    expect(banner!.props.accessibilityLabel).not.toContain('@beauty_pick');
+    expect(banner!.props.accessibilityLabel).toContain('@beauty_pick');
   });
 
   it('keeps a centered, partially peeking promo card inside a 320px viewport', () => {
@@ -1373,7 +1385,7 @@ describe('HomeScreenContent redesign', () => {
 
     const text = flattenText(renderer.toJSON());
     expect(text).toContain('공구 진행 중');
-    expect(text).toContain('상세에서 가격 확인');
+    expect(text).toContain('가격 미정');
     expect(text).not.toContain('시작일');
     expect(text).not.toContain('마감일');
     expect(
@@ -1528,10 +1540,20 @@ describe('HomeScreenContent redesign', () => {
   });
 });
 
+function countHomeNativeAds(renderer: TestRenderer.ReactTestRenderer) {
+  const grid = renderer.root
+    .findAllByProps({ testID: 'home-recommendation-grid' })
+    .find((node) => String(node.type) === 'View')!;
+  return grid.children.filter(
+    (child) =>
+      typeof child !== 'string' && child.props.testID === 'home-native-ad',
+  ).length;
+}
+
 describe('HomeScreenContent redesign v2', () => {
-  it('does not reserve a native ad slot before six recommended products', () => {
+  it('does not reserve a native ad slot before the minimum gap of two products', () => {
     const renderer = renderHomeContent({
-      groupBuys: sampleGroupBuys.slice(0, 2),
+      groupBuys: sampleGroupBuys.slice(0, 1),
     });
 
     expect(
@@ -1539,7 +1561,29 @@ describe('HomeScreenContent redesign v2', () => {
     ).toHaveLength(0);
   });
 
-  it('places one native ad after the sixth recommended product', () => {
+  it('shows a trailing native ad after a two-product home feed', () => {
+    const renderer = renderHomeContent({
+      groupBuys: sampleGroupBuys.slice(0, 2),
+    });
+
+    expect(countHomeNativeAds(renderer)).toBe(1);
+    expect(
+      renderer.root.findByProps({ testID: 'home-native-ad' }).props.variant,
+    ).toBe('tile');
+  });
+
+  it('fits the first random gap so a short three-product home feed still shows an ad', () => {
+    const groupBuys = Array.from({ length: 3 }, (_, index) => ({
+      ...sampleGroupBuys[index % sampleGroupBuys.length],
+      id: `bounded-home-${index + 1}`,
+      isHomeBanner: false,
+    }));
+    const renderer = renderHomeContent({ groupBuys });
+
+    expect(countHomeNativeAds(renderer)).toBe(1);
+  });
+
+  it('places at least one native ad among eight recommended products', () => {
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
       id: `recommended-${index + 1}`,
@@ -1549,25 +1593,19 @@ describe('HomeScreenContent redesign v2', () => {
     const grid = renderer.root
       .findAllByProps({ testID: 'home-recommendation-grid' })
       .find((node) => String(node.type) === 'View')!;
-    const order = grid.children.map((child) => {
-      if (typeof child === 'string') return child;
-      return child.props.item?.id ?? child.props.testID;
-    });
+    const adCount = grid.children.filter(
+      (child) => typeof child !== 'string' && child.props.testID === 'home-native-ad',
+    ).length;
 
-    expect(order).toEqual([
-      'recommended-1',
-      'recommended-2',
-      'recommended-3',
-      'recommended-4',
-      'recommended-5',
-      'recommended-6',
-      'home-native-ad',
-      'recommended-7',
-      'recommended-8',
-    ]);
+    // Every product stays visible regardless of where the seeded ad breaks land.
+    const productIds = grid.children
+      .map((child) => (typeof child === 'string' ? child : child.props.item?.id))
+      .filter(Boolean);
+    expect(productIds).toHaveLength(8);
+    expect(adCount).toBeGreaterThanOrEqual(1);
   });
 
-  it('does not expose products seven and eight while the ad is unresolved', () => {
+  it('keeps all recommended products visible while ads are unresolved', () => {
     nativeAdMock.status = 'loading';
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
@@ -1592,10 +1630,12 @@ describe('HomeScreenContent redesign v2', () => {
       'pending-4',
       'pending-5',
       'pending-6',
+      'pending-7',
+      'pending-8',
     ]);
   });
 
-  it('reveals products seven and eight together when no ad is available', () => {
+  it('renders all products with no ad element when ads are unavailable', () => {
     nativeAdMock.status = 'unavailable';
     const groupBuys = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
@@ -1621,19 +1661,41 @@ describe('HomeScreenContent redesign v2', () => {
     ).toHaveLength(0);
   });
 
-  it('keeps one stable ad placement when recommendation order changes', () => {
+  it('keeps stable ad placements for the same product ids across renders', () => {
     const first = Array.from({ length: 8 }, (_, index) => ({
       ...sampleGroupBuys[index % sampleGroupBuys.length],
       id: `stable-${index + 1}`,
       isHomeBanner: false,
     }));
     const renderer = renderHomeContent({ groupBuys: first });
+    const gridBefore = renderer.root
+      .findAllByProps({ testID: 'home-recommendation-grid' })
+      .find((node) => String(node.type) === 'View')!;
+    const adsBefore = gridBefore.children
+      .map((child, index) =>
+        typeof child !== 'string' && child.props.testID === 'home-native-ad'
+          ? index
+          : null,
+      )
+      .filter((value): value is number => value !== null);
 
     act(() => {
-      renderer.update(createHomeContent({ groupBuys: [...first].reverse() }));
+      renderer.update(createHomeContent({ groupBuys: first }));
     });
 
-    expect(nativeAdMock.mountCount).toBe(1);
+    const gridAfter = renderer.root
+      .findAllByProps({ testID: 'home-recommendation-grid' })
+      .find((node) => String(node.type) === 'View')!;
+    const adsAfter = gridAfter.children
+      .map((child, index) =>
+        typeof child !== 'string' && child.props.testID === 'home-native-ad'
+          ? index
+          : null,
+      )
+      .filter((value): value is number => value !== null);
+
+    // The same product ids produce the same seeded ad break positions.
+    expect(adsAfter).toEqual(adsBefore);
   });
 
   it('does not render the old weekly calendar sections', () => {

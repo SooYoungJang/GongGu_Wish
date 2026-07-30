@@ -1,21 +1,40 @@
-import React from 'react';
-import TestRenderer, { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as any).__DEV__ = false;
 
 const authMocks = vi.hoisted(() => ({
+  user: null,
+  authCompletionRevision: 0,
+  isLoading: false,
+  isAudienceAuthIntentPending: false,
   signIn: vi.fn(),
   signUp: vi.fn(),
   signUpWithEmailCode: vi.fn(),
   resendEmailSignUpCode: vi.fn(),
   verifyEmailCode: vi.fn(),
   signInWithOAuth: vi.fn(),
+  startAudienceAuthIntent: vi.fn(),
+  cancelAudienceAuthIntent: vi.fn(),
+}));
+
+const audienceMocks = vi.hoisted(() => ({
+  canAuthenticate: false,
+  selectAgeBand: vi.fn(),
+}));
+
+const schemaMocks = vi.hoisted(() => ({
+  loginSafeParse: vi.fn(),
+  signupStep1SafeParse: vi.fn(),
+  signupStep2SafeParse: vi.fn(),
 }));
 
 const navigationMock = vi.hoisted(() => ({
+  addListener: vi.fn(),
   navigate: vi.fn(),
   goBack: vi.fn(),
+  popTo: vi.fn(),
 }));
 
 vi.mock('react-native', () => {
@@ -102,17 +121,17 @@ vi.mock('../context/AuthContext', () => ({
   useAuth: () => authMocks,
 }));
 
-vi.mock('../schemas/auth', () => ({
-  loginSchema: { safeParse: vi.fn() },
-  signupStep1Schema: { safeParse: vi.fn() },
-  signupStep2Schema: { safeParse: vi.fn() },
-  signupStep3Schema: { safeParse: vi.fn() },
-  AGREEMENTS: [
-    { key: 'agreeService', label: '서비스 이용약관', required: true },
-    { key: 'agreePrivacy', label: '개인정보 수집 및 이용', required: true },
-    { key: 'agreeAge', label: '만 14세 이상입니다', required: true },
-    { key: 'agreeMarketing', label: '마케팅 정보 수신', required: false, detailLink: true },
-  ],
+vi.mock("../audience/AudienceContext", () => ({
+  useAudience: () => ({
+    policy: { canAuthenticate: audienceMocks.canAuthenticate },
+    selectAgeBand: audienceMocks.selectAgeBand,
+  }),
+}));
+
+vi.mock("../schemas/auth", () => ({
+  loginSchema: { safeParse: schemaMocks.loginSafeParse },
+  signupStep1Schema: { safeParse: schemaMocks.signupStep1SafeParse },
+  signupStep2Schema: { safeParse: schemaMocks.signupStep2SafeParse },
 }));
 
 vi.mock('../utils/authHelpers', () => ({
@@ -157,8 +176,42 @@ function pressByAccessibilityLabel(renderer: TestRenderer.ReactTestRenderer, lab
   });
 }
 
-describe('AuthScreen tab switching', () => {
-  it('회원가입 탭 클릭 시 SignupPanel을 렌더링하고 로그인 탭으로 돌아올 수 있다', () => {
+describe("AuthScreen tab switching", () => {
+  beforeEach(() => {
+    (authMocks as any).user = null;
+    authMocks.authCompletionRevision = 0;
+    authMocks.isLoading = false;
+    authMocks.isAudienceAuthIntentPending = false;
+    audienceMocks.canAuthenticate = false;
+    audienceMocks.selectAgeBand.mockReset().mockResolvedValue(undefined);
+    authMocks.signIn.mockReset().mockResolvedValue({ message: "로그인 실패" });
+    authMocks.signInWithOAuth.mockReset().mockResolvedValue(null);
+    authMocks.startAudienceAuthIntent.mockReset();
+    authMocks.cancelAudienceAuthIntent.mockReset();
+    authMocks.signUpWithEmailCode.mockReset().mockResolvedValue(null);
+    authMocks.resendEmailSignUpCode.mockReset().mockResolvedValue(null);
+    authMocks.verifyEmailCode.mockReset().mockResolvedValue(null);
+    schemaMocks.loginSafeParse.mockReset().mockReturnValue({
+      success: true,
+      data: { email: "user@example.com", password: "password1" },
+    });
+    schemaMocks.signupStep1SafeParse.mockReset().mockReturnValue({
+      success: true,
+      data: {
+        email: "new@example.com",
+        password: "password1",
+        confirmPassword: "password1",
+      },
+    });
+    schemaMocks.signupStep2SafeParse.mockReset().mockReturnValue({
+      success: true,
+      data: { nickname: "공구러", phone: "" },
+    });
+    navigationMock.popTo.mockReset();
+    navigationMock.addListener.mockReset().mockReturnValue(vi.fn());
+  });
+
+  it("회원가입 탭 클릭 시 SignupPanel을 렌더링하고 로그인 탭으로 돌아올 수 있다", () => {
     const renderer = renderAuthScreen();
 
     // Initial state: LoginPanel should render the email login divider.
@@ -176,4 +229,272 @@ describe('AuthScreen tab switching', () => {
     // LoginPanel should render again
     expect(containsText(renderer, '또는 이메일 로그인')).toBe(true);
   });
+
+  it("로그인과 회원가입 탭 모두 체크박스 없는 약관 안내를 표시한다", () => {
+    const renderer = renderAuthScreen();
+
+    expect(containsText(renderer, "만 14세 이상")).toBe(true);
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          typeof node.type === "string" &&
+          node.props.testID === "auth-legal-notice",
+      ),
+    ).toHaveLength(1);
+
+    pressByAccessibilityLabel(renderer, "회원가입 탭");
+
+    expect(containsText(renderer, "만 14세 이상")).toBe(true);
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          typeof node.type === "string" &&
+          node.props.testID === "auth-legal-notice",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    ["카카오로 계속하기", "kakao"],
+    ["네이버로 계속하기", "custom:naver"],
+    ["Apple로 계속하기", "apple"],
+  ] as const)(
+    "%s 인증은 연령 확인과 세션 복원이 끝난 뒤 한 번만 시작한다",
+    async (label, provider) => {
+      const renderer = renderAuthScreen();
+
+      await act(async () => {
+        await renderer.root
+          .findByProps({ accessibilityLabel: label })
+          .props.onPress();
+      });
+
+      expect(audienceMocks.selectAgeBand).toHaveBeenCalledWith("age14Plus");
+      expect(authMocks.startAudienceAuthIntent).toHaveBeenCalledTimes(1);
+      expect(authMocks.signInWithOAuth).not.toHaveBeenCalled();
+      const signupTab = renderer.root.find(
+        (node) =>
+          typeof node.type === "string" &&
+          node.props.accessibilityLabel === "회원가입 탭",
+      );
+      expect(signupTab.props.disabled).toBe(true);
+
+      audienceMocks.canAuthenticate = true;
+      authMocks.isLoading = true;
+      await act(async () => {
+        renderer.update(<AuthScreen {...({} as any)} />);
+        await Promise.resolve();
+      });
+
+      expect(authMocks.signInWithOAuth).not.toHaveBeenCalled();
+
+      authMocks.isLoading = false;
+      await act(async () => {
+        renderer.update(<AuthScreen {...({} as any)} />);
+        await Promise.resolve();
+      });
+
+      expect(authMocks.signInWithOAuth).toHaveBeenCalledTimes(1);
+      expect(authMocks.signInWithOAuth).toHaveBeenCalledWith(provider);
+    },
+  );
+
+  it("유효한 이메일 로그인도 연령 확인 상태가 반영된 뒤 실행한다", async () => {
+    const renderer = renderAuthScreen();
+
+    act(() => {
+      renderer.root
+        .findByProps({ testID: "fl-input-email" })
+        .props.onChangeText("user@example.com");
+      renderer.root
+        .findByProps({ testID: "fl-input-password" })
+        .props.onChangeText("password1");
+    });
+    await act(async () => {
+      await renderer.root
+        .findByProps({ testID: "auth-login-submit" })
+        .props.onPress();
+    });
+
+    expect(audienceMocks.selectAgeBand).toHaveBeenCalledWith("age14Plus");
+    expect(authMocks.signIn).not.toHaveBeenCalled();
+
+    audienceMocks.canAuthenticate = true;
+    await act(async () => {
+      renderer.update(<AuthScreen {...({} as any)} />);
+      await Promise.resolve();
+    });
+
+    expect(authMocks.signIn).toHaveBeenCalledTimes(1);
+    expect(authMocks.signIn).toHaveBeenCalledWith(
+      "user@example.com",
+      "password1",
+    );
+  });
+
+  it("현재 인증 의도와 무관한 user로는 마이페이지에 이동하지 않는다", async () => {
+    const renderer = renderAuthScreen();
+
+    await act(async () => {
+      await renderer.root
+        .findByProps({
+          accessibilityLabel: "카카오로 계속하기",
+        })
+        .props.onPress();
+    });
+
+    authMocks.isAudienceAuthIntentPending = true;
+    audienceMocks.canAuthenticate = true;
+    await act(async () => {
+      renderer.update(<AuthScreen {...({} as any)} />);
+      await Promise.resolve();
+    });
+
+    (authMocks as any).user = { id: "stale-user" };
+    await act(async () => {
+      renderer.update(<AuthScreen {...({} as any)} />);
+      await Promise.resolve();
+    });
+    expect(navigationMock.popTo).not.toHaveBeenCalled();
+
+    authMocks.isAudienceAuthIntentPending = false;
+    (authMocks as any).user = { id: "selected-user" };
+    authMocks.authCompletionRevision = 1;
+    await act(async () => {
+      renderer.update(<AuthScreen {...({} as any)} />);
+      await Promise.resolve();
+    });
+    expect(navigationMock.popTo).toHaveBeenCalledWith("MainTabs", {
+      screen: "MyPage",
+    });
+  });
+
+  it("이미 로그인된 user로 인증 화면이 마운트돼도 자동 이동하지 않는다", () => {
+    (authMocks as any).user = { id: "existing-user" };
+    authMocks.authCompletionRevision = 4;
+
+    renderAuthScreen();
+
+    expect(navigationMock.popTo).not.toHaveBeenCalled();
+  });
+
+  it("인증 화면을 벗어나면 대기 중인 인증 의도를 취소한다", () => {
+    renderAuthScreen();
+
+    const beforeRemoveListener = navigationMock.addListener.mock.calls.find(
+      ([event]) => event === "beforeRemove",
+    )?.[1];
+    expect(beforeRemoveListener).toBeTypeOf("function");
+
+    act(() => beforeRemoveListener());
+
+    expect(authMocks.cancelAudienceAuthIntent).toHaveBeenCalledTimes(1);
+  });
+
+  it("유효하지 않은 이메일 로그인은 연령 확인도 인증도 시작하지 않는다", async () => {
+    schemaMocks.loginSafeParse.mockReturnValueOnce({
+      success: false,
+      error: {
+        issues: [
+          { path: ["email"], message: "올바른 이메일 형식이 아닙니다." },
+        ],
+      },
+    });
+    const renderer = renderAuthScreen();
+
+    await act(async () => {
+      await renderer.root
+        .findByProps({ testID: "auth-login-submit" })
+        .props.onPress();
+    });
+
+    expect(audienceMocks.selectAgeBand).not.toHaveBeenCalled();
+    expect(authMocks.startAudienceAuthIntent).not.toHaveBeenCalled();
+    expect(authMocks.signIn).not.toHaveBeenCalled();
+    expect(
+      renderer.root.findAll((node) => node.props.accessibilityRole === "alert")
+        .length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("이메일 회원가입은 필수 약관 단계 없이 선택 마케팅만 남긴다", () => {
+    const renderer = renderAuthScreen();
+
+    pressByAccessibilityLabel(renderer, "회원가입 탭");
+    pressByAccessibilityLabel(renderer, "다음 단계");
+
+    const checkboxes = renderer.root.findAll(
+      (node) =>
+        typeof node.type === "string" &&
+        node.props.accessibilityRole === "checkbox",
+    );
+    expect(checkboxes).toHaveLength(1);
+    expect(checkboxes[0].props.accessibilityLabel).toBe(
+      "마케팅 정보 수신 동의 (선택)",
+    );
+    expect(containsText(renderer, "약관 동의")).toBe(false);
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          typeof node.type === "string" &&
+          node.props.accessibilityLabel === "가입하기",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    [false, false],
+    [true, true],
+  ])(
+    "이메일 회원가입은 마케팅 선택값 %s만 metadata에 보낸다",
+    async (optIn, expected) => {
+      const renderer = renderAuthScreen();
+      pressByAccessibilityLabel(renderer, "회원가입 탭");
+      act(() => {
+        renderer.root
+          .findByProps({ testID: "signup-input-email" })
+          .props.onChangeText("new@example.com");
+        renderer.root
+          .findByProps({ testID: "signup-input-password" })
+          .props.onChangeText("password1");
+        renderer.root
+          .findByProps({ testID: "signup-input-confirm-password" })
+          .props.onChangeText("password1");
+      });
+      pressByAccessibilityLabel(renderer, "다음 단계");
+      act(() => {
+        renderer.root
+          .findByProps({ testID: "signup-input-nickname" })
+          .props.onChangeText("공구러");
+      });
+      if (optIn) {
+        pressByAccessibilityLabel(renderer, "마케팅 정보 수신 동의 (선택)");
+      }
+
+      await act(async () => {
+        const submit = renderer.root.find(
+          (node) =>
+            typeof node.type === "string" &&
+            node.props.accessibilityLabel === "가입하기",
+        );
+        await submit.props.onPress();
+      });
+
+      expect(authMocks.signUpWithEmailCode).not.toHaveBeenCalled();
+      audienceMocks.canAuthenticate = true;
+      await act(async () => {
+        renderer.update(<AuthScreen {...({} as any)} />);
+        await Promise.resolve();
+      });
+
+      expect(authMocks.signUpWithEmailCode).toHaveBeenCalledWith(
+        "new@example.com",
+        "password1",
+        {
+          nickname: "공구러",
+          marketing_opt_in: expected,
+        },
+      );
+    },
+  );
 });

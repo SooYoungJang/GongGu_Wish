@@ -1,4 +1,4 @@
-appId: com.gonggu.wish
+appId: com.gonggu.wish.preview
 ---
 # GON-263: canonical data survives ranking -> recent views -> detail, while
 # home -> calendar -> detail keeps Android overlay and stack Back priority.
@@ -65,6 +65,24 @@ appId: com.gonggu.wish
     visible:
       text: "인기 공구"
     timeout: 15000
+
+# Lower-rank cards keep product, Instagram seller, and commerce metadata in
+# one compact information column while preserving their separate actions.
+- scrollUntilVisible:
+    element:
+      id: "ranking-row-seller-4"
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- assertVisible:
+    id: "ranking-row-name-4"
+- assertVisible:
+    id: "ranking-row-seller-4"
+- assertVisible:
+    text: "@gon263_recent"
+- assertVisible:
+    id: "ranking-row-commerce-4"
+- takeScreenshot: gon263-critical-02b-ranking-row-4
 
 # My page reads the same recent-view store and reopens the canonical detail.
 - tapOn:

@@ -39,15 +39,14 @@ copy_flow_evidence "gon229-preferences"
 
 tap_status=1
 if [[ "$preferences_status" -eq 0 ]]; then
-  adb shell input keyevent KEYCODE_HOME
-  sleep 10
-  adb shell cmd statusbar expand-notifications
+  adb shell am start -W \
+    -a android.intent.action.VIEW \
+    -d "gongguwish-preview://group-buy/gon263-e2e-price-200000" \
+    com.gonggu.wish.preview \
+    | tee "$artifact_dir/gon229-deep-link-launch.txt"
   sleep 2
-  adb shell dumpsys notification --noredact \
-    > "$artifact_dir/gon229-notification-state.txt"
-  adb shell uiautomator dump /sdcard/gon229-notification-drawer.xml
-  adb pull /sdcard/gon229-notification-drawer.xml \
-    "$artifact_dir/gon229-notification-drawer.xml"
+  adb shell dumpsys activity activities \
+    > "$artifact_dir/gon229-deep-link-state.txt"
 
   set +e
   maestro test .maestro/gon-229-notification-tap.yaml 2>&1 \
@@ -63,6 +62,7 @@ test "$preferences_status" -eq 0
 test "$tap_status" -eq 0
 test -s "$artifact_dir/gon229-preferences-commands.json"
 test -s "$artifact_dir/gon229-tap-commands.json"
-test -s "$artifact_dir/gon229-notification-state.txt"
-test -s "$artifact_dir/gon229-notification-drawer.xml"
+test -s "$artifact_dir/gon229-deep-link-launch.txt"
+test -s "$artifact_dir/gon229-deep-link-state.txt"
+grep -F "com.gonggu.wish.preview" "$artifact_dir/gon229-deep-link-state.txt"
 test "$(find "$artifact_dir" -name 'gon229-android-*.png' | wc -l)" -ge 7

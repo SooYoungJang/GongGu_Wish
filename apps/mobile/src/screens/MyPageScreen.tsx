@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeOut, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 import { ApiError, postPublicJson } from '../api';
 import { useBookmarks, useRecentViews, useNotifications, useWishItems } from '../hooks/useLocalDeals';
@@ -30,6 +31,7 @@ import { useTabReselect } from '../hooks/useTabReselect';
 import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
 import { spacing } from '../design/tokens';
 import type { GroupBuy, MainTabParamList, RootStackParamList } from '../types';
+import { resolveAuthUserPresentation } from '../utils/userPresentation';
 
 type PublicWishSubmissionResponse = {
   alreadyRegistered?: boolean;
@@ -39,6 +41,9 @@ type PublicWishSubmissionResponse = {
   };
   status?: string;
 };
+
+const SHELF_ITEM_EXIT = FadeOut.duration(120).reduceMotion(ReduceMotion.System);
+const SHELF_ITEM_LAYOUT = LinearTransition.duration(160).reduceMotion(ReduceMotion.System);
 
 function isInstagramPostUrl(value: string) {
   try {
@@ -87,8 +92,7 @@ export function DealShelf({
   items,
   emptyText,
   onPressDeal,
-  onRemoveDeal,
-  removeLabel = '삭제',
+  onUnbookmarkDeal,
   s,
 }: {
   title: string;
@@ -96,45 +100,56 @@ export function DealShelf({
   items: GroupBuy[];
   emptyText: string;
   onPressDeal: (item: GroupBuy) => void;
-  onRemoveDeal?: (item: GroupBuy) => void;
-  removeLabel?: string;
+  onUnbookmarkDeal?: (item: GroupBuy) => void;
   s: ReturnType<typeof makeStyles>;
 }) {
   return (
     <View style={s.dealShelf}>
       <View style={s.shelfHeader}>
         <View>
-          <SText variant="cardTitle" style={s.shelfTitle}>{title}</SText>
-          <SText variant="caption" style={s.shelfSubtitle}>{subtitle}</SText>
+          <SText variant="cardTitle" style={s.shelfTitle}>
+            {title}
+          </SText>
+          <SText variant="caption" style={s.shelfSubtitle}>
+            {subtitle}
+          </SText>
         </View>
       </View>
       {items.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.miniDealRail}>
           {items.map((item, index) => (
-            <View key={`${title}-${item.id}`} style={s.shelfDealItem}>
+            <Animated.View
+              exiting={SHELF_ITEM_EXIT}
+              key={`${title}-${item.id}`}
+              layout={SHELF_ITEM_LAYOUT}
+              style={s.shelfDealItem}
+            >
               <DealCard
                 item={item}
                 category={categoryForGroupBuy(item, index)}
                 onPress={() => onPressDeal(item)}
                 style={s.shelfDealCard}
+                trailingAction={
+                  onUnbookmarkDeal
+                    ? {
+                        accessibilityHint: '북마크 목록에서 제거합니다.',
+                        accessibilityLabel: `${item.productName ?? '공구'} 북마크 해제`,
+                        icon: <Ionicons name="bookmark" size={18} style={s.shelfBookmarkIcon} />,
+                        onPress: () => onUnbookmarkDeal(item),
+                        selected: true,
+                        testID: `my-page-unbookmark-${item.id}`,
+                      }
+                    : undefined
+                }
               />
-              {onRemoveDeal ? (
-                <Pressable
-                  accessibilityLabel={`${item.productName ?? '공구'} ${removeLabel}`}
-                  accessibilityRole="button"
-                  onPress={() => onRemoveDeal(item)}
-                  hitSlop={8}
-                  style={s.shelfDealRemove}
-                >
-                  <SText variant="caption" style={s.shelfDealRemoveText}>x</SText>
-                </Pressable>
-              ) : null}
-            </View>
+            </Animated.View>
           ))}
         </ScrollView>
       ) : (
         <View style={s.emptyShelf}>
-          <SText variant="caption" style={s.emptyShelfText}>{emptyText}</SText>
+          <SText variant="caption" style={s.emptyShelfText}>
+            {emptyText}
+          </SText>
         </View>
       )}
     </View>
@@ -166,7 +181,10 @@ export function notificationEntryToGroupBuy(entry: NotificationEntry): GroupBuy 
 export function MyPageScreen() {
   const { colors } = useCommerceTheme();
   const { user, isLoading: authLoading, signOut } = useAuth();
-  const { requireAuth } = useAuthGate();
+  const userPresentation = user
+    ? resolveAuthUserPresentation(user)
+    : { avatarInitial: '?', label: '사용자' };
+  const { canAuthenticate, requireAuth } = useAuthGate();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -174,7 +192,7 @@ export function MyPageScreen() {
   const [loggingOut, setLoggingOut] = useState(false);
   const { bookmarks: bookmarkedDeals, removeBookmark, refresh: refreshBookmarks } = useBookmarks();
   const { recentViews: viewedToday, refresh: refreshRecent } = useRecentViews();
-  const { notifications, removeNotification, refresh: refreshNotifications } = useNotifications();
+  const { notifications, refresh: refreshNotifications } = useNotifications();
   const { wishItems, recordWishItem, refresh: refreshWishItems } = useWishItems();
   const [wishModalVisible, setWishModalVisible] = useState(false);
   const [wishUrl, setWishUrl] = useState('');
@@ -202,8 +220,16 @@ export function MyPageScreen() {
   useTabReselect(tabNavigation, handleMyPageTabReselect);
 
   const handleLoginPress = useCallback(() => {
-    navigation.navigate('Login');
-  }, [navigation]);
+    requireAuth();
+  }, [requireAuth]);
+
+  const handleRegisterWish = useCallback(() => {
+    if (!canAuthenticate) {
+      requireAuth();
+      return;
+    }
+    setWishModalVisible(true);
+  }, [canAuthenticate, requireAuth]);
 
   const handleLogout = useCallback(async () => {
     setLoggingOut(true);
@@ -222,11 +248,6 @@ export function MyPageScreen() {
     if (!requireAuth()) return;
     removeBookmark(item.id);
   }, [removeBookmark, requireAuth]);
-
-  const handleRemoveNotification = useCallback((item: GroupBuy) => {
-    if (!requireAuth()) return;
-    removeNotification(item.id);
-  }, [removeNotification, requireAuth]);
 
   const closeWishModal = useCallback(() => {
     if (wishSubmitting) return;
@@ -369,9 +390,9 @@ export function MyPageScreen() {
         {user ? (
           <View style={s.profileCard}>
             <View style={s.avatarCircle}>
-              <SText variant="title" style={s.avatarText}>{(user.email ?? '?')[0].toUpperCase()}</SText>
+              <SText variant="title" style={s.avatarText}>{userPresentation.avatarInitial}</SText>
             </View>
-            <SText variant="cardTitle" style={s.profileEmail}>{user.email}</SText>
+            <SText variant="cardTitle" style={s.profileEmail}>{userPresentation.label}</SText>
             <SText variant="caption" style={s.profileJoined}>
               가입일: {user.created_at ? new Date(user.created_at).toLocaleDateString('ko-KR') : '알 수 없음'}
             </SText>
@@ -382,15 +403,22 @@ export function MyPageScreen() {
             <SText variant="caption" style={s.guestHeroSubtitle}>
               북마크와 알림 설정은 로그인 후 이용할 수 있어요.
             </SText>
-            <Pressable accessibilityRole="button" onPress={handleLoginPress} style={({ pressed }) => [s.softLoginButton, pressed && s.pressed]}>
-              <SText variant="label" style={s.softLoginText}>계정 연결해서 여러 기기에서 이어보기</SText>
+            <Pressable
+              accessibilityLabel="로그인하고 활동 이어보기"
+              accessibilityRole="button"
+              onPress={handleLoginPress}
+              style={({ pressed }) => [s.softLoginButton, pressed && s.pressed]}
+            >
+              <SText variant="label" style={s.softLoginText}>
+                계정 연결해서 여러 기기에서 이어보기
+              </SText>
             </Pressable>
           </View>
         )}
 
         <GuestSummaryCards
           wishItemCount={wishItems.length}
-          onPressRegisterWish={() => setWishModalVisible(true)}
+          onPressRegisterWish={handleRegisterWish}
           s={s}
         />
 
@@ -409,19 +437,16 @@ export function MyPageScreen() {
           items={bookmarkedDeals}
           emptyText="북마크한 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
-          onRemoveDeal={handleRemoveBookmark}
-          removeLabel="북마크 해제"
+          onUnbookmarkDeal={handleRemoveBookmark}
           s={s}
         />
 
         <DealShelf
           title="알림 설정한 공구"
-          subtitle="시작 알림을 설정한 공구예요"
+          subtitle="마감 알림을 설정한 공구예요"
           items={notificationDeals}
           emptyText="알림을 설정한 공구가 아직 없어요."
           onPressDeal={handlePressDeal}
-          onRemoveDeal={handleRemoveNotification}
-          removeLabel="알림 해제"
           s={s}
         />
 
@@ -681,7 +706,6 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingRight: spacing.lg,
     },
     shelfDealItem: {
-      position: 'relative',
       width: 168,
     },
     shelfDealCard: {
@@ -691,22 +715,8 @@ function makeStyles(colors: CommerceColorPalette) {
       minHeight: 0,
       width: '100%',
     },
-    shelfDealRemove: {
-      alignItems: 'center',
-      backgroundColor: colors.softBg,
-      borderRadius: 10,
-      height: 20,
-      justifyContent: 'center',
-      position: 'absolute',
-      right: 6,
-      top: 6,
-      width: 20,
-    },
-    shelfDealRemoveText: {
-      color: colors.weak,
-      fontSize: 14,
-      fontWeight: '900',
-      lineHeight: 16,
+    shelfBookmarkIcon: {
+      color: colors.accent,
     },
     emptyShelf: {
       alignItems: 'center',

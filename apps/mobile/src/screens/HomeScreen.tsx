@@ -1,11 +1,11 @@
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 import {
@@ -28,12 +28,12 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 
 import { SText } from "../components/ui/SText";
+import { InstagramIdentity } from "../components/ui/InstagramIdentity";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { PriceText } from "../components/ui/PriceText";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
 import { DealCard } from "../components/DealCard";
 import { NativeAdCard } from "../components/ads/NativeAdCard";
-import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
 import { CATEGORIES } from "../components/home/CategoryRow";
 import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
@@ -42,6 +42,7 @@ import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { getHomeBannerStatusCopy } from "@gonggu/shared/utils/homeBannerPresentation";
 import { getHomeBannerDateKey } from "@gonggu/shared/utils/homeBanner";
+import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
 import { borderRadius, spacing } from "../design/tokens";
 import type { CategoryColorName } from "../design/tokens";
 import { isGroupBuyActiveOnDate } from "../utils/groupBuyDates";
@@ -521,12 +522,18 @@ function PromoBanner({
       {loopingPromoItems.map(({ item, index, clone }, renderIndex) => {
         const visual = getPromoVisual(item);
         const productName = item.productName?.trim() || "공동구매 상품";
+        const instagramHandle = formatInstagramHandle(
+          item.rawPost.influencer.instagramUsername,
+        );
         const statusCopy = getHomeBannerStatusCopy(item);
         const accessibilityLabel = [
           productName,
+          instagramHandle,
           statusCopy.accessibilityLabel,
           "상세 열기",
-        ].join(", ");
+        ]
+          .filter((label): label is string => Boolean(label))
+          .join(", ");
         return (
           <Pressable
             accessibilityElementsHidden={clone}
@@ -577,6 +584,19 @@ function PromoBanner({
               style={s.promoOverlay}
               testID={clone ? undefined : `promo-overlay-${item.id}`}
             >
+              {instagramHandle ? (
+                <InstagramIdentity
+                  iconTestID={
+                    clone ? undefined : `promo-account-icon-${item.id}`
+                  }
+                  size="compact"
+                  style={s.promoAccountRow}
+                  testID={clone ? undefined : `promo-account-${item.id}`}
+                  textStyle={s.promoAccount}
+                  tone="inverse"
+                  username={item.rawPost.influencer.instagramUsername}
+                />
+              ) : null}
               <SText variant="cardTitle" numberOfLines={2} style={s.promoTitle}>
                 {productName}
               </SText>
@@ -704,6 +724,56 @@ function WeeklyGroupBuysSection({
   );
 }
 
+// Insert a native ad every HOME_NATIVE_AD_INTERVAL recommended products so the
+// home grid surfaces ads more often than the previous single post-6 placement.
+// Ads land on natural-feeling, unpredictable breaks: every gap is drawn
+// uniformly from [HOME_AD_GAP_MIN, HOME_AD_GAP_MAX] = [2, 10] products. The
+// gap sequence is seeded from the recommended product ids so the same batch
+// always shows ads at the same indices (no layout jump on re-render), while a
+// refreshed batch surfaces fresh ad positions.
+const HOME_AD_GAP_MIN = 2;
+const HOME_AD_GAP_MAX = 10;
+
+function seedRandomFromIds(ids: string[]): () => number {
+  let h = 1779033703 ^ ids.length;
+  for (const id of ids) {
+    for (let i = 0; i < id.length; i++) {
+      h = Math.imul(h ^ id.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+  }
+  return function () {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Returns the 0-based product indices after which a full-width native ad
+ * should be inserted, using seeded random gaps in [HOME_AD_GAP_MIN,
+ * HOME_AD_GAP_MAX]. Short finite lists may place the ad after the final
+ * product so the two-product minimum can still produce a break.
+ */
+function buildHomeAdInsertionPoints(ids: string[]): Set<number> {
+  const points = new Set<number>();
+  const largestFirstGap = Math.min(HOME_AD_GAP_MAX, ids.length);
+  if (largestFirstGap < HOME_AD_GAP_MIN) return points;
+  const random = seedRandomFromIds(ids);
+  const randomGap = (max = HOME_AD_GAP_MAX) =>
+    Math.floor(random() * (max - HOME_AD_GAP_MIN + 1)) +
+    HOME_AD_GAP_MIN;
+  let gap = randomGap(largestFirstGap);
+  let index = gap - 1;
+  while (index < ids.length) {
+    points.add(index);
+    gap = randomGap();
+    index += gap;
+  }
+  return points;
+}
+
 function RecommendedProducts({
   groupBuys,
   onPressDeal,
@@ -714,54 +784,41 @@ function RecommendedProducts({
   s: ReturnType<typeof makeStyles>;
 }) {
   const products = groupBuys.slice(0, 8);
-  const adEligible = products.length >= 6;
-  const leadingProducts = adEligible ? products.slice(0, 6) : products;
-  const trailingProducts = adEligible ? products.slice(6) : [];
-  const [adState, setAdState] = useState<{
-    eligible: boolean;
-    status: NativeAdLoadStatus;
-  }>(() => ({ eligible: adEligible, status: "loading" }));
-  const adStatus = adState.eligible === adEligible ? adState.status : "loading";
-  const handleAdLoadStateChange = useCallback((status: NativeAdLoadStatus) => {
-    setAdState({ eligible: true, status });
-  }, []);
+  const productIds = products.map((item) => item.id);
+  const adInsertionPoints = useMemo(
+    () => buildHomeAdInsertionPoints(productIds),
+    [productIds],
+  );
 
-  useEffect(() => {
-    if (!adEligible) {
-      setAdState({ eligible: false, status: "loading" });
+  // Insert a product-sized native ad at each seeded random break. Ad slots
+  // render null while loading/unavailable, so products always stay visible
+  // and no blank space is reserved.
+  const gridChildren: ReactNode[] = [];
+  products.forEach((item, index) => {
+    gridChildren.push(
+      <DealCard
+        category={categoryForGroupBuy(item, index)}
+        item={item}
+        key={item.id}
+        onPress={() => onPressDeal(item)}
+      />,
+    );
+    if (adInsertionPoints.has(index)) {
+      gridChildren.push(
+        <NativeAdCard
+          key={`home-recommendation-ad-after-${index}`}
+          testID="home-native-ad"
+          variant="tile"
+        />,
+      );
     }
-  }, [adEligible]);
+  });
 
   return (
     <View style={s.recommendSection}>
       {products.length > 0 ? (
         <View style={s.productGrid} testID="home-recommendation-grid">
-          {leadingProducts.map((item, index) => (
-            <DealCard
-              category={categoryForGroupBuy(item, index)}
-              item={item}
-              key={item.id}
-              onPress={() => onPressDeal(item)}
-            />
-          ))}
-          {adEligible ? (
-            <Fragment key="home-recommendation-ad">
-              <NativeAdCard
-                onLoadStateChange={handleAdLoadStateChange}
-                testID="home-native-ad"
-              />
-              {adStatus === "loading"
-                ? null
-                : trailingProducts.map((item, index) => (
-                    <DealCard
-                      category={categoryForGroupBuy(item, index + 6)}
-                      item={item}
-                      key={item.id}
-                      onPress={() => onPressDeal(item)}
-                    />
-                  ))}
-            </Fragment>
-          ) : null}
+          {gridChildren}
         </View>
       ) : (
         <View style={s.productEmpty}>
@@ -1112,6 +1169,18 @@ function makeStyles(colors: CommerceColorPalette) {
       textShadowColor: "rgba(0, 0, 0, 0.38)",
       textShadowOffset: { height: 1, width: 0 },
       textShadowRadius: 4,
+    },
+    promoAccount: {
+      fontSize: 12,
+      fontWeight: "700",
+      letterSpacing: 0,
+      lineHeight: 17,
+      textShadowColor: "rgba(0, 0, 0, 0.38)",
+      textShadowOffset: { height: 1, width: 0 },
+      textShadowRadius: 3,
+    },
+    promoAccountRow: {
+      marginBottom: 3,
     },
     promoImage: { ...StyleSheet.absoluteFillObject },
     promoImagePending: { opacity: 0 },
