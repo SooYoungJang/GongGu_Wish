@@ -1203,7 +1203,7 @@ jobs:
   promotion-gate:
     name: Preview Promotion Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
     permissions:
       actions: read
@@ -1255,23 +1255,63 @@ jobs:
             exit 1
           fi
 
-          run_id="$(
-            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=develop&event=push&status=success&per_page=100" \
-              --jq "[.workflow_runs[] | select(.head_sha == \"$HEAD_SHA\" and .conclusion == \"success\")] | sort_by(.created_at) | last | .id // empty"
-          )"
-          if [[ -z "$run_id" ]]; then
-            echo "::error::No successful develop push workflow exists for $HEAD_SHA."
-            exit 1
-          fi
+          runs_response="$(mktemp)"
+          jobs_response="$(mktemp)"
+          trap 'rm -f "$runs_response" "$jobs_response"' EXIT
 
-          preview_green_job="$(
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
-              --jq '[.jobs[] | select(.name == "Preview Green" and .conclusion == "success")] | last | .id // empty'
-          )"
-          if [[ -z "$preview_green_job" ]]; then
-            echo "::error::The successful develop workflow has no successful Preview Green job."
-            exit 1
-          fi
+          for attempt in {1..40}; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=develop&event=push&per_page=100" > "$runs_response"
+            run_id="$(jq -r --arg sha "$HEAD_SHA" '
+              [.workflow_runs[] | select(.head_sha == $sha)] |
+              sort_by(.created_at) |
+              last |
+              .id // empty
+            ' "$runs_response")"
+
+            if [[ -n "$run_id" ]]; then
+              run_status="$(jq -r --argjson id "$run_id" '
+                [.workflow_runs[] | select(.id == $id)] | last | .status // empty
+              ' "$runs_response")"
+              run_conclusion="$(jq -r --argjson id "$run_id" '
+                [.workflow_runs[] | select(.id == $id)] | last | .conclusion // empty
+              ' "$runs_response")"
+
+              if [[ "$run_status" == "completed" && "$run_conclusion" != "success" ]]; then
+                echo "::error::The develop workflow for $HEAD_SHA concluded with $run_conclusion before Preview Green succeeded."
+                exit 1
+              fi
+
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" > "$jobs_response"
+              preview_status="$(jq -r '
+                [.jobs[] | select(.name == "Preview Green")] |
+                last |
+                .status // empty
+              ' "$jobs_response")"
+              preview_conclusion="$(jq -r '
+                [.jobs[] | select(.name == "Preview Green")] |
+                last |
+                .conclusion // empty
+              ' "$jobs_response")"
+
+              if [[ "$preview_status" == "completed" && "$preview_conclusion" == "success" ]]; then
+                break
+              fi
+              if [[ "$preview_status" == "completed" ]]; then
+                echo "::error::Preview Green for $HEAD_SHA concluded with $preview_conclusion."
+                exit 1
+              fi
+              if [[ "$run_status" == "completed" && -z "$preview_status" ]]; then
+                echo "::error::The successful develop workflow has no Preview Green job."
+                exit 1
+              fi
+            fi
+
+            if [[ "$attempt" == "40" ]]; then
+              echo "::error::Preview Green did not succeed for exact develop SHA $HEAD_SHA."
+              exit 1
+            fi
+            sleep 15
+          done
 
           {
             echo "## Preview promotion approved"
