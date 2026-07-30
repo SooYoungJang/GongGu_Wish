@@ -17,7 +17,7 @@
   "dependencies": {
     "@gonggu/shared": "*",
     "@nestjs/bullmq": "^11.0.4",
-    "@nestjs/common": "^11.1.9",
+    "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.28",
     "@nestjs/jwt": "^11.0.2",
