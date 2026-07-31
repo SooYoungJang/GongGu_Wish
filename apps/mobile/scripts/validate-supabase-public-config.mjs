@@ -1,7 +1,11 @@
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const SETTINGS_PATH = "auth/v1/settings";
+const SUPABASE_URL_PATTERN = /https:\/\/[a-z0-9-]+\.supabase\.co/g;
+const PUBLISHABLE_KEY_PATTERN = /sb_publishable_[A-Za-z0-9._-]+/g;
+const JWT_PATTERN = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 
 function readLegacyAnonClaims(publicKey) {
   const segments = publicKey.split(".");
@@ -84,7 +88,80 @@ export async function validateSupabasePublicConfig({
   }
 }
 
+export async function validateBundledSupabasePublicConfig({
+  bundle,
+  expectedPublicKey,
+  expectedSupabaseUrl,
+  fetchImpl = fetch,
+  timeoutMs = 15_000,
+}) {
+  const bundleText = Buffer.isBuffer(bundle)
+    ? bundle.toString("latin1")
+    : String(bundle ?? "");
+  const urls = [...new Set(bundleText.match(SUPABASE_URL_PATTERN) ?? [])];
+  const bundledUrl = urls.length === 1 ? urls[0] : null;
+  const projectRef = bundledUrl
+    ? new URL(bundledUrl).hostname.slice(0, -".supabase.co".length)
+    : null;
+  const candidates = [
+    ...new Set([
+      ...(bundleText.match(PUBLISHABLE_KEY_PATTERN) ?? []),
+      ...(bundleText.match(JWT_PATTERN) ?? []),
+    ]),
+  ];
+  const publicKeys = candidates.filter((candidate) => {
+    if (candidate.startsWith("sb_publishable_")) return true;
+
+    try {
+      const claims = readLegacyAnonClaims(candidate);
+      return claims?.role === "anon" && claims.ref === projectRef;
+    } catch {
+      return false;
+    }
+  });
+
+  if (!bundledUrl || publicKeys.length !== 1) {
+    throw new Error(
+      "The Android bundle must contain exactly one Supabase public configuration.",
+    );
+  }
+
+  let expectedOrigin;
+  try {
+    expectedOrigin = new URL(expectedSupabaseUrl).origin;
+  } catch {
+    throw new Error("The validated Supabase environment URL is invalid.");
+  }
+
+  if (
+    bundledUrl !== expectedOrigin ||
+    publicKeys[0] !== expectedPublicKey?.trim()
+  ) {
+    throw new Error(
+      "The Android bundle Supabase configuration does not match the validated environment.",
+    );
+  }
+
+  await validateSupabasePublicConfig({
+    supabaseUrl: bundledUrl,
+    publicKey: publicKeys[0],
+    fetchImpl,
+    timeoutMs,
+  });
+}
+
 async function main() {
+  if (process.argv.includes("--bundle-stdin")) {
+    const bundle = await readFile(0);
+    await validateBundledSupabasePublicConfig({
+      bundle,
+      expectedPublicKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      expectedSupabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    });
+    console.log("Android bundle Supabase public configuration verified.");
+    return;
+  }
+
   await validateSupabasePublicConfig({
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     publicKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,

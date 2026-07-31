@@ -8,6 +8,10 @@ fake_bin="$test_directory/bin"
 mkdir -p "$fake_bin"
 trap 'rm -rf "$test_directory"' EXIT
 
+public_build_config_path="$script_directory/../src/lib/public-build-config.ts"
+public_build_config_original="$test_directory/public-build-config.original.ts"
+cp "$public_build_config_path" "$public_build_config_original"
+
 preview_google_services="$test_directory/google-services.preview.json"
 production_google_services="$test_directory/google-services.production.json"
 printf '%s\n' \
@@ -20,7 +24,9 @@ printf '%s\n' \
 bash_command="${BASH:-bash}"
 real_node="$(command -v node)"
 export REAL_NODE="$real_node"
-"$real_node" --test "$script_directory/validate-supabase-public-config.test.mjs"
+"$real_node" --test \
+  "$script_directory/validate-supabase-public-config.test.mjs" \
+  "$script_directory/materialize-public-build-config.test.mjs"
 if ! command -v bash >/dev/null 2>&1; then
   cp "$bash_command" "$fake_bin/bash.exe"
   bash_command="$fake_bin/bash.exe"
@@ -232,6 +238,14 @@ if [[ "${1:-}" == *"validate-supabase-public-config.mjs" ]]; then
   if [[ -n "${MOCK_SUPABASE_VALIDATION_LOG:-}" ]]; then
     printf '%s\n' "$*" >>"$MOCK_SUPABASE_VALIDATION_LOG"
   fi
+  if [[ " $* " == *" --bundle-stdin "* ]]; then
+    cat >/dev/null
+    if [[ "${MOCK_BUNDLED_SUPABASE_VALID:-true}" != "true" ]]; then
+      echo "::error::The Android bundle Supabase configuration does not match the validated environment." >&2
+      exit 1
+    fi
+    exit 0
+  fi
   if [[ "${MOCK_SUPABASE_KEY_VALID:-true}" != "true" ]]; then
     echo "::error::Supabase public configuration was rejected (HTTP 401)." >&2
     exit 1
@@ -245,6 +259,22 @@ if command -v chmod >/dev/null 2>&1; then
   chmod +x "$fake_bin/node"
 fi
 
+cat >"$fake_bin/unzip" <<'FAKE_UNZIP'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ "${1:-}" != "-p" || "${3:-}" != "assets/index.android.bundle" ]]; then
+  echo "Unexpected unzip invocation" >&2
+  exit 1
+fi
+
+printf '%s\n' 'synthetic Android bundle'
+FAKE_UNZIP
+if command -v chmod >/dev/null 2>&1; then
+  chmod +x "$fake_bin/unzip"
+fi
+
 run_deployment() {
   local name="$1"
   local ref="$2"
@@ -253,6 +283,7 @@ run_deployment() {
   local upload_fail="${5:-false}"
   local force_preview_apk="${6:-false}"
   local supabase_key_valid="${7:-true}"
+  local bundled_supabase_valid="${8:-true}"
   local case_directory="$test_directory/$name"
   local google_services_file="$preview_google_services"
   if [[ "$ref" == "refs/heads/main" ]]; then
@@ -279,6 +310,7 @@ run_deployment() {
     MOCK_COMPATIBLE_BUILD="$compatible_build" \
     MOCK_UPLOAD_FAIL="$upload_fail" \
     MOCK_SUPABASE_KEY_VALID="$supabase_key_valid" \
+    MOCK_BUNDLED_SUPABASE_VALID="$bundled_supabase_valid" \
     FORCE_PREVIEW_APK="$force_preview_apk" \
     MOCK_EAS_LOG="$case_directory/eas.log" \
     MOCK_GH_LOG="$case_directory/gh.log" \
@@ -344,9 +376,32 @@ run_deployment \
 grep -Fxq "mode=build" "$test_directory/preview-forced-build/output"
 grep -Fq "build --platform android --profile preview --local" \
   "$test_directory/preview-forced-build/eas.log"
+grep -Fq -- "--bundle-stdin" \
+  "$test_directory/preview-forced-build/supabase-validation.log"
 assert_eas_commands "preview-forced-build" "fingerprint:generate build"
 if [[ -s "$test_directory/preview-forced-build/gh.log" ]]; then
   echo "Forced Preview APK build unexpectedly queried an existing baseline" >&2
+  exit 1
+fi
+
+if run_deployment \
+  "preview-stale-bundled-supabase" \
+  "refs/heads/develop" \
+  "trusted" \
+  "false" \
+  "false" \
+  "true" \
+  "true" \
+  "false"; then
+  echo "A stale bundled Preview Supabase key unexpectedly passed validation" >&2
+  exit 1
+fi
+grep -Fq "build --platform android --profile preview --local" \
+  "$test_directory/preview-stale-bundled-supabase/eas.log"
+grep -Fq -- "--bundle-stdin" \
+  "$test_directory/preview-stale-bundled-supabase/supabase-validation.log"
+if [[ -s "$test_directory/preview-stale-bundled-supabase/output" ]]; then
+  echo "A stale bundled key unexpectedly published deployment outputs" >&2
   exit 1
 fi
 
@@ -634,6 +689,11 @@ if PATH="$fake_bin:$PATH" \
   MOCK_EAS_LOG="$mismatched_firebase_directory/eas.log" \
   "$bash_command" "$script_directory/ci-deploy-android.sh" >/dev/null 2>&1; then
   echo "Mismatched Firebase package unexpectedly passed validation" >&2
+  exit 1
+fi
+
+if ! cmp -s "$public_build_config_original" "$public_build_config_path"; then
+  echo "Deployment tests did not restore the public build configuration template" >&2
   exit 1
 fi
 

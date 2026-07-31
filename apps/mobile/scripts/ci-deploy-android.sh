@@ -128,6 +128,22 @@ NODE
 
 node "$script_directory/validate-supabase-public-config.mjs"
 
+if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  echo "::add-mask::$EXPO_PUBLIC_SUPABASE_ANON_KEY"
+fi
+
+public_build_config_path="$script_directory/../src/lib/public-build-config.ts"
+public_build_config_backup="$RUNNER_TEMP/public-build-config.$$.ts"
+cp "$public_build_config_path" "$public_build_config_backup"
+restore_public_build_config() {
+  cp "$public_build_config_backup" "$public_build_config_path"
+  rm -f "$public_build_config_backup"
+}
+trap restore_public_build_config EXIT
+
+node "$script_directory/materialize-public-build-config.mjs" \
+  "$public_build_config_path"
+
 fingerprint_json="$(
   eas fingerprint:generate \
     --platform android \
@@ -268,6 +284,10 @@ if [[ ! -s "$apk_path" ]]; then
   echo "::error::Local Android build did not produce an APK."
   exit 1
 fi
+
+unzip -p "$apk_path" assets/index.android.bundle | \
+  node "$script_directory/validate-supabase-public-config.mjs" \
+    --bundle-stdin
 
 apk_sha256="$(
   node -e '

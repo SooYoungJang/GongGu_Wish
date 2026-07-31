@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { validateSupabasePublicConfig } from "./validate-supabase-public-config.mjs";
+import {
+  validateBundledSupabasePublicConfig,
+  validateSupabasePublicConfig,
+} from "./validate-supabase-public-config.mjs";
 
 const supabaseUrl = "https://preview-project.supabase.co";
 
@@ -82,5 +85,63 @@ test("rejects a modern secret key before it can be embedded in the app", async (
       },
     }),
     /publishable key/,
+  );
+});
+
+test("accepts only the validated Supabase configuration in the Android bundle", async () => {
+  const publicKey = "sb_publishable_valid-preview-public-key";
+
+  await validateBundledSupabasePublicConfig({
+    bundle: Buffer.from(`${supabaseUrl}\n${publicKey}`, "utf8"),
+    expectedPublicKey: publicKey,
+    expectedSupabaseUrl: supabaseUrl,
+    fetchImpl: async () => new Response("{}", { status: 200 }),
+  });
+});
+
+test("rejects a stale bundled key without exposing either key", async () => {
+  const expectedPublicKey = "sb_publishable_current-preview-public-key";
+  const bundledPublicKey = "sb_publishable_stale-preview-public-key";
+
+  await assert.rejects(
+    validateBundledSupabasePublicConfig({
+      bundle: Buffer.from(`${supabaseUrl}\n${bundledPublicKey}`, "utf8"),
+      expectedPublicKey,
+      expectedSupabaseUrl: supabaseUrl,
+      fetchImpl: async () => {
+        throw new Error("fetch should not run");
+      },
+    }),
+    (error) => {
+      assert.match(error.message, /does not match the validated environment/);
+      assert.doesNotMatch(error.message, new RegExp(expectedPublicKey));
+      assert.doesNotMatch(error.message, new RegExp(bundledPublicKey));
+      return true;
+    },
+  );
+});
+
+test("rejects a bundle that retains both current and stale public keys", async () => {
+  const expectedPublicKey = "sb_publishable_current-preview-public-key";
+  const stalePublicKey = "sb_publishable_stale-preview-public-key";
+
+  await assert.rejects(
+    validateBundledSupabasePublicConfig({
+      bundle: Buffer.from(
+        `${supabaseUrl}\n${expectedPublicKey}\n${stalePublicKey}`,
+        "utf8",
+      ),
+      expectedPublicKey,
+      expectedSupabaseUrl: supabaseUrl,
+      fetchImpl: async () => {
+        throw new Error("fetch should not run");
+      },
+    }),
+    (error) => {
+      assert.match(error.message, /exactly one Supabase public configuration/);
+      assert.doesNotMatch(error.message, new RegExp(expectedPublicKey));
+      assert.doesNotMatch(error.message, new RegExp(stalePublicKey));
+      return true;
+    },
   );
 });
