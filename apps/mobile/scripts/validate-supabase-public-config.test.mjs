@@ -1,13 +1,23 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { Readable } from "node:stream";
 import test from "node:test";
 
 import {
+  readStreamToBuffer,
   validateBundledSupabasePublicConfig,
   validateSupabasePublicConfig,
 } from "./validate-supabase-public-config.mjs";
 
 const supabaseUrl = "https://preview-project.supabase.co";
+
+test("reads an Android bundle from stdin-compatible streams", async () => {
+  const bundle = await readStreamToBuffer(
+    Readable.from([Buffer.from("first"), Buffer.from("-second")]),
+  );
+
+  assert.equal(bundle.toString("utf8"), "first-second");
+});
 
 test("keeps Preview Supabase configuration in EAS environment variables", async () => {
   const easConfig = JSON.parse(
