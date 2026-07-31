@@ -34,8 +34,7 @@ async function request(
   const response = await fetch(`${config.url}${path}`, {
     method: options.method ?? "GET",
     headers,
-    body:
-      options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
   const text = await response.text();
   let payload: unknown = null;
@@ -87,12 +86,18 @@ describeLocal("local Supabase account deletion contract", () => {
     const userId = (created.payload as { id: string }).id;
     pendingUserId = userId;
 
-    const profile = await request(config, "/rest/v1/users", {
-      method: "POST",
-      key: config.serviceRoleKey,
-      body: { id: userId, email, updated_at: new Date().toISOString() },
+    const profile = await request(
+      config,
+      `/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=id,email`,
+      {
+        method: "GET",
+        key: config.serviceRoleKey,
+      },
+    );
+    expect(profile).toEqual({
+      payload: [{ id: userId, email }],
+      status: 200,
     });
-    expect(profile.status).toBe(201);
 
     const session = await request(
       config,
