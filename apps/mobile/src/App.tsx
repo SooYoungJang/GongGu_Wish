@@ -41,10 +41,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { AdsProvider } from "./ads/AdsContext";
 import { AdsRuntimeSmokeProbe } from "./ads/AdsRuntimeSmokeProbe";
 import { AudienceGate } from "./audience/AudienceGate";
-import {
-  AudienceProvider,
-  useAudience,
-} from "./audience/AudienceContext";
+import { AudienceProvider, useAudience } from "./audience/AudienceContext";
 import { RestrictedAudienceCleanupBridge } from "./audience/RestrictedAudienceCleanupBridge";
 import type { MainTabParamList, RootStackParamList } from "./types";
 import { configurePostgrest } from "./lib/postgrest-client";
@@ -74,25 +71,26 @@ import {
 } from "./navigation/tabBarVisibility";
 import { mobileQueryClient, syncQueryFocus } from "./lib/query-client";
 import { notificationLinking } from "./navigation/notificationLinking";
+import { publicBuildConfig } from "./lib/public-build-config";
 
 // Initialize PostgREST client with the Supabase anon key
 const automatedE2E = isAutomatedE2E();
 const anonKey = resolveSupabaseAnonKey(
   automatedE2E
     ? Constants.expoConfig?.extra?.e2eSupabaseAnonKey
-    : process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    : publicBuildConfig.supabaseAnonKey,
 );
 const supabaseUrl = resolveSupabaseUrl(
   automatedE2E
     ? Constants.expoConfig?.extra?.e2eSupabaseUrl
-    : process.env.EXPO_PUBLIC_SUPABASE_URL,
+    : publicBuildConfig.supabaseUrl,
   {
     requireLocal: automatedE2E,
   },
 );
 const dataApiUrl = resolveDataApiUrl(
   supabaseUrl,
-  automatedE2E ? undefined : process.env.EXPO_PUBLIC_API_PROXY_URL,
+  automatedE2E ? undefined : publicBuildConfig.apiProxyUrl,
   { requireLocal: automatedE2E },
 );
 configurePostgrest(anonKey, dataApiUrl);
@@ -418,11 +416,7 @@ function NotificationScheduleBridge() {
   });
 
   useEffect(() => {
-    if (
-      !policy.canAuthenticate ||
-      !preferencesReady ||
-      !notificationsReady
-    )
+    if (!policy.canAuthenticate || !preferencesReady || !notificationsReady)
       return;
     if (lastScheduleSignatureRef.current === scheduleSignature) return;
     lastScheduleSignatureRef.current = scheduleSignature;
