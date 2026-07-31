@@ -102,6 +102,14 @@ test("hiker-lookup is declared for project-bound Git deployment", () => {
   assert.equal(existsSync("supabase/functions/hiker-lookup/index.ts"), true);
 });
 
+test("naver-userinfo accepts the upstream OAuth token without gateway JWT verification", () => {
+  assert.match(
+    supabaseConfig,
+    /^\[functions\.naver-userinfo\]\r?\n(?:#[^\r\n]*\r?\n)*verify_jwt = false$/m,
+  );
+  assert.equal(existsSync("supabase/functions/naver-userinfo/index.ts"), true);
+});
+
 test("service_role can delete user profiles required by delete-account", () => {
   const deleteAccountSource = readFileSync(
     "supabase/functions/delete-account/index.ts",
