@@ -37,13 +37,13 @@ const REQUEST_PRODUCT_NAME_MIN_LENGTH = 2;
 const REQUEST_PRODUCT_NAME_MAX_LENGTH = 60;
 
 type RequestFeedback = {
-  normalizedQuery: string;
+  requestKey: string;
   result: GroupBuyRequestResult;
 };
 
 type RequestError = {
   message: string;
-  normalizedQuery: string;
+  requestKey: string;
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -257,18 +257,20 @@ export function SearchScreen() {
 
   const hasQuery = debouncedQuery.trim().length > 0;
   const requestProductName = query.trim().replace(/\s+/g, ' ');
-  const normalizedRequestQuery = normalizeForSearch(requestProductName);
+  // Keep this key aligned with the database request identity: collapse
+  // whitespace, preserve meaningful spaces, then lowercase.
+  const requestStateKey = requestProductName.toLowerCase();
   const isRequestNameValid =
     requestProductName.length >= REQUEST_PRODUCT_NAME_MIN_LENGTH &&
     requestProductName.length <= REQUEST_PRODUCT_NAME_MAX_LENGTH;
   const isSearchSettled =
     normalizeForSearch(query) === normalizeForSearch(debouncedQuery);
   const currentRequestFeedback =
-    requestFeedback?.normalizedQuery === normalizedRequestQuery
+    requestFeedback?.requestKey === requestStateKey
       ? requestFeedback.result
       : null;
   const currentRequestError =
-    requestError?.normalizedQuery === normalizedRequestQuery
+    requestError?.requestKey === requestStateKey
       ? requestError.message
       : null;
   const recentTerms = useMemo(() => recent.slice(0, RECENT_MAX), [recent]);
@@ -326,7 +328,7 @@ export function SearchScreen() {
     setRequestError(null);
     try {
       const result = await requestMutation.mutateAsync(requestProductName);
-      setRequestFeedback({ normalizedQuery: normalizedRequestQuery, result });
+      setRequestFeedback({ requestKey: requestStateKey, result });
       saveRecent(result.productName);
       await queryClient.invalidateQueries({
         queryKey: GROUP_BUY_REQUEST_RANKINGS_QUERY_KEY,
@@ -334,16 +336,16 @@ export function SearchScreen() {
     } catch {
       setRequestError({
         message: '공구 요청에 실패했어요. 잠시 후 다시 시도해 주세요.',
-        normalizedQuery: normalizedRequestQuery,
+        requestKey: requestStateKey,
       });
     }
   }, [
     audiencePolicy.canRecordBehaviorSignals,
     isRequestNameValid,
-    normalizedRequestQuery,
     queryClient,
     requestMutation,
     requestProductName,
+    requestStateKey,
     saveRecent,
   ]);
   const canGoBack = navigation.canGoBack();

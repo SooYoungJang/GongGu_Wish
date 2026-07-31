@@ -1929,11 +1929,23 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
           node.props.numberOfLines === 2 &&
           node.children.join('').includes('무선 에어프라이어'),
       );
+    const firstRankBadge = renderer.root.findByProps({
+      testID: 'group-buy-request-rank-badge-1',
+    });
+    const firstRankBadgeStyle = flattenStyle(firstRankBadge.props.style);
 
     expect(productName).toBeDefined();
     expect(flattenStyle(productName!.props.style)).toMatchObject({
       flexShrink: 1,
     });
+    expect(firstRankBadgeStyle).toMatchObject({
+      minHeight: 28,
+      minWidth: 28,
+      paddingHorizontal: expect.any(Number),
+      paddingVertical: expect.any(Number),
+    });
+    expect(firstRankBadgeStyle.height).toBeUndefined();
+    expect(firstRankBadgeStyle.width).toBeUndefined();
   });
 
   it('renders three predictable skeleton rows while the first ranking loads', () => {

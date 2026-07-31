@@ -137,7 +137,10 @@ export function GroupBuyRequestRankingCard({
                   isLast ? null : s.rowDivider,
                 ]}
               >
-                <View style={[s.rankBadge, isFirst ? s.firstRankBadge : null]}>
+                <View
+                  style={[s.rankBadge, isFirst ? s.firstRankBadge : null]}
+                  testID={`group-buy-request-rank-badge-${ranking.rank}`}
+                >
                   <SText
                     style={[s.rankText, isFirst ? s.firstRankText : null]}
                     variant="badge"
@@ -259,9 +262,11 @@ function makeStyles(colors: CommerceColorPalette) {
       borderCurve: "continuous",
       borderRadius: commerceRadius.sm,
       flexShrink: 0,
-      height: 28,
       justifyContent: "center",
-      width: 28,
+      minHeight: 28,
+      minWidth: 28,
+      paddingHorizontal: commerceSpacing.xs,
+      paddingVertical: commerceSpacing.xxs,
     },
     firstRankBadge: {
       backgroundColor: colors.accent,

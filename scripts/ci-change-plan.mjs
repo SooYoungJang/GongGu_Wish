@@ -74,6 +74,13 @@ function isMobileE2eFile(path) {
   );
 }
 
+function isMobileLocalSupabaseFile(path) {
+  return (
+    path.startsWith("apps/mobile/src/integration/") ||
+    path === "apps/mobile/vitest.integration.config.ts"
+  );
+}
+
 export function classifyChangedFiles(
   inputFiles,
   { productionRecovery = false } = {},
@@ -145,6 +152,7 @@ export function classifyChangedFiles(
       if (path.startsWith("apps/mobile/")) {
         addWorkspace("@gonggu/mobile");
         plan.mobile = true;
+        if (isMobileLocalSupabaseFile(path)) plan.localSupabase = true;
         continue;
       }
       if (path.startsWith("apps/api/")) {
