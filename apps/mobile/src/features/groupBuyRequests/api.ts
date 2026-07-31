@@ -1,4 +1,6 @@
+import { ApiError } from "../../lib/api-types";
 import { postgrestFetch } from "../../lib/postgrest-client";
+import { getSupabase } from "../../lib/supabase";
 import { getSessionId } from "../../utils/session";
 import type { GroupBuyRequestRanking, GroupBuyRequestResult } from "./types";
 
@@ -72,6 +74,33 @@ function parseRanking(value: unknown): GroupBuyRequestRanking {
   };
 }
 
+async function mapEdgeFunctionError(error: unknown): Promise<ApiError> {
+  let status = 0;
+  let message = "공구 요청에 실패했습니다.";
+
+  if (isRecord(error)) {
+    if (isNonEmptyString(error.message)) message = error.message;
+
+    const context = error.context;
+    if (isRecord(context)) {
+      if (typeof context.status === "number") status = context.status;
+
+      if (typeof context.json === "function") {
+        try {
+          const body = await context.json.call(context);
+          if (isRecord(body) && isNonEmptyString(body.error)) {
+            message = body.error;
+          }
+        } catch {
+          // Keep the SDK error message when the Edge response is not JSON.
+        }
+      }
+    }
+  }
+
+  return new ApiError(status, message);
+}
+
 export async function requestGroupBuy(
   productName: string,
 ): Promise<GroupBuyRequestResult> {
@@ -80,19 +109,25 @@ export async function requestGroupBuy(
     throw new GroupBuyRequestSessionUnavailableError();
   }
 
-  const { data } = await postgrestFetch<unknown>("rpc/request_group_buy", {
-    method: "POST",
-    body: {
-      p_product_name: productName,
-      p_session_id: sessionId,
+  const { data, error } = await getSupabase().functions.invoke<unknown>(
+    "group-buy-request",
+    {
+      body: {
+        product_name: productName,
+        session_id: sessionId,
+      },
     },
-  });
+  );
 
-  if (!Array.isArray(data) || data.length !== 1) {
+  if (error) {
+    throw await mapEdgeFunctionError(error);
+  }
+
+  if (!data) {
     throw new GroupBuyRequestResponseError();
   }
 
-  return parseRequestResult(data[0]);
+  return parseRequestResult(data);
 }
 
 export async function fetchGroupBuyRequestRankings(): Promise<

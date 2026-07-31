@@ -6,9 +6,15 @@ import {
   GroupBuyRequestSessionUnavailableError,
   requestGroupBuy,
 } from "./api";
+import { ApiError } from "../../lib/api-types";
 
 const postgrestMock = vi.hoisted(() => ({
   postgrestFetch: vi.fn(),
+}));
+
+const supabaseMock = vi.hoisted(() => ({
+  getSupabase: vi.fn(),
+  invoke: vi.fn(),
 }));
 
 const sessionMock = vi.hoisted(() => ({
@@ -16,11 +22,19 @@ const sessionMock = vi.hoisted(() => ({
 }));
 
 vi.mock("../../lib/postgrest-client", () => postgrestMock);
+vi.mock("../../lib/supabase", () => ({
+  getSupabase: supabaseMock.getSupabase,
+}));
 vi.mock("../../utils/session", () => sessionMock);
 
 describe("group buy request API", () => {
   beforeEach(() => {
     postgrestMock.postgrestFetch.mockReset();
+    supabaseMock.getSupabase.mockReset();
+    supabaseMock.invoke.mockReset();
+    supabaseMock.getSupabase.mockReturnValue({
+      functions: { invoke: supabaseMock.invoke },
+    });
     sessionMock.getSessionId.mockReset();
     sessionMock.getSessionId.mockResolvedValue("session-1");
   });
@@ -34,17 +48,16 @@ describe("group buy request API", () => {
     expect(postgrestMock.postgrestFetch).not.toHaveBeenCalled();
   });
 
-  it("submits the product and install session to the RPC and maps its response", async () => {
-    postgrestMock.postgrestFetch.mockResolvedValue({
-      data: [
-        {
-          request_id: "request-1",
-          product_name: "에어팟 프로",
-          request_count: 2,
-          already_requested: false,
-          ranking_eligible: true,
-        },
-      ],
+  it("submits the product and install session through the Edge Function and maps its response", async () => {
+    supabaseMock.invoke.mockResolvedValue({
+      data: {
+        request_id: "request-1",
+        product_name: "에어팟 프로",
+        request_count: 2,
+        already_requested: false,
+        ranking_eligible: true,
+      },
+      error: null,
     });
 
     await expect(requestGroupBuy("에어팟 프로")).resolves.toEqual({
@@ -54,29 +67,25 @@ describe("group buy request API", () => {
       alreadyRequested: false,
       rankingEligible: true,
     });
-    expect(postgrestMock.postgrestFetch).toHaveBeenCalledWith(
-      "rpc/request_group_buy",
-      {
-        method: "POST",
-        body: {
-          p_product_name: "에어팟 프로",
-          p_session_id: "session-1",
-        },
+    expect(supabaseMock.invoke).toHaveBeenCalledWith("group-buy-request", {
+      body: {
+        product_name: "에어팟 프로",
+        session_id: "session-1",
       },
-    );
+    });
+    expect(postgrestMock.postgrestFetch).not.toHaveBeenCalled();
   });
 
-  it("rejects a malformed request RPC response at the network boundary", async () => {
-    postgrestMock.postgrestFetch.mockResolvedValue({
-      data: [
-        {
-          request_id: "request-1",
-          product_name: "에어팟 프로",
-          request_count: "2",
-          already_requested: false,
-          ranking_eligible: true,
-        },
-      ],
+  it("rejects a malformed Edge Function response at the network boundary", async () => {
+    supabaseMock.invoke.mockResolvedValue({
+      data: {
+        request_id: "request-1",
+        product_name: "에어팟 프로",
+        request_count: "2",
+        already_requested: false,
+        ranking_eligible: true,
+      },
+      error: null,
     });
 
     await expect(requestGroupBuy("에어팟 프로")).rejects.toBeInstanceOf(
@@ -85,21 +94,49 @@ describe("group buy request API", () => {
   });
 
   it("rejects a non-positive request count", async () => {
-    postgrestMock.postgrestFetch.mockResolvedValue({
-      data: [
-        {
-          request_id: "request-1",
-          product_name: "에어팟 프로",
-          request_count: 0,
-          already_requested: false,
-          ranking_eligible: false,
-        },
-      ],
+    supabaseMock.invoke.mockResolvedValue({
+      data: {
+        request_id: "request-1",
+        product_name: "에어팟 프로",
+        request_count: 0,
+        already_requested: false,
+        ranking_eligible: false,
+      },
+      error: null,
     });
 
     await expect(requestGroupBuy("에어팟 프로")).rejects.toBeInstanceOf(
       GroupBuyRequestResponseError,
     );
+  });
+
+  it("maps an Edge Function error response to the shared typed API error", async () => {
+    supabaseMock.invoke.mockResolvedValue({
+      data: null,
+      error: {
+        message: "Edge Function returned a non-2xx status code",
+        context: new Response(
+          JSON.stringify({
+            error: "24시간 요청 한도를 초과했습니다.",
+            code: "RATE_LIMITED",
+          }),
+          {
+            status: 429,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      },
+    });
+
+    const error = await requestGroupBuy("에어팟 프로").catch(
+      (reason) => reason,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 429,
+      message: "24시간 요청 한도를 초과했습니다.",
+    });
   });
 
   it("fetches at most three monthly request rankings and maps them in server order", async () => {

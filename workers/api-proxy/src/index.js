@@ -9,6 +9,7 @@ const REST_RULES = new Map([
   ["group_buy_notifications", new Set(["POST", "DELETE"])],
   ["rpc/get_popular_search_terms", new Set(["POST"])],
   ["rpc/get_popular_group_buys", new Set(["POST"])],
+  ["rpc/get_group_buy_request_rankings", new Set(["POST"])],
 ]);
 
 const FUNCTION_RULES = new Map([

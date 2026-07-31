@@ -234,6 +234,11 @@ verify_jwt = false
 # is required, so callers without an auth session can still submit.
 verify_jwt = false
 
+[functions.group-buy-request]
+# Guest requests are accepted, while the function verifies optional user JWTs
+# itself before invoking the service-role-only database write contract.
+verify_jwt = false
+
 [functions.hiker-lookup]
 # UMANS_API_KEY: umans.ai API key for LLM-based product-name inference.
 # Set via: supabase secrets set UMANS_API_KEY=sk-...

@@ -1,5 +1,3 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
-
 CREATE TABLE public.group_buy_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   product_name text NOT NULL,
@@ -26,12 +24,25 @@ CREATE TABLE public.group_buy_request_participations (
     REFERENCES public.group_buy_requests(id) ON DELETE CASCADE,
   user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   session_hashes bytea[] NOT NULL,
+  ip_hash bytea NOT NULL,
   requested_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT group_buy_request_participations_session_hashes_check
     CHECK (
-      cardinality(session_hashes) >= 1
+      cardinality(session_hashes) BETWEEN 1 AND 8
       AND array_position(session_hashes, NULL::bytea) IS NULL
     )
+);
+
+CREATE TABLE public.group_buy_request_attempt_limits (
+  actor_hash bytea NOT NULL,
+  window_started_at timestamp with time zone NOT NULL,
+  attempt_count integer NOT NULL,
+  CONSTRAINT group_buy_request_attempt_limits_actor_hash_check
+    CHECK (octet_length(actor_hash) = 32),
+  CONSTRAINT group_buy_request_attempt_limits_count_check
+    CHECK (attempt_count BETWEEN 1 AND 21),
+  CONSTRAINT group_buy_request_attempt_limits_pkey
+    PRIMARY KEY (actor_hash, window_started_at)
 );
 
 CREATE INDEX group_buy_request_participations_request_recent_idx
@@ -44,20 +55,106 @@ CREATE INDEX group_buy_request_participations_user_recent_idx
 CREATE INDEX group_buy_request_participations_session_hashes_idx
   ON public.group_buy_request_participations USING gin (session_hashes);
 
+CREATE INDEX group_buy_request_participations_ip_recent_idx
+  ON public.group_buy_request_participations (ip_hash, requested_at DESC);
+
+CREATE INDEX group_buy_request_attempt_limits_window_idx
+  ON public.group_buy_request_attempt_limits (window_started_at);
+
 ALTER TABLE public.group_buy_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.group_buy_request_participations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.group_buy_request_attempt_limits ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.group_buy_requests FROM PUBLIC;
 REVOKE ALL ON TABLE public.group_buy_requests FROM anon, authenticated;
 REVOKE ALL ON TABLE public.group_buy_request_participations FROM PUBLIC;
 REVOKE ALL ON TABLE public.group_buy_request_participations FROM anon, authenticated;
+REVOKE ALL ON TABLE public.group_buy_request_attempt_limits FROM PUBLIC;
+REVOKE ALL ON TABLE public.group_buy_request_attempt_limits FROM anon, authenticated;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.group_buy_requests TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.group_buy_request_participations TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.group_buy_request_attempt_limits TO service_role;
 
-CREATE OR REPLACE FUNCTION public.request_group_buy(
+CREATE OR REPLACE FUNCTION public.consume_group_buy_request_attempt(
+  p_actor_hash text
+)
+RETURNS TABLE (
+  allowed boolean,
+  attempt_count integer,
+  retry_after_seconds integer
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+DECLARE
+  v_actor_hash bytea;
+  v_attempt_count integer;
+  v_now timestamp with time zone := pg_catalog.clock_timestamp();
+  v_window_started_at timestamp with time zone;
+BEGIN
+  IF p_actor_hash IS NULL OR p_actor_hash !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'invalid_group_buy_request_actor' USING ERRCODE = '22023';
+  END IF;
+
+  v_actor_hash := pg_catalog.decode(p_actor_hash, 'hex');
+  v_window_started_at := pg_catalog.to_timestamp(
+    pg_catalog.floor(
+      EXTRACT(EPOCH FROM v_now)::double precision / 600::double precision
+    ) * 600::double precision
+  );
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'group-buy-request-attempt:' || p_actor_hash,
+      0::bigint
+    )
+  );
+
+  INSERT INTO public.group_buy_request_attempt_limits AS rate_limit (
+    actor_hash,
+    window_started_at,
+    attempt_count
+  )
+  VALUES (
+    v_actor_hash,
+    v_window_started_at,
+    1
+  )
+  ON CONFLICT (actor_hash, window_started_at) DO UPDATE
+    SET attempt_count = LEAST(21, rate_limit.attempt_count + 1)
+  RETURNING rate_limit.attempt_count INTO v_attempt_count;
+
+  -- Keep cleanup work bounded so a request never scans or deletes the entire
+  -- limiter history. Current and previous-day buckets remain available for
+  -- diagnostics while older rows are drained in small batches.
+  DELETE FROM public.group_buy_request_attempt_limits AS stale
+  USING (
+    SELECT candidate.actor_hash, candidate.window_started_at
+    FROM public.group_buy_request_attempt_limits AS candidate
+    WHERE candidate.window_started_at
+      < v_window_started_at - interval '1 day'
+    ORDER BY candidate.window_started_at ASC, candidate.actor_hash ASC
+    LIMIT 100
+    FOR UPDATE SKIP LOCKED
+  ) AS expired
+  WHERE stale.actor_hash = expired.actor_hash
+    AND stale.window_started_at = expired.window_started_at;
+
+  RETURN QUERY
+  SELECT
+    v_attempt_count <= 20,
+    v_attempt_count,
+    600;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.request_group_buy_internal(
   p_product_name text,
-  p_session_id text
+  p_session_hash text,
+  p_ip_hash text,
+  p_user_id uuid
 )
 RETURNS TABLE (
   request_id uuid,
@@ -74,7 +171,7 @@ DECLARE
   v_product_name text;
   v_product_name_norm text;
   v_session_hash bytea;
-  v_user_id uuid;
+  v_ip_hash bytea;
   v_request_id uuid;
   v_canonical_product_name text;
   v_already_requested boolean;
@@ -97,33 +194,45 @@ BEGIN
     RAISE EXCEPTION 'invalid_group_buy_product_name' USING ERRCODE = '22023';
   END IF;
 
-  IF p_session_id IS NULL
-    OR char_length(p_session_id) NOT BETWEEN 8 AND 200
-    OR p_session_id !~ '^[A-Za-z0-9_-]+$'
+  IF p_session_hash IS NULL
+    OR p_session_hash !~ '^[0-9a-f]{64}$'
   THEN
     RAISE EXCEPTION 'invalid_group_buy_request_session' USING ERRCODE = '22023';
   END IF;
 
-  v_product_name_norm := pg_catalog.lower(v_product_name);
-  v_session_hash := extensions.digest(
-    pg_catalog.convert_to(p_session_id, 'UTF8'),
-    'sha256'
-  );
-  v_user_id := auth.uid();
+  IF p_ip_hash IS NULL OR p_ip_hash !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'invalid_group_buy_request_ip' USING ERRCODE = '22023';
+  END IF;
 
-  -- Serialize both anonymous-install and signed-in-account writes. Besides
-  -- preventing duplicate requests, this makes the cross-product 24-hour limit
-  -- race-safe without storing the caller's raw installation identifier.
+  IF p_user_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM auth.users AS app_user WHERE app_user.id = p_user_id
+  ) THEN
+    RAISE EXCEPTION 'invalid_group_buy_request_user' USING ERRCODE = '22023';
+  END IF;
+
+  v_product_name_norm := pg_catalog.lower(v_product_name);
+  v_session_hash := pg_catalog.decode(p_session_hash, 'hex');
+  v_ip_hash := pg_catalog.decode(p_ip_hash, 'hex');
+
+  -- Serialize the server-derived network actor first, then the installation
+  -- and optional account. A guest cannot evade dedupe or quota enforcement by
+  -- rotating the client-provided installation identifier.
   PERFORM pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended(
-      'group-buy-request:session:' || pg_catalog.encode(v_session_hash, 'hex'),
+      'group-buy-request:ip:' || p_ip_hash,
       0::bigint
     )
   );
-  IF v_user_id IS NOT NULL THEN
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'group-buy-request:session:' || p_session_hash,
+      0::bigint
+    )
+  );
+  IF p_user_id IS NOT NULL THEN
     PERFORM pg_catalog.pg_advisory_xact_lock(
       pg_catalog.hashtextextended(
-        'group-buy-request:user:' || v_user_id::text,
+        'group-buy-request:user:' || p_user_id::text,
         0::bigint
       )
     );
@@ -135,20 +244,22 @@ BEGIN
     UPDATE public.group_buy_request_participations AS participation
     SET
       user_id = CASE
-        WHEN participation.user_id IS NULL THEN v_user_id
+        WHEN participation.user_id IS NULL THEN p_user_id
         ELSE participation.user_id
       END,
       session_hashes = CASE
         WHEN participation.session_hashes @> ARRAY[v_session_hash]::bytea[]
           THEN participation.session_hashes
-        ELSE pg_catalog.array_append(
+        WHEN pg_catalog.cardinality(participation.session_hashes) < 8
+          THEN pg_catalog.array_append(
           participation.session_hashes,
           v_session_hash
         )
+        ELSE participation.session_hashes
       END
     WHERE participation.requested_at > v_now - interval '30 days'
       AND (
-        participation.user_id = v_user_id
+        participation.user_id = p_user_id
         OR participation.session_hashes @> ARRAY[v_session_hash]::bytea[]
       );
   END IF;
@@ -176,9 +287,10 @@ BEGIN
       AND (
         participation.session_hashes @> ARRAY[v_session_hash]::bytea[]
         OR (
-          v_user_id IS NOT NULL
-          AND participation.user_id = v_user_id
+          p_user_id IS NOT NULL
+          AND participation.user_id = p_user_id
         )
+        OR participation.ip_hash = v_ip_hash
       )
   )
   INTO v_already_requested;
@@ -190,24 +302,27 @@ BEGIN
     UPDATE public.group_buy_request_participations AS participation
     SET
       user_id = CASE
-        WHEN participation.user_id IS NULL THEN v_user_id
+        WHEN participation.user_id IS NULL THEN p_user_id
         ELSE participation.user_id
       END,
       session_hashes = CASE
         WHEN participation.session_hashes @> ARRAY[v_session_hash]::bytea[]
           THEN participation.session_hashes
-        ELSE pg_catalog.array_append(
+        WHEN p_user_id IS NOT NULL
+          AND pg_catalog.cardinality(participation.session_hashes) < 8
+          THEN pg_catalog.array_append(
           participation.session_hashes,
           v_session_hash
         )
+        ELSE participation.session_hashes
       END
     WHERE participation.request_id = v_request_id
       AND participation.requested_at > v_now - interval '30 days'
       AND (
         participation.session_hashes @> ARRAY[v_session_hash]::bytea[]
         OR (
-          v_user_id IS NOT NULL
-          AND participation.user_id = v_user_id
+          p_user_id IS NOT NULL
+          AND participation.user_id = p_user_id
         )
       );
   ELSE
@@ -218,9 +333,10 @@ BEGIN
       AND (
         participation.session_hashes @> ARRAY[v_session_hash]::bytea[]
         OR (
-          v_user_id IS NOT NULL
-          AND participation.user_id = v_user_id
+          p_user_id IS NOT NULL
+          AND participation.user_id = p_user_id
         )
+        OR participation.ip_hash = v_ip_hash
       );
 
     IF v_recent_product_count >= 5 THEN
@@ -231,12 +347,14 @@ BEGIN
       request_id,
       user_id,
       session_hashes,
+      ip_hash,
       requested_at
     )
     VALUES (
       v_request_id,
-      v_user_id,
+      p_user_id,
       ARRAY[v_session_hash]::bytea[],
+      v_ip_hash,
       v_now
     );
   END IF;
@@ -246,13 +364,7 @@ BEGIN
       CASE
         WHEN participation.user_id IS NOT NULL
           THEN 'u:' || participation.user_id::text
-        ELSE 's:' || (
-          SELECT pg_catalog.min(
-            pg_catalog.encode(session_hash.session_hash, 'hex')
-          )
-          FROM pg_catalog.unnest(participation.session_hashes)
-            AS session_hash(session_hash)
-        )
+        ELSE 'i:' || pg_catalog.encode(participation.ip_hash, 'hex')
       END AS actor_key
     FROM public.group_buy_request_participations AS participation
     WHERE participation.request_id = v_request_id
@@ -293,13 +405,7 @@ AS $$
       CASE
         WHEN participation.user_id IS NOT NULL
           THEN 'u:' || participation.user_id::text
-        ELSE 's:' || (
-          SELECT pg_catalog.min(
-            pg_catalog.encode(session_hash.session_hash, 'hex')
-          )
-          FROM pg_catalog.unnest(participation.session_hashes)
-            AS session_hash(session_hash)
-        )
+        ELSE 'i:' || pg_catalog.encode(participation.ip_hash, 'hex')
       END AS actor_key
     FROM public.group_buy_request_participations AS participation
     WHERE participation.requested_at > pg_catalog.statement_timestamp() - interval '30 days'
@@ -337,10 +443,13 @@ AS $$
   LIMIT LEAST(GREATEST(COALESCE(p_limit_count, 3), 1), 3);
 $$;
 
-REVOKE ALL ON FUNCTION public.request_group_buy(text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.consume_group_buy_request_attempt(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.consume_group_buy_request_attempt(text) FROM anon, authenticated;
+REVOKE ALL ON FUNCTION public.request_group_buy_internal(text, text, text, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.request_group_buy_internal(text, text, text, uuid) FROM anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_group_buy_request_rankings(integer) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION public.request_group_buy(text, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_group_buy_request_rankings(integer) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.request_group_buy(text, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.consume_group_buy_request_attempt(text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.request_group_buy_internal(text, text, text, uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_group_buy_request_rankings(integer) TO service_role;
