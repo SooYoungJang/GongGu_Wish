@@ -126,6 +126,8 @@ if (!packageNames.includes(expectedPackage)) {
 }
 NODE
 
+node "$script_directory/validate-supabase-public-config.mjs"
+
 fingerprint_json="$(
   eas fingerprint:generate \
     --platform android \

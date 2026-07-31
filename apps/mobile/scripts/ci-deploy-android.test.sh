@@ -18,6 +18,9 @@ printf '%s\n' \
   >"$production_google_services"
 
 bash_command="${BASH:-bash}"
+real_node="$(command -v node)"
+export REAL_NODE="$real_node"
+"$real_node" --test "$script_directory/validate-supabase-public-config.test.mjs"
 if ! command -v bash >/dev/null 2>&1; then
   cp "$bash_command" "$fake_bin/bash.exe"
   bash_command="$fake_bin/bash.exe"
@@ -220,6 +223,28 @@ if command -v chmod >/dev/null 2>&1; then
   chmod +x "$fake_bin/gh"
 fi
 
+cat >"$fake_bin/node" <<'FAKE_NODE'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ "${1:-}" == *"validate-supabase-public-config.mjs" ]]; then
+  if [[ -n "${MOCK_SUPABASE_VALIDATION_LOG:-}" ]]; then
+    printf '%s\n' "$*" >>"$MOCK_SUPABASE_VALIDATION_LOG"
+  fi
+  if [[ "${MOCK_SUPABASE_KEY_VALID:-true}" != "true" ]]; then
+    echo "::error::Supabase public configuration was rejected (HTTP 401)." >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+exec "$REAL_NODE" "$@"
+FAKE_NODE
+if command -v chmod >/dev/null 2>&1; then
+  chmod +x "$fake_bin/node"
+fi
+
 run_deployment() {
   local name="$1"
   local ref="$2"
@@ -227,6 +252,7 @@ run_deployment() {
   local compatible_build="$4"
   local upload_fail="${5:-false}"
   local force_preview_apk="${6:-false}"
+  local supabase_key_valid="${7:-true}"
   local case_directory="$test_directory/$name"
   local google_services_file="$preview_google_services"
   if [[ "$ref" == "refs/heads/main" ]]; then
@@ -252,9 +278,12 @@ run_deployment() {
     MOCK_GITHUB_BASELINE="$github_baseline" \
     MOCK_COMPATIBLE_BUILD="$compatible_build" \
     MOCK_UPLOAD_FAIL="$upload_fail" \
+    MOCK_SUPABASE_KEY_VALID="$supabase_key_valid" \
     FORCE_PREVIEW_APK="$force_preview_apk" \
     MOCK_EAS_LOG="$case_directory/eas.log" \
     MOCK_GH_LOG="$case_directory/gh.log" \
+    MOCK_SUPABASE_VALIDATION_LOG="$case_directory/supabase-validation.log" \
+    REAL_NODE="$real_node" \
     "$bash_command" "$script_directory/ci-deploy-android.sh"
 }
 
@@ -280,10 +309,28 @@ grep -Fq "/actions/artifacts?name=gonggu-wish-preview-runtime-" \
 grep -Fq "/actions/runs/42" "$test_directory/preview-ota/gh.log"
 grep -Fq "run download 42" "$test_directory/preview-ota/gh.log"
 grep -Fq "/actions/artifacts/456" "$test_directory/preview-ota/gh.log"
+grep -Fq "validate-supabase-public-config.mjs" \
+  "$test_directory/preview-ota/supabase-validation.log"
 assert_eas_commands "preview-ota" "fingerprint:generate update"
 if grep -Eq "build:list|build --platform|upload --platform" \
   "$test_directory/preview-ota/eas.log"; then
   echo "Preview OTA unexpectedly used an EAS build record" >&2
+  exit 1
+fi
+
+if run_deployment \
+  "preview-invalid-supabase-key" \
+  "refs/heads/develop" \
+  "trusted" \
+  "false" \
+  "false" \
+  "false" \
+  "false"; then
+  echo "A revoked Preview Supabase key unexpectedly passed validation" >&2
+  exit 1
+fi
+if [[ -s "$test_directory/preview-invalid-supabase-key/eas.log" ]]; then
+  echo "A revoked Preview Supabase key reached EAS deployment" >&2
   exit 1
 fi
 
