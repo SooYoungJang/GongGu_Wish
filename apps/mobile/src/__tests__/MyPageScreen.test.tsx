@@ -954,7 +954,7 @@ describe('MyPageScreen', () => {
       await Promise.resolve();
     });
 
-    expect(deleteSpy).toHaveBeenCalledOnce();
+    expect(deleteSpy).toHaveBeenCalledWith('access-token');
     deleteSpy.mockRestore();
   });
 });

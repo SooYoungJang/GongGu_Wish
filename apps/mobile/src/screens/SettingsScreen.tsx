@@ -286,9 +286,17 @@ export function SettingsScreen() {
           : "앱 알림은 켜져 있지만 기기 권한 확인이 필요해요.";
 
   const performAccountDeletion = useCallback(async () => {
+    if (!accessToken) {
+      Alert.alert(
+        "로그인이 다시 필요해요",
+        "로그인 정보를 확인한 뒤 회원탈퇴를 다시 시도해주세요.",
+      );
+      return;
+    }
+
     setDeleting(true);
     try {
-      await deleteAccount();
+      await deleteAccount(accessToken);
       await clearLocalUserData(user?.id ? `user:${user.id}` : "guest");
       await signOut();
       navigation.goBack();
@@ -300,7 +308,7 @@ export function SettingsScreen() {
     } finally {
       setDeleting(false);
     }
-  }, [navigation, signOut, user]);
+  }, [accessToken, navigation, signOut, user]);
 
   const handleDeleteAccount = useCallback(() => {
     if (!user || deleting) return;

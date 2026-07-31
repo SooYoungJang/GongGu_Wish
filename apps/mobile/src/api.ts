@@ -894,10 +894,16 @@ export async function refreshGroupBuyMedia(
 }
 
 /** Permanently delete the authenticated user's account and server-side profile. */
-export async function deleteAccount(): Promise<void> {
+export async function deleteAccount(authToken: string): Promise<void> {
+  const token = authToken.trim();
+  if (!token) {
+    throw new ApiError(401, "로그인 정보가 만료됐습니다.");
+  }
+
   const result = await callEdgeFunction<{ deleted?: boolean }>(
     "delete-account",
     {},
+    { authToken: token },
   );
   if (!result.deleted) {
     throw new ApiError(502, "회원탈퇴 처리 결과를 확인할 수 없습니다.");
