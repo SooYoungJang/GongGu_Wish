@@ -275,6 +275,23 @@ if command -v chmod >/dev/null 2>&1; then
   chmod +x "$fake_bin/unzip"
 fi
 
+cat >"$fake_bin/hermesc" <<'FAKE_HERMESC'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+printf '%s\n' "$*" >>"$MOCK_HERMESC_LOG"
+if [[ "${1:-}" != "-b" || "${2:-}" != "-dump-bytecode" || ! -s "${3:-}" ]]; then
+  echo "Unexpected Hermes disassembler invocation" >&2
+  exit 1
+fi
+
+cat "$3"
+FAKE_HERMESC
+if command -v chmod >/dev/null 2>&1; then
+  chmod +x "$fake_bin/hermesc"
+fi
+
 run_deployment() {
   local name="$1"
   local ref="$2"
@@ -315,6 +332,8 @@ run_deployment() {
     MOCK_EAS_LOG="$case_directory/eas.log" \
     MOCK_GH_LOG="$case_directory/gh.log" \
     MOCK_SUPABASE_VALIDATION_LOG="$case_directory/supabase-validation.log" \
+    MOCK_HERMESC_LOG="$case_directory/hermesc.log" \
+    HERMESC_BINARY="$fake_bin/hermesc" \
     REAL_NODE="$real_node" \
     "$bash_command" "$script_directory/ci-deploy-android.sh"
 }
@@ -378,6 +397,8 @@ grep -Fq "build --platform android --profile preview --local" \
   "$test_directory/preview-forced-build/eas.log"
 grep -Fq -- "--bundle-stdin" \
   "$test_directory/preview-forced-build/supabase-validation.log"
+grep -Fq -- "-b -dump-bytecode" \
+  "$test_directory/preview-forced-build/hermesc.log"
 assert_eas_commands "preview-forced-build" "fingerprint:generate build"
 if [[ -s "$test_directory/preview-forced-build/gh.log" ]]; then
   echo "Forced Preview APK build unexpectedly queried an existing baseline" >&2
