@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { renderPublicBuildConfig } from "./materialize-public-build-config.mjs";
+
+test("materializes public configuration inside the EAS build workspace", async () => {
+  const packageJson = JSON.parse(
+    await readFile(new URL("../package.json", import.meta.url), "utf8"),
+  );
+
+  assert.equal(
+    packageJson.scripts["eas-build-post-install"],
+    "node scripts/materialize-public-build-config.mjs",
+  );
+});
 
 test("renders validated public values without leaving process.env lookups", () => {
   const values = {
