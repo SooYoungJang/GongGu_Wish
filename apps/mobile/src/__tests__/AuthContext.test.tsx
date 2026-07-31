@@ -1,5 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { Linking } from 'react-native';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -124,11 +125,12 @@ describe('AuthProvider', () => {
     mockVerifyOtp.mockClear();
     mockExchangeCodeForSession.mockClear();
     mockSignInWithOAuth.mockClear();
-    mockSignOut.mockClear();
+    mockSignOut.mockReset().mockResolvedValue({ error: null });
     mockSecureStoreGetItem.mockReset().mockResolvedValue(null);
     mockSecureStoreSetItem.mockReset().mockResolvedValue(undefined);
     mockSecureStoreDeleteItem.mockReset().mockResolvedValue(undefined);
     mockOpenAuthSessionAsync.mockReset().mockResolvedValue({ type: "cancel" });
+    vi.mocked(Linking.getInitialURL).mockReset().mockResolvedValue(null);
   });
 
   it('renders children', () => {
@@ -337,6 +339,54 @@ describe('AuthProvider', () => {
     expect(mockSecureStoreSetItem).toHaveBeenCalledTimes(2);
     expect(mockSecureStoreDeleteItem).toHaveBeenCalled();
     expect(currentAuth!.authCompletionRevision).toBe(0);
+  });
+
+  it("preserves the PKCE verifier before exchanging a cold Naver callback", async () => {
+    let pkceVerifierAvailable = true;
+    mockSecureStoreGetItem.mockResolvedValueOnce(
+      JSON.stringify({
+        createdAt: Date.now(),
+        id: "cold-naver-attempt",
+        provider: "custom:naver",
+      }),
+    );
+    vi.mocked(Linking.getInitialURL).mockResolvedValueOnce(
+      "gongguwish-preview://auth/callback?oauth_attempt=cold-naver-attempt&code=cold-naver-auth-code",
+    );
+    mockSignOut.mockImplementation(async () => {
+      pkceVerifierAvailable = false;
+      return { error: null };
+    });
+    mockExchangeCodeForSession.mockImplementationOnce(async () =>
+      pkceVerifierAvailable
+        ? {
+            data: {
+              session: {
+                access_token: "cold-naver-access-token",
+                user: { email: "naver@example.com" },
+              },
+            },
+            error: null,
+          }
+        : {
+            data: { session: null },
+            error: { message: "PKCE code verifier is missing" },
+          },
+    );
+
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => {
+      renderer = renderAuthTest();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockExchangeCodeForSession).toHaveBeenCalledWith(
+      "cold-naver-auth-code",
+    );
+    expect(
+      renderer.root.findByType("mock-auth-consumer" as any).props["data-user"],
+    ).toBe("naver@example.com");
   });
 
   it("ignores a session restore that finishes after the audience becomes restricted", async () => {

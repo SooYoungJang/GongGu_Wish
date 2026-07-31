@@ -204,6 +204,15 @@ export function AuthProvider({
     setIsAudienceAuthIntentPending(true);
   }, []);
 
+  const resumeOAuthAudienceAuthIntent = useCallback(() => {
+    // A persisted OAuth attempt is created only after the old local session is
+    // cleared. On a cold callback, mark that preparation as already complete:
+    // signing out here would delete Supabase's persisted PKCE code verifier.
+    audienceAuthIntentRef.current = true;
+    audienceAuthIntentPreparedRef.current = true;
+    setIsAudienceAuthIntentPending(true);
+  }, []);
+
   const cancelAudienceAuthIntent = useCallback(() => {
     audienceAuthIntentRef.current = false;
     audienceAuthIntentPreparedRef.current = false;
@@ -325,8 +334,7 @@ export function AuthProvider({
         return { handled: false, error: null };
       }
 
-      startAudienceAuthIntent();
-      await prepareAudienceAuthIntent();
+      resumeOAuthAudienceAuthIntent();
       const code = getAuthCodeFromUrl(url);
       await clearOAuthAttempt();
       if (!code) {
@@ -361,9 +369,8 @@ export function AuthProvider({
       cancelAudienceAuthIntent,
       clearOAuthAttempt,
       loadOAuthAttempt,
-      prepareAudienceAuthIntent,
       rejectIfPolicyChanged,
-      startAudienceAuthIntent,
+      resumeOAuthAudienceAuthIntent,
     ],
   );
 

@@ -245,6 +245,11 @@ verify_jwt = false
 [functions.delete-account]
 verify_jwt = true
 
+[functions.naver-userinfo]
+# Supabase Auth forwards a Naver OAuth access token, not a Supabase JWT.
+# The handler validates that bearer token against Naver's fixed UserInfo URL.
+verify_jwt = false
+
 [functions.register-push-token]
 verify_jwt = true
 
