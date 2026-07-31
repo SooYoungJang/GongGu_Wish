@@ -102,14 +102,15 @@ function normalizeIp(rawValue: string | null, allowForwardedList: boolean) {
 }
 
 export function resolveTrustedClientIp(headers: Headers, supabaseUrl: string) {
-  const cloudflareIp = normalizeIp(headers.get("cf-connecting-ip"), false);
-  if (cloudflareIp) return cloudflareIp;
+  if (isLocalSupabaseUrl(supabaseUrl)) {
+    return (
+      normalizeIp(headers.get("x-forwarded-for"), true) ??
+      normalizeIp(headers.get("x-real-ip"), false) ??
+      normalizeIp(headers.get("cf-connecting-ip"), false)
+    );
+  }
 
-  if (!isLocalSupabaseUrl(supabaseUrl)) return null;
-  return (
-    normalizeIp(headers.get("x-real-ip"), false) ??
-    normalizeIp(headers.get("x-forwarded-for"), true)
-  );
+  return normalizeIp(headers.get("cf-connecting-ip"), false);
 }
 
 export async function hmacSha256Hex(

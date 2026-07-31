@@ -147,9 +147,13 @@ test("group-buy request Edge intake owns trusted identity derivation", () => {
   assert.match(edgeFunction, /headers\.get\("cf-connecting-ip"\)/);
   assert.match(
     edgeFunction,
-    /if \(!isLocalSupabaseUrl\(supabaseUrl\)\) return null/,
+    /if \(isLocalSupabaseUrl\(supabaseUrl\)\) \{[\s\S]*return normalizeIp\(headers\.get\("cf-connecting-ip"\), false\);/,
   );
   assert.match(edgeFunction, /headers\.get\("x-forwarded-for"\)/);
+  assert.ok(
+    edgeFunction.indexOf('headers.get("x-forwarded-for")') <
+      edgeFunction.indexOf('headers.get("x-real-ip")'),
+  );
   assert.match(edgeFunction, /name: "HMAC", hash: "SHA-256"/);
   assert.match(edgeFunction, /Deno\.env\.get\("SUPABASE_SERVICE_ROLE_KEY"\)/);
   assert.match(edgeFunction, /Deno\.env\.get\("SUPABASE_ANON_KEY"\)/);

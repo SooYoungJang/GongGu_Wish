@@ -122,24 +122,38 @@ Deno.test(
   },
 );
 
-Deno.test("local Supabase may fall back to forwarded loopback headers", () => {
-  assertEquals(
-    resolveTrustedClientIp(
-      new Headers({
-        "x-forwarded-for": "127.0.0.1, 172.18.0.1",
-      }),
-      "http://kong:8000",
-    ),
-    "127.0.0.1",
-  );
-  assertEquals(
-    resolveTrustedClientIp(
-      new Headers({ "x-real-ip": "2001:db8::1" }),
-      "http://127.0.0.1:54321",
-    ),
-    "2001:db8::1",
-  );
-});
+Deno.test(
+  "local Supabase prefers forwarded fixture IPs over proxy headers",
+  () => {
+    assertEquals(
+      resolveTrustedClientIp(
+        new Headers({
+          "cf-connecting-ip": "127.0.0.1",
+          "x-forwarded-for": "198.51.100.2",
+          "x-real-ip": "172.18.0.1",
+        }),
+        "http://kong:8000",
+      ),
+      "198.51.100.2",
+    );
+    assertEquals(
+      resolveTrustedClientIp(
+        new Headers({
+          "x-forwarded-for": "127.0.0.1, 172.18.0.1",
+        }),
+        "http://kong:8000",
+      ),
+      "127.0.0.1",
+    );
+    assertEquals(
+      resolveTrustedClientIp(
+        new Headers({ "x-real-ip": "2001:db8::1" }),
+        "http://127.0.0.1:54321",
+      ),
+      "2001:db8::1",
+    );
+  },
+);
 
 Deno.test(
   "hmacSha256Hex hides raw identifiers and separates domains",
