@@ -752,3 +752,35 @@ test("Production recovery is explicit, main-only, and reuses every deployment ga
     /confirm_production_recovery/,
   );
 });
+
+test("Kakao provider readiness is public, environment-exact, and release-blocking", () => {
+  const providerJob = job("kakao-provider-ready");
+  assert.match(providerJob, /name:\s*Kakao Auth Provider Ready/);
+  assert.match(
+    providerJob,
+    /github\.ref == 'refs\/heads\/main' \|\| github\.base_ref == 'main'/,
+  );
+  assert.match(providerJob, /APP_VARIANT:/);
+  assert.match(providerJob, /SUPABASE_PROJECT_REF:/);
+  assert.match(providerJob, /iosdoheblabfimkjnvfj/);
+  assert.match(providerJob, /xwblovggtvbpiusjfokq/);
+  assert.match(
+    providerJob,
+    /node --test scripts\/check-kakao-provider\.test\.mjs/,
+  );
+  assert.match(providerJob, /node scripts\/check-kakao-provider\.mjs/);
+  assert.doesNotMatch(providerJob, /secrets\.|environment:/);
+
+  for (const gateId of ["preview-release-gate", "promotion-gate"]) {
+    const gate = job(gateId);
+    assert.equal(declaredNeeds(gate).has("kakao-provider-ready"), true);
+    assert.match(gate, /KAKAO_PROVIDER_RESULT/);
+    assert.match(gate, /needs\.kakao-provider-ready\.result/);
+    assert.match(gate, /Kakao Auth Provider Ready result is/);
+    assert.match(gate, /exit 1/);
+  }
+
+  const promotionGate = job("promotion-gate");
+  assert.match(promotionGate, /!cancelled\(\)/);
+  assert.doesNotMatch(promotionGate, /always\(\)/);
+});
