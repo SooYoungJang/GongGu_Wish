@@ -4,8 +4,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   getLocalSupabaseConfig,
+  hasLocalSupabaseConfig,
   type LocalSupabaseConfig,
 } from "./localSupabaseHarness";
+
+const describeLocal = hasLocalSupabaseConfig() ? describe : describe.skip;
 
 type RpcResult = {
   request_id: string;
@@ -72,7 +75,7 @@ async function invokeRpc<T>(
   return result.payload;
 }
 
-describe.sequential("group-buy request database contracts", () => {
+describeLocal.sequential("group-buy request database contracts", () => {
   const suffix = `${Date.now()}-${randomUUID().slice(0, 8)}`;
   const requestIds = new Set<string>();
   let config: LocalSupabaseConfig;
