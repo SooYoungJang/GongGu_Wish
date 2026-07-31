@@ -134,10 +134,14 @@ fi
 
 public_build_config_path="$script_directory/../src/lib/public-build-config.ts"
 public_build_config_backup="$RUNNER_TEMP/public-build-config.$$.ts"
+android_bundle_path=""
 cp "$public_build_config_path" "$public_build_config_backup"
 restore_public_build_config() {
   cp "$public_build_config_backup" "$public_build_config_path"
   rm -f "$public_build_config_backup"
+  if [[ -n "$android_bundle_path" ]]; then
+    rm -f "$android_bundle_path"
+  fi
 }
 trap restore_public_build_config EXIT
 
@@ -285,7 +289,22 @@ if [[ ! -s "$apk_path" ]]; then
   exit 1
 fi
 
-unzip -p "$apk_path" assets/index.android.bundle | \
+# Hermes bytecode is binary. Scanning its raw bytes can join unrelated binary
+# regions into a JWT-shaped false positive, so validate only logical strings
+# emitted by the Hermes disassembler.
+android_bundle_path="$RUNNER_TEMP/index.android.$$.bundle"
+unzip -p "$apk_path" assets/index.android.bundle >"$android_bundle_path"
+
+hermesc_path="${HERMESC_BINARY:-}"
+if [[ -z "$hermesc_path" ]]; then
+  hermesc_path="$(node "$script_directory/resolve-hermesc-path.mjs")"
+fi
+if [[ ! -x "$hermesc_path" ]]; then
+  echo "::error::Hermes disassembler is not executable."
+  exit 1
+fi
+
+"$hermesc_path" -b -dump-bytecode "$android_bundle_path" | \
   node "$script_directory/validate-supabase-public-config.mjs" \
     --bundle-stdin
 
