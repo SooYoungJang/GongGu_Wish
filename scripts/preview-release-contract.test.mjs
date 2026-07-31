@@ -138,6 +138,64 @@ test("service_role can delete user profiles required by delete-account", () => {
   );
 });
 
+test("Auth users are provisioned and backfilled without overwriting public profiles", () => {
+  const migrations = readdirSync("supabase/migrations")
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .map((file) => readFileSync(`supabase/migrations/${file}`, "utf8"));
+  const provisioningMigration = migrations.find((migration) =>
+    /\bAFTER\s+INSERT\s+ON\s+auth\s*\.\s*users\b/i.test(
+      migration.replace(/--.*$/gm, ""),
+    ),
+  );
+
+  assert.ok(
+    provisioningMigration,
+    "a migration must provision public.users from an auth.users AFTER INSERT trigger",
+  );
+
+  const normalized = provisioningMigration
+    .replace(/--.*$/gm, "")
+    .replace(/\s+/g, " ");
+  assert.match(
+    normalized,
+    /\bINSERT\s+INTO\s+public\s*\.\s*users\b/i,
+    "the Auth trigger must insert the corresponding public.users profile",
+  );
+  assert.match(
+    normalized,
+    /\bFROM\s+auth\s*\.\s*users\b/i,
+    "the migration must backfill profiles for existing Auth users",
+  );
+  assert.match(
+    normalized,
+    /\braw_user_meta_data\b/i,
+    "profile provisioning must preserve signup and social-provider metadata",
+  );
+  assert.match(
+    normalized,
+    /\bSECURITY\s+DEFINER\b/i,
+    "the Auth trigger function must use the privileges required to insert a profile",
+  );
+  assert.match(
+    normalized,
+    /\bSET\s+search_path\s*=\s*''/i,
+    "the security-definer function must use an empty search_path",
+  );
+  assert.match(
+    normalized,
+    /\bREVOKE\s+ALL\s+ON\s+FUNCTION\b/i,
+    "the trigger function must not be directly executable by API roles",
+  );
+
+  const conflictSafeInserts =
+    normalized.match(/\bON\s+CONFLICT\s*\(\s*id\s*\)\s+DO\s+NOTHING\b/gi) ?? [];
+  assert.ok(
+    conflictSafeInserts.length >= 2,
+    "both trigger provisioning and backfill must preserve existing public.users rows",
+  );
+});
+
 test("the Worker deploy waits for the branch-specific Supabase gate", () => {
   const workerJob = job("deploy-worker");
   const needs = workerJob.match(/^    needs:\s*\[([^\]]+)\]/m)?.[1] ?? "";
