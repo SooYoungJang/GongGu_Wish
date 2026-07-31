@@ -43,14 +43,28 @@ const mocks = vi.hoisted(() => {
 	    popularTerms: [{ keyword: '베개', rank: 1, count: 8 }],
 	    popularTermsRefetch: vi.fn(),
 	    logSearchTerm: vi.fn(() => Promise.resolve()),
+	    requestGroupBuy: vi.fn(() => Promise.resolve({
+	      requestId: 'request-1',
+	      productName: '없는 공구',
+	      requestCount: 1,
+	      alreadyRequested: false,
+	      rankingEligible: false,
+	    })),
+	    invalidateQueries: vi.fn(() => Promise.resolve()),
 	    recentGetItem: vi.fn(() => Promise.resolve(JSON.stringify(['가방']))),
 	    recentSetItem: vi.fn(() => Promise.resolve()),
 	    canRecordBehaviorSignals: true,
 	    canGoBack: vi.fn(() => true),
 	    navigate: vi.fn(),
 	    goBack: vi.fn(),
+	    routeParams: undefined as { initialQuery?: string } | undefined,
 	  };
 });
+
+vi.mock('../features/groupBuyRequests', () => ({
+  GROUP_BUY_REQUEST_RANKINGS_QUERY_KEY: ['group-buy-request-rankings'],
+  requestGroupBuy: mocks.requestGroupBuy,
+}));
 
 vi.mock('../api', () => ({
 	  fetchGroupBuys: vi.fn(),
@@ -130,6 +144,11 @@ vi.mock('../context/ThemeContext', () => ({
 	      refetch: mocks.influencersRefetch,
 	    };
 	  },
+	  useMutation: () => ({
+	    isPending: false,
+	    mutateAsync: mocks.requestGroupBuy,
+	  }),
+	  useQueryClient: () => ({ invalidateQueries: mocks.invalidateQueries }),
 	}));
 
 vi.mock('@react-navigation/native', () => ({
@@ -138,6 +157,7 @@ vi.mock('@react-navigation/native', () => ({
 	    goBack: mocks.goBack,
 	    canGoBack: mocks.canGoBack,
 	  }),
+  useRoute: () => ({ params: mocks.routeParams }),
   useFocusEffect: vi.fn((cb: any) => {
     if (typeof cb === 'function') cb();
     return vi.fn();
@@ -184,8 +204,8 @@ vi.mock('react-native', () => {
 	    },
 	    StatusBar: passthrough('StatusBar'),
 	    Switch: (props: any) => ReactMock.createElement('Switch', props),
-    Pressable: ({ children, onPress, style, accessibilityLabel, accessibilityRole }: any) =>
-      ReactMock.createElement('Pressable', { onPress, style, accessibilityLabel, accessibilityRole }, children),
+	    Pressable: ({ children, ...props }: any) =>
+	      ReactMock.createElement('Pressable', props, children),
     StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
     Text: ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement('Text', props, children),
     TextInput,
@@ -220,11 +240,21 @@ describe('SearchScreen redesign', () => {
     mocks.influencersRefetch.mockClear();
     mocks.popularTermsRefetch.mockClear();
 	    mocks.logSearchTerm.mockClear();
+	    mocks.requestGroupBuy.mockClear();
+	    mocks.requestGroupBuy.mockResolvedValue({
+	      requestId: 'request-1',
+	      productName: '없는 공구',
+	      requestCount: 1,
+	      alreadyRequested: false,
+	      rankingEligible: false,
+	    });
+	    mocks.invalidateQueries.mockClear();
 	    mocks.recentGetItem.mockClear();
 	    mocks.recentSetItem.mockClear();
 	    mocks.canRecordBehaviorSignals = true;
 	    mocks.navigate.mockClear();
 	    mocks.goBack.mockClear();
+	    mocks.routeParams = undefined;
   });
 
   it('shows a shared retry state when search sources fail without cache', async () => {
@@ -347,5 +377,89 @@ describe('SearchScreen redesign', () => {
 	      expect.stringContaining('뒤척임'),
 	    );
 	    expect(mocks.navigate).toHaveBeenCalledWith('Detail', { groupBuy: mocks.groupBuy });
+	  });
+
+	  it('does not accumulate a missing search until the request button is pressed', async () => {
+	    mocks.groupBuys = [];
+	    mocks.influencers = [];
+	    const renderer = await renderSearchScreen();
+	    const input = renderer.root.findByProps({ accessibilityLabel: '공구 검색' });
+
+	    act(() => {
+	      input.props.onChangeText('없는 공구');
+	    });
+	    await act(async () => {
+	      await new Promise((resolve) => setTimeout(resolve, 300));
+	    });
+
+	    expect(mocks.requestGroupBuy).not.toHaveBeenCalled();
+	    expect(
+	      renderer.root.findByProps({ accessibilityLabel: '없는 공구 공구 요청하기' }),
+	    ).toBeTruthy();
+	  });
+
+	  it('submits a missing group-buy request and refreshes the monthly ranking', async () => {
+	    mocks.groupBuys = [];
+	    mocks.influencers = [];
+	    const renderer = await renderSearchScreen();
+	    const input = renderer.root.findByProps({ accessibilityLabel: '공구 검색' });
+
+	    act(() => {
+	      input.props.onChangeText('없는 공구');
+	    });
+	    await act(async () => {
+	      await new Promise((resolve) => setTimeout(resolve, 300));
+	    });
+	    await act(async () => {
+	      await renderer.root
+	        .findByProps({ accessibilityLabel: '없는 공구 공구 요청하기' })
+	        .props.onPress();
+	    });
+
+	    expect(mocks.requestGroupBuy).toHaveBeenCalledWith('없는 공구');
+	    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+	      queryKey: ['group-buy-request-rankings'],
+	    });
+	    expect(flattenText(renderer.toJSON())).toContain('공구 요청 완료');
+	    expect(flattenText(renderer.toJSON())).toContain('요청 2건부터 홈 순위 후보에 표시돼요.');
+	  });
+
+	  it('disables missing group-buy requests when behavior signals are blocked', async () => {
+	    mocks.groupBuys = [];
+	    mocks.influencers = [];
+	    mocks.canRecordBehaviorSignals = false;
+	    const renderer = await renderSearchScreen();
+	    const input = renderer.root.findByProps({ accessibilityLabel: '공구 검색' });
+
+	    act(() => {
+	      input.props.onChangeText('없는 공구');
+	    });
+	    await act(async () => {
+	      await new Promise((resolve) => setTimeout(resolve, 300));
+	    });
+
+	    const requestButton = renderer.root.findByProps({
+	      accessibilityLabel: '없는 공구 공구 요청하기',
+	    });
+	    expect(requestButton.props.disabled).toBe(true);
+	    expect(flattenText(renderer.toJSON())).toContain('현재 이용 모드에서는 공구 요청을 사용할 수 없어요.');
+	    expect(mocks.requestGroupBuy).not.toHaveBeenCalled();
+	  });
+
+	  it('prefills the query received from the home request ranking', async () => {
+	    mocks.groupBuys = [];
+	    mocks.influencers = [];
+	    mocks.routeParams = { initialQuery: '홈에서 선택한 공구' };
+
+	    const renderer = await renderSearchScreen();
+	    await act(async () => {
+	      await new Promise((resolve) => setTimeout(resolve, 300));
+	    });
+
+	    expect(renderer.root.findByProps({ accessibilityLabel: '공구 검색' }).props.value)
+	      .toBe('홈에서 선택한 공구');
+	    expect(renderer.root.findByProps({
+	      accessibilityLabel: '홈에서 선택한 공구 공구 요청하기',
+	    })).toBeTruthy();
 	  });
 });
