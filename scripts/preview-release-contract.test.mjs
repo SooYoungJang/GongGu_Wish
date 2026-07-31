@@ -102,6 +102,42 @@ test("hiker-lookup is declared for project-bound Git deployment", () => {
   assert.equal(existsSync("supabase/functions/hiker-lookup/index.ts"), true);
 });
 
+test("service_role can delete user profiles required by delete-account", () => {
+  const deleteAccountSource = readFileSync(
+    "supabase/functions/delete-account/index.ts",
+    "utf8",
+  );
+  const migrations = readdirSync("supabase/migrations")
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .map((file) => readFileSync(`supabase/migrations/${file}`, "utf8"));
+
+  assert.match(
+    deleteAccountSource,
+    /\.from\(["']users["']\)\.delete\(\)/,
+    "delete-account must delete the authenticated user's public profile",
+  );
+
+  const userServiceRoleDeleteGrants = migrations
+    .flatMap(
+      (migration) =>
+        migration.replace(/--.*$/gm, "").match(/\bGRANT\b[^;]*;/gi) ?? [],
+    )
+    .map((grant) => grant.replace(/\s+/g, " ").trim())
+    .filter(
+      (grant) =>
+        /\b(?:DELETE|ALL(?:\s+PRIVILEGES)?)\b/i.test(grant) &&
+        /\bON\b[^;]*\bpublic\s*\.\s*users\b[^;]*\bTO\s+service_role\b/i.test(
+          grant,
+        ),
+    );
+  assert.deepEqual(
+    userServiceRoleDeleteGrants,
+    ["GRANT DELETE ON TABLE public.users TO service_role;"],
+    "delete-account must receive only the required public.users DELETE grant",
+  );
+});
+
 test("the Worker deploy waits for the branch-specific Supabase gate", () => {
   const workerJob = job("deploy-worker");
   const needs = workerJob.match(/^    needs:\s*\[([^\]]+)\]/m)?.[1] ?? "";
