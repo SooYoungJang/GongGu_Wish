@@ -118,15 +118,23 @@ test("service_role can delete user profiles required by delete-account", () => {
     "delete-account must delete the authenticated user's public profile",
   );
 
-  const grantsRequiredDelete = migrations.some((migration) =>
-    /GRANT\s+[^;]*(?:\bDELETE\b|\bALL(?:\s+PRIVILEGES)?\b)[^;]*\bON\b[^;]*(?:"public"|public)\s*\.\s*(?:"users"|users)[^;]*\bTO\s+service_role\b[^;]*;/i.test(
-      migration,
-    ),
-  );
-  assert.equal(
-    grantsRequiredDelete,
-    true,
-    "service_role must have DELETE on public.users for delete-account",
+  const userServiceRoleDeleteGrants = migrations
+    .flatMap(
+      (migration) =>
+        migration.replace(/--.*$/gm, "").match(/\bGRANT\b[^;]*;/gi) ?? [],
+    )
+    .map((grant) => grant.replace(/\s+/g, " ").trim())
+    .filter(
+      (grant) =>
+        /\b(?:DELETE|ALL(?:\s+PRIVILEGES)?)\b/i.test(grant) &&
+        /\bON\b[^;]*\bpublic\s*\.\s*users\b[^;]*\bTO\s+service_role\b/i.test(
+          grant,
+        ),
+    );
+  assert.deepEqual(
+    userServiceRoleDeleteGrants,
+    ["GRANT DELETE ON TABLE public.users TO service_role;"],
+    "delete-account must receive only the required public.users DELETE grant",
   );
 });
 
