@@ -136,6 +136,34 @@ describe("gonggu API proxy", () => {
     assert.equal(response.headers.get("cache-control"), "no-store");
   });
 
+  it("forwards the allowlisted monthly group-buy ranking RPC", async () => {
+    let upstreamRequest;
+    globalThis.fetch = async (input) => {
+      upstreamRequest = input;
+      return Response.json([]);
+    };
+
+    const response = await request(
+      "/rest/v1/rpc/get_group_buy_request_rankings",
+      {
+        method: "POST",
+        headers: {
+          apikey: "public-key",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ p_limit_count: 3 }),
+      },
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(
+      upstreamRequest.url,
+      "https://xwblovggtvbpiusjfokq.supabase.co/rest/v1/rpc/get_group_buy_request_rankings",
+    );
+    assert.equal(upstreamRequest.method, "POST");
+    assert.deepEqual(await upstreamRequest.json(), { p_limit_count: 3 });
+  });
+
   it("refuses to proxy when Preview points at the Production Supabase origin", async () => {
     let called = false;
     globalThis.fetch = async () => {

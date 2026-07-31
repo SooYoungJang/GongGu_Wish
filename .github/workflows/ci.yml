@@ -233,6 +233,7 @@ jobs:
         run: >-
           node --test
           scripts/ci-change-plan.test.mjs
+          scripts/group-buy-request-contract.test.mjs
           scripts/opening-reminder-contract.test.mjs
           scripts/preview-release-contract.test.mjs
       - name: Classify changed files

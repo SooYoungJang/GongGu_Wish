@@ -10,7 +10,7 @@ export type RootStackParamList = {
     | { groupBuy?: never; groupBuyId: string };
   FeedDetail: { feedId: string };
   InfluencerGroupBuys: { influencerUsername: string; influencerDisplayName: string | null };
-  SearchScreen: undefined;
+  SearchScreen: { initialQuery?: string } | undefined;
   Admin: undefined;
   Login: undefined;
   Submit: undefined;
