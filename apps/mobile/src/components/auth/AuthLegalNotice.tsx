@@ -8,10 +8,7 @@ import {
   View,
 } from "react-native";
 
-import {
-  commerceRadius,
-  type CommerceColorPalette,
-} from "../../design/commerce";
+import { type CommerceColorPalette } from "../../design/commerce";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
 import {
   DEFAULT_PRIVACY_POLICY_URL,
@@ -52,8 +49,8 @@ export function AuthLegalNotice() {
       testID="auth-legal-notice"
     >
       <Text style={styles.copy}>
-        계속하면 만 14세 이상임을 확인하고, 서비스 이용약관에 동의하며
-        개인정보처리방침을 확인한 것으로 봅니다.
+        로그인 또는 회원가입을 계속하면 만 14세 이상임을 확인하고 아래 약관에 동의한
+        것으로 봅니다.
       </Text>
       <View style={styles.links}>
         <Pressable
@@ -66,7 +63,6 @@ export function AuthLegalNotice() {
         >
           <Text style={styles.link}>서비스 이용약관</Text>
         </Pressable>
-        <Text style={styles.separator}>·</Text>
         <Pressable
           accessible
           accessibilityLabel="개인정보처리방침 열기"
@@ -85,19 +81,14 @@ export function AuthLegalNotice() {
 const makeStyles = (colors: CommerceColorPalette) =>
   StyleSheet.create({
     container: {
-      backgroundColor: colors.softBg,
-      borderColor: colors.border,
-      borderCurve: "continuous",
-      borderRadius: commerceRadius.md,
-      borderWidth: 1,
-      gap: 8,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      alignItems: "center",
+      paddingHorizontal: 4,
     },
     copy: {
       color: colors.muted,
       fontSize: 12,
       lineHeight: 18,
+      textAlign: "center",
     },
     link: {
       color: colors.text,
@@ -115,10 +106,8 @@ const makeStyles = (colors: CommerceColorPalette) =>
     links: {
       alignItems: "center",
       flexDirection: "row",
-      gap: 8,
-    },
-    separator: {
-      color: colors.weak,
-      fontSize: 12,
+      flexWrap: "wrap",
+      gap: 12,
+      justifyContent: "center",
     },
   });
