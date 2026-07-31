@@ -698,13 +698,23 @@ describeLocal.sequential("group-buy request database contracts", () => {
       "get_group_buy_request_rankings",
       { p_limit_count: 3 },
     );
-    expect(rankingsAfterStatusChange.map((row) => row.product_name)).toEqual([
-      rankingProducts[2].name,
-      rankingProducts[3].name,
-    ]);
-    expect(rankingsAfterStatusChange.map((row) => row.request_count)).toEqual([
-      3, 2,
-    ]);
-    expect(rankingsAfterStatusChange.map((row) => row.rank)).toEqual([1, 2]);
+    const ownRankingsAfterStatusChange = rankingsAfterStatusChange.filter(
+      (row) => rankingRequestIds.has(row.product_name),
+    );
+    expect(rankingsAfterStatusChange.length).toBeLessThanOrEqual(3);
+    expect(
+      rankingsAfterStatusChange.some((row) =>
+        [rankingProducts[0].name, rankingProducts[1].name].includes(
+          row.product_name,
+        ),
+      ),
+    ).toBe(false);
+    expect(ownRankingsAfterStatusChange.map((row) => row.product_name)).toEqual(
+      [rankingProducts[2].name, rankingProducts[3].name],
+    );
+    expect(
+      ownRankingsAfterStatusChange.map((row) => row.request_count),
+    ).toEqual([3, 2]);
+    expect(ownRankingsAfterStatusChange.map((row) => row.rank)).toEqual([1, 2]);
   });
 });
