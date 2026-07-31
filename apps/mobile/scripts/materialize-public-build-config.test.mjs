@@ -11,7 +11,7 @@ test("materializes public configuration inside the EAS build workspace", async (
 
   assert.equal(
     packageJson.scripts["eas-build-post-install"],
-    "node scripts/materialize-public-build-config.mjs",
+    "node scripts/validate-supabase-public-config.mjs && node scripts/materialize-public-build-config.mjs",
   );
 });
 

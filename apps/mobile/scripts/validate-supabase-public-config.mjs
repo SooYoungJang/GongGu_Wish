@@ -99,7 +99,6 @@ export async function validateSupabasePublicConfig({
 
 export async function validateBundledSupabasePublicConfig({
   bundle,
-  expectedPublicKey,
   expectedSupabaseUrl,
   fetchImpl = fetch,
   timeoutMs = 15_000,
@@ -142,12 +141,9 @@ export async function validateBundledSupabasePublicConfig({
     throw new Error("The validated Supabase environment URL is invalid.");
   }
 
-  if (
-    bundledUrl !== expectedOrigin ||
-    publicKeys[0] !== expectedPublicKey?.trim()
-  ) {
+  if (bundledUrl !== expectedOrigin) {
     throw new Error(
-      "The Android bundle Supabase configuration does not match the validated environment.",
+      "The Android bundle Supabase URL does not match the validated environment.",
     );
   }
 
@@ -164,7 +160,6 @@ async function main() {
     const bundle = await readStreamToBuffer(process.stdin);
     await validateBundledSupabasePublicConfig({
       bundle,
-      expectedPublicKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       expectedSupabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     });
     console.log("Android bundle Supabase public configuration verified.");

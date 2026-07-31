@@ -103,31 +103,52 @@ test("accepts only the validated Supabase configuration in the Android bundle", 
 
   await validateBundledSupabasePublicConfig({
     bundle: Buffer.from(`${supabaseUrl}\n${publicKey}`, "utf8"),
-    expectedPublicKey: publicKey,
     expectedSupabaseUrl: supabaseUrl,
     fetchImpl: async () => new Response("{}", { status: 200 }),
   });
 });
 
-test("rejects a stale bundled key without exposing either key", async () => {
-  const expectedPublicKey = "sb_publishable_current-preview-public-key";
-  const bundledPublicKey = "sb_publishable_stale-preview-public-key";
+test("accepts a rotated bundled public key recognized by the expected project", async () => {
+  const bundledPublicKey = "sb_publishable_rotated-preview-public-key";
+
+  await validateBundledSupabasePublicConfig({
+    bundle: Buffer.from(`${supabaseUrl}\n${bundledPublicKey}`, "utf8"),
+    expectedSupabaseUrl: supabaseUrl,
+    fetchImpl: async () => new Response("{}", { status: 200 }),
+  });
+});
+
+test("rejects a revoked bundled key without exposing it", async () => {
+  const bundledPublicKey = "sb_publishable_revoked-preview-public-key";
 
   await assert.rejects(
     validateBundledSupabasePublicConfig({
       bundle: Buffer.from(`${supabaseUrl}\n${bundledPublicKey}`, "utf8"),
-      expectedPublicKey,
+      expectedSupabaseUrl: supabaseUrl,
+      fetchImpl: async () =>
+        new Response('{"message":"Invalid API key"}', { status: 401 }),
+    }),
+    (error) => {
+      assert.match(error.message, /HTTP 401/);
+      assert.doesNotMatch(error.message, new RegExp(bundledPublicKey));
+      return true;
+    },
+  );
+});
+
+test("rejects a bundled public key from a different Supabase URL", async () => {
+  const bundledUrl = "https://other-project.supabase.co";
+  const bundledPublicKey = "sb_publishable_other-project-public-key";
+
+  await assert.rejects(
+    validateBundledSupabasePublicConfig({
+      bundle: Buffer.from(`${bundledUrl}\n${bundledPublicKey}`, "utf8"),
       expectedSupabaseUrl: supabaseUrl,
       fetchImpl: async () => {
         throw new Error("fetch should not run");
       },
     }),
-    (error) => {
-      assert.match(error.message, /does not match the validated environment/);
-      assert.doesNotMatch(error.message, new RegExp(expectedPublicKey));
-      assert.doesNotMatch(error.message, new RegExp(bundledPublicKey));
-      return true;
-    },
+    /URL does not match the validated environment/,
   );
 });
 
@@ -141,7 +162,6 @@ test("rejects a bundle that retains both current and stale public keys", async (
         `${supabaseUrl}\n${expectedPublicKey}\n${stalePublicKey}`,
         "utf8",
       ),
-      expectedPublicKey,
       expectedSupabaseUrl: supabaseUrl,
       fetchImpl: async () => {
         throw new Error("fetch should not run");
