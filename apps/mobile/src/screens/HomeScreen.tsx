@@ -37,6 +37,7 @@ import { NativeAdCard } from "../components/ads/NativeAdCard";
 import { CATEGORIES } from "../components/home/CategoryRow";
 import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
+import { GroupBuyRequestRankingCard } from "../components/home/GroupBuyRequestRankingCard";
 import { fetchGroupBuys, fetchHomeBannerGroupBuys } from "../api";
 import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
@@ -52,6 +53,10 @@ import type { CommerceColorPalette } from "../design/commerce";
 import type { GroupBuy, HomeScreenProps } from "../types";
 import { useAccessibilityAutoPlayPause } from "../hooks/useAccessibilityAutoPlayPause";
 import { useTabReselect } from "../hooks/useTabReselect";
+import {
+  useGroupBuyRequestRankings,
+  type GroupBuyRequestRanking,
+} from "../features/groupBuyRequests";
 import promoScrimSource from "../assets/promo-scrim.png";
 
 type HomeAction = () => void;
@@ -66,13 +71,19 @@ const HOME_CATEGORY_OPTIONS: Array<{ key: HomeCategory; label: string }> = [
 type HomeScreenContentProps = {
   groupBuys: GroupBuy[];
   homeBannerGroupBuys?: GroupBuy[];
+  groupBuyRequestRankings?: GroupBuyRequestRanking[];
   isError: boolean;
   isFetching: boolean;
   isLoading?: boolean;
+  isGroupBuyRequestRankingsError?: boolean;
+  isGroupBuyRequestRankingsFetching?: boolean;
+  isGroupBuyRequestRankingsLoading?: boolean;
   onRefresh: HomeAction;
   onOpenSearch: HomeAction;
   onOpenCalendar: HomeAction;
   onPressDeal: DealAction;
+  onPressGroupBuyRequestRanking?: Dispatch<string>;
+  onRetryGroupBuyRequestRankings?: HomeAction;
   scrollToTopRequest?: number | null;
 };
 
@@ -834,13 +845,19 @@ function RecommendedProducts({
 export function HomeScreenContent({
   groupBuys,
   homeBannerGroupBuys,
+  groupBuyRequestRankings = [],
   isError,
   isFetching,
   isLoading = false,
+  isGroupBuyRequestRankingsError = false,
+  isGroupBuyRequestRankingsFetching = false,
+  isGroupBuyRequestRankingsLoading = false,
   onRefresh,
   onOpenSearch,
   onOpenCalendar,
   onPressDeal,
+  onPressGroupBuyRequestRanking,
+  onRetryGroupBuyRequestRankings,
   scrollToTopRequest = null,
 }: HomeScreenContentProps) {
   const { colors, isDark } = useCommerceTheme();
@@ -913,6 +930,17 @@ export function HomeScreenContent({
         >
           <View style={s.content} testID="home-top-content">
             <HomeTopBar colors={colors} onOpenSearch={onOpenSearch} s={s} />
+            <GroupBuyRequestRankingCard
+              isError={isGroupBuyRequestRankingsError}
+              isFetching={isGroupBuyRequestRankingsFetching}
+              isLoading={isGroupBuyRequestRankingsLoading}
+              onOpenSearch={onOpenSearch}
+              onPressRanking={
+                onPressGroupBuyRequestRanking ?? (() => onOpenSearch())
+              }
+              onRetry={onRetryGroupBuyRequestRankings ?? onRefresh}
+              rankings={groupBuyRequestRankings}
+            />
             <ShoppingHomeHeading s={s} />
             <PromoBanner
               cardWidth={promoCardWidth}
@@ -1016,6 +1044,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     queryKey: ["home-banner-group-buys", homeBannerDateKey],
     queryFn: () => fetchHomeBannerGroupBuys(),
   });
+  const {
+    data: groupBuyRequestRankings = [],
+    isError: isGroupBuyRequestRankingsError,
+    isFetching: isGroupBuyRequestRankingsFetching,
+    isLoading: isGroupBuyRequestRankingsLoading,
+    refetch: refetchGroupBuyRequestRankings,
+  } = useGroupBuyRequestRankings();
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -1039,11 +1074,15 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
     try {
-      await Promise.all([refetch(), refetchHomeBanners()]);
+      await Promise.all([
+        refetch(),
+        refetchHomeBanners(),
+        refetchGroupBuyRequestRankings(),
+      ]);
     } finally {
       setIsManualRefreshing(false);
     }
-  }, [refetch, refetchHomeBanners]);
+  }, [refetch, refetchGroupBuyRequestRankings, refetchHomeBanners]);
 
   const handleHomeTabReselect = useCallback(() => {
     setScrollToTopRequest((request) => (request ?? 0) + 1);
@@ -1056,20 +1095,34 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   useFocusEffect(
     useCallback(() => {
-      void Promise.all([refetch(), refetchHomeBanners()]);
-    }, [refetch, refetchHomeBanners]),
+      void Promise.all([
+        refetch(),
+        refetchHomeBanners(),
+        refetchGroupBuyRequestRankings(),
+      ]);
+    }, [refetch, refetchGroupBuyRequestRankings, refetchHomeBanners]),
   );
 
   return (
     <HomeScreenContent
       groupBuys={groupBuys}
+      groupBuyRequestRankings={groupBuyRequestRankings}
       homeBannerGroupBuys={homeBannerData ?? []}
       isError={isError}
       isFetching={isManualRefreshing || isFetching}
+      isGroupBuyRequestRankingsError={isGroupBuyRequestRankingsError}
+      isGroupBuyRequestRankingsFetching={isGroupBuyRequestRankingsFetching}
+      isGroupBuyRequestRankingsLoading={isGroupBuyRequestRankingsLoading}
       isLoading={isLoading}
       onRefresh={handleManualRefresh}
       scrollToTopRequest={scrollToTopRequest}
       onOpenSearch={() => navigation.navigate("SearchScreen")}
+      onPressGroupBuyRequestRanking={(productName) =>
+        navigation.navigate("SearchScreen", { initialQuery: productName })
+      }
+      onRetryGroupBuyRequestRankings={() => {
+        void refetchGroupBuyRequestRankings();
+      }}
       onOpenCalendar={() =>
         navigation.navigate("CalendarScreen", {
           initialDate: new Date().toISOString(),

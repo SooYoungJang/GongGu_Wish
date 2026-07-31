@@ -7,7 +7,7 @@ import { DealCard } from '../components/DealCard';
 import { spacing } from '../design/tokens';
 import type { GroupBuy } from '../types';
 
-const mockWindowDimensions = vi.hoisted(() => ({ width: 393 }));
+const mockWindowDimensions = vi.hoisted(() => ({ width: 393, fontScale: 1 }));
 vi.mock('../context/GroupBuyReminderPickerContext', () => ({
   useGroupBuyReminderPicker: () => ({
     getReminderState: () => ({ status: 'idle' }),
@@ -126,7 +126,7 @@ vi.mock('react-native', () => {
       width: mockWindowDimensions.width,
       height: 852,
       scale: 3,
-      fontScale: 1,
+      fontScale: mockWindowDimensions.fontScale,
     }),
     View: ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement('View', props, children),
@@ -255,6 +255,13 @@ function flattenText(
   );
 }
 
+function flattenInstanceText(
+  node: TestRenderer.ReactTestInstance | string,
+): string {
+  if (typeof node === 'string') return node;
+  return node.children.map(flattenInstanceText).join(' ');
+}
+
 function flattenStyle(style: unknown): Record<string, unknown> {
   return Array.isArray(style)
     ? Object.assign({}, ...style.filter(Boolean))
@@ -299,6 +306,7 @@ function findPromoBanner(
 
 beforeEach(() => {
   mockWindowDimensions.width = 393;
+  mockWindowDimensions.fontScale = 1;
   nativeAdMock.mountCount = 0;
   nativeAdMock.status = 'loaded';
 });
@@ -1821,5 +1829,184 @@ describe('HomeScreenContent redesign interactions', () => {
         expect(style?.minHeight ?? 44).toBeGreaterThanOrEqual(44);
       }
     }
+  });
+});
+
+describe('HomeScreenContent monthly group-buy request rankings', () => {
+  const rankings = [
+    {
+      rank: 1,
+      requestId: 'request-1',
+      productName: '무선 에어프라이어 올인원 대용량 패밀리 세트',
+      requestCount: 12,
+    },
+    {
+      rank: 2,
+      requestId: 'request-2',
+      productName: '저당 그래놀라',
+      requestCount: 8,
+    },
+    {
+      rank: 3,
+      requestId: 'request-3',
+      productName: '비건 선크림',
+      requestCount: 5,
+    },
+  ];
+
+  it('places the compact TOP 3 card directly below the home search box', () => {
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: rankings,
+    });
+    const topContent = renderer.root
+      .findAllByProps({ testID: 'home-top-content' })
+      .find((node) => String(node.type) === 'View')!;
+    const directChildText = topContent.children.map(flattenInstanceText);
+
+    expect(directChildText[0]).toContain('상품을 검색해보세요');
+    expect(directChildText[1]).toContain('최근 한 달 공구 요청 TOP 3');
+    expect(directChildText[2]).toContain('쇼핑 홈');
+    expect(flattenText(renderer.toJSON())).toContain(
+      '최근 한 달 공구 요청 TOP 3',
+    );
+  });
+
+  it('opens search with a ranked product and exposes a 48dp accessible row', () => {
+    const onPressGroupBuyRequestRanking = vi.fn();
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: rankings,
+      onPressGroupBuyRequestRanking,
+    });
+    const firstRow = renderer.root.findByProps({
+      accessibilityLabel:
+        '1위, 무선 에어프라이어 올인원 대용량 패밀리 세트, 요청 12건',
+    });
+
+    expect(firstRow.props.accessibilityRole).toBe('button');
+    expect(flattenStyle(firstRow.props.style)).toMatchObject({ minHeight: 48 });
+    act(() => firstRow.props.onPress());
+    expect(onPressGroupBuyRequestRanking).toHaveBeenCalledWith(
+      '무선 에어프라이어 올인원 대용량 패밀리 세트',
+    );
+  });
+
+  it('renders partial rankings without filler rows and subtly highlights first place', () => {
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: rankings.slice(0, 2),
+    });
+    const firstRow = renderer.root.findByProps({
+      accessibilityLabel:
+        '1위, 무선 에어프라이어 올인원 대용량 패밀리 세트, 요청 12건',
+    });
+    const secondRow = renderer.root.findByProps({
+      accessibilityLabel: '2위, 저당 그래놀라, 요청 8건',
+    });
+
+    expect(flattenStyle(firstRow.props.style).backgroundColor).toEqual(
+      expect.any(String),
+    );
+    expect(flattenStyle(secondRow.props.style).backgroundColor).toBeUndefined();
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          String(node.type) === 'Pressable' &&
+          typeof node.props.accessibilityLabel === 'string' &&
+          /^\d위,/.test(node.props.accessibilityLabel),
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('keeps long names readable on a 320px screen with a large font scale', () => {
+    mockWindowDimensions.width = 320;
+    mockWindowDimensions.fontScale = 1.6;
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: rankings,
+    });
+    const productName = renderer.root
+      .findAllByType('Text' as unknown as React.ElementType)
+      .find(
+        (node) =>
+          node.props.numberOfLines === 2 &&
+          node.children.join('').includes('무선 에어프라이어'),
+      );
+
+    expect(productName).toBeDefined();
+    expect(flattenStyle(productName!.props.style)).toMatchObject({
+      flexShrink: 1,
+    });
+  });
+
+  it('renders three predictable skeleton rows while the first ranking loads', () => {
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: [],
+      isGroupBuyRequestRankingsLoading: true,
+    });
+    const card = renderer.root.findByProps({
+      testID: 'home-group-buy-request-rankings',
+    });
+
+    expect(card.props.accessibilityState).toMatchObject({ busy: true });
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          String(node.type) === 'View' &&
+          typeof node.props.testID === 'string' &&
+          node.props.testID.startsWith('group-buy-request-ranking-skeleton-'),
+      ),
+    ).toHaveLength(3);
+  });
+
+  it('opens search from the empty ranking CTA', () => {
+    const onOpenSearch = vi.fn();
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: [],
+      onOpenSearch,
+    });
+
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: '공구 요청하러 가기' })
+        .props.onPress();
+    });
+    expect(onOpenSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows an assertive retry action when rankings fail without cache', () => {
+    const onRetryGroupBuyRequestRankings = vi.fn();
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: [],
+      isGroupBuyRequestRankingsError: true,
+      onRetryGroupBuyRequestRankings,
+    });
+    const error = renderer.root.findByProps({
+      testID: 'group-buy-request-ranking-error',
+    });
+
+    expect(error.props.accessibilityLiveRegion).toBe('assertive');
+    act(() => {
+      renderer.root
+        .findByProps({ accessibilityLabel: '공구 요청 순위 다시 불러오기' })
+        .props.onPress();
+    });
+    expect(onRetryGroupBuyRequestRankings).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps cached rankings visible and marks a failed refresh as stale', () => {
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: rankings,
+      isGroupBuyRequestRankingsError: true,
+    });
+
+    expect(
+      renderer.root.findByProps({
+        accessibilityLabel:
+          '1위, 무선 에어프라이어 올인원 대용량 패밀리 세트, 요청 12건',
+      }),
+    ).toBeDefined();
+    expect(
+      renderer.root.findByProps({
+        testID: 'group-buy-request-ranking-stale',
+      }).props.accessibilityLiveRegion,
+    ).toBe('polite');
   });
 });
