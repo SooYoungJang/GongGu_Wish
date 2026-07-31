@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -6,6 +5,16 @@ const SETTINGS_PATH = "auth/v1/settings";
 const SUPABASE_URL_PATTERN = /https:\/\/[a-z0-9-]+\.supabase\.co/g;
 const PUBLISHABLE_KEY_PATTERN = /sb_publishable_[A-Za-z0-9._-]+/g;
 const JWT_PATTERN = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
+
+export async function readStreamToBuffer(stream) {
+  const chunks = [];
+
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  return Buffer.concat(chunks);
+}
 
 function readLegacyAnonClaims(publicKey) {
   const segments = publicKey.split(".");
@@ -152,7 +161,7 @@ export async function validateBundledSupabasePublicConfig({
 
 async function main() {
   if (process.argv.includes("--bundle-stdin")) {
-    const bundle = await readFile(0);
+    const bundle = await readStreamToBuffer(process.stdin);
     await validateBundledSupabasePublicConfig({
       bundle,
       expectedPublicKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
