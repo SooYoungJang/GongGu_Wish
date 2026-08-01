@@ -386,6 +386,86 @@ describe("ranking components", () => {
     }
   });
 
+  it.each([1, 1.8])(
+    "does not ellipsize rising or falling trends for ranks one through four at %sx font scale",
+    (fontScale) => {
+      windowDimensionsMock.fontScale = fontScale;
+      const items = [
+        sampleRanking({
+          groupBuyId: "group-1",
+          rank: 1,
+          trend: { kind: "up", delta: 99 },
+        }),
+        sampleRanking({
+          groupBuyId: "group-2",
+          rank: 2,
+          trend: { kind: "down", delta: 99 },
+        }),
+        sampleRanking({
+          groupBuyId: "group-3",
+          rank: 3,
+          trend: { kind: "up", delta: 99 },
+        }),
+        sampleRanking({
+          groupBuyId: "group-4",
+          rank: 4,
+          trend: { kind: "down", delta: 99 },
+        }),
+      ];
+      let renderer: TestRenderer.ReactTestRenderer;
+
+      act(() => {
+        renderer = TestRenderer.create(
+          withTheme(
+            <SellerRankingList state={{ status: "ready", data: items }} />,
+          ),
+        );
+      });
+
+      const cases = [
+        { containerTestID: "ranking-top-hero", kind: "up", label: "▲99위" },
+        {
+          containerTestID: "ranking-top-compact-2",
+          kind: "down",
+          label: "▼99위",
+        },
+        {
+          containerTestID: "ranking-top-compact-3",
+          kind: "up",
+          label: "▲99위",
+        },
+        { containerTestID: "ranking-row-4", kind: "down", label: "▼99위" },
+      ];
+
+      for (const testCase of cases) {
+        const container = renderer!.root.findByProps({
+          testID: testCase.containerTestID,
+        });
+        const badge = container.findByProps({
+          testID: `ranking-trend-badge-${testCase.kind}`,
+        });
+        const textNode = badge.findByType(
+          "Text" as unknown as React.ElementType,
+        );
+
+        expect(textNode.props.children).toBe(testCase.label);
+        expect(textNode.props.numberOfLines).toBe(1);
+        expect(textNode.props.ellipsizeMode).toBeUndefined();
+        expect(flattenStyle(textNode.props.style).flexShrink).toBe(0);
+        expect(flattenStyle(badge.props.style).flexShrink).toBe(0);
+      }
+
+      const rankFourColumn = renderer!.root.findByProps({
+        testID: "ranking-row-rank-column-4",
+      });
+      const rankFourColumnStyle = flattenStyle(rankFourColumn.props.style);
+
+      expect(rankFourColumnStyle.width).toBeUndefined();
+      expect(rankFourColumnStyle.minWidth).toBe(34);
+      expect(rankFourColumnStyle.flexShrink).toBe(0);
+    },
+  );
+
   it("keeps the hero rank metadata inside the image at large font scales", () => {
     windowDimensionsMock.fontScale = 2;
     windowDimensionsMock.width = 320;
@@ -630,11 +710,12 @@ describe("ranking components", () => {
     expect(
       detailAction.findAll(
         (node) =>
-          node.props.accessibilityLabel ===
-          "@ordinary.seller 판매자 공구 보기",
+          node.props.accessibilityLabel === "@ordinary.seller 판매자 공구 보기",
       ),
     ).toHaveLength(0);
-    const footer = renderer!.root.findByProps({ testID: "ranking-row-footer-4" });
+    const footer = renderer!.root.findByProps({
+      testID: "ranking-row-footer-4",
+    });
     expect(
       footer
         .findAllByType("Pressable" as unknown as React.ElementType)

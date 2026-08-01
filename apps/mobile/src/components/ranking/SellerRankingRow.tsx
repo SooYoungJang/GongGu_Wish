@@ -97,6 +97,7 @@ export const SellerRankingRow = memo(function SellerRankingRow({
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             style={s.rankColumn}
+            testID={`ranking-row-rank-column-${item.rank}`}
           >
             <RankBadge rank={item.rank} />
             <RankingTrendBadge trend={item.trend} />
@@ -303,8 +304,9 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
     },
     rankColumn: {
       alignItems: "center",
+      flexShrink: 0,
       gap: spacing.xs,
-      width: 34,
+      minWidth: 34,
     },
     sellerAction: {
       alignItems: "center",
