@@ -1,5 +1,7 @@
+import NetInfo from "@react-native-community/netinfo";
 import {
   focusManager,
+  onlineManager,
   QueryCache,
   QueryClient,
   type QueryKey,
@@ -64,6 +66,17 @@ export function syncQueryFocus(
   if (platform !== "web") {
     focusManager.setFocused(status === "active");
   }
+}
+
+// React Native does not provide browser online/offline events, so TanStack
+// Query needs the native connection state to drive refetchOnReconnect.
+// Source: https://tanstack.com/query/latest/docs/framework/react/react-native#online-status-management
+export function configureQueryOnlineManager(): void {
+  onlineManager.setEventListener((setOnline) =>
+    NetInfo.addEventListener((state) =>
+      setOnline(state.isConnected === true),
+    ),
+  );
 }
 
 export const mobileQueryClient = createMobileQueryClient();
