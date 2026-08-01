@@ -40,6 +40,10 @@ function requiredDate(value: unknown) {
   return date;
 }
 
+function optionalDate(value: unknown): string | null {
+  return value === null ? null : requiredDate(value);
+}
+
 function requiredStatus(value: unknown): AdminGroupBuyRequestStatus {
   if (value === "OPEN" || value === "FULFILLED" || value === "HIDDEN") {
     return value;
@@ -50,7 +54,6 @@ function requiredStatus(value: unknown): AdminGroupBuyRequestStatus {
 export function mapAdminGroupBuyRequest(
   row: Record<string, unknown>,
 ): AdminGroupBuyRequest {
-  const latestRequestedAt = row.latestRequestedAt;
   if (
     typeof row.requestCount !== "number" ||
     !Number.isInteger(row.requestCount) ||
@@ -58,21 +61,13 @@ export function mapAdminGroupBuyRequest(
   ) {
     throw new AdminGroupBuyRequestContractError();
   }
-  if (
-    latestRequestedAt !== null &&
-    (typeof latestRequestedAt !== "string" ||
-      Number.isNaN(Date.parse(latestRequestedAt)))
-  ) {
-    throw new AdminGroupBuyRequestContractError();
-  }
-
   return {
     id: requiredString(row.id),
     productName: requiredString(row.productName),
     status: requiredStatus(row.status),
     requestCount: row.requestCount,
     createdAt: requiredDate(row.createdAt),
-    latestRequestedAt,
+    latestRequestedAt: optionalDate(row.latestRequestedAt),
   };
 }
 
