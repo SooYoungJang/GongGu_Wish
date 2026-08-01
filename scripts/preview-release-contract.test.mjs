@@ -33,6 +33,10 @@ const rankingEligibilityMigration = readFileSync(
   "supabase/migrations/20260802000001_align_group_buy_ranking_eligibility.sql",
   "utf8",
 ).replace(/\r\n/g, "\n");
+const rankingV2CursorMigration = readFileSync(
+  "supabase/migrations/20260716000005_fix_group_buy_ranking_cursor.sql",
+  "utf8",
+).replace(/\r\n/g, "\n");
 
 function job(jobId) {
   const marker = `  ${jobId}:\n`;
@@ -150,18 +154,76 @@ test("service_role can delete user profiles required by delete-account", () => {
   );
 });
 
-test("ranking v3 admits uncategorized deals without admitting unknown categories", () => {
-  const updatedPredicate = rankingEligibilityMigration.match(
-    /updated_category_predicate text := \$predicate\$([\s\S]*?)\$predicate\$;/,
-  )?.[1];
-  assert.ok(
-    updatedPredicate,
-    "ranking v3 must define its eligibility predicate",
-  );
-  assert.match(updatedPredicate, /g\.category IS NULL\s+OR CASE/);
+test("ranking v3 explicitly preserves v2 semantics with narrow eligibility changes", () => {
+  const functionDefinition = (source, functionName) => {
+    const start = source.indexOf(
+      `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+    );
+    assert.notEqual(start, -1, `${functionName} definition is required`);
+    const end = source.indexOf("\n$$;", start);
+    assert.notEqual(end, -1, `${functionName} definition must terminate`);
+    return source.slice(start, end + "\n$$;".length);
+  };
 
-  const allowlistSource = updatedPredicate.match(
-    /END IN \(\s*([\s\S]*?)\s*\)\s*\)/,
+  const originalUsername =
+    "COALESCE(i.instagram_username, 'unknown') AS username,";
+  const latestUsername =
+    "COALESCE(NULLIF(BTRIM(g.instagram_username), ''), NULLIF(BTRIM(i.instagram_username), '')) AS username,";
+  const originalExpiry = "AND (g.end_date IS NULL OR g.end_date >= now())";
+  const kstExpiry =
+    "AND (g.end_date IS NULL OR g.end_date::date >= (now() AT TIME ZONE 'Asia/Seoul')::date)";
+  const originalEligibility = `      AND CASE
+        WHEN g.category = 'lifestyle' THEN 'living'
+        WHEN g.category = 'digital' THEN 'electronics'
+        ELSE g.category
+      END IN (
+        'food', 'living', 'beauty', 'fashion', 'home', 'kitchen',
+        'electronics', 'pet', 'auto', 'hobby', 'baby', 'sports',
+        'stationery', 'books', 'media', 'travel'
+      )`;
+  const updatedEligibility = `      AND (
+        g.category IS NULL
+        OR CASE
+          WHEN g.category = 'lifestyle' THEN 'living'
+          WHEN g.category = 'digital' THEN 'electronics'
+          ELSE g.category
+        END IN (
+          'food', 'living', 'beauty', 'fashion', 'home', 'kitchen',
+          'electronics', 'pet', 'auto', 'hobby', 'baby', 'sports',
+          'stationery', 'books', 'media', 'travel'
+        )
+      )`;
+
+  const expectedV3 = functionDefinition(
+    rankingV2CursorMigration,
+    "get_group_buy_rankings_v2",
+  )
+    .replace("get_group_buy_rankings_v2", "get_group_buy_rankings_v3")
+    .replace(originalUsername, latestUsername)
+    .replace(originalExpiry, kstExpiry)
+    .replace(originalEligibility, updatedEligibility);
+  const actualV3 = functionDefinition(
+    rankingEligibilityMigration,
+    "get_group_buy_rankings_v3",
+  );
+  assert.equal(
+    actualV3,
+    expectedV3,
+    "ranking v3 may differ from v2 only at username fallback, KST expiry, and eligibility",
+  );
+
+  assert.match(rankingEligibilityMigration, /g\.category IS NULL\s+OR CASE/);
+  assert.match(
+    rankingEligibilityMigration,
+    new RegExp(kstExpiry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+  );
+  assert.match(
+    rankingEligibilityMigration,
+    new RegExp(latestUsername.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+  );
+
+  const allowlistSource = rankingEligibilityMigration.match(
+    /g\.category IS NULL\s+OR CASE[\s\S]*?END IN \(\s*([\s\S]*?)\s*\)\s*\)/,
   )?.[1];
   assert.ok(allowlistSource, "ranking v3 must retain a category allowlist");
   assert.deepEqual(
@@ -185,9 +247,41 @@ test("ranking v3 admits uncategorized deals without admitting unknown categories
       "travel",
     ],
   );
-  assert.match(
-    rankingEligibilityMigration,
-    /replace\(\s*original_definition,\s*category_predicate,\s*updated_category_predicate\s*\)/,
+  const functionStart = rankingEligibilityMigration.indexOf(actualV3);
+  const preambleLines = rankingEligibilityMigration
+    .slice(0, functionStart)
+    .split("\n")
+    .filter((line) => line.trim().length > 0);
+  assert.ok(
+    preambleLines.every((line) => line.trimStart().startsWith("--")),
+    "ranking v3 migration may contain only comments before its function",
+  );
+
+  const expectedPrivileges = `REVOKE ALL ON FUNCTION public.get_group_buy_rankings_v3(
+  text,
+  text,
+  text,
+  integer,
+  numeric,
+  timestamp,
+  numeric,
+  text
+) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.get_group_buy_rankings_v3(
+  text,
+  text,
+  text,
+  integer,
+  numeric,
+  timestamp,
+  numeric,
+  text
+) TO service_role;`;
+  assert.equal(
+    rankingEligibilityMigration.slice(functionStart + actualV3.length).trim(),
+    expectedPrivileges,
+    "ranking v3 migration may contain only PUBLIC revoke and service_role grant after its function",
   );
 });
 
