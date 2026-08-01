@@ -8,8 +8,50 @@ import {
   buildRankingResponse,
   decodeRankingCursor,
   encodeRankingCursor,
+  invokeRankingRpcWithFallback,
   normalizeRankingRequest,
 } from "./rankingContract.ts";
+
+Deno.test("falls back to ranking v2 only while v3 is not deployed", async () => {
+  const calls: string[] = [];
+  const response = await invokeRankingRpcWithFallback(
+    async (functionName) => {
+      calls.push(functionName);
+      if (functionName === "get_group_buy_rankings_v3") {
+        return {
+          data: null,
+          error: {
+            code: "PGRST202",
+            message: "Could not find public.get_group_buy_rankings_v3",
+          },
+        };
+      }
+      return { data: [], error: null };
+    },
+    { category_filter: "all" },
+  );
+
+  assertEquals(calls, [
+    "get_group_buy_rankings_v3",
+    "get_group_buy_rankings_v2",
+  ]);
+  assertEquals(response, { data: [], error: null });
+});
+
+Deno.test("does not hide a ranking v3 execution failure", async () => {
+  const calls: string[] = [];
+  const databaseError = { code: "42501", message: "permission denied" };
+  const response = await invokeRankingRpcWithFallback(
+    async (functionName) => {
+      calls.push(functionName);
+      return { data: null, error: databaseError };
+    },
+    { category_filter: "all" },
+  );
+
+  assertEquals(calls, ["get_group_buy_rankings_v3"]);
+  assertEquals(response, { data: null, error: databaseError });
+});
 
 Deno.test(
   "normalizes the group-buy ranking request without hidden defaults",
@@ -236,6 +278,41 @@ Deno.test(
     assertEquals(response.meta.scoreVersion, "v2");
   },
 );
+
+Deno.test("preserves an uncategorized ranking row", () => {
+  const response = buildRankingResponse(
+    [
+      {
+        group_buy_id: "group-buy-uncategorized",
+        rank: 1,
+        previous_rank: null,
+        trend_kind: "new",
+        trend_delta: 0,
+        product_name: "카테고리 미지정 공구",
+        brand_name: null,
+        username: null,
+        category: null,
+        thumbnail_url: null,
+        media_urls: [],
+        start_date: null,
+        end_date: null,
+        price_krw: null,
+        created_at: "2026-08-02T00:00:00.000Z",
+        deep_views: 1,
+        bookmarks: 1,
+        notifications: 1,
+        search_clicks: 0,
+        score: 7,
+        score_delta: 7,
+        score_version: "v2",
+      },
+    ],
+    normalizeRankingRequest({ category: "all" }),
+    "2026-08-02T00:00:00.000Z",
+  );
+
+  assertEquals(response.data[0].category, null);
+});
 
 Deno.test(
   "derives the trend delta from rank movement instead of score delta",

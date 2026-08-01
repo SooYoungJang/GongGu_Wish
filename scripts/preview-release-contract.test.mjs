@@ -29,6 +29,10 @@ const previewBaselineSource = readFileSync(
 );
 const agentRules = readFileSync("AGENTS.md", "utf8");
 const branchStrategy = readFileSync("docs/branch-strategy.md", "utf8");
+const rankingEligibilityMigration = readFileSync(
+  "supabase/migrations/20260802000001_align_group_buy_ranking_eligibility.sql",
+  "utf8",
+).replace(/\r\n/g, "\n");
 
 function job(jobId) {
   const marker = `  ${jobId}:\n`;
@@ -143,6 +147,47 @@ test("service_role can delete user profiles required by delete-account", () => {
     userServiceRoleDeleteGrants,
     ["GRANT DELETE ON TABLE public.users TO service_role;"],
     "delete-account must receive only the required public.users DELETE grant",
+  );
+});
+
+test("ranking v3 admits uncategorized deals without admitting unknown categories", () => {
+  const updatedPredicate = rankingEligibilityMigration.match(
+    /updated_category_predicate text := \$predicate\$([\s\S]*?)\$predicate\$;/,
+  )?.[1];
+  assert.ok(
+    updatedPredicate,
+    "ranking v3 must define its eligibility predicate",
+  );
+  assert.match(updatedPredicate, /g\.category IS NULL\s+OR CASE/);
+
+  const allowlistSource = updatedPredicate.match(
+    /END IN \(\s*([\s\S]*?)\s*\)\s*\)/,
+  )?.[1];
+  assert.ok(allowlistSource, "ranking v3 must retain a category allowlist");
+  assert.deepEqual(
+    [...allowlistSource.matchAll(/'([^']+)'/g)].map((match) => match[1]),
+    [
+      "food",
+      "living",
+      "beauty",
+      "fashion",
+      "home",
+      "kitchen",
+      "electronics",
+      "pet",
+      "auto",
+      "hobby",
+      "baby",
+      "sports",
+      "stationery",
+      "books",
+      "media",
+      "travel",
+    ],
+  );
+  assert.match(
+    rankingEligibilityMigration,
+    /replace\(\s*original_definition,\s*category_predicate,\s*updated_category_predicate\s*\)/,
   );
 });
 

@@ -53,6 +53,8 @@ export async function syncSupabaseAuthAutoRefresh(
   const supabase = getSupabase();
   if (status === 'active') {
     await supabase.auth.startAutoRefresh();
+    const { error } = await supabase.auth.getSession();
+    if (error) throw error;
   } else {
     await supabase.auth.stopAutoRefresh();
   }

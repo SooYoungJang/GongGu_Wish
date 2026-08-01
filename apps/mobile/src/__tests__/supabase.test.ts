@@ -5,18 +5,23 @@ import {
   syncSupabaseAuthAutoRefresh,
 } from '../lib/supabase';
 
-const { createClientMock, startAutoRefreshMock, stopAutoRefreshMock } = vi.hoisted(
-  () => ({
-    startAutoRefreshMock: vi.fn(),
-    stopAutoRefreshMock: vi.fn(),
-    createClientMock: vi.fn(() => ({
-      auth: {
-        startAutoRefresh: startAutoRefreshMock,
-        stopAutoRefresh: stopAutoRefreshMock,
-      },
-    })),
-  }),
-);
+const {
+  createClientMock,
+  getSessionMock,
+  startAutoRefreshMock,
+  stopAutoRefreshMock,
+} = vi.hoisted(() => ({
+  getSessionMock: vi.fn(),
+  startAutoRefreshMock: vi.fn(),
+  stopAutoRefreshMock: vi.fn(),
+  createClientMock: vi.fn(() => ({
+    auth: {
+      getSession: getSessionMock,
+      startAutoRefresh: startAutoRefreshMock,
+      stopAutoRefresh: stopAutoRefreshMock,
+    },
+  })),
+}));
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: createClientMock,
@@ -52,15 +57,37 @@ describe('Supabase client', () => {
   });
 
   it('runs Supabase auth refresh only while the native app is active', async () => {
+    let releaseSession!: () => void;
+    getSessionMock.mockReset().mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseSession = () =>
+            resolve({ data: { session: null }, error: null });
+        }),
+    );
     startAutoRefreshMock.mockReset().mockResolvedValue(undefined);
     stopAutoRefreshMock.mockReset().mockResolvedValue(undefined);
     configureSupabase('test-anon-key');
 
-    await syncSupabaseAuthAutoRefresh('active', 'android');
+    let activeSyncFinished = false;
+    const activeSync = syncSupabaseAuthAutoRefresh('active', 'android').then(
+      () => {
+        activeSyncFinished = true;
+      },
+    );
+    await vi.waitFor(() => {
+      expect(startAutoRefreshMock).toHaveBeenCalledTimes(1);
+      expect(getSessionMock).toHaveBeenCalledTimes(1);
+    });
+    expect(activeSyncFinished).toBe(false);
+
+    releaseSession();
+    await activeSync;
     await syncSupabaseAuthAutoRefresh('background', 'android');
     await syncSupabaseAuthAutoRefresh('active', 'web');
 
     expect(startAutoRefreshMock).toHaveBeenCalledTimes(1);
+    expect(getSessionMock).toHaveBeenCalledTimes(1);
     expect(stopAutoRefreshMock).toHaveBeenCalledTimes(1);
   });
 });
