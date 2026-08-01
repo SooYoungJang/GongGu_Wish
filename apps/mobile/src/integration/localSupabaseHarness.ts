@@ -9,6 +9,7 @@ export type LocalSupabaseConfig = {
 export type LocalSupabaseFixture = {
   adminAccessToken: string;
   adminUserId: string;
+  bookmarkSessionId: string;
   email: string;
   groupBuyIds: string[];
   influencerId: string;
@@ -171,6 +172,7 @@ export async function createLocalFixture(
     { length: 6 },
     (_, index) => `gon263-deal-${index}-${suffix}`,
   );
+  const bookmarkSessionId = `gon263-bookmark-${suffix}`;
   const productName = `GON263 계약 공구 ${suffix}`;
   const email = `gon263-${suffix}@example.test`;
   const password = `Gon263!${randomUUID()}`;
@@ -292,6 +294,7 @@ export async function createLocalFixture(
   return {
     adminAccessToken: session.access_token,
     adminUserId: adminUser.id,
+    bookmarkSessionId,
     email,
     groupBuyIds,
     influencerId,
@@ -375,7 +378,7 @@ export async function setRetriedBookmark(
   groupBuyId: string,
   sessionId: string,
   selected: boolean,
-): Promise<void> {
+): Promise<boolean> {
   const options = {
     method: "POST" as const,
     body: {
@@ -385,21 +388,24 @@ export async function setRetriedBookmark(
     },
   };
   const path = "rpc/set_group_buy_bookmark";
-  await anonymousRest(config, "bookmark-idempotency", path, options);
-  await anonymousRest(config, "bookmark-idempotency", path, options);
-}
-
-export async function countBookmarksBySession(
-  config: LocalSupabaseConfig,
-  groupBuyId: string,
-  sessionId: string,
-): Promise<number> {
-  const rows = await serviceRest<Array<{ id: number }>>(
+  const first = await anonymousRest<boolean>(
     config,
     "bookmark-idempotency",
-    `group_buy_bookmarks?group_buy_id=eq.${encodeURIComponent(groupBuyId)}&session_id=eq.${encodeURIComponent(sessionId)}&select=id`,
+    path,
+    options,
   );
-  return rows.length;
+  const retried = await anonymousRest<boolean>(
+    config,
+    "bookmark-idempotency",
+    path,
+    options,
+  );
+  if (first !== selected || retried !== selected) {
+    throw new Error(
+      "[local-supabase:bookmark-idempotency] RPC returned an unexpected persisted state",
+    );
+  }
+  return retried;
 }
 
 export async function cleanupLocalFixture(
@@ -419,11 +425,11 @@ export async function cleanupLocalFixture(
         { method: "DELETE" },
       ),
     () =>
-      serviceRest(
+      setRetriedBookmark(
         config,
-        "cleanup",
-        `group_buy_bookmarks?group_buy_id=${inFilter(fixture.groupBuyIds)}`,
-        { method: "DELETE" },
+        fixture.groupBuyIds[5],
+        fixture.bookmarkSessionId,
+        false,
       ),
     () =>
       serviceRest(

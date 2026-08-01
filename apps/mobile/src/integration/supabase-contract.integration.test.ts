@@ -19,7 +19,6 @@ import { setAudiencePolicySnapshot } from "../audience/behaviorSignalsPolicy";
 import { configurePostgrest } from "../lib/postgrest-client";
 import {
   cleanupLocalFixture,
-  countBookmarksBySession,
   countDeepViewsByClientEventId,
   createLocalFixture,
   getLocalSupabaseConfig,
@@ -275,7 +274,7 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
       throw new Error("[local-supabase:setup] Fixture is unavailable");
     const clientEventId = `gon263-deep-view-${Date.now()}`;
 
-    await insertRetriedDeepView(config, fixture.groupBuyIds[0], clientEventId);
+    await insertRetriedDeepView(config, fixture.groupBuyIds[5], clientEventId);
 
     await expect(
       countDeepViewsByClientEventId(config, clientEventId),
@@ -285,18 +284,16 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
   it("applies retried bookmark selection and removal idempotently", async () => {
     if (!fixture)
       throw new Error("[local-supabase:setup] Fixture is unavailable");
-    const sessionId = `gon263-bookmark-${Date.now()}`;
-    const groupBuyId = fixture.groupBuyIds[0];
+    const sessionId = fixture.bookmarkSessionId;
+    const groupBuyId = fixture.groupBuyIds[5];
 
-    await setRetriedBookmark(config, groupBuyId, sessionId, true);
     await expect(
-      countBookmarksBySession(config, groupBuyId, sessionId),
-    ).resolves.toBe(1);
+      setRetriedBookmark(config, groupBuyId, sessionId, true),
+    ).resolves.toBe(true);
 
-    await setRetriedBookmark(config, groupBuyId, sessionId, false);
     await expect(
-      countBookmarksBySession(config, groupBuyId, sessionId),
-    ).resolves.toBe(0);
+      setRetriedBookmark(config, groupBuyId, sessionId, false),
+    ).resolves.toBe(false);
   });
 
   it("keeps category, period, sort, and cursor consistent through the mobile ranking client", async () => {

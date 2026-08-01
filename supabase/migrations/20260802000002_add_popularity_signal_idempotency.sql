@@ -98,7 +98,7 @@ CREATE OR REPLACE FUNCTION public.set_group_buy_bookmark(
   p_session_id text,
   p_selected boolean
 )
-RETURNS void
+RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
@@ -123,6 +123,13 @@ BEGIN
     WHERE group_buy_id = p_group_buy_id
       AND session_id = p_session_id;
   END IF;
+
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.group_buy_bookmarks
+    WHERE group_buy_id = p_group_buy_id
+      AND session_id = p_session_id
+  );
 END;
 $$;
 
