@@ -430,7 +430,8 @@ describe('SearchScreen redesign', () => {
 	    expect(
 	      renderer.root.findByProps({ accessibilityLabel: '없는 공구 공구 요청하기' }),
 	    ).toBeTruthy();
-	    expect(flattenText(renderer.toJSON())).toContain('찾는 공구가 아직 없나요?');
+	    expect(flattenText(renderer.toJSON())).toContain('없는 공구');
+    expect(flattenText(renderer.toJSON())).toContain('공구를 요청할까요?');
 	    expect(flattenText(renderer.toJSON())).not.toContain('⌕');
 	    expect(flattenText(renderer.toJSON())).not.toContain('검색 결과가 없어요');
 	    expect(flattenText(renderer.toJSON())).not.toContain(
@@ -441,7 +442,26 @@ describe('SearchScreen redesign', () => {
 	    );
 	  });
 
-	  it('asks only for a product name of at least two characters', async () => {
+	  it('names the searched product in the missing-result request title and action', async () => {
+    mocks.groupBuys = [];
+    mocks.influencers = [];
+    const renderer = await renderSearchScreen();
+    const input = renderer.root.findByProps({ accessibilityLabel: '공구 검색' });
+
+    act(() => {
+      input.props.onChangeText('  없는   공구  ');
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+
+    const text = flattenText(renderer.toJSON());
+    expect(text).toContain('“없는 공구”');
+    expect(text).toContain('공구를 요청할까요?');
+    expect(text).toContain('“없는 공구” 공구 요청하기');
+  });
+
+  it('asks only for a product name of at least two characters', async () => {
 	    mocks.groupBuys = [];
 	    mocks.influencers = [];
 	    const renderer = await renderSearchScreen();

@@ -89,8 +89,20 @@ function createMockState() {
     updatedAt: "2035-07-01T09:30:00.000Z",
   };
 
+  const groupBuyRequest = {
+    id: "group-buy-request-live-preview",
+    productName:
+      "초경량무선청소기흡입력강화저소음알레르기필터물걸레겸용프리미엄패키지",
+    status: "OPEN",
+    requestCount: 12,
+    createdAt: "2035-06-20T09:00:00.000Z",
+    latestRequestedAt: "2035-07-02T10:00:00.000Z",
+  };
+
   return {
     groupBuy,
+    groupBuyRequest,
+    groupBuyRequestCalls: [] as Array<Record<string, unknown>>,
     submission,
     hikerDelayMs: 0,
     hikerLookups: 0,
@@ -180,6 +192,7 @@ async function installMocks(page: Page, state: MockState) {
       path: string;
       method: string;
       body?: Record<string, unknown>;
+      params?: Record<string, unknown>;
     };
     const body = payload.body ?? {};
     let data: unknown;
@@ -193,6 +206,10 @@ async function installMocks(page: Page, state: MockState) {
         break;
       case "/admin/group-buys":
         data = { items: [state.groupBuy], total: 1 };
+        break;
+      case "/admin/group-buy-requests":
+        state.groupBuyRequestCalls.push(payload.params ?? {});
+        data = { items: [state.groupBuyRequest], total: 1 };
         break;
       case `/admin/submissions/${state.submission.id}`:
         expect(payload.method).toBe("PATCH");
@@ -223,7 +240,18 @@ async function installMocks(page: Page, state: MockState) {
           priceKrw: body.priceKrw,
           updatedAt: "2035-07-02T09:15:00.000Z",
         });
-        data = { submission: state.submission, groupBuy: state.groupBuy };
+        data = {
+          submission: state.submission,
+          groupBuy: state.groupBuy,
+          notificationDelivery: {
+            status: "skipped",
+            queued: 0,
+            sent: 0,
+            skipped: 0,
+            retrying: 0,
+            failed: 0,
+          },
+        };
         break;
       case "/admin/hiker-lookup":
         state.hikerLookups += 1;
@@ -519,6 +547,69 @@ test("만료된 공구 카드 프리뷰는 음수 대신 마감으로 표시한�
   expect(consoleErrors).toEqual([]);
 });
 
+test("공구 요청 탭은 집계 수요를 식별 정보 없이 읽기 전용으로 표시한다", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "공유 관리자 목록 흐름은 Chromium에서 한 번만 검증합니다.",
+  );
+  mkdirSync(evidenceDir, { recursive: true });
+  const consoleErrors = collectConsoleErrors(page);
+  const state = createMockState();
+  await installMocks(page, state);
+  await login(page);
+
+  await page
+    .getByRole("button", { name: /공구 요청/ })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "공구 요청 현황" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("row", {
+      name: new RegExp(`${state.groupBuyRequest.productName}.*진행 중.*12건`),
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".detail-panel")).toHaveCount(0);
+  await page.screenshot({
+    path: resolve(evidenceDir, "admin-group-buy-requests-desktop.png"),
+    fullPage: true,
+  });
+
+  await page.getByRole("textbox", { name: "검색" }).fill("청소기");
+  await expect.poll(() => state.groupBuyRequestCalls.at(-1)?.q).toBe("청소기");
+  await page.getByRole("combobox", { name: "상태 필터" }).selectOption("OPEN");
+  await expect
+    .poll(() => state.groupBuyRequestCalls.at(-1)?.status)
+    .toBe("OPEN");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileCard = page.locator("article.mobile-record-card--static");
+  await expect(mobileCard).toBeVisible();
+  const mobileProductName = mobileCard.locator(
+    ".group-buy-request-product-name",
+  );
+  await expect(mobileProductName).toHaveText(state.groupBuyRequest.productName);
+  await expect(mobileCard).toContainText("12건");
+  expect(
+    await mobileProductName.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: resolve(evidenceDir, "admin-group-buy-requests-mobile-390.png"),
+    fullPage: true,
+  });
+  expect(consoleErrors).toEqual([]);
+});
+
 test("공구 등록은 갱신 뒤에도 현재 입력값만 전송하고 Hiker를 다시 호출하지 않는다", async ({
   page,
 }, testInfo) => {
@@ -547,9 +638,7 @@ test("공구 등록은 갱신 뒤에도 현재 입력값만 전송하고 Hiker�
   await expect(detail.getByLabel("가격 (원)")).toHaveValue("159000");
 
   await detail.getByRole("button", { name: "공구 등록" }).click();
-  await expect(page.getByRole("status")).toContainText(
-    "위시를 공구로 등록했습니다.",
-  );
+  await expect(page.getByRole("status")).toContainText("공구로 등록했습니다.");
 
   expect(state.hikerLookups).toBe(0);
   expect(state.updates).toContainEqual(

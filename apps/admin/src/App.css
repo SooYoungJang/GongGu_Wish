@@ -1904,18 +1904,21 @@ textarea:focus {
   color: var(--amber);
 }
 .status-badge--approved,
+.status-badge--fulfilled,
 .status-badge--active {
   background: var(--green-soft);
   color: var(--green);
 }
 .status-badge--rejected,
 .status-badge--cancelled,
+.status-badge--hidden,
 .status-badge--banned {
   background: var(--red-soft);
   color: var(--red);
 }
 .status-badge--duplicate,
 .status-badge--expired,
+.status-badge--open,
 .status-badge--suspended {
   background: var(--surface-3);
   color: var(--muted);
@@ -1960,6 +1963,12 @@ textarea:focus {
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.mobile-record-card > .group-buy-request-product-name {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 .mobile-record-card > p {
   overflow: hidden;
