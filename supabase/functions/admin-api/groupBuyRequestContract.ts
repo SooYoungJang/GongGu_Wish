@@ -50,6 +50,7 @@ function requiredStatus(value: unknown): AdminGroupBuyRequestStatus {
 export function mapAdminGroupBuyRequest(
   row: Record<string, unknown>,
 ): AdminGroupBuyRequest {
+  const latestRequestedAt = row.latestRequestedAt;
   if (
     typeof row.requestCount !== "number" ||
     !Number.isInteger(row.requestCount) ||
@@ -58,9 +59,9 @@ export function mapAdminGroupBuyRequest(
     throw new AdminGroupBuyRequestContractError();
   }
   if (
-    row.latestRequestedAt !== null &&
-    (typeof row.latestRequestedAt !== "string" ||
-      Number.isNaN(Date.parse(row.latestRequestedAt)))
+    latestRequestedAt !== null &&
+    (typeof latestRequestedAt !== "string" ||
+      Number.isNaN(Date.parse(latestRequestedAt)))
   ) {
     throw new AdminGroupBuyRequestContractError();
   }
@@ -71,7 +72,7 @@ export function mapAdminGroupBuyRequest(
     status: requiredStatus(row.status),
     requestCount: row.requestCount,
     createdAt: requiredDate(row.createdAt),
-    latestRequestedAt: row.latestRequestedAt,
+    latestRequestedAt,
   };
 }
 
