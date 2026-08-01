@@ -226,6 +226,33 @@ describeLocal.sequential("group-buy request database contracts", () => {
     expect(guestLimiterRows.ok).toBe(false);
   });
 
+  it("accepts 200-character product names and rejects 201 characters", async () => {
+    const namePrefix = `길이경계-${suffix}-`;
+    const acceptedName = `${namePrefix}${"가".repeat(200 - namePrefix.length)}`;
+    expect(acceptedName).toHaveLength(200);
+
+    const accepted = await requestGroupBuy(
+      acceptedName,
+      `s_${suffix}_length_200`,
+    );
+    expect(accepted[0].product_name).toBe(acceptedName);
+
+    const rejected = await requestJson<{ error: string }>(
+      config,
+      "/functions/v1/group-buy-request",
+      {
+        body: {
+          product_name: `${acceptedName}가`,
+          session_id: `s_${suffix}_length_201`,
+        },
+        headers: { "x-forwarded-for": allocateClientIp() },
+        method: "POST",
+      },
+    );
+    expect(rejected.status).toBe(400);
+    expect(rejected.payload.error).toBe("invalid_group_buy_request");
+  });
+
   it("atomically saturates a fixed-window actor counter at 21", async () => {
     const actorHash = `${randomUUID().replaceAll("-", "")}${randomUUID().replaceAll(
       "-",
