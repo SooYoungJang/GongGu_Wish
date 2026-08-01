@@ -77,7 +77,6 @@ type HomeScreenContentProps = {
   isLoading?: boolean;
   isGroupBuyRequestRankingsError?: boolean;
   isGroupBuyRequestRankingsFetching?: boolean;
-  isGroupBuyRequestRankingsLoading?: boolean;
   onRefresh: HomeAction;
   onOpenSearch: HomeAction;
   onOpenCalendar: HomeAction;
@@ -851,7 +850,6 @@ export function HomeScreenContent({
   isLoading = false,
   isGroupBuyRequestRankingsError = false,
   isGroupBuyRequestRankingsFetching = false,
-  isGroupBuyRequestRankingsLoading = false,
   onRefresh,
   onOpenSearch,
   onOpenCalendar,
@@ -933,8 +931,6 @@ export function HomeScreenContent({
             <GroupBuyRequestRankingCard
               isError={isGroupBuyRequestRankingsError}
               isFetching={isGroupBuyRequestRankingsFetching}
-              isLoading={isGroupBuyRequestRankingsLoading}
-              onOpenSearch={onOpenSearch}
               onPressRanking={
                 onPressGroupBuyRequestRanking ?? (() => onOpenSearch())
               }
@@ -1048,7 +1044,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     data: groupBuyRequestRankings = [],
     isError: isGroupBuyRequestRankingsError,
     isFetching: isGroupBuyRequestRankingsFetching,
-    isLoading: isGroupBuyRequestRankingsLoading,
     refetch: refetchGroupBuyRequestRankings,
   } = useGroupBuyRequestRankings();
 
@@ -1112,7 +1107,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       isFetching={isManualRefreshing || isFetching}
       isGroupBuyRequestRankingsError={isGroupBuyRequestRankingsError}
       isGroupBuyRequestRankingsFetching={isGroupBuyRequestRankingsFetching}
-      isGroupBuyRequestRankingsLoading={isGroupBuyRequestRankingsLoading}
       isLoading={isLoading}
       onRefresh={handleManualRefresh}
       scrollToTopRequest={scrollToTopRequest}
