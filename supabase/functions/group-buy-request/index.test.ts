@@ -17,6 +17,18 @@ type RpcArgs = {
   p_user_id: string | null;
 };
 
+function legacyAnonKey(projectRef: string) {
+  const encode = (value: Record<string, unknown>) =>
+    btoa(JSON.stringify(value))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
+  return `${encode({ alg: "HS256", typ: "JWT" })}.${encode({
+    ref: projectRef,
+    role: "anon",
+  })}.signature`;
+}
+
 function request(body: unknown, headers: Record<string, string> = {}) {
   return new Request("https://example.test/functions/v1/group-buy-request", {
     method: "POST",
@@ -247,7 +259,10 @@ Deno.test(
     const response = await handler(
       request(
         { product_name: "다이슨 에어랩", session_id: "install_session_456" },
-        { authorization: "Bearer valid-user-jwt" },
+        {
+          apikey: "legacy-public-anon-key",
+          authorization: "Bearer valid-user-jwt",
+        },
       ),
     );
 
@@ -286,7 +301,10 @@ Deno.test(
     const response = await handler(
       request(
         { product_name: "다이슨 에어랩", session_id: "install_session_456" },
-        { authorization: "Bearer expired-user-jwt" },
+        {
+          apikey: "legacy-public-anon-key",
+          authorization: "Bearer expired-user-jwt",
+        },
       ),
     );
 
@@ -301,14 +319,16 @@ Deno.test(
 );
 
 Deno.test(
-  "the configured anon bearer sent by functions.invoke remains a guest",
+  "a rotated legacy anon bearer sent by functions.invoke remains a guest",
   async () => {
     let captured: RpcArgs | null = null;
+    let getUserCalls = 0;
     const handler = createHandler({
       adminClient: fakeClient({
         onRpc: (_name, args) => (captured = args),
+        onGetUser: () => (getUserCalls += 1),
       }) as never,
-      anonKey: "public-anon-key",
+      anonKey: "current-runtime-anon-key",
       serviceRoleKey: "existing-service-role-key",
       supabaseUrl: "https://project.supabase.co",
     });
@@ -317,14 +337,76 @@ Deno.test(
       request(
         { product_name: "다이슨 에어랩", session_id: "install_session_456" },
         {
-          apikey: "public-anon-key",
-          authorization: "Bearer public-anon-key",
+          apikey: legacyAnonKey("project"),
+          authorization: `Bearer ${legacyAnonKey("project")}`,
         },
       ),
     );
 
     assertEquals(response.status, 200);
     assertEquals(captured?.p_user_id, null);
+    assertEquals(getUserCalls, 0);
+  },
+);
+
+Deno.test(
+  "a duplicated authenticated bearer is still verified as a user token",
+  async () => {
+    let captured: RpcArgs | null = null;
+    let getUserCalls = 0;
+    const handler = createHandler({
+      adminClient: fakeClient({
+        userId: "user-123",
+        onRpc: (_name, args) => (captured = args),
+        onGetUser: () => (getUserCalls += 1),
+      }) as never,
+      anonKey: "current-runtime-anon-key",
+      serviceRoleKey: "existing-service-role-key",
+      supabaseUrl: "https://project.supabase.co",
+    });
+
+    const response = await handler(
+      request(
+        { product_name: "콜드브루", session_id: "session-12345678" },
+        {
+          apikey: "valid-user-jwt",
+          authorization: "Bearer valid-user-jwt",
+        },
+      ),
+    );
+
+    assertEquals(response.status, 200);
+    assertEquals(captured?.p_user_id, "user-123");
+    assertEquals(getUserCalls, 1);
+  },
+);
+
+Deno.test(
+  "a duplicated invalid user bearer never falls back to a guest",
+  async () => {
+    let getUserCalls = 0;
+    const handler = createHandler({
+      adminClient: fakeClient({
+        userId: null,
+        onGetUser: () => (getUserCalls += 1),
+      }) as never,
+      anonKey: "current-runtime-anon-key",
+      serviceRoleKey: "existing-service-role-key",
+      supabaseUrl: "https://project.supabase.co",
+    });
+
+    const response = await handler(
+      request(
+        { product_name: "콜드브루", session_id: "session-12345678" },
+        {
+          apikey: "expired-user-jwt",
+          authorization: "Bearer expired-user-jwt",
+        },
+      ),
+    );
+
+    assertEquals(response.status, 401);
+    assertEquals(getUserCalls, 1);
   },
 );
 

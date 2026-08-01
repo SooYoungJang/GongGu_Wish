@@ -26,7 +26,8 @@ real_node="$(command -v node)"
 export REAL_NODE="$real_node"
 "$real_node" --test \
   "$script_directory/validate-supabase-public-config.test.mjs" \
-  "$script_directory/materialize-public-build-config.test.mjs"
+  "$script_directory/materialize-public-build-config.test.mjs" \
+  "$script_directory/validate-ota-runtime.test.mjs"
 if ! command -v bash >/dev/null 2>&1; then
   cp "$bash_command" "$fake_bin/bash.exe"
   bash_command="$fake_bin/bash.exe"
@@ -61,6 +62,15 @@ case "$command_name" in
     bash -c "$command_string"
     ;;
   fingerprint:generate)
+    for internal_ota_variable in \
+      GONGGU_OTA_RUNTIME_VERSION \
+      GONGGU_OTA_ADMOB_MODE \
+      GONGGU_OTA_AD_REQUESTS_ENABLED; do
+      if [[ -n "${!internal_ota_variable:-}" ]]; then
+        echo "OTA overrides must not affect compatibility fingerprint generation" >&2
+        exit 1
+      fi
+    done
     printf '{"hash":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}\n'
     ;;
   build:list)
@@ -75,8 +85,52 @@ case "$command_name" in
     fi
     ;;
   update)
+    if [[ "${GONGGU_OTA_RUNTIME_VERSION:-}" != "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" ]]; then
+      echo "OTA update must reuse the verified compatible build fingerprint" >&2
+      exit 1
+    fi
+    case "${APP_VARIANT:-}" in
+      preview)
+        [[ "${GONGGU_OTA_ADMOB_MODE:-}" == "test" ]]
+        [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "true" ]]
+        ;;
+      production)
+        [[ "${GONGGU_OTA_ADMOB_MODE:-}" == "production" ]]
+        [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "false" ]]
+        ;;
+      *) echo "Unexpected app variant for EAS Update" >&2; exit 1 ;;
+    esac
+    case "${MOCK_UPDATE_OUTPUT:-valid}" in
+      valid)
+        printf '[{"platform":"android","runtimeVersion":"%s","group":"test-update-group"}]\n' \
+          "$GONGGU_OTA_RUNTIME_VERSION"
+        ;;
+      malformed) printf '{\n' ;;
+      empty) printf '[]\n' ;;
+      ios-only)
+        printf '[{"platform":"ios","runtimeVersion":"%s"}]\n' \
+          "$GONGGU_OTA_RUNTIME_VERSION"
+        ;;
+      duplicate)
+        printf '[{"platform":"android","runtimeVersion":"%s"},{"platform":"android","runtimeVersion":"%s"}]\n' \
+          "$GONGGU_OTA_RUNTIME_VERSION" "$GONGGU_OTA_RUNTIME_VERSION"
+        ;;
+      mismatch)
+        printf '[{"platform":"android","runtimeVersion":"different-runtime-version"}]\n'
+        ;;
+      *) echo "Unexpected mock update output" >&2; exit 1 ;;
+    esac
     ;;
   build)
+    for internal_ota_variable in \
+      GONGGU_OTA_RUNTIME_VERSION \
+      GONGGU_OTA_ADMOB_MODE \
+      GONGGU_OTA_AD_REQUESTS_ENABLED; do
+      if [[ -n "${!internal_ota_variable:-}" ]]; then
+        echo "OTA overrides must not affect local APK builds" >&2
+        exit 1
+      fi
+    done
     : "${GRADLE_USER_HOME:?GRADLE_USER_HOME is required for local builds}"
     grep -Fxq \
       'org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8' \
@@ -140,6 +194,77 @@ esac
 FAKE_EAS
 if command -v chmod >/dev/null 2>&1; then
   chmod +x "$fake_bin/eas"
+fi
+
+cat >"$fake_bin/npx" <<'FAKE_NPX'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ "$*" != "expo config --type public --json" ]]; then
+  echo "Unexpected npx invocation: $*" >&2
+  exit 1
+fi
+runtime="${GONGGU_OTA_RUNTIME_VERSION:-}"
+if [[ "$runtime" != "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" ]]; then
+  echo "Expo config preflight must use the compatible build fingerprint" >&2
+  exit 1
+fi
+if [[ "${EXPO_NO_DOTENV:-}" != "1" ]]; then
+  echo "Expo config preflight must ignore local dotenv files" >&2
+  exit 1
+fi
+case "${APP_VARIANT:-}" in
+  preview)
+    [[ "${EXPO_PUBLIC_ADMOB_MODE:-}" == "test" ]]
+    [[ "${EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED:-}" == "true" ]]
+    [[ "${GONGGU_OTA_ADMOB_MODE:-}" == "test" ]]
+    [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "true" ]]
+    mode="test"
+    requests_enabled="true"
+    ;;
+  production)
+    [[ "${EXPO_PUBLIC_ADMOB_MODE:-}" == "production" ]]
+    [[ "${EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED:-}" == "false" ]]
+    [[ "${GONGGU_OTA_ADMOB_MODE:-}" == "production" ]]
+    [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "false" ]]
+    mode="production"
+    requests_enabled="false"
+    ;;
+  *) echo "Unexpected app variant for Expo config preflight" >&2; exit 1 ;;
+esac
+case "${MOCK_CONFIG_OUTPUT:-valid}" in
+  valid)
+    printf '{"runtimeVersion":"%s","android":{"runtimeVersion":"%s"},"extra":{"adsMode":"%s","admobRequestsEnabled":%s}}\n' \
+      "$runtime" "$runtime" "$mode" "$requests_enabled"
+    ;;
+  malformed) printf '{\n' ;;
+  top-level-runtime-mismatch)
+    printf '{"runtimeVersion":"different-runtime-version","android":{"runtimeVersion":"%s"},"extra":{"adsMode":"%s","admobRequestsEnabled":%s}}\n' \
+      "$runtime" "$mode" "$requests_enabled"
+    ;;
+  android-runtime-mismatch)
+    printf '{"runtimeVersion":"%s","android":{"runtimeVersion":"different-runtime-version"},"extra":{"adsMode":"%s","admobRequestsEnabled":%s}}\n' \
+      "$runtime" "$mode" "$requests_enabled"
+    ;;
+  ads-mode-mismatch)
+    printf '{"runtimeVersion":"%s","android":{"runtimeVersion":"%s"},"extra":{"adsMode":"off","admobRequestsEnabled":%s}}\n' \
+      "$runtime" "$runtime" "$requests_enabled"
+    ;;
+  ads-requests-mismatch)
+    if [[ "$requests_enabled" == "true" ]]; then
+      mismatched_requests_enabled="false"
+    else
+      mismatched_requests_enabled="true"
+    fi
+    printf '{"runtimeVersion":"%s","android":{"runtimeVersion":"%s"},"extra":{"adsMode":"%s","admobRequestsEnabled":%s}}\n' \
+      "$runtime" "$runtime" "$mode" "$mismatched_requests_enabled"
+    ;;
+  *) echo "Unexpected mock config output" >&2; exit 1 ;;
+esac
+FAKE_NPX
+if command -v chmod >/dev/null 2>&1; then
+  chmod +x "$fake_bin/npx"
 fi
 
 cat >"$fake_bin/gh" <<'FAKE_GH'
@@ -301,6 +426,8 @@ run_deployment() {
   local force_preview_apk="${6:-false}"
   local supabase_key_valid="${7:-true}"
   local bundled_supabase_valid="${8:-true}"
+  local config_output="${9:-valid}"
+  local update_output="${10:-valid}"
   local case_directory="$test_directory/$name"
   local google_services_file="$preview_google_services"
   if [[ "$ref" == "refs/heads/main" ]]; then
@@ -328,6 +455,8 @@ run_deployment() {
     MOCK_UPLOAD_FAIL="$upload_fail" \
     MOCK_SUPABASE_KEY_VALID="$supabase_key_valid" \
     MOCK_BUNDLED_SUPABASE_VALID="$bundled_supabase_valid" \
+    MOCK_CONFIG_OUTPUT="$config_output" \
+    MOCK_UPDATE_OUTPUT="$update_output" \
     FORCE_PREVIEW_APK="$force_preview_apk" \
     MOCK_EAS_LOG="$case_directory/eas.log" \
     MOCK_GH_LOG="$case_directory/gh.log" \
@@ -368,6 +497,62 @@ if grep -Eq "build:list|build --platform|upload --platform" \
   echo "Preview OTA unexpectedly used an EAS build record" >&2
   exit 1
 fi
+
+for config_output in \
+  malformed \
+  top-level-runtime-mismatch \
+  android-runtime-mismatch \
+  ads-mode-mismatch \
+  ads-requests-mismatch; do
+  case_name="preview-ota-config-$config_output"
+  if run_deployment \
+    "$case_name" \
+    "refs/heads/develop" \
+    "trusted" \
+    "false" \
+    "false" \
+    "false" \
+    "true" \
+    "true" \
+    "$config_output"; then
+    echo "An invalid Expo config runtime unexpectedly published an OTA" >&2
+    exit 1
+  fi
+  assert_eas_commands "$case_name" "fingerprint:generate"
+  [[ ! -s "$test_directory/$case_name/output" ]]
+done
+
+for update_output in malformed empty ios-only duplicate mismatch; do
+  case_name="preview-ota-update-$update_output"
+  if run_deployment \
+    "$case_name" \
+    "refs/heads/develop" \
+    "trusted" \
+    "false" \
+    "false" \
+    "false" \
+    "true" \
+    "true" \
+    "valid" \
+    "$update_output"; then
+    echo "An invalid EAS Update response unexpectedly passed validation" >&2
+    exit 1
+  fi
+  assert_eas_commands "$case_name" "fingerprint:generate update"
+  [[ ! -s "$test_directory/$case_name/output" ]]
+done
+
+if EXPO_PUBLIC_ADMOB_MODE="production" \
+  EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED="false" \
+  run_deployment \
+    "preview-conflicting-eas-environment" \
+    "refs/heads/develop" \
+    "trusted" \
+    "false"; then
+  echo "A conflicting Preview EAS environment unexpectedly passed validation" >&2
+  exit 1
+fi
+[[ ! -s "$test_directory/preview-conflicting-eas-environment/eas.log" ]]
 
 if run_deployment \
   "preview-invalid-supabase-key" \
@@ -655,6 +840,21 @@ if GITHUB_REF="refs/heads/feature" \
   echo "Unsupported branch unexpectedly passed deployment validation" >&2
   exit 1
 fi
+
+leaked_runtime_directory="$test_directory/leaked-runtime"
+mkdir -p "$leaked_runtime_directory/runner"
+if PATH="$fake_bin:$PATH" \
+  GITHUB_REF="refs/heads/develop" \
+  GITHUB_OUTPUT="$leaked_runtime_directory/output" \
+  GITHUB_STEP_SUMMARY="$leaked_runtime_directory/summary" \
+  RUNNER_TEMP="$leaked_runtime_directory/runner" \
+  GONGGU_OTA_RUNTIME_VERSION="0123456789abcdef0123456789abcdef" \
+  MOCK_EAS_LOG="$leaked_runtime_directory/eas.log" \
+  "$bash_command" "$script_directory/ci-deploy-android.sh" >/dev/null 2>&1; then
+  echo "A persistent OTA runtime override unexpectedly passed validation" >&2
+  exit 1
+fi
+[[ ! -s "$leaked_runtime_directory/eas.log" ]]
 
 missing_env_directory="$test_directory/missing-env"
 mkdir -p "$missing_env_directory/runner"

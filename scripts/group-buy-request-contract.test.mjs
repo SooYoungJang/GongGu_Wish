@@ -157,6 +157,10 @@ test("group-buy request Edge intake owns trusted identity derivation", () => {
   assert.match(edgeFunction, /name: "HMAC", hash: "SHA-256"/);
   assert.match(edgeFunction, /Deno\.env\.get\("SUPABASE_SERVICE_ROLE_KEY"\)/);
   assert.match(edgeFunction, /Deno\.env\.get\("SUPABASE_ANON_KEY"\)/);
+  assert.match(
+    edgeFunction,
+    /isPublicAnonymousKey\(apikey, deps\.supabaseUrl\)/,
+  );
   assert.match(edgeFunction, /"request_group_buy_internal"/);
   assert.match(edgeFunction, /"consume_group_buy_request_attempt"/);
   assert.ok(
