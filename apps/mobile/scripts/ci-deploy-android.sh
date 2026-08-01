@@ -31,6 +31,16 @@ if [[ "$force_preview_apk" == "true" && "$environment" != "preview" ]]; then
   exit 1
 fi
 
+for internal_ota_variable in \
+  GONGGU_OTA_RUNTIME_VERSION \
+  GONGGU_OTA_ADMOB_MODE \
+  GONGGU_OTA_AD_REQUESTS_ENABLED; do
+  if [[ -n "${!internal_ota_variable:-}" ]]; then
+    echo "::error::$internal_ota_variable is internal to the OTA publish command and must not be preset."
+    exit 1
+  fi
+done
+
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 : "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
 : "${GITHUB_STEP_SUMMARY:?GITHUB_STEP_SUMMARY is required}"
@@ -93,6 +103,56 @@ if [[ "$APP_VARIANT" != "$environment" ]]; then
   echo "::error::APP_VARIANT must be $environment, received $APP_VARIANT."
   exit 1
 fi
+
+profile_ads_environment="$(
+  PROFILE="$profile" EAS_JSON_PATH="$script_directory/../eas.json" node <<'NODE'
+const fs = require("node:fs");
+
+const eas = JSON.parse(fs.readFileSync(process.env.EAS_JSON_PATH, "utf8"));
+const profiles = eas.build ?? {};
+
+function resolveProfile(name, resolving = new Set()) {
+  if (resolving.has(name)) throw new Error(`Circular EAS profile: ${name}`);
+  const profile = profiles[name];
+  if (!profile) throw new Error(`Unknown EAS build profile: ${name}`);
+  const nextResolving = new Set(resolving).add(name);
+  const parent = profile.extends
+    ? resolveProfile(profile.extends, nextResolving)
+    : {};
+  return { ...parent, ...profile, env: { ...parent.env, ...profile.env } };
+}
+
+const profile = resolveProfile(process.env.PROFILE);
+const mode = profile.env?.EXPO_PUBLIC_ADMOB_MODE;
+const requestsEnabled = profile.env?.EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED;
+if (!/^(?:off|test|production)$/.test(mode ?? "")) {
+  throw new Error("Build profile must define EXPO_PUBLIC_ADMOB_MODE");
+}
+if (!/^(?:true|false)$/.test(requestsEnabled ?? "")) {
+  throw new Error(
+    "Build profile must define EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED",
+  );
+}
+process.stdout.write(`${mode}\n${requestsEnabled}\n`);
+NODE
+)"
+mapfile -t profile_ads_values <<<"$profile_ads_environment"
+if [[ "${#profile_ads_values[@]}" -ne 2 ]]; then
+  echo "::error::Could not resolve the Android build profile ad environment."
+  exit 1
+fi
+if [[ -n "${EXPO_PUBLIC_ADMOB_MODE:-}" && \
+  "$EXPO_PUBLIC_ADMOB_MODE" != "${profile_ads_values[0]}" ]]; then
+  echo "::error::The EAS environment AdMob mode does not match build profile $profile."
+  exit 1
+fi
+if [[ -n "${EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED:-}" && \
+  "$EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED" != "${profile_ads_values[1]}" ]]; then
+  echo "::error::The EAS environment AdMob request setting does not match build profile $profile."
+  exit 1
+fi
+export EXPO_PUBLIC_ADMOB_MODE="${profile_ads_values[0]}"
+export EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED="${profile_ads_values[1]}"
 
 node <<'NODE'
 const fs = require("node:fs");
@@ -172,12 +232,36 @@ publish_ota() {
   local compatibility_label="$1"
   local compatibility_id="$2"
 
-  eas update \
-    --channel "$channel" \
-    --environment "$environment" \
-    --platform android \
-    --message "$environment: ${GITHUB_SHA:-manual}" \
-    --non-interactive
+  local runtime_config_json
+  runtime_config_json="$(
+    EXPO_NO_DOTENV=1 \
+      GONGGU_OTA_RUNTIME_VERSION="$fingerprint_hash" \
+      GONGGU_OTA_ADMOB_MODE="${profile_ads_values[0]}" \
+      GONGGU_OTA_AD_REQUESTS_ENABLED="${profile_ads_values[1]}" \
+      npx expo config --type public --json
+  )"
+  printf '%s' "$runtime_config_json" | \
+    node "$script_directory/validate-ota-runtime.mjs" \
+      config "$fingerprint_hash" \
+      "${profile_ads_values[0]}" "${profile_ads_values[1]}"
+
+  local update_json
+  update_json="$(
+    GONGGU_OTA_RUNTIME_VERSION="$fingerprint_hash" \
+      GONGGU_OTA_ADMOB_MODE="${profile_ads_values[0]}" \
+      GONGGU_OTA_AD_REQUESTS_ENABLED="${profile_ads_values[1]}" \
+      eas update \
+        --channel "$channel" \
+        --environment "$environment" \
+        --platform android \
+        --message "$environment: ${GITHUB_SHA:-manual}" \
+        --json \
+        --non-interactive
+  )"
+
+  printf '%s' "$update_json" | \
+    node "$script_directory/validate-ota-runtime.mjs" \
+      update "$fingerprint_hash"
 
   {
     echo "mode=ota"
@@ -191,6 +275,7 @@ publish_ota() {
     echo "- Environment: \`$environment\`"
     echo "- $compatibility_label: \`$compatibility_id\`"
     echo "- Fingerprint: \`$fingerprint_hash\`"
+    echo "- Runtime version: \`$fingerprint_hash\`"
   } >>"$GITHUB_STEP_SUMMARY"
   exit 0
 }

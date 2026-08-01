@@ -155,6 +155,25 @@ function createDefaultDependencies(): HandlerDependencies {
   };
 }
 
+function isPublicAnonymousKey(value: string, supabaseUrl: string) {
+  if (/^sb_(?:publishable|anon)_/i.test(value)) return true;
+
+  const parts = value.split(".");
+  if (parts.length !== 3) return false;
+  try {
+    const encodedPayload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const paddedPayload = encodedPayload.padEnd(
+      Math.ceil(encodedPayload.length / 4) * 4,
+      "=",
+    );
+    const payload = JSON.parse(atob(paddedPayload));
+    const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
+    return payload?.role === "anon" && payload?.ref === projectRef;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveOptionalUserId(
   authorization: string | null,
   apikey: string | null,
@@ -165,11 +184,14 @@ async function resolveOptionalUserId(
   if (!match) throw new Error("invalid_authentication");
   const token = match[1];
 
-  // supabase.functions.invoke can send the project's public key as Bearer when
-  // no user session exists. It represents a guest, not an invalid user JWT.
+  // supabase.functions.invoke sends the public apikey as Bearer when no user
+  // session exists. Legacy claims only classify that public guest shape; they
+  // never authenticate the caller or grant privileges on this endpoint.
   if (
     token === deps.anonKey ||
-    (token === apikey && /^sb_(?:publishable|anon)_/i.test(token))
+    (apikey !== null &&
+      token === apikey &&
+      isPublicAnonymousKey(apikey, deps.supabaseUrl))
   )
     return null;
 

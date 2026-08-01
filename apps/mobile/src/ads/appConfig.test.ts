@@ -162,9 +162,9 @@ describe("validateGoogleServicesFile", () => {
     (applicationId) => {
       const filePath = writeGoogleServicesFile(applicationId);
 
-      expect(
-        validateGoogleServicesFile(applicationId, filePath, true),
-      ).toBe(filePath);
+      expect(validateGoogleServicesFile(applicationId, filePath, true)).toBe(
+        filePath,
+      );
     },
   );
 
@@ -264,6 +264,57 @@ describe("resolveBackendEnvironment", () => {
 describe("resolveRuntimeVersion", () => {
   it("uses Expo Fingerprint for native compatibility", () => {
     expect(resolveRuntimeVersion()).toEqual({ policy: "fingerprint" });
+  });
+
+  it("accepts the CI-verified compatible build fingerprint for OTA updates", () => {
+    expect(
+      resolveRuntimeVersion(
+        "  0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  ",
+      ),
+    ).toBe("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+  });
+
+  it("rejects malformed runtime version overrides", () => {
+    expect(() => resolveRuntimeVersion("too-short")).toThrow(
+      /runtime version override/i,
+    );
+  });
+
+  it("applies the OTA runtime to both top-level and Android config", () => {
+    const previousEnvironment = {
+      GONGGU_OTA_ADMOB_MODE: process.env.GONGGU_OTA_ADMOB_MODE,
+      GONGGU_OTA_AD_REQUESTS_ENABLED:
+        process.env.GONGGU_OTA_AD_REQUESTS_ENABLED,
+      GONGGU_OTA_RUNTIME_VERSION: process.env.GONGGU_OTA_RUNTIME_VERSION,
+      EXPO_PUBLIC_ADMOB_MODE: process.env.EXPO_PUBLIC_ADMOB_MODE,
+      EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED:
+        process.env.EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED,
+    };
+    const runtime =
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    process.env.GONGGU_OTA_RUNTIME_VERSION = runtime;
+    process.env.GONGGU_OTA_ADMOB_MODE = "test";
+    process.env.GONGGU_OTA_AD_REQUESTS_ENABLED = "true";
+    process.env.EXPO_PUBLIC_ADMOB_MODE = "production";
+    process.env.EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED = "false";
+
+    try {
+      const resolved = createAppConfig({
+        config: { android: { runtimeVersion: "stale-android-runtime" } },
+      });
+      expect(resolved.runtimeVersion).toBe(runtime);
+      expect(resolved.android?.runtimeVersion).toBe(runtime);
+      expect(resolved.extra?.adsMode).toBe("test");
+      expect(resolved.extra?.admobRequestsEnabled).toBe(true);
+    } finally {
+      for (const [name, value] of Object.entries(previousEnvironment)) {
+        if (value === undefined) {
+          delete process.env[name];
+        } else {
+          process.env[name] = value;
+        }
+      }
+    }
   });
 });
 
@@ -393,11 +444,7 @@ describe("resolveAdsBuildConfig", () => {
 
   it.each([
     ["malformed app ID", "bad-app-id", productionNativeUnitIds],
-    [
-      "swapped IDs",
-      productionNativeUnitIds.home,
-      productionNativeUnitIds,
-    ],
+    ["swapped IDs", productionNativeUnitIds.home, productionNativeUnitIds],
     [
       "different publishers",
       productionAndroidAppId,
@@ -508,14 +555,9 @@ describe("applyGoogleMobileAdsIosInfoPlist", () => {
 
   it("adds Google's SKAdNetwork identifier when none exists", () => {
     expect(
-      applyGoogleMobileAdsIosInfoPlist(
-        {},
-        GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
-      ),
+      applyGoogleMobileAdsIosInfoPlist({}, GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID),
     ).toMatchObject({
-      SKAdNetworkItems: [
-        { SKAdNetworkIdentifier: "cstr6suwn9.skadnetwork" },
-      ],
+      SKAdNetworkItems: [{ SKAdNetworkIdentifier: "cstr6suwn9.skadnetwork" }],
     });
   });
 });
