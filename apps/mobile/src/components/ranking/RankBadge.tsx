@@ -2,7 +2,11 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { SText } from '../ui/SText';
-import type { CommerceColorPalette } from '../../design/commerce';
+import {
+  commerceRadius,
+  commerceSpacing,
+  type CommerceColorPalette,
+} from '../../design/commerce';
 import { useCommerceTheme } from '../../design/useCommerceTheme';
 
 const RANK_BADGE_SIZE = 34;
@@ -39,7 +43,11 @@ export function RankBadge({ rank }: RankBadgeProps) {
       accessibilityLabel={`${rank}위`}
       style={[styles.badge, { backgroundColor: palette.backgroundColor }]}
     >
-      <SText variant="caption" style={[styles.text, { color: palette.color }]}>
+      <SText
+        numberOfLines={1}
+        variant="caption"
+        style={[styles.text, { color: palette.color }]}
+      >
         {rank}
       </SText>
     </View>
@@ -50,17 +58,23 @@ function makeStyles() {
   return StyleSheet.create({
     badge: {
       alignItems: 'center',
-      borderRadius: RANK_BADGE_SIZE / 2,
+      aspectRatio: 1,
+      borderRadius: commerceRadius.full,
       borderCurve: 'circular',
       justifyContent: 'center',
-      height: RANK_BADGE_SIZE,
+      minHeight: RANK_BADGE_SIZE,
+      minWidth: RANK_BADGE_SIZE,
       overflow: 'hidden',
-      width: RANK_BADGE_SIZE,
+      paddingHorizontal: commerceSpacing.xs,
+      paddingVertical: commerceSpacing.xs,
     },
     text: {
       fontSize: 13,
       fontWeight: '900',
+      includeFontPadding: false,
       letterSpacing: 0,
+      lineHeight: 18,
+      textAlign: 'center',
     },
   });
 }
