@@ -96,21 +96,29 @@ export function parseContentRange(
  * fallback only until the Supabase singleton has been configured.
  */
 async function getAuthToken(): Promise<string | null> {
+  let getSupabaseIfConfigured: typeof import('./supabase').getSupabaseIfConfigured;
   try {
-    const { getSupabaseIfConfigured } = await import('./supabase');
-    const supabase = getSupabaseIfConfigured();
-    if (supabase) {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) return null;
-        return data.session?.access_token ?? null;
-      } catch {
-        // Never reuse a stale mirrored token after a session refresh failure.
-        return null;
-      }
-    }
+    ({ getSupabaseIfConfigured } = await import('./supabase'));
   } catch {
-    // The Supabase module can be unavailable during isolated startup tests.
+    return null;
+  }
+
+  let supabase;
+  try {
+    supabase = getSupabaseIfConfigured();
+  } catch {
+    return null;
+  }
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) return null;
+      return data.session?.access_token ?? null;
+    } catch {
+      // Never reuse a stale mirrored token after a session refresh failure.
+      return null;
+    }
   }
 
   try {

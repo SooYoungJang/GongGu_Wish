@@ -4,11 +4,12 @@ import { callEdgeFunction, configurePostgrest, postgrestFetch } from './postgres
 
 const tokenSourceMocks = vi.hoisted(() => ({
   client: null as any,
+  getConfiguredSupabase: vi.fn(),
   getStoredAuthToken: vi.fn(),
 }));
 
 vi.mock('./supabase', () => ({
-  getSupabaseIfConfigured: () => tokenSourceMocks.client,
+  getSupabaseIfConfigured: tokenSourceMocks.getConfiguredSupabase,
 }));
 
 vi.mock('../utils/auth', () => ({
@@ -21,6 +22,9 @@ describe('postgrestFetch diagnostics', () => {
   beforeEach(() => {
     configurePostgrest('sb_publishable_1234567890');
     tokenSourceMocks.client = null;
+    tokenSourceMocks.getConfiguredSupabase
+      .mockReset()
+      .mockImplementation(() => tokenSourceMocks.client);
     tokenSourceMocks.getStoredAuthToken.mockReset().mockResolvedValue(null);
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
   });
@@ -165,6 +169,25 @@ describe('postgrestFetch diagnostics', () => {
         getSession: vi.fn().mockRejectedValue(new Error('session refresh failed')),
       },
     };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue([]),
+    }) as unknown as typeof fetch;
+
+    await postgrestFetch('group_buys?select=id');
+
+    const request = vi.mocked(global.fetch).mock.calls[0][1];
+    expect(request?.headers).not.toHaveProperty('Authorization');
+    expect(tokenSourceMocks.getStoredAuthToken).not.toHaveBeenCalled();
+  });
+
+  it('fails closed instead of reading a stale token when the session source throws', async () => {
+    tokenSourceMocks.getStoredAuthToken.mockResolvedValue('stored-stale-token');
+    tokenSourceMocks.getConfiguredSupabase.mockImplementation(() => {
+      throw new Error('session source unavailable');
+    });
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
