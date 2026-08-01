@@ -249,7 +249,7 @@ describe("ranking components", () => {
     expect(flattenText(renderer!.toJSON())).toBe("1");
   });
 
-  it("renders every top-three rank badge as a fixed circle", () => {
+  it("keeps top-three rank badges circular without fixing their final size", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -270,10 +270,17 @@ describe("ranking components", () => {
       });
       const style = flattenStyle(badge.props.style);
 
-      expect(style.width).toBe(34);
-      expect(style.height).toBe(34);
-      expect(style.borderRadius).toBe(17);
+      expect(style.minWidth).toBe(34);
+      expect(style.minHeight).toBe(34);
+      expect(style.aspectRatio).toBe(1);
+      expect(style.width).toBeUndefined();
+      expect(style.height).toBeUndefined();
+      expect(style.borderRadius).toBe(999);
       expect(style.borderCurve).toBe("circular");
+
+      const text = badge.findByType("Text" as unknown as React.ElementType);
+      expect(text.props.numberOfLines).toBe(1);
+      expect(flattenStyle(text.props.style).includeFontPadding).toBe(false);
     }
   });
 
@@ -287,9 +294,10 @@ describe("ranking components", () => {
     const badge = renderer!.root.findByProps({ accessibilityLabel: "5위" });
     const style = flattenStyle(badge.props.style);
 
-    expect(style.width).toBe(34);
-    expect(style.height).toBe(34);
-    expect(style.borderRadius).toBe(17);
+    expect(style.minWidth).toBe(34);
+    expect(style.minHeight).toBe(34);
+    expect(style.aspectRatio).toBe(1);
+    expect(style.borderRadius).toBe(999);
     expect(style.borderCurve).toBe("circular");
   });
 
@@ -323,18 +331,32 @@ describe("ranking components", () => {
       trend: GroupBuyRankingItem["trend"];
       label: string;
       color: string;
+      backgroundColor: string;
     }> = [
       {
         trend: { kind: "up", delta: 2 },
         label: "▲2위",
         color: commerceLightColors.accent,
+        backgroundColor: commerceLightColors.accentSoft,
       },
       {
         trend: { kind: "down", delta: 3 },
         label: "▼3위",
         color: commerceLightColors.blue,
+        backgroundColor: commerceLightColors.blueSoft,
       },
-      { trend: { kind: "same" }, label: "-", color: commerceLightColors.weak },
+      {
+        trend: { kind: "new" },
+        label: "NEW",
+        color: commerceLightColors.success,
+        backgroundColor: commerceLightColors.successSoft,
+      },
+      {
+        trend: { kind: "same" },
+        label: "-",
+        color: commerceLightColors.weak,
+        backgroundColor: commerceLightColors.softBg,
+      },
     ];
 
     for (const testCase of cases) {
@@ -346,17 +368,56 @@ describe("ranking components", () => {
         );
       });
 
-      const textNode = renderer!.root.findByType(
-        "Text" as unknown as React.ElementType,
-      );
+      const badge = renderer!.root.findByProps({
+        testID: `ranking-trend-badge-${testCase.trend.kind}`,
+      });
+      const textNode = badge.findByType("Text" as unknown as React.ElementType);
       const style = flattenStyle(textNode.props.style);
+      const badgeStyle = flattenStyle(badge.props.style);
 
       expect(flattenText(renderer!.toJSON())).toBe(testCase.label);
       expect(style.color).toBe(testCase.color);
-      expect(
-        renderer!.root.findAllByType("View" as unknown as React.ElementType),
-      ).toHaveLength(0);
+      expect(textNode.props.numberOfLines).toBe(1);
+      expect(style.includeFontPadding).toBe(false);
+      expect(badgeStyle.backgroundColor).toBe(testCase.backgroundColor);
+      expect(badgeStyle.minHeight).toBe(24);
+      expect(badgeStyle.paddingHorizontal).toBe(spacing.xs);
+      expect(badgeStyle.borderRadius).toBe(999);
     }
+  });
+
+  it("keeps the hero rank metadata inside the image at large font scales", () => {
+    windowDimensionsMock.fontScale = 2;
+    windowDimensionsMock.width = 320;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList
+            state={{
+              status: "ready",
+              data: [
+                sampleRanking({
+                  previousRank: null,
+                  trend: { kind: "new" },
+                }),
+              ],
+            }}
+          />,
+        ),
+      );
+    });
+
+    const overlay = renderer!.root.findByProps({
+      testID: "ranking-rank-overlay-1",
+    });
+    const style = flattenStyle(overlay.props.style);
+
+    expect(style.backgroundColor).toBe("transparent");
+    expect(style.flexWrap).toBe("wrap");
+    expect(style.maxWidth).toBe("90%");
+    expect(style.padding).toBe(0);
   });
 
   it("toggles GroupBuyAlertButton visual state through its onPress prop", () => {

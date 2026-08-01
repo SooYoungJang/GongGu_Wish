@@ -114,6 +114,7 @@ export const RankingTopCard = memo(function RankingTopCard({
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             style={s.rankOverlay}
+            testID={`ranking-rank-overlay-${item.rank}`}
           >
             <RankBadge rank={item.rank} />
             <RankingTrendBadge trend={item.trend} />

@@ -52,18 +52,6 @@ const authGateMock = vi.hoisted(() => ({
 const reminderPickerMock = vi.hoisted(() => ({
   openReminderPicker: vi.fn(),
 }));
-const notificationPreferencesMock = vi.hoisted(() => ({
-  preferences: {
-    pushEnabled: true,
-    deadlineRemindersEnabled: true,
-    submissionApprovalEnabled: true,
-    reminderDays: [1, 3, 7],
-    followedInfluencers: [] as string[],
-    followedBrands: [] as string[],
-  },
-  toggleInfluencer: vi.fn(),
-  toggleBrand: vi.fn(),
-}));
 const adsMock = vi.hoisted(() => ({
   enabled: false,
   isReady: false,
@@ -86,17 +74,6 @@ vi.mock("../components/ads/NativeAdCard", () => {
       adsMock.enabled ? ReactMock.createElement("NativeAdCard", props) : null,
   };
 });
-vi.mock("../context/NotificationPreferencesContext", () => ({
-  useNotificationPreferences: () => ({
-    preferences: notificationPreferencesMock.preferences,
-    ready: true,
-    saving: false,
-    error: null,
-    updatePreferences: vi.fn(),
-    toggleInfluencer: notificationPreferencesMock.toggleInfluencer,
-    toggleBrand: notificationPreferencesMock.toggleBrand,
-  }),
-}));
 vi.mock("../context/GroupBuyReminderPickerContext", () => ({
   useGroupBuyReminderPicker: () => reminderPickerMock,
 }));
@@ -732,10 +709,6 @@ beforeEach(() => {
   authGateMock.isAuthenticated = true;
   authGateMock.requireAuth.mockReset().mockReturnValue(true);
   reminderPickerMock.openReminderPicker.mockReset();
-  notificationPreferencesMock.preferences.followedInfluencers = [];
-  notificationPreferencesMock.preferences.followedBrands = [];
-  notificationPreferencesMock.toggleInfluencer.mockReset();
-  notificationPreferencesMock.toggleBrand.mockReset();
   flashListMock.scrollToOffset.mockClear();
   pagerViewMock.setPage.mockClear();
   pagerViewMock.setPageWithoutAnimation.mockClear();
@@ -812,7 +785,7 @@ describe("DetailScreen", () => {
     });
   });
 
-  it("connects influencer and brand follow controls to notification preferences", () => {
+  it("does not render influencer or brand notification controls", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
@@ -829,25 +802,16 @@ describe("DetailScreen", () => {
       );
     });
 
-    const influencer = renderer!.root.findByProps({
-      accessibilityLabel: "@hanssang_home 인플루언서 알림 설정",
-    });
-    const brand = renderer!.root.findByProps({
-      accessibilityLabel: "퍼스트 브랜드 알림 설정",
-    });
-    expect(influencer.props.accessibilityState.checked).toBe(false);
-    expect(brand.props.accessibilityState.checked).toBe(false);
-
-    act(() => {
-      influencer.props.onPress();
-      brand.props.onPress();
-    });
-    expect(notificationPreferencesMock.toggleInfluencer).toHaveBeenCalledWith(
-      "hanssang_home",
-    );
-    expect(notificationPreferencesMock.toggleBrand).toHaveBeenCalledWith(
-      "퍼스트",
-    );
+    expect(
+      renderer!.root.findAllByProps({
+        testID: "follow-influencer-notifications",
+      }),
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findAllByProps({ testID: "follow-brand-notifications" }),
+    ).toHaveLength(0);
+    expect(flattenText(renderer!.toJSON())).not.toContain("인플루언서 알림");
+    expect(flattenText(renderer!.toJSON())).not.toContain("브랜드 알림");
   });
 
   it("blocks every guest bookmark and notification action behind login", () => {
@@ -872,21 +836,13 @@ describe("DetailScreen", () => {
     const actions = [
       renderer!.root.findByProps({ accessibilityLabel: "북마크" }),
       renderer!.root.findByProps({ testID: "detail-notification-toggle" }),
-      renderer!.root.findByProps({
-        accessibilityLabel: "@hanssang_home 인플루언서 알림 설정",
-      }),
-      renderer!.root.findByProps({
-        accessibilityLabel: "퍼스트 브랜드 알림 설정",
-      }),
     ];
     act(() => actions.forEach((action) => action.props.onPress()));
 
-    expect(authGateMock.requireAuth).toHaveBeenCalledTimes(4);
+    expect(authGateMock.requireAuth).toHaveBeenCalledTimes(2);
     expect(localDealActionMocks.toggleBookmark).not.toHaveBeenCalled();
     expect(localDealActionMocks.toggleNotification).not.toHaveBeenCalled();
     expect(reminderPickerMock.openReminderPicker).not.toHaveBeenCalled();
-    expect(notificationPreferencesMock.toggleInfluencer).not.toHaveBeenCalled();
-    expect(notificationPreferencesMock.toggleBrand).not.toHaveBeenCalled();
   });
 
   it("loads the canonical item for an ID-only notification route", () => {
