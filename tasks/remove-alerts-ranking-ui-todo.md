@@ -6,6 +6,6 @@
 - [x] 알림 UI·상태·스타일 제거
 - [x] 랭킹 메타 배지 개선
 - [x] 단위 테스트·lint·typecheck 통과
-- [ ] Android Preview E2E 및 위키 증거 저장
+- [x] Android Preview E2E 및 위키 증거 저장
 - [x] 독립 코드 리뷰 완료
-- [ ] `develop` PR 필수 CI/Preview Green 통과 및 병합
+- [x] `develop` PR 필수 CI/Preview Green 통과 및 병합
