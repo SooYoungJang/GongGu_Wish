@@ -69,7 +69,11 @@ import {
   createTabBarButtonRenderer,
   getTabBarVisibilityStyle,
 } from "./navigation/tabBarVisibility";
-import { mobileQueryClient, syncQueryFocus } from "./lib/query-client";
+import {
+  configureQueryOnlineManager,
+  mobileQueryClient,
+  syncQueryFocus,
+} from "./lib/query-client";
 import { notificationLinking } from "./navigation/notificationLinking";
 import { publicBuildConfig } from "./lib/public-build-config";
 
@@ -375,8 +379,9 @@ function MainTabs() {
   );
 }
 
-function QueryFocusBridge() {
+function QueryRuntimeBridge() {
   useEffect(() => {
+    configureQueryOnlineManager();
     syncQueryFocus(AppState.currentState);
     const subscription = AppState.addEventListener("change", syncQueryFocus);
     return () => subscription.remove();
@@ -592,7 +597,7 @@ function AudienceApplication() {
   return (
     <AdsProvider audiencePolicy={policy}>
       <QueryClientProvider client={mobileQueryClient}>
-        <QueryFocusBridge />
+        <QueryRuntimeBridge />
         <ThemeProvider>
           <AdsRuntimeSmokeProbe />
           <AuthProvider audiencePolicy={policy}>

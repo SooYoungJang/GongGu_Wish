@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.unmock("@tanstack/react-query");
+vi.mock("@react-native-community/netinfo", () => ({
+  default: {
+    addEventListener: vi.fn(() => vi.fn()),
+  },
+}));
 
-import { focusManager } from "@tanstack/react-query";
+import NetInfo from "@react-native-community/netinfo";
+import { focusManager, onlineManager } from "@tanstack/react-query";
 import { ApiError } from "./api-types";
 import {
+  configureQueryOnlineManager,
   createMobileQueryClient,
   reportQueryError,
   shouldRetryMobileQuery,
@@ -13,6 +20,7 @@ import {
 
 describe("mobile query policy", () => {
   afterEach(() => {
+    vi.clearAllMocks();
     vi.restoreAllMocks();
     focusManager.setFocused(undefined);
   });
@@ -66,6 +74,41 @@ describe("mobile query policy", () => {
     expect(setFocused).toHaveBeenNthCalledWith(1, false);
     expect(setFocused).toHaveBeenNthCalledWith(2, true);
     expect(setFocused).toHaveBeenCalledTimes(2);
+  });
+
+  it("bridges native connectivity changes to the TanStack online manager", () => {
+    type ConnectionListener = Parameters<typeof NetInfo.addEventListener>[0];
+    type ConnectionState = Parameters<ConnectionListener>[0];
+
+    let connectionListener: ConnectionListener | undefined;
+    let onlineListener:
+      | Parameters<typeof onlineManager.setEventListener>[0]
+      | undefined;
+    const unsubscribe = vi.fn();
+    const setOnline = vi.fn();
+    vi.mocked(NetInfo.addEventListener).mockImplementation((listener) => {
+      connectionListener = listener;
+      return unsubscribe;
+    });
+    const setEventListener = vi
+      .spyOn(onlineManager, "setEventListener")
+      .mockImplementation((listener) => {
+        onlineListener = listener;
+      });
+
+    configureQueryOnlineManager();
+
+    expect(setEventListener).toHaveBeenCalledTimes(1);
+    expect(onlineListener?.(setOnline)).toBe(unsubscribe);
+    expect(NetInfo.addEventListener).toHaveBeenCalledTimes(1);
+
+    connectionListener?.({ isConnected: false } as ConnectionState);
+    connectionListener?.({ isConnected: true } as ConnectionState);
+    connectionListener?.({ isConnected: null } as ConnectionState);
+
+    expect(setOnline).toHaveBeenNthCalledWith(1, false);
+    expect(setOnline).toHaveBeenNthCalledWith(2, true);
+    expect(setOnline).toHaveBeenNthCalledWith(3, false);
   });
 
   it("logs query failures with a key and safe error metadata", () => {
