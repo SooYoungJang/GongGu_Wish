@@ -30,6 +30,8 @@ import type {
   DashboardResponse,
   GongguSubmission,
   GroupBuy,
+  GroupBuyRequest,
+  GroupBuyRequestStatus,
   GroupBuyStatus,
   HikerLookupResult,
   MediaAsset,
@@ -46,6 +48,7 @@ type TabKey =
   | "dashboard"
   | "submissions"
   | "groupBuys"
+  | "groupBuyRequests"
   | "users"
   | "notifications"
   | "cdnRefresh";
@@ -146,6 +149,16 @@ const GROUP_BUY_STATUS_OPTIONS: Array<{
   { value: "REVIEW_REQUIRED", label: "검수 필요" },
   { value: "REJECTED", label: "반려" },
   { value: "EXPIRED", label: "마감" },
+  { value: "ALL", label: "전체" },
+];
+
+const GROUP_BUY_REQUEST_STATUS_OPTIONS: Array<{
+  value: "ALL" | GroupBuyRequestStatus;
+  label: string;
+}> = [
+  { value: "OPEN", label: "진행 중" },
+  { value: "FULFILLED", label: "완료" },
+  { value: "HIDDEN", label: "숨김" },
   { value: "ALL", label: "전체" },
 ];
 
@@ -622,6 +635,18 @@ function AdminShell({ session }: { session: Session }) {
   const [groupBuyForm, setGroupBuyForm] = useState<GroupBuyForm | null>(null);
   const [groupBuyActionLoading, setGroupBuyActionLoading] = useState(false);
 
+  const [groupBuyRequestStatus, setGroupBuyRequestStatus] = useState<
+    "ALL" | GroupBuyRequestStatus
+  >("ALL");
+  const [groupBuyRequestQuery, setGroupBuyRequestQuery] = useState("");
+  const debouncedGroupBuyRequestQuery = useDebouncedValue(groupBuyRequestQuery);
+  const [groupBuyRequestPage, setGroupBuyRequestPage] = useState(1);
+  const [groupBuyRequests, setGroupBuyRequests] = useState<GroupBuyRequest[]>(
+    [],
+  );
+  const [groupBuyRequestsTotal, setGroupBuyRequestsTotal] = useState(0);
+  const [groupBuyRequestsLoading, setGroupBuyRequestsLoading] = useState(false);
+
   const [userQuery, setUserQuery] = useState("");
   const debouncedUserQuery = useDebouncedValue(userQuery);
   const [userPage, setUserPage] = useState(1);
@@ -647,13 +672,16 @@ function AdminShell({ session }: { session: Session }) {
   const hikerLookupRequestIdRef = useRef(0);
   const hikerLookupInFlightRef = useRef(false);
   const groupBuyRequestIdRef = useRef(0);
+  const groupBuyRequestsRequestIdRef = useRef(0);
   const userRequestIdRef = useRef(0);
   const selectedSubmissionIdRef = useRef<string | null>(null);
   const submissionQueryRef = useRef(submissionQuery);
   const groupBuyQueryRef = useRef(groupBuyQuery);
+  const groupBuyRequestQueryRef = useRef(groupBuyRequestQuery);
   const userQueryRef = useRef(userQuery);
   submissionQueryRef.current = submissionQuery;
   groupBuyQueryRef.current = groupBuyQuery;
+  groupBuyRequestQueryRef.current = groupBuyRequestQuery;
   userQueryRef.current = userQuery;
   selectedSubmissionIdRef.current = selectedSubmission?.id ?? null;
   const invalidateHikerLookup = useCallback((releaseLoading: boolean) => {
@@ -836,6 +864,45 @@ function AdminShell({ session }: { session: Session }) {
     [debouncedGroupBuyQuery, groupBuyPage, groupBuyStatus],
   );
 
+  const loadGroupBuyRequests = useCallback(async () => {
+    const requestId = ++groupBuyRequestsRequestIdRef.current;
+    const requestQuery = debouncedGroupBuyRequestQuery;
+    setGroupBuyRequestsLoading(true);
+    try {
+      const data = await adminApi.listGroupBuyRequests({
+        page: groupBuyRequestPage,
+        limit: PAGE_SIZE,
+        status: groupBuyRequestStatus,
+        q: requestQuery,
+      });
+      if (
+        requestId !== groupBuyRequestsRequestIdRef.current ||
+        requestQuery !== groupBuyRequestQueryRef.current
+      )
+        return;
+      setGroupBuyRequests(data.items);
+      setGroupBuyRequestsTotal(data.total);
+    } catch (error) {
+      if (
+        requestId !== groupBuyRequestsRequestIdRef.current ||
+        requestQuery !== groupBuyRequestQueryRef.current
+      )
+        return;
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : "공구 요청 목록 조회 실패",
+      });
+    } finally {
+      if (requestId === groupBuyRequestsRequestIdRef.current)
+        setGroupBuyRequestsLoading(false);
+    }
+  }, [
+    debouncedGroupBuyRequestQuery,
+    groupBuyRequestPage,
+    groupBuyRequestStatus,
+  ]);
+
   const loadUsers = useCallback(async () => {
     const requestId = ++userRequestIdRef.current;
     const requestQuery = debouncedUserQuery;
@@ -897,6 +964,10 @@ function AdminShell({ session }: { session: Session }) {
   }, [loadGroupBuys, tab]);
 
   useEffect(() => {
+    if (tab === "groupBuyRequests") void loadGroupBuyRequests();
+  }, [loadGroupBuyRequests, tab]);
+
+  useEffect(() => {
     if (tab === "users") void loadUsers();
   }, [loadUsers, tab]);
 
@@ -930,6 +1001,7 @@ function AdminShell({ session }: { session: Session }) {
       await loadDashboard();
       if (tab === "submissions") await loadSubmissions();
       if (tab === "groupBuys") await loadGroupBuys();
+      if (tab === "groupBuyRequests") await loadGroupBuyRequests();
       if (tab === "users") await loadUsers();
       if (tab === "cdnRefresh") await loadCdnStatus();
     } finally {
@@ -938,6 +1010,7 @@ function AdminShell({ session }: { session: Session }) {
   }, [
     loadDashboard,
     loadGroupBuys,
+    loadGroupBuyRequests,
     loadSubmissions,
     loadUsers,
     loadCdnStatus,
@@ -1272,6 +1345,10 @@ function AdminShell({ session }: { session: Session }) {
     Math.ceil(submissionsTotal / PAGE_SIZE),
   );
   const groupBuyTotalPages = Math.max(1, Math.ceil(groupBuysTotal / PAGE_SIZE));
+  const groupBuyRequestTotalPages = Math.max(
+    1,
+    Math.ceil(groupBuyRequestsTotal / PAGE_SIZE),
+  );
   const userTotalPages = Math.max(1, Math.ceil(usersTotal / PAGE_SIZE));
 
   function closeDetail() {
@@ -1446,6 +1523,15 @@ function AdminShell({ session }: { session: Session }) {
           >
             <span>Catalog</span>
             <strong>공구 관리</strong>
+          </button>
+          <button
+            aria-current={tab === "groupBuyRequests" ? "page" : undefined}
+            className={tab === "groupBuyRequests" ? "active" : ""}
+            onClick={() => switchTab("groupBuyRequests")}
+            type="button"
+          >
+            <span>Demand</span>
+            <strong>공구 요청</strong>
           </button>
           <button
             aria-current={tab === "users" ? "page" : undefined}
@@ -1641,6 +1727,26 @@ function AdminShell({ session }: { session: Session }) {
                 totalPages={groupBuyTotalPages}
               />
             ) : null}
+            {tab === "groupBuyRequests" ? (
+              <GroupBuyRequestPanel
+                items={groupBuyRequests}
+                loading={groupBuyRequestsLoading}
+                onPageChange={setGroupBuyRequestPage}
+                onQueryChange={(value) => {
+                  setGroupBuyRequestQuery(value);
+                  setGroupBuyRequestPage(1);
+                }}
+                onStatusChange={(value) => {
+                  setGroupBuyRequestStatus(value);
+                  setGroupBuyRequestPage(1);
+                }}
+                page={groupBuyRequestPage}
+                query={groupBuyRequestQuery}
+                status={groupBuyRequestStatus}
+                total={groupBuyRequestsTotal}
+                totalPages={groupBuyRequestTotalPages}
+              />
+            ) : null}
             {tab === "users" ? (
               <UserPanel
                 actionLoading={userActionLoading}
@@ -1750,6 +1856,29 @@ function AdminShell({ session }: { session: Session }) {
             />
           </svg>
           <span>공구</span>
+        </button>
+        <button
+          aria-current={tab === "groupBuyRequests" ? "page" : undefined}
+          className={tab === "groupBuyRequests" ? "active" : ""}
+          onClick={() => switchTab("groupBuyRequests")}
+          type="button"
+        >
+          <svg
+            fill="none"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M12 20V10m0 0 4 4m-4-4-4 4M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+            />
+          </svg>
+          <span>요청</span>
         </button>
         <button
           aria-current={tab === "users" ? "page" : undefined}
@@ -1906,6 +2035,7 @@ function applyHikerResult(
 function tabTitle(tab: TabKey) {
   if (tab === "submissions") return "위시 검수";
   if (tab === "groupBuys") return "공구 관리";
+  if (tab === "groupBuyRequests") return "공구 요청";
   if (tab === "users") return "가입자 관리";
   if (tab === "notifications") return "푸시 발송";
   if (tab === "cdnRefresh") return "CDN 갱신";
@@ -2934,6 +3064,124 @@ function GroupBuyPanel(props: {
   );
 }
 
+function GroupBuyRequestPanel(props: {
+  items: GroupBuyRequest[];
+  loading: boolean;
+  onPageChange: (page: number) => void;
+  onQueryChange: (value: string) => void;
+  onStatusChange: (value: "ALL" | GroupBuyRequestStatus) => void;
+  page: number;
+  query: string;
+  status: "ALL" | GroupBuyRequestStatus;
+  total: number;
+  totalPages: number;
+}) {
+  const isFiltered = props.query.trim().length > 0 || props.status !== "ALL";
+  const resetFilters = () => {
+    props.onQueryChange("");
+    props.onStatusChange("ALL");
+  };
+
+  return (
+    <section className="panel">
+      <div className="section-header">
+        <div>
+          <p className="eyebrow">Request demand</p>
+          <h2>공구 요청 현황</h2>
+          <p>고객 요청 추이를 확인하고 공구 후보를 검토합니다.</p>
+        </div>
+        <Filters
+          onClear={resetFilters}
+          query={props.query}
+          queryPlaceholder="상품명 검색"
+          showClear={isFiltered}
+          status={props.status}
+          statusOptions={GROUP_BUY_REQUEST_STATUS_OPTIONS}
+          onQueryChange={props.onQueryChange}
+          onStatusChange={props.onStatusChange}
+        />
+      </div>
+
+      <div className="table-panel">
+        <ListMeta
+          loading={props.loading}
+          page={props.page}
+          total={props.total}
+          totalPages={props.totalPages}
+        />
+        <div className="table-wrap desktop-table">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>상품</th>
+                <th>상태</th>
+                <th>최근 30일 요청</th>
+                <th>최근 요청일</th>
+                <th>등록일</th>
+              </tr>
+            </thead>
+            <tbody>
+              {props.items.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <strong>{item.productName}</strong>
+                  </td>
+                  <td>
+                    <StatusBadge status={item.status} />
+                  </td>
+                  <td>{item.requestCount.toLocaleString()}건</td>
+                  <td>{formatDateTime(item.latestRequestedAt)}</td>
+                  <td>{formatDateTime(item.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {props.loading ? <LoadingRows /> : null}
+        <div className="mobile-card-list" aria-label="공구 요청 목록">
+          {props.items.map((item) => (
+            <article
+              className="mobile-record-card mobile-record-card--static"
+              key={item.id}
+            >
+              <div className="mobile-record-card__top">
+                <span className="mobile-record-kicker">최근 30일 요청</span>
+                <StatusBadge status={item.status} />
+              </div>
+              <strong className="group-buy-request-product-name">
+                {item.productName}
+              </strong>
+              <div className="mobile-record-meta">
+                <span>요청 수</span>
+                <strong>{item.requestCount.toLocaleString()}건</strong>
+                <span>최근 요청일</span>
+                <strong>{formatDateTime(item.latestRequestedAt)}</strong>
+                <span>등록일</span>
+                <strong>{formatDateTime(item.createdAt)}</strong>
+              </div>
+            </article>
+          ))}
+        </div>
+        {props.items.length === 0 && !props.loading ? (
+          <ListEmptyState
+            message={
+              isFiltered
+                ? "조건에 맞는 공구 요청이 없습니다."
+                : "등록된 공구 요청이 없습니다."
+            }
+            onClear={isFiltered ? resetFilters : undefined}
+          />
+        ) : null}
+        <Pagination
+          page={props.page}
+          totalPages={props.totalPages}
+          onPageChange={props.onPageChange}
+        />
+      </div>
+    </section>
+  );
+}
+
 function MobileGroupBuyCards({
   items,
   loading,
@@ -3802,6 +4050,12 @@ function statusLabel(status: string) {
       return "검수 필요";
     case "EXPIRED":
       return "마감";
+    case "OPEN":
+      return "진행 중";
+    case "FULFILLED":
+      return "완료";
+    case "HIDDEN":
+      return "숨김";
     case "ACTIVE":
       return "활성";
     case "SUSPENDED":

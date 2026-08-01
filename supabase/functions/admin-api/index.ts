@@ -16,6 +16,7 @@ import {
   type CdnRefreshStatusRow,
   mapCdnRefreshStatusRow,
 } from "./cdnRefreshStatus.ts";
+import { mapAdminGroupBuyRequestList } from "./groupBuyRequestContract.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
 import {
   deliverPendingSubmissionApprovalPushes,
@@ -571,6 +572,32 @@ async function listGroupBuys(
     items: (data ?? []).map((row) => mapGroupBuy(row)),
     total: count ?? 0,
   };
+}
+
+async function listGroupBuyRequests(
+  supabase: AdminClient,
+  params: AdminRequest["params"],
+) {
+  const page = Math.min(
+    Math.floor(listParam(params, "page", 1)),
+    1_000_000,
+  );
+  const limit = Math.min(Math.floor(listParam(params, "limit", 30)), 100);
+  const status = str(params?.status);
+  const q = sanitizeSearch(str(params?.q));
+  const { data, error } = await supabase.rpc("get_admin_group_buy_requests", {
+    p_page: page,
+    p_limit_count: limit,
+    p_status: status,
+    p_query: q,
+  });
+
+  if (error) {
+    console.error("Failed to list group-buy requests", error);
+    throw new Error("공구 요청 목록을 불러오지 못했습니다.");
+  }
+
+  return mapAdminGroupBuyRequestList(data);
 }
 
 async function dashboard(supabase: AdminClient) {
@@ -1148,6 +1175,9 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   }
   if (path === "/admin/group-buys" && method === "GET") {
     return listGroupBuys(supabase, params);
+  }
+  if (path === "/admin/group-buy-requests" && method === "GET") {
+    return listGroupBuyRequests(supabase, params);
   }
   if (path === "/admin/users" && method === "GET") {
     return listUsers(supabase, params);

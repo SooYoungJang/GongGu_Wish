@@ -470,7 +470,10 @@ export function SearchScreen() {
                     style={s.requestCard}
                   >
                     <SText variant="label" style={s.requestTitle}>
-                      찾는 공구가 아직 없나요?
+                        <SText variant="label" style={s.requestProductName}>
+                          “{requestProductName}”
+                        </SText>{' '}
+                        공구를 요청할까요?
                     </SText>
                     {requestHint ? (
                       <SText
@@ -513,7 +516,11 @@ export function SearchScreen() {
                         pressed && s.pressed,
                       ]}
                     >
-                      <SText variant="label" style={s.requestButtonText}>
+                      <SText
+                        numberOfLines={1}
+                        variant="label"
+                        style={s.requestButtonText}
+                      >
                         {requestMutation.isPending
                           ? '요청하는 중…'
                           : currentRequestFeedback?.alreadyRequested
@@ -522,7 +529,7 @@ export function SearchScreen() {
                               ? '공구 요청 완료'
                               : currentRequestError
                                 ? '다시 요청하기'
-                                : '공구 요청하기'}
+                                : `“${requestProductName}” 공구 요청하기`}
                       </SText>
                     </Pressable>
                   </View>
@@ -667,6 +674,7 @@ function makeStyles(colors: CommerceColorPalette) {
       lineHeight: 21,
       textAlign: 'center',
     },
+    requestProductName: { color: colors.accent, fontWeight: '800' },
     requestHint: {
       color: colors.muted,
       fontSize: 13,

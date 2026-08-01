@@ -163,6 +163,75 @@ test("group-buy request product names use the shared 200-character safety cap", 
   );
 });
 
+test("admin group-buy request listings expose aggregate fields only", () => {
+  const migration = read(
+    "supabase/migrations/20260801000003_add_admin_group_buy_request_list.sql",
+  );
+  const adminApi = read("supabase/functions/admin-api/index.ts");
+
+  assert.match(
+    migration,
+    /CREATE OR REPLACE FUNCTION public\.get_admin_group_buy_requests\(/,
+  );
+  assert.match(migration, /RETURNS jsonb/);
+  assert.match(migration, /SECURITY INVOKER/);
+  assert.match(migration, /SET search_path = pg_catalog/);
+  assert.match(migration, /interval '30 days'/);
+  assert.match(
+    migration,
+    /group_buy_request_participations \(requested_at DESC, request_id\)/,
+  );
+  assert.match(migration, /COUNT\(DISTINCT actor_key\)/);
+  assert.match(
+    migration,
+    /ORDER BY request_count DESC, latest_requested_at DESC NULLS LAST, request_id ASC/,
+  );
+  assert.match(
+    migration,
+    /LEAST\(GREATEST\(COALESCE\(p_limit_count, 30\), 1\), 100\)/,
+  );
+  assert.match(
+    migration,
+    /LEAST\(GREATEST\(COALESCE\(p_page, 1\), 1\), 1000000\)/,
+  );
+  assert.ok(
+    migration.indexOf("filtered_requests AS") <
+      migration.indexOf("actor_rows AS"),
+  );
+  assert.match(
+    migration,
+    /REVOKE ALL ON FUNCTION public\.get_admin_group_buy_requests\(integer, integer, text, text\) FROM PUBLIC/,
+  );
+  assert.match(
+    migration,
+    /REVOKE ALL ON FUNCTION public\.get_admin_group_buy_requests\(integer, integer, text, text\) FROM anon, authenticated/,
+  );
+  assert.match(
+    migration,
+    /GRANT EXECUTE ON FUNCTION public\.get_admin_group_buy_requests\(integer, integer, text, text\) TO service_role/,
+  );
+
+  const projectedItem = migration.match(
+    /jsonb_build_object\(\s*'id'[\s\S]*?'latestRequestedAt'[\s\S]*?\)/,
+  )?.[0];
+  assert.ok(projectedItem);
+  assert.match(projectedItem, /'productName'/);
+  assert.match(projectedItem, /'status'/);
+  assert.match(projectedItem, /'requestCount'/);
+  assert.match(projectedItem, /'createdAt'/);
+  assert.doesNotMatch(
+    projectedItem,
+    /userId|user_id|sessionHash|session_hash|ipHash|ip_hash|actorHash|actor_hash/,
+  );
+
+  assert.match(adminApi, /"get_admin_group_buy_requests"/);
+  assert.match(adminApi, /path === "\/admin\/group-buy-requests"/);
+  assert.match(
+    adminApi,
+    /Math\.min\(\s*Math\.floor\(listParam\(params, "page", 1\)\),\s*1_000_000,\s*\)/,
+  );
+});
+
 test("group-buy request Edge intake owns trusted identity derivation", () => {
   const edgeFunction = read("supabase/functions/group-buy-request/index.ts");
   const mobileApi = read("apps/mobile/src/features/groupBuyRequests/api.ts");

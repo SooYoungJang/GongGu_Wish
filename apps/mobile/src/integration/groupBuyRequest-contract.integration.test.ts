@@ -25,6 +25,18 @@ type RankingRow = {
   request_count: number;
 };
 
+type AdminRequestList = {
+  items: Array<{
+    id: string;
+    productName: string;
+    status: "OPEN" | "FULFILLED" | "HIDDEN";
+    requestCount: number;
+    createdAt: string;
+    latestRequestedAt: string | null;
+  }>;
+  total: number;
+};
+
 type AttemptLimitRow = {
   allowed: boolean;
   attempt_count: number;
@@ -610,6 +622,129 @@ describeLocal.sequential("group-buy request database contracts", () => {
       already_requested: false,
       ranking_eligible: false,
     });
+  });
+
+  it("exposes only aggregate request fields through the service-role admin RPC", async () => {
+    const productName = `관리자목록 ${suffix}`;
+    const first = await requestGroupBuy(
+      productName,
+      `s_${suffix}_admin_user`,
+      userAccessToken,
+    );
+    await requestGroupBuy(productName, `s_${suffix}_admin_duplicate_user`);
+    await requestGroupBuy(productName, `s_${suffix}_admin_current_guest`);
+    await requestGroupBuy(productName, `s_${suffix}_admin_expired_guest`);
+    const expiredAt = new Date(
+      Date.now() - 31 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const participationRows = await requestJson<
+      Array<{ id: string; requested_at: string; user_id: string | null }>
+    >(
+      config,
+      `/rest/v1/group_buy_request_participations?request_id=eq.${first[0].request_id}&select=id,requested_at,user_id&order=requested_at.asc`,
+      {
+        key: config.serviceRoleKey,
+      },
+    );
+    expect(
+      participationRows.ok,
+      JSON.stringify(participationRows.payload),
+    ).toBe(true);
+    const guestRows = participationRows.payload.filter(
+      (row) => row.user_id === null,
+    );
+    expect(guestRows).toHaveLength(3);
+
+    const duplicateUser = await requestJson(
+      config,
+      `/rest/v1/group_buy_request_participations?id=eq.${guestRows[0].id}`,
+      {
+        body: { user_id: userId },
+        headers: { Prefer: "return=minimal" },
+        key: config.serviceRoleKey,
+        method: "PATCH",
+      },
+    );
+    expect(duplicateUser.ok, JSON.stringify(duplicateUser.payload)).toBe(true);
+
+    const expiredGuest = await requestJson(
+      config,
+      `/rest/v1/group_buy_request_participations?id=eq.${guestRows[2].id}`,
+      {
+        body: { requested_at: expiredAt },
+        headers: { Prefer: "return=minimal" },
+        key: config.serviceRoleKey,
+        method: "PATCH",
+      },
+    );
+    expect(expiredGuest.ok, JSON.stringify(expiredGuest.payload)).toBe(true);
+
+    const params = {
+      p_page: 1,
+      p_limit_count: 30,
+      p_status: "ALL",
+      p_query: productName,
+    };
+    const serviceResult = await requestJson<AdminRequestList>(
+      config,
+      "/rest/v1/rpc/get_admin_group_buy_requests",
+      {
+        body: params,
+        key: config.serviceRoleKey,
+        method: "POST",
+      },
+    );
+
+    expect(serviceResult.ok).toBe(true);
+    expect(serviceResult.payload.total).toBe(1);
+    expect(serviceResult.payload.items).toEqual([
+      expect.objectContaining({
+        productName,
+        status: "OPEN",
+        requestCount: 2,
+      }),
+    ]);
+    expect(serviceResult.payload.items[0].latestRequestedAt).not.toBe(
+      expiredAt,
+    );
+    expect(Object.keys(serviceResult.payload.items[0]).sort()).toEqual(
+      [
+        "createdAt",
+        "id",
+        "latestRequestedAt",
+        "productName",
+        "requestCount",
+        "status",
+      ].sort(),
+    );
+    expect(JSON.stringify(serviceResult.payload)).not.toMatch(
+      /user_id|session_hashes|ip_hash|actor_hash/,
+    );
+
+    const emptyPage = await requestJson<AdminRequestList>(
+      config,
+      "/rest/v1/rpc/get_admin_group_buy_requests",
+      {
+        body: { ...params, p_page: 999 },
+        key: config.serviceRoleKey,
+        method: "POST",
+      },
+    );
+    expect(emptyPage.ok).toBe(true);
+    expect(emptyPage.payload).toEqual({ items: [], total: 1 });
+
+    const anonResult = await requestJson(
+      config,
+      "/rest/v1/rpc/get_admin_group_buy_requests",
+      { body: params, method: "POST" },
+    );
+    expect(anonResult.ok).toBe(false);
+    const authenticatedResult = await requestJson(
+      config,
+      "/rest/v1/rpc/get_admin_group_buy_requests",
+      { body: params, method: "POST", token: userAccessToken },
+    );
+    expect(authenticatedResult.ok).toBe(false);
   });
 
   it("limits an installation to five new products per 24 hours", async () => {

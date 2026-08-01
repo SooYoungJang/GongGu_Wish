@@ -7,6 +7,7 @@ import type {
   GongguSubmission,
   SubmissionApprovalDeliverySummary,
   GroupBuy,
+  GroupBuyRequest,
   HikerLookupResult,
   ListResponse,
   PushNotificationInput,
@@ -242,6 +243,19 @@ export const adminApi = {
     return requestAdmin<ListResponse<GroupBuy>>("/admin/group-buys", "GET", {
       params,
     }).then(normalizeGroupBuyListResponse);
+  },
+
+  listGroupBuyRequests(params: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    q?: string;
+  }) {
+    return requestAdmin<ListResponse<GroupBuyRequest>>(
+      "/admin/group-buy-requests",
+      "GET",
+      { params },
+    );
   },
 
   updateGroupBuy(id: string, body: Record<string, unknown>) {

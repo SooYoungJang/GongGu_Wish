@@ -11,6 +11,8 @@ export type GroupBuyStatus =
   | "REJECTED"
   | "EXPIRED";
 
+export type GroupBuyRequestStatus = "OPEN" | "FULFILLED" | "HIDDEN";
+
 export type MediaAsset = {
   url: string;
   mediaType: "IMAGE" | "VIDEO";
@@ -110,6 +112,15 @@ export type GroupBuy = {
   homeBannerEndDate: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type GroupBuyRequest = {
+  id: string;
+  productName: string;
+  status: GroupBuyRequestStatus;
+  requestCount: number;
+  createdAt: string;
+  latestRequestedAt: string | null;
 };
 
 export type DashboardResponse = {
