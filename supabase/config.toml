@@ -234,6 +234,11 @@ verify_jwt = false
 # is required, so callers without an auth session can still submit.
 verify_jwt = false
 
+[functions.group-buy-request]
+# Guest requests are accepted, while the function verifies optional user JWTs
+# itself before invoking the service-role-only database write contract.
+verify_jwt = false
+
 [functions.hiker-lookup]
 # UMANS_API_KEY: umans.ai API key for LLM-based product-name inference.
 # Set via: supabase secrets set UMANS_API_KEY=sk-...
@@ -244,6 +249,11 @@ verify_jwt = false
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.naver-userinfo]
+# Supabase Auth forwards a Naver OAuth access token, not a Supabase JWT.
+# The handler validates that bearer token against Naver's fixed UserInfo URL.
+verify_jwt = false
 
 [functions.register-push-token]
 verify_jwt = true

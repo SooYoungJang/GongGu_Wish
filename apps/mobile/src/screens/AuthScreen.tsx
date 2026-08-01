@@ -869,8 +869,6 @@ function LoginPanel({
 
   return (
     <View accessibilityLabel="로그인">
-      <AuthLegalNotice />
-
       {/* Social Login — refined: no title */}
       <View style={styles.socialSection}>
         {socialProviders.map((sp) => (
@@ -887,6 +885,7 @@ function LoginPanel({
             disabled={socialSubmitting !== null || submitting || confirming}
           />
         ))}
+        <AuthLegalNotice />
       </View>
 
       {/* Divider */}
@@ -1379,8 +1378,6 @@ function SignupPanel({
 
   return (
     <View accessibilityLabel="회원가입">
-      <AuthLegalNotice />
-
       <View style={styles.socialSection}>
         {socialProviders.map((sp) => (
           <SocialButton
@@ -1396,6 +1393,7 @@ function SignupPanel({
             disabled={socialSubmitting !== null || submitting || confirming}
           />
         ))}
+        <AuthLegalNotice />
       </View>
 
       <View style={styles.divider} accessible accessibilityRole="none">

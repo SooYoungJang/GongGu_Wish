@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deleteAccount,
   fetchHomeBannerGroupBuys,
   fetchGroupBuyRankings,
   fetchGroupBuys,
@@ -465,6 +466,35 @@ describe("public data fetch diagnostics", () => {
         }),
       }),
     );
+  });
+
+  it("sends the current session token when deleting an account", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ deleted: true }),
+    }) as unknown as typeof fetch;
+
+    await expect(deleteAccount("current-access-token")).resolves.toBeUndefined();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/functions/v1/delete-account"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer current-access-token",
+        }),
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(authTokenMocks.getAuthToken).not.toHaveBeenCalled();
+  });
+
+  it("rejects account deletion before the request when the session token is blank", async () => {
+    await expect(deleteAccount("   ")).rejects.toMatchObject({ status: 401 });
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(authTokenMocks.getAuthToken).not.toHaveBeenCalled();
   });
 
   it("posts public submissions through the Supabase public-submission function", async () => {

@@ -102,6 +102,108 @@ test("hiker-lookup is declared for project-bound Git deployment", () => {
   assert.equal(existsSync("supabase/functions/hiker-lookup/index.ts"), true);
 });
 
+test("naver-userinfo accepts the upstream OAuth token without gateway JWT verification", () => {
+  assert.match(
+    supabaseConfig,
+    /^\[functions\.naver-userinfo\]\r?\n(?:#[^\r\n]*\r?\n)*verify_jwt = false$/m,
+  );
+  assert.equal(existsSync("supabase/functions/naver-userinfo/index.ts"), true);
+});
+
+test("service_role can delete user profiles required by delete-account", () => {
+  const deleteAccountSource = readFileSync(
+    "supabase/functions/delete-account/index.ts",
+    "utf8",
+  );
+  const migrations = readdirSync("supabase/migrations")
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .map((file) => readFileSync(`supabase/migrations/${file}`, "utf8"));
+
+  assert.match(
+    deleteAccountSource,
+    /\.from\(["']users["']\)\.delete\(\)/,
+    "delete-account must delete the authenticated user's public profile",
+  );
+
+  const userServiceRoleDeleteGrants = migrations
+    .flatMap(
+      (migration) =>
+        migration.replace(/--.*$/gm, "").match(/\bGRANT\b[^;]*;/gi) ?? [],
+    )
+    .map((grant) => grant.replace(/\s+/g, " ").trim())
+    .filter(
+      (grant) =>
+        /\b(?:DELETE|ALL(?:\s+PRIVILEGES)?)\b/i.test(grant) &&
+        /\bON\b[^;]*\bpublic\s*\.\s*users\b[^;]*\bTO\s+service_role\b/i.test(
+          grant,
+        ),
+    );
+  assert.deepEqual(
+    userServiceRoleDeleteGrants,
+    ["GRANT DELETE ON TABLE public.users TO service_role;"],
+    "delete-account must receive only the required public.users DELETE grant",
+  );
+});
+
+test("Auth users are provisioned and backfilled without overwriting public profiles", () => {
+  const migrations = readdirSync("supabase/migrations")
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .map((file) => readFileSync(`supabase/migrations/${file}`, "utf8"));
+  const provisioningMigration = migrations.find((migration) =>
+    /\bAFTER\s+INSERT\s+ON\s+auth\s*\.\s*users\b/i.test(
+      migration.replace(/--.*$/gm, ""),
+    ),
+  );
+
+  assert.ok(
+    provisioningMigration,
+    "a migration must provision public.users from an auth.users AFTER INSERT trigger",
+  );
+
+  const normalized = provisioningMigration
+    .replace(/--.*$/gm, "")
+    .replace(/\s+/g, " ");
+  assert.match(
+    normalized,
+    /\bINSERT\s+INTO\s+public\s*\.\s*users\b/i,
+    "the Auth trigger must insert the corresponding public.users profile",
+  );
+  assert.match(
+    normalized,
+    /\bFROM\s+auth\s*\.\s*users\b/i,
+    "the migration must backfill profiles for existing Auth users",
+  );
+  assert.match(
+    normalized,
+    /\braw_user_meta_data\b/i,
+    "profile provisioning must preserve signup and social-provider metadata",
+  );
+  assert.match(
+    normalized,
+    /\bSECURITY\s+DEFINER\b/i,
+    "the Auth trigger function must use the privileges required to insert a profile",
+  );
+  assert.match(
+    normalized,
+    /\bSET\s+search_path\s*=\s*''/i,
+    "the security-definer function must use an empty search_path",
+  );
+  assert.match(
+    normalized,
+    /\bREVOKE\s+ALL\s+ON\s+FUNCTION\b/i,
+    "the trigger function must not be directly executable by API roles",
+  );
+
+  const conflictSafeInserts =
+    normalized.match(/\bON\s+CONFLICT\s*\(\s*id\s*\)\s+DO\s+NOTHING\b/gi) ?? [];
+  assert.ok(
+    conflictSafeInserts.length >= 2,
+    "both trigger provisioning and backfill must preserve existing public.users rows",
+  );
+});
+
 test("the Worker deploy waits for the branch-specific Supabase gate", () => {
   const workerJob = job("deploy-worker");
   const needs = workerJob.match(/^    needs:\s*\[([^\]]+)\]/m)?.[1] ?? "";
@@ -751,4 +853,36 @@ test("Production recovery is explicit, main-only, and reuses every deployment ga
     job("preview-release-gate"),
     /confirm_production_recovery/,
   );
+});
+
+test("Kakao provider readiness is public, environment-exact, and release-blocking", () => {
+  const providerJob = job("kakao-provider-ready");
+  assert.match(providerJob, /name:\s*Kakao Auth Provider Ready/);
+  assert.match(
+    providerJob,
+    /github\.ref == 'refs\/heads\/main' \|\| github\.base_ref == 'main'/,
+  );
+  assert.match(providerJob, /APP_VARIANT:/);
+  assert.match(providerJob, /SUPABASE_PROJECT_REF:/);
+  assert.match(providerJob, /iosdoheblabfimkjnvfj/);
+  assert.match(providerJob, /xwblovggtvbpiusjfokq/);
+  assert.match(
+    providerJob,
+    /node --test scripts\/check-kakao-provider\.test\.mjs/,
+  );
+  assert.match(providerJob, /node scripts\/check-kakao-provider\.mjs/);
+  assert.doesNotMatch(providerJob, /secrets\.|environment:/);
+
+  for (const gateId of ["preview-release-gate", "promotion-gate"]) {
+    const gate = job(gateId);
+    assert.equal(declaredNeeds(gate).has("kakao-provider-ready"), true);
+    assert.match(gate, /KAKAO_PROVIDER_RESULT/);
+    assert.match(gate, /needs\.kakao-provider-ready\.result/);
+    assert.match(gate, /Kakao Auth Provider Ready result is/);
+    assert.match(gate, /exit 1/);
+  }
+
+  const promotionGate = job("promotion-gate");
+  assert.match(promotionGate, /!cancelled\(\)/);
+  assert.doesNotMatch(promotionGate, /always\(\)/);
 });

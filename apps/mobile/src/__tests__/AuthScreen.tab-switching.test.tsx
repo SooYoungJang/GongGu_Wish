@@ -230,7 +230,7 @@ describe("AuthScreen tab switching", () => {
     expect(containsText(renderer, '또는 이메일 로그인')).toBe(true);
   });
 
-  it("로그인과 회원가입 탭 모두 체크박스 없는 약관 안내를 표시한다", () => {
+  it("로그인과 회원가입 탭 모두 소셜 인증 뒤에 체크박스 없는 약관 안내를 표시한다", () => {
     const renderer = renderAuthScreen();
 
     expect(containsText(renderer, "만 14세 이상")).toBe(true);
@@ -241,6 +241,25 @@ describe("AuthScreen tab switching", () => {
           node.props.testID === "auth-legal-notice",
       ),
     ).toHaveLength(1);
+    const loginNodes = renderer.root.findAll(() => true);
+    const loginSocialButtonIndex = Math.max(
+      ...loginNodes.map((node, index) =>
+        typeof node.props.accessibilityLabel === "string" &&
+        node.props.accessibilityLabel.endsWith("로 계속하기")
+          ? index
+          : -1,
+      ),
+    );
+    const loginNoticeIndex = loginNodes.findIndex(
+      (node) => node.props.testID === "auth-legal-notice",
+    );
+    const loginDividerIndex = loginNodes.findIndex(
+      (node) => node.props.children === "또는 이메일 로그인",
+    );
+
+    expect(loginSocialButtonIndex).toBeGreaterThanOrEqual(0);
+    expect(loginNoticeIndex).toBeGreaterThan(loginSocialButtonIndex);
+    expect(loginNoticeIndex).toBeLessThan(loginDividerIndex);
 
     pressByAccessibilityLabel(renderer, "회원가입 탭");
 
@@ -252,6 +271,25 @@ describe("AuthScreen tab switching", () => {
           node.props.testID === "auth-legal-notice",
       ),
     ).toHaveLength(1);
+    const signupNodes = renderer.root.findAll(() => true);
+    const signupSocialButtonIndex = Math.max(
+      ...signupNodes.map((node, index) =>
+        typeof node.props.accessibilityLabel === "string" &&
+        node.props.accessibilityLabel.endsWith("로 계속하기")
+          ? index
+          : -1,
+      ),
+    );
+    const signupNoticeIndex = signupNodes.findIndex(
+      (node) => node.props.testID === "auth-legal-notice",
+    );
+    const signupDividerIndex = signupNodes.findIndex(
+      (node) => node.props.children === "또는 이메일 회원가입",
+    );
+
+    expect(signupSocialButtonIndex).toBeGreaterThanOrEqual(0);
+    expect(signupNoticeIndex).toBeGreaterThan(signupSocialButtonIndex);
+    expect(signupNoticeIndex).toBeLessThan(signupDividerIndex);
   });
 
   it.each([

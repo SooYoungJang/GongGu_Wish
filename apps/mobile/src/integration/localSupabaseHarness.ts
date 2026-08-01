@@ -29,8 +29,8 @@ const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "10.0.2.2", "::1"]);
 export function hasLocalSupabaseConfig(): boolean {
   return Boolean(
     process.env.LOCAL_SUPABASE_URL &&
-    process.env.LOCAL_SUPABASE_ANON_KEY &&
-    process.env.LOCAL_SUPABASE_SERVICE_ROLE_KEY,
+      process.env.LOCAL_SUPABASE_ANON_KEY &&
+      process.env.LOCAL_SUPABASE_SERVICE_ROLE_KEY,
   );
 }
 
@@ -349,6 +349,13 @@ export async function cleanupLocalFixture(
         config,
         "cleanup",
         `influencers?id=eq.${encodeURIComponent(fixture.influencerId)}`,
+        { method: "DELETE" },
+      ),
+    () =>
+      serviceRest(
+        config,
+        "cleanup",
+        `users?id=eq.${encodeURIComponent(fixture.adminUserId)}`,
         { method: "DELETE" },
       ),
     () =>

@@ -138,7 +138,7 @@ jobs:
       - name: Set up EAS CLI
         uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385 # v9
         with:
-          eas-version: latest
+          eas-version: 21.4.0
           packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
       - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.1.0
@@ -233,6 +233,7 @@ jobs:
         run: >-
           node --test
           scripts/ci-change-plan.test.mjs
+          scripts/group-buy-request-contract.test.mjs
           scripts/opening-reminder-contract.test.mjs
           scripts/preview-release-contract.test.mjs
       - name: Classify changed files
@@ -283,6 +284,26 @@ jobs:
       - name: Test mobile deployment decision logic
         if: ${{ steps.plan.outputs.mobile == 'true' || steps.plan.outputs.ci == 'true' }}
         run: bash apps/mobile/scripts/ci-deploy-android.test.sh
+
+  # ── Kakao OAuth Provider Readiness ───────────────────────────────────────
+  kakao-provider-ready:
+    name: Kakao Auth Provider Ready
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_VARIANT: ${{ (github.ref == 'refs/heads/main' || github.base_ref == 'main') && 'production' || 'preview' }}
+      SUPABASE_PROJECT_REF: ${{ (github.ref == 'refs/heads/main' || github.base_ref == 'main') && 'iosdoheblabfimkjnvfj' || 'xwblovggtvbpiusjfokq' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Test Kakao provider readiness contract
+        run: node --test scripts/check-kakao-provider.test.mjs
+      - name: Verify Kakao provider readiness
+        run: node scripts/check-kakao-provider.mjs
 
   # ── Lint & Typecheck ──────────────────────────────────────────────────────
   lint:
@@ -774,7 +795,7 @@ jobs:
       - name: Set up EAS CLI
         uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385 # v9
         with:
-          eas-version: latest
+          eas-version: 21.4.0
           packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
       - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.1.0
@@ -837,6 +858,7 @@ jobs:
         worker-tests,
         deploy-worker,
         deploy-mobile,
+        kakao-provider-ready,
       ]
     if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     environment:
@@ -867,10 +889,15 @@ jobs:
           WORKER_TEST_RESULT: ${{ needs.worker-tests.result }}
           WORKER_RESULT: ${{ needs.deploy-worker.result }}
           MOBILE_RESULT: ${{ needs.deploy-mobile.result }}
+          KAKAO_PROVIDER_RESULT: ${{ needs.kakao-provider-ready.result }}
         run: |
           set -euo pipefail
           if [[ "$PLAN_RESULT" != "success" ]]; then
             echo "::error::Change Plan & Policy result is $PLAN_RESULT, expected success."
+            exit 1
+          fi
+          if [[ "$KAKAO_PROVIDER_RESULT" != "success" ]]; then
+            echo "::error::Kakao Auth Provider Ready result is $KAKAO_PROVIDER_RESULT, expected success."
             exit 1
           fi
 
@@ -1204,11 +1231,20 @@ jobs:
     name: Preview Promotion Gate
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
+    needs: [kakao-provider-ready]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.base_ref == 'main' }}
     permissions:
       actions: read
       contents: read
     steps:
+      - name: Require Production Kakao provider readiness
+        env:
+          KAKAO_PROVIDER_RESULT: ${{ needs.kakao-provider-ready.result }}
+        run: |
+          if [[ "$KAKAO_PROVIDER_RESULT" != "success" ]]; then
+            echo "::error::Kakao Auth Provider Ready result is $KAKAO_PROVIDER_RESULT, expected success."
+            exit 1
+          fi
       - name: Require the latest develop Preview-green SHA
         env:
           GH_TOKEN: ${{ github.token }}

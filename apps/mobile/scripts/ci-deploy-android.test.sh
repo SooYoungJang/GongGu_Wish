@@ -8,6 +8,10 @@ fake_bin="$test_directory/bin"
 mkdir -p "$fake_bin"
 trap 'rm -rf "$test_directory"' EXIT
 
+public_build_config_path="$script_directory/../src/lib/public-build-config.ts"
+public_build_config_original="$test_directory/public-build-config.original.ts"
+cp "$public_build_config_path" "$public_build_config_original"
+
 preview_google_services="$test_directory/google-services.preview.json"
 production_google_services="$test_directory/google-services.production.json"
 printf '%s\n' \
@@ -18,6 +22,12 @@ printf '%s\n' \
   >"$production_google_services"
 
 bash_command="${BASH:-bash}"
+real_node="$(command -v node)"
+export REAL_NODE="$real_node"
+"$real_node" --test \
+  "$script_directory/validate-supabase-public-config.test.mjs" \
+  "$script_directory/materialize-public-build-config.test.mjs" \
+  "$script_directory/validate-ota-runtime.test.mjs"
 if ! command -v bash >/dev/null 2>&1; then
   cp "$bash_command" "$fake_bin/bash.exe"
   bash_command="$fake_bin/bash.exe"
@@ -52,6 +62,15 @@ case "$command_name" in
     bash -c "$command_string"
     ;;
   fingerprint:generate)
+    for internal_ota_variable in \
+      GONGGU_OTA_RUNTIME_VERSION \
+      GONGGU_OTA_ADMOB_MODE \
+      GONGGU_OTA_AD_REQUESTS_ENABLED; do
+      if [[ -n "${!internal_ota_variable:-}" ]]; then
+        echo "OTA overrides must not affect compatibility fingerprint generation" >&2
+        exit 1
+      fi
+    done
     printf '{"hash":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}\n'
     ;;
   build:list)
@@ -66,8 +85,52 @@ case "$command_name" in
     fi
     ;;
   update)
+    if [[ "${GONGGU_OTA_RUNTIME_VERSION:-}" != "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" ]]; then
+      echo "OTA update must reuse the verified compatible build fingerprint" >&2
+      exit 1
+    fi
+    case "${APP_VARIANT:-}" in
+      preview)
+        [[ "${GONGGU_OTA_ADMOB_MODE:-}" == "test" ]]
+        [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "true" ]]
+        ;;
+      production)
+        [[ "${GONGGU_OTA_ADMOB_MODE:-}" == "production" ]]
+        [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "false" ]]
+        ;;
+      *) echo "Unexpected app variant for EAS Update" >&2; exit 1 ;;
+    esac
+    case "${MOCK_UPDATE_OUTPUT:-valid}" in
+      valid)
+        printf '[{"platform":"android","runtimeVersion":"%s","group":"test-update-group"}]\n' \
+          "$GONGGU_OTA_RUNTIME_VERSION"
+        ;;
+      malformed) printf '{\n' ;;
+      empty) printf '[]\n' ;;
+      ios-only)
+        printf '[{"platform":"ios","runtimeVersion":"%s"}]\n' \
+          "$GONGGU_OTA_RUNTIME_VERSION"
+        ;;
+      duplicate)
+        printf '[{"platform":"android","runtimeVersion":"%s"},{"platform":"android","runtimeVersion":"%s"}]\n' \
+          "$GONGGU_OTA_RUNTIME_VERSION" "$GONGGU_OTA_RUNTIME_VERSION"
+        ;;
+      mismatch)
+        printf '[{"platform":"android","runtimeVersion":"different-runtime-version"}]\n'
+        ;;
+      *) echo "Unexpected mock update output" >&2; exit 1 ;;
+    esac
     ;;
   build)
+    for internal_ota_variable in \
+      GONGGU_OTA_RUNTIME_VERSION \
+      GONGGU_OTA_ADMOB_MODE \
+      GONGGU_OTA_AD_REQUESTS_ENABLED; do
+      if [[ -n "${!internal_ota_variable:-}" ]]; then
+        echo "OTA overrides must not affect local APK builds" >&2
+        exit 1
+      fi
+    done
     : "${GRADLE_USER_HOME:?GRADLE_USER_HOME is required for local builds}"
     grep -Fxq \
       'org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8' \
@@ -131,6 +194,77 @@ esac
 FAKE_EAS
 if command -v chmod >/dev/null 2>&1; then
   chmod +x "$fake_bin/eas"
+fi
+
+cat >"$fake_bin/npx" <<'FAKE_NPX'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ "$*" != "expo config --type public --json" ]]; then
+  echo "Unexpected npx invocation: $*" >&2
+  exit 1
+fi
+runtime="${GONGGU_OTA_RUNTIME_VERSION:-}"
+if [[ "$runtime" != "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" ]]; then
+  echo "Expo config preflight must use the compatible build fingerprint" >&2
+  exit 1
+fi
+if [[ "${EXPO_NO_DOTENV:-}" != "1" ]]; then
+  echo "Expo config preflight must ignore local dotenv files" >&2
+  exit 1
+fi
+case "${APP_VARIANT:-}" in
+  preview)
+    [[ "${EXPO_PUBLIC_ADMOB_MODE:-}" == "test" ]]
+    [[ "${EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED:-}" == "true" ]]
+    [[ "${GONGGU_OTA_ADMOB_MODE:-}" == "test" ]]
+    [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "true" ]]
+    mode="test"
+    requests_enabled="true"
+    ;;
+  production)
+    [[ "${EXPO_PUBLIC_ADMOB_MODE:-}" == "production" ]]
+    [[ "${EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED:-}" == "false" ]]
+    [[ "${GONGGU_OTA_ADMOB_MODE:-}" == "production" ]]
+    [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "false" ]]
+    mode="production"
+    requests_enabled="false"
+    ;;
+  *) echo "Unexpected app variant for Expo config preflight" >&2; exit 1 ;;
+esac
+case "${MOCK_CONFIG_OUTPUT:-valid}" in
+  valid)
+    printf '{"runtimeVersion":"%s","android":{"runtimeVersion":"%s"},"extra":{"adsMode":"%s","admobRequestsEnabled":%s}}\n' \
+      "$runtime" "$runtime" "$mode" "$requests_enabled"
+    ;;
+  malformed) printf '{\n' ;;
+  top-level-runtime-mismatch)
+    printf '{"runtimeVersion":"different-runtime-version","android":{"runtimeVersion":"%s"},"extra":{"adsMode":"%s","admobRequestsEnabled":%s}}\n' \
+      "$runtime" "$mode" "$requests_enabled"
+    ;;
+  android-runtime-mismatch)
+    printf '{"runtimeVersion":"%s","android":{"runtimeVersion":"different-runtime-version"},"extra":{"adsMode":"%s","admobRequestsEnabled":%s}}\n' \
+      "$runtime" "$mode" "$requests_enabled"
+    ;;
+  ads-mode-mismatch)
+    printf '{"runtimeVersion":"%s","android":{"runtimeVersion":"%s"},"extra":{"adsMode":"off","admobRequestsEnabled":%s}}\n' \
+      "$runtime" "$runtime" "$requests_enabled"
+    ;;
+  ads-requests-mismatch)
+    if [[ "$requests_enabled" == "true" ]]; then
+      mismatched_requests_enabled="false"
+    else
+      mismatched_requests_enabled="true"
+    fi
+    printf '{"runtimeVersion":"%s","android":{"runtimeVersion":"%s"},"extra":{"adsMode":"%s","admobRequestsEnabled":%s}}\n' \
+      "$runtime" "$runtime" "$mode" "$mismatched_requests_enabled"
+    ;;
+  *) echo "Unexpected mock config output" >&2; exit 1 ;;
+esac
+FAKE_NPX
+if command -v chmod >/dev/null 2>&1; then
+  chmod +x "$fake_bin/npx"
 fi
 
 cat >"$fake_bin/gh" <<'FAKE_GH'
@@ -220,6 +354,69 @@ if command -v chmod >/dev/null 2>&1; then
   chmod +x "$fake_bin/gh"
 fi
 
+cat >"$fake_bin/node" <<'FAKE_NODE'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ "${1:-}" == *"validate-supabase-public-config.mjs" ]]; then
+  if [[ -n "${MOCK_SUPABASE_VALIDATION_LOG:-}" ]]; then
+    printf '%s\n' "$*" >>"$MOCK_SUPABASE_VALIDATION_LOG"
+  fi
+  if [[ " $* " == *" --bundle-stdin "* ]]; then
+    cat >/dev/null
+    if [[ "${MOCK_BUNDLED_SUPABASE_VALID:-true}" != "true" ]]; then
+      echo "::error::The Android bundle Supabase configuration does not match the validated environment." >&2
+      exit 1
+    fi
+    exit 0
+  fi
+  if [[ "${MOCK_SUPABASE_KEY_VALID:-true}" != "true" ]]; then
+    echo "::error::Supabase public configuration was rejected (HTTP 401)." >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+exec "$REAL_NODE" "$@"
+FAKE_NODE
+if command -v chmod >/dev/null 2>&1; then
+  chmod +x "$fake_bin/node"
+fi
+
+cat >"$fake_bin/unzip" <<'FAKE_UNZIP'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ "${1:-}" != "-p" || "${3:-}" != "assets/index.android.bundle" ]]; then
+  echo "Unexpected unzip invocation" >&2
+  exit 1
+fi
+
+printf '%s\n' 'synthetic Android bundle'
+FAKE_UNZIP
+if command -v chmod >/dev/null 2>&1; then
+  chmod +x "$fake_bin/unzip"
+fi
+
+cat >"$fake_bin/hermesc" <<'FAKE_HERMESC'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+printf '%s\n' "$*" >>"$MOCK_HERMESC_LOG"
+if [[ "${1:-}" != "-b" || "${2:-}" != "-dump-bytecode" || ! -s "${3:-}" ]]; then
+  echo "Unexpected Hermes disassembler invocation" >&2
+  exit 1
+fi
+
+cat "$3"
+FAKE_HERMESC
+if command -v chmod >/dev/null 2>&1; then
+  chmod +x "$fake_bin/hermesc"
+fi
+
 run_deployment() {
   local name="$1"
   local ref="$2"
@@ -227,6 +424,10 @@ run_deployment() {
   local compatible_build="$4"
   local upload_fail="${5:-false}"
   local force_preview_apk="${6:-false}"
+  local supabase_key_valid="${7:-true}"
+  local bundled_supabase_valid="${8:-true}"
+  local config_output="${9:-valid}"
+  local update_output="${10:-valid}"
   local case_directory="$test_directory/$name"
   local google_services_file="$preview_google_services"
   if [[ "$ref" == "refs/heads/main" ]]; then
@@ -252,9 +453,17 @@ run_deployment() {
     MOCK_GITHUB_BASELINE="$github_baseline" \
     MOCK_COMPATIBLE_BUILD="$compatible_build" \
     MOCK_UPLOAD_FAIL="$upload_fail" \
+    MOCK_SUPABASE_KEY_VALID="$supabase_key_valid" \
+    MOCK_BUNDLED_SUPABASE_VALID="$bundled_supabase_valid" \
+    MOCK_CONFIG_OUTPUT="$config_output" \
+    MOCK_UPDATE_OUTPUT="$update_output" \
     FORCE_PREVIEW_APK="$force_preview_apk" \
     MOCK_EAS_LOG="$case_directory/eas.log" \
     MOCK_GH_LOG="$case_directory/gh.log" \
+    MOCK_SUPABASE_VALIDATION_LOG="$case_directory/supabase-validation.log" \
+    MOCK_HERMESC_LOG="$case_directory/hermesc.log" \
+    HERMESC_BINARY="$fake_bin/hermesc" \
+    REAL_NODE="$real_node" \
     "$bash_command" "$script_directory/ci-deploy-android.sh"
 }
 
@@ -280,10 +489,84 @@ grep -Fq "/actions/artifacts?name=gonggu-wish-preview-runtime-" \
 grep -Fq "/actions/runs/42" "$test_directory/preview-ota/gh.log"
 grep -Fq "run download 42" "$test_directory/preview-ota/gh.log"
 grep -Fq "/actions/artifacts/456" "$test_directory/preview-ota/gh.log"
+grep -Fq "validate-supabase-public-config.mjs" \
+  "$test_directory/preview-ota/supabase-validation.log"
 assert_eas_commands "preview-ota" "fingerprint:generate update"
 if grep -Eq "build:list|build --platform|upload --platform" \
   "$test_directory/preview-ota/eas.log"; then
   echo "Preview OTA unexpectedly used an EAS build record" >&2
+  exit 1
+fi
+
+for config_output in \
+  malformed \
+  top-level-runtime-mismatch \
+  android-runtime-mismatch \
+  ads-mode-mismatch \
+  ads-requests-mismatch; do
+  case_name="preview-ota-config-$config_output"
+  if run_deployment \
+    "$case_name" \
+    "refs/heads/develop" \
+    "trusted" \
+    "false" \
+    "false" \
+    "false" \
+    "true" \
+    "true" \
+    "$config_output"; then
+    echo "An invalid Expo config runtime unexpectedly published an OTA" >&2
+    exit 1
+  fi
+  assert_eas_commands "$case_name" "fingerprint:generate"
+  [[ ! -s "$test_directory/$case_name/output" ]]
+done
+
+for update_output in malformed empty ios-only duplicate mismatch; do
+  case_name="preview-ota-update-$update_output"
+  if run_deployment \
+    "$case_name" \
+    "refs/heads/develop" \
+    "trusted" \
+    "false" \
+    "false" \
+    "false" \
+    "true" \
+    "true" \
+    "valid" \
+    "$update_output"; then
+    echo "An invalid EAS Update response unexpectedly passed validation" >&2
+    exit 1
+  fi
+  assert_eas_commands "$case_name" "fingerprint:generate update"
+  [[ ! -s "$test_directory/$case_name/output" ]]
+done
+
+if EXPO_PUBLIC_ADMOB_MODE="production" \
+  EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED="false" \
+  run_deployment \
+    "preview-conflicting-eas-environment" \
+    "refs/heads/develop" \
+    "trusted" \
+    "false"; then
+  echo "A conflicting Preview EAS environment unexpectedly passed validation" >&2
+  exit 1
+fi
+[[ ! -s "$test_directory/preview-conflicting-eas-environment/eas.log" ]]
+
+if run_deployment \
+  "preview-invalid-supabase-key" \
+  "refs/heads/develop" \
+  "trusted" \
+  "false" \
+  "false" \
+  "false" \
+  "false"; then
+  echo "A revoked Preview Supabase key unexpectedly passed validation" >&2
+  exit 1
+fi
+if [[ -s "$test_directory/preview-invalid-supabase-key/eas.log" ]]; then
+  echo "A revoked Preview Supabase key reached EAS deployment" >&2
   exit 1
 fi
 
@@ -297,9 +580,34 @@ run_deployment \
 grep -Fxq "mode=build" "$test_directory/preview-forced-build/output"
 grep -Fq "build --platform android --profile preview --local" \
   "$test_directory/preview-forced-build/eas.log"
+grep -Fq -- "--bundle-stdin" \
+  "$test_directory/preview-forced-build/supabase-validation.log"
+grep -Fq -- "-b -dump-bytecode" \
+  "$test_directory/preview-forced-build/hermesc.log"
 assert_eas_commands "preview-forced-build" "fingerprint:generate build"
 if [[ -s "$test_directory/preview-forced-build/gh.log" ]]; then
   echo "Forced Preview APK build unexpectedly queried an existing baseline" >&2
+  exit 1
+fi
+
+if run_deployment \
+  "preview-stale-bundled-supabase" \
+  "refs/heads/develop" \
+  "trusted" \
+  "false" \
+  "false" \
+  "true" \
+  "true" \
+  "false"; then
+  echo "A stale bundled Preview Supabase key unexpectedly passed validation" >&2
+  exit 1
+fi
+grep -Fq "build --platform android --profile preview --local" \
+  "$test_directory/preview-stale-bundled-supabase/eas.log"
+grep -Fq -- "--bundle-stdin" \
+  "$test_directory/preview-stale-bundled-supabase/supabase-validation.log"
+if [[ -s "$test_directory/preview-stale-bundled-supabase/output" ]]; then
+  echo "A stale bundled key unexpectedly published deployment outputs" >&2
   exit 1
 fi
 
@@ -533,6 +841,21 @@ if GITHUB_REF="refs/heads/feature" \
   exit 1
 fi
 
+leaked_runtime_directory="$test_directory/leaked-runtime"
+mkdir -p "$leaked_runtime_directory/runner"
+if PATH="$fake_bin:$PATH" \
+  GITHUB_REF="refs/heads/develop" \
+  GITHUB_OUTPUT="$leaked_runtime_directory/output" \
+  GITHUB_STEP_SUMMARY="$leaked_runtime_directory/summary" \
+  RUNNER_TEMP="$leaked_runtime_directory/runner" \
+  GONGGU_OTA_RUNTIME_VERSION="0123456789abcdef0123456789abcdef" \
+  MOCK_EAS_LOG="$leaked_runtime_directory/eas.log" \
+  "$bash_command" "$script_directory/ci-deploy-android.sh" >/dev/null 2>&1; then
+  echo "A persistent OTA runtime override unexpectedly passed validation" >&2
+  exit 1
+fi
+[[ ! -s "$leaked_runtime_directory/eas.log" ]]
+
 missing_env_directory="$test_directory/missing-env"
 mkdir -p "$missing_env_directory/runner"
 if PATH="$fake_bin:$PATH" \
@@ -587,6 +910,11 @@ if PATH="$fake_bin:$PATH" \
   MOCK_EAS_LOG="$mismatched_firebase_directory/eas.log" \
   "$bash_command" "$script_directory/ci-deploy-android.sh" >/dev/null 2>&1; then
   echo "Mismatched Firebase package unexpectedly passed validation" >&2
+  exit 1
+fi
+
+if ! cmp -s "$public_build_config_original" "$public_build_config_path"; then
+  echo "Deployment tests did not restore the public build configuration template" >&2
   exit 1
 fi
 
