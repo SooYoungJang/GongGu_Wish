@@ -1,9 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { configureSupabase, getSupabase } from '../lib/supabase';
+import {
+  configureSupabase,
+  getSupabase,
+  syncSupabaseAuthAutoRefresh,
+} from '../lib/supabase';
 
-const { createClientMock } = vi.hoisted(() => ({
-  createClientMock: vi.fn(() => ({ auth: {} })),
-}));
+const { createClientMock, startAutoRefreshMock, stopAutoRefreshMock } = vi.hoisted(
+  () => ({
+    startAutoRefreshMock: vi.fn(),
+    stopAutoRefreshMock: vi.fn(),
+    createClientMock: vi.fn(() => ({
+      auth: {
+        startAutoRefresh: startAutoRefreshMock,
+        stopAutoRefresh: stopAutoRefreshMock,
+      },
+    })),
+  }),
+);
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: createClientMock,
@@ -36,5 +49,18 @@ describe('Supabase client', () => {
     const client1 = configureSupabase('test-anon-key');
     const client2 = configureSupabase('test-another-key');
     expect(client1).toBe(client2);
+  });
+
+  it('runs Supabase auth refresh only while the native app is active', async () => {
+    startAutoRefreshMock.mockReset().mockResolvedValue(undefined);
+    stopAutoRefreshMock.mockReset().mockResolvedValue(undefined);
+    configureSupabase('test-anon-key');
+
+    await syncSupabaseAuthAutoRefresh('active', 'android');
+    await syncSupabaseAuthAutoRefresh('background', 'android');
+    await syncSupabaseAuthAutoRefresh('active', 'web');
+
+    expect(startAutoRefreshMock).toHaveBeenCalledTimes(1);
+    expect(stopAutoRefreshMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -45,7 +45,10 @@ import { AudienceProvider, useAudience } from "./audience/AudienceContext";
 import { RestrictedAudienceCleanupBridge } from "./audience/RestrictedAudienceCleanupBridge";
 import type { MainTabParamList, RootStackParamList } from "./types";
 import { configurePostgrest } from "./lib/postgrest-client";
-import { configureSupabase } from "./lib/supabase";
+import {
+  configureSupabase,
+  syncSupabaseAuthAutoRefresh,
+} from "./lib/supabase";
 import {
   resolveDataApiUrl,
   resolveSupabaseAnonKey,
@@ -383,10 +386,18 @@ function QueryRuntimeBridge() {
   useEffect(() => {
     configureQueryOnlineManager();
     const lifecycle = createMobileQueryRuntimeLifecycle();
-    void lifecycle.sync(AppState.currentState);
-    const subscription = AppState.addEventListener("change", (status) => {
+    const syncRuntime = (status: Parameters<typeof lifecycle.sync>[0]) => {
+      void syncSupabaseAuthAutoRefresh(status).catch((error) => {
+        console.warn({
+          event: "supabase_auth_refresh_lifecycle_failed",
+          errorName: error instanceof Error ? error.name : typeof error,
+        });
+      });
       void lifecycle.sync(status);
-    });
+    };
+
+    syncRuntime(AppState.currentState);
+    const subscription = AppState.addEventListener("change", syncRuntime);
     return () => {
       lifecycle.dispose();
       subscription.remove();

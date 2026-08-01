@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform, type AppStateStatus } from 'react-native';
 
 import { resolveSupabaseUrl } from './supabase-config';
 
@@ -35,4 +36,24 @@ export function getSupabase(): SupabaseClient {
     );
   }
   return _supabase;
+}
+
+/** Returns the singleton when initialized without throwing during early startup. */
+export function getSupabaseIfConfigured(): SupabaseClient | null {
+  return _supabase;
+}
+
+/** Keep Supabase's token refresh loop scoped to foreground native usage. */
+export async function syncSupabaseAuthAutoRefresh(
+  status: AppStateStatus,
+  platform: typeof Platform.OS = Platform.OS,
+): Promise<void> {
+  if (platform === 'web') return;
+
+  const supabase = getSupabase();
+  if (status === 'active') {
+    await supabase.auth.startAutoRefresh();
+  } else {
+    await supabase.auth.stopAutoRefresh();
+  }
 }

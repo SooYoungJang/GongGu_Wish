@@ -2,11 +2,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { callEdgeFunction, configurePostgrest, postgrestFetch } from './postgrest-client';
 
+const tokenSourceMocks = vi.hoisted(() => ({
+  client: null as any,
+  getStoredAuthToken: vi.fn(),
+}));
+
+vi.mock('./supabase', () => ({
+  getSupabaseIfConfigured: () => tokenSourceMocks.client,
+}));
+
+vi.mock('../utils/auth', () => ({
+  getAuthToken: tokenSourceMocks.getStoredAuthToken,
+}));
+
 const originalFetch = global.fetch;
 
 describe('postgrestFetch diagnostics', () => {
   beforeEach(() => {
     configurePostgrest('sb_publishable_1234567890');
+    tokenSourceMocks.client = null;
+    tokenSourceMocks.getStoredAuthToken.mockReset().mockResolvedValue(null);
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
   });
 
@@ -87,5 +102,80 @@ describe('postgrestFetch diagnostics', () => {
         method: 'GET',
       }),
     );
+  });
+
+  it('uses the current Supabase session token instead of a stale stored mirror', async () => {
+    tokenSourceMocks.getStoredAuthToken.mockResolvedValue('stored-stale-token');
+    tokenSourceMocks.client = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { access_token: 'current-session-token' } },
+          error: null,
+        }),
+      },
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue([]),
+    }) as unknown as typeof fetch;
+
+    await postgrestFetch('group_buys?select=id');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer current-session-token',
+        }),
+      }),
+    );
+    expect(tokenSourceMocks.getStoredAuthToken).not.toHaveBeenCalled();
+  });
+
+  it('omits authorization when the configured Supabase client has no session', async () => {
+    tokenSourceMocks.getStoredAuthToken.mockResolvedValue('stored-stale-token');
+    tokenSourceMocks.client = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: null },
+          error: null,
+        }),
+      },
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue([]),
+    }) as unknown as typeof fetch;
+
+    await postgrestFetch('group_buys?select=id');
+
+    const request = vi.mocked(global.fetch).mock.calls[0][1];
+    expect(request?.headers).not.toHaveProperty('Authorization');
+    expect(tokenSourceMocks.getStoredAuthToken).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back to a stale stored token when session refresh fails', async () => {
+    tokenSourceMocks.getStoredAuthToken.mockResolvedValue('stored-stale-token');
+    tokenSourceMocks.client = {
+      auth: {
+        getSession: vi.fn().mockRejectedValue(new Error('session refresh failed')),
+      },
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue([]),
+    }) as unknown as typeof fetch;
+
+    await postgrestFetch('group_buys?select=id');
+
+    const request = vi.mocked(global.fetch).mock.calls[0][1];
+    expect(request?.headers).not.toHaveProperty('Authorization');
+    expect(tokenSourceMocks.getStoredAuthToken).not.toHaveBeenCalled();
   });
 });
