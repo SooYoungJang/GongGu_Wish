@@ -912,7 +912,7 @@ describe('MyPageScreen', () => {
     expect(alertMocks.alert).not.toHaveBeenCalled();
   });
 
-  it('places account deletion at the bottom and asks for confirmation', async () => {
+  it('deletes the account only after explicit destructive confirmation', async () => {
     authMocks.session = {
       access_token: 'access-token',
       user: {
@@ -938,14 +938,33 @@ describe('MyPageScreen', () => {
       deleteButton.props.onPress();
     });
 
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(authMocks.signOut).not.toHaveBeenCalled();
+    expect(navigationMocks.goBack).not.toHaveBeenCalled();
+    expect(alertMocks.alert).toHaveBeenCalledOnce();
     expect(alertMocks.alert).toHaveBeenCalledWith(
-      '회원탈퇴',
-      expect.stringContaining('복구할 수 없어요'),
-      expect.any(Array),
+      '회원 탈퇴',
+      '정말 탈퇴하시겠습니까?\n탈퇴하면 계정과 저장된 활동 데이터가 삭제되며 복구할 수 없습니다.',
+      [
+        { text: '취소', style: 'cancel' },
+        expect.objectContaining({
+          text: '탈퇴하기',
+          style: 'destructive',
+          onPress: expect.any(Function),
+        }),
+      ],
     );
     const options = alertMocks.alert.mock.calls.at(-1)?.[2] as Array<{
+      text: string;
+      style: string;
       onPress?: () => void;
     }>;
+
+    expect(options[0]?.onPress).toBeUndefined();
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(authMocks.signOut).not.toHaveBeenCalled();
+    expect(navigationMocks.goBack).not.toHaveBeenCalled();
+
     act(() => {
       options[1]?.onPress?.();
     });
@@ -954,7 +973,10 @@ describe('MyPageScreen', () => {
       await Promise.resolve();
     });
 
+    expect(deleteSpy).toHaveBeenCalledOnce();
     expect(deleteSpy).toHaveBeenCalledWith('access-token');
+    expect(authMocks.signOut).toHaveBeenCalledOnce();
+    expect(navigationMocks.goBack).toHaveBeenCalledOnce();
     deleteSpy.mockRestore();
   });
 });

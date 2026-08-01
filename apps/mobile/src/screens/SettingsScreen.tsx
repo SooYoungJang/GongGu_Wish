@@ -314,12 +314,12 @@ export function SettingsScreen() {
     if (!user || deleting) return;
 
     Alert.alert(
-      "회원탈퇴",
-      "계정과 저장된 활동 데이터가 삭제되며 복구할 수 없어요. 정말 탈퇴할까요?",
+      "회원 탈퇴",
+      "정말 탈퇴하시겠습니까?\n탈퇴하면 계정과 저장된 활동 데이터가 삭제되며 복구할 수 없습니다.",
       [
         { text: "취소", style: "cancel" },
         {
-          text: "회원탈퇴",
+          text: "탈퇴하기",
           style: "destructive",
           onPress: () => void performAccountDeletion(),
         },
