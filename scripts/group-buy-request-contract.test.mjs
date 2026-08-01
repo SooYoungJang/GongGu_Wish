@@ -136,6 +136,33 @@ test("group-buy requests expose only bounded RPC contracts", () => {
   );
 });
 
+test("group-buy request product names use the shared 200-character safety cap", () => {
+  const migration = read(
+    "supabase/migrations/20260801000002_expand_group_buy_request_product_name.sql",
+  );
+
+  assert.match(
+    migration,
+    /DROP CONSTRAINT group_buy_requests_product_name_length_check/,
+  );
+  assert.match(
+    migration,
+    /ADD CONSTRAINT group_buy_requests_product_name_length_check/,
+  );
+  assert.match(
+    migration,
+    /CHECK \(char_length\(product_name\) BETWEEN 2 AND 200\)/,
+  );
+  assert.match(
+    migration,
+    /char_length\(v_product_name\) NOT BETWEEN 2 AND 200/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /char_length\(v_product_name\) NOT BETWEEN 2 AND 60/,
+  );
+});
+
 test("group-buy request Edge intake owns trusted identity derivation", () => {
   const edgeFunction = read("supabase/functions/group-buy-request/index.ts");
   const mobileApi = read("apps/mobile/src/features/groupBuyRequests/api.ts");

@@ -381,6 +381,38 @@ describe('SearchScreen redesign', () => {
 	    expect(mocks.navigate).toHaveBeenCalledWith('Detail', { groupBuy: mocks.groupBuy });
 	  });
 
+	  it('waits 250ms after typing before updating search results', async () => {
+	    vi.useFakeTimers();
+	    try {
+	      mocks.groupBuys = [];
+	      mocks.influencers = [];
+	      const renderer = await renderSearchScreen();
+	      const input = renderer.root.findByProps({ accessibilityLabel: '공구 검색' });
+
+	      act(() => {
+	        input.props.onChangeText('없는 공구');
+	      });
+	      await act(async () => {
+	        await vi.advanceTimersByTimeAsync(249);
+	      });
+
+	      expect(
+	        renderer.root.findAllByProps({ accessibilityLabel: '없는 공구 공구 요청하기' }),
+	      ).toHaveLength(0);
+
+	      await act(async () => {
+	        await vi.advanceTimersByTimeAsync(1);
+	      });
+
+	      expect(
+	        renderer.root.findByProps({ accessibilityLabel: '없는 공구 공구 요청하기' }),
+	      ).toBeTruthy();
+	    } finally {
+	      vi.clearAllTimers();
+	      vi.useRealTimers();
+	    }
+	  });
+
 	  it('does not accumulate a missing search until the request button is pressed', async () => {
 	    mocks.groupBuys = [];
 	    mocks.influencers = [];
@@ -404,6 +436,28 @@ describe('SearchScreen redesign', () => {
 	    expect(flattenText(renderer.toJSON())).not.toContain(
 	      '브랜드명, 제품명 또는 인플루언서 username을 다시 확인해 주세요.',
 	    );
+	    expect(flattenText(renderer.toJSON())).not.toContain(
+	      '로그인하지 않아도 최근 한 달 요청에 반영돼요.',
+	    );
+	  });
+
+	  it('asks only for a product name of at least two characters', async () => {
+	    mocks.groupBuys = [];
+	    mocks.influencers = [];
+	    const renderer = await renderSearchScreen();
+	    const input = renderer.root.findByProps({ accessibilityLabel: '공구 검색' });
+	    expect(input.props.maxLength).toBe(200);
+
+	    act(() => {
+	      input.props.onChangeText('가');
+	    });
+	    await act(async () => {
+	      await new Promise((resolve) => setTimeout(resolve, 300));
+	    });
+
+	    const text = flattenText(renderer.toJSON());
+	    expect(text).toContain('상품명은 2자 이상으로 입력해 주세요.');
+	    expect(text).not.toContain('60자 이하');
 	  });
 
 	  it('submits a missing group-buy request and refreshes the monthly ranking', async () => {
@@ -469,6 +523,16 @@ describe('SearchScreen redesign', () => {
 	    expect(renderer.root.findByProps({
 	      accessibilityLabel: '홈에서 선택한 공구 공구 요청하기',
 	    })).toBeTruthy();
+	  });
+
+	  it('caps a programmatic search prefill at the shared product-name limit', async () => {
+	    const overlongQuery = '가'.repeat(201);
+	    mocks.routeParams = { initialQuery: overlongQuery };
+	    const renderer = await renderSearchScreen();
+	    const input = renderer.root.findByProps({ accessibilityLabel: '공구 검색' });
+
+	    expect(input.props.value).toBe('가'.repeat(200));
+	    expect(input.props.maxLength).toBe(200);
 	  });
 
 	  it('keeps server-distinct spacing variants as separate request states', async () => {

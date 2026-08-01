@@ -33,8 +33,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 const RECENT_MAX = 10;
 const DEFAULT_RECENT_TERM = '가방';
+const SEARCH_QUERY_DEBOUNCE_MS = 250;
 const REQUEST_PRODUCT_NAME_MIN_LENGTH = 2;
-const REQUEST_PRODUCT_NAME_MAX_LENGTH = 60;
+const REQUEST_PRODUCT_NAME_MAX_LENGTH = 200;
 
 type RequestFeedback = {
   requestKey: string;
@@ -122,17 +123,19 @@ export function SearchScreen() {
   const requestMutation = useMutation({ mutationFn: requestGroupBuy });
 
   useEffect(() => {
-    const initialQuery = route.params?.initialQuery?.trim();
+    const initialQuery = route.params?.initialQuery
+      ?.trim()
+      .slice(0, REQUEST_PRODUCT_NAME_MAX_LENGTH);
     if (!initialQuery) return;
     setQuery(initialQuery);
     setRequestFeedback(null);
     setRequestError(null);
   }, [route.params?.initialQuery]);
 
-  // Debounce: 검색은 유저가 입력을 멈춘 뒤 150ms 후에 실행
+  // Debounce: 검색은 유저가 입력을 멈춘 뒤 250ms 후에 실행
   const [debouncedQuery, setDebouncedQuery] = useState('');
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), 150);
+    const t = setTimeout(() => setDebouncedQuery(query), SEARCH_QUERY_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -273,12 +276,32 @@ export function SearchScreen() {
     requestError?.requestKey === requestStateKey
       ? requestError.message
       : null;
+  let requestHint: string | null = null;
+  if (!audiencePolicy.canRecordBehaviorSignals) {
+    requestHint = '현재 이용 모드에서는 공구 요청을 사용할 수 없어요.';
+  } else if (requestProductName.length < REQUEST_PRODUCT_NAME_MIN_LENGTH) {
+    requestHint = '상품명은 2자 이상으로 입력해 주세요.';
+  } else if (requestProductName.length > REQUEST_PRODUCT_NAME_MAX_LENGTH) {
+    requestHint = '상품명을 조금 더 짧게 입력해 주세요.';
+  } else if (currentRequestError) {
+    requestHint = currentRequestError;
+  } else if (currentRequestFeedback?.alreadyRequested) {
+    requestHint = '최근 한 달 요청에 이미 반영된 공구예요.';
+  } else if (currentRequestFeedback?.rankingEligible) {
+    requestHint = '최근 한 달 홈 순위 후보에 반영됐어요.';
+  } else if (currentRequestFeedback) {
+    requestHint = '요청 2건부터 홈 순위 후보에 표시돼요.';
+  }
   const recentTerms = useMemo(() => recent.slice(0, RECENT_MAX), [recent]);
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const handleSubmit = useCallback(() => {
     saveRecent(query);
   }, [query, saveRecent]);
+
+  const handleChangeQuery = useCallback((text: string) => {
+    setQuery(text.slice(0, REQUEST_PRODUCT_NAME_MAX_LENGTH));
+  }, []);
 
   const handleSelectInfluencer = useCallback((inf: Influencer) => {
     saveRecent(inf.instagramUsername);
@@ -373,7 +396,8 @@ export function SearchScreen() {
             placeholder="상품을 검색해보세요"
             placeholderTextColor={colors.weak}
             value={query}
-            onChangeText={setQuery}
+            maxLength={REQUEST_PRODUCT_NAME_MAX_LENGTH}
+            onChangeText={handleChangeQuery}
             onSubmitEditing={handleSubmit}
             returnKeyType="search"
             autoCapitalize="none"
@@ -448,28 +472,18 @@ export function SearchScreen() {
                     <SText variant="label" style={s.requestTitle}>
                       찾는 공구가 아직 없나요?
                     </SText>
-                    <SText
-                      variant="body"
-                      style={[
-                        s.requestHint,
-                        currentRequestError && s.requestError,
-                        currentRequestFeedback && s.requestSuccess,
-                      ]}
-                    >
-                      {!audiencePolicy.canRecordBehaviorSignals
-                        ? '현재 이용 모드에서는 공구 요청을 사용할 수 없어요.'
-                        : !isRequestNameValid
-                          ? '상품명은 2자 이상 60자 이하로 입력해 주세요.'
-                          : currentRequestError
-                            ? currentRequestError
-                            : currentRequestFeedback?.alreadyRequested
-                              ? '최근 한 달 요청에 이미 반영된 공구예요.'
-                              : currentRequestFeedback?.rankingEligible
-                                ? '최근 한 달 홈 순위 후보에 반영됐어요.'
-                                : currentRequestFeedback
-                                  ? '요청 2건부터 홈 순위 후보에 표시돼요.'
-                                  : '로그인하지 않아도 최근 한 달 요청에 반영돼요.'}
-                    </SText>
+                    {requestHint ? (
+                      <SText
+                        variant="body"
+                        style={[
+                          s.requestHint,
+                          currentRequestError && s.requestError,
+                          currentRequestFeedback && s.requestSuccess,
+                        ]}
+                      >
+                        {requestHint}
+                      </SText>
+                    ) : null}
                     <Pressable
                       accessible
                       accessibilityLabel={`${requestProductName} 공구 요청하기`}
