@@ -631,35 +631,53 @@ describeLocal.sequential("group-buy request database contracts", () => {
       `s_${suffix}_admin_user`,
       userAccessToken,
     );
-    await requestGroupBuy(productName, `s_${suffix}_admin_guest`);
+    await requestGroupBuy(productName, `s_${suffix}_admin_duplicate_user`);
+    await requestGroupBuy(productName, `s_${suffix}_admin_current_guest`);
+    await requestGroupBuy(productName, `s_${suffix}_admin_expired_guest`);
     const expiredAt = new Date(
       Date.now() - 31 * 24 * 60 * 60 * 1000,
     ).toISOString();
-    const insertedDuplicates = await requestJson(
+    const participationRows = await requestJson<
+      Array<{ id: string; requested_at: string; user_id: string | null }>
+    >(
       config,
-      "/rest/v1/group_buy_request_participations",
+      `/rest/v1/group_buy_request_participations?request_id=eq.${first[0].request_id}&select=id,requested_at,user_id&order=requested_at.asc`,
       {
-        body: [
-          {
-            request_id: first[0].request_id,
-            user_id: userId,
-            session_hashes: [`\\x${"a".repeat(64)}`],
-            ip_hash: `\\x${"b".repeat(64)}`,
-          },
-          {
-            request_id: first[0].request_id,
-            user_id: null,
-            session_hashes: [`\\x${"c".repeat(64)}`],
-            ip_hash: `\\x${"d".repeat(64)}`,
-            requested_at: expiredAt,
-          },
-        ],
-        headers: { Prefer: "return=minimal" },
         key: config.serviceRoleKey,
-        method: "POST",
       },
     );
-    expect(insertedDuplicates.ok).toBe(true);
+    expect(
+      participationRows.ok,
+      JSON.stringify(participationRows.payload),
+    ).toBe(true);
+    const guestRows = participationRows.payload.filter(
+      (row) => row.user_id === null,
+    );
+    expect(guestRows).toHaveLength(3);
+
+    const duplicateUser = await requestJson(
+      config,
+      `/rest/v1/group_buy_request_participations?id=eq.${guestRows[0].id}`,
+      {
+        body: { user_id: userId },
+        headers: { Prefer: "return=minimal" },
+        key: config.serviceRoleKey,
+        method: "PATCH",
+      },
+    );
+    expect(duplicateUser.ok, JSON.stringify(duplicateUser.payload)).toBe(true);
+
+    const expiredGuest = await requestJson(
+      config,
+      `/rest/v1/group_buy_request_participations?id=eq.${guestRows[2].id}`,
+      {
+        body: { requested_at: expiredAt },
+        headers: { Prefer: "return=minimal" },
+        key: config.serviceRoleKey,
+        method: "PATCH",
+      },
+    );
+    expect(expiredGuest.ok, JSON.stringify(expiredGuest.payload)).toBe(true);
 
     const params = {
       p_page: 1,
