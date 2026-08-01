@@ -71,8 +71,8 @@ import {
 } from "./navigation/tabBarVisibility";
 import {
   configureQueryOnlineManager,
+  createMobileQueryRuntimeLifecycle,
   mobileQueryClient,
-  syncQueryFocus,
 } from "./lib/query-client";
 import { notificationLinking } from "./navigation/notificationLinking";
 import { publicBuildConfig } from "./lib/public-build-config";
@@ -382,9 +382,15 @@ function MainTabs() {
 function QueryRuntimeBridge() {
   useEffect(() => {
     configureQueryOnlineManager();
-    syncQueryFocus(AppState.currentState);
-    const subscription = AppState.addEventListener("change", syncQueryFocus);
-    return () => subscription.remove();
+    const lifecycle = createMobileQueryRuntimeLifecycle();
+    void lifecycle.sync(AppState.currentState);
+    const subscription = AppState.addEventListener("change", (status) => {
+      void lifecycle.sync(status);
+    });
+    return () => {
+      lifecycle.dispose();
+      subscription.remove();
+    };
   }, []);
 
   return null;
