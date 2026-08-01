@@ -91,10 +91,36 @@ export function parseContentRange(
 // ─── Auth Token ──────────────────────────────────────────────────────────────
 
 /**
- * Get the auth token from secure storage.
- * Delegates to auth utility to avoid circular imports.
+ * Resolve the request token from Supabase's live session so an expired token
+ * is refreshed before the request starts. SecureStore remains a startup
+ * fallback only until the Supabase singleton has been configured.
  */
 async function getAuthToken(): Promise<string | null> {
+  let getSupabaseIfConfigured: typeof import('./supabase').getSupabaseIfConfigured;
+  try {
+    ({ getSupabaseIfConfigured } = await import('./supabase'));
+  } catch {
+    return null;
+  }
+
+  let supabase;
+  try {
+    supabase = getSupabaseIfConfigured();
+  } catch {
+    return null;
+  }
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) return null;
+      return data.session?.access_token ?? null;
+    } catch {
+      // Never reuse a stale mirrored token after a session refresh failure.
+      return null;
+    }
+  }
+
   try {
     const { getAuthToken } = await import('../utils/auth');
     return getAuthToken();

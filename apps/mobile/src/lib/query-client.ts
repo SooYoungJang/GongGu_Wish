@@ -68,6 +68,52 @@ export function syncQueryFocus(
   }
 }
 
+interface MobileQueryRuntimeLifecycleOptions {
+  platform?: typeof Platform.OS;
+  refreshNetwork?: typeof NetInfo.refresh;
+}
+
+/**
+ * Coordinates React Native AppState with connectivity refreshes so resumed
+ * queries do not run against a network state cached before suspension.
+ */
+export function createMobileQueryRuntimeLifecycle({
+  platform = Platform.OS,
+  refreshNetwork = NetInfo.refresh,
+}: MobileQueryRuntimeLifecycleOptions = {}) {
+  let generation = 0;
+  let disposed = false;
+
+  return {
+    async sync(status: AppStateStatus): Promise<void> {
+      const currentGeneration = ++generation;
+      if (disposed || platform === "web") return;
+
+      if (status !== "active") {
+        focusManager.setFocused(false);
+        return;
+      }
+
+      focusManager.setFocused(false);
+      try {
+        const state = await refreshNetwork();
+        if (disposed || currentGeneration !== generation) return;
+        onlineManager.setOnline(state.isConnected === true);
+      } catch {
+        // Focus still needs to recover if the native reachability probe fails.
+      } finally {
+        if (!disposed && currentGeneration === generation) {
+          focusManager.setFocused(true);
+        }
+      }
+    },
+    dispose(): void {
+      disposed = true;
+      generation += 1;
+    },
+  };
+}
+
 // React Native does not provide browser online/offline events, so TanStack
 // Query needs the native connection state to drive refetchOnReconnect.
 // Source: https://tanstack.com/query/latest/docs/framework/react/react-native#online-status-management

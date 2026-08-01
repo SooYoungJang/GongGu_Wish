@@ -45,7 +45,10 @@ import { AudienceProvider, useAudience } from "./audience/AudienceContext";
 import { RestrictedAudienceCleanupBridge } from "./audience/RestrictedAudienceCleanupBridge";
 import type { MainTabParamList, RootStackParamList } from "./types";
 import { configurePostgrest } from "./lib/postgrest-client";
-import { configureSupabase } from "./lib/supabase";
+import {
+  configureSupabase,
+  syncSupabaseAuthAutoRefresh,
+} from "./lib/supabase";
 import {
   resolveDataApiUrl,
   resolveSupabaseAnonKey,
@@ -71,8 +74,8 @@ import {
 } from "./navigation/tabBarVisibility";
 import {
   configureQueryOnlineManager,
+  createMobileQueryRuntimeLifecycle,
   mobileQueryClient,
-  syncQueryFocus,
 } from "./lib/query-client";
 import { notificationLinking } from "./navigation/notificationLinking";
 import { publicBuildConfig } from "./lib/public-build-config";
@@ -382,9 +385,23 @@ function MainTabs() {
 function QueryRuntimeBridge() {
   useEffect(() => {
     configureQueryOnlineManager();
-    syncQueryFocus(AppState.currentState);
-    const subscription = AppState.addEventListener("change", syncQueryFocus);
-    return () => subscription.remove();
+    const lifecycle = createMobileQueryRuntimeLifecycle();
+    const syncRuntime = (status: Parameters<typeof lifecycle.sync>[0]) => {
+      void syncSupabaseAuthAutoRefresh(status).catch((error) => {
+        console.warn({
+          event: "supabase_auth_refresh_lifecycle_failed",
+          errorName: error instanceof Error ? error.name : typeof error,
+        });
+      });
+      void lifecycle.sync(status);
+    };
+
+    syncRuntime(AppState.currentState);
+    const subscription = AppState.addEventListener("change", syncRuntime);
+    return () => {
+      lifecycle.dispose();
+      subscription.remove();
+    };
   }, []);
 
   return null;
