@@ -30,8 +30,12 @@ import {
   prunePastReminderDays,
 } from "../services/groupBuyReminderPreference";
 import type { GroupBuy } from "../types";
+import {
+  BOOKMARK_STORAGE_KEY,
+  clearBookmarkStore,
+  useBookmarkStore,
+} from "./bookmarkStore";
 
-const BOOKMARK_KEY = "@gonggu/bookmarks/v1";
 const RECENT_KEY = "@gonggu/recent-views/v1";
 const NOTI_KEY = "@gonggu/notifications/v1";
 const NOTI_KEY_PREFIX = "@gonggu/notifications/v2";
@@ -326,6 +330,7 @@ function needsStoredDealHydration(item: StoredGroupBuy) {
 async function hydrateStoredDeals(
   key: string,
   items: StoredGroupBuy[],
+  persist = true,
 ): Promise<StoredGroupBuy[]> {
   const ids = [
     ...new Set(items.filter(needsStoredDealHydration).map((item) => item.id)),
@@ -339,11 +344,22 @@ async function hydrateStoredDeals(
     return fresh ? toStored(fresh) : item;
   });
 
-  if (next.some((item, index) => item !== items[index])) {
+  if (persist && next.some((item, index) => item !== items[index])) {
     await writeJSON(key, next);
   }
   return next;
 }
+
+async function hydrateBookmarkEntries(
+  entries: StoredGroupBuy[],
+): Promise<StoredGroupBuy[]> {
+  return hydrateStoredDeals(BOOKMARK_STORAGE_KEY, entries, false);
+}
+
+const BOOKMARK_STORE_DEPENDENCIES = {
+  hydrateStored: hydrateBookmarkEntries,
+  toStored,
+};
 
 function needsNotificationHydration(entry: NotificationEntry) {
   return (
@@ -1239,6 +1255,7 @@ async function rescheduleNotification(
 export async function clearLocalUserData(
   namespace = GUEST_NAMESPACE,
 ): Promise<void> {
+  await clearBookmarkStore();
   await notificationRefreshes.get(namespace)?.catch(() => undefined);
   await notificationOperations.get(namespace)?.catch(() => undefined);
   await notificationMirrorOperations.get(namespace)?.catch(() => undefined);
@@ -1266,85 +1283,21 @@ export async function clearLocalUserData(
 
   await Promise.all([
     clearRecentViewsStore(),
-    ...[
-      BOOKMARK_KEY,
-      RECENT_SEARCH_STORAGE_KEY,
-      ...notificationKeys,
-      WISH_ITEM_KEY,
-    ].map(async (key) => {
-      try {
-        await AsyncStorage.removeItem(key);
-      } catch {
-        // Local storage cleanup is best-effort after the server deletion.
-      }
-    }),
+    ...[RECENT_SEARCH_STORAGE_KEY, ...notificationKeys, WISH_ITEM_KEY].map(
+      async (key) => {
+        try {
+          await AsyncStorage.removeItem(key);
+        } catch {
+          // Local storage cleanup is best-effort after the server deletion.
+        }
+      },
+    ),
   ]);
   publishNotifications(namespace, []);
 }
 
 export function useBookmarks() {
-  const [bookmarks, setBookmarks] = useState<StoredGroupBuy[]>([]);
-  const [ready, setReady] = useState(false);
-
-  const refresh = useCallback(() => {
-    if (!canRecordBehaviorSignals()) {
-      setBookmarks([]);
-      setReady(true);
-      return;
-    }
-
-    readJSON<StoredGroupBuy[]>(BOOKMARK_KEY, []).then(async (value) => {
-      const hydrated = await hydrateStoredDeals(BOOKMARK_KEY, value);
-      setBookmarks(hydrated);
-      setReady(true);
-    });
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  const isBookmarked = useCallback(
-    (id: string) => bookmarks.some((item) => item.id === id),
-    [bookmarks],
-  );
-
-  const toggleBookmark = useCallback((item: GroupBuy) => {
-    if (!canRecordBehaviorSignals()) return;
-    const isCurrentlyBookmarked = bookmarks.some(
-      (entry) => entry.id === item.id,
-    );
-    setBookmarks((current) => {
-      const next = current.some((entry) => entry.id === item.id)
-        ? current.filter((entry) => entry.id !== item.id)
-        : [toStored(item), ...current];
-      void writeJSON(BOOKMARK_KEY, next);
-      return next;
-    });
-    // Mirror to server for popularity aggregation (fire-and-forget).
-    void import("../api").then(({ syncBookmark }) =>
-      syncBookmark(item.id, !isCurrentlyBookmarked),
-    );
-  }, []);
-
-  const removeBookmark = useCallback((id: string) => {
-    if (!canRecordBehaviorSignals()) return;
-    setBookmarks((current) => {
-      const next = current.filter((entry) => entry.id !== id);
-      void writeJSON(BOOKMARK_KEY, next);
-      return next;
-    });
-    void import("../api").then(({ syncBookmark }) => syncBookmark(id, false));
-  }, []);
-
-  return {
-    bookmarks,
-    isBookmarked,
-    toggleBookmark,
-    removeBookmark,
-    refresh,
-    ready,
-  };
+  return useBookmarkStore(BOOKMARK_STORE_DEPENDENCIES);
 }
 
 export function useRecentViews() {

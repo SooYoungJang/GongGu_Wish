@@ -69,6 +69,15 @@ describe("group buy ranking contract", () => {
     ).toBeNull();
   });
 
+  it("keeps an uncategorized active product in an all-category ranking", () => {
+    expect(
+      groupBuyRankingItemSchema.parse({
+        ...rankingItem,
+        category: null,
+      }).category,
+    ).toBeNull();
+  });
+
   it("rejects the legacy representativeGroupBuyId contract", () => {
     expect(() =>
       groupBuyRankingItemSchema.parse({

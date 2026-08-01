@@ -53,6 +53,11 @@ import { ApiError, type ApiValidationError } from "./lib/api-types";
 import { normalizePriceKrw } from "./utils/price";
 import { filterActiveGroupBuys } from "./utils/groupBuyDates";
 import { canRecordBehaviorSignals } from "./audience/behaviorSignalsPolicy";
+import {
+  capturePopularitySignalGeneration,
+  enqueueBookmarkSignal,
+  enqueueDeepViewSignal,
+} from "./services/popularitySignalOutbox";
 
 // ─── Re-export ApiError for consumers that import it ─────────────────────────
 export type { ApiValidationError } from "./lib/api-types";
@@ -426,19 +431,12 @@ export type PopularGroupBuy = {
  */
 export async function logDeepView(groupBuyId: string): Promise<void> {
   if (!canRecordBehaviorSignals()) return;
+  const signalGeneration = capturePopularitySignalGeneration();
   try {
     const { getSessionId } = await import("./utils/session");
     const sessionId = await getSessionId();
     if (!sessionId) return;
-    await postgrestFetch("group_buy_views", {
-      method: "POST",
-      body: {
-        group_buy_id: groupBuyId,
-        view_type: "deep",
-        session_id: sessionId,
-      },
-      prefer: "return=minimal",
-    });
+    await enqueueDeepViewSignal(groupBuyId, sessionId, signalGeneration);
   } catch (error) {
     console.log(
       "[Popularity] log deep view failed:",
@@ -456,22 +454,17 @@ export async function syncBookmark(
   bookmark: boolean,
 ): Promise<void> {
   if (!canRecordBehaviorSignals()) return;
+  const signalGeneration = capturePopularitySignalGeneration();
   try {
     const { getSessionId } = await import("./utils/session");
     const sessionId = await getSessionId();
     if (!sessionId) return;
-    if (bookmark) {
-      await postgrestFetch("group_buy_bookmarks", {
-        method: "POST",
-        body: { group_buy_id: groupBuyId, session_id: sessionId },
-        prefer: "return=minimal",
-      });
-    } else {
-      await postgrestFetch(
-        `group_buy_bookmarks?group_buy_id=eq.${encodeURIComponent(groupBuyId)}&session_id=eq.${encodeURIComponent(sessionId)}`,
-        { method: "DELETE" },
-      );
-    }
+    await enqueueBookmarkSignal(
+      groupBuyId,
+      sessionId,
+      bookmark,
+      signalGeneration,
+    );
   } catch (error) {
     console.log(
       "[Popularity] sync bookmark failed:",

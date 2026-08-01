@@ -130,6 +130,18 @@ async function serviceRest<T>(
   });
 }
 
+async function anonymousRest<T>(
+  config: LocalSupabaseConfig,
+  phase: string,
+  path: string,
+  options: Omit<RequestOptions, "key"> = {},
+): Promise<T> {
+  return requestJson<T>(config, phase, `/rest/v1/${path}`, {
+    ...options,
+    key: config.anonKey,
+  });
+}
+
 function isoOffset(hours: number): string {
   return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
 }
@@ -139,17 +151,24 @@ function dateOffset(days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function seoulDateOffset(days: number): string {
+  const date = new Date(
+    Date.now() + (9 * 60 * 60 + days * 24 * 60 * 60) * 1000,
+  );
+  return date.toISOString().slice(0, 10);
+}
+
 export async function createLocalFixture(
   config: LocalSupabaseConfig,
 ): Promise<LocalSupabaseFixture> {
   const suffix = `${Date.now()}-${randomUUID().slice(0, 8)}`;
   const influencerId = `gon263-influencer-${suffix}`;
   const rawPostIds = Array.from(
-    { length: 5 },
+    { length: 6 },
     (_, index) => `gon263-post-${index}-${suffix}`,
   );
   const groupBuyIds = Array.from(
-    { length: 5 },
+    { length: 6 },
     (_, index) => `gon263-deal-${index}-${suffix}`,
   );
   const productName = `GON263 계약 공구 ${suffix}`;
@@ -186,7 +205,7 @@ export async function createLocalFixture(
     })),
   });
 
-  const categories = ["food", "food", "food", "food", "beauty"];
+  const categories = ["food", "food", "food", "food", null, "food"];
   await serviceRest(config, "setup", "group_buys", {
     method: "POST",
     prefer: "return=minimal",
@@ -197,7 +216,13 @@ export async function createLocalFixture(
       brand_name: "GON-263 Brand",
       category: categories[index],
       start_date: isoOffset(-24),
-      end_date: index <= 2 ? null : isoOffset(24 * (index + 1)),
+      end_date: index <= 2
+        ? null
+        : index === 3
+          ? `${seoulDateOffset(0)}T00:00:00`
+          : index === 5
+            ? `${seoulDateOffset(-1)}T23:59:59`
+            : isoOffset(24 * (index + 1)),
       purchase_url: `https://example.test/gon263/${index}`,
       discount_info: `${10 + index}% 할인`,
       price_krw: 10000 + index * 1000,
@@ -213,9 +238,9 @@ export async function createLocalFixture(
   });
 
   // Two open-ended food fixtures deliberately tie on score, a third open-ended
-  // fixture stays lower, and a fourth has a deadline. This exercises every
-  // null-deadline score/ID branch plus the non-null-to-null transition.
-  const currentViewCounts = [6, 9, 3, 4, 8];
+  // fixture stays lower, one ends today in Seoul, one is uncategorized, and the
+  // final fixture expired yesterday. This exercises eligibility boundaries.
+  const currentViewCounts = [6, 9, 3, 4, 8, 5];
   const views = currentViewCounts.flatMap((count, groupIndex) =>
     Array.from({ length: count }, (_, viewIndex) => ({
       group_buy_id: groupBuyIds[groupIndex],
@@ -314,6 +339,69 @@ export async function readGroupBuyRow<T>(
   return rows[0];
 }
 
+export async function insertRetriedDeepView(
+  config: LocalSupabaseConfig,
+  groupBuyId: string,
+  clientEventId: string,
+): Promise<void> {
+  const options = {
+    method: "POST" as const,
+    body: {
+      p_group_buy_id: groupBuyId,
+      p_session_id: "gon263-idempotency-session",
+      p_client_event_id: clientEventId,
+      p_viewed_at: new Date().toISOString(),
+    },
+  };
+  const path = "rpc/record_group_buy_deep_view";
+  await anonymousRest(config, "deep-view-idempotency", path, options);
+  await anonymousRest(config, "deep-view-idempotency", path, options);
+}
+
+export async function countDeepViewsByClientEventId(
+  config: LocalSupabaseConfig,
+  clientEventId: string,
+): Promise<number> {
+  const rows = await serviceRest<Array<{ id: number }>>(
+    config,
+    "deep-view-idempotency",
+    `group_buy_views?client_event_id=eq.${encodeURIComponent(clientEventId)}&select=id`,
+  );
+  return rows.length;
+}
+
+export async function setRetriedBookmark(
+  config: LocalSupabaseConfig,
+  groupBuyId: string,
+  sessionId: string,
+  selected: boolean,
+): Promise<void> {
+  const options = {
+    method: "POST" as const,
+    body: {
+      p_group_buy_id: groupBuyId,
+      p_session_id: sessionId,
+      p_selected: selected,
+    },
+  };
+  const path = "rpc/set_group_buy_bookmark";
+  await anonymousRest(config, "bookmark-idempotency", path, options);
+  await anonymousRest(config, "bookmark-idempotency", path, options);
+}
+
+export async function countBookmarksBySession(
+  config: LocalSupabaseConfig,
+  groupBuyId: string,
+  sessionId: string,
+): Promise<number> {
+  const rows = await serviceRest<Array<{ id: number }>>(
+    config,
+    "bookmark-idempotency",
+    `group_buy_bookmarks?group_buy_id=eq.${encodeURIComponent(groupBuyId)}&session_id=eq.${encodeURIComponent(sessionId)}&select=id`,
+  );
+  return rows.length;
+}
+
 export async function cleanupLocalFixture(
   config: LocalSupabaseConfig,
   fixture: LocalSupabaseFixture | null,
@@ -328,6 +416,13 @@ export async function cleanupLocalFixture(
         config,
         "cleanup",
         `group_buy_views?group_buy_id=${inFilter(fixture.groupBuyIds)}`,
+        { method: "DELETE" },
+      ),
+    () =>
+      serviceRest(
+        config,
+        "cleanup",
+        `group_buy_bookmarks?group_buy_id=${inFilter(fixture.groupBuyIds)}`,
         { method: "DELETE" },
       ),
     () =>

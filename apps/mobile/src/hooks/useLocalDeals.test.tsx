@@ -229,6 +229,129 @@ describe("useNotifications", () => {
     });
   });
 
+  it("저장된 북마크를 해제할 때 서버에도 해제 상태를 보낸다", async () => {
+    storage.values.set("@gonggu/bookmarks/v1", JSON.stringify([GROUP_BUY]));
+    const bookmarks = renderHook(() => useBookmarks());
+    await waitFor(() => expect(bookmarks.result.current.ready).toBe(true));
+
+    act(() => bookmarks.result.current.toggleBookmark(GROUP_BUY));
+
+    await waitFor(() => {
+      expect(apiMocks.syncBookmark).toHaveBeenLastCalledWith(
+        GROUP_BUY.id,
+        false,
+      );
+    });
+    expect(bookmarks.result.current.bookmarks).toEqual([]);
+  });
+
+  it("빠른 북마크 토글의 마지막 상태를 서버에 보낸다", async () => {
+    const bookmarks = renderHook(() => useBookmarks());
+    await waitFor(() => expect(bookmarks.result.current.ready).toBe(true));
+
+    act(() => {
+      bookmarks.result.current.toggleBookmark(GROUP_BUY);
+      bookmarks.result.current.toggleBookmark(GROUP_BUY);
+    });
+
+    await waitFor(() => {
+      expect(apiMocks.syncBookmark).toHaveBeenLastCalledWith(
+        GROUP_BUY.id,
+        false,
+      );
+    });
+    expect(bookmarks.result.current.bookmarks).toEqual([]);
+  });
+
+  it("동시에 열린 화면들이 같은 북마크 상태를 사용한다", async () => {
+    const reels = renderHook(() => useBookmarks());
+    const detail = renderHook(() => useBookmarks());
+    await waitFor(() => {
+      expect(reels.result.current.ready).toBe(true);
+      expect(detail.result.current.ready).toBe(true);
+    });
+
+    act(() => reels.result.current.toggleBookmark(GROUP_BUY));
+    await waitFor(() => {
+      expect(detail.result.current.isBookmarked(GROUP_BUY.id)).toBe(true);
+    });
+
+    act(() => detail.result.current.toggleBookmark(GROUP_BUY));
+    await waitFor(() => {
+      expect(reels.result.current.isBookmarked(GROUP_BUY.id)).toBe(false);
+      expect(apiMocks.syncBookmark).toHaveBeenLastCalledWith(
+        GROUP_BUY.id,
+        false,
+      );
+    });
+  });
+
+  it("느린 서버 동기화가 다음 북마크 상태의 로컬 저장을 막지 않는다", async () => {
+    let releaseFirstSync!: () => void;
+    apiMocks.syncBookmark.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseFirstSync = resolve;
+        }),
+    );
+    const bookmarks = renderHook(() => useBookmarks());
+    await waitFor(() => expect(bookmarks.result.current.ready).toBe(true));
+
+    act(() => bookmarks.result.current.toggleBookmark(GROUP_BUY));
+    await waitFor(() => {
+      expect(apiMocks.syncBookmark).toHaveBeenCalledWith(GROUP_BUY.id, true);
+      expect(
+        JSON.parse(storage.values.get("@gonggu/bookmarks/v1") ?? "[]"),
+      ).toHaveLength(1);
+    });
+
+    act(() => bookmarks.result.current.toggleBookmark(GROUP_BUY));
+    await waitFor(() => {
+      expect(
+        JSON.parse(storage.values.get("@gonggu/bookmarks/v1") ?? "[]"),
+      ).toEqual([]);
+    });
+
+    releaseFirstSync();
+    await waitFor(() => {
+      expect(apiMocks.syncBookmark).toHaveBeenLastCalledWith(
+        GROUP_BUY.id,
+        false,
+      );
+    });
+  });
+
+  it("개인 활동 삭제 중 끝난 북마크 hydration이 데이터를 되살리지 않는다", async () => {
+    let releaseHydration!: () => void;
+    const hydrationGate = new Promise<void>((resolve) => {
+      releaseHydration = resolve;
+    });
+    apiMocks.fetchGroupBuysByIds.mockImplementationOnce(async () => {
+      await hydrationGate;
+      return [GROUP_BUY];
+    });
+    storage.values.set(
+      "@gonggu/bookmarks/v1",
+      JSON.stringify([
+        { id: GROUP_BUY.id, productName: GROUP_BUY.productName },
+      ]),
+    );
+    const bookmarks = renderHook(() => useBookmarks());
+    await waitFor(() =>
+      expect(apiMocks.fetchGroupBuysByIds).toHaveBeenCalled(),
+    );
+
+    await clearLocalUserData();
+
+    expect(storage.values.has("@gonggu/bookmarks/v1")).toBe(false);
+    expect(bookmarks.result.current.bookmarks).toEqual([]);
+
+    releaseHydration();
+    await waitFor(() => expect(bookmarks.result.current.ready).toBe(true));
+    expect(storage.values.has("@gonggu/bookmarks/v1")).toBe(false);
+    expect(bookmarks.result.current.bookmarks).toEqual([]);
+  });
+
   it("만 13세 모드에서는 최근 본 공구를 로컬에 기록하지 않는다", async () => {
     setAudiencePolicySnapshot(resolveAudiencePolicy("age13"));
     storage.values.set(

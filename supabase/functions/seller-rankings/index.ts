@@ -9,6 +9,7 @@ import {
   assertRankingCursorMatchesRequest,
   buildRankingResponse,
   decodeRankingCursor,
+  invokeRankingRpcWithFallback,
   normalizeRankingRequest,
   type RankingRequest,
   type RankingRpcRow,
@@ -78,7 +79,7 @@ serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data, error } = await supabase.rpc("get_group_buy_rankings_v2", {
+    const rpcParameters = {
       category_filter: request.category,
       period_filter: request.period,
       sort_filter: request.sort,
@@ -87,7 +88,15 @@ serve(async (req: Request) => {
       cursor_score: cursor?.secondaryScore ?? null,
       cursor_timestamp: cursor?.timestampValue ?? null,
       cursor_group_buy_id: cursor?.groupBuyId ?? null,
-    });
+    };
+    const rpcResponse = await invokeRankingRpcWithFallback(
+      async (functionName, parameters) => {
+        const { data, error } = await supabase.rpc(functionName, parameters);
+        return { data, error };
+      },
+      rpcParameters,
+    );
+    const { data, error } = rpcResponse;
 
     if (error) throw new Error(error.message);
     if (!Array.isArray(data)) {

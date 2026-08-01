@@ -45,10 +45,7 @@ import { AudienceProvider, useAudience } from "./audience/AudienceContext";
 import { RestrictedAudienceCleanupBridge } from "./audience/RestrictedAudienceCleanupBridge";
 import type { MainTabParamList, RootStackParamList } from "./types";
 import { configurePostgrest } from "./lib/postgrest-client";
-import {
-  configureSupabase,
-  syncSupabaseAuthAutoRefresh,
-} from "./lib/supabase";
+import { configureSupabase } from "./lib/supabase";
 import {
   resolveDataApiUrl,
   resolveSupabaseAnonKey,
@@ -78,6 +75,7 @@ import {
   mobileQueryClient,
 } from "./lib/query-client";
 import { notificationLinking } from "./navigation/notificationLinking";
+import { startPopularitySignalRecovery } from "./services/popularitySignalRecovery";
 import { publicBuildConfig } from "./lib/public-build-config";
 
 // Initialize PostgREST client with the Supabase anon key
@@ -387,19 +385,15 @@ function QueryRuntimeBridge() {
     configureQueryOnlineManager();
     const lifecycle = createMobileQueryRuntimeLifecycle();
     const syncRuntime = (status: Parameters<typeof lifecycle.sync>[0]) => {
-      void syncSupabaseAuthAutoRefresh(status).catch((error) => {
-        console.warn({
-          event: "supabase_auth_refresh_lifecycle_failed",
-          errorName: error instanceof Error ? error.name : typeof error,
-        });
-      });
       void lifecycle.sync(status);
     };
 
+    const stopPopularitySignalRecovery = startPopularitySignalRecovery();
     syncRuntime(AppState.currentState);
     const subscription = AppState.addEventListener("change", syncRuntime);
     return () => {
       lifecycle.dispose();
+      stopPopularitySignalRecovery();
       subscription.remove();
     };
   }, []);

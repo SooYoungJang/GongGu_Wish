@@ -51,7 +51,7 @@ export type RankingRpcRow = {
   product_name: string | null;
   brand_name: string | null;
   username: string | null;
-  category: string;
+  category: string | null;
   thumbnail_url: string | null;
   media_urls: string[] | null;
   start_date: string | null;
@@ -67,6 +67,16 @@ export type RankingRpcRow = {
   score_version: string;
 };
 
+export type RankingRpcResult = {
+  data: unknown;
+  error: { code?: string; message?: string } | null;
+};
+
+export type RankingRpcInvoker = (
+  functionName: string,
+  parameters: Record<string, unknown>,
+) => Promise<RankingRpcResult>;
+
 export type GroupBuyRankingItem = {
   groupBuyId: string;
   rank: number;
@@ -75,7 +85,7 @@ export type GroupBuyRankingItem = {
   productName: string | null;
   brandName: string | null;
   username: string | null;
-  category: Exclude<RankingCategory, "all">;
+  category: Exclude<RankingCategory, "all"> | null;
   thumbnailUrl: string | null;
   mediaUrls: string[];
   startDate: string | null;
@@ -117,6 +127,24 @@ const isRankingCategory = (value: unknown): value is RankingCategory =>
   typeof value === "string" &&
   (RANKING_CATEGORIES as readonly string[]).includes(value);
 
+function isMissingRankingV3(
+  error: NonNullable<RankingRpcResult["error"]>,
+): boolean {
+  return (
+    error.code === "PGRST202" &&
+    (error.message ?? "").includes("get_group_buy_rankings_v3")
+  );
+}
+
+export async function invokeRankingRpcWithFallback(
+  rpc: RankingRpcInvoker,
+  parameters: Record<string, unknown>,
+): Promise<RankingRpcResult> {
+  const response = await rpc("get_group_buy_rankings_v3", parameters);
+  if (!response.error || !isMissingRankingV3(response.error)) return response;
+  return rpc("get_group_buy_rankings_v2", parameters);
+}
+
 const isRankingPeriod = (value: unknown): value is RankingPeriod =>
   value === "today" || value === "weekly" || value === "monthly";
 
@@ -146,6 +174,17 @@ export function normalizeRankingCategory(value: unknown): RankingCategory {
     );
   }
   return normalized;
+}
+
+function normalizeRankingRowCategory(
+  value: unknown,
+): Exclude<RankingCategory, "all"> | null {
+  if (value === null) return null;
+  const category = normalizeRankingCategory(value);
+  if (category === "all") {
+    throw new Error("ranking row category cannot be all");
+  }
+  return category;
 }
 
 export function normalizeRankingRequest(input: unknown): RankingRequest {
@@ -303,8 +342,7 @@ function deriveRankingTrend(
 }
 
 function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
-  const category = normalizeRankingCategory(row.category);
-  if (category === "all") throw new Error("ranking row category cannot be all");
+  const category = normalizeRankingRowCategory(row.category);
 
   const rank = toPositiveInteger(row.rank);
   const reportedPreviousRank =
