@@ -14,8 +14,6 @@ type GroupBuyRequestRankingCardProps = {
   rankings: GroupBuyRequestRanking[];
   isError: boolean;
   isFetching: boolean;
-  isLoading: boolean;
-  onOpenSearch: () => void;
   onPressRanking: Dispatch<string>;
   onRetry: () => void;
 };
@@ -26,20 +24,17 @@ export function GroupBuyRequestRankingCard({
   rankings,
   isError,
   isFetching,
-  isLoading,
-  onOpenSearch,
   onPressRanking,
   onRetry,
 }: GroupBuyRequestRankingCardProps) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const visibleRankings = rankings.slice(0, MAX_VISIBLE_RANKINGS);
-  const hasRankings = visibleRankings.length > 0;
-  const isInitialLoading = isLoading && !hasRankings;
+
+  if (visibleRankings.length === 0) return null;
 
   return (
     <View
-      accessibilityState={isInitialLoading ? { busy: true } : undefined}
       style={s.card}
       testID="home-group-buy-request-rankings"
     >
@@ -52,7 +47,7 @@ export function GroupBuyRequestRankingCard({
             최근 30일 동안 가장 많이 요청한 상품이에요
           </SText>
         </View>
-        {isFetching && hasRankings && !isError ? (
+        {isFetching && !isError ? (
           <SText
             accessibilityLiveRegion="polite"
             style={s.refreshingText}
@@ -63,65 +58,7 @@ export function GroupBuyRequestRankingCard({
         ) : null}
       </View>
 
-      {isInitialLoading ? (
-        <View
-          accessibilityLabel="공구 요청 순위를 불러오는 중"
-          accessibilityRole="progressbar"
-          style={s.rows}
-        >
-          {Array.from({ length: MAX_VISIBLE_RANKINGS }, (_, index) => (
-            <View
-              key={index}
-              style={s.skeletonRow}
-              testID={`group-buy-request-ranking-skeleton-${index + 1}`}
-            >
-              <View style={s.skeletonRank} />
-              <View style={s.skeletonName} />
-              <View style={s.skeletonCount} />
-            </View>
-          ))}
-        </View>
-      ) : isError && !hasRankings ? (
-        <View
-          accessibilityLiveRegion="assertive"
-          style={s.state}
-          testID="group-buy-request-ranking-error"
-        >
-          <SText style={s.stateTitle} variant="body">
-            요청 순위를 불러오지 못했어요
-          </SText>
-          <Pressable
-            accessibilityLabel="공구 요청 순위 다시 불러오기"
-            accessibilityRole="button"
-            onPress={onRetry}
-            style={s.stateButton}
-          >
-            <SText style={s.stateButtonText} variant="label">
-              다시 불러오기
-            </SText>
-          </Pressable>
-        </View>
-      ) : !hasRankings ? (
-        <View style={s.state} testID="group-buy-request-ranking-empty">
-          <SText style={s.stateTitle} variant="body">
-            아직 순위에 오른 요청이 없어요
-          </SText>
-          <SText style={s.stateDescription} variant="caption">
-            찾는 공구가 없다면 직접 요청해보세요
-          </SText>
-          <Pressable
-            accessibilityLabel="공구 요청하러 가기"
-            accessibilityRole="button"
-            onPress={onOpenSearch}
-            style={s.stateButton}
-          >
-            <SText style={s.stateButtonText} variant="label">
-              공구 요청하기
-            </SText>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={s.rows}>
+      <View style={s.rows}>
           {visibleRankings.map((ranking, index) => {
             const isFirst = index === 0;
             const isLast = index === visibleRankings.length - 1;
@@ -183,8 +120,7 @@ export function GroupBuyRequestRankingCard({
               </SText>
             </Pressable>
           ) : null}
-        </View>
-      )}
+      </View>
     </View>
   );
 }
@@ -302,44 +238,6 @@ function makeStyles(colors: CommerceColorPalette) {
       fontSize: 18,
       lineHeight: 20,
     },
-    state: {
-      alignItems: "center",
-      gap: commerceSpacing.xs,
-      justifyContent: "center",
-      minHeight: 86,
-      paddingHorizontal: commerceSpacing.sm,
-      paddingVertical: commerceSpacing.sm,
-    },
-    stateTitle: {
-      color: colors.text,
-      fontSize: 14,
-      fontWeight: "800",
-      lineHeight: 20,
-      textAlign: "center",
-    },
-    stateDescription: {
-      color: colors.muted,
-      fontSize: 12,
-      lineHeight: 17,
-      textAlign: "center",
-    },
-    stateButton: {
-      alignItems: "center",
-      borderColor: colors.border,
-      borderCurve: "continuous",
-      borderRadius: commerceRadius.md,
-      borderWidth: StyleSheet.hairlineWidth,
-      justifyContent: "center",
-      marginTop: 3,
-      minHeight: 44,
-      paddingHorizontal: 14,
-    },
-    stateButtonText: {
-      color: colors.accent,
-      fontSize: 13,
-      fontWeight: "900",
-      lineHeight: 18,
-    },
     staleNotice: {
       alignItems: "center",
       justifyContent: "center",
@@ -352,35 +250,6 @@ function makeStyles(colors: CommerceColorPalette) {
       fontWeight: "800",
       lineHeight: 16,
       textAlign: "center",
-    },
-    skeletonRow: {
-      alignItems: "center",
-      flexDirection: "row",
-      gap: commerceSpacing.sm,
-      minHeight: 48,
-      paddingHorizontal: commerceSpacing.sm,
-    },
-    skeletonRank: {
-      backgroundColor: colors.skeleton,
-      borderCurve: "continuous",
-      borderRadius: commerceRadius.sm,
-      height: 28,
-      width: 28,
-    },
-    skeletonName: {
-      backgroundColor: colors.skeleton,
-      borderCurve: "continuous",
-      borderRadius: 6,
-      flex: 1,
-      height: 14,
-      maxWidth: 160,
-    },
-    skeletonCount: {
-      backgroundColor: colors.skeleton,
-      borderCurve: "continuous",
-      borderRadius: 6,
-      height: 12,
-      width: 48,
     },
   });
 }

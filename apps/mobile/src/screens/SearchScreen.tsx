@@ -439,14 +439,7 @@ export function SearchScreen() {
               <SearchResultsPanel results={searchResults} onPressInfluencer={handleSelectInfluencer} />
             )}
             {dealResults.length === 0 && searchResults.length === 0 && !hasPublicDataError && (
-              <View style={s.emptyState}>
-                <SText variant="body" style={s.emptyIcon}>⌕</SText>
-                <SText variant="body" style={s.emptyTitle}>
-                  검색 결과가 없어요
-                </SText>
-                <SText variant="body" style={s.emptyDesc}>
-                  브랜드명, 제품명 또는 인플루언서 username을 다시 확인해 주세요.
-                </SText>
+              <View style={s.requestState}>
                 {isSearchSettled ? (
                   <View
                     accessibilityLiveRegion="polite"
@@ -643,17 +636,13 @@ function makeStyles(colors: CommerceColorPalette) {
     resultMeta: { color: colors.weak, flexShrink: 1, fontSize: 12, fontWeight: '500', letterSpacing: 0, lineHeight: 17 },
     resultMetaRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs, marginTop: 3, minWidth: 0 },
 
-    emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 72 },
-    emptyIcon: { fontSize: 40, color: colors.weak, marginBottom: spacing.md, opacity: 0.4 },
-    emptyTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: spacing.xs },
-    emptyDesc: { fontSize: 13, color: colors.weak, lineHeight: 20, textAlign: 'center' },
+    requestState: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
     requestCard: {
       alignItems: 'stretch',
       backgroundColor: colors.panelBg,
       borderColor: colors.borderLight,
       borderRadius: 16,
       borderWidth: StyleSheet.hairlineWidth,
-      marginTop: spacing.xl,
       padding: spacing.lg,
       width: '100%',
     },

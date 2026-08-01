@@ -1948,59 +1948,47 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
     expect(firstRankBadgeStyle.width).toBeUndefined();
   });
 
-  it('renders three predictable skeleton rows while the first ranking loads', () => {
+  it('hides the request ranking section while an empty ranking first loads', () => {
     const renderer = renderHomeContent({
       groupBuyRequestRankings: [],
-      isGroupBuyRequestRankingsLoading: true,
+      isGroupBuyRequestRankingsFetching: true,
     });
-    const card = renderer.root.findByProps({
-      testID: 'home-group-buy-request-rankings',
-    });
-
-    expect(card.props.accessibilityState).toMatchObject({ busy: true });
     expect(
-      renderer.root.findAll(
-        (node) =>
-          String(node.type) === 'View' &&
-          typeof node.props.testID === 'string' &&
-          node.props.testID.startsWith('group-buy-request-ranking-skeleton-'),
-      ),
-    ).toHaveLength(3);
+      renderer.root.findAllByProps({ testID: 'home-group-buy-request-rankings' }),
+    ).toHaveLength(0);
   });
 
-  it('opens search from the empty ranking CTA', () => {
-    const onOpenSearch = vi.fn();
+  it('hides the request ranking section when there are no ranked requests', () => {
     const renderer = renderHomeContent({
       groupBuyRequestRankings: [],
-      onOpenSearch,
     });
 
-    act(() => {
-      renderer.root
-        .findByProps({ accessibilityLabel: '공구 요청하러 가기' })
-        .props.onPress();
-    });
-    expect(onOpenSearch).toHaveBeenCalledTimes(1);
+    expect(
+      renderer.root.findAllByProps({ testID: 'home-group-buy-request-rankings' }),
+    ).toHaveLength(0);
   });
 
-  it('shows an assertive retry action when rankings fail without cache', () => {
-    const onRetryGroupBuyRequestRankings = vi.fn();
+  it('hides the request ranking section when rankings fail without cache', () => {
     const renderer = renderHomeContent({
       groupBuyRequestRankings: [],
       isGroupBuyRequestRankingsError: true,
-      onRetryGroupBuyRequestRankings,
-    });
-    const error = renderer.root.findByProps({
-      testID: 'group-buy-request-ranking-error',
     });
 
-    expect(error.props.accessibilityLiveRegion).toBe('assertive');
-    act(() => {
-      renderer.root
-        .findByProps({ accessibilityLabel: '공구 요청 순위 다시 불러오기' })
-        .props.onPress();
+    expect(
+      renderer.root.findAllByProps({ testID: 'home-group-buy-request-rankings' }),
+    ).toHaveLength(0);
+  });
+
+  it('keeps cached rankings visible while refreshing them', () => {
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: rankings,
+      isGroupBuyRequestRankingsFetching: true,
     });
-    expect(onRetryGroupBuyRequestRankings).toHaveBeenCalledTimes(1);
+
+    expect(
+      renderer.root.findByProps({ testID: 'home-group-buy-request-rankings' }),
+    ).toBeDefined();
+    expect(flattenText(renderer.toJSON())).toContain('업데이트 중');
   });
 
   it('keeps cached rankings visible and marks a failed refresh as stale', () => {

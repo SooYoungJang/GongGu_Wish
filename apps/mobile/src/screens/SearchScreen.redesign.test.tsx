@@ -398,6 +398,12 @@ describe('SearchScreen redesign', () => {
 	    expect(
 	      renderer.root.findByProps({ accessibilityLabel: '없는 공구 공구 요청하기' }),
 	    ).toBeTruthy();
+	    expect(flattenText(renderer.toJSON())).toContain('찾는 공구가 아직 없나요?');
+	    expect(flattenText(renderer.toJSON())).not.toContain('⌕');
+	    expect(flattenText(renderer.toJSON())).not.toContain('검색 결과가 없어요');
+	    expect(flattenText(renderer.toJSON())).not.toContain(
+	      '브랜드명, 제품명 또는 인플루언서 username을 다시 확인해 주세요.',
+	    );
 	  });
 
 	  it('submits a missing group-buy request and refreshes the monthly ranking', async () => {
