@@ -89,7 +89,8 @@ export const API_BASE_URL = Platform.select({
  * Fetch all group buys with raw post details.
  * GET /rest/v1/group_buys?select=*,raw_post_id(*)
  */
-const PUBLIC_GROUP_BUY_SELECT = "*,raw_post_id(*,influencer_id(*))";
+const PUBLIC_GROUP_BUY_SELECT =
+  "*,influencer_id(*),raw_post_id(*,influencer_id(*))";
 
 export async function fetchGroupBuys(): Promise<GroupBuy[]> {
   try {
@@ -185,6 +186,12 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
     const directInstagramUsername =
       normalizeOptionalInstagramUsername(item.instagramUsername) ??
       normalizeOptionalInstagramUsername(item.instagram_username);
+    const directInfluencer = item.influencerId ?? item.influencer_id;
+    const legacyInfluencer =
+      item.rawPostId?.influencerId ?? item.raw_post_id?.influencer_id;
+    const relatedInstagramUsername =
+      normalizeOptionalInstagramUsername(directInfluencer?.instagramUsername) ??
+      normalizeOptionalInstagramUsername(directInfluencer?.instagram_username);
     const legacyInstagramUsername =
       normalizeOptionalInstagramUsername(
         item.rawPostId?.influencerId?.instagramUsername,
@@ -195,6 +202,12 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
       normalizeOptionalInstagramUsername(
         item.raw_post_id?.influencer_id?.instagram_username,
       );
+    const directProfileImageUrl = normalizeTrustedInstagramProfileImageUrl(
+      directInfluencer?.profileImageUrl ?? directInfluencer?.profile_image_url,
+    );
+    const legacyProfileImageUrl = normalizeTrustedInstagramProfileImageUrl(
+      legacyInfluencer?.profileImageUrl ?? legacyInfluencer?.profile_image_url,
+    );
 
     return {
       id: item.id,
@@ -239,13 +252,64 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
           "",
         influencer: {
           instagramUsername:
-            directInstagramUsername ?? legacyInstagramUsername ?? "",
+            directInstagramUsername ??
+            relatedInstagramUsername ??
+            legacyInstagramUsername ??
+            "",
+          ...(directProfileImageUrl ?? legacyProfileImageUrl
+            ? {
+                profileImageUrl:
+                  directProfileImageUrl ?? legacyProfileImageUrl,
+              }
+            : {}),
         },
       },
     };
   });
 
   return validatePublicGroupBuys(mapped);
+}
+
+const INSTAGRAM_PROFILE_IMAGE_URL_MAX_LENGTH = 8_192;
+const INSTAGRAM_PROFILE_IMAGE_URL_PATTERN =
+  /^https:\/\/(?:[a-z0-9-]+\.)*(?:cdninstagram\.com|fbcdn\.net)(?:[/?#]|$)/iu;
+
+function normalizeTrustedInstagramProfileImageUrl(
+  value: unknown,
+): string | null {
+  if (typeof value !== "string") return null;
+  const candidate = value.trim();
+  if (
+    !candidate ||
+    candidate.length > INSTAGRAM_PROFILE_IMAGE_URL_MAX_LENGTH
+  ) {
+    return null;
+  }
+  if (!INSTAGRAM_PROFILE_IMAGE_URL_PATTERN.test(candidate)) return null;
+
+  try {
+    const url = new URL(candidate);
+    const hostname = url.hostname.toLowerCase();
+    const trustedHost =
+      hostname === "cdninstagram.com" ||
+      hostname.endsWith(".cdninstagram.com") ||
+      hostname === "fbcdn.net" ||
+      hostname.endsWith(".fbcdn.net");
+
+    if (
+      url.protocol !== "https:" ||
+      !trustedHost ||
+      url.username ||
+      url.password ||
+      url.port
+    ) {
+      return null;
+    }
+
+    return candidate;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -270,6 +334,8 @@ function mapGroupBuyToFeedPost(item: GroupBuy): FeedPost {
     mediaType: item.mediaType,
     caption: item.summary ?? null,
     accountName: item.rawPost.influencer.instagramUsername ?? null,
+    accountProfileImageUrl:
+      item.rawPost.influencer.profileImageUrl ?? null,
     linkUrl: item.purchaseUrl,
     openDate: item.startDate,
     closeDate: item.endDate,
@@ -293,7 +359,7 @@ export async function fetchFeeds(
 ): Promise<FeedPostListResponse> {
   try {
     const { data, meta } = await postgrestGet<any[]>(
-      "group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&order=created_at.desc",
+      `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED&order=created_at.desc`,
       {
         pagination: { page, limit },
       },
@@ -318,7 +384,7 @@ export async function fetchFeeds(
  */
 export async function fetchFeedPost(id: string): Promise<FeedPost> {
   const { data } = await postgrestGet<any[]>(
-    `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
+    `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
   );
   const rows = data || [];
   const groupBuy = rows[0] ? mapGroupBuyRows([rows[0]])[0] : undefined;
@@ -330,7 +396,7 @@ export async function fetchFeedPost(id: string): Promise<FeedPost> {
 
 export async function fetchGroupBuyById(id: string): Promise<GroupBuy> {
   const { data } = await postgrestGet<any[]>(
-    `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
+    `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
   );
   const rows = data || [];
   const groupBuy = rows[0] ? mapGroupBuyRows([rows[0]])[0] : undefined;
@@ -728,7 +794,7 @@ export async function fetchGroupBuysByIds(ids: string[]): Promise<GroupBuy[]> {
   if (ids.length === 0) return [];
   try {
     const { data } = await postgrestGet<any[]>(
-      `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=in.(${encodeURIComponent(ids.join(","))})&status=eq.APPROVED`,
+      `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&id=in.(${encodeURIComponent(ids.join(","))})&status=eq.APPROVED`,
     );
     return mapGroupBuyRows(data || []);
   } catch (error) {
@@ -769,9 +835,9 @@ export async function fetchGroupBuysByInfluencer(
   const encodedUsername = encodeURIComponent(normalizedUsername);
   const encodedUsernameWithAt = encodeURIComponent(`@${normalizedUsername}`);
   const directQueryPrefix =
-    "group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED";
+    `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED`;
   const legacyQueryPrefix =
-    "group_buys?select=*,raw_post_id!inner(*,influencer_id!inner(*))&status=eq.APPROVED";
+    "group_buys?select=*,influencer_id(*),raw_post_id!inner(*,influencer_id!inner(*))&status=eq.APPROVED";
   const [directResponse, legacyResponse] = await Promise.all([
     postgrestGet<any[]>(
       `${directQueryPrefix}&or=(instagram_username.ilike.${encodedUsername},instagram_username.ilike.${encodedUsernameWithAt})&order=created_at.desc`,

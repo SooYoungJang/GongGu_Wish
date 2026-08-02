@@ -158,7 +158,8 @@ export const RankingTopCard = memo(function RankingTopCard({
             >
               <InstagramIdentity
                 allowWrapping={largeText}
-                iconTestID={`ranking-top-seller-icon-${item.rank}`}
+                avatarTestID={`ranking-top-seller-avatar-${item.rank}`}
+                profileImageUrl={item.profileImageUrl}
                 size="body"
                 style={s.sellerIdentity}
                 testID={`ranking-top-seller-${item.rank}`}
@@ -176,7 +177,8 @@ export const RankingTopCard = memo(function RankingTopCard({
             <View style={s.sellerStatic}>
               <InstagramIdentity
                 allowWrapping={largeText}
-                iconTestID={`ranking-top-seller-icon-${item.rank}`}
+                avatarTestID={`ranking-top-seller-avatar-${item.rank}`}
+                profileImageUrl={item.profileImageUrl}
                 size="body"
                 style={s.sellerIdentity}
                 testID={`ranking-top-seller-${item.rank}`}

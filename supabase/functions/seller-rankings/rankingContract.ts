@@ -1,3 +1,5 @@
+import { trustedInstagramCdnUrl } from "../_shared/hiker-instagram-audio.ts";
+
 export const SCORE_VERSION = "v2";
 
 export const RANKING_CATEGORIES = [
@@ -77,6 +79,15 @@ export type RankingRpcInvoker = (
   parameters: Record<string, unknown>,
 ) => Promise<RankingRpcResult>;
 
+export type RankingProfileQueryResult = {
+  data: unknown;
+  error: { message?: string } | null;
+};
+
+export type RankingProfileQuery = (
+  usernames: readonly string[],
+) => Promise<RankingProfileQueryResult>;
+
 export type GroupBuyRankingItem = {
   groupBuyId: string;
   rank: number;
@@ -85,6 +96,7 @@ export type GroupBuyRankingItem = {
   productName: string | null;
   brandName: string | null;
   username: string | null;
+  profileImageUrl: string | null;
   category: Exclude<RankingCategory, "all"> | null;
   thumbnailUrl: string | null;
   mediaUrls: string[];
@@ -163,6 +175,53 @@ function normalizeRankingUsername(value: string | null): string | null {
   return normalized && normalized.toLowerCase() !== "unknown"
     ? normalized
     : null;
+}
+
+const PROFILE_LOOKUP_USERNAME_PATTERN = /^[a-z0-9._]{1,30}$/u;
+
+function rankingProfileUsernameKey(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const username = normalizeRankingUsername(value);
+  if (!username) return null;
+  const key = username.toLowerCase();
+  return PROFILE_LOOKUP_USERNAME_PATTERN.test(key) ? key : null;
+}
+
+export async function loadRankingProfileImageUrls(
+  rows: ReadonlyArray<Pick<RankingRpcRow, "username">>,
+  query: RankingProfileQuery,
+): Promise<Map<string, string | null>> {
+  const usernames = Array.from(
+    new Set(
+      rows
+        .map((row) => rankingProfileUsernameKey(row.username))
+        .filter((username): username is string => username !== null),
+    ),
+  );
+  if (usernames.length === 0) return new Map();
+
+  const { data, error } = await query(usernames);
+  if (error) {
+    throw new Error(error.message || "influencer profile query failed");
+  }
+  if (!Array.isArray(data)) {
+    throw new Error("influencer profile query returned a non-array response");
+  }
+
+  const requestedUsernames = new Set(usernames);
+  const profileImages = new Map<string, string | null>();
+  for (const value of data) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const row = value as Record<string, unknown>;
+    const username = rankingProfileUsernameKey(row.instagram_username);
+    if (!username || !requestedUsernames.has(username)) continue;
+    const profileImageUrl = trustedInstagramCdnUrl(row.profile_image_url);
+    const existing = profileImages.get(username);
+    if (existing === undefined || (existing === null && profileImageUrl)) {
+      profileImages.set(username, profileImageUrl);
+    }
+  }
+  return profileImages;
 }
 
 export function normalizeRankingCategory(value: unknown): RankingCategory {
@@ -341,8 +400,13 @@ function deriveRankingTrend(
   return { kind: "same" };
 }
 
-function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
+function toRankingItem(
+  row: RankingRpcRow,
+  profileImageUrls: ReadonlyMap<string, string | null>,
+): GroupBuyRankingItem {
   const category = normalizeRankingRowCategory(row.category);
+  const username = normalizeRankingUsername(row.username);
+  const profileUsername = rankingProfileUsernameKey(username);
 
   const rank = toPositiveInteger(row.rank);
   const reportedPreviousRank =
@@ -373,7 +437,10 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
     trend,
     productName: row.product_name,
     brandName: row.brand_name,
-    username: normalizeRankingUsername(row.username),
+    username,
+    profileImageUrl: profileUsername
+      ? profileImageUrls.get(profileUsername) ?? null
+      : null,
     category,
     thumbnailUrl: row.thumbnail_url,
     mediaUrls,
@@ -416,13 +483,14 @@ export function buildRankingResponse(
   rows: RankingRpcRow[],
   request: RankingRequest,
   generatedAt = new Date().toISOString(),
+  profileImageUrls: ReadonlyMap<string, string | null> = new Map(),
 ): GroupBuyRankingResponse {
   const pageRows = rows.slice(0, request.limit);
   const hasMore = rows.length > request.limit;
   const scoreVersion = pageRows[0]?.score_version || SCORE_VERSION;
 
   return {
-    data: pageRows.map(toRankingItem),
+    data: pageRows.map((row) => toRankingItem(row, profileImageUrls)),
     pageInfo: {
       limit: request.limit,
       hasMore,

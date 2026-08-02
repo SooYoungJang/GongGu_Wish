@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-nat
 import type { ImageStyle } from 'react-native';
 
 import { InstagramIdentity } from './ui/InstagramIdentity';
+import { InstagramProfileAvatar } from './ui/InstagramProfileAvatar';
 import { SText } from './ui/SText';
 import { spacing } from '../design/tokens';
 import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
@@ -95,11 +96,12 @@ function SuccessState({ s, data }: { s: ReturnType<typeof makeStyles>; data: Hik
     <View style={s.card}>
       <View style={s.authorRow}>
         <View style={s.authorBlock}>
-          <View style={s.avatarPlaceholder}>
-            <SText variant="caption" style={s.avatarText}>
-              {fallbackName.charAt(0) || '?'}
-            </SText>
-          </View>
+          <InstagramProfileAvatar
+            profileImageUrl={data.profileImageUrl}
+            size={36}
+            style={s.avatarPlaceholder}
+            username={data.authorUsername ?? fallbackName}
+          />
           <View style={s.authorInfo}>
             {authorName || !data.authorUsername ? (
               <SText variant="label" style={s.authorName} numberOfLines={1}>
@@ -107,6 +109,7 @@ function SuccessState({ s, data }: { s: ReturnType<typeof makeStyles>; data: Hik
               </SText>
             ) : null}
             <InstagramIdentity
+              showAvatar={false}
               size={authorName ? "compact" : "body"}
               textStyle={[s.authorHandle, !authorName && s.authorHandlePrimary]}
               username={data.authorUsername}
@@ -199,18 +202,7 @@ function makeStyles(colors: CommerceColorPalette) {
       marginBottom: spacing.sm,
     },
     avatarPlaceholder: {
-      alignItems: 'center',
-      backgroundColor: colors.accentSoft,
-      borderRadius: commerceRadius.full,
-      height: 36,
-      justifyContent: 'center',
       marginRight: spacing.sm,
-      width: 36,
-    },
-    avatarText: {
-      color: colors.accent,
-      fontSize: 14,
-      fontWeight: '900',
     },
     caption: {
       color: colors.muted,

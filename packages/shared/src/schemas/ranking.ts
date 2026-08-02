@@ -71,6 +71,7 @@ export const groupBuyRankingItemSchema = z
     productName: z.string().max(200).nullable(),
     brandName: z.string().max(100).nullable(),
     username: z.string().min(1).nullable(),
+    profileImageUrl: z.string().url().nullable().optional().default(null),
     category: rankingCategorySchema.exclude(["all"]).nullable(),
     thumbnailUrl: z.string().min(1).nullable(),
     mediaUrls: z.array(z.string().min(1)),

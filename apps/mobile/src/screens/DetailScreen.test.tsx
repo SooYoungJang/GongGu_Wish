@@ -747,10 +747,13 @@ describe("DetailScreen", () => {
     const text = flattenText(renderer!.toJSON());
     expect(text).toContain("@hanssang_home");
     expect(
-      renderer!.root.findByProps({
-        testID: `detail-reel-instagram-icon-${groupBuy.id}`,
-      }).props,
-    ).toMatchObject({ accessible: false, name: "logo-instagram" });
+      renderer!.root
+        .findAllByProps({
+          testID: `detail-reel-profile-avatar-${groupBuy.id}`,
+        })
+        .some((node) => node.props.accessibilityRole === "image"),
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ name: "logo-instagram" })).toHaveLength(0);
     expect(text).toContain("뷰티");
     expect(text).not.toContain("beauty");
   });

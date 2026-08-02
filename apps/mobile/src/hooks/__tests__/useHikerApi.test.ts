@@ -99,6 +99,7 @@ describe('useHikerApi', () => {
       likeCount: 42,
       authorName: 'test_user',
       authorUsername: 'test_user',
+      profileImageUrl: null,
       postedAt: '2026-06-01T12:00:00Z',
       thumbnailUrl: null,
       videoUrl: null,

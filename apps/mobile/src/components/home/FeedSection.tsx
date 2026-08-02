@@ -47,7 +47,11 @@ function FeedCard({ item, onPress, s }: { item: FeedPost; onPress: () => void; s
             {description}
           </SText>
         ) : null}
-        <InstagramIdentity textStyle={s.accountName} username={accountName} />
+        <InstagramIdentity
+          profileImageUrl={item.accountProfileImageUrl}
+          textStyle={s.accountName}
+          username={accountName}
+        />
       </View>
     </Pressable>
   );

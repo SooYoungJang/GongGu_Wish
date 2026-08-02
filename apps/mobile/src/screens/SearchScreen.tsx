@@ -90,6 +90,7 @@ const DealSearchResultRow = memo(function DealSearchResultRow({ chevronColor, it
         <SText variant="body" style={s.resultName}>{item.productName ?? '제품명 없음'}</SText>
         <View style={s.resultMetaRow}>
           <InstagramIdentity
+            profileImageUrl={item.rawPost.influencer.profileImageUrl}
             style={s.resultInstagram}
             textStyle={s.resultInstagramText}
             username={item.rawPost.influencer.instagramUsername}
@@ -308,6 +309,9 @@ export function SearchScreen() {
     navigation.navigate('InfluencerGroupBuys', {
       influencerUsername: inf.instagramUsername,
       influencerDisplayName: inf.displayName,
+      ...(inf.profileImageUrl
+        ? { influencerProfileImageUrl: inf.profileImageUrl }
+        : {}),
     });
   }, [navigation, saveRecent]);
 

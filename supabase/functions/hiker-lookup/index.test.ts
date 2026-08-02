@@ -1,6 +1,10 @@
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 
-import { collectPostMedia } from './index.ts';
+import {
+  collectPostMedia,
+  extractProfileImageUrl,
+  lookupViaHikerAPI,
+} from './index.ts';
 
 Deno.test('collectPostMedia keeps every carousel slide and preserves first video url', () => {
   const media = {
@@ -141,4 +145,102 @@ Deno.test('collectPostMedia rejects untrusted Hiker visual media URLs', () => {
     postAudioStartTimeMs: null,
     postAudioDurationMs: null,
   });
+});
+
+Deno.test('extractProfileImageUrl prefers a trusted HD profile image across user and owner', () => {
+  assertEquals(extractProfileImageUrl({
+    user: {
+      profile_pic_url: 'https://scontent-test.cdninstagram.com/profile-standard.jpg',
+    },
+    owner: {
+      profile_pic_url_hd: 'https://scontent-test.cdninstagram.com/profile-hd.jpg',
+    },
+  }), 'https://scontent-test.cdninstagram.com/profile-hd.jpg');
+});
+
+Deno.test('extractProfileImageUrl rejects an untrusted HD URL and falls back to the trusted standard URL', () => {
+  assertEquals(extractProfileImageUrl({
+    user: {
+      profile_pic_url_hd: 'https://attacker.example/profile-hd.jpg',
+      profile_pic_url: 'https://scontent-test.cdninstagram.com/profile-standard.jpg',
+    },
+  }), 'https://scontent-test.cdninstagram.com/profile-standard.jpg');
+});
+
+Deno.test('lookupViaHikerAPI exposes profileImageUrl from the existing media payload without another request', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+  globalThis.fetch = (() => {
+    requestCount += 1;
+    return Promise.resolve(new Response(JSON.stringify({
+      media_or_ad: {
+        owner: {
+          username: 'gonggu_creator',
+          profile_pic_url: 'https://scontent-test.cdninstagram.com/profile.jpg',
+        },
+        image_versions2: {
+          candidates: [{
+            url: 'https://scontent-test.cdninstagram.com/post.jpg',
+            width: 720,
+            height: 720,
+          }],
+        },
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+  }) as typeof fetch;
+
+  try {
+    const result = await lookupViaHikerAPI(
+      'https://www.instagram.com/p/test-post/',
+      'test-api-key',
+    );
+
+    assertEquals(result.profileImageUrl, 'https://scontent-test.cdninstagram.com/profile.jpg');
+    assertEquals(requestCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test('lookupViaHikerAPI falls back to the trusted top-level user profile image', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({
+    user: {
+      username: 'top_level_creator',
+      profile_pic_url_hd: 'https://scontent-test.cdninstagram.com/top-level-profile-hd.jpg',
+      profile_pic_url: 'https://scontent-test.cdninstagram.com/top-level-profile.jpg',
+    },
+    media_or_ad: {
+      image_versions2: {
+        candidates: [{
+          url: 'https://scontent-test.cdninstagram.com/top-level-post.jpg',
+          width: 720,
+          height: 720,
+        }],
+      },
+    },
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  }))) as typeof fetch;
+
+  try {
+    const result = await lookupViaHikerAPI(
+      'https://www.instagram.com/p/top-level-user/',
+      'test-api-key',
+    );
+
+    assertEquals({
+      username: result.username,
+      profileImageUrl: result.profileImageUrl,
+    }, {
+      username: 'top_level_creator',
+      profileImageUrl: 'https://scontent-test.cdninstagram.com/top-level-profile-hd.jpg',
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

@@ -10,6 +10,7 @@ import {
   buildRankingResponse,
   decodeRankingCursor,
   invokeRankingRpcWithFallback,
+  loadRankingProfileImageUrls,
   normalizeRankingRequest,
   type RankingRequest,
   type RankingRpcRow,
@@ -103,7 +104,31 @@ serve(async (req: Request) => {
       throw new Error("Ranking RPC returned a non-array response");
     }
 
-    return jsonResponse(buildRankingResponse(data as RankingRpcRow[], request));
+    const rankingRows = data as RankingRpcRow[];
+    let profileImageUrls: ReadonlyMap<string, string | null> = new Map();
+    try {
+      profileImageUrls = await loadRankingProfileImageUrls(
+        rankingRows.slice(0, request.limit),
+        async (usernames) => {
+          const { data: profiles, error: profileError } = await supabase.rpc(
+            "get_influencer_profiles_by_usernames",
+            { p_instagram_usernames: [...usernames] },
+          );
+          return { data: profiles, error: profileError };
+        },
+      );
+    } catch (profileError) {
+      console.warn(
+        "[seller-rankings] profile image enrichment failed:",
+        profileError instanceof Error
+          ? profileError.message
+          : String(profileError),
+      );
+    }
+
+    return jsonResponse(
+      buildRankingResponse(rankingRows, request, undefined, profileImageUrls),
+    );
   } catch (error) {
     console.error(
       "[seller-rankings] ranking query failed:",

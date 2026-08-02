@@ -119,6 +119,7 @@ function sampleRanking(
       score: 96,
       scoreDelta: 0,
     },
+    profileImageUrl: null,
     scoreVersion: "v2",
     ...overrides,
   };
@@ -703,13 +704,12 @@ describe("ranking components", () => {
       minHeight: 44,
     });
     expect(sellerAction.props.hitSlop).toBeUndefined();
-    const sellerIcon = renderer!.root.findByProps({
-      testID: "ranking-row-seller-icon-4",
-    });
-    expect(sellerIcon.props).toMatchObject({
-      accessible: false,
-      name: "logo-instagram",
-    });
+    expect(
+      renderer!.root
+        .findAllByProps({ testID: "ranking-row-seller-avatar-4" })
+        .some((node) => node.props.accessibilityRole === "image"),
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ name: "logo-instagram" })).toHaveLength(0);
     const detailAction = renderer!.root.findByProps({
       accessibilityHint: "공구 상세 보기",
     });
@@ -823,8 +823,11 @@ describe("ranking components", () => {
 
     expect(flattenText(renderer!.toJSON())).toContain("@ranked.shop");
     expect(
-      renderer!.root.findByProps({ testID: "ranking-top-seller-icon-1" }).props,
-    ).toMatchObject({ accessible: false, name: "logo-instagram" });
+      renderer!.root
+        .findAllByProps({ testID: "ranking-top-seller-avatar-1" })
+        .some((node) => node.props.accessibilityRole === "image"),
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ name: "logo-instagram" })).toHaveLength(0);
   });
 
   it("shows rank movement and deadline instead of popularity scores", () => {

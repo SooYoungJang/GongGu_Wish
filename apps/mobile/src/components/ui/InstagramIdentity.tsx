@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import {
   StyleSheet,
@@ -11,6 +10,7 @@ import {
 import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
 
 import { useCommerceTheme } from "../../design/useCommerceTheme";
+import { InstagramProfileAvatar } from "./InstagramProfileAvatar";
 import { SText, type STextVariant } from "./SText";
 
 export type InstagramIdentitySize = "compact" | "body" | "title";
@@ -18,35 +18,41 @@ export type InstagramIdentityTone = "default" | "inverse";
 
 export interface InstagramIdentityProps {
   username: string | null | undefined;
+  profileImageUrl?: string | null;
   size?: InstagramIdentitySize;
   tone?: InstagramIdentityTone;
+  showAvatar?: boolean;
   allowWrapping?: boolean;
   numberOfLines?: number;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   testID?: string;
-  iconTestID?: string;
+  avatarTestID?: string;
+  avatarImageTestID?: string;
 }
 
 const sizeConfig: Record<
   InstagramIdentitySize,
-  { iconSize: number; textVariant: STextVariant }
+  { avatarSize: number; textVariant: STextVariant }
 > = {
-  compact: { iconSize: 13, textVariant: "caption" },
-  body: { iconSize: 15, textVariant: "body" },
-  title: { iconSize: 18, textVariant: "cardTitle" },
+  compact: { avatarSize: 16, textVariant: "caption" },
+  body: { avatarSize: 20, textVariant: "body" },
+  title: { avatarSize: 26, textVariant: "cardTitle" },
 };
 
 export const InstagramIdentity = memo(function InstagramIdentity({
   username,
+  profileImageUrl,
   size = "compact",
   tone = "default",
+  showAvatar = true,
   allowWrapping = false,
   numberOfLines = 1,
   style,
   textStyle,
   testID,
-  iconTestID,
+  avatarTestID,
+  avatarImageTestID,
 }: InstagramIdentityProps) {
   const { colors } = useCommerceTheme();
   const handle = formatInstagramHandle(username);
@@ -55,7 +61,6 @@ export const InstagramIdentity = memo(function InstagramIdentity({
 
   const config = sizeConfig[size];
   const inverse = tone === "inverse";
-  const iconColor = inverse ? colors.inverse : colors.accent;
   const textColor = inverse
     ? colors.inverse
     : size === "title"
@@ -64,13 +69,16 @@ export const InstagramIdentity = memo(function InstagramIdentity({
 
   return (
     <View pointerEvents="none" style={[styles.row, style]}>
-      <Ionicons
-        accessible={false}
-        color={iconColor}
-        name="logo-instagram"
-        size={config.iconSize}
-        testID={iconTestID}
-      />
+      {showAvatar ? (
+        <InstagramProfileAvatar
+          imageTestID={avatarImageTestID}
+          profileImageUrl={profileImageUrl}
+          size={config.avatarSize}
+          testID={avatarTestID}
+          tone={tone}
+          username={username}
+        />
+      ) : null}
       <SText
         numberOfLines={allowWrapping ? undefined : numberOfLines}
         style={[styles.text, { color: textColor }, textStyle]}
@@ -87,7 +95,7 @@ const styles = StyleSheet.create({
   row: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 4,
+    gap: 6,
     minWidth: 0,
   },
   text: {

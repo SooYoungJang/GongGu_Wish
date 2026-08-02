@@ -384,6 +384,7 @@ export function AdminScreen() {
                     <View style={s.cardHeader}>
                       <View style={s.cardTitleBlock}>
                         <InstagramIdentity
+                          profileImageUrl={item.profileImageUrl}
                           size="body"
                           textStyle={s.itemTitle}
                           username={item.instagramUsername}
@@ -448,6 +449,7 @@ export function AdminScreen() {
                     label="계정"
                     value={
                       <InstagramIdentity
+                        profileImageUrl={selectedSubmission.rawPost.influencer.profileImageUrl}
                         size="body"
                         username={selectedSubmission.rawPost.influencer.instagramUsername}
                       />
@@ -542,6 +544,7 @@ function SubmissionCard({
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleBlock}>
           <InstagramIdentity
+            profileImageUrl={item.rawPost.influencer.profileImageUrl}
             size="body"
             textStyle={styles.itemHandle}
             username={item.rawPost.influencer.instagramUsername}

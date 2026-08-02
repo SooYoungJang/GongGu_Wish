@@ -26,6 +26,7 @@ export const MOCK_RANKINGS: GroupBuyRankingItem[] = [
       score: 144666,
       scoreDelta: 48200,
     },
+    profileImageUrl: null,
     scoreVersion: 'v2',
   },
   {
@@ -50,6 +51,7 @@ export const MOCK_RANKINGS: GroupBuyRankingItem[] = [
       score: 94527,
       scoreDelta: 10000,
     },
+    profileImageUrl: null,
     scoreVersion: 'v2',
   },
 ];

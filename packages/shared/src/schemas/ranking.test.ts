@@ -14,6 +14,7 @@ const rankingItem = {
   productName: "테스트 공구",
   brandName: "테스트 브랜드",
   username: "gonggu_test",
+  profileImageUrl: "https://example.com/profile.jpg",
   category: "food" as const,
   thumbnailUrl: "https://example.com/thumb.jpg",
   mediaUrls: ["https://example.com/thumb.jpg"],
@@ -67,6 +68,28 @@ describe("group buy ranking contract", () => {
         username: null,
       }).username,
     ).toBeNull();
+  });
+
+  it("requires a valid profile image URL or an explicit null", () => {
+    expect(
+      groupBuyRankingItemSchema.parse({
+        ...rankingItem,
+        profileImageUrl: null,
+      }).profileImageUrl,
+    ).toBeNull();
+
+    expect(() =>
+      groupBuyRankingItemSchema.parse({
+        ...rankingItem,
+        profileImageUrl: "not-a-url",
+      }),
+    ).toThrow();
+  });
+
+  it("keeps older ranking responses compatible when the profile image is absent", () => {
+    const { profileImageUrl: _profileImageUrl, ...legacyItem } = rankingItem;
+
+    expect(groupBuyRankingItemSchema.parse(legacyItem).profileImageUrl).toBeNull();
   });
 
   it("keeps an uncategorized active product in an all-category ranking", () => {

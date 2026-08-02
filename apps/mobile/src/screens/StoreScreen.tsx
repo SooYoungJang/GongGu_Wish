@@ -57,6 +57,7 @@ type RankingItemCacheEntry = {
 // 랭킹 행을 공용 마감 알림 선택창이 사용하는 GroupBuy로 변환한다.
 function rankingToGroupBuy(item: GroupBuyRankingItem): GroupBuy {
   const username = normalizeOptionalInstagramUsername(item.username);
+  const profileImageUrl = getRankingProfileImageUrl(item);
   return {
     id: item.groupBuyId,
     productName: item.productName,
@@ -75,7 +76,10 @@ function rankingToGroupBuy(item: GroupBuyRankingItem): GroupBuy {
     mediaType: null,
     rawPost: {
       postUrl: "",
-      influencer: { instagramUsername: username ?? "" },
+      influencer: {
+        instagramUsername: username ?? "",
+        profileImageUrl,
+      },
     },
   };
 }
@@ -231,10 +235,12 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
     (item: GroupBuyRankingItem) => {
       const username = normalizeOptionalInstagramUsername(item.username);
       if (!username) return;
+      const profileImageUrl = getRankingProfileImageUrl(item);
 
       navigation.navigate("InfluencerGroupBuys", {
         influencerUsername: username,
         influencerDisplayName: item.brandName,
+        ...(profileImageUrl ? { influencerProfileImageUrl: profileImageUrl } : {}),
       });
     },
     [navigation],
@@ -350,6 +356,13 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
       </View>
     </SafeAreaView>
   );
+}
+
+function getRankingProfileImageUrl(
+  item: GroupBuyRankingItem,
+): string | null {
+  const value = item.profileImageUrl;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {

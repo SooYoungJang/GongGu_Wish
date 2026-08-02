@@ -164,7 +164,8 @@ export const SellerRankingRow = memo(function SellerRankingRow({
             >
               <InstagramIdentity
                 allowWrapping={largeText}
-                iconTestID={`ranking-row-seller-icon-${item.rank}`}
+                avatarTestID={`ranking-row-seller-avatar-${item.rank}`}
+                profileImageUrl={item.profileImageUrl}
                 size="body"
                 style={s.sellerIdentity}
                 testID={`ranking-row-seller-${item.rank}`}
@@ -182,7 +183,8 @@ export const SellerRankingRow = memo(function SellerRankingRow({
             <View style={s.sellerStatic}>
               <InstagramIdentity
                 allowWrapping={largeText}
-                iconTestID={`ranking-row-seller-icon-${item.rank}`}
+                avatarTestID={`ranking-row-seller-avatar-${item.rank}`}
+                profileImageUrl={item.profileImageUrl}
                 size="body"
                 style={s.sellerIdentity}
                 testID={`ranking-row-seller-${item.rank}`}

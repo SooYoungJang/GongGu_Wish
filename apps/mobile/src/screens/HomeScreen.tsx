@@ -596,9 +596,10 @@ function PromoBanner({
             >
               {instagramHandle ? (
                 <InstagramIdentity
-                  iconTestID={
-                    clone ? undefined : `promo-account-icon-${item.id}`
+                  avatarTestID={
+                    clone ? undefined : `promo-account-avatar-${item.id}`
                   }
+                  profileImageUrl={item.rawPost.influencer.profileImageUrl}
                   size="compact"
                   style={s.promoAccountRow}
                   testID={clone ? undefined : `promo-account-${item.id}`}

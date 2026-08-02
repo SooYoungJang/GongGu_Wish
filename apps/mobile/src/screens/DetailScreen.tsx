@@ -75,6 +75,7 @@ import {
 } from "./reelsAdPlacement";
 import { PriceText } from "../components/ui/PriceText";
 import { InstagramIdentity } from "../components/ui/InstagramIdentity";
+import { InstagramProfileAvatar } from "../components/ui/InstagramProfileAvatar";
 import {
   useBookmarks,
   useNotifications,
@@ -906,7 +907,8 @@ function DetailSearchSheet({
                         ) : null}
                         {sellerName ? (
                           <InstagramIdentity
-                            iconTestID={`detail-search-instagram-icon-${item.id}`}
+                            avatarTestID={`detail-search-instagram-avatar-${item.id}`}
+                            profileImageUrl={item.rawPost.influencer.profileImageUrl}
                             style={s.detailSearchInstagram}
                             textStyle={s.detailSearchInstagramText}
                             tone="inverse"
@@ -2045,13 +2047,18 @@ function ProductReelPageComponent({
           <View style={s.bottomInfoScrim} pointerEvents="none" />
           {sellerHandle ? (
             <View style={s.sellerRow}>
-              <View style={s.avatar}>
-                <SText variant="caption" style={s.avatarText}>
-                  {sellerName.slice(0, 1).toUpperCase()}
-                </SText>
-              </View>
+              <InstagramProfileAvatar
+                imageTestID={`detail-reel-profile-image-${groupBuy.id}`}
+                profileImageUrl={groupBuy.rawPost.influencer.profileImageUrl}
+                size={38}
+                style={s.avatar}
+                testID={`detail-reel-profile-avatar-${groupBuy.id}`}
+                tone="inverse"
+                username={sellerName}
+              />
               <InstagramIdentity
-                iconTestID={`detail-reel-instagram-icon-${groupBuy.id}`}
+                profileImageUrl={groupBuy.rawPost.influencer.profileImageUrl}
+                showAvatar={false}
                 size="title"
                 style={s.sellerIdentity}
                 textStyle={s.sellerName}
@@ -2151,16 +2158,21 @@ function ProductReelPageComponent({
                 <View style={s.summarySheetHeader}>
                   <View style={s.summarySheetSeller}>
                     {sellerHandle ? (
-                      <View style={s.summarySheetAvatar}>
-                        <SText variant="caption" style={s.avatarText}>
-                          {sellerName.slice(0, 1).toUpperCase()}
-                        </SText>
-                      </View>
+                      <InstagramProfileAvatar
+                        imageTestID={`detail-summary-profile-image-${groupBuy.id}`}
+                        profileImageUrl={groupBuy.rawPost.influencer.profileImageUrl}
+                        size={48}
+                        style={s.summarySheetAvatar}
+                        testID={`detail-summary-profile-avatar-${groupBuy.id}`}
+                        tone="inverse"
+                        username={sellerName}
+                      />
                     ) : null}
                     <View style={s.summarySheetTitleBlock}>
                       {sellerHandle ? (
                         <InstagramIdentity
-                          iconTestID={`detail-summary-instagram-icon-${groupBuy.id}`}
+                          profileImageUrl={groupBuy.rawPost.influencer.profileImageUrl}
+                          showAvatar={false}
                           size="body"
                           textStyle={s.summarySheetSellerName}
                           tone="inverse"
@@ -3332,11 +3344,6 @@ export function makeStyles(
       height: 38,
       justifyContent: "center",
       width: 38,
-    },
-    avatarText: {
-      color: "#FFFFFF",
-      fontSize: 14,
-      fontWeight: "900",
     },
     sellerName: {
       fontSize: 16,

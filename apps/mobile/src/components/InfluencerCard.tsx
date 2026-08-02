@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { InstagramIdentity } from './ui/InstagramIdentity';
+import { InstagramProfileAvatar } from './ui/InstagramProfileAvatar';
 import { SText } from './ui/SText';
 
 import { borderRadius, spacing } from '../design/tokens';
@@ -27,11 +28,12 @@ export function InfluencerCard({ influencer, onPress }: InfluencerCardProps) {
       onPress={onPress}
       style={({ pressed }) => [s.card, pressed && s.pressed]}
     >
-      <View style={s.avatar}>
-        <SText variant="cardTitle" style={s.avatarText}>
-          {avatarLabel.slice(0, 2).toUpperCase()}
-        </SText>
-      </View>
+      <InstagramProfileAvatar
+        profileImageUrl={influencer.profileImageUrl}
+        size={44}
+        style={s.avatar}
+        username={influencer.instagramUsername}
+      />
       <View style={s.info}>
         {displayName ? (
           <SText variant="cardTitle" style={s.displayName} numberOfLines={1}>
@@ -39,6 +41,7 @@ export function InfluencerCard({ influencer, onPress }: InfluencerCardProps) {
           </SText>
         ) : null}
         <InstagramIdentity
+          showAvatar={false}
           size={displayName ? "compact" : "body"}
           textStyle={[s.username, !displayName && s.usernamePrimary]}
           username={influencer.instagramUsername}
@@ -63,15 +66,8 @@ function makeStyles(colors: ColorPalette, shadows: Record<'sm' | 'md' | 'lg', an
     },
     pressed: { opacity: 0.82 },
     avatar: {
-      alignItems: 'center',
-      backgroundColor: colors.primaryBg,
-      borderRadius: borderRadius.full,
-      height: 44,
-      justifyContent: 'center',
       marginRight: spacing.md,
-      width: 44,
     },
-    avatarText: { color: colors.primary, fontSize: 18, fontWeight: '800' },
     info: { flex: 1 },
     displayName: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
     username: { fontSize: 12, fontWeight: '600' },

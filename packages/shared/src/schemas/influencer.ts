@@ -15,6 +15,7 @@ export type Influencer = z.infer<typeof influencerSchema>;
 export const influencerFormSchema = z.object({
   instagramUsername: z.string().min(1, "인스타그램 계정은 필수입니다").max(100),
   displayName: z.string().min(1, "표시명은 필수입니다").max(100),
+  profileImageUrl: z.string().url().nullable().optional(),
 });
 
 export type InfluencerForm = z.infer<typeof influencerFormSchema>;

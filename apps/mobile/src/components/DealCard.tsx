@@ -150,7 +150,8 @@ export function DealCard({
       </View>
       <View style={s.instagramSlot} testID="deal-card-instagram-slot">
         <InstagramIdentity
-          iconTestID="deal-card-instagram-icon"
+          avatarTestID="deal-card-instagram-avatar"
+          profileImageUrl={item.rawPost.influencer.profileImageUrl}
           size="body"
           textStyle={s.instagramHandle}
           username={item.rawPost.influencer.instagramUsername}
