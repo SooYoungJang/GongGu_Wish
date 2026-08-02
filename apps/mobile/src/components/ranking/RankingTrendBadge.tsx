@@ -53,11 +53,7 @@ export function RankingTrendBadge({ trend }: RankingTrendBadgeProps) {
       style={[styles.badge, { backgroundColor: palette.background }]}
       testID={`ranking-trend-badge-${trend.kind}`}
     >
-      <SText
-        numberOfLines={1}
-        variant="caption"
-        style={[styles.text, { color: palette.text }]}
-      >
+      <SText variant="caption" style={[styles.text, { color: palette.text }]}>
         {palette.label}
       </SText>
     </View>

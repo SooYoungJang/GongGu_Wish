@@ -377,7 +377,7 @@ describe("ranking components", () => {
 
       expect(flattenText(renderer!.toJSON())).toBe(testCase.label);
       expect(style.color).toBe(testCase.color);
-      expect(textNode.props.numberOfLines).toBe(1);
+      expect(textNode.props.numberOfLines).toBeUndefined();
       expect(style.includeFontPadding).toBe(false);
       expect(badgeStyle.backgroundColor).toBe(testCase.backgroundColor);
       expect(badgeStyle.minHeight).toBe(24);
@@ -387,7 +387,7 @@ describe("ranking components", () => {
   });
 
   it.each([1, 1.8])(
-    "does not ellipsize rising or falling trends for ranks one through four at %sx font scale",
+    "does not request truncation for large rising or falling trends in top and later ranks at %sx font scale",
     (fontScale) => {
       windowDimensionsMock.fontScale = fontScale;
       const items = [
@@ -410,6 +410,11 @@ describe("ranking components", () => {
           groupBuyId: "group-4",
           rank: 4,
           trend: { kind: "down", delta: 99 },
+        }),
+        sampleRanking({
+          groupBuyId: "group-11",
+          rank: 11,
+          trend: { kind: "up", delta: 99 },
         }),
       ];
       let renderer: TestRenderer.ReactTestRenderer;
@@ -435,6 +440,7 @@ describe("ranking components", () => {
           label: "▲99위",
         },
         { containerTestID: "ranking-row-4", kind: "down", label: "▼99위" },
+        { containerTestID: "ranking-row-11", kind: "up", label: "▲99위" },
       ];
 
       for (const testCase of cases) {
@@ -449,7 +455,7 @@ describe("ranking components", () => {
         );
 
         expect(textNode.props.children).toBe(testCase.label);
-        expect(textNode.props.numberOfLines).toBe(1);
+        expect(textNode.props.numberOfLines).toBeUndefined();
         expect(textNode.props.ellipsizeMode).toBeUndefined();
         expect(flattenStyle(textNode.props.style).flexShrink).toBe(0);
         expect(flattenStyle(badge.props.style).flexShrink).toBe(0);
