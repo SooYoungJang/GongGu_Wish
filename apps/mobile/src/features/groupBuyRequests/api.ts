@@ -137,7 +137,7 @@ export async function fetchGroupBuyRequestRankings(): Promise<
     "rpc/get_group_buy_request_rankings",
     {
       method: "POST",
-      body: { p_limit_count: 3 },
+      body: { p_limit_count: 10 },
     },
   );
 

@@ -139,7 +139,7 @@ describe("group buy request API", () => {
     });
   });
 
-  it("fetches at most three monthly request rankings and maps them in server order", async () => {
+  it("fetches at most ten monthly request rankings and maps them in server order", async () => {
     postgrestMock.postgrestFetch.mockResolvedValue({
       data: [
         {
@@ -165,7 +165,7 @@ describe("group buy request API", () => {
       "rpc/get_group_buy_request_rankings",
       {
         method: "POST",
-        body: { p_limit_count: 3 },
+        body: { p_limit_count: 10 },
       },
     );
   });
