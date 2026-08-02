@@ -1852,6 +1852,50 @@ describe("DetailScreen", () => {
     expectPreparedSummarySheetClosed(renderer!);
   });
 
+  it("keeps a 1000-character summary intact in the shared reels and detail more sheet", () => {
+    const tailSentinel = "[[SUMMARY-END-1000]]";
+    const summary = `${"가".repeat(1000 - tailSentinel.length)}${tailSentinel}`;
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      summary,
+    };
+
+    expect(summary).toHaveLength(1000);
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={
+            { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+          }
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "요약 자세히 보기",
+    );
+
+    act(() => {
+      summaryButton.props.onPress();
+    });
+
+    const expandedSummary = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Text" &&
+        node.props.children === summary &&
+        node.props.numberOfLines === undefined,
+    );
+
+    expect(expandedSummary.props.children).toBe(summary);
+    expect(expandedSummary.props.children).toContain(tailSentinel);
+    expect(expandedSummary.props.numberOfLines).toBeUndefined();
+  });
+
   it("closes search then summary before delegating Android Back to the stack", () => {
     platformMock.os = "android";
     const groupBuy: GroupBuy = {

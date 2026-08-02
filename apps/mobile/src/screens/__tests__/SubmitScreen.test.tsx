@@ -56,6 +56,18 @@ function getAllByType(root: any, typeName: string) {
   });
 }
 
+function findSummaryInput(renderer: ReturnType<typeof renderSubmit>) {
+  return renderer.root.find(function(node: any) {
+    return typeof node.type === 'string'
+      && node.type === 'TextInput'
+      && node.props.multiline === true;
+  });
+}
+
+function makeLongSummary(length: number, tailSentinel: string): string {
+  return `${'가'.repeat(length - tailSentinel.length)}${tailSentinel}`;
+}
+
 function renderSubmit(props?: Record<string, any>) {
   const opts = props || {};
   const navigation = opts.navigation || { navigate: vi.fn(), goBack: vi.fn() };
@@ -266,6 +278,39 @@ describe('SubmitScreen', function() {
     expect(text).toContain('제품명은 2자 이상 필수입니다');
   });
 
+  it('preserves a 1000-character Hiker caption through summary auto-fill', async function() {
+    const tailSentinel = '[[HIKER-SUMMARY-END-1000]]';
+    const caption = makeLongSummary(1000, tailSentinel);
+    vi.mocked(apiModule.lookupInstagramUrl).mockResolvedValue({
+      imageUrl: null,
+      caption,
+      likeCount: null,
+      username: 'long_caption_seller',
+      takenAt: '2026-08-02T00:00:00Z',
+      thumbnailUrl: null,
+      videoUrl: null,
+      mediaUrls: [],
+      mediaItems: [],
+      mediaType: null,
+    });
+
+    var renderer = renderSubmit();
+    var instagramUrlInput = getAllByType(renderer.root, 'TextInput')[0];
+
+    act(function() {
+      instagramUrlInput.props.onChangeText('https://www.instagram.com/p/LONG1000/');
+    });
+
+    await act(async function() {
+      await new Promise(function(resolve) { setTimeout(resolve, 600); });
+    });
+
+    var summaryInput = findSummaryInput(renderer);
+    expect(caption).toHaveLength(1000);
+    expect(summaryInput.props.value).toBe(caption);
+    expect(summaryInput.props.value).toContain(tailSentinel);
+  });
+
   it('calls postPublicJson on valid submit', function() {
     vi.mocked(apiModule.postPublicJson).mockResolvedValue({ id: 'abc-123' });
 
@@ -287,6 +332,31 @@ describe('SubmitScreen', function() {
       productName: 'Test Product',
       category: 'beauty',
       purchaseUrl: 'https://www.instagram.com/p/ABC123/',
+    }));
+  });
+
+  it('submits a complete 1000-character summary without client rejection', function() {
+    const tailSentinel = '[[SUBMIT-SUMMARY-END-1000]]';
+    const summary = makeLongSummary(1000, tailSentinel);
+    vi.mocked(apiModule.postPublicJson).mockResolvedValue({ id: 'abc-123' });
+
+    var renderer = renderSubmit();
+    var textInputs = getAllByType(renderer.root, 'TextInput');
+    var summaryInput = findSummaryInput(renderer);
+
+    act(function() {
+      textInputs[0].props.onChangeText('https://www.instagram.com/p/ABC123/');
+      textInputs[1].props.onChangeText('Test Product');
+      summaryInput.props.onChangeText(summary);
+    });
+    selectCategory(renderer);
+
+    pressSubmit(renderer);
+
+    expect(summary).toHaveLength(1000);
+    expect(flattenText(renderer.toJSON())).not.toContain('요약은 500자 이하로 입력해주세요.');
+    expect(apiModule.postPublicJson).toHaveBeenCalledWith('/submissions', expect.objectContaining({
+      summary,
     }));
   });
 

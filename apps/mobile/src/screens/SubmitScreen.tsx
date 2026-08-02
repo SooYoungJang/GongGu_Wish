@@ -178,7 +178,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
     if (shouldFillEndDate && parsed.endDate) setEndDate(parsed.endDate);
     if (shouldFillPurchaseUrl && parsed.purchaseUrl) setPurchaseUrl(parsed.purchaseUrl);
     if (shouldFillDiscountInfo && parsed.discountInfo) setDiscountInfo(parsed.discountInfo);
-    if (!summary.trim() && hikerData.caption) setSummary(hikerData.caption.slice(0, 500));
+    if (!summary.trim() && hikerData.caption) setSummary(hikerData.caption);
 
     if (
       shouldFillProductName ||
@@ -237,9 +237,6 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
     const parsedEndDate = parseDateValue(endDate);
     if (parsedStartDate && parsedEndDate && parsedStartDate > parsedEndDate) {
       return '시작일은 마감일보다 늦을 수 없습니다.';
-    }
-    if (summary.trim().length > 500) {
-      return '요약은 500자 이하로 입력해주세요.';
     }
     return null;
   }
@@ -775,7 +772,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
               onChangeText={setSummary}
               onBlur={() => handleInputBlur('summary')}
               onFocus={() => handleInputFocus('summary')}
-              placeholder="공구 한 줄 요약 (최대 500자)"
+              placeholder="공구 제품 정보를 입력해주세요"
               multiline
               scrollEnabled
               style={s.summaryInput}

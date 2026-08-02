@@ -364,10 +364,9 @@ export default function SubmitForm() {
                 rows={4}
                 placeholder="예: 버터 향 가득한 정통 크로와상, 냉동 보관 가능"
                 className="w-full px-4 py-3 border border-neutral-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent text-neutral-900 placeholder-neutral-400 transition-colors resize-none"
-                maxLength={500}
               />
               <p className="mt-1 text-xs text-neutral-500 text-right">
-                {form.summary.length}/500자
+                {form.summary.length}자
               </p>
             </div>
 
