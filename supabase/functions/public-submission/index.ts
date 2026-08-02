@@ -88,6 +88,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey",
 };
+const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 
 const GONGGU_CATEGORIES = [
   "beauty",
@@ -348,9 +349,6 @@ export function validate(body: SubmissionRequest) {
   }
   if (discountInfo && discountInfo.length > 200) {
     return { error: "할인 정보는 200자 이하로 입력해주세요." };
-  }
-  if (summary && summary.length > 500) {
-    return { error: "요약은 500자 이하로 입력해주세요." };
   }
   if (postAudioUrl && !isInstagramCdnUrl(postAudioUrl)) {
     return { error: "게시물 오디오 URL을 확인해주세요." };
@@ -712,6 +710,69 @@ async function handleSubmission(
   return json({ submission, groupBuy, notificationDelivery });
 }
 
+async function readSubmissionRequest(req: Request): Promise<SubmissionRequest> {
+  const reader = req.body?.getReader();
+  if (!reader) throw new Error("invalid_request_body");
+  const declaredLength = Number(req.headers.get("content-length") ?? 0);
+
+  try {
+    if (
+      Number.isFinite(declaredLength) &&
+      declaredLength > MAX_REQUEST_BODY_BYTES
+    ) {
+      await reader.cancel();
+      throw new Error("payload_too_large");
+    }
+
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.byteLength) continue;
+
+      const retainedBytes = Math.min(
+        value.byteLength,
+        MAX_REQUEST_BODY_BYTES + 1 - totalBytes,
+      );
+      if (retainedBytes > 0) {
+        chunks.push(value.slice(0, retainedBytes));
+        totalBytes += retainedBytes;
+      }
+      if (
+        totalBytes > MAX_REQUEST_BODY_BYTES ||
+        retainedBytes < value.byteLength
+      ) {
+        await reader.cancel();
+        throw new Error("payload_too_large");
+      }
+    }
+
+    const bodyBytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bodyBytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    let parsed: unknown;
+    try {
+      const rawBody = new TextDecoder("utf-8", { fatal: true }).decode(
+        bodyBytes,
+      );
+      parsed = JSON.parse(rawBody) as unknown;
+    } catch {
+      throw new Error("invalid_request_body");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("invalid_request_body");
+    }
+    return parsed as SubmissionRequest;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export async function handler(req: Request) {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
@@ -722,14 +783,20 @@ export async function handler(req: Request) {
   }
 
   try {
+    const body = await readSubmissionRequest(req);
     const supabase = createAdminClient();
     const submitterUserId = await resolveOptionalSubmissionUserId(
       req.headers.get("Authorization"),
       supabase,
     );
-    const body = (await req.json()) as SubmissionRequest;
     return await handleSubmission(body, submitterUserId, supabase);
   } catch (err) {
+    if (err instanceof Error && err.message === "payload_too_large") {
+      return json({ error: "payload_too_large" }, 413);
+    }
+    if (err instanceof Error && err.message === "invalid_request_body") {
+      return json({ error: "invalid_request_body" }, 400);
+    }
     if (err instanceof SubmissionAuthenticationError) {
       return json({ error: err.message }, err.status);
     }

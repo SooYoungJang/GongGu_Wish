@@ -92,7 +92,7 @@ export const submissionFormSchema = z
     endDate: z.string().datetime().optional().or(z.literal("")),
     purchaseUrl: z.string().url("올바른 구매 URL을 입력해주세요").optional().or(z.literal("")),
     discountInfo: z.string().max(200).optional(),
-    summary: z.string().max(500).optional(),
+    summary: z.string().optional(),
     instagramUrl: z.string().url("올바른 인스타그램 URL을 입력해주세요").optional().or(z.literal("")),
     imageUrls: z.array(z.string().url()).optional(),
   })

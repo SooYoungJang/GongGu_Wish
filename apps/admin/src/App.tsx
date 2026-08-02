@@ -8,7 +8,10 @@ import {
 } from "@/components/AppLivePreview";
 import { DatePickerField } from "@/components/DatePickerField";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
-import { inferHikerSuggestions } from "@/lib/hikerSuggestions";
+import {
+  inferHikerSuggestions,
+  resolveHikerSummary,
+} from "@/lib/hikerSuggestions";
 import {
   canonicalizeHomeBannerForm,
   validateHomeBannerForm,
@@ -2009,7 +2012,7 @@ function applyHikerResult(
     priceKrw:
       isLlm && suggestions.priceKrw ? suggestions.priceKrw : form.priceKrw,
     purchaseUrl: form.purchaseUrl || form.instagramUrl,
-    summary: result.caption ? result.caption.slice(0, 500) : form.summary,
+    summary: resolveHikerSummary(form.summary, result.caption),
     thumbnailUrl,
     mediaUrlsText: mediaUrls.join("\n"),
     mediaItems,
