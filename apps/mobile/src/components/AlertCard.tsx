@@ -34,7 +34,8 @@ export function AlertCard({ item, onPress }: AlertCardProps) {
       <View style={s.info}>
         <View style={s.topRow}>
           <InstagramIdentity
-            iconTestID="alert-card-instagram-icon"
+            avatarTestID="alert-card-instagram-avatar"
+            profileImageUrl={item.rawPost.influencer.profileImageUrl}
             style={s.influencerIdentity}
             textStyle={s.influencerName}
             username={influencerUsername}

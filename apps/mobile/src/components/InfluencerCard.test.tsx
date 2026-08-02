@@ -92,8 +92,11 @@ describe("InfluencerCard", () => {
       1,
     );
     expect(
-      renderer!.root.findByProps({ name: "logo-instagram" }).props,
-    ).toMatchObject({ accessible: false, color: "#F0445E" });
+      renderer!.root
+        .findAllByProps({ accessibilityLabel: "@sample_shop 프로필 이미지" })
+        .some((node) => node.props.accessibilityRole === "image"),
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ name: "logo-instagram" })).toHaveLength(0);
   });
 
   it("keeps the display name above the Instagram identity", () => {

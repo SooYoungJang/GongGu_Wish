@@ -21,6 +21,8 @@ type Fetcher = typeof fetch;
 const AUDIO_WALK_MAX_DEPTH = 8;
 const AUDIO_WALK_MAX_NODES = 512;
 const INSTAGRAM_CDN_URL_MAX_LENGTH = 8_192;
+const INSTAGRAM_CDN_URL_PATTERN =
+  /^https:\/\/(?:[a-z0-9-]+\.)*(?:cdninstagram\.com|fbcdn\.net)(?:[/?#]|$)/iu;
 const HIKER_TRACK_TIMEOUT_MS = 6_000;
 const VIDEO_PROBE_BYTES = 1024 * 1024;
 const VIDEO_PROBE_MAX_CANDIDATES = 3;
@@ -70,6 +72,7 @@ export function trustedInstagramCdnUrl(value: unknown): string | null {
   if (!candidate || candidate.length > INSTAGRAM_CDN_URL_MAX_LENGTH) {
     return null;
   }
+  if (!INSTAGRAM_CDN_URL_PATTERN.test(candidate)) return null;
   try {
     const url = new URL(candidate);
     const hostname = url.hostname.toLowerCase();
@@ -81,7 +84,8 @@ export function trustedInstagramCdnUrl(value: unknown): string | null {
       url.protocol !== "https:" ||
       !trustedHost ||
       url.username ||
-      url.password
+      url.password ||
+      url.port
     ) {
       return null;
     }

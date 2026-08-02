@@ -53,6 +53,27 @@ describe("group-buy schemas", () => {
       if (result.success) expect(result.data.isHomeBanner).toBe(false);
     });
 
+    it("preserves an influencer profile image in the mobile public contract", () => {
+      const profileImageUrl = "https://cdn.example.com/profile.jpg";
+      const result = publicGroupBuySchema.safeParse({
+        ...publicGroupBuy,
+        rawPost: {
+          ...publicGroupBuy.rawPost,
+          influencer: {
+            ...publicGroupBuy.rawPost.influencer,
+            profileImageUrl,
+          },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.rawPost.influencer.profileImageUrl).toBe(
+          profileImageUrl,
+        );
+      }
+    });
+
     it("rejects an invalid persisted price", () => {
       expect(
         publicGroupBuySchema.safeParse({ ...publicGroupBuy, priceKrw: "200000" })

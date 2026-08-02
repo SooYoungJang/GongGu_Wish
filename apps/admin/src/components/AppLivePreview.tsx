@@ -6,6 +6,7 @@ import {
   getHomeBannerStatusCopy,
   type HomeBannerStatusCopy,
 } from "@gonggu/shared/utils/homeBannerPresentation";
+import { ProfileImagePreview } from "./ProfileImagePreview";
 
 type PreviewTab = "home" | "card" | "detail";
 
@@ -13,6 +14,7 @@ export interface AppLivePreviewDeal {
   productName: string;
   brandName: string;
   instagramUsername: string;
+  profileImageUrl?: string | null;
   category: string;
   startDate: string;
   endDate: string;
@@ -324,7 +326,12 @@ function HomeBannerPreview({
       <div className="app-live-preview__home-banner-content">
         {instagramHandle ? (
           <p className="app-live-preview__home-banner-account">
-            {instagramHandle}
+            <ProfileImagePreview
+              className="app-live-preview__account-avatar"
+              instagramUsername={deal.instagramUsername}
+              profileImageUrl={deal.profileImageUrl}
+            />
+            <span>{instagramHandle}</span>
           </p>
         ) : null}
         <h3 className="app-live-preview__home-banner-title">
@@ -392,7 +399,16 @@ function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
       </div>
       <div className="app-live-preview__deal-card-content">
         <p className="app-live-preview__deal-card-brand">
-          {instagramHandle ?? ""}
+          {instagramHandle ? (
+            <>
+              <ProfileImagePreview
+                className="app-live-preview__account-avatar"
+                instagramUsername={deal.instagramUsername}
+                profileImageUrl={deal.profileImageUrl}
+              />
+              <span>{instagramHandle}</span>
+            </>
+          ) : null}
         </p>
         <h3 className="app-live-preview__deal-card-title">
           {deal.productName}
@@ -429,7 +445,18 @@ function DetailScreenPreview({
       <PreviewImage deal={deal} className="app-live-preview__detail-media" />
       <div className="app-live-preview__detail-body">
         <div className="app-live-preview__detail-meta">
-          {sellerLabel ? <span>{sellerLabel}</span> : null}
+          {sellerLabel ? (
+            <span className="app-live-preview__detail-seller">
+              {instagramHandle ? (
+                <ProfileImagePreview
+                  className="app-live-preview__account-avatar"
+                  instagramUsername={deal.instagramUsername}
+                  profileImageUrl={deal.profileImageUrl}
+                />
+              ) : null}
+              <span>{sellerLabel}</span>
+            </span>
+          ) : null}
           {categoryLabel ? <span>{categoryLabel}</span> : null}
           <span>미디어 {deal.mediaCount}개</span>
         </div>

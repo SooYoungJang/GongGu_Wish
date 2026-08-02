@@ -7,6 +7,7 @@ import {
   type AppLivePreviewDeal,
 } from "@/components/AppLivePreview";
 import { DatePickerField } from "@/components/DatePickerField";
+import { ProfileImagePreview } from "@/components/ProfileImagePreview";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import {
   inferHikerSuggestions,
@@ -60,6 +61,8 @@ type SubmissionForm = {
   productName: string;
   brandName: string;
   instagramUsername: string;
+  profileImageUrl: string;
+  profileImageUrlTouched?: boolean;
   category: string;
   startDate: string;
   endDate: string;
@@ -85,6 +88,8 @@ type GroupBuyForm = {
   productName: string;
   brandName: string;
   instagramUsername: string;
+  profileImageUrl: string;
+  profileImageUrlTouched?: boolean;
   category: string;
   startDate: string;
   endDate: string;
@@ -206,6 +211,60 @@ function text(value: string | number | boolean | null | undefined) {
   return value == null ? "" : String(value);
 }
 
+function normalizeInstagramUsername(value: string) {
+  return value.trim().replace(/^@+/, "").toLowerCase();
+}
+
+type ProfileImageFormFields = {
+  instagramUsername: string;
+  profileImageUrl: string;
+  profileImageUrlTouched?: boolean;
+};
+
+export function applyInstagramUsernameChange<T extends ProfileImageFormFields>(
+  form: T,
+  instagramUsername: string,
+): T {
+  if (
+    normalizeInstagramUsername(instagramUsername) ===
+    normalizeInstagramUsername(form.instagramUsername)
+  ) {
+    return { ...form, instagramUsername };
+  }
+
+  return {
+    ...form,
+    instagramUsername,
+    profileImageUrl: "",
+    profileImageUrlTouched: true,
+  };
+}
+
+export function applyProfileImageUrlChange<T extends ProfileImageFormFields>(
+  form: T,
+  profileImageUrl: string,
+): T {
+  return {
+    ...form,
+    profileImageUrl,
+    profileImageUrlTouched: true,
+  };
+}
+
+function validProfileImageUrl(value: string | null | undefined) {
+  const candidate = value?.trim();
+  if (!candidate) return null;
+
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? candidate
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function dateInput(value: string | null | undefined) {
   return value ? value.slice(0, 10) : "";
 }
@@ -320,6 +379,7 @@ export function formToPreviewDeal(
     productName: form.productName.trim() || "상품명을 입력해주세요",
     brandName: form.brandName.trim() || "브랜드 미지정",
     instagramUsername: form.instagramUsername?.trim() ?? "",
+    profileImageUrl: form.profileImageUrl.trim(),
     category:
       CATEGORY_OPTIONS.find((option) => option.value === form.category)
         ?.label ?? "카테고리 미지정",
@@ -336,7 +396,7 @@ export function formToPreviewDeal(
   });
 }
 
-function submissionToForm(item: GongguSubmission): SubmissionForm {
+export function submissionToForm(item: GongguSubmission): SubmissionForm {
   const mediaItems = item.mediaItems ?? [];
   const mediaUrls = mediaItems.map((media) => media.url);
   const thumbnailUrl = firstMediaThumbnail(mediaItems, item.imageUrls ?? []);
@@ -350,6 +410,8 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
     productName: text(item.productName),
     brandName: text(item.brandName),
     instagramUsername: text(item.instagramUsername),
+    profileImageUrl: text(item.profileImageUrl),
+    profileImageUrlTouched: false,
     category: text(item.category),
     startDate: dateInput(item.startDate),
     endDate: dateInput(item.endDate),
@@ -375,11 +437,13 @@ function submissionToForm(item: GongguSubmission): SubmissionForm {
   });
 }
 
-function groupBuyToForm(item: GroupBuy): GroupBuyForm {
+export function groupBuyToForm(item: GroupBuy): GroupBuyForm {
   return canonicalizeHomeBannerForm({
     productName: text(item.productName),
     brandName: text(item.brandName),
     instagramUsername: text(item.instagramUsername),
+    profileImageUrl: text(item.profileImageUrl),
+    profileImageUrlTouched: false,
     category: text(item.category),
     startDate: dateInput(item.startDate),
     endDate: dateInput(item.endDate),
@@ -409,7 +473,13 @@ function mediaItemsForForm(form: SubmissionForm | GroupBuyForm) {
   }));
 }
 
-function submissionPayload(form: SubmissionForm) {
+function profileImagePayload(form: SubmissionForm | GroupBuyForm) {
+  return form.profileImageUrlTouched
+    ? { profileImageUrl: form.profileImageUrl.trim() || null }
+    : {};
+}
+
+export function submissionPayload(form: SubmissionForm) {
   const canonicalForm = canonicalizeHomeBannerForm(form);
   const bannerError = validateHomeBannerForm(canonicalForm);
   if (bannerError) throw new Error(bannerError);
@@ -419,6 +489,7 @@ function submissionPayload(form: SubmissionForm) {
     productName: form.productName,
     brandName: form.brandName,
     instagramUsername: form.instagramUsername,
+    ...profileImagePayload(form),
     category: form.category,
     startDate: form.startDate,
     endDate: form.endDate,
@@ -447,7 +518,7 @@ function submissionPayload(form: SubmissionForm) {
   };
 }
 
-function groupBuyPayload(form: GroupBuyForm) {
+export function groupBuyPayload(form: GroupBuyForm) {
   const canonicalForm = canonicalizeHomeBannerForm(form);
   const bannerError = validateHomeBannerForm(canonicalForm);
   if (bannerError) throw new Error(bannerError);
@@ -457,6 +528,7 @@ function groupBuyPayload(form: GroupBuyForm) {
     productName: form.productName,
     brandName: form.brandName,
     instagramUsername: form.instagramUsername,
+    ...profileImagePayload(form),
     category: form.category,
     startDate: form.startDate,
     endDate: form.endDate,
@@ -1964,7 +2036,7 @@ function AdminShell({ session }: { session: Session }) {
   );
 }
 
-function applyHikerResult(
+export function applyHikerResult(
   form: SubmissionForm,
   result: HikerLookupResult,
 ): SubmissionForm {
@@ -1989,6 +2061,13 @@ function applyHikerResult(
   const shouldApplyPostAudio =
     result.postAudioLookupStatus !== "RETRYABLE" &&
     result.postAudioUrl !== undefined;
+  const resolvedUsername = result.username?.trim() || form.instagramUsername;
+  const ownerChanged = Boolean(
+    result.username?.trim() &&
+      normalizeInstagramUsername(result.username) !==
+        normalizeInstagramUsername(form.instagramUsername),
+  );
+  const hikerProfileImageUrl = validProfileImageUrl(result.profileImageUrl);
 
   return {
     ...form,
@@ -1998,10 +2077,17 @@ function applyHikerResult(
       isLlm && suggestions.brandName
         ? suggestions.brandName
         : form.brandName || "",
-    instagramUsername:
-      isLlm && suggestions.brandName
+    instagramUsername: resolvedUsername,
+    profileImageUrl: hikerProfileImageUrl
+      ? hikerProfileImageUrl
+      : ownerChanged
         ? ""
-        : form.instagramUsername || result.username || "",
+        : form.profileImageUrl,
+    profileImageUrlTouched: hikerProfileImageUrl
+      ? true
+      : ownerChanged
+        ? true
+        : form.profileImageUrlTouched,
     discountInfo:
       isLlm && suggestions.discountInfo
         ? suggestions.discountInfo
@@ -2773,7 +2859,16 @@ function SubmissionEditor(props: {
         <TextField
           label="인스타 계정"
           value={form.instagramUsername}
-          onChange={(value) => setField("instagramUsername", value)}
+          onChange={(value) =>
+            props.onChange(applyInstagramUsernameChange(form, value))
+          }
+        />
+        <ProfileImageFormField
+          instagramUsername={form.instagramUsername}
+          profileImageUrl={form.profileImageUrl}
+          onChange={(value) =>
+            props.onChange(applyProfileImageUrlChange(form, value))
+          }
         />
         <TextField
           label="구매 URL"
@@ -3331,7 +3426,16 @@ function GroupBuyEditor(props: {
         <TextField
           label="인스타 계정"
           value={form.instagramUsername}
-          onChange={(value) => setField("instagramUsername", value)}
+          onChange={(value) =>
+            props.onChange(applyInstagramUsernameChange(form, value))
+          }
+        />
+        <ProfileImageFormField
+          instagramUsername={form.instagramUsername}
+          profileImageUrl={form.profileImageUrl}
+          onChange={(value) =>
+            props.onChange(applyProfileImageUrlChange(form, value))
+          }
         />
         <TextField
           label="구매 URL"
@@ -3951,6 +4055,38 @@ function TextField({
         type={type}
       />
     </label>
+  );
+}
+
+function ProfileImageFormField(props: {
+  instagramUsername: string;
+  profileImageUrl: string;
+  onChange: (value: string) => void;
+}) {
+  const handle = props.instagramUsername.trim().replace(/^@+/, "");
+  return (
+    <div className="profile-image-field">
+      <TextField
+        label="프로필 이미지 URL"
+        value={props.profileImageUrl}
+        onChange={props.onChange}
+        type="url"
+      />
+      <div aria-live="polite" className="profile-image-field__preview">
+        <ProfileImagePreview
+          instagramUsername={props.instagramUsername}
+          profileImageUrl={props.profileImageUrl}
+        />
+        <div>
+          <strong>{handle ? `@${handle}` : "계정 미지정"}</strong>
+          <span>
+            {props.profileImageUrl
+              ? "저장될 프로필 이미지 미리보기"
+              : "Hiker 조회 후 프로필 이미지가 표시됩니다."}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 

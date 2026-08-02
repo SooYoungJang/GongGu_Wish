@@ -68,6 +68,14 @@ Deno.test("extractPostAudioInfo rejects muted, non-HTTPS, and lookalike audio as
     isInstagramCdnUrl("https://cdninstagram.com.example.com/a.m4a"),
     false,
   );
+  assertEquals(
+    isInstagramCdnUrl("https://cdninstagram.com:444/a.m4a"),
+    false,
+  );
+  assertEquals(
+    isInstagramCdnUrl("https://cdninstagram.com:443/a.m4a"),
+    false,
+  );
 });
 
 Deno.test("extractPostAudioInfo keeps fields and mute state scoped to one track", () => {

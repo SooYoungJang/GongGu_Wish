@@ -61,9 +61,31 @@ describe("influencer schemas", () => {
       const form: InfluencerForm = {
         instagramUsername: "new_influencer",
         displayName: "새 인플루언서",
+        profileImageUrl: "https://example.com/new-influencer.jpg",
       };
       const result = influencerFormSchema.safeParse(form);
       expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.profileImageUrl).toBe(
+          "https://example.com/new-influencer.jpg",
+        );
+      }
+    });
+
+    it("accepts a nullable or omitted profile image for backward compatibility", () => {
+      expect(
+        influencerFormSchema.safeParse({
+          instagramUsername: "without_image",
+          displayName: "이미지 없음",
+        }).success,
+      ).toBe(true);
+      expect(
+        influencerFormSchema.safeParse({
+          instagramUsername: "null_image",
+          displayName: "이미지 없음",
+          profileImageUrl: null,
+        }).success,
+      ).toBe(true);
     });
 
     it("rejects empty instagramUsername", () => {

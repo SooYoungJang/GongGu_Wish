@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { InstagramIdentity } from '../../components/ui/InstagramIdentity';
+import { InstagramProfileAvatar } from '../../components/ui/InstagramProfileAvatar';
 import { SText } from '../../components/ui/SText';
 
 import { spacing } from '../../design/tokens';
@@ -28,7 +29,6 @@ const SearchResultRow = memo(function SearchResultRow({ chevronColor, influencer
     onPressInfluencer(influencer);
   }, [influencer, onPressInfluencer]);
   const displayName = influencer.displayName?.trim() || null;
-  const avatarLabel = displayName ?? influencer.instagramUsername;
 
   return (
     <Pressable
@@ -37,14 +37,18 @@ const SearchResultRow = memo(function SearchResultRow({ chevronColor, influencer
       onPress={handlePress}
       style={({ pressed }) => [s.searchResultRow, pressed && s.pressed]}
     >
-      <View style={s.avatar}>
-        <SText variant="caption" style={s.avatarText}>{avatarLabel.slice(0, 1).toUpperCase()}</SText>
-      </View>
+      <InstagramProfileAvatar
+        profileImageUrl={influencer.profileImageUrl}
+        size={42}
+        style={s.avatar}
+        username={influencer.instagramUsername}
+      />
       <View style={s.resultTextBlock}>
         {displayName ? (
           <SText variant="label" style={s.searchResultName}>{displayName}</SText>
         ) : null}
         <InstagramIdentity
+          showAvatar={false}
           size={displayName ? "compact" : "body"}
           textStyle={displayName ? s.searchResultMeta : s.searchResultPrimary}
           username={influencer.instagramUsername}
@@ -97,17 +101,8 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     pressed: { opacity: 0.64 },
     avatar: {
-      alignItems: 'center',
-      backgroundColor: colors.softBg,
-      borderColor: colors.border,
-      borderRadius: commerceRadius.full,
-      borderWidth: 1,
-      height: 42,
-      justifyContent: 'center',
       marginRight: spacing.md,
-      width: 42,
     },
-    avatarText: { color: colors.accent, fontSize: 15, fontWeight: '900', lineHeight: 19 },
     resultTextBlock: { flex: 1, minWidth: 0 },
     searchResultName: { color: colors.text, fontSize: 15, fontWeight: '800', lineHeight: 20 },
     searchResultMeta: { fontSize: 12, fontWeight: '600', lineHeight: 16, marginTop: 2 },

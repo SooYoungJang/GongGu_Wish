@@ -30,6 +30,8 @@ export interface HikerPostData {
   authorName: string | null;
   /** Instagram username (handle without @) */
   authorUsername: string | null;
+  /** Instagram profile image for the post author */
+  profileImageUrl: string | null;
   /** Number of likes */
   likeCount: number | null;
   /** ISO date string of when the post was published */
@@ -71,6 +73,7 @@ function toPostData(info: InstagramMediaInfo): HikerPostData {
     likeCount: info.likeCount,
     authorName: info.username,
     authorUsername: info.username,
+    profileImageUrl: info.profileImageUrl ?? null,
     postedAt: info.takenAt,
   };
 }

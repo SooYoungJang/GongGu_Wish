@@ -170,8 +170,12 @@ describe("DealCard", () => {
     expect(text).toContain("@sample");
     expect(text).not.toContain("귤밭상회");
     expect(text).not.toContain("식품");
-    expect(renderer!.root.findByProps({ testID: "deal-card-instagram-icon" }).props)
-      .toMatchObject({ accessible: false, name: "logo-instagram" });
+    expect(
+      renderer!.root
+        .findAllByProps({ testID: "deal-card-instagram-avatar" })
+        .some((node) => node.props.accessibilityRole === "image"),
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ name: "logo-instagram" })).toHaveLength(0);
   });
 
   it("keeps an empty seller slot when the Instagram account is missing", () => {

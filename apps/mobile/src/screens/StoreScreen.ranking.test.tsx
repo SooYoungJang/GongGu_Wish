@@ -29,6 +29,7 @@ const ranking: GroupBuyRankingItem = {
     score: 91,
     scoreDelta: 0,
   },
+  profileImageUrl: null,
   scoreVersion: "v2",
 };
 

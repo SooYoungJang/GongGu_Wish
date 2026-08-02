@@ -64,6 +64,7 @@ function sampleRanking(
       score: 100 - rank,
       scoreDelta: 0,
     },
+    profileImageUrl: null,
     scoreVersion: "v2",
     ...overrides,
   };

@@ -64,8 +64,11 @@ describe('AlertCard', () => {
 
     expect(compactText).toContain('@sample_influencer');
     expect(
-      renderer!.root.findByProps({ testID: 'alert-card-instagram-icon' }).props,
-    ).toMatchObject({ accessible: false, name: 'logo-instagram' });
+      renderer!.root
+        .findAllByProps({ testID: 'alert-card-instagram-avatar' })
+        .some((node) => node.props.accessibilityRole === 'image'),
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ name: 'logo-instagram' })).toHaveLength(0);
     expect(text).toContain('비건 선크림 공구');
     expect(text).toContain('Sample Beauty');
     expect(text).toContain('20% 할인');

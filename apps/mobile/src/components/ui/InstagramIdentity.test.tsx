@@ -19,6 +19,13 @@ vi.mock("@expo/vector-icons", () => ({
   },
 }));
 
+vi.mock("./InstagramProfileAvatar", () => ({
+  InstagramProfileAvatar: (props: Record<string, unknown>) => {
+    const ReactMock = require("react");
+    return ReactMock.createElement("InstagramProfileAvatar", props);
+  },
+}));
+
 vi.mock("./SText", () => ({
   SText: ({ children, ...props }: { children?: React.ReactNode }) => {
     const ReactMock = require("react");
@@ -53,13 +60,14 @@ function flattenText(
 }
 
 describe("InstagramIdentity", () => {
-  it("normalizes the account and renders one decorative Instagram icon", () => {
+  it("normalizes the account and renders its profile avatar without an Instagram icon", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
       renderer = TestRenderer.create(
         <InstagramIdentity
-          iconTestID="instagram-icon"
+          avatarTestID="instagram-avatar"
+          profileImageUrl="https://cdn.example.com/sample.jpg"
           testID="instagram-account"
           username="@@sample_shop"
         />,
@@ -68,12 +76,13 @@ describe("InstagramIdentity", () => {
 
     expect(flattenText(renderer!.toJSON())).toBe("@sample_shop");
     expect(
-      renderer!.root.findByProps({ testID: "instagram-icon" }).props,
+      renderer!.root.findByProps({ testID: "instagram-avatar" }).props,
     ).toMatchObject({
-      accessible: false,
-      color: "#F0445E",
-      name: "logo-instagram",
+      profileImageUrl: "https://cdn.example.com/sample.jpg",
+      size: 16,
+      username: "@@sample_shop",
     });
+    expect(renderer!.root.findAllByType("Ionicons" as unknown as React.ElementType)).toHaveLength(0);
     const account = renderer!.root
       .findAllByType("SText" as unknown as React.ElementType)
       .find((node) => node.props.testID === "instagram-account");
@@ -86,7 +95,7 @@ describe("InstagramIdentity", () => {
     act(() => {
       renderer = TestRenderer.create(
         <InstagramIdentity
-          iconTestID="inverse-icon"
+          avatarTestID="inverse-avatar"
           tone="inverse"
           username="sample"
         />,
@@ -94,8 +103,8 @@ describe("InstagramIdentity", () => {
     });
 
     expect(
-      renderer!.root.findByProps({ testID: "inverse-icon" }).props.color,
-    ).toBe("#FFFFFF");
+      renderer!.root.findByProps({ testID: "inverse-avatar" }).props.tone,
+    ).toBe("inverse");
     const text = renderer!.root.findByType(
       "SText" as unknown as React.ElementType,
     );

@@ -51,6 +51,7 @@ export type GongguSubmission = {
   productName: string | null;
   brandName: string | null;
   instagramUsername: string | null;
+  profileImageUrl?: string | null;
   category: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -86,6 +87,7 @@ export type GroupBuy = {
   productName: string | null;
   brandName: string | null;
   instagramUsername: string | null;
+  profileImageUrl?: string | null;
   category: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -191,6 +193,7 @@ export type HikerLookupResult = {
   caption: string | null;
   likeCount: number | null;
   username: string | null;
+  profileImageUrl?: string | null;
   takenAt: string | null;
   suggestions?: HikerLlmSuggestions;
 };

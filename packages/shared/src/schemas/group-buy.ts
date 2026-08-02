@@ -79,6 +79,7 @@ export const publicGroupBuySchema = z.object({
     postUrl: z.string(),
     influencer: z.object({
       instagramUsername: z.string(),
+      profileImageUrl: z.string().url().nullable().optional(),
     }),
   }),
 });
@@ -146,6 +147,7 @@ export const groupBuyAdminSchema = groupBuySchema.extend({
       id: z.string().uuid(),
       instagramUsername: z.string(),
       displayName: z.string().nullable(),
+      profileImageUrl: z.string().url().nullable().optional(),
     }),
   }),
 });

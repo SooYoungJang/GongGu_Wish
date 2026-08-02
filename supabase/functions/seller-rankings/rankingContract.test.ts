@@ -9,6 +9,7 @@ import {
   decodeRankingCursor,
   encodeRankingCursor,
   invokeRankingRpcWithFallback,
+  loadRankingProfileImageUrls,
   normalizeRankingRequest,
 } from "./rankingContract.ts";
 
@@ -384,6 +385,91 @@ Deno.test("normalizes an unavailable ranking Instagram account to null", () => {
   );
 
   assertEquals(response.data[0].username, null);
+  assertEquals(response.data[0].profileImageUrl, null);
+});
+
+Deno.test(
+  "loads ranking profile images with one normalized batch query",
+  async () => {
+    const requestedUsernames: string[][] = [];
+    const profileImages = await loadRankingProfileImageUrls(
+      [
+        { username: "@Seller.One" },
+        { username: " seller_two " },
+        { username: "seller.one" },
+        { username: "unsafe,username" },
+        { username: null },
+      ],
+      (usernames) => {
+        requestedUsernames.push([...usernames]);
+        return Promise.resolve({
+          data: [
+            {
+              instagram_username: "@SELLER.ONE",
+              profile_image_url:
+                " https://scontent-test.cdninstagram.com/seller-one.jpg ",
+            },
+            {
+              instagram_username: "Seller_Two",
+              profile_image_url: "not-a-url",
+            },
+          ],
+          error: null,
+        });
+      },
+    );
+
+    assertEquals(requestedUsernames, [["seller.one", "seller_two"]]);
+    assertEquals(
+      profileImages.get("seller.one"),
+      "https://scontent-test.cdninstagram.com/seller-one.jpg",
+    );
+    assertEquals(profileImages.get("seller_two"), null);
+  },
+);
+
+Deno.test("attaches a matched profile image without changing ranking data", () => {
+  const response = buildRankingResponse(
+    [
+      {
+        group_buy_id: "group-buy-with-profile",
+        rank: 1,
+        previous_rank: null,
+        trend_kind: "new",
+        trend_delta: 0,
+        product_name: "프로필 이미지 공구",
+        brand_name: null,
+        username: "@Seller.One",
+        category: "food",
+        thumbnail_url: null,
+        media_urls: [],
+        start_date: null,
+        end_date: null,
+        price_krw: null,
+        created_at: "2026-08-02T00:00:00.000Z",
+        deep_views: 1,
+        bookmarks: 0,
+        notifications: 0,
+        search_clicks: 0,
+        score: 3,
+        score_delta: 3,
+        score_version: "v2",
+      },
+    ],
+    normalizeRankingRequest({ sort: "popular" }),
+    "2026-08-02T00:00:00.000Z",
+    new Map([
+      ["seller.one", "https://cdn.example.com/seller-one.jpg"],
+    ]),
+  );
+
+  assertEquals(response.data[0].username, "Seller.One");
+  assertEquals(
+    response.data[0].profileImageUrl,
+    "https://cdn.example.com/seller-one.jpg",
+  );
+  assertEquals(response.data[0].rank, 1);
+  assertEquals(response.pageInfo.nextCursor, null);
 });
 
 Deno.test("marks an item NEW when its previous score was zero", () => {
