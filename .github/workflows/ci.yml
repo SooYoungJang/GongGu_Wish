@@ -236,6 +236,7 @@ jobs:
           scripts/group-buy-request-contract.test.mjs
           scripts/opening-reminder-contract.test.mjs
           scripts/preview-release-contract.test.mjs
+          scripts/public-submission-security-contract.test.mjs
       - name: Classify changed files
         id: plan
         env:

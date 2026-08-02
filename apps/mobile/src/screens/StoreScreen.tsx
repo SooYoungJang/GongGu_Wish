@@ -225,7 +225,7 @@ export function StoreScreen({ navigation }: StoreScreenProps) {
   const handlePressRankingItem = useCallback(
     (item: GroupBuyRankingItem) => {
       navigation.navigate("Detail", {
-        groupBuy: rankingToGroupBuy(item),
+        groupBuyId: item.groupBuyId,
       });
     },
     [navigation],

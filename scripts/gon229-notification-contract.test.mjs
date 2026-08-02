@@ -289,9 +289,9 @@ test("approved submissions deliver preference-aware approval push", () => {
     preferenceContract,
     /case "submission_approved":[\s\S]*?row\.submission_approval_notifications_enabled === true/,
   );
-  assert.match(publicSubmission, /deliverPendingSubmissionApprovalPushes/);
-  assert.match(
-    publicSubmission,
-    /const submission = await markSubmissionApproved\([\s\S]*?const notificationDelivery = await deliverApprovalPush\(/,
-  );
+  assert.match(adminApi, /finalize_gonggu_submission_approval/);
+  assert.match(adminApi, /deliverPendingSubmissionApprovalPushes/);
+  assert.match(publicSubmission, /status: "PENDING"/);
+  assert.doesNotMatch(publicSubmission, /markSubmissionApproved/);
+  assert.doesNotMatch(publicSubmission, /upsertApprovedGroupBuy/);
 });
