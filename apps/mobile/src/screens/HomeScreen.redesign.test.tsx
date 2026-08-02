@@ -1856,6 +1856,12 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       requestCount: 5,
     },
   ];
+  const topTenRankings = Array.from({ length: 10 }, (_, index) => ({
+    rank: index + 1,
+    requestId: `request-${index + 1}`,
+    productName: `상품 ${index + 1}`,
+    requestCount: 20 - index,
+  }));
 
   it('places the compact TOP 3 card directly below the home search box', () => {
     const renderer = renderHomeContent({
@@ -1872,6 +1878,84 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
     expect(flattenText(renderer.toJSON())).toContain(
       '최근 한 달 공구 요청 TOP 3',
     );
+  });
+
+  it('uses the number of available requests for the TOP label below three', () => {
+    const oneRankingRenderer = renderHomeContent({
+      groupBuyRequestRankings: rankings.slice(0, 1),
+    });
+    expect(flattenText(oneRankingRenderer.toJSON())).toContain(
+      '최근 한 달 공구 요청 TOP 1',
+    );
+    expect(flattenText(oneRankingRenderer.toJSON())).not.toContain('TOP 3');
+    oneRankingRenderer.unmount();
+
+    const twoRankingRenderer = renderHomeContent({
+      groupBuyRequestRankings: rankings.slice(0, 2),
+    });
+    expect(flattenText(twoRankingRenderer.toJSON())).toContain(
+      '최근 한 달 공구 요청 TOP 2',
+    );
+    expect(flattenText(twoRankingRenderer.toJSON())).not.toContain('TOP 3');
+    twoRankingRenderer.unmount();
+  });
+
+  it('shows two rankings at a time and rolls through the top ten', async () => {
+    vi.useFakeTimers();
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+
+    try {
+      renderer = renderHomeContent({
+        groupBuyRequestRankings: topTenRankings,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const getVisibleRankingLabels = () =>
+        renderer!.root
+          .findAll(
+            (node) =>
+              String(node.type) === 'Pressable' &&
+              typeof node.props.accessibilityLabel === 'string' &&
+              /^\d+위,/.test(node.props.accessibilityLabel),
+          )
+          .map((node) => node.props.accessibilityLabel);
+
+      expect(getVisibleRankingLabels()).toEqual([
+        '1위, 상품 1, 요청 20건',
+        '2위, 상품 2, 요청 19건',
+      ]);
+
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(getVisibleRankingLabels()).toEqual([
+        '3위, 상품 3, 요청 18건',
+        '4위, 상품 4, 요청 17건',
+      ]);
+
+      act(() => {
+        vi.advanceTimersByTime(9000);
+      });
+      expect(getVisibleRankingLabels()).toEqual([
+        '9위, 상품 9, 요청 12건',
+        '10위, 상품 10, 요청 11건',
+      ]);
+
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(getVisibleRankingLabels()).toEqual([
+        '1위, 상품 1, 요청 20건',
+        '2위, 상품 2, 요청 19건',
+      ]);
+    } finally {
+      renderer?.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it('opens search with a ranked product and exposes a 48dp accessible row', () => {

@@ -1,4 +1,4 @@
-import { useMemo, type Dispatch } from "react";
+import { useEffect, useMemo, useState, type Dispatch } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import type { GroupBuyRequestRanking } from "../../features/groupBuyRequests";
@@ -8,6 +8,7 @@ import {
   type CommerceColorPalette,
 } from "../../design/commerce";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
+import { useAccessibilityAutoPlayPause } from "../../hooks/useAccessibilityAutoPlayPause";
 import { SText } from "../ui/SText";
 
 type GroupBuyRequestRankingCardProps = {
@@ -18,7 +19,10 @@ type GroupBuyRequestRankingCardProps = {
   onRetry: () => void;
 };
 
-const MAX_VISIBLE_RANKINGS = 3;
+const MAX_RANKINGS = 10;
+const RANKINGS_PER_PAGE = 2;
+const RANKING_AUTO_PLAY_MS = 3000;
+const TOP_TITLE_LIMIT = 3;
 
 export function GroupBuyRequestRankingCard({
   rankings,
@@ -29,7 +33,34 @@ export function GroupBuyRequestRankingCard({
 }: GroupBuyRequestRankingCardProps) {
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
-  const visibleRankings = rankings.slice(0, MAX_VISIBLE_RANKINGS);
+  const topRankings = rankings.slice(0, MAX_RANKINGS);
+  const pageCount = Math.ceil(topRankings.length / RANKINGS_PER_PAGE);
+  const [pageIndex, setPageIndex] = useState(0);
+  const autoPlayPaused = useAccessibilityAutoPlayPause();
+  const rankingKey = topRankings
+    .map((ranking) => `${ranking.requestId}:${ranking.rank}`)
+    .join("|");
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [rankingKey]);
+
+  useEffect(() => {
+    if (pageCount <= 1 || autoPlayPaused) return;
+
+    const timer = setInterval(() => {
+      setPageIndex((currentPage) => (currentPage + 1) % pageCount);
+    }, RANKING_AUTO_PLAY_MS);
+
+    return () => clearInterval(timer);
+  }, [autoPlayPaused, pageCount]);
+
+  const normalizedPageIndex = pageCount > 0 ? pageIndex % pageCount : 0;
+  const visibleRankings = topRankings.slice(
+    normalizedPageIndex * RANKINGS_PER_PAGE,
+    normalizedPageIndex * RANKINGS_PER_PAGE + RANKINGS_PER_PAGE,
+  );
+  const topTitleRank = Math.min(topRankings.length, TOP_TITLE_LIMIT);
 
   if (visibleRankings.length === 0) return null;
 
@@ -41,7 +72,7 @@ export function GroupBuyRequestRankingCard({
       <View style={s.header}>
         <View style={s.headerCopy}>
           <SText accessibilityRole="header" style={s.title} variant="body">
-            최근 한 달 공구 요청 TOP 3
+            {`최근 한 달 공구 요청 TOP ${topTitleRank}`}
           </SText>
           <SText style={s.subtitle} variant="caption">
             최근 30일 동안 가장 많이 요청한 상품이에요
