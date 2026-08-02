@@ -803,7 +803,7 @@ describeLocal.sequential("group-buy request database contracts", () => {
     );
   });
 
-  it("returns only the top three products with at least two recent actors", async () => {
+  it("returns up to the top ten products with at least two recent actors", async () => {
     const rankingProducts = [
       { count: 5, name: `순위A ${suffix}` },
       { count: 4, name: `순위B ${suffix}` },
@@ -827,12 +827,15 @@ describeLocal.sequential("group-buy request database contracts", () => {
       "get_group_buy_request_rankings",
       { p_limit_count: 99 },
     );
-    expect(rankings).toHaveLength(3);
-    expect(rankings.map((row) => row.product_name)).toEqual(
-      rankingProducts.slice(0, 3).map((product) => product.name),
+    expect(rankings.length).toBeLessThanOrEqual(10);
+    const ownRankings = rankings.filter((row) =>
+      rankingRequestIds.has(row.product_name),
     );
-    expect(rankings.map((row) => row.request_count)).toEqual([5, 4, 3]);
-    expect(rankings.map((row) => row.rank)).toEqual([1, 2, 3]);
+    expect(ownRankings.map((row) => row.product_name)).toEqual(
+      rankingProducts.slice(0, 4).map((product) => product.name),
+    );
+    expect(ownRankings.map((row) => row.request_count)).toEqual([5, 4, 3, 2]);
+    expect(ownRankings.map((row) => row.rank)).toEqual([1, 2, 3, 4]);
     expect(rankings.some((row) => row.product_name.includes("순위제외"))).toBe(
       false,
     );
