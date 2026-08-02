@@ -414,10 +414,10 @@ describe('SubmitScreen', function() {
     });
 
     var text = flattenText(renderer.toJSON());
-    expect(text).toContain('제보 완료');
-    expect(text).toContain('홈에서 확인하기');
+    expect(text).toContain('제보 접수 완료');
+    expect(text).toContain('홈으로 돌아가기');
     var dialog = renderer.root.findByProps({ testID: 'submit-success-dialog' });
-    expect(dialog.props.accessibilityLabel).toBe('제보 완료');
+    expect(dialog.props.accessibilityLabel).toBe('제보 접수 완료');
     expect(dialog.props.accessibilityViewIsModal).toBe(true);
     expect(dialog.props.importantForAccessibility).toBe('yes');
   });

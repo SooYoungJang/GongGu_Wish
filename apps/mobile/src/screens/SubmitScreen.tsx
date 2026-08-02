@@ -283,7 +283,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
       });
       void queryClient.invalidateQueries({ queryKey: ['group-buys'] });
       void queryClient.invalidateQueries({ queryKey: ['feeds'] });
-      setFeedback({ message: '제보한 공구가 홈에 바로 등록되었습니다.', kind: 'success' });
+      setFeedback({ message: '제보가 접수되었습니다. 운영자 검토 후 승인되면 홈에 노출됩니다.', kind: 'success' });
       setIsSuccessModalVisible(true);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -389,7 +389,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
       <Modal
         animationType="fade"
         onShow={() =>
-          AccessibilityInfo.announceForAccessibility('제보 완료')
+          AccessibilityInfo.announceForAccessibility('제보 접수 완료')
         }
         transparent
         visible={isSuccessModalVisible}
@@ -397,7 +397,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
       >
         <View style={s.successBackdrop}>
           <View
-            accessibilityLabel="제보 완료"
+            accessibilityLabel="제보 접수 완료"
             accessibilityViewIsModal
             importantForAccessibility="yes"
             style={s.successDialog}
@@ -407,10 +407,10 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
               <SText variant="body" style={s.successIconText}>✓</SText>
             </View>
             <SText accessibilityRole="header" variant="title" style={s.successTitle}>
-              제보 완료
+              제보 접수 완료
             </SText>
             <SText variant="body" style={s.successBody}>
-              제보한 공구가 바로 등록됐어요. 홈에서 최신 공구 목록을 다시 불러옵니다.
+              제보가 접수됐어요. 운영자 검토 후 승인되면 홈에서 확인할 수 있어요.
             </SText>
             <AppButton
               onPress={() => {
@@ -420,7 +420,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
               style={s.successButton}
               variant="primary"
             >
-              홈에서 확인하기
+              홈으로 돌아가기
             </AppButton>
           </View>
         </View>

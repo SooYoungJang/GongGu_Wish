@@ -665,7 +665,7 @@ describe("StoreScreen ranking redesign", () => {
     act(() => rowAction!.props.onPress());
 
     expect(navigation.navigate).toHaveBeenCalledWith("Detail", {
-      groupBuy: expect.objectContaining({ id: "group-1", priceKrw: 200000 }),
+      groupBuyId: "group-1",
     });
   });
 

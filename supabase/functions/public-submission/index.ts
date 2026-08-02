@@ -393,86 +393,6 @@ export function validate(body: SubmissionRequest) {
   };
 }
 
-async function upsertApprovedGroupBuy(
-  supabase: ReturnType<typeof createAdminClient>,
-  row: ValidatedSubmissionRow,
-  submissionId: string,
-  existingGroupBuyId: string | null,
-) {
-  const payload = {
-    source_type: "SUBMISSION",
-    submission_id: submissionId,
-    product_name: row.product_name,
-    brand_name: row.brand_name,
-    category: row.category,
-    start_date: row.start_date,
-    end_date: row.end_date,
-    purchase_url: row.purchase_url,
-    discount_info: row.discount_info,
-    summary: row.summary,
-    thumbnail_url: row.thumbnail_url,
-    video_url: row.video_url,
-    media_urls: row.media_urls,
-    media_items: row.media_items,
-    media_type: row.media_type,
-    post_audio_url: row.post_audio_url,
-    post_audio_start_time_ms: row.post_audio_start_time_ms,
-    post_audio_duration_ms: row.post_audio_duration_ms,
-    post_audio_checked_at: row.post_audio_checked_at,
-    confidence: 0.9,
-    status: "APPROVED",
-    is_all_day: false,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (existingGroupBuyId) {
-    const { data, error } = await supabase
-      .from("group_buys")
-      .update(payload)
-      .eq("id", existingGroupBuyId)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-    return data;
-  }
-
-  const { data, error } = await supabase
-    .from("group_buys")
-    .insert({
-      id: crypto.randomUUID(),
-      ...payload,
-    })
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-  return data;
-}
-
-async function markSubmissionApproved(
-  supabase: ReturnType<typeof createAdminClient>,
-  submissionId: string,
-  groupBuyId: string,
-) {
-  const { data, error } = await supabase
-    .from("gonggu_submissions")
-    .update({
-      status: "APPROVED",
-      group_buy_id: groupBuyId,
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: "public-submission",
-      admin_memo: "제보 즉시 자동 등록",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", submissionId)
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-  return data;
-}
-
 async function handleWishUrlSubmission(
   body: SubmissionRequest,
   submitterUserId: string | null,
@@ -553,7 +473,7 @@ async function handleWishUrlSubmission(
   });
 }
 
-async function handleSubmission(
+export async function handleSubmission(
   body: SubmissionRequest,
   submitterUserId: string | null,
   supabase: AdminClient,
@@ -646,22 +566,11 @@ async function handleSubmission(
 
     if (error) throw new Error(error.message);
 
-    const groupBuy = await upsertApprovedGroupBuy(
-      supabase,
-      { ...row, image_urls: mergedImageUrls },
-      existing.id,
-      existing.group_buy_id,
-    );
-    const submission = await markSubmissionApproved(
-      supabase,
-      existing.id,
-      groupBuy.id,
-    );
-    const notificationDelivery = await deliverApprovalPush(
-      supabase,
-      existing.id,
-    );
-    return json({ submission, groupBuy, notificationDelivery });
+    return json({
+      submission: data,
+      submissionId: data.id,
+      status: data.status,
+    });
   }
 
   const { data, error } = await supabase
@@ -700,14 +609,11 @@ async function handleSubmission(
   if (error) throw new Error(error.message);
   await linkSubmissionSubmitter(supabase, data.id, submitterUserId);
 
-  const groupBuy = await upsertApprovedGroupBuy(supabase, row, data.id, null);
-  const submission = await markSubmissionApproved(
-    supabase,
-    data.id,
-    groupBuy.id,
-  );
-  const notificationDelivery = await deliverApprovalPush(supabase, data.id);
-  return json({ submission, groupBuy, notificationDelivery });
+  return json({
+    submission: data,
+    submissionId: data.id,
+    status: data.status,
+  });
 }
 
 async function readSubmissionRequest(req: Request): Promise<SubmissionRequest> {
@@ -803,7 +709,7 @@ export async function handler(req: Request) {
     const message =
       err instanceof Error ? err.message : "Internal server error";
     console.error("[public-submission] Error:", message);
-    return json({ error: message }, 500);
+    return json({ error: "internal_error" }, 500);
   }
 }
 
