@@ -402,7 +402,7 @@ describeLocal.sequential("group-buy request database contracts", () => {
     expect(independent.payload.request_count).toBe(2);
   });
 
-  it("does not attach a shared-IP guest history to a different member", async () => {
+  it("does not attach shared-IP history and enforces the 15-product daily limit", async () => {
     const randomBytes = randomUUID().replaceAll("-", "");
     const sharedIp = `192.0.2.${
       (Number.parseInt(randomBytes.slice(0, 2), 16) % 200) + 1
@@ -414,7 +414,7 @@ describeLocal.sequential("group-buy request database contracts", () => {
     const memberSession = `s_${suffix}_shared_member`;
     const guestProducts: RpcResult[][] = [];
 
-    for (let index = 0; index < 5; index += 1) {
+    for (let index = 0; index < 15; index += 1) {
       guestProducts.push(
         await requestGroupBuy(
           `공유IP 게스트 ${index} ${suffix}`,
@@ -424,6 +424,7 @@ describeLocal.sequential("group-buy request database contracts", () => {
         ),
       );
     }
+    expect(guestProducts).toHaveLength(15);
 
     const sameIpDuplicate = await requestGroupBuy(
       guestProducts[0][0].product_name,
@@ -450,12 +451,12 @@ describeLocal.sequential("group-buy request database contracts", () => {
     ]);
     expect(guestParticipationBefore.payload[0].session_hashes).toHaveLength(1);
 
-    const blockedSixthProduct = await requestJson<{ error: string }>(
+    const blockedSixteenthProduct = await requestJson<{ error: string }>(
       config,
       "/functions/v1/group-buy-request",
       {
         body: {
-          product_name: `공유IP 회원 차단 ${suffix}`,
+          product_name: `공유IP 회원 16번째 차단 ${suffix}`,
           session_id: memberSession,
         },
         headers: { "x-forwarded-for": sharedIp },
@@ -463,8 +464,8 @@ describeLocal.sequential("group-buy request database contracts", () => {
         token: userAccessToken,
       },
     );
-    expect(blockedSixthProduct.status).toBe(429);
-    expect(blockedSixthProduct.payload.error).toBe(
+    expect(blockedSixteenthProduct.status).toBe(429);
+    expect(blockedSixteenthProduct.payload.error).toBe(
       "group_buy_request_rate_limited",
     );
 
