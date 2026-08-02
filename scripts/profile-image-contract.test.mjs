@@ -5,7 +5,7 @@ import test from "node:test";
 const read = (path) => readFileSync(path, "utf8");
 
 const migration = read(
-  "supabase/migrations/20260802000002_add_group_buy_influencer_profiles.sql",
+  "supabase/migrations/20260802000003_add_group_buy_influencer_profiles.sql",
 );
 const adminEdge = read("supabase/functions/admin-api/index.ts");
 
