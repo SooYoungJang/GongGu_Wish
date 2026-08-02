@@ -19,13 +19,13 @@ function getTrendStyle(trend: RankingTrend, colors: CommerceColorPalette) {
     case "up":
       return {
         background: colors.accentSoft,
-        label: `▲${trend.delta}위`,
+        label: `▲${trend.delta}`,
         text: colors.accent,
       };
     case "down":
       return {
         background: colors.blueSoft,
-        label: `▼${trend.delta}위`,
+        label: `▼${trend.delta}`,
         text: colors.blue,
       };
     case "new":

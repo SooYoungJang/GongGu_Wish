@@ -326,7 +326,7 @@ describe("ranking components", () => {
     }
   });
 
-  it("renders ranking trends with directional symbols in addition to color", () => {
+  it("renders ranking trends as directional symbols and numbers without a rank suffix", () => {
     const cases: Array<{
       trend: GroupBuyRankingItem["trend"];
       label: string;
@@ -335,13 +335,13 @@ describe("ranking components", () => {
     }> = [
       {
         trend: { kind: "up", delta: 2 },
-        label: "▲2위",
+        label: "▲2",
         color: commerceLightColors.accent,
         backgroundColor: commerceLightColors.accentSoft,
       },
       {
         trend: { kind: "down", delta: 3 },
-        label: "▼3위",
+        label: "▼3",
         color: commerceLightColors.blue,
         backgroundColor: commerceLightColors.blueSoft,
       },
@@ -428,19 +428,19 @@ describe("ranking components", () => {
       });
 
       const cases = [
-        { containerTestID: "ranking-top-hero", kind: "up", label: "▲99위" },
+        { containerTestID: "ranking-top-hero", kind: "up", label: "▲99" },
         {
           containerTestID: "ranking-top-compact-2",
           kind: "down",
-          label: "▼99위",
+          label: "▼99",
         },
         {
           containerTestID: "ranking-top-compact-3",
           kind: "up",
-          label: "▲99위",
+          label: "▲99",
         },
-        { containerTestID: "ranking-row-4", kind: "down", label: "▼99위" },
-        { containerTestID: "ranking-row-11", kind: "up", label: "▲99위" },
+        { containerTestID: "ranking-row-4", kind: "down", label: "▼99" },
+        { containerTestID: "ranking-row-11", kind: "up", label: "▲99" },
       ];
 
       for (const testCase of cases) {
@@ -856,7 +856,7 @@ describe("ranking components", () => {
     });
 
     const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
-    expect(text).toContain("▲4위");
+    expect(text).toContain("▲4");
     expect(text).not.toContain("인기지수");
     expect(text).toContain("마감");
     expect(text).toContain("25,900원");
