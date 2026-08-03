@@ -8,6 +8,7 @@ import { spacing } from '../design/tokens';
 import type { GroupBuy } from '../types';
 
 const mockWindowDimensions = vi.hoisted(() => ({ width: 393, fontScale: 1 }));
+const animatedTiming = vi.hoisted(() => vi.fn());
 vi.mock('../context/GroupBuyReminderPickerContext', () => ({
   useGroupBuyReminderPicker: () => ({
     getReminderState: () => ({ status: 'idle' }),
@@ -79,6 +80,23 @@ vi.mock('react-native', () => {
     (type: string) =>
     ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement(type, props, children);
+  class MockAnimatedValue {
+    private currentValue: number;
+
+    constructor(initialValue: number) {
+      this.currentValue = initialValue;
+    }
+
+    setValue(nextValue: number) {
+      this.currentValue = nextValue;
+    }
+
+    stopAnimation() {}
+
+    interpolate() {
+      return this.currentValue;
+    }
+  }
 
   return {
     AccessibilityInfo: {
@@ -87,6 +105,23 @@ vi.mock('react-native', () => {
       isScreenReaderEnabled: vi.fn(() => Promise.resolve(false)),
     },
     ActivityIndicator: passthrough('ActivityIndicator'),
+    Animated: {
+      View: passthrough('Animated.View'),
+      Value: MockAnimatedValue,
+      timing: (value: MockAnimatedValue, config: { toValue: number }) => {
+        animatedTiming(value, config);
+        return {
+          start: (callback?: (result: { finished: boolean }) => void) => {
+            value.setValue(config.toValue);
+            callback?.({ finished: true });
+          },
+        };
+      },
+    },
+    Easing: {
+      cubic: () => 1,
+      out: (easing: unknown) => easing,
+    },
     FlatList: ({ data, renderItem, ListHeaderComponent, ...props }: any) =>
       ReactMock.createElement(
         'FlatList',
@@ -2049,6 +2084,63 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
     ]);
 
     renderer.unmount();
+  });
+
+  it('animates ranking pages for manual swipes and autoplay', async () => {
+    vi.useFakeTimers();
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+
+    try {
+      renderer = renderHomeContent({
+        groupBuyRequestRankings: topTenRankings,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const swipeSurface = renderer.root.findByProps({
+        testID: 'group-buy-request-ranking-swipe-surface',
+      });
+      expect(swipeSurface.props.style).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            opacity: expect.anything(),
+            transform: expect.arrayContaining([
+              expect.objectContaining({ translateX: expect.anything() }),
+            ]),
+          }),
+        ]),
+      );
+
+      animatedTiming.mockClear();
+      act(() => {
+        swipeSurface.props.onResponderRelease({}, { dx: -60, dy: 4 });
+      });
+      expect(animatedTiming).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          duration: 240,
+          useNativeDriver: true,
+        }),
+      );
+
+      animatedTiming.mockClear();
+      act(() => {
+        vi.advanceTimersByTime(8000);
+      });
+      expect(animatedTiming).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          duration: 240,
+          useNativeDriver: true,
+        }),
+      );
+    } finally {
+      renderer?.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it('restarts autoplay after a ranking swipe', async () => {
