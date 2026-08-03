@@ -70,6 +70,10 @@ import {
   getTabBarVisibilityStyle,
 } from "./navigation/tabBarVisibility";
 import {
+  getMainTabBarHeight,
+  MAIN_TAB_BAR_HEIGHT,
+} from "./navigation/tabBarMetrics";
+import {
   configureQueryOnlineManager,
   createMobileQueryRuntimeLifecycle,
   mobileQueryClient,
@@ -130,7 +134,6 @@ type RootStackWithTabs = RootStackParamList & {
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const rootNavigationRef = createNavigationContainerRef<RootStackWithTabs>();
-const TAB_BAR_HEIGHT = 58;
 const EXIT_BACK_PRESS_WINDOW_MS = 2000;
 const REELS_TAB_COLORS = getCommerceColors(true);
 
@@ -255,7 +258,7 @@ function MainTabs() {
   const insets = useSafeAreaInsets();
   const isNarrow = screenWidth <= 375;
   const isIOS = Platform.OS === "ios";
-  const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 12, 0);
+  const tabBarHeight = getMainTabBarHeight(insets.bottom);
   const tabBarBottomPadding = Math.max(insets.bottom - 8, isNarrow ? 2 : 4);
   const tabBarBackgroundColor = isIOS ? "transparent" : colors.bottomBarBg;
   // Keep the GNB mounted so opening a Reels sheet does not invalidate the
@@ -663,7 +666,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderTopWidth: 1,
-    height: TAB_BAR_HEIGHT,
+    height: MAIN_TAB_BAR_HEIGHT,
     left: 0,
     overflow: "hidden",
     paddingTop: 2,

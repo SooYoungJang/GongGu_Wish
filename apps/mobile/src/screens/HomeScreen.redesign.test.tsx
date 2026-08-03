@@ -57,9 +57,7 @@ vi.mock('../components/ads/NativeAdCard', () => {
       testID,
       variant,
     }: {
-      onLoadStateChange?: React.Dispatch<
-        'loaded' | 'loading' | 'unavailable'
-      >;
+      onLoadStateChange?: React.Dispatch<'loaded' | 'loading' | 'unavailable'>;
       testID?: string;
       variant?: string;
     }) => {
@@ -378,7 +376,9 @@ describe('HomeScreenContent redesign', () => {
 
   it('renders a horizontal category filter before the home deal cards', () => {
     const renderer = renderHomeContent();
-    const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
+    const filter = renderer.root.findByProps({
+      testID: 'home-category-filter',
+    });
     const scroll = renderer.root.findByProps({
       testID: 'home-category-filter-scroll',
     });
@@ -406,7 +406,9 @@ describe('HomeScreenContent redesign', () => {
 
   it('keeps the sticky category filter above content for touch input', () => {
     const renderer = renderHomeContent();
-    const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
+    const filter = renderer.root.findByProps({
+      testID: 'home-category-filter',
+    });
 
     expect(flattenStyle(filter.props.style)).toMatchObject({
       elevation: expect.any(Number),
@@ -416,7 +418,9 @@ describe('HomeScreenContent redesign', () => {
 
   it('keeps the category filter compact in normal and sticky states', () => {
     const renderer = renderHomeContent();
-    const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
+    const filter = renderer.root.findByProps({
+      testID: 'home-category-filter',
+    });
     const chip = filter.findByProps({ accessibilityLabel: '전체 카테고리' });
 
     expect(flattenStyle(filter.props.style)).toMatchObject({
@@ -463,7 +467,9 @@ describe('HomeScreenContent redesign', () => {
       elevation: 0,
       paddingVertical: spacing.xs + spacing.xxs,
     });
-    expect(flattenStyle(stickyLayer.props.style)).toMatchObject({ elevation: 0 });
+    expect(flattenStyle(stickyLayer.props.style)).toMatchObject({
+      elevation: 0,
+    });
     expect(flattenStyle(stickyChip.props.style)).toMatchObject({
       height: spacing['3xl'] + spacing.xs,
     });
@@ -482,7 +488,9 @@ describe('HomeScreenContent redesign', () => {
 
   it('renders a separate touch layer when the category filter reaches the top', () => {
     const renderer = renderHomeContent();
-    const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
+    const filter = renderer.root.findByProps({
+      testID: 'home-category-filter',
+    });
     const scroll = renderer.root.findAll(
       (node) => String(node.type) === 'KeyboardAwareScrollView',
     )[0];
@@ -504,7 +512,9 @@ describe('HomeScreenContent redesign', () => {
 
   it('hides the duplicated in-flow category filter from accessibility when sticky', () => {
     const renderer = renderHomeContent();
-    const filter = renderer.root.findByProps({ testID: 'home-category-filter' });
+    const filter = renderer.root.findByProps({
+      testID: 'home-category-filter',
+    });
     const scroll = renderer.root.findAll(
       (node) => String(node.type) === 'KeyboardAwareScrollView',
     )[0];
@@ -535,7 +545,8 @@ describe('HomeScreenContent redesign', () => {
       .map((child) => {
         if (typeof child === 'string') return undefined;
         if (child.props?.testID) return child.props.testID;
-        return child.findAllByProps({ testID: 'home-category-filter' }).length > 0
+        return child.findAllByProps({ testID: 'home-category-filter' }).length >
+          0
           ? 'home-category-filter'
           : undefined;
       })
@@ -608,7 +619,9 @@ describe('HomeScreenContent redesign', () => {
     const renderer = renderHomeContent();
     const text = flattenText(renderer.toJSON());
 
-    expect(renderer.root.findAllByType(DealCard).length).toBeGreaterThanOrEqual(2);
+    expect(renderer.root.findAllByType(DealCard).length).toBeGreaterThanOrEqual(
+      2,
+    );
     expect(text).not.toContain('역대급특가');
     expect(text).not.toContain('25% 특가');
   });
@@ -616,7 +629,11 @@ describe('HomeScreenContent redesign', () => {
   it('renders legacy lifestyle and digital categories without crashing', () => {
     const renderer = renderHomeContent({
       groupBuys: [
-        { ...sampleGroupBuys[0], id: 'legacy-lifestyle', category: 'lifestyle' },
+        {
+          ...sampleGroupBuys[0],
+          id: 'legacy-lifestyle',
+          category: 'lifestyle',
+        },
         { ...sampleGroupBuys[1], id: 'legacy-digital', category: 'digital' },
       ],
     });
@@ -720,13 +737,17 @@ describe('HomeScreenContent redesign', () => {
         }),
       ).not.toHaveLength(0);
       expect(
-        renderer.root.findAllByProps({ testID: 'promo-overlay-banner-disabled' }),
+        renderer.root.findAllByProps({
+          testID: 'promo-overlay-banner-disabled',
+        }),
       ).toHaveLength(0);
       expect(
         renderer.root.findAllByProps({ testID: 'promo-overlay-banner-future' }),
       ).toHaveLength(0);
       expect(
-        renderer.root.findAllByProps({ testID: 'promo-overlay-banner-expired' }),
+        renderer.root.findAllByProps({
+          testID: 'promo-overlay-banner-expired',
+        }),
       ).toHaveLength(0);
 
       act(() => {
@@ -762,7 +783,9 @@ describe('HomeScreenContent redesign', () => {
     expect(
       renderer.root.findAllByProps({ testID: 'promo-overlay-gb-1' }),
     ).toHaveLength(0);
-    expect(flattenText(renderer.toJSON())).toContain('오늘의 특가를 준비 중입니다');
+    expect(flattenText(renderer.toJSON())).toContain(
+      '오늘의 특가를 준비 중입니다',
+    );
   });
 
   it('uses the server-selected home-banner collection instead of promoting weekly rows', () => {
@@ -774,7 +797,9 @@ describe('HomeScreenContent redesign', () => {
     expect(
       renderer.root.findAllByProps({ testID: 'promo-overlay-gb-1' }),
     ).toHaveLength(0);
-    expect(flattenText(renderer.toJSON())).toContain('오늘의 특가를 준비 중입니다');
+    expect(flattenText(renderer.toJSON())).toContain(
+      '오늘의 특가를 준비 중입니다',
+    );
   });
 
   it('keeps an upcoming migrated deal visible from today until commerce starts', () => {
@@ -1054,8 +1079,7 @@ describe('HomeScreenContent redesign', () => {
           ...sampleGroupBuys[0],
           startDate: isoFromNow(-2),
           endDate: isoFromNow(4),
-          discountInfo:
-            '정가 229,000원 / 공구가 179,000원 · 22% 할인',
+          discountInfo: '정가 229,000원 / 공구가 179,000원 · 22% 할인',
         },
       ],
     });
@@ -1407,7 +1431,9 @@ describe('HomeScreenContent redesign', () => {
         .findAllByProps({ testID: 'promo-account-avatar-gb-1' })
         .some((node) => node.props.accessibilityRole === 'image'),
     ).toBe(true);
-    expect(renderer.root.findAllByProps({ name: 'logo-instagram' })).toHaveLength(0);
+    expect(
+      renderer.root.findAllByProps({ name: 'logo-instagram' }),
+    ).toHaveLength(0);
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
     expect(banner!.props.accessibilityLabel).toContain('@beauty_pick');
   });
@@ -1452,8 +1478,7 @@ describe('HomeScreenContent redesign', () => {
   });
 
   it('does not use a raw DB summary as the purchase hook', () => {
-    const rawSummary =
-      '민감한 피부에도 부담 없이 사용할 수 있는 데일리 선케어';
+    const rawSummary = '민감한 피부에도 부담 없이 사용할 수 있는 데일리 선케어';
     const renderer = renderHomeContent({
       groupBuys: [
         {
@@ -1650,12 +1675,15 @@ describe('HomeScreenContent redesign v2', () => {
       .findAllByProps({ testID: 'home-recommendation-grid' })
       .find((node) => String(node.type) === 'View')!;
     const adCount = grid.children.filter(
-      (child) => typeof child !== 'string' && child.props.testID === 'home-native-ad',
+      (child) =>
+        typeof child !== 'string' && child.props.testID === 'home-native-ad',
     ).length;
 
     // Every product stays visible regardless of where the seeded ad breaks land.
     const productIds = grid.children
-      .map((child) => (typeof child === 'string' ? child : child.props.item?.id))
+      .map((child) =>
+        typeof child === 'string' ? child : child.props.item?.id,
+      )
       .filter(Boolean);
     expect(productIds).toHaveLength(8);
     expect(adCount).toBeGreaterThanOrEqual(1);
@@ -1781,14 +1809,20 @@ describe('HomeScreenContent redesign v2', () => {
     const dealCards = renderer.root.findAllByType(DealCard);
 
     expect(dealCards.length).toBeGreaterThanOrEqual(2);
-    expect(dealCards.some((card) => card.props.item.id === sampleGroupBuys[0].id)).toBe(true);
+    expect(
+      dealCards.some((card) => card.props.item.id === sampleGroupBuys[0].id),
+    ).toBe(true);
   });
 
   it('keeps visible spacing between recommendation cards', () => {
     const renderer = renderHomeContent();
     const grid = renderer.root.findAll((node) => {
       const style = flattenStyle(node.props.style);
-      return String(node.type) === 'View' && style.flexWrap === 'wrap' && style.rowGap === 18;
+      return (
+        String(node.type) === 'View' &&
+        style.flexWrap === 'wrap' &&
+        style.rowGap === 18
+      );
     })[0];
 
     expect(grid).toBeDefined();
@@ -1880,7 +1914,7 @@ describe('HomeScreenContent redesign interactions', () => {
   });
 });
 
-describe('HomeScreenContent monthly group-buy request rankings', () => {
+describe('HomeScreenContent request ticker', () => {
   const rankings = [
     {
       rank: 1,
@@ -1908,7 +1942,7 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
     requestCount: 20 - index,
   }));
 
-  it('places the compact TOP 3 card directly below the home search box', () => {
+  it('홈 상단 순위 카드를 제거하고 GNB 위 티커로 이동한다', () => {
     const renderer = renderHomeContent({
       groupBuyRequestRankings: rankings,
     });
@@ -1916,177 +1950,32 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       .findAllByProps({ testID: 'home-top-content' })
       .find((node) => String(node.type) === 'View')!;
     const directChildText = topContent.children.map(flattenInstanceText);
+    const ticker = renderer.root.findByProps({
+      testID: 'home-request-ticker',
+    });
 
     expect(directChildText[0]).toContain('상품을 검색해보세요');
-    expect(directChildText[1]).toContain('최근 한 달 공구 요청 TOP 3');
-    expect(directChildText[2]).toContain('쇼핑 홈');
+    expect(directChildText.join(' ')).not.toContain('공구 요청');
     expect(flattenText(renderer.toJSON())).toContain(
-      '최근 한 달 공구 요청 TOP 3',
+      '공구 요청 1위 · 무선 에어프라이어 올인원 대용량 패밀리 세트 · 요청 12건',
     );
-  });
-
-  it('uses the number of available requests for the TOP label below three', () => {
-    const oneRankingRenderer = renderHomeContent({
-      groupBuyRequestRankings: rankings.slice(0, 1),
-    });
-    expect(flattenText(oneRankingRenderer.toJSON())).toContain(
-      '최근 한 달 공구 요청 TOP 1',
-    );
-    expect(flattenText(oneRankingRenderer.toJSON())).not.toContain('TOP 3');
-    oneRankingRenderer.unmount();
-
-    const twoRankingRenderer = renderHomeContent({
-      groupBuyRequestRankings: rankings.slice(0, 2),
-    });
-    expect(flattenText(twoRankingRenderer.toJSON())).toContain(
-      '최근 한 달 공구 요청 TOP 2',
-    );
-    expect(flattenText(twoRankingRenderer.toJSON())).not.toContain('TOP 3');
-    twoRankingRenderer.unmount();
-  });
-
-  it('shows two rankings at a time and rolls through the top ten', async () => {
-    vi.useFakeTimers();
-    let renderer: TestRenderer.ReactTestRenderer | undefined;
-
-    try {
-      renderer = renderHomeContent({
-        groupBuyRequestRankings: topTenRankings,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      const getVisibleRankingLabels = () =>
-        renderer!.root
-          .findAll(
-            (node) =>
-              String(node.type) === 'Pressable' &&
-              typeof node.props.accessibilityLabel === 'string' &&
-              /^\d+위,/.test(node.props.accessibilityLabel),
-          )
-          .map((node) => node.props.accessibilityLabel);
-
-      expect(getVisibleRankingLabels()).toEqual([
-        '1위, 상품 1, 요청 20건',
-        '2위, 상품 2, 요청 19건',
-      ]);
-
-      act(() => {
-        vi.advanceTimersByTime(2999);
-      });
-      expect(getVisibleRankingLabels()).toEqual([
-        '1위, 상품 1, 요청 20건',
-        '2위, 상품 2, 요청 19건',
-      ]);
-
-      act(() => {
-        vi.advanceTimersByTime(1);
-      });
-      expect(getVisibleRankingLabels()).toEqual([
-        '3위, 상품 3, 요청 18건',
-        '4위, 상품 4, 요청 17건',
-      ]);
-
-      act(() => {
-        vi.advanceTimersByTime(3000);
-      });
-      act(() => {
-        vi.advanceTimersByTime(3000);
-      });
-      act(() => {
-        vi.advanceTimersByTime(3000);
-      });
-      expect(getVisibleRankingLabels()).toEqual([
-        '9위, 상품 9, 요청 12건',
-        '10위, 상품 10, 요청 11건',
-      ]);
-
-      act(() => {
-        vi.advanceTimersByTime(3000);
-      });
-      expect(getVisibleRankingLabels()).toEqual([
-        '1위, 상품 1, 요청 20건',
-        '2위, 상품 2, 요청 19건',
-      ]);
-    } finally {
-      renderer?.unmount();
-      vi.useRealTimers();
-    }
-  });
-
-  it('lets users swipe between ranking pages without pagination chrome', () => {
-    const renderer = renderHomeContent({
-      groupBuyRequestRankings: topTenRankings,
-    });
-
-    const getVisibleRankingLabels = () =>
-      renderer.root
-        .findAll(
-          (node) =>
-            String(node.type) === 'Pressable' &&
-            typeof node.props.accessibilityLabel === 'string' &&
-            /^\d+위,/.test(node.props.accessibilityLabel),
-        )
-        .map((node) => node.props.accessibilityLabel);
-
-    const swipeSurface = renderer.root.findByProps({
-      testID: 'group-buy-request-ranking-swipe-surface',
-    });
-
     expect(
       renderer.root.findAllByProps({
-        testID: 'group-buy-request-ranking-pagination',
+        testID: 'home-group-buy-request-rankings',
       }),
     ).toHaveLength(0);
-    expect(
-      renderer.root.findAllByProps({
-        testID: 'group-buy-request-ranking-previous',
-      }),
-    ).toHaveLength(0);
-    expect(
-      renderer.root.findAllByProps({
-        testID: 'group-buy-request-ranking-next',
-      }),
-    ).toHaveLength(0);
-    expect(swipeSurface.props.accessibilityHint).toBe(
-      '좌우로 밀어 다음 또는 이전 요청 순위를 볼 수 있어요',
-    );
-    expect(
-      swipeSurface.props.onMoveShouldSetResponder({}, { dx: -60, dy: 4 }),
-    ).toBe(true);
-    expect(
-      swipeSurface.props.onMoveShouldSetResponderCapture({}, {
-        dx: -60,
-        dy: 4,
-      }),
-    ).toBe(true);
-    expect(
-      swipeSurface.props.onMoveShouldSetResponder({}, { dx: 4, dy: 60 }),
-    ).toBe(false);
-
-    act(() => {
-      swipeSurface.props.onResponderRelease({}, { dx: -60, dy: 4 });
+    expect(flattenStyle(ticker.props.style)).toMatchObject({
+      bottom: 50,
+      left: 0,
+      position: 'absolute',
+      right: 0,
+      zIndex: 10,
     });
-    expect(getVisibleRankingLabels()).toEqual([
-      '3위, 상품 3, 요청 18건',
-      '4위, 상품 4, 요청 17건',
-    ]);
-
-    act(() => {
-      swipeSurface.props.onResponderRelease({}, { dx: 60, dy: 4 });
-    });
-    expect(getVisibleRankingLabels()).toEqual([
-      '1위, 상품 1, 요청 20건',
-      '2위, 상품 2, 요청 19건',
-    ]);
 
     renderer.unmount();
   });
 
-  it('animates ranking pages for manual swipes and autoplay', async () => {
+  it('한 줄씩 상위 10개를 3초마다 자동 롤링한다', async () => {
     vi.useFakeTimers();
     let renderer: TestRenderer.ReactTestRenderer | undefined;
 
@@ -2100,10 +1989,39 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
         await Promise.resolve();
       });
 
-      const swipeSurface = renderer.root.findByProps({
-        testID: 'group-buy-request-ranking-swipe-surface',
+      const getVisibleRankingLabel = () =>
+        renderer!.root.findByProps({
+          testID: 'home-request-ticker-message',
+        }).props.accessibilityLabel;
+
+      expect(getVisibleRankingLabel()).toBe('1위, 상품 1, 요청 20건');
+
+      act(() => {
+        vi.advanceTimersByTime(2999);
       });
-      expect(swipeSurface.props.style).toEqual(
+      expect(getVisibleRankingLabel()).toBe('1위, 상품 1, 요청 20건');
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(getVisibleRankingLabel()).toBe('2위, 상품 2, 요청 19건');
+
+      for (let index = 0; index < 8; index += 1) {
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+      }
+      expect(getVisibleRankingLabel()).toBe('10위, 상품 10, 요청 11건');
+
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(getVisibleRankingLabel()).toBe('1위, 상품 1, 요청 20건');
+
+      const surface = renderer!.root.findByProps({
+        testID: 'home-request-ticker-swipe-surface',
+      });
+      expect(surface.props.style).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             opacity: expect.anything(),
@@ -2114,299 +2032,60 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
           }),
         ]),
       );
-
-      animatedTiming.mockClear();
-      act(() => {
-        swipeSurface.props.onResponderRelease({}, { dx: -60, dy: 4 });
-      });
-      expect(animatedTiming).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          duration: 420,
-          useNativeDriver: true,
-        }),
-      );
-
-      animatedTiming.mockClear();
-      act(() => {
-        vi.advanceTimersByTime(3000);
-      });
-      expect(animatedTiming).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          duration: 420,
-          useNativeDriver: true,
-        }),
-      );
     } finally {
       renderer?.unmount();
       vi.useRealTimers();
     }
   });
 
-  it('restarts autoplay after a ranking swipe', async () => {
-    vi.useFakeTimers();
-    let renderer: TestRenderer.ReactTestRenderer | undefined;
-
-    try {
-      renderer = renderHomeContent({
-        groupBuyRequestRankings: topTenRankings,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      const getVisibleRankingLabels = () =>
-        renderer!.root
-          .findAll(
-            (node) =>
-              String(node.type) === 'Pressable' &&
-              typeof node.props.accessibilityLabel === 'string' &&
-              /^\d+위,/.test(node.props.accessibilityLabel),
-          )
-          .map((node) => node.props.accessibilityLabel);
-      const swipeSurface = renderer.root.findByProps({
-        testID: 'group-buy-request-ranking-swipe-surface',
-      });
-
-      act(() => {
-        swipeSurface.props.onResponderRelease({}, { dx: -60, dy: 4 });
-      });
-      expect(getVisibleRankingLabels()).toEqual([
-        '3위, 상품 3, 요청 18건',
-        '4위, 상품 4, 요청 17건',
-      ]);
-
-      act(() => {
-        vi.advanceTimersByTime(2999);
-      });
-      expect(getVisibleRankingLabels()).toEqual([
-        '3위, 상품 3, 요청 18건',
-        '4위, 상품 4, 요청 17건',
-      ]);
-
-      act(() => {
-        vi.advanceTimersByTime(1);
-      });
-      expect(getVisibleRankingLabels()).toEqual([
-        '5위, 상품 5, 요청 16건',
-        '6위, 상품 6, 요청 15건',
-      ]);
-    } finally {
-      renderer?.unmount();
-      vi.useRealTimers();
-    }
-  });
-
-  it('opens search with a ranked product and exposes a 48dp accessible row', () => {
+  it('스와이프와 탭으로 다음 요청을 열 수 있다', () => {
     const onPressGroupBuyRequestRanking = vi.fn();
     const renderer = renderHomeContent({
-      groupBuyRequestRankings: rankings,
+      groupBuyRequestRankings: topTenRankings,
       onPressGroupBuyRequestRanking,
     });
-    const firstRow = renderer.root.findByProps({
-      accessibilityLabel:
-        '1위, 무선 에어프라이어 올인원 대용량 패밀리 세트, 요청 12건',
+    const surface = renderer.root.findByProps({
+      testID: 'home-request-ticker-swipe-surface',
     });
 
-    expect(firstRow.props.accessibilityRole).toBe('button');
-    expect(flattenStyle(firstRow.props.style)).toMatchObject({ minHeight: 48 });
-    act(() => firstRow.props.onPress());
-    expect(onPressGroupBuyRequestRanking).toHaveBeenCalledWith(
-      '무선 에어프라이어 올인원 대용량 패밀리 세트',
+    expect(surface.props.accessibilityHint).toBe(
+      '좌우로 밀어 다음 또는 이전 공구 요청을 볼 수 있어요',
     );
-  });
-
-  it('renders partial rankings without filler rows and keeps first-place emphasis restrained', () => {
-    const renderer = renderHomeContent({
-      groupBuyRequestRankings: rankings.slice(0, 2),
-    });
-    const firstRow = renderer.root.findByProps({
-      accessibilityLabel:
-        '1위, 무선 에어프라이어 올인원 대용량 패밀리 세트, 요청 12건',
-    });
-    const secondRow = renderer.root.findByProps({
-      accessibilityLabel: '2위, 저당 그래놀라, 요청 8건',
-    });
-
-    expect(flattenStyle(firstRow.props.style).backgroundColor).toBeUndefined();
-    expect(flattenStyle(secondRow.props.style).backgroundColor).toBeUndefined();
-    const firstRankBadge = renderer.root.findByProps({
-      testID: 'group-buy-request-rank-badge-1',
-    });
-    expect(flattenStyle(firstRankBadge.props.style).backgroundColor).toEqual(
-      expect.any(String),
+    expect(surface.props.onMoveShouldSetResponder({}, { dx: -60, dy: 4 })).toBe(
+      true,
     );
     expect(
-      renderer.root.findAll(
-        (node) =>
-          String(node.type) === 'Pressable' &&
-          typeof node.props.accessibilityLabel === 'string' &&
-          /^\d위,/.test(node.props.accessibilityLabel),
-      ),
-    ).toHaveLength(2);
-  });
+      surface.props.onMoveShouldSetResponderCapture({}, { dx: 4, dy: 60 }),
+    ).toBe(false);
 
-  it('uses the standard commerce surface and quiet card chrome', () => {
-    const renderer = renderHomeContent({
-      groupBuyRequestRankings: rankings,
+    act(() => {
+      surface.props.onResponderRelease({}, { dx: -60, dy: 4 });
     });
-    const card = renderer.root.findByProps({
-      testID: 'home-group-buy-request-rankings',
+    const message = renderer.root.findByProps({
+      testID: 'home-request-ticker-message',
     });
-    const cardStyle = flattenStyle(card.props.style);
+    expect(message.props.accessibilityLabel).toBe('2위, 상품 2, 요청 19건');
+    expect(message.props.accessibilityRole).toBe('button');
+    expect(flattenStyle(message.props.style)).toMatchObject({
+      minHeight: 48,
+    });
 
-    expect(cardStyle).toMatchObject({
-      backgroundColor: '#FFFFFF',
-      borderColor: '#EEF0F3',
-      elevation: 1,
-      shadowOpacity: 0.04,
+    act(() => {
+      message.props.onPress();
     });
+    expect(onPressGroupBuyRequestRanking).toHaveBeenCalledWith('상품 2');
+
     renderer.unmount();
   });
 
-  it('highlights only the overall first rank across autoplay pages', async () => {
-    vi.useFakeTimers();
-    let renderer: TestRenderer.ReactTestRenderer | undefined;
-
-    try {
-      renderer = renderHomeContent({
-        groupBuyRequestRankings: topTenRankings,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      const firstRankRow = renderer.root.findByProps({
-        accessibilityLabel: '1위, 상품 1, 요청 20건',
-      });
-      const firstRankBadge = renderer.root.findByProps({
-        testID: 'group-buy-request-rank-badge-1',
-      });
-      const firstRankRowBackground = flattenStyle(
-        firstRankRow.props.style,
-      ).backgroundColor;
-      const firstBadgeBackground = flattenStyle(
-        firstRankBadge.props.style,
-      ).backgroundColor;
-
-      act(() => {
-        vi.advanceTimersByTime(8000);
-      });
-
-      const thirdRankRow = renderer.root.findByProps({
-        accessibilityLabel: '3위, 상품 3, 요청 18건',
-      });
-      const thirdRankBadge = renderer.root.findByProps({
-        testID: 'group-buy-request-rank-badge-3',
-      });
-
-      expect(firstRankRowBackground).toBeUndefined();
-      expect(flattenStyle(thirdRankRow.props.style).backgroundColor).toBeUndefined();
-      expect(flattenStyle(thirdRankBadge.props.style).backgroundColor).not.toBe(
-        firstBadgeBackground,
-      );
-    } finally {
-      renderer?.unmount();
-      vi.useRealTimers();
-    }
-  });
-
-  it('keeps long names readable on a 320px screen with a large font scale', () => {
-    mockWindowDimensions.width = 320;
-    mockWindowDimensions.fontScale = 1.6;
-    const renderer = renderHomeContent({
-      groupBuyRequestRankings: rankings,
-    });
-    const productName = renderer.root
-      .findAllByType('Text' as unknown as React.ElementType)
-      .find(
-        (node) =>
-          node.props.numberOfLines === 2 &&
-          node.children.join('').includes('무선 에어프라이어'),
-      );
-    const firstRankBadge = renderer.root.findByProps({
-      testID: 'group-buy-request-rank-badge-1',
-    });
-    const firstRankBadgeStyle = flattenStyle(firstRankBadge.props.style);
-
-    expect(productName).toBeDefined();
-    expect(flattenStyle(productName!.props.style)).toMatchObject({
-      flexShrink: 1,
-    });
-    expect(firstRankBadgeStyle).toMatchObject({
-      minHeight: 28,
-      minWidth: 28,
-      paddingHorizontal: expect.any(Number),
-      paddingVertical: expect.any(Number),
-    });
-    expect(firstRankBadgeStyle.height).toBeUndefined();
-    expect(firstRankBadgeStyle.width).toBeUndefined();
-  });
-
-  it('hides the request ranking section while an empty ranking first loads', () => {
-    const renderer = renderHomeContent({
-      groupBuyRequestRankings: [],
-      isGroupBuyRequestRankingsFetching: true,
-    });
-    expect(
-      renderer.root.findAllByProps({ testID: 'home-group-buy-request-rankings' }),
-    ).toHaveLength(0);
-  });
-
-  it('hides the request ranking section when there are no ranked requests', () => {
+  it('순위 데이터가 없으면 티커를 숨긴다', () => {
     const renderer = renderHomeContent({
       groupBuyRequestRankings: [],
     });
 
     expect(
-      renderer.root.findAllByProps({ testID: 'home-group-buy-request-rankings' }),
+      renderer.root.findAllByProps({ testID: 'home-request-ticker' }),
     ).toHaveLength(0);
-  });
-
-  it('hides the request ranking section when rankings fail without cache', () => {
-    const renderer = renderHomeContent({
-      groupBuyRequestRankings: [],
-      isGroupBuyRequestRankingsError: true,
-    });
-
-    expect(
-      renderer.root.findAllByProps({ testID: 'home-group-buy-request-rankings' }),
-    ).toHaveLength(0);
-  });
-
-  it('keeps cached rankings visible while refreshing them', () => {
-    const renderer = renderHomeContent({
-      groupBuyRequestRankings: rankings,
-      isGroupBuyRequestRankingsFetching: true,
-    });
-
-    expect(
-      renderer.root.findByProps({ testID: 'home-group-buy-request-rankings' }),
-    ).toBeDefined();
-    expect(flattenText(renderer.toJSON())).toContain('업데이트 중');
-  });
-
-  it('keeps cached rankings visible and marks a failed refresh as stale', () => {
-    const renderer = renderHomeContent({
-      groupBuyRequestRankings: rankings,
-      isGroupBuyRequestRankingsError: true,
-    });
-
-    expect(
-      renderer.root.findByProps({
-        accessibilityLabel:
-          '1위, 무선 에어프라이어 올인원 대용량 패밀리 세트, 요청 12건',
-      }),
-    ).toBeDefined();
-    expect(
-      renderer.root.findByProps({
-        testID: 'group-buy-request-ranking-stale',
-      }).props.accessibilityLiveRegion,
-    ).toBe('polite');
+    renderer.unmount();
   });
 });
