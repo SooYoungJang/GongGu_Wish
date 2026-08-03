@@ -18,7 +18,6 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { deleteAccount } from "../api";
 import { useAds } from "../ads/AdsContext";
-import { InstagramIdentity } from "../components/ui/InstagramIdentity";
 import { SText } from "../components/ui/SText";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
@@ -79,8 +78,6 @@ export function SettingsScreen() {
     error: preferencesError,
     preferences,
     ready: preferencesReady,
-    toggleBrand,
-    toggleInfluencer,
     updatePreferences,
   } = useNotificationPreferences();
   const navigation =
@@ -254,22 +251,6 @@ export function SettingsScreen() {
     [requireAuth, updatePreferences],
   );
 
-  const handleFollowInfluencerPress = useCallback(
-    (target: string) => {
-      if (!requireAuth()) return;
-      void toggleInfluencer(target);
-    },
-    [requireAuth, toggleInfluencer],
-  );
-
-  const handleFollowBrandPress = useCallback(
-    (target: string) => {
-      if (!requireAuth()) return;
-      void toggleBrand(target);
-    },
-    [requireAuth, toggleBrand],
-  );
-
   const controlsDisabled = !preferencesReady;
   const pushEnabled =
     isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
@@ -424,69 +405,6 @@ export function SettingsScreen() {
               testID="submission-approval-notification-toggle"
               value={submissionApprovalEnabled}
             />
-          </View>
-
-          <View style={s.preferenceBlock}>
-            <SText variant="label" style={s.preferenceTitle}>
-              팔로우 알림
-            </SText>
-            <SText variant="caption" style={s.switchDescription}>
-              공구 상세에서 추가한 인플루언서와 브랜드예요. 탭하면 해제돼요.
-            </SText>
-            {preferences.followedInfluencers.length === 0 &&
-            preferences.followedBrands.length === 0 ? (
-              <SText variant="caption" style={s.emptyFollowText}>
-                아직 팔로우한 알림 대상이 없어요.
-              </SText>
-            ) : (
-              <View style={s.followChipRow}>
-                {preferences.followedInfluencers.map((target) => (
-                  <Pressable
-                    accessibilityLabel={`@${target} 인플루언서 알림 해제`}
-                    accessibilityRole="button"
-                    key={`influencer:${target}`}
-                    onPress={() => handleFollowInfluencerPress(target)}
-                    style={({ pressed }) => [
-                      s.followChip,
-                      pressed && s.pressed,
-                    ]}
-                  >
-                    <InstagramIdentity
-                      textStyle={s.followChipText}
-                      username={target}
-                    />
-                    <Ionicons
-                      accessible={false}
-                      color={colors.accent}
-                      name="close"
-                      size={14}
-                    />
-                  </Pressable>
-                ))}
-                {preferences.followedBrands.map((target) => (
-                  <Pressable
-                    accessibilityLabel={`${target} 브랜드 알림 해제`}
-                    accessibilityRole="button"
-                    key={`brand:${target}`}
-                    onPress={() => handleFollowBrandPress(target)}
-                    style={({ pressed }) => [
-                      s.followChip,
-                      pressed && s.pressed,
-                    ]}
-                  >
-                    <SText style={s.followChipText} variant="caption">
-                      {target}
-                    </SText>
-                    <Ionicons
-                      accessible={false}
-                      color={colors.accent}
-                      name="close"
-                      size={14}
-                    />
-                  </Pressable>
-                ))}
-              </View>
-            )}
           </View>
 
           {preferencesError ? (
@@ -724,27 +642,6 @@ function makeStyles(
     switchCopy: { flex: 1, gap: spacing.xs, paddingRight: spacing.md },
     switchLabel: { color: colors.text, fontWeight: "900" },
     switchDescription: { color: colors.weak, fontWeight: "700" },
-    preferenceBlock: {
-      borderBottomColor: colors.borderLight,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      gap: spacing.sm,
-      paddingVertical: spacing.lg,
-    },
-    preferenceTitle: { color: colors.text, fontWeight: "900" },
-    followChipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-    followChip: {
-      alignItems: "center",
-      backgroundColor: colors.accentSoft,
-      borderRadius: radius.full,
-      flexDirection: "row",
-      gap: spacing.xs,
-      justifyContent: "center",
-      minHeight: 44,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs,
-    },
-    followChipText: { color: colors.accent, fontWeight: "900" },
-    emptyFollowText: { color: colors.weak, paddingVertical: spacing.sm },
     preferenceError: {
       color: colors.error,
       fontWeight: "800",

@@ -66,8 +66,6 @@ const settingsPreferenceMocks = vi.hoisted(() => ({
     followedBrands: ['Brand A'],
   },
   updatePreferences: vi.fn(async (patch: Record<string, unknown>) => patch),
-  toggleInfluencer: vi.fn(),
-  toggleBrand: vi.fn(),
 }));
 
 vi.mock('../ads/AdsContext', () => ({
@@ -92,8 +90,6 @@ vi.mock('../context/NotificationPreferencesContext', () => ({
     saving: settingsPreferenceMocks.saving,
     error: null,
     updatePreferences: settingsPreferenceMocks.updatePreferences,
-    toggleInfluencer: settingsPreferenceMocks.toggleInfluencer,
-    toggleBrand: settingsPreferenceMocks.toggleBrand,
   }),
 }));
 
@@ -298,8 +294,6 @@ beforeEach(() => {
   settingsPreferenceMocks.preferences.followedBrands = ['Brand A'];
   settingsPreferenceMocks.saving = false;
   settingsPreferenceMocks.updatePreferences.mockClear();
-  settingsPreferenceMocks.toggleInfluencer.mockClear();
-  settingsPreferenceMocks.toggleBrand.mockClear();
   notificationMocks.getNotificationPermissionStatus.mockClear();
   notificationMocks.registerForPushNotifications.mockReset().mockResolvedValue({
     status: 'registered',
@@ -563,7 +557,7 @@ describe('MyPageScreen', () => {
     expect(navigationMocks.navigate).toHaveBeenCalledWith('Settings');
   });
 
-  it('renders notification and theme controls on the settings screen', () => {
+  it('renders notification and theme controls without follow notification controls', () => {
     const renderer = renderScreen(React.createElement(SettingsScreen));
     const rendered = JSON.stringify(renderer.toJSON());
 
@@ -585,10 +579,11 @@ describe('MyPageScreen', () => {
       renderer.root.findAllByProps({ testID: 'deadline-notification-toggle' }),
     ).toHaveLength(0);
     expect(rendered).toContain('내 제보 승인 알림');
+    expect(rendered).not.toContain('팔로우 알림');
+    expect(rendered).not.toContain('@seller.one');
+    expect(rendered).not.toContain('Brand A');
     expect(rendered).not.toContain('마감 알림 날짜');
     expect(rendered).not.toContain('테스트 알림 보내기');
-    expect(rendered).toContain('@seller.one');
-    expect(rendered).toContain('Brand A');
   });
 
   it('shows legal document buttons and the app version in settings', async () => {
@@ -642,7 +637,7 @@ describe('MyPageScreen', () => {
     expect(adsMocks.showPrivacyOptions).toHaveBeenCalledOnce();
   });
 
-  it('persists own-submission approval and follow changes', async () => {
+  it('persists own-submission approval without exposing follow notification controls', async () => {
     authMocks.session = {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
@@ -655,26 +650,24 @@ describe('MyPageScreen', () => {
     const submissionApprovalSwitch = renderer.root.findByProps({
       accessibilityLabel: '내 제보 승인 알림',
     });
-    const influencer = renderer.root.findByProps({
-      accessibilityLabel: '@seller.one 인플루언서 알림 해제',
-    });
-    const brand = renderer.root.findByProps({
-      accessibilityLabel: 'Brand A 브랜드 알림 해제',
-    });
 
     await act(async () => {
       await submissionApprovalSwitch.props.onValueChange(false);
-      await influencer.props.onPress();
-      await brand.props.onPress();
     });
 
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       submissionApprovalEnabled: false,
     });
-    expect(settingsPreferenceMocks.toggleInfluencer).toHaveBeenCalledWith(
-      'seller.one',
-    );
-    expect(settingsPreferenceMocks.toggleBrand).toHaveBeenCalledWith('Brand A');
+    expect(
+      renderer.root.findAllByProps({
+        accessibilityLabel: '@seller.one 인플루언서 알림 해제',
+      }),
+    ).toHaveLength(0);
+    expect(
+      renderer.root.findAllByProps({
+        accessibilityLabel: 'Brand A 브랜드 알림 해제',
+      }),
+    ).toHaveLength(0);
   });
 
   it('keeps notification switches interactive while preferences sync', async () => {
