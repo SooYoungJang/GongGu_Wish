@@ -1930,7 +1930,15 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       ]);
 
       act(() => {
-        vi.advanceTimersByTime(3000);
+        vi.advanceTimersByTime(7999);
+      });
+      expect(getVisibleRankingLabels()).toEqual([
+        '1위, 상품 1, 요청 20건',
+        '2위, 상품 2, 요청 19건',
+      ]);
+
+      act(() => {
+        vi.advanceTimersByTime(1);
       });
       expect(getVisibleRankingLabels()).toEqual([
         '3위, 상품 3, 요청 18건',
@@ -1938,7 +1946,13 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       ]);
 
       act(() => {
-        vi.advanceTimersByTime(9000);
+        vi.advanceTimersByTime(8000);
+      });
+      act(() => {
+        vi.advanceTimersByTime(8000);
+      });
+      act(() => {
+        vi.advanceTimersByTime(8000);
       });
       expect(getVisibleRankingLabels()).toEqual([
         '9위, 상품 9, 요청 12건',
@@ -1946,7 +1960,7 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       ]);
 
       act(() => {
-        vi.advanceTimersByTime(3000);
+        vi.advanceTimersByTime(8000);
       });
       expect(getVisibleRankingLabels()).toEqual([
         '1위, 상품 1, 요청 20건',
@@ -1956,6 +1970,55 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       renderer?.unmount();
       vi.useRealTimers();
     }
+  });
+
+  it('lets users move between ranking pages without waiting for autoplay', () => {
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: topTenRankings,
+    });
+
+    const getVisibleRankingLabels = () =>
+      renderer.root
+        .findAll(
+          (node) =>
+            String(node.type) === 'Pressable' &&
+            typeof node.props.accessibilityLabel === 'string' &&
+            /^\d+위,/.test(node.props.accessibilityLabel),
+        )
+        .map((node) => node.props.accessibilityLabel);
+
+    expect(
+      renderer.root.findByProps({
+        testID: 'group-buy-request-ranking-previous',
+      }).props.accessibilityLabel,
+    ).toBe('이전 요청 순위 보기');
+    expect(
+      renderer.root.findByProps({
+        testID: 'group-buy-request-ranking-next',
+      }).props.accessibilityLabel,
+    ).toBe('다음 요청 순위 보기');
+
+    act(() => {
+      renderer.root
+        .findByProps({ testID: 'group-buy-request-ranking-next' })
+        .props.onPress();
+    });
+    expect(getVisibleRankingLabels()).toEqual([
+      '3위, 상품 3, 요청 18건',
+      '4위, 상품 4, 요청 17건',
+    ]);
+
+    act(() => {
+      renderer.root
+        .findByProps({ testID: 'group-buy-request-ranking-previous' })
+        .props.onPress();
+    });
+    expect(getVisibleRankingLabels()).toEqual([
+      '1위, 상품 1, 요청 20건',
+      '2위, 상품 2, 요청 19건',
+    ]);
+
+    renderer.unmount();
   });
 
   it('opens search with a ranked product and exposes a 48dp accessible row', () => {
@@ -2001,6 +2064,59 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
           /^\d위,/.test(node.props.accessibilityLabel),
       ),
     ).toHaveLength(2);
+  });
+
+  it('highlights only the overall first rank across autoplay pages', async () => {
+    vi.useFakeTimers();
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+
+    try {
+      renderer = renderHomeContent({
+        groupBuyRequestRankings: topTenRankings,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const firstRankRow = renderer.root.findByProps({
+        accessibilityLabel: '1위, 상품 1, 요청 20건',
+      });
+      const firstRankBadge = renderer.root.findByProps({
+        testID: 'group-buy-request-rank-badge-1',
+      });
+      const firstRowBackground = flattenStyle(
+        firstRankRow.props.style,
+      ).backgroundColor;
+      const firstBadgeBackground = flattenStyle(
+        firstRankBadge.props.style,
+      ).backgroundColor;
+
+      act(() => {
+        vi.advanceTimersByTime(8000);
+      });
+
+      const thirdRankRow = renderer.root.findByProps({
+        accessibilityLabel: '3위, 상품 3, 요청 18건',
+      });
+      const thirdRankBadge = renderer.root.findByProps({
+        testID: 'group-buy-request-rank-badge-3',
+      });
+
+      expect(
+        flattenStyle(thirdRankRow.props.style).backgroundColor,
+      ).toBeUndefined();
+      expect(flattenStyle(thirdRankRow.props.style).backgroundColor).not.toBe(
+        firstRowBackground,
+      );
+      expect(flattenStyle(thirdRankBadge.props.style).backgroundColor).not.toBe(
+        firstBadgeBackground,
+      );
+    } finally {
+      renderer?.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it('keeps long names readable on a 320px screen with a large font scale', () => {
