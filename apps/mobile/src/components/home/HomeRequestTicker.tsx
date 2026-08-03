@@ -139,7 +139,7 @@ export function HomeRequestTicker({
         outputRange: [0.76, 1, 0.76],
       }),
       transform: [
-        { translateX: transition },
+        { translateY: transition },
         {
           scale: transition.interpolate({
             inputRange: [-TRANSITION_OFFSET, 0, TRANSITION_OFFSET],
@@ -153,38 +153,47 @@ export function HomeRequestTicker({
 
   if (!visibleRanking) return null;
 
-  const accessibilityLabel = `${visibleRanking.rank}위, ${visibleRanking.productName}, 요청 ${visibleRanking.requestCount}건`;
+  const accessibilityLabel = `${visibleRanking.rank}위, ${visibleRanking.productName}`;
   const externalStyles = Array.isArray(style) ? style : [style];
 
   return (
     <View style={[s.shell, ...externalStyles]} testID="home-request-ticker">
-      <Animated.View
-        accessibilityHint="좌우로 밀어 다음 또는 이전 공구 요청을 볼 수 있어요"
-        style={[s.swipeSurface, transitionStyle]}
-        testID="home-request-ticker-swipe-surface"
-        {...panResponder.panHandlers}
+      <Pressable
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="button"
+        onPress={() => onPressRanking(visibleRanking.productName)}
+        style={s.message}
+        testID="home-request-ticker-message"
       >
-        <Pressable
-          accessibilityLabel={accessibilityLabel}
-          accessibilityRole="button"
-          onPress={() => onPressRanking(visibleRanking.productName)}
-          style={s.message}
-          testID="home-request-ticker-message"
+        <View style={s.leadingIcon}>
+          <RequestTickerGlyph color={colors.accent} />
+        </View>
+        <Animated.View
+          accessibilityHint="좌우로 밀어 다음 또는 이전 공구 요청을 볼 수 있어요"
+          style={[s.swipeSurface, transitionStyle]}
+          testID="home-request-ticker-swipe-surface"
+          {...panResponder.panHandlers}
         >
-          <RequestTickerGlyph color={colors.muted} />
-          <SText numberOfLines={1} style={s.messageText} variant="caption">
-            {`공구 요청 ${visibleRanking.rank}위 · ${visibleRanking.productName} · 요청 ${visibleRanking.requestCount}건`}
-          </SText>
-          <SText
-            accessibilityElementsHidden
-            importantForAccessibility="no"
-            style={s.chevron}
-            variant="body"
-          >
-            ›
-          </SText>
-        </Pressable>
-      </Animated.View>
+          <View style={s.tickerContent}>
+            <View style={s.rankBadge} testID="home-request-ticker-rank">
+              <SText style={s.rankBadgeText} variant="caption">
+                {`${visibleRanking.rank}위`}
+              </SText>
+            </View>
+            <SText numberOfLines={1} style={s.messageText} variant="body">
+              {visibleRanking.productName}
+            </SText>
+            <SText
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+              style={s.chevron}
+              variant="body"
+            >
+              ›
+            </SText>
+          </View>
+        </Animated.View>
+      </Pressable>
     </View>
   );
 }
@@ -195,6 +204,7 @@ function RequestTickerGlyph({ color }: { color: string }) {
       accessibilityElementsHidden
       importantForAccessibility="no"
       style={styles.glyph}
+      testID="home-request-ticker-glyph"
     >
       <View style={[styles.glyphLine, { backgroundColor: color }]} />
       <View style={[styles.glyphLine, { backgroundColor: color }]} />
@@ -209,34 +219,68 @@ function makeStyles(colors: CommerceColorPalette) {
       backgroundColor: colors.surface,
       borderBottomColor: colors.borderLight,
       borderBottomWidth: StyleSheet.hairlineWidth,
+      flexDirection: "row",
+      minHeight: 48,
       borderTopColor: colors.borderLight,
       borderTopWidth: StyleSheet.hairlineWidth,
       overflow: "hidden",
     },
+    leadingIcon: {
+      alignItems: "center",
+      flexShrink: 0,
+      justifyContent: "center",
+      marginRight: commerceSpacing.sm,
+      width: 18,
+    },
     swipeSurface: {
+      flex: 1,
       minHeight: 48,
+      overflow: "hidden",
     },
     message: {
       alignItems: "center",
       flexDirection: "row",
-      gap: commerceSpacing.sm,
       minHeight: 48,
       paddingHorizontal: commerceSpacing.lg,
       paddingVertical: commerceSpacing.xs,
+    },
+    tickerContent: {
+      alignItems: "center",
+      flexDirection: "row",
+      gap: commerceSpacing.sm,
+      minHeight: 48,
+      paddingRight: commerceSpacing.xs,
+    },
+    rankBadge: {
+      alignItems: "center",
+      backgroundColor: colors.accent,
+      borderRadius: commerceRadius.full,
+      justifyContent: "center",
+      minHeight: 26,
+      minWidth: 38,
+      paddingHorizontal: commerceSpacing.sm,
+    },
+    rankBadgeText: {
+      color: colors.inverse,
+      fontSize: 12,
+      fontWeight: "900",
+      includeFontPadding: false,
+      lineHeight: 16,
     },
     messageText: {
       color: colors.text,
       flex: 1,
       flexShrink: 1,
-      fontSize: 13,
-      fontWeight: "700",
-      lineHeight: 18,
+      fontSize: 14,
+      fontWeight: "800",
+      lineHeight: 20,
       minWidth: 0,
     },
     chevron: {
-      color: colors.weak,
+      color: colors.accent,
       flexShrink: 0,
       fontSize: 18,
+      fontWeight: "900",
       lineHeight: 20,
     },
   });
