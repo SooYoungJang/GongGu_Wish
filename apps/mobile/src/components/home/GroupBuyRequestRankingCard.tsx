@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type Dispatch } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+} from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import type { GroupBuyRequestRanking } from "../../features/groupBuyRequests";
@@ -21,7 +27,7 @@ type GroupBuyRequestRankingCardProps = {
 
 const MAX_RANKINGS = 10;
 const RANKINGS_PER_PAGE = 2;
-const RANKING_AUTO_PLAY_MS = 3000;
+const RANKING_AUTO_PLAY_MS = 8000;
 const TOP_TITLE_LIMIT = 3;
 
 export function GroupBuyRequestRankingCard({
@@ -48,12 +54,12 @@ export function GroupBuyRequestRankingCard({
   useEffect(() => {
     if (pageCount <= 1 || autoPlayPaused) return;
 
-    const timer = setInterval(() => {
+    const timer = setTimeout(() => {
       setPageIndex((currentPage) => (currentPage + 1) % pageCount);
     }, RANKING_AUTO_PLAY_MS);
 
-    return () => clearInterval(timer);
-  }, [autoPlayPaused, pageCount]);
+    return () => clearTimeout(timer);
+  }, [autoPlayPaused, pageCount, pageIndex]);
 
   const normalizedPageIndex = pageCount > 0 ? pageIndex % pageCount : 0;
   const visibleRankings = topRankings.slice(
@@ -61,14 +67,21 @@ export function GroupBuyRequestRankingCard({
     normalizedPageIndex * RANKINGS_PER_PAGE + RANKINGS_PER_PAGE,
   );
   const topTitleRank = Math.min(topRankings.length, TOP_TITLE_LIMIT);
+  const handlePreviousPage = useCallback(() => {
+    setPageIndex((currentPage) =>
+      pageCount > 1 ? (currentPage - 1 + pageCount) % pageCount : 0,
+    );
+  }, [pageCount]);
+  const handleNextPage = useCallback(() => {
+    setPageIndex((currentPage) =>
+      pageCount > 1 ? (currentPage + 1) % pageCount : 0,
+    );
+  }, [pageCount]);
 
   if (visibleRankings.length === 0) return null;
 
   return (
-    <View
-      style={s.card}
-      testID="home-group-buy-request-rankings"
-    >
+    <View style={s.card} testID="home-group-buy-request-rankings">
       <View style={s.header}>
         <View style={s.headerCopy}>
           <SText accessibilityRole="header" style={s.title} variant="body">
@@ -90,67 +103,105 @@ export function GroupBuyRequestRankingCard({
       </View>
 
       <View style={s.rows}>
-          {visibleRankings.map((ranking, index) => {
-            const isFirst = index === 0;
-            const isLast = index === visibleRankings.length - 1;
-            return (
-              <Pressable
-                accessibilityLabel={`${ranking.rank}위, ${ranking.productName}, 요청 ${ranking.requestCount}건`}
-                accessibilityRole="button"
-                key={ranking.requestId}
-                onPress={() => onPressRanking(ranking.productName)}
-                style={[
-                  s.row,
-                  isFirst ? s.firstRow : null,
-                  isLast ? null : s.rowDivider,
-                ]}
-              >
-                <View
-                  style={[s.rankBadge, isFirst ? s.firstRankBadge : null]}
-                  testID={`group-buy-request-rank-badge-${ranking.rank}`}
-                >
-                  <SText
-                    style={[s.rankText, isFirst ? s.firstRankText : null]}
-                    variant="badge"
-                  >
-                    {ranking.rank}
-                  </SText>
-                </View>
-                <SText
-                  numberOfLines={2}
-                  style={s.productName}
-                  variant="body"
-                >
-                  {ranking.productName}
-                </SText>
-                <SText style={s.requestCount} variant="caption">
-                  요청 {ranking.requestCount}건
-                </SText>
-                <SText
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
-                  style={s.chevron}
-                  variant="body"
-                >
-                  ›
-                </SText>
-              </Pressable>
-            );
-          })}
-          {isError ? (
+        {visibleRankings.map((ranking, index) => {
+          const isFirstRank = ranking.rank === 1;
+          const isLast = index === visibleRankings.length - 1;
+          return (
             <Pressable
-              accessibilityLabel="저장된 공구 요청 순위 표시 중, 다시 불러오기"
-              accessibilityLiveRegion="polite"
+              accessibilityLabel={`${ranking.rank}위, ${ranking.productName}, 요청 ${ranking.requestCount}건`}
               accessibilityRole="button"
-              onPress={onRetry}
-              style={s.staleNotice}
-              testID="group-buy-request-ranking-stale"
+              key={ranking.requestId}
+              onPress={() => onPressRanking(ranking.productName)}
+              style={[
+                s.row,
+                isFirstRank ? s.firstRow : null,
+                isLast ? null : s.rowDivider,
+              ]}
             >
-              <SText style={s.staleText} variant="caption">
-                최신 순위를 확인하지 못했어요 · 다시 시도
+              <View
+                style={[s.rankBadge, isFirstRank ? s.firstRankBadge : null]}
+                testID={`group-buy-request-rank-badge-${ranking.rank}`}
+              >
+                <SText
+                  style={[s.rankText, isFirstRank ? s.firstRankText : null]}
+                  variant="badge"
+                >
+                  {ranking.rank}
+                </SText>
+              </View>
+              <SText numberOfLines={2} style={s.productName} variant="body">
+                {ranking.productName}
+              </SText>
+              <SText style={s.requestCount} variant="caption">
+                요청 {ranking.requestCount}건
+              </SText>
+              <SText
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+                style={s.chevron}
+                variant="body"
+              >
+                ›
               </SText>
             </Pressable>
-          ) : null}
+          );
+        })}
+        {pageCount > 1 ? (
+          <View
+            style={s.pagination}
+            testID="group-buy-request-ranking-pagination"
+          >
+            <Pressable
+              accessibilityLabel="이전 요청 순위 보기"
+              accessibilityRole="button"
+              onPress={handlePreviousPage}
+              style={({ pressed }) => [
+                s.pageButton,
+                pressed ? s.pageButtonPressed : null,
+              ]}
+              testID="group-buy-request-ranking-previous"
+            >
+              <SText style={s.pageButtonText} variant="caption">
+                ‹ 이전
+              </SText>
+            </Pressable>
+            <SText
+              accessibilityLabel={`요청 순위 ${normalizedPageIndex + 1} / ${pageCount}`}
+              style={s.pageIndicator}
+              variant="caption"
+            >
+              {`${normalizedPageIndex + 1} / ${pageCount}`}
+            </SText>
+            <Pressable
+              accessibilityLabel="다음 요청 순위 보기"
+              accessibilityRole="button"
+              onPress={handleNextPage}
+              style={({ pressed }) => [
+                s.pageButton,
+                pressed ? s.pageButtonPressed : null,
+              ]}
+              testID="group-buy-request-ranking-next"
+            >
+              <SText style={s.pageButtonText} variant="caption">
+                다음 ›
+              </SText>
+            </Pressable>
+          </View>
+        ) : null}
+        {isError ? (
+          <Pressable
+            accessibilityLabel="저장된 공구 요청 순위 표시 중, 다시 불러오기"
+            accessibilityLiveRegion="polite"
+            accessibilityRole="button"
+            onPress={onRetry}
+            style={s.staleNotice}
+            testID="group-buy-request-ranking-stale"
+          >
+            <SText style={s.staleText} variant="caption">
+              최신 순위를 확인하지 못했어요 · 다시 시도
+            </SText>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -222,6 +273,36 @@ function makeStyles(colors: CommerceColorPalette) {
     rowDivider: {
       borderBottomColor: colors.divider,
       borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    pagination: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: commerceSpacing.xs,
+      paddingHorizontal: commerceSpacing.xs,
+    },
+    pageButton: {
+      alignItems: "center",
+      borderRadius: commerceRadius.sm,
+      justifyContent: "center",
+      minHeight: 44,
+      minWidth: 72,
+      paddingHorizontal: commerceSpacing.sm,
+    },
+    pageButtonPressed: {
+      backgroundColor: colors.softBg,
+    },
+    pageButtonText: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: "800",
+      lineHeight: 17,
+    },
+    pageIndicator: {
+      color: colors.muted,
+      fontSize: 12,
+      fontWeight: "800",
+      lineHeight: 17,
     },
     rankBadge: {
       alignItems: "center",
