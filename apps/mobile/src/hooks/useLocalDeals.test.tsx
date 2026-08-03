@@ -27,6 +27,7 @@ const notificationServiceMocks = vi.hoisted(() => {
     .fn()
     .mockResolvedValue({ status: "cancelled" });
   return {
+    requestNotificationPermissions: vi.fn().mockResolvedValue(true),
     scheduleGroupBuyOpeningReminders: vi.fn().mockResolvedValue({
       status: "unavailable",
       reason: "missing-start-date",
@@ -159,6 +160,9 @@ describe("useNotifications", () => {
         status: "unavailable",
         reason: "missing-start-date",
       });
+    notificationServiceMocks.requestNotificationPermissions
+      .mockReset()
+      .mockResolvedValue(true);
     notificationServiceMocks.cancelScheduledNotification
       .mockReset()
       .mockResolvedValue({ status: "cancelled" });
@@ -1134,6 +1138,29 @@ describe("useNotifications", () => {
       status: "unavailable",
       reason: "missing-end-date",
     });
+  });
+
+  it("requests native permission from every notification enable path", async () => {
+    notificationPreferenceMocks.preferences.pushEnabled = false;
+    const notifications = renderHook(() => useNotifications());
+    const secondItem = { ...GROUP_BUY, id: "group-buy-2" };
+
+    await waitFor(() => {
+      expect(notifications.result.current.ready).toBe(true);
+    });
+
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(
+        GROUP_BUY,
+        [3],
+      );
+      await notifications.result.current.toggleNotification(secondItem);
+      await notifications.result.current.toggleNotification(secondItem);
+    });
+
+    expect(
+      notificationServiceMocks.requestNotificationPermissions,
+    ).toHaveBeenCalledTimes(2);
   });
 
   it("stores and cancels every D-day native reminder for a deadline", async () => {
