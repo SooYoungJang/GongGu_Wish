@@ -106,7 +106,7 @@ describe("HomeRequestTicker", () => {
     });
 
     expect(getTickerMessage(renderer!).props.accessibilityLabel).toBe(
-      "1위, 상품 1, 요청 100건",
+      "1위, 상품 1",
     );
     expect(getTickerMessage(renderer!).props.accessibilityRole).toBe("button");
     expect(
@@ -117,15 +117,16 @@ describe("HomeRequestTicker", () => {
       vi.advanceTimersByTime(2999);
     });
     expect(getTickerMessage(renderer!).props.accessibilityLabel).toBe(
-      "1위, 상품 1, 요청 100건",
+      "1위, 상품 1",
     );
 
     act(() => {
       vi.advanceTimersByTime(1);
     });
     expect(getTickerMessage(renderer!).props.accessibilityLabel).toBe(
-      "2위, 상품 2, 요청 99건",
+      "2위, 상품 2",
     );
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("요청 99건");
     expect(mocks.timing).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -141,9 +142,19 @@ describe("HomeRequestTicker", () => {
     const animatedStyle = swipeSurface.props.style[1];
     expect(animatedStyle.transform).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ translateX: expect.anything() }),
+        expect.objectContaining({ translateY: expect.anything() }),
       ]),
     );
+    expect(
+      swipeSurface.findAllByProps({ testID: "home-request-ticker-glyph" }),
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findByProps({ testID: "home-request-ticker-glyph" }),
+    ).toBeTruthy();
+    expect(
+      renderer!.root.findByProps({ testID: "home-request-ticker-rank" }).props
+        .style,
+    ).toMatchObject({ backgroundColor: "#E45757" });
 
     renderer!.unmount();
   });
@@ -170,7 +181,7 @@ describe("HomeRequestTicker", () => {
       swipeSurface.props.onPanResponderRelease({}, { dx: -60, dy: 4 });
     });
     expect(getTickerMessage(renderer!).props.accessibilityLabel).toBe(
-      "2위, 상품 2, 요청 99건",
+      "2위, 상품 2",
     );
 
     act(() => {

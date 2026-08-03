@@ -1956,16 +1956,18 @@ describe('HomeScreenContent request ticker', () => {
 
     expect(directChildText[0]).toContain('상품을 검색해보세요');
     expect(directChildText.join(' ')).not.toContain('공구 요청');
+    expect(flattenText(renderer.toJSON())).toContain('1위');
     expect(flattenText(renderer.toJSON())).toContain(
-      '공구 요청 1위 · 무선 에어프라이어 올인원 대용량 패밀리 세트 · 요청 12건',
+      '무선 에어프라이어 올인원 대용량 패밀리 세트',
     );
+    expect(flattenText(renderer.toJSON())).not.toContain('요청 12건');
     expect(
       renderer.root.findAllByProps({
         testID: 'home-group-buy-request-rankings',
       }),
     ).toHaveLength(0);
     expect(flattenStyle(ticker.props.style)).toMatchObject({
-      bottom: 50,
+      bottom: 46,
       left: 0,
       position: 'absolute',
       right: 0,
@@ -1994,29 +1996,29 @@ describe('HomeScreenContent request ticker', () => {
           testID: 'home-request-ticker-message',
         }).props.accessibilityLabel;
 
-      expect(getVisibleRankingLabel()).toBe('1위, 상품 1, 요청 20건');
+      expect(getVisibleRankingLabel()).toBe('1위, 상품 1');
 
       act(() => {
         vi.advanceTimersByTime(2999);
       });
-      expect(getVisibleRankingLabel()).toBe('1위, 상품 1, 요청 20건');
+      expect(getVisibleRankingLabel()).toBe('1위, 상품 1');
 
       act(() => {
         vi.advanceTimersByTime(1);
       });
-      expect(getVisibleRankingLabel()).toBe('2위, 상품 2, 요청 19건');
+      expect(getVisibleRankingLabel()).toBe('2위, 상품 2');
 
       for (let index = 0; index < 8; index += 1) {
         act(() => {
           vi.advanceTimersByTime(3000);
         });
       }
-      expect(getVisibleRankingLabel()).toBe('10위, 상품 10, 요청 11건');
+      expect(getVisibleRankingLabel()).toBe('10위, 상품 10');
 
       act(() => {
         vi.advanceTimersByTime(3000);
       });
-      expect(getVisibleRankingLabel()).toBe('1위, 상품 1, 요청 20건');
+      expect(getVisibleRankingLabel()).toBe('1위, 상품 1');
 
       const surface = renderer!.root.findByProps({
         testID: 'home-request-ticker-swipe-surface',
@@ -2026,7 +2028,7 @@ describe('HomeScreenContent request ticker', () => {
           expect.objectContaining({
             opacity: expect.anything(),
             transform: expect.arrayContaining([
-              expect.objectContaining({ translateX: expect.anything() }),
+              expect.objectContaining({ translateY: expect.anything() }),
               expect.objectContaining({ scale: expect.anything() }),
             ]),
           }),
@@ -2064,7 +2066,7 @@ describe('HomeScreenContent request ticker', () => {
     const message = renderer.root.findByProps({
       testID: 'home-request-ticker-message',
     });
-    expect(message.props.accessibilityLabel).toBe('2위, 상품 2, 요청 19건');
+    expect(message.props.accessibilityLabel).toBe('2위, 상품 2');
     expect(message.props.accessibilityRole).toBe('button');
     expect(flattenStyle(message.props.style)).toMatchObject({
       minHeight: 48,

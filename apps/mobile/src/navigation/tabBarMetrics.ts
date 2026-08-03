@@ -10,7 +10,7 @@ export function getMainTabBarHeight(bottomInset: number): number {
 
 export function getHomeRequestTickerBottomOffset(
   bottomInset: number,
-  gap = 4,
+  gap = 0,
 ): number {
   return Math.max(0, getMainTabBarHeight(bottomInset) - bottomInset) + gap;
 }
