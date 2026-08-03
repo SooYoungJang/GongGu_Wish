@@ -101,6 +101,16 @@ vi.mock('react-native', () => {
     Keyboard: {
       addListener: vi.fn(() => ({ remove: vi.fn() })),
     },
+    PanResponder: {
+      create: (handlers: any) => ({
+        panHandlers: {
+          onMoveShouldSetResponder: handlers.onMoveShouldSetPanResponder,
+          onMoveShouldSetResponderCapture:
+            handlers.onMoveShouldSetPanResponderCapture,
+          onResponderRelease: handlers.onPanResponderRelease,
+        },
+      }),
+    },
     Pressable: ({ children, ...props }: any) =>
       ReactMock.createElement('Pressable', props, children),
     RefreshControl: passthrough('RefreshControl'),
@@ -1972,7 +1982,7 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
     }
   });
 
-  it('lets users move between ranking pages without waiting for autoplay', () => {
+  it('lets users swipe between ranking pages without pagination chrome', () => {
     const renderer = renderHomeContent({
       groupBuyRequestRankings: topTenRankings,
     });
@@ -1987,21 +1997,43 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
         )
         .map((node) => node.props.accessibilityLabel);
 
+    const swipeSurface = renderer.root.findByProps({
+      testID: 'group-buy-request-ranking-swipe-surface',
+    });
+
     expect(
-      renderer.root.findByProps({
+      renderer.root.findAllByProps({
+        testID: 'group-buy-request-ranking-pagination',
+      }),
+    ).toHaveLength(0);
+    expect(
+      renderer.root.findAllByProps({
         testID: 'group-buy-request-ranking-previous',
-      }).props.accessibilityLabel,
-    ).toBe('이전 요청 순위 보기');
+      }),
+    ).toHaveLength(0);
     expect(
-      renderer.root.findByProps({
+      renderer.root.findAllByProps({
         testID: 'group-buy-request-ranking-next',
-      }).props.accessibilityLabel,
-    ).toBe('다음 요청 순위 보기');
+      }),
+    ).toHaveLength(0);
+    expect(swipeSurface.props.accessibilityHint).toBe(
+      '좌우로 밀어 다음 또는 이전 요청 순위를 볼 수 있어요',
+    );
+    expect(
+      swipeSurface.props.onMoveShouldSetResponder({}, { dx: -60, dy: 4 }),
+    ).toBe(true);
+    expect(
+      swipeSurface.props.onMoveShouldSetResponderCapture({}, {
+        dx: -60,
+        dy: 4,
+      }),
+    ).toBe(true);
+    expect(
+      swipeSurface.props.onMoveShouldSetResponder({}, { dx: 4, dy: 60 }),
+    ).toBe(false);
 
     act(() => {
-      renderer.root
-        .findByProps({ testID: 'group-buy-request-ranking-next' })
-        .props.onPress();
+      swipeSurface.props.onResponderRelease({}, { dx: -60, dy: 4 });
     });
     expect(getVisibleRankingLabels()).toEqual([
       '3위, 상품 3, 요청 18건',
@@ -2009,9 +2041,7 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
     ]);
 
     act(() => {
-      renderer.root
-        .findByProps({ testID: 'group-buy-request-ranking-previous' })
-        .props.onPress();
+      swipeSurface.props.onResponderRelease({}, { dx: 60, dy: 4 });
     });
     expect(getVisibleRankingLabels()).toEqual([
       '1위, 상품 1, 요청 20건',
@@ -2019,6 +2049,62 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
     ]);
 
     renderer.unmount();
+  });
+
+  it('restarts autoplay after a ranking swipe', async () => {
+    vi.useFakeTimers();
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+
+    try {
+      renderer = renderHomeContent({
+        groupBuyRequestRankings: topTenRankings,
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const getVisibleRankingLabels = () =>
+        renderer!.root
+          .findAll(
+            (node) =>
+              String(node.type) === 'Pressable' &&
+              typeof node.props.accessibilityLabel === 'string' &&
+              /^\d+위,/.test(node.props.accessibilityLabel),
+          )
+          .map((node) => node.props.accessibilityLabel);
+      const swipeSurface = renderer.root.findByProps({
+        testID: 'group-buy-request-ranking-swipe-surface',
+      });
+
+      act(() => {
+        swipeSurface.props.onResponderRelease({}, { dx: -60, dy: 4 });
+      });
+      expect(getVisibleRankingLabels()).toEqual([
+        '3위, 상품 3, 요청 18건',
+        '4위, 상품 4, 요청 17건',
+      ]);
+
+      act(() => {
+        vi.advanceTimersByTime(7999);
+      });
+      expect(getVisibleRankingLabels()).toEqual([
+        '3위, 상품 3, 요청 18건',
+        '4위, 상품 4, 요청 17건',
+      ]);
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(getVisibleRankingLabels()).toEqual([
+        '5위, 상품 5, 요청 16건',
+        '6위, 상품 6, 요청 15건',
+      ]);
+    } finally {
+      renderer?.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it('opens search with a ranked product and exposes a 48dp accessible row', () => {

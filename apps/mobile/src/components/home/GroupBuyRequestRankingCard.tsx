@@ -5,7 +5,7 @@ import {
   useState,
   type Dispatch,
 } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { PanResponder, Pressable, StyleSheet, View } from "react-native";
 
 import type { GroupBuyRequestRanking } from "../../features/groupBuyRequests";
 import {
@@ -28,6 +28,8 @@ type GroupBuyRequestRankingCardProps = {
 const MAX_RANKINGS = 10;
 const RANKINGS_PER_PAGE = 2;
 const RANKING_AUTO_PLAY_MS = 8000;
+const RANKING_SWIPE_START_THRESHOLD = 8;
+const RANKING_SWIPE_TRIGGER_THRESHOLD = 48;
 const TOP_TITLE_LIMIT = 3;
 
 export function GroupBuyRequestRankingCard({
@@ -67,16 +69,39 @@ export function GroupBuyRequestRankingCard({
     normalizedPageIndex * RANKINGS_PER_PAGE + RANKINGS_PER_PAGE,
   );
   const topTitleRank = Math.min(topRankings.length, TOP_TITLE_LIMIT);
-  const handlePreviousPage = useCallback(() => {
-    setPageIndex((currentPage) =>
-      pageCount > 1 ? (currentPage - 1 + pageCount) % pageCount : 0,
-    );
-  }, [pageCount]);
-  const handleNextPage = useCallback(() => {
-    setPageIndex((currentPage) =>
-      pageCount > 1 ? (currentPage + 1) % pageCount : 0,
-    );
-  }, [pageCount]);
+  const handlePageSwipe = useCallback(
+    (direction: 1 | -1) => {
+      setPageIndex((currentPage) =>
+        pageCount > 1 ? (currentPage + direction + pageCount) % pageCount : 0,
+      );
+    },
+    [pageCount],
+  );
+  const shouldStartSwipe = useCallback(
+    (_: unknown, gestureState: { dx: number; dy: number }) =>
+      pageCount > 1 &&
+      Math.abs(gestureState.dx) > RANKING_SWIPE_START_THRESHOLD &&
+      Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+    [pageCount],
+  );
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: shouldStartSwipe,
+        onMoveShouldSetPanResponderCapture: shouldStartSwipe,
+        onPanResponderRelease: (_, gestureState) => {
+          if (
+            Math.abs(gestureState.dx) < RANKING_SWIPE_TRIGGER_THRESHOLD ||
+            Math.abs(gestureState.dx) <= Math.abs(gestureState.dy)
+          ) {
+            return;
+          }
+
+          handlePageSwipe(gestureState.dx < 0 ? 1 : -1);
+        },
+      }),
+    [handlePageSwipe, shouldStartSwipe],
+  );
 
   if (visibleRankings.length === 0) return null;
 
@@ -102,7 +127,12 @@ export function GroupBuyRequestRankingCard({
         ) : null}
       </View>
 
-      <View style={s.rows}>
+      <View
+        accessibilityHint="좌우로 밀어 다음 또는 이전 요청 순위를 볼 수 있어요"
+        style={s.rows}
+        testID="group-buy-request-ranking-swipe-surface"
+        {...panResponder.panHandlers}
+      >
         {visibleRankings.map((ranking, index) => {
           const isFirstRank = ranking.rank === 1;
           const isLast = index === visibleRankings.length - 1;
@@ -146,48 +176,6 @@ export function GroupBuyRequestRankingCard({
             </Pressable>
           );
         })}
-        {pageCount > 1 ? (
-          <View
-            style={s.pagination}
-            testID="group-buy-request-ranking-pagination"
-          >
-            <Pressable
-              accessibilityLabel="이전 요청 순위 보기"
-              accessibilityRole="button"
-              onPress={handlePreviousPage}
-              style={({ pressed }) => [
-                s.pageButton,
-                pressed ? s.pageButtonPressed : null,
-              ]}
-              testID="group-buy-request-ranking-previous"
-            >
-              <SText style={s.pageButtonText} variant="caption">
-                ‹ 이전
-              </SText>
-            </Pressable>
-            <SText
-              accessibilityLabel={`요청 순위 ${normalizedPageIndex + 1} / ${pageCount}`}
-              style={s.pageIndicator}
-              variant="caption"
-            >
-              {`${normalizedPageIndex + 1} / ${pageCount}`}
-            </SText>
-            <Pressable
-              accessibilityLabel="다음 요청 순위 보기"
-              accessibilityRole="button"
-              onPress={handleNextPage}
-              style={({ pressed }) => [
-                s.pageButton,
-                pressed ? s.pageButtonPressed : null,
-              ]}
-              testID="group-buy-request-ranking-next"
-            >
-              <SText style={s.pageButtonText} variant="caption">
-                다음 ›
-              </SText>
-            </Pressable>
-          </View>
-        ) : null}
         {isError ? (
           <Pressable
             accessibilityLabel="저장된 공구 요청 순위 표시 중, 다시 불러오기"
@@ -273,36 +261,6 @@ function makeStyles(colors: CommerceColorPalette) {
     rowDivider: {
       borderBottomColor: colors.divider,
       borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    pagination: {
-      alignItems: "center",
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginTop: commerceSpacing.xs,
-      paddingHorizontal: commerceSpacing.xs,
-    },
-    pageButton: {
-      alignItems: "center",
-      borderRadius: commerceRadius.sm,
-      justifyContent: "center",
-      minHeight: 44,
-      minWidth: 72,
-      paddingHorizontal: commerceSpacing.sm,
-    },
-    pageButtonPressed: {
-      backgroundColor: colors.softBg,
-    },
-    pageButtonText: {
-      color: colors.text,
-      fontSize: 12,
-      fontWeight: "800",
-      lineHeight: 17,
-    },
-    pageIndicator: {
-      color: colors.muted,
-      fontSize: 12,
-      fontWeight: "800",
-      lineHeight: 17,
     },
     rankBadge: {
       alignItems: "center",
