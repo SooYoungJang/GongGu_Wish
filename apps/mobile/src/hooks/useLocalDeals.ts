@@ -10,6 +10,7 @@ import { useOptionalAuth } from "../context/AuthContext";
 import type { GroupBuyAlertState } from "../services/notifications";
 import {
   cancelScheduledNotifications,
+  requestNotificationPermissions,
   scheduleGroupBuyOpeningReminders,
   scheduleGroupBuyReminders,
 } from "../services/notifications";
@@ -1123,6 +1124,13 @@ async function disableNotification(
   return { status: "idle" };
 }
 
+async function requestNotificationPermissionIfNeeded(
+  reminder: GroupBuyReminderUpdate | readonly NotificationReminderDay[],
+): Promise<void> {
+  if (normalizeReminderUpdate(reminder).reminderDays.length === 0) return;
+  await requestNotificationPermissions();
+}
+
 async function configureNotification(
   namespace: string,
   storageKey: string,
@@ -1469,16 +1477,17 @@ export function useNotifications() {
       if (!canRecordBehaviorSignals()) {
         return Promise.resolve({ status: "idle" } as const);
       }
-      return enqueueNotificationOperation(namespace, item.id, () =>
-        configureNotification(
+      return enqueueNotificationOperation(namespace, item.id, async () => {
+        await requestNotificationPermissionIfNeeded(reminder);
+        return configureNotification(
           namespace,
           storageKey,
           getNotificationSnapshot(namespace),
           item,
           preferences,
           reminder,
-        ),
-      );
+        );
+      });
     },
     [namespace, preferences, storageKey],
   );
@@ -1491,16 +1500,18 @@ export function useNotifications() {
       return enqueueNotificationOperation(namespace, item.id, async () => {
         const current = getNotificationSnapshot(namespace);
         const existing = current.find((entry) => entry.groupBuyId === item.id);
-        return existing
-          ? disableNotification(namespace, storageKey, current, existing)
-          : enableNotification(
-              namespace,
-              storageKey,
-              current,
-              item,
-              preferences,
-              preferences.reminderDays,
-            );
+        if (existing) {
+          return disableNotification(namespace, storageKey, current, existing);
+        }
+        await requestNotificationPermissionIfNeeded(preferences.reminderDays);
+        return enableNotification(
+          namespace,
+          storageKey,
+          current,
+          item,
+          preferences,
+          preferences.reminderDays,
+        );
       });
     },
     [namespace, preferences, storageKey],
@@ -1520,6 +1531,10 @@ export function useNotifications() {
         ) {
           return disableNotification(namespace, storageKey, current, existing);
         }
+        const reminder = existing
+          ? getEntryReminderPreference(existing, preferences.reminderDays)
+          : preferences.reminderDays;
+        await requestNotificationPermissionIfNeeded(reminder);
         if (
           existing?.alertState?.status === "failed" &&
           getEntryNotificationIds(existing).length > 0
@@ -1537,9 +1552,7 @@ export function useNotifications() {
           current,
           item,
           preferences,
-          existing
-            ? getEntryReminderPreference(existing, preferences.reminderDays)
-            : preferences.reminderDays,
+          reminder,
         );
       });
     },
