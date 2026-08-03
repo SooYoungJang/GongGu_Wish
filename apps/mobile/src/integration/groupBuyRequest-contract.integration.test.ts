@@ -748,11 +748,11 @@ describeLocal.sequential("group-buy request database contracts", () => {
     expect(authenticatedResult.ok).toBe(false);
   });
 
-  it("limits an installation to five new products per 24 hours", async () => {
+  it("limits an installation to fifteen new products per 24 hours", async () => {
     const sessionId = `s_${suffix}_rate_limit`;
     const clientIp = allocateClientIp();
     const firstProductName = `요청제한 0 ${suffix}`;
-    for (let index = 0; index < 5; index += 1) {
+    for (let index = 0; index < 15; index += 1) {
       const result = await requestGroupBuy(
         `요청제한 ${index} ${suffix}`,
         sessionId,
@@ -767,7 +767,7 @@ describeLocal.sequential("group-buy request database contracts", () => {
       "/functions/v1/group-buy-request",
       {
         body: {
-          product_name: `요청제한 6 ${suffix}`,
+          product_name: `요청제한 15 ${suffix}`,
           session_id: sessionId,
         },
         headers: { "x-forwarded-for": clientIp },

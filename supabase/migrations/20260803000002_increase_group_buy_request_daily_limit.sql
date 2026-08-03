@@ -41,7 +41,7 @@ BEGIN
     'g'
   );
 
-  IF char_length(v_product_name) NOT BETWEEN 2 AND 60 THEN
+  IF char_length(v_product_name) NOT BETWEEN 2 AND 200 THEN
     RAISE EXCEPTION 'invalid_group_buy_product_name' USING ERRCODE = '22023';
   END IF;
 
