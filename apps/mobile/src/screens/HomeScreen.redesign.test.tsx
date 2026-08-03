@@ -1975,7 +1975,7 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       ]);
 
       act(() => {
-        vi.advanceTimersByTime(7999);
+        vi.advanceTimersByTime(2999);
       });
       expect(getVisibleRankingLabels()).toEqual([
         '1위, 상품 1, 요청 20건',
@@ -1991,13 +1991,13 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       ]);
 
       act(() => {
-        vi.advanceTimersByTime(8000);
+        vi.advanceTimersByTime(3000);
       });
       act(() => {
-        vi.advanceTimersByTime(8000);
+        vi.advanceTimersByTime(3000);
       });
       act(() => {
-        vi.advanceTimersByTime(8000);
+        vi.advanceTimersByTime(3000);
       });
       expect(getVisibleRankingLabels()).toEqual([
         '9위, 상품 9, 요청 12건',
@@ -2005,7 +2005,7 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       ]);
 
       act(() => {
-        vi.advanceTimersByTime(8000);
+        vi.advanceTimersByTime(3000);
       });
       expect(getVisibleRankingLabels()).toEqual([
         '1위, 상품 1, 요청 20건',
@@ -2109,6 +2109,7 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
             opacity: expect.anything(),
             transform: expect.arrayContaining([
               expect.objectContaining({ translateX: expect.anything() }),
+              expect.objectContaining({ scale: expect.anything() }),
             ]),
           }),
         ]),
@@ -2121,19 +2122,19 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       expect(animatedTiming).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
-          duration: 240,
+          duration: 420,
           useNativeDriver: true,
         }),
       );
 
       animatedTiming.mockClear();
       act(() => {
-        vi.advanceTimersByTime(8000);
+        vi.advanceTimersByTime(3000);
       });
       expect(animatedTiming).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
-          duration: 240,
+          duration: 420,
           useNativeDriver: true,
         }),
       );
@@ -2179,7 +2180,7 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       ]);
 
       act(() => {
-        vi.advanceTimersByTime(7999);
+        vi.advanceTimersByTime(2999);
       });
       expect(getVisibleRankingLabels()).toEqual([
         '3위, 상품 3, 요청 18건',

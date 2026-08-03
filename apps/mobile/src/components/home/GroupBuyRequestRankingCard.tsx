@@ -35,11 +35,11 @@ type GroupBuyRequestRankingCardProps = {
 
 const MAX_RANKINGS = 10;
 const RANKINGS_PER_PAGE = 2;
-const RANKING_AUTO_PLAY_MS = 8000;
+const RANKING_AUTO_PLAY_MS = 3000;
 const RANKING_SWIPE_START_THRESHOLD = 8;
 const RANKING_SWIPE_TRIGGER_THRESHOLD = 48;
-const RANKING_TRANSITION_MS = 240;
-const RANKING_TRANSITION_OFFSET = 24;
+const RANKING_TRANSITION_MS = 420;
+const RANKING_TRANSITION_OFFSET = 32;
 const TOP_TITLE_LIMIT = 3;
 
 export function GroupBuyRequestRankingCard({
@@ -122,9 +122,21 @@ export function GroupBuyRequestRankingCard({
           0,
           RANKING_TRANSITION_OFFSET,
         ],
-        outputRange: [0.9, 1, 0.9],
+        outputRange: [0.76, 1, 0.76],
       }),
-      transform: [{ translateX: rankingTransition }],
+      transform: [
+        { translateX: rankingTransition },
+        {
+          scale: rankingTransition.interpolate({
+            inputRange: [
+              -RANKING_TRANSITION_OFFSET,
+              0,
+              RANKING_TRANSITION_OFFSET,
+            ],
+            outputRange: [0.97, 1, 0.97],
+          }),
+        },
+      ],
     }),
     [rankingTransition],
   );
