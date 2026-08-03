@@ -2218,7 +2218,7 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
     );
   });
 
-  it('renders partial rankings without filler rows and subtly highlights first place', () => {
+  it('renders partial rankings without filler rows and keeps first-place emphasis restrained', () => {
     const renderer = renderHomeContent({
       groupBuyRequestRankings: rankings.slice(0, 2),
     });
@@ -2230,10 +2230,14 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       accessibilityLabel: '2위, 저당 그래놀라, 요청 8건',
     });
 
-    expect(flattenStyle(firstRow.props.style).backgroundColor).toEqual(
+    expect(flattenStyle(firstRow.props.style).backgroundColor).toBeUndefined();
+    expect(flattenStyle(secondRow.props.style).backgroundColor).toBeUndefined();
+    const firstRankBadge = renderer.root.findByProps({
+      testID: 'group-buy-request-rank-badge-1',
+    });
+    expect(flattenStyle(firstRankBadge.props.style).backgroundColor).toEqual(
       expect.any(String),
     );
-    expect(flattenStyle(secondRow.props.style).backgroundColor).toBeUndefined();
     expect(
       renderer.root.findAll(
         (node) =>
@@ -2242,6 +2246,24 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
           /^\d위,/.test(node.props.accessibilityLabel),
       ),
     ).toHaveLength(2);
+  });
+
+  it('uses the standard commerce surface and quiet card chrome', () => {
+    const renderer = renderHomeContent({
+      groupBuyRequestRankings: rankings,
+    });
+    const card = renderer.root.findByProps({
+      testID: 'home-group-buy-request-rankings',
+    });
+    const cardStyle = flattenStyle(card.props.style);
+
+    expect(cardStyle).toMatchObject({
+      backgroundColor: '#FFFFFF',
+      borderColor: '#EEF0F3',
+      elevation: 1,
+      shadowOpacity: 0.04,
+    });
+    renderer.unmount();
   });
 
   it('highlights only the overall first rank across autoplay pages', async () => {
@@ -2264,7 +2286,7 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
       const firstRankBadge = renderer.root.findByProps({
         testID: 'group-buy-request-rank-badge-1',
       });
-      const firstRowBackground = flattenStyle(
+      const firstRankRowBackground = flattenStyle(
         firstRankRow.props.style,
       ).backgroundColor;
       const firstBadgeBackground = flattenStyle(
@@ -2282,12 +2304,8 @@ describe('HomeScreenContent monthly group-buy request rankings', () => {
         testID: 'group-buy-request-rank-badge-3',
       });
 
-      expect(
-        flattenStyle(thirdRankRow.props.style).backgroundColor,
-      ).toBeUndefined();
-      expect(flattenStyle(thirdRankRow.props.style).backgroundColor).not.toBe(
-        firstRowBackground,
-      );
+      expect(firstRankRowBackground).toBeUndefined();
+      expect(flattenStyle(thirdRankRow.props.style).backgroundColor).toBeUndefined();
       expect(flattenStyle(thirdRankBadge.props.style).backgroundColor).not.toBe(
         firstBadgeBackground,
       );

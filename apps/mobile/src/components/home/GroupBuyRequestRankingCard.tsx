@@ -49,7 +49,7 @@ export function GroupBuyRequestRankingCard({
   onPressRanking,
   onRetry,
 }: GroupBuyRequestRankingCardProps) {
-  const { colors } = useCommerceTheme();
+  const { colors, shadow } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const topRankings = rankings.slice(0, MAX_RANKINGS);
   const pageCount = Math.ceil(topRankings.length / RANKINGS_PER_PAGE);
@@ -157,7 +157,7 @@ export function GroupBuyRequestRankingCard({
   if (visibleRankings.length === 0) return null;
 
   return (
-    <View style={s.card} testID="home-group-buy-request-rankings">
+    <View style={[s.card, shadow]} testID="home-group-buy-request-rankings">
       <View style={s.header}>
         <View style={s.headerCopy}>
           <SText accessibilityRole="header" style={s.title} variant="body">
@@ -195,7 +195,6 @@ export function GroupBuyRequestRankingCard({
               onPress={() => onPressRanking(ranking.productName)}
               style={[
                 s.row,
-                isFirstRank ? s.firstRow : null,
                 isLast ? null : s.rowDivider,
               ]}
             >
@@ -249,7 +248,7 @@ export function GroupBuyRequestRankingCard({
 function makeStyles(colors: CommerceColorPalette) {
   return StyleSheet.create({
     card: {
-      backgroundColor: colors.panelBg,
+      backgroundColor: colors.surface,
       borderColor: colors.borderLight,
       borderCurve: "continuous",
       borderRadius: commerceRadius.lg,
@@ -306,9 +305,6 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingHorizontal: commerceSpacing.sm,
       paddingVertical: commerceSpacing.xs,
     },
-    firstRow: {
-      backgroundColor: colors.accentSoft,
-    },
     rowDivider: {
       borderBottomColor: colors.divider,
       borderBottomWidth: StyleSheet.hairlineWidth,
@@ -317,7 +313,7 @@ function makeStyles(colors: CommerceColorPalette) {
       alignItems: "center",
       backgroundColor: colors.softBg,
       borderCurve: "continuous",
-      borderRadius: commerceRadius.sm,
+      borderRadius: commerceRadius.full,
       flexShrink: 0,
       justifyContent: "center",
       minHeight: 28,
@@ -342,7 +338,7 @@ function makeStyles(colors: CommerceColorPalette) {
       flex: 1,
       flexShrink: 1,
       fontSize: 14,
-      fontWeight: "800",
+      fontWeight: "700",
       lineHeight: 20,
       minWidth: 0,
     },
@@ -350,7 +346,7 @@ function makeStyles(colors: CommerceColorPalette) {
       color: colors.muted,
       flexShrink: 0,
       fontSize: 12,
-      fontWeight: "800",
+      fontWeight: "700",
       lineHeight: 17,
     },
     chevron: {
