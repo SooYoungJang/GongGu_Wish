@@ -2,10 +2,18 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
 } from "react";
-import { PanResponder, Pressable, StyleSheet, View } from "react-native";
+import {
+  Animated,
+  Easing,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 
 import type { GroupBuyRequestRanking } from "../../features/groupBuyRequests";
 import {
@@ -30,6 +38,8 @@ const RANKINGS_PER_PAGE = 2;
 const RANKING_AUTO_PLAY_MS = 8000;
 const RANKING_SWIPE_START_THRESHOLD = 8;
 const RANKING_SWIPE_TRIGGER_THRESHOLD = 48;
+const RANKING_TRANSITION_MS = 240;
+const RANKING_TRANSITION_OFFSET = 24;
 const TOP_TITLE_LIMIT = 3;
 
 export function GroupBuyRequestRankingCard({
@@ -45,37 +55,78 @@ export function GroupBuyRequestRankingCard({
   const pageCount = Math.ceil(topRankings.length / RANKINGS_PER_PAGE);
   const [pageIndex, setPageIndex] = useState(0);
   const autoPlayPaused = useAccessibilityAutoPlayPause();
+  const rankingTransition = useRef(new Animated.Value(0)).current;
   const rankingKey = topRankings
     .map((ranking) => `${ranking.requestId}:${ranking.rank}`)
     .join("|");
 
   useEffect(() => {
+    rankingTransition.stopAnimation();
+    rankingTransition.setValue(0);
     setPageIndex(0);
-  }, [rankingKey]);
+  }, [rankingKey, rankingTransition]);
+
+  useEffect(
+    () => () => {
+      rankingTransition.stopAnimation();
+    },
+    [rankingTransition],
+  );
+
+  const normalizedPageIndex = pageCount > 0 ? pageIndex % pageCount : 0;
+  const handlePageChange = useCallback(
+    (direction: 1 | -1) => {
+      if (pageCount <= 1) return;
+
+      const nextPageIndex =
+        (normalizedPageIndex + direction + pageCount) % pageCount;
+      rankingTransition.stopAnimation();
+
+      if (autoPlayPaused) {
+        rankingTransition.setValue(0);
+      } else {
+        rankingTransition.setValue(direction * RANKING_TRANSITION_OFFSET);
+        Animated.timing(rankingTransition, {
+          toValue: 0,
+          duration: RANKING_TRANSITION_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      }
+
+      setPageIndex(nextPageIndex);
+    },
+    [autoPlayPaused, normalizedPageIndex, pageCount, rankingTransition],
+  );
 
   useEffect(() => {
     if (pageCount <= 1 || autoPlayPaused) return;
 
     const timer = setTimeout(() => {
-      setPageIndex((currentPage) => (currentPage + 1) % pageCount);
+      handlePageChange(1);
     }, RANKING_AUTO_PLAY_MS);
 
     return () => clearTimeout(timer);
-  }, [autoPlayPaused, pageCount, pageIndex]);
+  }, [autoPlayPaused, handlePageChange, pageCount, normalizedPageIndex]);
 
-  const normalizedPageIndex = pageCount > 0 ? pageIndex % pageCount : 0;
   const visibleRankings = topRankings.slice(
     normalizedPageIndex * RANKINGS_PER_PAGE,
     normalizedPageIndex * RANKINGS_PER_PAGE + RANKINGS_PER_PAGE,
   );
   const topTitleRank = Math.min(topRankings.length, TOP_TITLE_LIMIT);
-  const handlePageSwipe = useCallback(
-    (direction: 1 | -1) => {
-      setPageIndex((currentPage) =>
-        pageCount > 1 ? (currentPage + direction + pageCount) % pageCount : 0,
-      );
-    },
-    [pageCount],
+  const rankingTransitionStyle = useMemo(
+    () => ({
+      opacity: rankingTransition.interpolate({
+        inputRange: [
+          -RANKING_TRANSITION_OFFSET,
+          0,
+          RANKING_TRANSITION_OFFSET,
+        ],
+        outputRange: [0.9, 1, 0.9],
+      }),
+      transform: [{ translateX: rankingTransition }],
+    }),
+    [rankingTransition],
   );
   const shouldStartSwipe = useCallback(
     (_: unknown, gestureState: { dx: number; dy: number }) =>
@@ -97,10 +148,10 @@ export function GroupBuyRequestRankingCard({
             return;
           }
 
-          handlePageSwipe(gestureState.dx < 0 ? 1 : -1);
+          handlePageChange(gestureState.dx < 0 ? 1 : -1);
         },
       }),
-    [handlePageSwipe, shouldStartSwipe],
+    [handlePageChange, shouldStartSwipe],
   );
 
   if (visibleRankings.length === 0) return null;
@@ -127,9 +178,9 @@ export function GroupBuyRequestRankingCard({
         ) : null}
       </View>
 
-      <View
+      <Animated.View
         accessibilityHint="좌우로 밀어 다음 또는 이전 요청 순위를 볼 수 있어요"
-        style={s.rows}
+        style={[s.rows, rankingTransitionStyle]}
         testID="group-buy-request-ranking-swipe-surface"
         {...panResponder.panHandlers}
       >
@@ -190,7 +241,7 @@ export function GroupBuyRequestRankingCard({
             </SText>
           </Pressable>
         ) : null}
-      </View>
+      </Animated.View>
     </View>
   );
 }
