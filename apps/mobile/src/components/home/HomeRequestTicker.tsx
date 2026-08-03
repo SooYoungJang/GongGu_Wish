@@ -153,7 +153,7 @@ export function HomeRequestTicker({
 
   if (!visibleRanking) return null;
 
-  const accessibilityLabel = `${visibleRanking.rank}위, ${visibleRanking.productName}`;
+  const accessibilityLabel = `공구 요청 ${visibleRanking.rank}위, ${visibleRanking.productName}`;
   const externalStyles = Array.isArray(style) ? style : [style];
 
   return (
@@ -177,11 +177,11 @@ export function HomeRequestTicker({
           <View style={s.tickerContent}>
             <View style={s.rankBadge} testID="home-request-ticker-rank">
               <SText style={s.rankBadgeText} variant="caption">
-                {`${visibleRanking.rank}위`}
+                {`공구 요청 ${visibleRanking.rank}위`}
               </SText>
             </View>
             <SText numberOfLines={1} style={s.messageText} variant="body">
-              {visibleRanking.productName}
+              {`· ${visibleRanking.productName}`}
             </SText>
             <SText
               accessibilityElementsHidden
