@@ -2069,7 +2069,8 @@ describe('HomeScreenContent request ticker', () => {
     expect(message.props.accessibilityLabel).toBe('공구 요청 2위, 상품 2');
     expect(message.props.accessibilityRole).toBe('button');
     expect(flattenStyle(message.props.style)).toMatchObject({
-      minHeight: 40,
+      minHeight: 32,
+      paddingVertical: 0,
     });
 
     act(() => {

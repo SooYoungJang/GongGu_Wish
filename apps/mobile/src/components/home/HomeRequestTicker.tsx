@@ -35,7 +35,7 @@ type HomeRequestTickerProps = {
 
 const MAX_RANKINGS = 10;
 const AUTO_PLAY_MS = 3000;
-const TICKER_HEIGHT = 40;
+const TICKER_HEIGHT = 32;
 const SWIPE_START_THRESHOLD = 8;
 const SWIPE_TRIGGER_THRESHOLD = 48;
 const TRANSITION_MS = 420;
@@ -245,7 +245,7 @@ function makeStyles(colors: CommerceColorPalette) {
       flex: 1,
       minHeight: TICKER_HEIGHT,
       paddingHorizontal: commerceSpacing.lg,
-      paddingVertical: commerceSpacing.xs,
+      paddingVertical: 0,
     },
     tickerContent: {
       alignItems: "center",
