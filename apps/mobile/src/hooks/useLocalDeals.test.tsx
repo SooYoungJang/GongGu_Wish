@@ -1082,6 +1082,58 @@ describe("useNotifications", () => {
     );
   });
 
+  it("reconciles stored reminders without requesting native permission", async () => {
+    storage.values.set(
+      "@gonggu/notifications/v2/guest",
+      JSON.stringify([
+        {
+          ...GROUP_BUY,
+          groupBuyId: GROUP_BUY.id,
+          endDate: "2026-07-20T12:00:00.000Z",
+          notificationId: "deadline-1",
+          notificationIds: ["deadline-1"],
+          scheduledFor: "2026-07-19T12:00:00.000Z",
+          scheduledForDates: ["2026-07-19T12:00:00.000Z"],
+          reminderDays: [3],
+          reminderPreference: { type: "deadline", reminderDays: [3] },
+          alertState: {
+            status: "enabled",
+            notificationId: "deadline-1",
+            notificationIds: ["deadline-1"],
+            scheduledFor: "2026-07-19T12:00:00.000Z",
+            scheduledForDates: ["2026-07-19T12:00:00.000Z"],
+          },
+          createdAt: "2026-07-17T00:00:00.000Z",
+        },
+      ]),
+    );
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
+      status: "unavailable",
+      reason: "permission-denied",
+    });
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+
+    await act(async () => {
+      await notifications.result.current.rescheduleNotifications({
+        pushEnabled: true,
+        deadlineRemindersEnabled: true,
+        submissionApprovalEnabled: true,
+        reminderDays: [3],
+        followedInfluencers: [],
+        followedBrands: [],
+      });
+    });
+
+    expect(notificationServiceMocks.scheduleGroupBuyReminders).toHaveBeenCalledWith(
+      GROUP_BUY.id,
+      GROUP_BUY.productName,
+      "2026-07-20T12:00:00.000Z",
+      [3],
+      { requestPermission: false },
+    );
+  });
+
   it("예약 결과를 관심 저장 상태와 분리해 노출한다", async () => {
     const scheduledFor = "2026-07-16T17:00:00.000Z";
     notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
@@ -1393,7 +1445,9 @@ describe("useNotifications", () => {
     });
     expect(
       notificationServiceMocks.scheduleGroupBuyReminders,
-    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1, 3]);
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1, 3], {
+      requestPermission: false,
+    });
     expect(
       notificationServiceMocks.scheduleGroupBuyReminders,
     ).toHaveBeenCalledTimes(1);
@@ -1523,7 +1577,9 @@ describe("useNotifications", () => {
 
     expect(
       notificationServiceMocks.scheduleGroupBuyReminders,
-    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1]);
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1], {
+      requestPermission: false,
+    });
   });
 
   it("reconciles existing native IDs when item reminder days change", async () => {

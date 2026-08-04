@@ -94,6 +94,16 @@ export type CancelScheduledNotificationResult =
   | { status: "unsupported"; reason: "expo-go" | "native-module" }
   | { status: "failed"; reason: "cancel-failed" };
 
+export type NotificationScheduleOptions = GroupBuyReminderScheduleOptions & {
+  requestPermission?: boolean;
+};
+
+function shouldRequestNotificationPermission(
+  options?: number | NotificationScheduleOptions,
+): boolean {
+  return typeof options !== "object" || options.requestPermission !== false;
+}
+
 async function getNotificationAvailability(
   requestPermission = true,
 ): Promise<NotificationAvailability> {
@@ -375,7 +385,7 @@ export async function scheduleGroupBuyReminders(
   productName: string | null,
   endDate: string | null,
   reminderDays: readonly NotificationReminderDay[],
-  options?: number | GroupBuyReminderScheduleOptions,
+  options?: number | NotificationScheduleOptions,
 ): Promise<ScheduleGroupBuyRemindersResult> {
   const url = buildGroupBuyNotificationUrl(groupBuyId);
   if (!url) return { status: "failed", reason: "invalid-group-buy-id" };
@@ -389,7 +399,9 @@ export async function scheduleGroupBuyReminders(
     return { status: "unavailable", reason: "past-reminder-window" };
   }
 
-  const availability = await getNotificationAvailability();
+  const availability = await getNotificationAvailability(
+    shouldRequestNotificationPermission(options),
+  );
   if (availability.status !== "available") return availability;
   const Notifications = await getNotifications();
   if (!Notifications) return { status: "unsupported", reason: "native-module" };
@@ -461,7 +473,7 @@ export async function scheduleGroupBuyOpeningReminders(
   startDate: string | null,
   reminderDays: readonly OpeningReminderDay[],
   reminderTimeMinutes: number,
-  options?: number | GroupBuyReminderScheduleOptions,
+  options?: number | NotificationScheduleOptions,
 ): Promise<ScheduleGroupBuyOpeningRemindersResult> {
   const normalizedGroupBuyId = groupBuyId.trim();
   const url = buildGroupBuyNotificationUrl(normalizedGroupBuyId);
@@ -490,7 +502,9 @@ export async function scheduleGroupBuyOpeningReminders(
     return { status: "unavailable", reason: "past-reminder-window" };
   }
 
-  const availability = await getNotificationAvailability();
+  const availability = await getNotificationAvailability(
+    shouldRequestNotificationPermission(options),
+  );
   if (availability.status !== "available") return availability;
   const Notifications = await getNotifications();
   if (!Notifications) return { status: "unsupported", reason: "native-module" };

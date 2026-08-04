@@ -7,7 +7,10 @@ import {
   type GroupBuyReminderUpdate,
 } from "../api";
 import { useOptionalAuth } from "../context/AuthContext";
-import type { GroupBuyAlertState } from "../services/notifications";
+import type {
+  GroupBuyAlertState,
+  NotificationScheduleOptions,
+} from "../services/notifications";
 import {
   cancelScheduledNotifications,
   requestNotificationPermissions,
@@ -559,6 +562,7 @@ async function reconcileRemoteNotificationEntries(
       notificationEntryToGroupBuy(baseEntry),
       preferences,
       reminderPreference,
+      { requestPermission: false },
     );
     next.push(applyAlertState(baseEntry, alertState));
   }
@@ -916,6 +920,7 @@ async function getScheduledAlertState(
   item: GroupBuy,
   preferences: NotificationPreferences,
   reminder: GroupBuyReminderUpdate | readonly NotificationReminderDay[],
+  options?: Pick<NotificationScheduleOptions, "requestPermission">,
 ): Promise<GroupBuyAlertState> {
   const reminderPreference = normalizeReminderUpdate(reminder);
   if (
@@ -925,24 +930,41 @@ async function getScheduledAlertState(
     return getUnscheduledEnabledState();
   }
   if (reminderPreference.type === "opening") {
-    return alertStateFromReminderResult(
-      await scheduleGroupBuyOpeningReminders(
-        item.id,
-        item.productName,
-        item.startDate,
-        reminderPreference.reminderDays,
-        reminderPreference.reminderTimeMinutes,
-      ),
-    );
+    const result =
+      options?.requestPermission === false
+        ? await scheduleGroupBuyOpeningReminders(
+            item.id,
+            item.productName,
+            item.startDate,
+            reminderPreference.reminderDays,
+            reminderPreference.reminderTimeMinutes,
+            { requestPermission: false },
+          )
+        : await scheduleGroupBuyOpeningReminders(
+            item.id,
+            item.productName,
+            item.startDate,
+            reminderPreference.reminderDays,
+            reminderPreference.reminderTimeMinutes,
+          );
+    return alertStateFromReminderResult(result);
   }
-  return alertStateFromReminderResult(
-    await scheduleGroupBuyReminders(
-      item.id,
-      item.productName,
-      item.endDate,
-      reminderPreference.reminderDays,
-    ),
-  );
+  const result =
+    options?.requestPermission === false
+      ? await scheduleGroupBuyReminders(
+          item.id,
+          item.productName,
+          item.endDate,
+          reminderPreference.reminderDays,
+          { requestPermission: false },
+        )
+      : await scheduleGroupBuyReminders(
+          item.id,
+          item.productName,
+          item.endDate,
+          reminderPreference.reminderDays,
+        );
+  return alertStateFromReminderResult(result);
 }
 
 function applyAlertState(
@@ -1241,6 +1263,7 @@ async function rescheduleNotification(
     notificationEntryToGroupBuy(existing),
     preferences,
     getEntryReminderPreference(existing, preferences.reminderDays),
+    { requestPermission: false },
   );
   const nextEntry = applyAlertState(
     {
