@@ -848,6 +848,32 @@ describe('MyPageScreen', () => {
     });
   });
 
+  it('withdraws marketing consent without requesting push permission', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.marketingPushEnabled = true;
+
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const marketing = renderer.root.findByProps({
+      accessibilityLabel: '마케팅 정보 수신',
+    });
+    await act(async () => {
+      await marketing.props.onValueChange(false);
+    });
+
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      marketingPushEnabled: false,
+    });
+    expect(notificationMocks.registerForPushNotifications).not.toHaveBeenCalled();
+  });
+
   it('rolls the optimistic push toggle back after a native token failure', async () => {
     authMocks.session = {
       access_token: 'access-token',
