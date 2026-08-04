@@ -267,6 +267,63 @@ describe("registerForPushNotifications", () => {
     expect(notificationMocks.scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 
+  it("does not request permission while reconciling stored deadline reminders", async () => {
+    notificationMocks.getPermissionsAsync.mockResolvedValueOnce({
+      status: "undetermined",
+    });
+    notificationMocks.requestPermissionsAsync.mockResolvedValueOnce({
+      status: "denied",
+    });
+
+    await expect(
+      scheduleGroupBuyReminders(
+        "group-buy-1",
+        "테스트 공구",
+        "2026-07-20T12:00:00.000Z",
+        [3],
+        {
+          now: Date.parse("2026-07-10T12:00:00.000Z"),
+          requestPermission: false,
+        },
+      ),
+    ).resolves.toEqual({
+      status: "unavailable",
+      reason: "permission-denied",
+    });
+
+    expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(notificationMocks.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it("does not request permission while reconciling stored opening reminders", async () => {
+    notificationMocks.getPermissionsAsync.mockResolvedValueOnce({
+      status: "undetermined",
+    });
+    notificationMocks.requestPermissionsAsync.mockResolvedValueOnce({
+      status: "denied",
+    });
+
+    await expect(
+      scheduleGroupBuyOpeningReminders(
+        "group-buy-1",
+        "테스트 공구",
+        "2026-07-20T00:00:00.000Z",
+        [3],
+        9 * 60,
+        {
+          now: Date.parse("2026-07-10T12:00:00.000Z"),
+          requestPermission: false,
+        },
+      ),
+    ).resolves.toEqual({
+      status: "unavailable",
+      reason: "permission-denied",
+    });
+
+    expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(notificationMocks.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
   it("does not prompt for permission during background token registration", async () => {
     notificationMocks.getPermissionsAsync.mockResolvedValueOnce({
       status: "undetermined",
