@@ -21,6 +21,7 @@ Deno.test("accepts a broadcast with trimmed text and JSON data", () => {
       data: { screen: "Home", groupBuyId: "group-buy-1" },
       userIds: null,
       audience: { type: "general" },
+      marketing: false,
     },
   );
 });
@@ -138,17 +139,52 @@ Deno.test("rejects malformed preference-aware targets", () => {
   );
 });
 
+Deno.test("marks marketing notifications and adds the advertising label", () => {
+  assertEquals(
+    validatePushNotificationInput({
+      title: "  이번 주 특가  ",
+      body: "동의한 사용자에게만 보내는 광고입니다.",
+      marketing: true,
+    }),
+    {
+      title: "(광고) 이번 주 특가",
+      body: "동의한 사용자에게만 보내는 광고입니다.",
+      data: null,
+      userIds: null,
+      audience: { type: "marketing" },
+      marketing: true,
+    },
+  );
+  assertEquals(
+    validatePushNotificationInput({
+      title: "(광고) 이미 표시됨",
+      body: "본문",
+      marketing: true,
+    }).title,
+    "(광고) 이미 표시됨",
+  );
+});
+
 Deno.test("filters recipients by global and type-specific preferences", () => {
   const base = {
     push_enabled: true,
     deadline_reminders_enabled: true,
     new_submissions_enabled: true,
     submission_approval_notifications_enabled: true,
+    marketing_push_enabled: true,
     followed_influencers: ["seller.one"],
     followed_brands: ["Brand A"],
   };
 
   assertEquals(matchesPushPreferences(base, { type: "general" }), true);
+  assertEquals(matchesPushPreferences(base, { type: "marketing" }), true);
+  assertEquals(
+    matchesPushPreferences(
+      { ...base, marketing_push_enabled: false },
+      { type: "marketing" },
+    ),
+    false,
+  );
   assertEquals(
     matchesPushPreferences(
       { ...base, submission_approval_notifications_enabled: false },

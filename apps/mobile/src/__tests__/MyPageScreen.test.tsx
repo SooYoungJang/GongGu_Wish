@@ -61,6 +61,7 @@ const settingsPreferenceMocks = vi.hoisted(() => ({
     pushEnabled: true,
     deadlineRemindersEnabled: true,
     submissionApprovalEnabled: true,
+    marketingPushEnabled: false,
     reminderDays: [1, 3, 7] as Array<1 | 3 | 7>,
     followedInfluencers: ['seller.one'],
     followedBrands: ['Brand A'],
@@ -289,6 +290,7 @@ beforeEach(() => {
   settingsPreferenceMocks.preferences.pushEnabled = true;
   settingsPreferenceMocks.preferences.deadlineRemindersEnabled = true;
   settingsPreferenceMocks.preferences.submissionApprovalEnabled = true;
+  settingsPreferenceMocks.preferences.marketingPushEnabled = false;
   settingsPreferenceMocks.preferences.reminderDays = [1, 3, 7];
   settingsPreferenceMocks.preferences.followedInfluencers = ['seller.one'];
   settingsPreferenceMocks.preferences.followedBrands = ['Brand A'];
@@ -579,6 +581,7 @@ describe('MyPageScreen', () => {
       renderer.root.findAllByProps({ testID: 'deadline-notification-toggle' }),
     ).toHaveLength(0);
     expect(rendered).toContain('내 제보 승인 알림');
+    expect(rendered).toContain('마케팅 정보 수신');
     expect(rendered).not.toContain('팔로우 알림');
     expect(rendered).not.toContain('@seller.one');
     expect(rendered).not.toContain('Brand A');
@@ -789,6 +792,59 @@ describe('MyPageScreen', () => {
 
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       pushEnabled: true,
+    });
+  });
+
+  it('requests explicit push permission before enabling marketing messages', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    settingsPreferenceMocks.preferences.marketingPushEnabled = false;
+    let resolveRegistration!: (result: {
+      status: 'registered';
+      token: string;
+    }) => void;
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRegistration = resolve;
+      }),
+    );
+
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const marketing = renderer.root.findByProps({
+      accessibilityLabel: '마케팅 정보 수신',
+    });
+    await act(async () => {
+      await marketing.props.onValueChange(true);
+      await Promise.resolve();
+    });
+
+    expect(notificationMocks.registerForPushNotifications).toHaveBeenCalledWith(
+      'access-token',
+      expect.objectContaining({ requestPermission: true }),
+    );
+    expect(
+      settingsPreferenceMocks.updatePreferences,
+    ).not.toHaveBeenCalledWith({ marketingPushEnabled: true });
+    expect(marketing.props.value).toBe(false);
+
+    await act(async () => {
+      resolveRegistration({
+        status: 'registered',
+        token: 'ExpoPushToken[test-token]',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      marketingPushEnabled: true,
     });
   });
 

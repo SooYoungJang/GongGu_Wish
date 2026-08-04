@@ -11,6 +11,7 @@ export type ValidatedPushNotificationInput = {
   data: Record<string, unknown> | null;
   userIds: string[] | null;
   audience: PushPreferenceAudience;
+  marketing: boolean;
 };
 
 export type PushPreferenceAudience =
@@ -18,6 +19,7 @@ export type PushPreferenceAudience =
   | { type: "new_submission" }
   | { type: "submission_approved" }
   | { type: "deadline" }
+  | { type: "marketing" }
   | { type: "influencer"; target: string }
   | { type: "brand"; target: string };
 
@@ -96,6 +98,8 @@ export function matchesPushPreferences(
       return row.submission_approval_notifications_enabled === true;
     case "deadline":
       return row.deadline_reminders_enabled !== false;
+    case "marketing":
+      return row.marketing_push_enabled === true;
     case "influencer":
       return hasFollowTarget(row.followed_influencers, audience.target);
     case "brand":
@@ -106,10 +110,17 @@ export function matchesPushPreferences(
 export function validatePushNotificationInput(
   value: Record<string, unknown>,
 ): ValidatedPushNotificationInput {
-  const title = typeof value.title === "string" ? value.title.trim() : "";
+  const rawTitle = typeof value.title === "string" ? value.title.trim() : "";
   const body = typeof value.body === "string" ? value.body.trim() : "";
+  if (value.marketing !== undefined && typeof value.marketing !== "boolean") {
+    throw new Error("마케팅 발송 여부가 올바르지 않습니다.");
+  }
+  const marketing = value.marketing === true;
+  const title = marketing && !rawTitle.startsWith("(광고)")
+    ? `(광고) ${rawTitle}`
+    : rawTitle;
 
-  if (!title || title.length > MAX_PUSH_TITLE_LENGTH) {
+  if (!rawTitle || title.length > MAX_PUSH_TITLE_LENGTH) {
     throw new Error(
       `푸시 제목은 1자 이상 ${MAX_PUSH_TITLE_LENGTH}자 이하로 입력해주세요.`,
     );
@@ -159,6 +170,7 @@ export function validatePushNotificationInput(
     body,
     data,
     userIds,
-    audience: getPushPreferenceAudience(data),
+    audience: marketing ? { type: "marketing" } : getPushPreferenceAudience(data),
+    marketing,
   };
 }

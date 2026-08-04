@@ -19,11 +19,12 @@ type PushNotificationPanelProps = {
   onSend: (input: PushNotificationInput) => Promise<PushNotificationResult>;
 };
 
-type AudienceMode = "all" | "selected";
+type AudienceMode = "all" | "selected" | "marketing";
 
 const USER_PAGE_SIZE = 25;
 const USER_SEARCH_DEBOUNCE_MS = 250;
 const MAX_TITLE_LENGTH = 100;
+const MARKETING_TITLE_PREFIX = "(광고) ";
 const MAX_BODY_LENGTH = 1000;
 
 function parseData(value: string): {
@@ -110,7 +111,7 @@ export function PushNotificationPanel({
     setAudienceMode(nextMode);
     setError(null);
     setAudienceError(null);
-    if (nextMode === "all") {
+    if (nextMode !== "selected") {
       setSelectedUserIds(new Set());
       setUserQuery("");
       setUserPage(1);
@@ -146,12 +147,16 @@ export function PushNotificationPanel({
 
     const trimmedTitle = title.trim();
     const trimmedBody = body.trim();
+    const maxTitleLength =
+      audienceMode === "marketing"
+        ? MAX_TITLE_LENGTH - MARKETING_TITLE_PREFIX.length
+        : MAX_TITLE_LENGTH;
     if (!trimmedTitle || !trimmedBody) {
       setError("제목과 본문을 모두 입력해주세요.");
       return;
     }
-    if (trimmedTitle.length > MAX_TITLE_LENGTH) {
-      setError(`제목은 ${MAX_TITLE_LENGTH}자 이하로 입력해주세요.`);
+    if (trimmedTitle.length > maxTitleLength) {
+      setError(`제목은 ${maxTitleLength}자 이하로 입력해주세요.`);
       return;
     }
     if (trimmedBody.length > MAX_BODY_LENGTH) {
@@ -174,6 +179,7 @@ export function PushNotificationPanel({
       body: trimmedBody,
       ...(parsedData.data ? { data: parsedData.data } : {}),
       ...(audienceMode === "selected" ? { userIds: [...selectedUserIds] } : {}),
+      ...(audienceMode === "marketing" ? { marketing: true } : {}),
     };
     setPendingInput(input);
     setConfirmationOpen(true);
@@ -203,9 +209,15 @@ export function PushNotificationPanel({
   const audienceLabel =
     audienceMode === "all"
       ? "푸시 토큰 등록 전체 사용자"
-      : `선택한 사용자 ${selectedUserIds.size.toLocaleString()}명`;
+      : audienceMode === "marketing"
+        ? "마케팅 수신동의 및 푸시 활성 사용자"
+        : `선택한 사용자 ${selectedUserIds.size.toLocaleString()}명`;
   const submitLabel =
-    audienceMode === "all" ? "전체 사용자에게 발송" : "선택 사용자에게 발송";
+    audienceMode === "all"
+      ? "전체 사용자에게 발송"
+      : audienceMode === "marketing"
+        ? "마케팅 수신동의 사용자에게 발송"
+        : "선택 사용자에게 발송";
 
   return (
     <section
@@ -249,7 +261,11 @@ export function PushNotificationPanel({
           body={body}
           dataText={dataText}
           maxBodyLength={MAX_BODY_LENGTH}
-          maxTitleLength={MAX_TITLE_LENGTH}
+          maxTitleLength={
+            audienceMode === "marketing"
+              ? MAX_TITLE_LENGTH - MARKETING_TITLE_PREFIX.length
+              : MAX_TITLE_LENGTH
+          }
           onBodyChange={setBody}
           onDataChange={setDataText}
           onTitleChange={setTitle}
@@ -262,8 +278,9 @@ export function PushNotificationPanel({
         </div>
 
         <p className="push-notification-panel__hint">
-          발송 후 앱에서 알림 권한이 허용된 기기만 실제로 수신합니다. 전체
-          발송도 확인 단계를 거칩니다.
+          {audienceMode === "marketing"
+            ? "마케팅 수신동의와 푸시가 모두 켜진 사용자에게만 발송하며, 제목에는 (광고)가 자동으로 표시됩니다."
+            : "발송 후 앱에서 알림 권한이 허용된 기기만 실제로 수신합니다. 전체 발송도 확인 단계를 거칩니다."}
         </p>
 
         {audienceError ? (
