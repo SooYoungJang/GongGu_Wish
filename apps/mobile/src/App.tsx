@@ -663,8 +663,6 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
   },
   tabBar: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
     borderTopWidth: 1,
     height: MAIN_TAB_BAR_HEIGHT,
     left: 0,

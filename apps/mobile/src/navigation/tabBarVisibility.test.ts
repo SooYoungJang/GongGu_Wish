@@ -48,6 +48,17 @@ describe("getTabBarVisibilityStyle", () => {
     expect(mainTabsSource).not.toMatch(/\bdisplay\s*:/);
   });
 
+  it("keeps the outer GNB edges square", () => {
+    const appSource = readFileSync("src/App.tsx", "utf8");
+    const tabBarStyle = appSource.slice(
+      appSource.indexOf("  tabBar: {"),
+      appSource.indexOf("  tabButton: {"),
+    );
+
+    expect(tabBarStyle).not.toMatch(/borderTopLeftRadius/);
+    expect(tabBarStyle).not.toMatch(/borderTopRightRadius/);
+  });
+
   it("removes only hidden tab buttons from interaction and accessibility", () => {
     expect(getTabBarButtonVisibilityProps(true)).toEqual({
       accessible: false,

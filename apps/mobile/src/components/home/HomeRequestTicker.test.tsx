@@ -112,14 +112,15 @@ describe("HomeRequestTicker", () => {
     expect(
       renderer!.root.findByProps({ testID: "home-request-ticker" }).props
         .style[0],
-    ).toMatchObject({ minHeight: 40 });
+    ).toMatchObject({ minHeight: 32 });
     expect(getTickerMessage(renderer!).props.hitSlop).toEqual({
       bottom: 2,
       top: 2,
     });
     expect(getTickerMessage(renderer!).props.style).toMatchObject({
       flex: 1,
-      minHeight: 40,
+      minHeight: 32,
+      paddingVertical: 0,
     });
     expect(
       renderer!.root.findAllByProps({ testID: "home-request-ticker-message" }),
@@ -155,7 +156,7 @@ describe("HomeRequestTicker", () => {
     });
     expect(swipeSurface.props.style[0]).toMatchObject({
       flex: 1,
-      minHeight: 40,
+      minHeight: 32,
     });
     const animatedStyle = swipeSurface.props.style[1];
     expect(animatedStyle.transform).toEqual(
@@ -208,7 +209,8 @@ describe("HomeRequestTicker", () => {
     expect(onPressRanking).toHaveBeenCalledWith("상품 2");
     expect(getTickerMessage(renderer!).props.style).toMatchObject({
       flex: 1,
-      minHeight: 40,
+      minHeight: 32,
+      paddingVertical: 0,
     });
 
     renderer!.unmount();
