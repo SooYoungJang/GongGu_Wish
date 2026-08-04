@@ -157,6 +157,7 @@ export type PushNotificationInput = {
   body: string;
   data?: Record<string, unknown>;
   userIds?: string[];
+  marketing?: boolean;
 };
 
 export type PushNotificationResult = {
@@ -165,6 +166,7 @@ export type PushNotificationResult = {
     | "general"
     | "new_submission"
     | "deadline"
+    | "marketing"
     | "influencer"
     | "brand";
   targeted: number;

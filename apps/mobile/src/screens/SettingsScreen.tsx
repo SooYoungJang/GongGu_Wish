@@ -251,11 +251,30 @@ export function SettingsScreen() {
     [requireAuth, updatePreferences],
   );
 
+  const handleMarketingChange = useCallback(
+    async (value: boolean) => {
+      if (!requireAuth()) return;
+
+      const revision = ++latestPushRevision.current;
+      if (!value) {
+        await updatePreferences({ marketingPushEnabled: false });
+        return;
+      }
+
+      const registered = await applyPushIntent({ value: true, revision });
+      if (!registered || latestPushRevision.current !== revision) return;
+      await updatePreferences({ marketingPushEnabled: true });
+    },
+    [applyPushIntent, requireAuth, updatePreferences],
+  );
+
   const controlsDisabled = !preferencesReady;
   const pushEnabled =
     isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
   const submissionApprovalEnabled =
     isAuthenticated && preferences.submissionApprovalEnabled;
+  const marketingPushEnabled =
+    isAuthenticated && preferences.marketingPushEnabled;
   const permissionCopy = !isAuthenticated
     ? "로그인 후 원하는 알림을 직접 켤 수 있어요."
     : !pushEnabled
@@ -404,6 +423,28 @@ export function SettingsScreen() {
               trackColor={{ false: colors.softBg, true: colors.accentSoft }}
               testID="submission-approval-notification-toggle"
               value={submissionApprovalEnabled}
+            />
+          </View>
+          <View style={s.switchRow}>
+            <View style={s.switchCopy}>
+              <SText variant="body" style={s.switchLabel}>
+                마케팅 정보 수신
+              </SText>
+              <SText variant="caption" style={s.switchDescription}>
+                새 공구·혜택·이벤트 소식을 받아요 (선택)
+              </SText>
+            </View>
+            <Switch
+              accessibilityLabel="마케팅 정보 수신"
+              accessibilityHint="광고성 푸시 알림 수신을 켜거나 끕니다"
+              disabled={controlsDisabled || !isAuthenticated}
+              onValueChange={(value) => void handleMarketingChange(value)}
+              thumbColor={
+                marketingPushEnabled ? colors.accent : colors.weak
+              }
+              trackColor={{ false: colors.softBg, true: colors.accentSoft }}
+              testID="marketing-push-toggle"
+              value={marketingPushEnabled}
             />
           </View>
 

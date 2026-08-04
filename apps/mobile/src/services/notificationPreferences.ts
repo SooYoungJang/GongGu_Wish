@@ -14,6 +14,7 @@ export type NotificationPreferences = {
   pushEnabled: boolean;
   deadlineRemindersEnabled: boolean;
   submissionApprovalEnabled: boolean;
+  marketingPushEnabled: boolean;
   reminderDays: NotificationReminderDay[];
   followedInfluencers: string[];
   followedBrands: string[];
@@ -23,6 +24,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   pushEnabled: false,
   deadlineRemindersEnabled: false,
   submissionApprovalEnabled: false,
+  marketingPushEnabled: false,
   reminderDays: [...DEFAULT_NOTIFICATION_REMINDER_DAYS],
   followedInfluencers: [],
   followedBrands: [],
@@ -108,6 +110,10 @@ export function normalizeNotificationPreferences(
         : typeof source.newSubmissionsEnabled === "boolean"
           ? source.newSubmissionsEnabled
           : DEFAULT_NOTIFICATION_PREFERENCES.submissionApprovalEnabled,
+    marketingPushEnabled:
+      typeof source.marketingPushEnabled === "boolean"
+        ? source.marketingPushEnabled
+        : DEFAULT_NOTIFICATION_PREFERENCES.marketingPushEnabled,
     reminderDays: normalizeReminderDays(source.reminderDays),
     followedInfluencers: normalizeFollowTargets(
       source.followedInfluencers,

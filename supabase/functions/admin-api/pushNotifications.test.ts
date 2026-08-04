@@ -13,6 +13,7 @@ Deno.test("reuses notification event IDs for provider-side collapse", () => {
       body: "승인됐어요",
       userIds: ["user-1"],
       audience: { type: "submission_approved" },
+      marketing: false,
       data: {
         notificationEventId: "submission_approved:submission-1:user-1",
       },
@@ -94,4 +95,26 @@ Deno.test("fails closed when one Expo token is owned by multiple users", () => {
   ]);
   assertEquals(result.tokens, ["ExpoPushToken[unique]"]);
   assertEquals(result.duplicateTokens, 1);
+});
+
+Deno.test("selects only users who opted into marketing push", () => {
+  const result = selectPushRecipientTokens(
+    [
+      {
+        id: "consented-user",
+        push_token: "ExpoPushToken[consented]",
+        push_enabled: true,
+        marketing_push_enabled: true,
+      },
+      {
+        id: "withdrawn-user",
+        push_token: "ExpoPushToken[withdrawn]",
+        push_enabled: true,
+        marketing_push_enabled: false,
+      },
+    ],
+    { type: "marketing" },
+  );
+
+  assertEquals(result.tokens, ["ExpoPushToken[consented]"]);
 });

@@ -37,6 +37,7 @@ describe("notification preferences", () => {
       pushEnabled: false,
       deadlineRemindersEnabled: false,
       submissionApprovalEnabled: false,
+      marketingPushEnabled: false,
     });
     expect(normalizeNotificationPreferences(null)).toEqual(
       DEFAULT_NOTIFICATION_PREFERENCES,
@@ -49,6 +50,7 @@ describe("notification preferences", () => {
         pushEnabled: false,
         deadlineRemindersEnabled: true,
         submissionApprovalEnabled: true,
+        marketingPushEnabled: false,
         reminderDays: [7, 3, 7, 2, "1"],
         followedInfluencers: [" @Seller.One ", "seller.one", "bad handle!"],
         followedBrands: ["  Brand  A ", "brand a", ""],
@@ -57,6 +59,7 @@ describe("notification preferences", () => {
       pushEnabled: false,
       deadlineRemindersEnabled: true,
       submissionApprovalEnabled: true,
+      marketingPushEnabled: false,
       reminderDays: [3, 7],
       followedInfluencers: ["seller.one"],
       followedBrands: ["Brand A"],
@@ -68,6 +71,17 @@ describe("notification preferences", () => {
       normalizeNotificationPreferences({ newSubmissionsEnabled: true })
         .submissionApprovalEnabled,
     ).toBe(true);
+  });
+
+  it("keeps marketing push consent opt-in and independently normalizable", () => {
+    expect(
+      normalizeNotificationPreferences({ marketingPushEnabled: true })
+        .marketingPushEnabled,
+    ).toBe(true);
+    expect(
+      normalizeNotificationPreferences({ marketingPushEnabled: "true" })
+        .marketingPushEnabled,
+    ).toBe(false);
   });
 
   it("repairs an empty reminder selection to the supported defaults", () => {
