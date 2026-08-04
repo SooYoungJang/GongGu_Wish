@@ -35,6 +35,7 @@ type HomeRequestTickerProps = {
 
 const MAX_RANKINGS = 10;
 const AUTO_PLAY_MS = 3000;
+const TICKER_HEIGHT = 40;
 const SWIPE_START_THRESHOLD = 8;
 const SWIPE_TRIGGER_THRESHOLD = 48;
 const TRANSITION_MS = 420;
@@ -161,6 +162,7 @@ export function HomeRequestTicker({
       <Pressable
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
+        hitSlop={{ bottom: 2, top: 2 }}
         onPress={() => onPressRanking(visibleRanking.productName)}
         style={s.message}
         testID="home-request-ticker-message"
@@ -220,7 +222,7 @@ function makeStyles(colors: CommerceColorPalette) {
       borderBottomColor: colors.borderLight,
       borderBottomWidth: StyleSheet.hairlineWidth,
       flexDirection: "row",
-      minHeight: 48,
+      minHeight: TICKER_HEIGHT,
       borderTopColor: colors.borderLight,
       borderTopWidth: StyleSheet.hairlineWidth,
       overflow: "hidden",
@@ -234,14 +236,14 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     swipeSurface: {
       flex: 1,
-      minHeight: 48,
+      minHeight: TICKER_HEIGHT,
       overflow: "hidden",
     },
     message: {
       alignItems: "center",
       flexDirection: "row",
       flex: 1,
-      minHeight: 48,
+      minHeight: TICKER_HEIGHT,
       paddingHorizontal: commerceSpacing.lg,
       paddingVertical: commerceSpacing.xs,
     },
@@ -249,7 +251,7 @@ function makeStyles(colors: CommerceColorPalette) {
       alignItems: "center",
       flexDirection: "row",
       gap: commerceSpacing.sm,
-      minHeight: 48,
+      minHeight: TICKER_HEIGHT,
       paddingRight: commerceSpacing.xs,
     },
     rankBadge: {
