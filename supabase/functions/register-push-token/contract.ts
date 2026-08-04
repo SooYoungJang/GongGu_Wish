@@ -287,7 +287,6 @@ export function toNotificationPreferenceColumns(
     deadline_reminders_enabled: preferences.deadlineRemindersEnabled,
     submission_approval_notifications_enabled:
       preferences.submissionApprovalEnabled,
-    marketing_push_enabled: preferences.marketingPushEnabled,
     // One-release bridge for clients that still read the legacy preference.
     new_submissions_enabled: preferences.submissionApprovalEnabled,
     notification_reminder_days: preferences.reminderDays,

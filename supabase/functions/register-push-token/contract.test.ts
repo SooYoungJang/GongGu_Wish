@@ -6,6 +6,7 @@ import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   buildMarketingConsentColumns,
   resolveAuthUserProfileEmail,
+  toNotificationPreferenceColumns,
   validatePushRegistrationInput,
 } from "./contract.ts";
 
@@ -130,6 +131,18 @@ Deno.test("records marketing consent changes and withdrawal timestamps", () => {
     {},
   );
 });
+
+Deno.test(
+  "does not let legacy preference sync overwrite marketing consent",
+  () => {
+    const columns = toNotificationPreferenceColumns({
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      marketingPushEnabled: false,
+    });
+
+    assertEquals("marketing_push_enabled" in columns, false);
+  },
+);
 
 Deno.test(
   "maps the legacy new-submission preference into approval alerts",
