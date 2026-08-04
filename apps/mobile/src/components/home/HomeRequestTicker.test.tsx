@@ -110,6 +110,18 @@ describe("HomeRequestTicker", () => {
     );
     expect(getTickerMessage(renderer!).props.accessibilityRole).toBe("button");
     expect(
+      renderer!.root.findByProps({ testID: "home-request-ticker" }).props
+        .style[0],
+    ).toMatchObject({ minHeight: 40 });
+    expect(getTickerMessage(renderer!).props.hitSlop).toEqual({
+      bottom: 2,
+      top: 2,
+    });
+    expect(getTickerMessage(renderer!).props.style).toMatchObject({
+      flex: 1,
+      minHeight: 40,
+    });
+    expect(
       renderer!.root.findAllByProps({ testID: "home-request-ticker-message" }),
     ).not.toHaveLength(0);
 
@@ -140,6 +152,10 @@ describe("HomeRequestTicker", () => {
 
     const swipeSurface = renderer!.root.findByProps({
       testID: "home-request-ticker-swipe-surface",
+    });
+    expect(swipeSurface.props.style[0]).toMatchObject({
+      flex: 1,
+      minHeight: 40,
     });
     const animatedStyle = swipeSurface.props.style[1];
     expect(animatedStyle.transform).toEqual(
@@ -192,7 +208,7 @@ describe("HomeRequestTicker", () => {
     expect(onPressRanking).toHaveBeenCalledWith("상품 2");
     expect(getTickerMessage(renderer!).props.style).toMatchObject({
       flex: 1,
-      minHeight: 48,
+      minHeight: 40,
     });
 
     renderer!.unmount();
