@@ -240,6 +240,7 @@ function makeStyles(colors: CommerceColorPalette) {
     message: {
       alignItems: "center",
       flexDirection: "row",
+      flex: 1,
       minHeight: 48,
       paddingHorizontal: commerceSpacing.lg,
       paddingVertical: commerceSpacing.xs,

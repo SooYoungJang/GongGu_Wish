@@ -190,6 +190,10 @@ describe("HomeRequestTicker", () => {
       getTickerMessage(renderer!).props.onPress();
     });
     expect(onPressRanking).toHaveBeenCalledWith("상품 2");
+    expect(getTickerMessage(renderer!).props.style).toMatchObject({
+      flex: 1,
+      minHeight: 48,
+    });
 
     renderer!.unmount();
   });
