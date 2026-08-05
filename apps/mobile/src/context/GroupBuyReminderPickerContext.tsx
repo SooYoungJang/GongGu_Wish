@@ -37,7 +37,7 @@ import {
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import { useNotifications } from "../hooks/useLocalDeals";
 import type { GroupBuyReminderUpdate } from "../api";
-import { requestNotificationPermissions } from "../services/notifications";
+import { ensureNotificationPermission } from "../services/notifications";
 import { useAuth } from "./AuthContext";
 import {
   getInitialOpeningReminderDays,
@@ -119,7 +119,7 @@ export function GroupBuyReminderPickerProvider({
   const { colors } = useCommerceTheme();
   const insets = useSafeAreaInsets();
   const { setAuthContinuation, user } = useAuth();
-  const { preferences } = useNotificationPreferences();
+  const { preferences, updatePreferences } = useNotificationPreferences();
   const {
     getNotificationReminderDays,
     getNotificationReminderPreference,
@@ -211,48 +211,62 @@ export function GroupBuyReminderPickerProvider({
 
   const openReminderPickerNow = useCallback(
     (item: GroupBuy, awaitPermission = false) => {
-      const permissionRequest = !isNotifying(item.id)
-        ? requestNotificationPermissions().then(() => undefined)
-        : undefined;
-      const mode = getReminderPickerMode(item.startDate);
-      const existingPreference = getNotificationReminderPreference(item.id);
-      if (mode === "opening") {
-        const timeMinutes =
-          existingPreference?.type === "opening"
-            ? existingPreference.reminderTimeMinutes
-            : DEFAULT_OPENING_REMINDER_TIME_MINUTES;
-        setReminderTimeMinutes(timeMinutes);
-        setSelectedDays(
-          getInitialOpeningReminderDays(
-            item.startDate,
+      const permissionRequest =
+        !isNotifying(item.id) || !preferences.pushEnabled
+          ? ensureNotificationPermission().then(async (granted) => {
+              if (granted && !preferences.pushEnabled) {
+                await updatePreferences({ pushEnabled: true });
+              }
+              return granted;
+            })
+          : undefined;
+      const openPicker = async () => {
+        if (awaitPermission && permissionRequest && !(await permissionRequest)) {
+          return;
+        }
+        const mode = getReminderPickerMode(item.startDate);
+        const existingPreference = getNotificationReminderPreference(item.id);
+        if (mode === "opening") {
+          const timeMinutes =
             existingPreference?.type === "opening"
-              ? existingPreference.reminderDays
-              : [],
-            timeMinutes,
-          ),
-        );
-      } else {
-        setReminderTimeMinutes(DEFAULT_OPENING_REMINDER_TIME_MINUTES);
-        setSelectedDays(
-          getInitialReminderDays(
-            item.endDate,
-            existingPreference?.type === "deadline"
-              ? existingPreference.reminderDays
-              : getNotificationReminderDays(item.id),
-          ),
-        );
-      }
-      backdropProgress.value = 0;
-      sheetProgress.value = 0;
-      setActiveItem(item);
-      return awaitPermission ? permissionRequest : undefined;
+              ? existingPreference.reminderTimeMinutes
+              : DEFAULT_OPENING_REMINDER_TIME_MINUTES;
+          setReminderTimeMinutes(timeMinutes);
+          setSelectedDays(
+            getInitialOpeningReminderDays(
+              item.startDate,
+              existingPreference?.type === "opening"
+                ? existingPreference.reminderDays
+                : [],
+              timeMinutes,
+            ),
+          );
+        } else {
+          setReminderTimeMinutes(DEFAULT_OPENING_REMINDER_TIME_MINUTES);
+          setSelectedDays(
+            getInitialReminderDays(
+              item.endDate,
+              existingPreference?.type === "deadline"
+                ? existingPreference.reminderDays
+                : getNotificationReminderDays(item.id),
+            ),
+          );
+        }
+        backdropProgress.value = 0;
+        sheetProgress.value = 0;
+        setActiveItem(item);
+      };
+      if (awaitPermission) return openPicker();
+      void openPicker();
     },
     [
       backdropProgress,
       getNotificationReminderDays,
       getNotificationReminderPreference,
       isNotifying,
+      preferences.pushEnabled,
       sheetProgress,
+      updatePreferences,
     ],
   );
 

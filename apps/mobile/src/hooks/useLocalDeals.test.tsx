@@ -27,6 +27,7 @@ const notificationServiceMocks = vi.hoisted(() => {
     .fn()
     .mockResolvedValue({ status: "cancelled" });
   return {
+    ensureNotificationPermission: vi.fn().mockResolvedValue(true),
     requestNotificationPermissions: vi.fn().mockResolvedValue(true),
     scheduleGroupBuyOpeningReminders: vi.fn().mockResolvedValue({
       status: "unavailable",
@@ -56,6 +57,12 @@ const notificationPreferenceMocks = vi.hoisted(() => ({
     followedInfluencers: [] as string[],
     followedBrands: [] as string[],
   },
+  updatePreferences: vi.fn(async (patch: { pushEnabled?: boolean }) => {
+    if (patch.pushEnabled !== undefined) {
+      notificationPreferenceMocks.preferences.pushEnabled = patch.pushEnabled;
+    }
+    return notificationPreferenceMocks.preferences;
+  }),
 }));
 
 vi.mock("../api", () => apiMocks);
@@ -164,6 +171,9 @@ describe("useNotifications", () => {
     notificationServiceMocks.requestNotificationPermissions
       .mockReset()
       .mockResolvedValue(true);
+    notificationServiceMocks.ensureNotificationPermission
+      .mockReset()
+      .mockResolvedValue(true);
     notificationServiceMocks.cancelScheduledNotification
       .mockReset()
       .mockResolvedValue({ status: "cancelled" });
@@ -181,6 +191,21 @@ describe("useNotifications", () => {
     notificationPreferenceMocks.preferences.reminderDays = [1, 3, 7];
     authMocks.user = null;
     setAudiencePolicySnapshot(resolveAudiencePolicy("age14Plus"));
+  });
+
+  it("turns on app push before saving a reminder when push is off", async () => {
+    notificationPreferenceMocks.preferences.pushEnabled = false;
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(GROUP_BUY, [3]);
+    });
+
+    expect(notificationServiceMocks.ensureNotificationPermission).toHaveBeenCalledOnce();
+    expect(notificationPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
   });
 
   it("동시에 마운트된 다른 화면에도 알림 변경을 즉시 반영한다", async () => {
@@ -1214,7 +1239,7 @@ describe("useNotifications", () => {
     });
 
     expect(
-      notificationServiceMocks.requestNotificationPermissions,
+      notificationServiceMocks.ensureNotificationPermission,
     ).toHaveBeenCalledTimes(2);
   });
 

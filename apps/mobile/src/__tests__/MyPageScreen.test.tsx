@@ -26,6 +26,7 @@ const authMocks = vi.hoisted(() => ({
 const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
 const notificationMocks = vi.hoisted(() => ({
   getNotificationPermissionStatus: vi.fn(async () => 'granted'),
+  openNotificationSettings: vi.fn(async () => true),
   registerForPushNotifications: vi.fn(
     async (): Promise<any> => ({
       status: 'registered',
@@ -98,6 +99,7 @@ vi.mock('../services/notifications', () => ({
   IS_EXPO_GO: false,
   getNotificationPermissionStatus:
     notificationMocks.getNotificationPermissionStatus,
+  openNotificationSettings: notificationMocks.openNotificationSettings,
   registerForPushNotifications: notificationMocks.registerForPushNotifications,
 }));
 
@@ -297,6 +299,7 @@ beforeEach(() => {
   settingsPreferenceMocks.saving = false;
   settingsPreferenceMocks.updatePreferences.mockClear();
   notificationMocks.getNotificationPermissionStatus.mockClear();
+  notificationMocks.openNotificationSettings.mockClear();
   notificationMocks.registerForPushNotifications.mockReset().mockResolvedValue({
     status: 'registered',
     token: 'ExpoPushToken[test-token]',
@@ -705,6 +708,35 @@ describe('MyPageScreen', () => {
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       submissionApprovalEnabled: true,
     });
+  });
+
+  it('opens OS settings when push permission was previously denied', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    notificationMocks.registerForPushNotifications.mockResolvedValueOnce({
+      status: 'unavailable',
+      reason: 'permission-denied',
+    });
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const push = renderer.root.findByProps({
+      accessibilityLabel: '푸시 알림',
+    });
+    await act(async () => {
+      await push.props.onValueChange(true);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(notificationMocks.openNotificationSettings).toHaveBeenCalledOnce();
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
   });
 
   it('disables dependent notification switches while push notifications are off', async () => {

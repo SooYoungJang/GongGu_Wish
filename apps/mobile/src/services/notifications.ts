@@ -1,5 +1,5 @@
 import type { NotificationTriggerInput } from "expo-notifications";
-import { Platform } from "react-native";
+import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
 
 import { callEdgeFunction } from "../lib/postgrest-client";
@@ -133,6 +133,9 @@ async function getNotificationAvailability(
     const existingStatus = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     const currentStatus = (existingStatus as { status?: string }).status;
+    if (currentStatus === "denied") {
+      return { status: "unavailable", reason: "permission-denied" };
+    }
     if (currentStatus !== "granted") {
       if (!requestPermission) {
         return { status: "unavailable", reason: "permission-denied" };
@@ -174,6 +177,31 @@ export async function getNotificationPermissionStatus(): Promise<NotificationPer
   } catch {
     return "error";
   }
+}
+
+export async function openNotificationSettings(): Promise<boolean> {
+  try {
+    await Linking.openSettings();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function ensureNotificationPermission(): Promise<boolean> {
+  const status = await getNotificationPermissionStatus();
+  if (status === "granted") return true;
+  if (status === "denied") {
+    await openNotificationSettings();
+    return false;
+  }
+  if (status !== "undetermined") return false;
+
+  if (await requestNotificationPermissions()) return true;
+  if ((await getNotificationPermissionStatus()) === "denied") {
+    await openNotificationSettings();
+  }
+  return false;
 }
 
 export function getEasProjectId(): string | null {

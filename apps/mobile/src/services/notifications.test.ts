@@ -38,6 +38,9 @@ const notificationMocks = vi.hoisted(() => ({
 
 vi.mock("../lib/postgrest-client", () => ({ callEdgeFunction }));
 vi.mock("react-native", () => ({
+  Linking: {
+    openSettings: vi.fn().mockResolvedValue(undefined),
+  },
   Platform: {
     OS: "android",
     select: (options: Record<string, unknown>) =>
@@ -52,6 +55,7 @@ vi.mock("expo-notifications", () => notificationMocks);
 import {
   buildGroupBuyReminderDates,
   cancelScheduledNotifications,
+  ensureNotificationPermission,
   getNotificationPermissionStatus,
   getLastNotificationResponseUrl,
   registerForPushNotifications,
@@ -477,6 +481,18 @@ describe("registerForPushNotifications", () => {
 
     await expect(getNotificationPermissionStatus()).resolves.toBe("denied");
     expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it("opens app settings when OS notification permission was previously denied", async () => {
+    notificationMocks.getPermissionsAsync.mockResolvedValueOnce({
+      status: "denied",
+    });
+    const { Linking } = await import("react-native");
+
+    await expect(ensureNotificationPermission()).resolves.toBe(false);
+
+    expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(Linking.openSettings).toHaveBeenCalledOnce();
   });
 
   it("consumes a cold-start notification deep link only once", async () => {
