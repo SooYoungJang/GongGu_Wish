@@ -17,6 +17,10 @@ const authMocks = vi.hoisted(() => ({
   signInWithOAuth: vi.fn(),
   startAudienceAuthIntent: vi.fn(),
   cancelAudienceAuthIntent: vi.fn(),
+  takeAuthContinuation: vi.fn<
+    () => (() => void | Promise<void>) | null
+  >(() => null),
+  clearAuthContinuation: vi.fn(),
 }));
 
 const audienceMocks = vi.hoisted(() => ({
@@ -188,6 +192,8 @@ describe("AuthScreen tab switching", () => {
     authMocks.signInWithOAuth.mockReset().mockResolvedValue(null);
     authMocks.startAudienceAuthIntent.mockReset();
     authMocks.cancelAudienceAuthIntent.mockReset();
+    authMocks.takeAuthContinuation.mockReset().mockReturnValue(null);
+    authMocks.clearAuthContinuation.mockReset();
     authMocks.signUpWithEmailCode.mockReset().mockResolvedValue(null);
     authMocks.resendEmailSignUpCode.mockReset().mockResolvedValue(null);
     authMocks.verifyEmailCode.mockReset().mockResolvedValue(null);
@@ -208,6 +214,7 @@ describe("AuthScreen tab switching", () => {
       data: { nickname: "공구러", phone: "" },
     });
     navigationMock.popTo.mockReset();
+    navigationMock.goBack.mockReset();
     navigationMock.addListener.mockReset().mockReturnValue(vi.fn());
   });
 
@@ -405,6 +412,45 @@ describe("AuthScreen tab switching", () => {
     expect(navigationMock.popTo).toHaveBeenCalledWith("MainTabs", {
       screen: "MyPage",
     });
+  });
+
+  it("resumes the pending notification action before returning to the previous screen", async () => {
+    const continuation = vi.fn().mockResolvedValue(undefined);
+    const renderer = renderAuthScreen();
+
+    (authMocks as any).user = { id: "selected-user" };
+    authMocks.authCompletionRevision = 1;
+    authMocks.takeAuthContinuation.mockReturnValueOnce(continuation);
+
+    await act(async () => {
+      renderer.update(<AuthScreen {...({} as any)} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(continuation).toHaveBeenCalledOnce();
+    expect(navigationMock.goBack).toHaveBeenCalledOnce();
+    expect(navigationMock.popTo).not.toHaveBeenCalled();
+  });
+
+  it("returns after a pending action throws synchronously", async () => {
+    const continuation = vi.fn(() => {
+      throw new Error("resume failed");
+    });
+    const renderer = renderAuthScreen();
+
+    (authMocks as any).user = { id: "selected-user" };
+    authMocks.authCompletionRevision = 1;
+    authMocks.takeAuthContinuation.mockReturnValueOnce(continuation);
+
+    await act(async () => {
+      renderer.update(<AuthScreen {...({} as any)} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(continuation).toHaveBeenCalledOnce();
+    expect(navigationMock.goBack).toHaveBeenCalledOnce();
   });
 
   it("이미 로그인된 user로 인증 화면이 마운트돼도 자동 이동하지 않는다", () => {

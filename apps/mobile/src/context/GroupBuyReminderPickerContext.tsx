@@ -37,6 +37,7 @@ import {
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import { useNotifications } from "../hooks/useLocalDeals";
 import type { GroupBuyReminderUpdate } from "../api";
+import { requestNotificationPermissions } from "../services/notifications";
 import { useAuth } from "./AuthContext";
 import {
   getInitialOpeningReminderDays,
@@ -117,7 +118,7 @@ export function GroupBuyReminderPickerProvider({
 }: GroupBuyReminderPickerProviderProps) {
   const { colors } = useCommerceTheme();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { setAuthContinuation, user } = useAuth();
   const { preferences } = useNotificationPreferences();
   const {
     getNotificationReminderDays,
@@ -208,12 +209,11 @@ export function GroupBuyReminderPickerProvider({
     });
   }, [activeItem, backdropProgress, reduceMotion, sheetProgress]);
 
-  const openReminderPicker = useCallback(
-    (item: GroupBuy) => {
-      if (!user) {
-        onAuthenticationRequired?.();
-        return;
-      }
+  const openReminderPickerNow = useCallback(
+    (item: GroupBuy, awaitPermission = false) => {
+      const permissionRequest = !isNotifying(item.id)
+        ? requestNotificationPermissions().then(() => undefined)
+        : undefined;
       const mode = getReminderPickerMode(item.startDate);
       const existingPreference = getNotificationReminderPreference(item.id);
       if (mode === "opening") {
@@ -245,15 +245,30 @@ export function GroupBuyReminderPickerProvider({
       backdropProgress.value = 0;
       sheetProgress.value = 0;
       setActiveItem(item);
+      return awaitPermission ? permissionRequest : undefined;
     },
     [
       backdropProgress,
       getNotificationReminderDays,
       getNotificationReminderPreference,
-      onAuthenticationRequired,
+      isNotifying,
       sheetProgress,
-      user,
     ],
+  );
+
+  const latestOpenReminderRef = useRef(openReminderPickerNow);
+  latestOpenReminderRef.current = openReminderPickerNow;
+
+  const openReminderPicker = useCallback(
+    (item: GroupBuy) => {
+      if (!user) {
+        setAuthContinuation(() => latestOpenReminderRef.current(item, true));
+        onAuthenticationRequired?.();
+        return;
+      }
+      return openReminderPickerNow(item);
+    },
+    [onAuthenticationRequired, openReminderPickerNow, setAuthContinuation, user],
   );
 
   const toggleDay = useCallback(

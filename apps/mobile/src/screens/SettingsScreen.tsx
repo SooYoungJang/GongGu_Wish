@@ -74,6 +74,8 @@ export function SettingsScreen() {
   const { privacyOptionsRequired, showPrivacyOptions } = useAds();
   const { user, session, signOut } = useAuth();
   const accessToken = session?.access_token;
+  const accessTokenRef = useRef(accessToken);
+  accessTokenRef.current = accessToken;
   const {
     error: preferencesError,
     preferences,
@@ -95,6 +97,8 @@ export function SettingsScreen() {
     null,
   );
   const [pendingMarketingPushEnabled, setPendingMarketingPushEnabled] =
+    useState<boolean | null>(null);
+  const [pendingSubmissionApprovalEnabled, setPendingSubmissionApprovalEnabled] =
     useState<boolean | null>(null);
   const latestPushRevision = useRef(0);
   const pendingPushIntent = useRef<{ value: boolean; revision: number } | null>(
@@ -126,7 +130,11 @@ export function SettingsScreen() {
           return true;
         }
 
-        if (!accessToken) {
+        const currentAccessToken =
+          accessTokenRef.current ??
+          (await getSupabase().auth.getSession()).data.session?.access_token ??
+          null;
+        if (!currentAccessToken) {
           if (isLatest()) {
             Alert.alert(
               "로그인 정보를 확인해 주세요",
@@ -136,12 +144,12 @@ export function SettingsScreen() {
           return false;
         }
 
-        const result = await registerForPushNotifications(accessToken, {
+        const result = await registerForPushNotifications(currentAccessToken, {
           requestPermission: true,
           shouldContinue: () => canAuthenticateRef.current,
           onRegistrationCancelled: () =>
             syncNotificationPreferences(
-              accessToken,
+              currentAccessToken,
               DEFAULT_NOTIFICATION_PREFERENCES,
             ),
           refreshAuthToken: async () => {
@@ -211,7 +219,7 @@ export function SettingsScreen() {
         return false;
       }
     },
-    [accessToken, automatedE2E, updatePreferences],
+    [automatedE2E, updatePreferences],
   );
 
   const drainPushIntents = useCallback(async () => {
@@ -230,34 +238,61 @@ export function SettingsScreen() {
     }
   }, [applyPushIntent]);
 
-  const handlePushChange = useCallback(
+  const runPushChange = useCallback(
     (value: boolean) => {
-      if (!requireAuth()) return;
-
       setPendingMarketingPushEnabled(null);
+      setPendingSubmissionApprovalEnabled(null);
       const intent = { value, revision: ++latestPushRevision.current };
       pendingPushIntent.current = intent;
       setPendingPushEnabled(value);
-      if (pushWorkerRunning.current) return;
+      if (pushWorkerRunning.current) return Promise.resolve();
 
       pushWorkerRunning.current = true;
-      void drainPushIntents();
+      return drainPushIntents();
     },
-    [drainPushIntents, requireAuth],
+    [drainPushIntents],
+  );
+
+  const handlePushChange = useCallback(
+    (value: boolean) => {
+      if (!requireAuth(() => runPushChange(value))) return;
+      void runPushChange(value);
+    },
+    [requireAuth, runPushChange],
+  );
+
+  const runSubmissionApprovalChange = useCallback(
+    async (value: boolean) => {
+      const revision = ++latestPushRevision.current;
+      setPendingSubmissionApprovalEnabled(value);
+      try {
+        if (!value) {
+          await updatePreferences({ submissionApprovalEnabled: false });
+          return;
+        }
+
+        const registered = await applyPushIntent({ value: true, revision });
+        if (!registered || latestPushRevision.current !== revision) return;
+        await updatePreferences({ submissionApprovalEnabled: true });
+      } finally {
+        if (latestPushRevision.current === revision) {
+          setPendingSubmissionApprovalEnabled(null);
+        }
+      }
+    },
+    [applyPushIntent, updatePreferences],
   );
 
   const handleSubmissionApprovalChange = useCallback(
     (value: boolean) => {
-      if (!requireAuth()) return;
-      void updatePreferences({ submissionApprovalEnabled: value });
+      if (!requireAuth(() => runSubmissionApprovalChange(value))) return;
+      void runSubmissionApprovalChange(value);
     },
-    [requireAuth, updatePreferences],
+    [requireAuth, runSubmissionApprovalChange],
   );
 
-  const handleMarketingChange = useCallback(
+  const runMarketingChange = useCallback(
     async (value: boolean) => {
-      if (!requireAuth()) return;
-
       const revision = ++latestPushRevision.current;
       setPendingMarketingPushEnabled(value);
       try {
@@ -275,14 +310,23 @@ export function SettingsScreen() {
         }
       }
     },
-    [applyPushIntent, requireAuth, updatePreferences],
+    [applyPushIntent, updatePreferences],
+  );
+
+  const handleMarketingChange = useCallback(
+    (value: boolean) => {
+      if (!requireAuth(() => runMarketingChange(value))) return;
+      void runMarketingChange(value);
+    },
+    [requireAuth, runMarketingChange],
   );
 
   const controlsDisabled = !preferencesReady;
   const pushEnabled =
     isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
   const submissionApprovalEnabled =
-    isAuthenticated && preferences.submissionApprovalEnabled;
+    isAuthenticated &&
+    (pendingSubmissionApprovalEnabled ?? preferences.submissionApprovalEnabled);
   const marketingPushEnabled =
     isAuthenticated &&
     (pendingMarketingPushEnabled ?? preferences.marketingPushEnabled);
@@ -424,7 +468,7 @@ export function SettingsScreen() {
             </View>
             <Switch
               accessibilityLabel="내 제보 승인 알림"
-              disabled={controlsDisabled || (isAuthenticated && !pushEnabled)}
+              disabled={controlsDisabled}
               onValueChange={(value) =>
                 void handleSubmissionApprovalChange(value)
               }
@@ -448,7 +492,7 @@ export function SettingsScreen() {
             <Switch
               accessibilityLabel="마케팅 정보 수신"
               accessibilityHint="광고성 푸시 알림 수신을 켜거나 끕니다"
-              disabled={controlsDisabled || !isAuthenticated}
+              disabled={controlsDisabled}
               onValueChange={(value) => void handleMarketingChange(value)}
               thumbColor={
                 marketingPushEnabled ? colors.accent : colors.weak

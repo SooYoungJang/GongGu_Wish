@@ -673,6 +673,40 @@ describe('MyPageScreen', () => {
     ).toHaveLength(0);
   });
 
+  it('requests push permission before enabling own-submission approval', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    settingsPreferenceMocks.preferences.submissionApprovalEnabled = false;
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const submissionApproval = renderer.root.findByProps({
+      accessibilityLabel: '내 제보 승인 알림',
+    });
+    await act(async () => {
+      await submissionApproval.props.onValueChange(true);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(notificationMocks.registerForPushNotifications).toHaveBeenCalledWith(
+      'access-token',
+      expect.objectContaining({ requestPermission: true }),
+    );
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      submissionApprovalEnabled: true,
+    });
+  });
+
   it('keeps notification switches interactive while preferences sync', async () => {
     authMocks.session = {
       access_token: 'access-token',
@@ -700,12 +734,25 @@ describe('MyPageScreen', () => {
     const push = renderer.root.findByProps({
       accessibilityLabel: '푸시 알림',
     });
+    const submissionApproval = renderer.root.findByProps({
+      accessibilityLabel: '내 제보 승인 알림',
+    });
+    const marketing = renderer.root.findByProps({
+      accessibilityLabel: '마케팅 정보 수신',
+    });
+
+    expect(push.props.disabled).toBe(false);
+    expect(submissionApproval.props.disabled).toBe(false);
+    expect(marketing.props.disabled).toBe(false);
 
     await act(async () => {
       await push.props.onValueChange(true);
+      await submissionApproval.props.onValueChange(true);
+      await marketing.props.onValueChange(true);
       await Promise.resolve();
     });
 
+    expect(navigationMocks.navigate).toHaveBeenCalledTimes(3);
     expect(navigationMocks.navigate).toHaveBeenCalledWith('Login');
     expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
     expect(push.props.value).toBe(false);
