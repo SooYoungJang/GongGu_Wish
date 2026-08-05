@@ -9,8 +9,12 @@ export type RootStackParamList = {
     | { groupBuy: GroupBuy; groupBuyId?: never }
     | { groupBuy?: never; groupBuyId: string };
   FeedDetail: { feedId: string };
-  InfluencerGroupBuys: { influencerUsername: string; influencerDisplayName: string | null };
-  SearchScreen: undefined;
+  InfluencerGroupBuys: {
+    influencerUsername: string;
+    influencerDisplayName: string | null;
+    influencerProfileImageUrl?: string | null;
+  };
+  SearchScreen: { initialQuery?: string } | undefined;
   Admin: undefined;
   Login: undefined;
   Submit: undefined;
@@ -83,6 +87,7 @@ export type GroupBuy = {
     postUrl: string;
     influencer: {
       instagramUsername: string;
+      profileImageUrl?: string | null;
     };
   };
 };
@@ -91,6 +96,7 @@ export type Influencer = {
   id: string;
   instagramUsername: string;
   displayName: string | null;
+  profileImageUrl?: string | null;
   isActive: boolean;
 };
 
@@ -141,6 +147,8 @@ export interface InstagramMediaInfo {
   likeCount: number | null;
   /** Instagram username (handle without @) */
   username: string | null;
+  /** Instagram profile image associated with the post author */
+  profileImageUrl?: string | null;
   /** ISO date string of when the post was published */
   takenAt: string | null;
 }
@@ -190,6 +198,7 @@ export type FeedPost = {
   mediaType: 'IMAGE' | 'VIDEO' | null;
   caption: string | null;
   accountName: string | null;
+  accountProfileImageUrl?: string | null;
   linkUrl: string | null;
   openDate: string | null;
   closeDate: string | null;

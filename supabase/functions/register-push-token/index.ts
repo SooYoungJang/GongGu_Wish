@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
+  buildMarketingConsentColumns,
   fromNotificationPreferenceColumns,
   resolveAuthUserProfileEmail,
   toNotificationPreferenceColumns,
@@ -79,7 +80,7 @@ async function registerToken(req: Request) {
   const { data: existing, error: lookupError } = await supabase
     .from("users")
     .select(
-      "id, push_token, push_enabled, deadline_reminders_enabled, new_submissions_enabled, submission_approval_notifications_enabled, notification_reminder_days, followed_influencers, followed_brands",
+      "id, push_token, push_enabled, deadline_reminders_enabled, new_submissions_enabled, submission_approval_notifications_enabled, marketing_push_enabled, notification_reminder_days, followed_influencers, followed_brands",
     )
     .eq("id", authData.user.id)
     .maybeSingle();
@@ -106,6 +107,24 @@ async function registerToken(req: Request) {
   const preferenceColumns = input.preferences
     ? toNotificationPreferenceColumns(input.preferences)
     : {};
+  const marketingConsentProvided =
+    Boolean(
+      input.preferences &&
+        body.preferences &&
+        typeof body.preferences === "object" &&
+        !Array.isArray(body.preferences) &&
+        Object.prototype.hasOwnProperty.call(
+          body.preferences,
+          "marketingPushEnabled",
+        ),
+    );
+  const marketingConsentColumns = input.preferences && marketingConsentProvided
+    ? buildMarketingConsentColumns(
+        existing?.marketing_push_enabled,
+        input.preferences.marketingPushEnabled,
+        now,
+      )
+    : {};
   const tokenColumns = input.tokenAction === "set"
     ? {}
     : input.tokenAction === "clear"
@@ -118,6 +137,7 @@ async function registerToken(req: Request) {
       .from("users")
       .update({
         ...preferenceColumns,
+        ...marketingConsentColumns,
         ...tokenColumns,
         updated_at: now,
       })
@@ -132,6 +152,7 @@ async function registerToken(req: Request) {
       ...toNotificationPreferenceColumns(
         input.preferences ?? DEFAULT_NOTIFICATION_PREFERENCES,
       ),
+      ...marketingConsentColumns,
       ...tokenColumns,
       status: "ACTIVE",
       created_at: now,

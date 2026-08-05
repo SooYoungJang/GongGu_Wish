@@ -2,9 +2,10 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { InteractionManager, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { KeyboardFormScreen } from '../components/keyboard/KeyboardFormScreen';
@@ -21,12 +22,30 @@ import { normalizeForSearch, pushRecentTerm, RECENT_SEARCH_STORAGE_KEY } from '.
 import { spacing } from '../design/tokens';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 import { useTabReselect } from '../hooks/useTabReselect';
+import {
+  GROUP_BUY_REQUEST_RANKINGS_QUERY_KEY,
+  requestGroupBuy,
+  type GroupBuyRequestResult,
+} from '../features/groupBuyRequests';
 import type { CommerceColorPalette } from '../design/commerce';
 import type { GroupBuy, Influencer, MainTabParamList, RootStackParamList } from '../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 const RECENT_MAX = 10;
 const DEFAULT_RECENT_TERM = '가방';
+const SEARCH_QUERY_DEBOUNCE_MS = 250;
+const REQUEST_PRODUCT_NAME_MIN_LENGTH = 2;
+const REQUEST_PRODUCT_NAME_MAX_LENGTH = 200;
+
+type RequestFeedback = {
+  requestKey: string;
+  result: GroupBuyRequestResult;
+};
+
+type RequestError = {
+  message: string;
+  requestKey: string;
+};
 
 const CATEGORY_LABELS: Record<string, string> = {
   beauty: '뷰티',
@@ -71,6 +90,7 @@ const DealSearchResultRow = memo(function DealSearchResultRow({ chevronColor, it
         <SText variant="body" style={s.resultName}>{item.productName ?? '제품명 없음'}</SText>
         <View style={s.resultMetaRow}>
           <InstagramIdentity
+            profileImageUrl={item.rawPost.influencer.profileImageUrl}
             style={s.resultInstagram}
             textStyle={s.resultInstagramText}
             username={item.rawPost.influencer.instagramUsername}
@@ -90,18 +110,33 @@ const DealSearchResultRow = memo(function DealSearchResultRow({ chevronColor, it
 export function SearchScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'SearchScreen'>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'SearchScreen'>>();
   const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const inputRef = useRef<TextInput>(null);
   const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const { colors, isDark } = useCommerceTheme();
   const { policy: audiencePolicy } = useAudience();
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
+  const [requestFeedback, setRequestFeedback] = useState<RequestFeedback | null>(null);
+  const [requestError, setRequestError] = useState<RequestError | null>(null);
+  const requestMutation = useMutation({ mutationFn: requestGroupBuy });
 
-  // Debounce: 검색은 유저가 입력을 멈춘 뒤 150ms 후에 실행
+  useEffect(() => {
+    const initialQuery = route.params?.initialQuery
+      ?.trim()
+      .slice(0, REQUEST_PRODUCT_NAME_MAX_LENGTH);
+    if (!initialQuery) return;
+    setQuery(initialQuery);
+    setRequestFeedback(null);
+    setRequestError(null);
+  }, [route.params?.initialQuery]);
+
+  // Debounce: 검색은 유저가 입력을 멈춘 뒤 250ms 후에 실행
   const [debouncedQuery, setDebouncedQuery] = useState('');
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), 150);
+    const t = setTimeout(() => setDebouncedQuery(query), SEARCH_QUERY_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -225,6 +260,39 @@ export function SearchScreen() {
   }, [groupBuySearchIndex, debouncedQuery]);
 
   const hasQuery = debouncedQuery.trim().length > 0;
+  const requestProductName = query.trim().replace(/\s+/g, ' ');
+  // Keep this key aligned with the database request identity: collapse
+  // whitespace, preserve meaningful spaces, then lowercase.
+  const requestStateKey = requestProductName.toLowerCase();
+  const isRequestNameValid =
+    requestProductName.length >= REQUEST_PRODUCT_NAME_MIN_LENGTH &&
+    requestProductName.length <= REQUEST_PRODUCT_NAME_MAX_LENGTH;
+  const isSearchSettled =
+    normalizeForSearch(query) === normalizeForSearch(debouncedQuery);
+  const currentRequestFeedback =
+    requestFeedback?.requestKey === requestStateKey
+      ? requestFeedback.result
+      : null;
+  const currentRequestError =
+    requestError?.requestKey === requestStateKey
+      ? requestError.message
+      : null;
+  let requestHint: string | null = null;
+  if (!audiencePolicy.canRecordBehaviorSignals) {
+    requestHint = '현재 이용 모드에서는 공구 요청을 사용할 수 없어요.';
+  } else if (requestProductName.length < REQUEST_PRODUCT_NAME_MIN_LENGTH) {
+    requestHint = '상품명은 2자 이상으로 입력해 주세요.';
+  } else if (requestProductName.length > REQUEST_PRODUCT_NAME_MAX_LENGTH) {
+    requestHint = '상품명을 조금 더 짧게 입력해 주세요.';
+  } else if (currentRequestError) {
+    requestHint = currentRequestError;
+  } else if (currentRequestFeedback?.alreadyRequested) {
+    requestHint = '최근 한 달 요청에 이미 반영된 공구예요.';
+  } else if (currentRequestFeedback?.rankingEligible) {
+    requestHint = '최근 한 달 홈 순위 후보에 반영됐어요.';
+  } else if (currentRequestFeedback) {
+    requestHint = '요청 2건부터 홈 순위 후보에 표시돼요.';
+  }
   const recentTerms = useMemo(() => recent.slice(0, RECENT_MAX), [recent]);
   const s = useMemo(() => makeStyles(colors), [colors]);
 
@@ -232,11 +300,18 @@ export function SearchScreen() {
     saveRecent(query);
   }, [query, saveRecent]);
 
+  const handleChangeQuery = useCallback((text: string) => {
+    setQuery(text.slice(0, REQUEST_PRODUCT_NAME_MAX_LENGTH));
+  }, []);
+
   const handleSelectInfluencer = useCallback((inf: Influencer) => {
     saveRecent(inf.instagramUsername);
     navigation.navigate('InfluencerGroupBuys', {
       influencerUsername: inf.instagramUsername,
       influencerDisplayName: inf.displayName,
+      ...(inf.profileImageUrl
+        ? { influencerProfileImageUrl: inf.profileImageUrl }
+        : {}),
     });
   }, [navigation, saveRecent]);
 
@@ -267,6 +342,39 @@ export function SearchScreen() {
     setQuery('');
     inputRef.current?.focus();
   }, []);
+  const handleRequestGroupBuy = useCallback(async () => {
+    if (
+      !audiencePolicy.canRecordBehaviorSignals ||
+      !isRequestNameValid ||
+      requestMutation.isPending
+    ) {
+      return;
+    }
+
+    setRequestFeedback(null);
+    setRequestError(null);
+    try {
+      const result = await requestMutation.mutateAsync(requestProductName);
+      setRequestFeedback({ requestKey: requestStateKey, result });
+      saveRecent(result.productName);
+      await queryClient.invalidateQueries({
+        queryKey: GROUP_BUY_REQUEST_RANKINGS_QUERY_KEY,
+      });
+    } catch {
+      setRequestError({
+        message: '공구 요청에 실패했어요. 잠시 후 다시 시도해 주세요.',
+        requestKey: requestStateKey,
+      });
+    }
+  }, [
+    audiencePolicy.canRecordBehaviorSignals,
+    isRequestNameValid,
+    queryClient,
+    requestMutation,
+    requestProductName,
+    requestStateKey,
+    saveRecent,
+  ]);
   const canGoBack = navigation.canGoBack();
   const handleBack = useCallback(() => {
     if (navigation.canGoBack()) navigation.goBack();
@@ -292,7 +400,8 @@ export function SearchScreen() {
             placeholder="상품을 검색해보세요"
             placeholderTextColor={colors.weak}
             value={query}
-            onChangeText={setQuery}
+            maxLength={REQUEST_PRODUCT_NAME_MAX_LENGTH}
+            onChangeText={handleChangeQuery}
             onSubmitEditing={handleSubmit}
             returnKeyType="search"
             autoCapitalize="none"
@@ -358,14 +467,77 @@ export function SearchScreen() {
               <SearchResultsPanel results={searchResults} onPressInfluencer={handleSelectInfluencer} />
             )}
             {dealResults.length === 0 && searchResults.length === 0 && !hasPublicDataError && (
-              <View style={s.emptyState}>
-                <SText variant="body" style={s.emptyIcon}>⌕</SText>
-                <SText variant="body" style={s.emptyTitle}>
-                  검색 결과가 없어요
-                </SText>
-                <SText variant="body" style={s.emptyDesc}>
-                  브랜드명, 제품명 또는 인플루언서 username을 다시 확인해 주세요.
-                </SText>
+              <View style={s.requestState}>
+                {isSearchSettled ? (
+                  <View
+                    accessibilityLiveRegion="polite"
+                    style={s.requestCard}
+                  >
+                    <SText variant="label" style={s.requestTitle}>
+                        <SText variant="label" style={s.requestProductName}>
+                          “{requestProductName}”
+                        </SText>{' '}
+                        공구를 요청할까요?
+                    </SText>
+                    {requestHint ? (
+                      <SText
+                        variant="body"
+                        style={[
+                          s.requestHint,
+                          currentRequestError && s.requestError,
+                          currentRequestFeedback && s.requestSuccess,
+                        ]}
+                      >
+                        {requestHint}
+                      </SText>
+                    ) : null}
+                    <Pressable
+                      accessible
+                      accessibilityLabel={`${requestProductName} 공구 요청하기`}
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        busy: requestMutation.isPending,
+                        disabled:
+                          requestMutation.isPending ||
+                          !audiencePolicy.canRecordBehaviorSignals ||
+                          !isRequestNameValid ||
+                          Boolean(currentRequestFeedback),
+                      }}
+                      disabled={
+                        requestMutation.isPending ||
+                        !audiencePolicy.canRecordBehaviorSignals ||
+                        !isRequestNameValid ||
+                        Boolean(currentRequestFeedback)
+                      }
+                      onPress={handleRequestGroupBuy}
+                      style={({ pressed }) => [
+                        s.requestButton,
+                        (requestMutation.isPending ||
+                          !audiencePolicy.canRecordBehaviorSignals ||
+                          !isRequestNameValid ||
+                          Boolean(currentRequestFeedback)) &&
+                          s.requestButtonDisabled,
+                        pressed && s.pressed,
+                      ]}
+                    >
+                      <SText
+                        numberOfLines={1}
+                        variant="label"
+                        style={s.requestButtonText}
+                      >
+                        {requestMutation.isPending
+                          ? '요청하는 중…'
+                          : currentRequestFeedback?.alreadyRequested
+                            ? '이미 요청했어요'
+                            : currentRequestFeedback
+                              ? '공구 요청 완료'
+                              : currentRequestError
+                                ? '다시 요청하기'
+                                : `“${requestProductName}” 공구 요청하기`}
+                      </SText>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
             )}
           </View>
@@ -489,10 +661,49 @@ function makeStyles(colors: CommerceColorPalette) {
     resultMeta: { color: colors.weak, flexShrink: 1, fontSize: 12, fontWeight: '500', letterSpacing: 0, lineHeight: 17 },
     resultMetaRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs, marginTop: 3, minWidth: 0 },
 
-    emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 72 },
-    emptyIcon: { fontSize: 40, color: colors.weak, marginBottom: spacing.md, opacity: 0.4 },
-    emptyTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: spacing.xs },
-    emptyDesc: { fontSize: 13, color: colors.weak, lineHeight: 20, textAlign: 'center' },
+    requestState: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
+    requestCard: {
+      alignItems: 'stretch',
+      backgroundColor: colors.panelBg,
+      borderColor: colors.borderLight,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      padding: spacing.lg,
+      width: '100%',
+    },
+    requestTitle: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: '800',
+      lineHeight: 21,
+      textAlign: 'center',
+    },
+    requestProductName: { color: colors.accent, fontWeight: '800' },
+    requestHint: {
+      color: colors.muted,
+      fontSize: 13,
+      lineHeight: 19,
+      marginTop: spacing.xs,
+      textAlign: 'center',
+    },
+    requestError: { color: colors.error },
+    requestSuccess: { color: colors.success },
+    requestButton: {
+      alignItems: 'center',
+      backgroundColor: colors.accent,
+      borderRadius: 12,
+      justifyContent: 'center',
+      marginTop: spacing.md,
+      minHeight: 48,
+      paddingHorizontal: spacing.lg,
+    },
+    requestButtonDisabled: { backgroundColor: colors.disabled },
+    requestButtonText: {
+      color: colors.inverse,
+      fontSize: 15,
+      fontWeight: '800',
+      lineHeight: 21,
+    },
 
     suggestWrap: { paddingTop: 32 },
     sectionTitle: {

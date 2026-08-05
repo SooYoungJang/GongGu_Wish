@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { inferHikerSuggestions } from "./hikerSuggestions";
+import {
+  inferHikerSuggestions,
+  resolveHikerSummary,
+} from "./hikerSuggestions";
 
 describe("inferHikerSuggestions", () => {
   it("preserves existing non-empty product name and category in rule-based fallback", () => {
@@ -164,5 +167,20 @@ describe("inferHikerSuggestions", () => {
         },
       }).source,
     ).toBe("rules");
+  });
+});
+
+describe("resolveHikerSummary", () => {
+  it("preserves the complete Hiker caption", () => {
+    const sentinel = "[[HIKER-SUMMARY-END-1000]]";
+    const caption = `${"가".repeat(1000 - sentinel.length)}${sentinel}`;
+
+    expect(caption).toHaveLength(1000);
+    expect(resolveHikerSummary("기존 정보", caption)).toBe(caption);
+    expect(resolveHikerSummary("기존 정보", caption)).toContain(sentinel);
+  });
+
+  it("keeps the current summary when Hiker has no caption", () => {
+    expect(resolveHikerSummary("기존 정보", null)).toBe("기존 정보");
   });
 });

@@ -59,6 +59,7 @@ function rankingItem(
       score: 0,
       scoreDelta: 0,
     },
+    profileImageUrl: null,
     scoreVersion: 'v2',
     ...overrides,
   };

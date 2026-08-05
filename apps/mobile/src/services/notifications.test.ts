@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { callEdgeFunction } = vi.hoisted(() => ({ callEdgeFunction: vi.fn() }));
+const linkingMocks = vi.hoisted(() => ({
+  openSettings: vi.fn().mockResolvedValue(undefined),
+}));
 const constantsMock = vi.hoisted(() => ({
   appOwnership: "standalone",
   easConfig: {} as { projectId?: string },
@@ -38,6 +41,9 @@ const notificationMocks = vi.hoisted(() => ({
 
 vi.mock("../lib/postgrest-client", () => ({ callEdgeFunction }));
 vi.mock("react-native", () => ({
+  Linking: {
+    openSettings: linkingMocks.openSettings,
+  },
   Platform: {
     OS: "android",
     select: (options: Record<string, unknown>) =>
@@ -52,6 +58,7 @@ vi.mock("expo-notifications", () => notificationMocks);
 import {
   buildGroupBuyReminderDates,
   cancelScheduledNotifications,
+  ensureNotificationPermission,
   getNotificationPermissionStatus,
   getLastNotificationResponseUrl,
   registerForPushNotifications,
@@ -67,6 +74,7 @@ describe("registerForPushNotifications", () => {
     callEdgeFunction.mockResolvedValue({
       data: { registered: true, provider: "expo" },
     });
+    linkingMocks.openSettings.mockReset().mockResolvedValue(undefined);
     notificationMocks.getPermissionsAsync.mockReset().mockResolvedValue({
       status: "granted",
     });
@@ -267,6 +275,63 @@ describe("registerForPushNotifications", () => {
     expect(notificationMocks.scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 
+  it("does not request permission while reconciling stored deadline reminders", async () => {
+    notificationMocks.getPermissionsAsync.mockResolvedValueOnce({
+      status: "undetermined",
+    });
+    notificationMocks.requestPermissionsAsync.mockResolvedValueOnce({
+      status: "denied",
+    });
+
+    await expect(
+      scheduleGroupBuyReminders(
+        "group-buy-1",
+        "테스트 공구",
+        "2026-07-20T12:00:00.000Z",
+        [3],
+        {
+          now: Date.parse("2026-07-10T12:00:00.000Z"),
+          requestPermission: false,
+        },
+      ),
+    ).resolves.toEqual({
+      status: "unavailable",
+      reason: "permission-denied",
+    });
+
+    expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(notificationMocks.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it("does not request permission while reconciling stored opening reminders", async () => {
+    notificationMocks.getPermissionsAsync.mockResolvedValueOnce({
+      status: "undetermined",
+    });
+    notificationMocks.requestPermissionsAsync.mockResolvedValueOnce({
+      status: "denied",
+    });
+
+    await expect(
+      scheduleGroupBuyOpeningReminders(
+        "group-buy-1",
+        "테스트 공구",
+        "2026-07-20T00:00:00.000Z",
+        [3],
+        9 * 60,
+        {
+          now: Date.parse("2026-07-10T12:00:00.000Z"),
+          requestPermission: false,
+        },
+      ),
+    ).resolves.toEqual({
+      status: "unavailable",
+      reason: "permission-denied",
+    });
+
+    expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(notificationMocks.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
   it("does not prompt for permission during background token registration", async () => {
     notificationMocks.getPermissionsAsync.mockResolvedValueOnce({
       status: "undetermined",
@@ -420,6 +485,33 @@ describe("registerForPushNotifications", () => {
 
     await expect(getNotificationPermissionStatus()).resolves.toBe("denied");
     expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it("opens app settings when OS notification permission was previously denied", async () => {
+    notificationMocks.getPermissionsAsync.mockResolvedValueOnce({
+      status: "denied",
+      canAskAgain: false,
+    });
+
+    await expect(ensureNotificationPermission()).resolves.toBe(false);
+
+    expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(linkingMocks.openSettings).toHaveBeenCalledOnce();
+  });
+
+  it("requests permission when a denied status can still ask again", async () => {
+    notificationMocks.getPermissionsAsync
+      .mockResolvedValueOnce({ status: "denied", canAskAgain: true })
+      .mockResolvedValueOnce({ status: "denied", canAskAgain: true });
+    notificationMocks.requestPermissionsAsync.mockResolvedValueOnce({
+      status: "granted",
+      canAskAgain: true,
+    });
+
+    await expect(ensureNotificationPermission()).resolves.toBe(true);
+
+    expect(notificationMocks.requestPermissionsAsync).toHaveBeenCalledOnce();
+    expect(linkingMocks.openSettings).not.toHaveBeenCalled();
   });
 
   it("consumes a cold-start notification deep link only once", async () => {

@@ -48,6 +48,8 @@ interface InstagramMediaInfo {
   caption: string | null;
   likeCount: number | null;
   username: string | null;
+  /** Trusted Instagram CDN profile image from the media payload, when present. */
+  profileImageUrl?: string;
   takenAt: string | null;
   /** LLM-inferred product metadata. Present when UMANS_API_KEY is configured;
    *  absent when LLM enrichment is disabled or fails (callers fall back to
@@ -123,6 +125,20 @@ function getString(value: unknown): string | null {
 
 function getNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+export function extractProfileImageUrl(
+  media: Record<string, unknown>,
+  topLevelUser: Record<string, unknown> | null = null,
+): string | null {
+  const sources = [getRecord(media.user), getRecord(media.owner), topLevelUser];
+  for (const field of ['profile_pic_url_hd', 'profile_pic_url']) {
+    for (const source of sources) {
+      const profileImageUrl = trustedInstagramCdnUrl(source?.[field]);
+      if (profileImageUrl) return profileImageUrl;
+    }
+  }
+  return null;
 }
 
 function bestImageUrl(media: Record<string, unknown>): string | null {
@@ -280,9 +296,11 @@ export async function lookupViaHikerAPI(url: string, apiKey: string): Promise<In
 
   const data = await response.json();
   const media = firstItem(data);
-  const user = getRecord(media.user) ?? getRecord(media.owner) ?? getRecord(data?.user);
+  const topLevelUser = getRecord(data?.user);
+  const user = getRecord(media.user) ?? getRecord(media.owner) ?? topLevelUser;
   const caption = getRecord(media.caption);
   const takenAt = media.taken_at ?? media.takenAt ?? null;
+  const profileImageUrl = extractProfileImageUrl(media, topLevelUser);
   const preferredMedia = await preferAudioVideoVersions(media);
   const mediaInfo = collectPostMedia(preferredMedia);
   const postAudio = await resolvePostAudio(media, apiKey);
@@ -293,6 +311,7 @@ export async function lookupViaHikerAPI(url: string, apiKey: string): Promise<In
     caption: getString(caption?.text) ?? getString(media.caption_text) ?? getString(media.caption),
     likeCount: getNumber(media.like_count) ?? getNumber(media.likeCount),
     username: getString(user?.username) ?? getString(media.username),
+    ...(profileImageUrl ? { profileImageUrl } : {}),
     takenAt: typeof takenAt === 'number'
       ? new Date(takenAt * 1000).toISOString()
       : getString(takenAt),

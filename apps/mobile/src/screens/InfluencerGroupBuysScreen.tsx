@@ -16,7 +16,11 @@ import { useTheme } from '../context/ThemeContext';
 import type { ColorPalette } from '../context/ThemeContext';
 
 export function InfluencerGroupBuysScreen({ navigation, route }: InfluencerGroupBuysScreenProps) {
-  const { influencerUsername, influencerDisplayName } = route.params;
+  const {
+    influencerUsername,
+    influencerDisplayName,
+    influencerProfileImageUrl,
+  } = route.params;
   const normalizedUsername = influencerUsername.replace(/^@/, '');
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -27,6 +31,10 @@ export function InfluencerGroupBuysScreen({ navigation, route }: InfluencerGroup
   });
 
   const groupBuys = data ?? [];
+  const profileImageUrl =
+    influencerProfileImageUrl ??
+    groupBuys[0]?.rawPost.influencer.profileImageUrl ??
+    null;
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={s.safeArea}>
@@ -35,6 +43,7 @@ export function InfluencerGroupBuysScreen({ navigation, route }: InfluencerGroup
           eyebrow="Influencer GongGu"
           title={
             <InstagramIdentity
+              profileImageUrl={profileImageUrl}
               size="title"
               textStyle={s.titleIdentityText}
               username={normalizedUsername}

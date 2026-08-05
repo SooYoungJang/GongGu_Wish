@@ -136,6 +136,21 @@ describe('SubmissionsController (e2e)', () => {
       expect(Array.isArray(res.body.imageUrls)).toBe(true);
     });
 
+    it('should preserve a 1000-character summary without truncation', async () => {
+      stubCreateSuccess();
+      const sentinel = 'END-SENTINEL';
+      const summary = `${'가'.repeat(1000 - sentinel.length)}${sentinel}`;
+
+      const res = await request(app.getHttpServer())
+        .post('/submissions')
+        .send({ ...validSubmission, summary })
+        .expect(201);
+
+      expect(summary).toHaveLength(1000);
+      expect(res.body.summary).toBe(summary);
+      expect(res.body.summary.endsWith(sentinel)).toBe(true);
+    });
+
     it('should create a submission with minimal fields (anonymous)', async () => {
       stubCreateSuccess();
 

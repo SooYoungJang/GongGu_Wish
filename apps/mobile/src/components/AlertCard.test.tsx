@@ -22,12 +22,12 @@ const sampleGroupBuy: GroupBuy = {
   id: 'sample-alert',
   productName: '비건 선크림 공구',
   brandName: 'Sample Beauty',
+  startDate: '2099-06-01T00:00:00+09:00',
   endDate: '2099-06-15T23:59:59+09:00',
   purchaseUrl: 'https://example.com',
   discountInfo: '20% 할인',
   summary: '공동구매 알림 요약입니다.',
   confidence: 0.82,
-  startDate: null,
   thumbnailUrl: null,
   videoUrl: null,
   mediaUrls: [],
@@ -64,12 +64,15 @@ describe('AlertCard', () => {
 
     expect(compactText).toContain('@sample_influencer');
     expect(
-      renderer!.root.findByProps({ testID: 'alert-card-instagram-icon' }).props,
-    ).toMatchObject({ accessible: false, name: 'logo-instagram' });
+      renderer!.root
+        .findAllByProps({ testID: 'alert-card-instagram-avatar' })
+        .some((node) => node.props.accessibilityRole === 'image'),
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ name: 'logo-instagram' })).toHaveLength(0);
     expect(text).toContain('비건 선크림 공구');
     expect(text).toContain('Sample Beauty');
     expect(text).toContain('20% 할인');
-    expect(text).toContain('마감');
+    expect(text).toContain('6월 1일 ~ 6월 15일');
     expect(text).toContain('신뢰도');
     expect(compactText).toContain('82%');
     expect(text).not.toContain('♡');

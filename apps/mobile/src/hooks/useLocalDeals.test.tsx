@@ -27,6 +27,8 @@ const notificationServiceMocks = vi.hoisted(() => {
     .fn()
     .mockResolvedValue({ status: "cancelled" });
   return {
+    ensureNotificationPermission: vi.fn().mockResolvedValue(true),
+    requestNotificationPermissions: vi.fn().mockResolvedValue(true),
     scheduleGroupBuyOpeningReminders: vi.fn().mockResolvedValue({
       status: "unavailable",
       reason: "missing-start-date",
@@ -50,10 +52,17 @@ const notificationPreferenceMocks = vi.hoisted(() => ({
     pushEnabled: true,
     deadlineRemindersEnabled: true,
     submissionApprovalEnabled: true,
+    marketingPushEnabled: false,
     reminderDays: [1, 3, 7] as Array<1 | 3 | 7>,
     followedInfluencers: [] as string[],
     followedBrands: [] as string[],
   },
+  updatePreferences: vi.fn(async (patch: { pushEnabled?: boolean }) => {
+    if (patch.pushEnabled !== undefined) {
+      notificationPreferenceMocks.preferences.pushEnabled = patch.pushEnabled;
+    }
+    return notificationPreferenceMocks.preferences;
+  }),
 }));
 
 vi.mock("../api", () => apiMocks);
@@ -159,6 +168,12 @@ describe("useNotifications", () => {
         status: "unavailable",
         reason: "missing-start-date",
       });
+    notificationServiceMocks.requestNotificationPermissions
+      .mockReset()
+      .mockResolvedValue(true);
+    notificationServiceMocks.ensureNotificationPermission
+      .mockReset()
+      .mockResolvedValue(true);
     notificationServiceMocks.cancelScheduledNotification
       .mockReset()
       .mockResolvedValue({ status: "cancelled" });
@@ -176,6 +191,21 @@ describe("useNotifications", () => {
     notificationPreferenceMocks.preferences.reminderDays = [1, 3, 7];
     authMocks.user = null;
     setAudiencePolicySnapshot(resolveAudiencePolicy("age14Plus"));
+  });
+
+  it("turns on app push before saving a reminder when push is off", async () => {
+    notificationPreferenceMocks.preferences.pushEnabled = false;
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(GROUP_BUY, [3]);
+    });
+
+    expect(notificationServiceMocks.ensureNotificationPermission).toHaveBeenCalledOnce();
+    expect(notificationPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
   });
 
   it("동시에 마운트된 다른 화면에도 알림 변경을 즉시 반영한다", async () => {
@@ -227,6 +257,129 @@ describe("useNotifications", () => {
         )[0].priceKrw,
       ).toBe(200000);
     });
+  });
+
+  it("저장된 북마크를 해제할 때 서버에도 해제 상태를 보낸다", async () => {
+    storage.values.set("@gonggu/bookmarks/v1", JSON.stringify([GROUP_BUY]));
+    const bookmarks = renderHook(() => useBookmarks());
+    await waitFor(() => expect(bookmarks.result.current.ready).toBe(true));
+
+    act(() => bookmarks.result.current.toggleBookmark(GROUP_BUY));
+
+    await waitFor(() => {
+      expect(apiMocks.syncBookmark).toHaveBeenLastCalledWith(
+        GROUP_BUY.id,
+        false,
+      );
+    });
+    expect(bookmarks.result.current.bookmarks).toEqual([]);
+  });
+
+  it("빠른 북마크 토글의 마지막 상태를 서버에 보낸다", async () => {
+    const bookmarks = renderHook(() => useBookmarks());
+    await waitFor(() => expect(bookmarks.result.current.ready).toBe(true));
+
+    act(() => {
+      bookmarks.result.current.toggleBookmark(GROUP_BUY);
+      bookmarks.result.current.toggleBookmark(GROUP_BUY);
+    });
+
+    await waitFor(() => {
+      expect(apiMocks.syncBookmark).toHaveBeenLastCalledWith(
+        GROUP_BUY.id,
+        false,
+      );
+    });
+    expect(bookmarks.result.current.bookmarks).toEqual([]);
+  });
+
+  it("동시에 열린 화면들이 같은 북마크 상태를 사용한다", async () => {
+    const reels = renderHook(() => useBookmarks());
+    const detail = renderHook(() => useBookmarks());
+    await waitFor(() => {
+      expect(reels.result.current.ready).toBe(true);
+      expect(detail.result.current.ready).toBe(true);
+    });
+
+    act(() => reels.result.current.toggleBookmark(GROUP_BUY));
+    await waitFor(() => {
+      expect(detail.result.current.isBookmarked(GROUP_BUY.id)).toBe(true);
+    });
+
+    act(() => detail.result.current.toggleBookmark(GROUP_BUY));
+    await waitFor(() => {
+      expect(reels.result.current.isBookmarked(GROUP_BUY.id)).toBe(false);
+      expect(apiMocks.syncBookmark).toHaveBeenLastCalledWith(
+        GROUP_BUY.id,
+        false,
+      );
+    });
+  });
+
+  it("느린 서버 동기화가 다음 북마크 상태의 로컬 저장을 막지 않는다", async () => {
+    let releaseFirstSync!: () => void;
+    apiMocks.syncBookmark.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseFirstSync = resolve;
+        }),
+    );
+    const bookmarks = renderHook(() => useBookmarks());
+    await waitFor(() => expect(bookmarks.result.current.ready).toBe(true));
+
+    act(() => bookmarks.result.current.toggleBookmark(GROUP_BUY));
+    await waitFor(() => {
+      expect(apiMocks.syncBookmark).toHaveBeenCalledWith(GROUP_BUY.id, true);
+      expect(
+        JSON.parse(storage.values.get("@gonggu/bookmarks/v1") ?? "[]"),
+      ).toHaveLength(1);
+    });
+
+    act(() => bookmarks.result.current.toggleBookmark(GROUP_BUY));
+    await waitFor(() => {
+      expect(
+        JSON.parse(storage.values.get("@gonggu/bookmarks/v1") ?? "[]"),
+      ).toEqual([]);
+    });
+
+    releaseFirstSync();
+    await waitFor(() => {
+      expect(apiMocks.syncBookmark).toHaveBeenLastCalledWith(
+        GROUP_BUY.id,
+        false,
+      );
+    });
+  });
+
+  it("개인 활동 삭제 중 끝난 북마크 hydration이 데이터를 되살리지 않는다", async () => {
+    let releaseHydration!: () => void;
+    const hydrationGate = new Promise<void>((resolve) => {
+      releaseHydration = resolve;
+    });
+    apiMocks.fetchGroupBuysByIds.mockImplementationOnce(async () => {
+      await hydrationGate;
+      return [GROUP_BUY];
+    });
+    storage.values.set(
+      "@gonggu/bookmarks/v1",
+      JSON.stringify([
+        { id: GROUP_BUY.id, productName: GROUP_BUY.productName },
+      ]),
+    );
+    const bookmarks = renderHook(() => useBookmarks());
+    await waitFor(() =>
+      expect(apiMocks.fetchGroupBuysByIds).toHaveBeenCalled(),
+    );
+
+    await clearLocalUserData();
+
+    expect(storage.values.has("@gonggu/bookmarks/v1")).toBe(false);
+    expect(bookmarks.result.current.bookmarks).toEqual([]);
+
+    releaseHydration();
+    await waitFor(() => expect(bookmarks.result.current.ready).toBe(true));
+    expect(storage.values.has("@gonggu/bookmarks/v1")).toBe(false);
+    expect(bookmarks.result.current.bookmarks).toEqual([]);
   });
 
   it("만 13세 모드에서는 최근 본 공구를 로컬에 기록하지 않는다", async () => {
@@ -939,6 +1092,7 @@ describe("useNotifications", () => {
         pushEnabled: true,
         deadlineRemindersEnabled: true,
         submissionApprovalEnabled: true,
+        marketingPushEnabled: false,
         reminderDays: [3],
         followedInfluencers: [],
         followedBrands: [],
@@ -952,6 +1106,59 @@ describe("useNotifications", () => {
         scheduledFor: "2026-07-17T12:00:00.000Z",
         scheduledForDates: ["2026-07-17T12:00:00.000Z"],
       }),
+    );
+  });
+
+  it("reconciles stored reminders without requesting native permission", async () => {
+    storage.values.set(
+      "@gonggu/notifications/v2/guest",
+      JSON.stringify([
+        {
+          ...GROUP_BUY,
+          groupBuyId: GROUP_BUY.id,
+          endDate: "2026-07-20T12:00:00.000Z",
+          notificationId: "deadline-1",
+          notificationIds: ["deadline-1"],
+          scheduledFor: "2026-07-19T12:00:00.000Z",
+          scheduledForDates: ["2026-07-19T12:00:00.000Z"],
+          reminderDays: [3],
+          reminderPreference: { type: "deadline", reminderDays: [3] },
+          alertState: {
+            status: "enabled",
+            notificationId: "deadline-1",
+            notificationIds: ["deadline-1"],
+            scheduledFor: "2026-07-19T12:00:00.000Z",
+            scheduledForDates: ["2026-07-19T12:00:00.000Z"],
+          },
+          createdAt: "2026-07-17T00:00:00.000Z",
+        },
+      ]),
+    );
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValueOnce({
+      status: "unavailable",
+      reason: "permission-denied",
+    });
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+
+    await act(async () => {
+      await notifications.result.current.rescheduleNotifications({
+        pushEnabled: true,
+        deadlineRemindersEnabled: true,
+        submissionApprovalEnabled: true,
+        marketingPushEnabled: false,
+        reminderDays: [3],
+        followedInfluencers: [],
+        followedBrands: [],
+      });
+    });
+
+    expect(notificationServiceMocks.scheduleGroupBuyReminders).toHaveBeenCalledWith(
+      GROUP_BUY.id,
+      GROUP_BUY.productName,
+      "2026-07-20T12:00:00.000Z",
+      [3],
+      { requestPermission: false },
     );
   });
 
@@ -1011,6 +1218,29 @@ describe("useNotifications", () => {
       status: "unavailable",
       reason: "missing-end-date",
     });
+  });
+
+  it("requests native permission from every notification enable path", async () => {
+    notificationPreferenceMocks.preferences.pushEnabled = false;
+    const notifications = renderHook(() => useNotifications());
+    const secondItem = { ...GROUP_BUY, id: "group-buy-2" };
+
+    await waitFor(() => {
+      expect(notifications.result.current.ready).toBe(true);
+    });
+
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(
+        GROUP_BUY,
+        [3],
+      );
+      await notifications.result.current.toggleNotification(secondItem);
+      await notifications.result.current.toggleNotification(secondItem);
+    });
+
+    expect(
+      notificationServiceMocks.ensureNotificationPermission,
+    ).toHaveBeenCalledTimes(2);
   });
 
   it("stores and cancels every D-day native reminder for a deadline", async () => {
@@ -1243,7 +1473,9 @@ describe("useNotifications", () => {
     });
     expect(
       notificationServiceMocks.scheduleGroupBuyReminders,
-    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1, 3]);
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1, 3], {
+      requestPermission: false,
+    });
     expect(
       notificationServiceMocks.scheduleGroupBuyReminders,
     ).toHaveBeenCalledTimes(1);
@@ -1373,7 +1605,9 @@ describe("useNotifications", () => {
 
     expect(
       notificationServiceMocks.scheduleGroupBuyReminders,
-    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1]);
+    ).toHaveBeenCalledWith(item.id, item.productName, item.endDate, [1], {
+      requestPermission: false,
+    });
   });
 
   it("reconciles existing native IDs when item reminder days change", async () => {

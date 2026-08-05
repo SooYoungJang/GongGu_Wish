@@ -87,6 +87,20 @@ test("Mobile changes run only affected workspace checks and mobile deployment", 
   expectOnly(plan, ["mobile"]);
 });
 
+test("Mobile Local Supabase integration changes run the database harness", () => {
+  for (const file of [
+    "apps/mobile/src/integration/groupBuyRequest-contract.integration.test.ts",
+    "apps/mobile/src/integration/localSupabaseHarness.ts",
+    "apps/mobile/vitest.integration.config.ts",
+  ]) {
+    const plan = classifyChangedFiles([file]);
+
+    assert.equal(plan.localSupabase, true, `${file} local Supabase`);
+    assert.equal(plan.mobile, true, `${file} mobile deployment`);
+    assert.match(plan.workspaceFilters, /--filter=@gonggu\/mobile/);
+  }
+});
+
 test("Mobile E2E impact includes every journey dependency", () => {
   for (const file of [
     ".github/workflows/mobile-ios-e2e.yml",

@@ -119,6 +119,7 @@ function sampleRanking(
       score: 96,
       scoreDelta: 0,
     },
+    profileImageUrl: null,
     scoreVersion: "v2",
     ...overrides,
   };
@@ -249,7 +250,7 @@ describe("ranking components", () => {
     expect(flattenText(renderer!.toJSON())).toBe("1");
   });
 
-  it("renders every top-three rank badge as a fixed circle", () => {
+  it("keeps top-three rank badges circular without fixing their final size", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -270,10 +271,17 @@ describe("ranking components", () => {
       });
       const style = flattenStyle(badge.props.style);
 
-      expect(style.width).toBe(34);
-      expect(style.height).toBe(34);
-      expect(style.borderRadius).toBe(17);
+      expect(style.minWidth).toBe(34);
+      expect(style.minHeight).toBe(34);
+      expect(style.aspectRatio).toBe(1);
+      expect(style.width).toBeUndefined();
+      expect(style.height).toBeUndefined();
+      expect(style.borderRadius).toBe(999);
       expect(style.borderCurve).toBe("circular");
+
+      const text = badge.findByType("Text" as unknown as React.ElementType);
+      expect(text.props.numberOfLines).toBe(1);
+      expect(flattenStyle(text.props.style).includeFontPadding).toBe(false);
     }
   });
 
@@ -287,9 +295,10 @@ describe("ranking components", () => {
     const badge = renderer!.root.findByProps({ accessibilityLabel: "5위" });
     const style = flattenStyle(badge.props.style);
 
-    expect(style.width).toBe(34);
-    expect(style.height).toBe(34);
-    expect(style.borderRadius).toBe(17);
+    expect(style.minWidth).toBe(34);
+    expect(style.minHeight).toBe(34);
+    expect(style.aspectRatio).toBe(1);
+    expect(style.borderRadius).toBe(999);
     expect(style.borderCurve).toBe("circular");
   });
 
@@ -318,23 +327,37 @@ describe("ranking components", () => {
     }
   });
 
-  it("renders ranking trends with directional symbols in addition to color", () => {
+  it("renders ranking trends as directional symbols and numbers without a rank suffix", () => {
     const cases: Array<{
       trend: GroupBuyRankingItem["trend"];
       label: string;
       color: string;
+      backgroundColor: string;
     }> = [
       {
         trend: { kind: "up", delta: 2 },
-        label: "▲2위",
+        label: "▲2",
         color: commerceLightColors.accent,
+        backgroundColor: commerceLightColors.accentSoft,
       },
       {
         trend: { kind: "down", delta: 3 },
-        label: "▼3위",
+        label: "▼3",
         color: commerceLightColors.blue,
+        backgroundColor: commerceLightColors.blueSoft,
       },
-      { trend: { kind: "same" }, label: "-", color: commerceLightColors.weak },
+      {
+        trend: { kind: "new" },
+        label: "NEW",
+        color: commerceLightColors.success,
+        backgroundColor: commerceLightColors.successSoft,
+      },
+      {
+        trend: { kind: "same" },
+        label: "-",
+        color: commerceLightColors.weak,
+        backgroundColor: commerceLightColors.softBg,
+      },
     ];
 
     for (const testCase of cases) {
@@ -346,17 +369,142 @@ describe("ranking components", () => {
         );
       });
 
-      const textNode = renderer!.root.findByType(
-        "Text" as unknown as React.ElementType,
-      );
+      const badge = renderer!.root.findByProps({
+        testID: `ranking-trend-badge-${testCase.trend.kind}`,
+      });
+      const textNode = badge.findByType("Text" as unknown as React.ElementType);
       const style = flattenStyle(textNode.props.style);
+      const badgeStyle = flattenStyle(badge.props.style);
 
       expect(flattenText(renderer!.toJSON())).toBe(testCase.label);
       expect(style.color).toBe(testCase.color);
-      expect(
-        renderer!.root.findAllByType("View" as unknown as React.ElementType),
-      ).toHaveLength(0);
+      expect(textNode.props.numberOfLines).toBeUndefined();
+      expect(style.includeFontPadding).toBe(false);
+      expect(badgeStyle.backgroundColor).toBe(testCase.backgroundColor);
+      expect(badgeStyle.minHeight).toBe(24);
+      expect(badgeStyle.paddingHorizontal).toBe(spacing.xs);
+      expect(badgeStyle.borderRadius).toBe(999);
     }
+  });
+
+  it.each([1, 1.8])(
+    "does not request truncation for large rising or falling trends in top and later ranks at %sx font scale",
+    (fontScale) => {
+      windowDimensionsMock.fontScale = fontScale;
+      const items = [
+        sampleRanking({
+          groupBuyId: "group-1",
+          rank: 1,
+          trend: { kind: "up", delta: 99 },
+        }),
+        sampleRanking({
+          groupBuyId: "group-2",
+          rank: 2,
+          trend: { kind: "down", delta: 99 },
+        }),
+        sampleRanking({
+          groupBuyId: "group-3",
+          rank: 3,
+          trend: { kind: "up", delta: 99 },
+        }),
+        sampleRanking({
+          groupBuyId: "group-4",
+          rank: 4,
+          trend: { kind: "down", delta: 99 },
+        }),
+        sampleRanking({
+          groupBuyId: "group-11",
+          rank: 11,
+          trend: { kind: "up", delta: 99 },
+        }),
+      ];
+      let renderer: TestRenderer.ReactTestRenderer;
+
+      act(() => {
+        renderer = TestRenderer.create(
+          withTheme(
+            <SellerRankingList state={{ status: "ready", data: items }} />,
+          ),
+        );
+      });
+
+      const cases = [
+        { containerTestID: "ranking-top-hero", kind: "up", label: "▲99" },
+        {
+          containerTestID: "ranking-top-compact-2",
+          kind: "down",
+          label: "▼99",
+        },
+        {
+          containerTestID: "ranking-top-compact-3",
+          kind: "up",
+          label: "▲99",
+        },
+        { containerTestID: "ranking-row-4", kind: "down", label: "▼99" },
+        { containerTestID: "ranking-row-11", kind: "up", label: "▲99" },
+      ];
+
+      for (const testCase of cases) {
+        const container = renderer!.root.findByProps({
+          testID: testCase.containerTestID,
+        });
+        const badge = container.findByProps({
+          testID: `ranking-trend-badge-${testCase.kind}`,
+        });
+        const textNode = badge.findByType(
+          "Text" as unknown as React.ElementType,
+        );
+
+        expect(textNode.props.children).toBe(testCase.label);
+        expect(textNode.props.numberOfLines).toBeUndefined();
+        expect(textNode.props.ellipsizeMode).toBeUndefined();
+        expect(flattenStyle(textNode.props.style).flexShrink).toBe(0);
+        expect(flattenStyle(badge.props.style).flexShrink).toBe(0);
+      }
+
+      const rankFourColumn = renderer!.root.findByProps({
+        testID: "ranking-row-rank-column-4",
+      });
+      const rankFourColumnStyle = flattenStyle(rankFourColumn.props.style);
+
+      expect(rankFourColumnStyle.width).toBeUndefined();
+      expect(rankFourColumnStyle.minWidth).toBe(34);
+      expect(rankFourColumnStyle.flexShrink).toBe(0);
+    },
+  );
+
+  it("keeps the hero rank metadata inside the image at large font scales", () => {
+    windowDimensionsMock.fontScale = 2;
+    windowDimensionsMock.width = 320;
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        withTheme(
+          <SellerRankingList
+            state={{
+              status: "ready",
+              data: [
+                sampleRanking({
+                  previousRank: null,
+                  trend: { kind: "new" },
+                }),
+              ],
+            }}
+          />,
+        ),
+      );
+    });
+
+    const overlay = renderer!.root.findByProps({
+      testID: "ranking-rank-overlay-1",
+    });
+    const style = flattenStyle(overlay.props.style);
+
+    expect(style.backgroundColor).toBe("transparent");
+    expect(style.flexWrap).toBe("wrap");
+    expect(style.maxWidth).toBe("90%");
+    expect(style.padding).toBe(0);
   });
 
   it("toggles GroupBuyAlertButton visual state through its onPress prop", () => {
@@ -556,24 +704,24 @@ describe("ranking components", () => {
       minHeight: 44,
     });
     expect(sellerAction.props.hitSlop).toBeUndefined();
-    const sellerIcon = renderer!.root.findByProps({
-      testID: "ranking-row-seller-icon-4",
-    });
-    expect(sellerIcon.props).toMatchObject({
-      accessible: false,
-      name: "logo-instagram",
-    });
+    expect(
+      renderer!.root
+        .findAllByProps({ testID: "ranking-row-seller-avatar-4" })
+        .some((node) => node.props.accessibilityRole === "image"),
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ name: "logo-instagram" })).toHaveLength(0);
     const detailAction = renderer!.root.findByProps({
       accessibilityHint: "공구 상세 보기",
     });
     expect(
       detailAction.findAll(
         (node) =>
-          node.props.accessibilityLabel ===
-          "@ordinary.seller 판매자 공구 보기",
+          node.props.accessibilityLabel === "@ordinary.seller 판매자 공구 보기",
       ),
     ).toHaveLength(0);
-    const footer = renderer!.root.findByProps({ testID: "ranking-row-footer-4" });
+    const footer = renderer!.root.findByProps({
+      testID: "ranking-row-footer-4",
+    });
     expect(
       footer
         .findAllByType("Pressable" as unknown as React.ElementType)
@@ -675,13 +823,17 @@ describe("ranking components", () => {
 
     expect(flattenText(renderer!.toJSON())).toContain("@ranked.shop");
     expect(
-      renderer!.root.findByProps({ testID: "ranking-top-seller-icon-1" }).props,
-    ).toMatchObject({ accessible: false, name: "logo-instagram" });
+      renderer!.root
+        .findAllByProps({ testID: "ranking-top-seller-avatar-1" })
+        .some((node) => node.props.accessibilityRole === "image"),
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ name: "logo-instagram" })).toHaveLength(0);
   });
 
   it("shows rank movement and deadline instead of popularity scores", () => {
     const item = sampleRanking({
-      endDate: "2099-07-31T15:00:00.000Z",
+      startDate: "2099-07-01T00:00:00.000Z",
+      endDate: "2099-07-31T23:59:59+09:00",
       trend: { kind: "up", delta: 4 },
       priceKrw: 25900,
       metrics: {
@@ -708,9 +860,9 @@ describe("ranking components", () => {
     });
 
     const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
-    expect(text).toContain("▲4위");
+    expect(text).toContain("▲4");
     expect(text).not.toContain("인기지수");
-    expect(text).toContain("마감");
+    expect(text).toContain("7월 1일 ~ 7월 31일");
     expect(text).toContain("25,900원");
     expect(text).not.toContain("조회 1.2만 · 저장 7 · 알림 2");
     expect(text).not.toContain("공구 7개");

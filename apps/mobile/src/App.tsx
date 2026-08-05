@@ -41,10 +41,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { AdsProvider } from "./ads/AdsContext";
 import { AdsRuntimeSmokeProbe } from "./ads/AdsRuntimeSmokeProbe";
 import { AudienceGate } from "./audience/AudienceGate";
-import {
-  AudienceProvider,
-  useAudience,
-} from "./audience/AudienceContext";
+import { AudienceProvider, useAudience } from "./audience/AudienceContext";
 import { RestrictedAudienceCleanupBridge } from "./audience/RestrictedAudienceCleanupBridge";
 import type { MainTabParamList, RootStackParamList } from "./types";
 import { configurePostgrest } from "./lib/postgrest-client";
@@ -72,27 +69,37 @@ import {
   createTabBarButtonRenderer,
   getTabBarVisibilityStyle,
 } from "./navigation/tabBarVisibility";
-import { mobileQueryClient, syncQueryFocus } from "./lib/query-client";
+import {
+  getMainTabBarHeight,
+  MAIN_TAB_BAR_HEIGHT,
+} from "./navigation/tabBarMetrics";
+import {
+  configureQueryOnlineManager,
+  createMobileQueryRuntimeLifecycle,
+  mobileQueryClient,
+} from "./lib/query-client";
 import { notificationLinking } from "./navigation/notificationLinking";
+import { startPopularitySignalRecovery } from "./services/popularitySignalRecovery";
+import { publicBuildConfig } from "./lib/public-build-config";
 
 // Initialize PostgREST client with the Supabase anon key
 const automatedE2E = isAutomatedE2E();
 const anonKey = resolveSupabaseAnonKey(
   automatedE2E
     ? Constants.expoConfig?.extra?.e2eSupabaseAnonKey
-    : process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    : publicBuildConfig.supabaseAnonKey,
 );
 const supabaseUrl = resolveSupabaseUrl(
   automatedE2E
     ? Constants.expoConfig?.extra?.e2eSupabaseUrl
-    : process.env.EXPO_PUBLIC_SUPABASE_URL,
+    : publicBuildConfig.supabaseUrl,
   {
     requireLocal: automatedE2E,
   },
 );
 const dataApiUrl = resolveDataApiUrl(
   supabaseUrl,
-  automatedE2E ? undefined : process.env.EXPO_PUBLIC_API_PROXY_URL,
+  automatedE2E ? undefined : publicBuildConfig.apiProxyUrl,
   { requireLocal: automatedE2E },
 );
 configurePostgrest(anonKey, dataApiUrl);
@@ -127,7 +134,6 @@ type RootStackWithTabs = RootStackParamList & {
 const Stack = createNativeStackNavigator<RootStackWithTabs>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const rootNavigationRef = createNavigationContainerRef<RootStackWithTabs>();
-const TAB_BAR_HEIGHT = 58;
 const EXIT_BACK_PRESS_WINDOW_MS = 2000;
 const REELS_TAB_COLORS = getCommerceColors(true);
 
@@ -252,7 +258,7 @@ function MainTabs() {
   const insets = useSafeAreaInsets();
   const isNarrow = screenWidth <= 375;
   const isIOS = Platform.OS === "ios";
-  const tabBarHeight = TAB_BAR_HEIGHT + Math.max(insets.bottom - 12, 0);
+  const tabBarHeight = getMainTabBarHeight(insets.bottom);
   const tabBarBottomPadding = Math.max(insets.bottom - 8, isNarrow ? 2 : 4);
   const tabBarBackgroundColor = isIOS ? "transparent" : colors.bottomBarBg;
   // Keep the GNB mounted so opening a Reels sheet does not invalidate the
@@ -377,11 +383,22 @@ function MainTabs() {
   );
 }
 
-function QueryFocusBridge() {
+function QueryRuntimeBridge() {
   useEffect(() => {
-    syncQueryFocus(AppState.currentState);
-    const subscription = AppState.addEventListener("change", syncQueryFocus);
-    return () => subscription.remove();
+    configureQueryOnlineManager();
+    const lifecycle = createMobileQueryRuntimeLifecycle();
+    const syncRuntime = (status: Parameters<typeof lifecycle.sync>[0]) => {
+      void lifecycle.sync(status);
+    };
+
+    const stopPopularitySignalRecovery = startPopularitySignalRecovery();
+    syncRuntime(AppState.currentState);
+    const subscription = AppState.addEventListener("change", syncRuntime);
+    return () => {
+      lifecycle.dispose();
+      stopPopularitySignalRecovery();
+      subscription.remove();
+    };
   }, []);
 
   return null;
@@ -418,11 +435,7 @@ function NotificationScheduleBridge() {
   });
 
   useEffect(() => {
-    if (
-      !policy.canAuthenticate ||
-      !preferencesReady ||
-      !notificationsReady
-    )
+    if (!policy.canAuthenticate || !preferencesReady || !notificationsReady)
       return;
     if (lastScheduleSignatureRef.current === scheduleSignature) return;
     lastScheduleSignatureRef.current = scheduleSignature;
@@ -598,7 +611,7 @@ function AudienceApplication() {
   return (
     <AdsProvider audiencePolicy={policy}>
       <QueryClientProvider client={mobileQueryClient}>
-        <QueryFocusBridge />
+        <QueryRuntimeBridge />
         <ThemeProvider>
           <AdsRuntimeSmokeProbe />
           <AuthProvider audiencePolicy={policy}>
@@ -650,10 +663,8 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
   },
   tabBar: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
     borderTopWidth: 1,
-    height: TAB_BAR_HEIGHT,
+    height: MAIN_TAB_BAR_HEIGHT,
     left: 0,
     overflow: "hidden",
     paddingTop: 2,

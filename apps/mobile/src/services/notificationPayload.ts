@@ -2,6 +2,7 @@ import { AUTH_REDIRECT_URL } from "../lib/auth-config";
 
 const NOTIFICATION_URL_PROTOCOL = new URL(AUTH_REDIRECT_URL).protocol;
 export const NOTIFICATION_URL_PREFIX = `${NOTIFICATION_URL_PROTOCOL}//`;
+const SHARE_URL_PREFIX = "https://gongguwish.com/";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -35,11 +36,19 @@ function normalizeGroupBuyId(value: unknown) {
   return normalized;
 }
 
-export function buildGroupBuyNotificationUrl(groupBuyId: string) {
+function buildGroupBuyPath(groupBuyId: string) {
   const normalized = normalizeGroupBuyId(groupBuyId);
-  return normalized
-    ? `${NOTIFICATION_URL_PREFIX}group-buy/${encodeURIComponent(normalized)}`
-    : null;
+  return normalized ? `group-buy/${encodeURIComponent(normalized)}` : null;
+}
+
+export function buildGroupBuyNotificationUrl(groupBuyId: string) {
+  const path = buildGroupBuyPath(groupBuyId);
+  return path ? `${NOTIFICATION_URL_PREFIX}${path}` : null;
+}
+
+export function buildGroupBuyShareUrl(groupBuyId: string) {
+  const path = buildGroupBuyPath(groupBuyId);
+  return path ? `${SHARE_URL_PREFIX}${path}` : null;
 }
 
 export function parseGroupBuyNotificationUrl(value: unknown) {

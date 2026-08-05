@@ -88,6 +88,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey",
 };
+const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 
 const GONGGU_CATEGORIES = [
   "beauty",
@@ -349,9 +350,6 @@ export function validate(body: SubmissionRequest) {
   if (discountInfo && discountInfo.length > 200) {
     return { error: "할인 정보는 200자 이하로 입력해주세요." };
   }
-  if (summary && summary.length > 500) {
-    return { error: "요약은 500자 이하로 입력해주세요." };
-  }
   if (postAudioUrl && !isInstagramCdnUrl(postAudioUrl)) {
     return { error: "게시물 오디오 URL을 확인해주세요." };
   }
@@ -393,86 +391,6 @@ export function validate(body: SubmissionRequest) {
       is_anonymous: body.isAnonymous ?? true,
     },
   };
-}
-
-async function upsertApprovedGroupBuy(
-  supabase: ReturnType<typeof createAdminClient>,
-  row: ValidatedSubmissionRow,
-  submissionId: string,
-  existingGroupBuyId: string | null,
-) {
-  const payload = {
-    source_type: "SUBMISSION",
-    submission_id: submissionId,
-    product_name: row.product_name,
-    brand_name: row.brand_name,
-    category: row.category,
-    start_date: row.start_date,
-    end_date: row.end_date,
-    purchase_url: row.purchase_url,
-    discount_info: row.discount_info,
-    summary: row.summary,
-    thumbnail_url: row.thumbnail_url,
-    video_url: row.video_url,
-    media_urls: row.media_urls,
-    media_items: row.media_items,
-    media_type: row.media_type,
-    post_audio_url: row.post_audio_url,
-    post_audio_start_time_ms: row.post_audio_start_time_ms,
-    post_audio_duration_ms: row.post_audio_duration_ms,
-    post_audio_checked_at: row.post_audio_checked_at,
-    confidence: 0.9,
-    status: "APPROVED",
-    is_all_day: false,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (existingGroupBuyId) {
-    const { data, error } = await supabase
-      .from("group_buys")
-      .update(payload)
-      .eq("id", existingGroupBuyId)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-    return data;
-  }
-
-  const { data, error } = await supabase
-    .from("group_buys")
-    .insert({
-      id: crypto.randomUUID(),
-      ...payload,
-    })
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-  return data;
-}
-
-async function markSubmissionApproved(
-  supabase: ReturnType<typeof createAdminClient>,
-  submissionId: string,
-  groupBuyId: string,
-) {
-  const { data, error } = await supabase
-    .from("gonggu_submissions")
-    .update({
-      status: "APPROVED",
-      group_buy_id: groupBuyId,
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: "public-submission",
-      admin_memo: "제보 즉시 자동 등록",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", submissionId)
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-  return data;
 }
 
 async function handleWishUrlSubmission(
@@ -555,7 +473,7 @@ async function handleWishUrlSubmission(
   });
 }
 
-async function handleSubmission(
+export async function handleSubmission(
   body: SubmissionRequest,
   submitterUserId: string | null,
   supabase: AdminClient,
@@ -648,22 +566,11 @@ async function handleSubmission(
 
     if (error) throw new Error(error.message);
 
-    const groupBuy = await upsertApprovedGroupBuy(
-      supabase,
-      { ...row, image_urls: mergedImageUrls },
-      existing.id,
-      existing.group_buy_id,
-    );
-    const submission = await markSubmissionApproved(
-      supabase,
-      existing.id,
-      groupBuy.id,
-    );
-    const notificationDelivery = await deliverApprovalPush(
-      supabase,
-      existing.id,
-    );
-    return json({ submission, groupBuy, notificationDelivery });
+    return json({
+      submission: data,
+      submissionId: data.id,
+      status: data.status,
+    });
   }
 
   const { data, error } = await supabase
@@ -702,14 +609,74 @@ async function handleSubmission(
   if (error) throw new Error(error.message);
   await linkSubmissionSubmitter(supabase, data.id, submitterUserId);
 
-  const groupBuy = await upsertApprovedGroupBuy(supabase, row, data.id, null);
-  const submission = await markSubmissionApproved(
-    supabase,
-    data.id,
-    groupBuy.id,
-  );
-  const notificationDelivery = await deliverApprovalPush(supabase, data.id);
-  return json({ submission, groupBuy, notificationDelivery });
+  return json({
+    submission: data,
+    submissionId: data.id,
+    status: data.status,
+  });
+}
+
+async function readSubmissionRequest(req: Request): Promise<SubmissionRequest> {
+  const reader = req.body?.getReader();
+  if (!reader) throw new Error("invalid_request_body");
+  const declaredLength = Number(req.headers.get("content-length") ?? 0);
+
+  try {
+    if (
+      Number.isFinite(declaredLength) &&
+      declaredLength > MAX_REQUEST_BODY_BYTES
+    ) {
+      await reader.cancel();
+      throw new Error("payload_too_large");
+    }
+
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.byteLength) continue;
+
+      const retainedBytes = Math.min(
+        value.byteLength,
+        MAX_REQUEST_BODY_BYTES + 1 - totalBytes,
+      );
+      if (retainedBytes > 0) {
+        chunks.push(value.slice(0, retainedBytes));
+        totalBytes += retainedBytes;
+      }
+      if (
+        totalBytes > MAX_REQUEST_BODY_BYTES ||
+        retainedBytes < value.byteLength
+      ) {
+        await reader.cancel();
+        throw new Error("payload_too_large");
+      }
+    }
+
+    const bodyBytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bodyBytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    let parsed: unknown;
+    try {
+      const rawBody = new TextDecoder("utf-8", { fatal: true }).decode(
+        bodyBytes,
+      );
+      parsed = JSON.parse(rawBody) as unknown;
+    } catch {
+      throw new Error("invalid_request_body");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("invalid_request_body");
+    }
+    return parsed as SubmissionRequest;
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 export async function handler(req: Request) {
@@ -722,21 +689,27 @@ export async function handler(req: Request) {
   }
 
   try {
+    const body = await readSubmissionRequest(req);
     const supabase = createAdminClient();
     const submitterUserId = await resolveOptionalSubmissionUserId(
       req.headers.get("Authorization"),
       supabase,
     );
-    const body = (await req.json()) as SubmissionRequest;
     return await handleSubmission(body, submitterUserId, supabase);
   } catch (err) {
+    if (err instanceof Error && err.message === "payload_too_large") {
+      return json({ error: "payload_too_large" }, 413);
+    }
+    if (err instanceof Error && err.message === "invalid_request_body") {
+      return json({ error: "invalid_request_body" }, 400);
+    }
     if (err instanceof SubmissionAuthenticationError) {
       return json({ error: err.message }, err.status);
     }
     const message =
       err instanceof Error ? err.message : "Internal server error";
     console.error("[public-submission] Error:", message);
-    return json({ error: message }, 500);
+    return json({ error: "internal_error" }, 500);
   }
 }
 

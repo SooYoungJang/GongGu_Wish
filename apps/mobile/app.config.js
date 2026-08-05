@@ -177,7 +177,16 @@ function resolveBackendEnvironment({
   };
 }
 
-function resolveRuntimeVersion() {
+function resolveRuntimeVersion(runtimeVersionOverride) {
+  const normalizedOverride = normalizeValue(runtimeVersionOverride);
+  if (normalizedOverride) {
+    if (!/^[A-Za-z0-9_-]{16,128}$/.test(normalizedOverride)) {
+      throw new Error(
+        "Runtime version override must be a valid compatibility fingerprint",
+      );
+    }
+    return normalizedOverride;
+  }
   return { policy: "fingerprint" };
 }
 
@@ -185,7 +194,12 @@ function publisherPrefix(id) {
   return id.split(/[~/]/, 1)[0];
 }
 
-function resolveProductionAdPlatform({ appId, label, nativeUnitIds, testAppId }) {
+function resolveProductionAdPlatform({
+  appId,
+  label,
+  nativeUnitIds,
+  testAppId,
+}) {
   const normalizedAppId = normalizeValue(appId);
   const normalizedUnitIds = Object.fromEntries(
     NATIVE_AD_PLACEMENTS.map((placement) => [
@@ -288,8 +302,7 @@ function resolveAdsBuildConfig({
   }
 
   return {
-    androidAppId:
-      android?.appId ?? GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
+    androidAppId: android?.appId ?? GOOGLE_MOBILE_ADS_TEST_ANDROID_APP_ID,
     iosAppId: ios?.appId ?? GOOGLE_MOBILE_ADS_TEST_IOS_APP_ID,
     mode,
     nativeUnitIds: {
@@ -391,6 +404,9 @@ function withAutomatedE2EAndroidManifest(config) {
 
 const createAppConfig = ({ config }) => {
   const appVariant = resolveAppVariant(process.env.APP_VARIANT);
+  const runtimeVersion = resolveRuntimeVersion(
+    process.env.GONGGU_OTA_RUNTIME_VERSION,
+  );
   const automatedE2E = process.env.EXPO_PUBLIC_E2E_MODE === "true";
   const adsRuntimeSmoke = resolveAdsRuntimeSmoke(
     appVariant.key,
@@ -411,8 +427,10 @@ const createAppConfig = ({ config }) => {
       reels: process.env.EXPO_PUBLIC_ADMOB_IOS_REELS_NATIVE_UNIT_ID,
     },
     isProductionBuild: appVariant.key === "production",
-    requestedMode: process.env.EXPO_PUBLIC_ADMOB_MODE,
+    requestedMode:
+      process.env.GONGGU_OTA_ADMOB_MODE ?? process.env.EXPO_PUBLIC_ADMOB_MODE,
     requestedRequestsEnabled:
+      process.env.GONGGU_OTA_AD_REQUESTS_ENABLED ??
       process.env.EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED,
   });
   const productionGoogleServicesFile = config.android?.googleServicesFile;
@@ -443,7 +461,7 @@ const createAppConfig = ({ config }) => {
     {
       ...config,
       name: appVariant.name,
-      runtimeVersion: resolveRuntimeVersion(),
+      runtimeVersion,
       scheme: appVariant.scheme,
       extra: {
         ...config.extra,
@@ -482,6 +500,7 @@ const createAppConfig = ({ config }) => {
       },
       android: {
         ...config.android,
+        ...(typeof runtimeVersion === "string" ? { runtimeVersion } : {}),
         package: appVariant.applicationId,
         googleServicesFile,
       },

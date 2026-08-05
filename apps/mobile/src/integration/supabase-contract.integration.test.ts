@@ -19,12 +19,15 @@ import { setAudiencePolicySnapshot } from "../audience/behaviorSignalsPolicy";
 import { configurePostgrest } from "../lib/postgrest-client";
 import {
   cleanupLocalFixture,
+  countDeepViewsByClientEventId,
   createLocalFixture,
   getLocalSupabaseConfig,
   hasLocalSupabaseConfig,
   invokeAdmin,
+  insertRetriedDeepView,
   phaseLog,
   readGroupBuyRow,
+  setRetriedBookmark,
   type LocalSupabaseConfig,
   type LocalSupabaseFixture,
 } from "./localSupabaseHarness";
@@ -266,6 +269,33 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
     }
   });
 
+  it("counts a retried deep-view event only once", async () => {
+    if (!fixture)
+      throw new Error("[local-supabase:setup] Fixture is unavailable");
+    const clientEventId = `gon263-deep-view-${Date.now()}`;
+
+    await insertRetriedDeepView(config, fixture.groupBuyIds[5], clientEventId);
+
+    await expect(
+      countDeepViewsByClientEventId(config, clientEventId),
+    ).resolves.toBe(1);
+  });
+
+  it("applies retried bookmark selection and removal idempotently", async () => {
+    if (!fixture)
+      throw new Error("[local-supabase:setup] Fixture is unavailable");
+    const sessionId = fixture.bookmarkSessionId;
+    const groupBuyId = fixture.groupBuyIds[5];
+
+    await expect(
+      setRetriedBookmark(config, groupBuyId, sessionId, true),
+    ).resolves.toBe(true);
+
+    await expect(
+      setRetriedBookmark(config, groupBuyId, sessionId, false),
+    ).resolves.toBe(false);
+  });
+
   it("keeps category, period, sort, and cursor consistent through the mobile ranking client", async () => {
     if (!fixture)
       throw new Error("[local-supabase:setup] Fixture is unavailable");
@@ -304,6 +334,34 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
     expect(todayFixture?.metrics.deepViews).toBe(6);
     expect(weeklyFixture?.metrics.deepViews).toBe(9);
     expect(weeklyFixture?.priceKrw).toBe(200000);
+    expect(
+      weekly.data.some(
+        (item) => item.groupBuyId === fixture?.groupBuyIds[3],
+      ),
+    ).toBe(true);
+    const expiredFixtureId = fixture.groupBuyIds[5];
+    expect(
+      weekly.data.some((item) => item.groupBuyId === expiredFixtureId),
+    ).toBe(false);
+
+    const allCategories = await fetchGroupBuyRankings({
+      category: "all",
+      period: "weekly",
+      sort: "popular",
+      limit: 100,
+    });
+    const uncategorizedFixtureId = fixture.groupBuyIds[4];
+    expect(
+      allCategories.data.find(
+        (item) => item.groupBuyId === uncategorizedFixtureId,
+      ),
+    ).toMatchObject({ category: null });
+    expect(
+      weekly.data.some((item) => item.groupBuyId === uncategorizedFixtureId),
+    ).toBe(false);
+    expect(
+      allCategories.data.some((item) => item.groupBuyId === expiredFixtureId),
+    ).toBe(false);
 
     for (const sort of ["rising", "deadlineSoon", "newDeal"] as const) {
       const response = await fetchGroupBuyRankings({

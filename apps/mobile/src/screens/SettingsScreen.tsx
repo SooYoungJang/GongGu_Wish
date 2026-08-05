@@ -18,7 +18,6 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { deleteAccount } from "../api";
 import { useAds } from "../ads/AdsContext";
-import { InstagramIdentity } from "../components/ui/InstagramIdentity";
 import { SText } from "../components/ui/SText";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { useAuth } from "../context/AuthContext";
@@ -35,6 +34,7 @@ import { getSupabase } from "../lib/supabase";
 import {
   getNotificationPermissionStatus,
   IS_EXPO_GO,
+  openNotificationSettings,
   registerForPushNotifications,
   type NotificationPermissionStatus,
 } from "../services/notifications";
@@ -75,12 +75,12 @@ export function SettingsScreen() {
   const { privacyOptionsRequired, showPrivacyOptions } = useAds();
   const { user, session, signOut } = useAuth();
   const accessToken = session?.access_token;
+  const accessTokenRef = useRef(accessToken);
+  accessTokenRef.current = accessToken;
   const {
     error: preferencesError,
     preferences,
     ready: preferencesReady,
-    toggleBrand,
-    toggleInfluencer,
     updatePreferences,
   } = useNotificationPreferences();
   const navigation =
@@ -97,12 +97,20 @@ export function SettingsScreen() {
   const [pendingPushEnabled, setPendingPushEnabled] = useState<boolean | null>(
     null,
   );
+  const [pendingMarketingPushEnabled, setPendingMarketingPushEnabled] =
+    useState<boolean | null>(null);
+  const [pendingSubmissionApprovalEnabled, setPendingSubmissionApprovalEnabled] =
+    useState<boolean | null>(null);
   const latestPushRevision = useRef(0);
   const pendingPushIntent = useRef<{ value: boolean; revision: number } | null>(
     null,
   );
   const pushWorkerRunning = useRef(false);
   const automatedE2E = isAutomatedE2E();
+  const controlsDisabled = !preferencesReady;
+  const pushEnabled =
+    isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
+  const dependentNotificationsDisabled = controlsDisabled || !pushEnabled;
   const [deleting, setDeleting] = useState(false);
   const [updatingAdPrivacy, setUpdatingAdPrivacy] = useState(false);
 
@@ -127,7 +135,11 @@ export function SettingsScreen() {
           return true;
         }
 
-        if (!accessToken) {
+        const currentAccessToken =
+          accessTokenRef.current ??
+          (await getSupabase().auth.getSession()).data.session?.access_token ??
+          null;
+        if (!currentAccessToken) {
           if (isLatest()) {
             Alert.alert(
               "로그인 정보를 확인해 주세요",
@@ -137,12 +149,12 @@ export function SettingsScreen() {
           return false;
         }
 
-        const result = await registerForPushNotifications(accessToken, {
+        const result = await registerForPushNotifications(currentAccessToken, {
           requestPermission: true,
           shouldContinue: () => canAuthenticateRef.current,
           onRegistrationCancelled: () =>
             syncNotificationPreferences(
-              accessToken,
+              currentAccessToken,
               DEFAULT_NOTIFICATION_PREFERENCES,
             ),
           refreshAuthToken: async () => {
@@ -181,12 +193,20 @@ export function SettingsScreen() {
             result.reason === "permission-denied" ? "denied" : "error",
           );
           if (isLatest()) {
-            Alert.alert(
-              "알림을 켤 수 없어요",
-              result.reason === "permission-denied"
-                ? "기기 설정에서 알림 권한을 허용해 주세요."
-                : "기기 알림 권한을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
-            );
+            if (result.reason === "permission-denied") {
+              const opened = await openNotificationSettings();
+              if (!opened) {
+                Alert.alert(
+                  "알림을 켤 수 없어요",
+                  "기기 설정에서 알림 권한을 허용해 주세요.",
+                );
+              }
+            } else {
+              Alert.alert(
+                "알림을 켤 수 없어요",
+                "기기 알림 권한을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+              );
+            }
           }
           return false;
         }
@@ -212,7 +232,7 @@ export function SettingsScreen() {
         return false;
       }
     },
-    [accessToken, automatedE2E, updatePreferences],
+    [automatedE2E, updatePreferences],
   );
 
   const drainPushIntents = useCallback(async () => {
@@ -231,50 +251,97 @@ export function SettingsScreen() {
     }
   }, [applyPushIntent]);
 
-  const handlePushChange = useCallback(
+  const runPushChange = useCallback(
     (value: boolean) => {
-      if (!requireAuth()) return;
-
+      setPendingMarketingPushEnabled(null);
+      setPendingSubmissionApprovalEnabled(null);
       const intent = { value, revision: ++latestPushRevision.current };
       pendingPushIntent.current = intent;
       setPendingPushEnabled(value);
-      if (pushWorkerRunning.current) return;
+      if (pushWorkerRunning.current) return Promise.resolve();
 
       pushWorkerRunning.current = true;
-      void drainPushIntents();
+      return drainPushIntents();
     },
-    [drainPushIntents, requireAuth],
+    [drainPushIntents],
+  );
+
+  const handlePushChange = useCallback(
+    (value: boolean) => {
+      if (!requireAuth(() => runPushChange(value))) return;
+      void runPushChange(value);
+    },
+    [requireAuth, runPushChange],
+  );
+
+  const runSubmissionApprovalChange = useCallback(
+    async (value: boolean) => {
+      const revision = ++latestPushRevision.current;
+      setPendingSubmissionApprovalEnabled(value);
+      try {
+        if (!value) {
+          await updatePreferences({ submissionApprovalEnabled: false });
+          return;
+        }
+
+        const registered = await applyPushIntent({ value: true, revision });
+        if (!registered || latestPushRevision.current !== revision) return;
+        await updatePreferences({ submissionApprovalEnabled: true });
+      } finally {
+        if (latestPushRevision.current === revision) {
+          setPendingSubmissionApprovalEnabled(null);
+        }
+      }
+    },
+    [applyPushIntent, updatePreferences],
   );
 
   const handleSubmissionApprovalChange = useCallback(
     (value: boolean) => {
-      if (!requireAuth()) return;
-      void updatePreferences({ submissionApprovalEnabled: value });
+      if (dependentNotificationsDisabled) return;
+      if (!requireAuth(() => runSubmissionApprovalChange(value))) return;
+      void runSubmissionApprovalChange(value);
     },
-    [requireAuth, updatePreferences],
+    [dependentNotificationsDisabled, requireAuth, runSubmissionApprovalChange],
   );
 
-  const handleFollowInfluencerPress = useCallback(
-    (target: string) => {
-      if (!requireAuth()) return;
-      void toggleInfluencer(target);
+  const runMarketingChange = useCallback(
+    async (value: boolean) => {
+      const revision = ++latestPushRevision.current;
+      setPendingMarketingPushEnabled(value);
+      try {
+        if (!value) {
+          await updatePreferences({ marketingPushEnabled: false });
+          return;
+        }
+
+        const registered = await applyPushIntent({ value: true, revision });
+        if (!registered || latestPushRevision.current !== revision) return;
+        await updatePreferences({ marketingPushEnabled: true });
+      } finally {
+        if (latestPushRevision.current === revision) {
+          setPendingMarketingPushEnabled(null);
+        }
+      }
     },
-    [requireAuth, toggleInfluencer],
+    [applyPushIntent, updatePreferences],
   );
 
-  const handleFollowBrandPress = useCallback(
-    (target: string) => {
-      if (!requireAuth()) return;
-      void toggleBrand(target);
+  const handleMarketingChange = useCallback(
+    (value: boolean) => {
+      if (dependentNotificationsDisabled) return;
+      if (!requireAuth(() => runMarketingChange(value))) return;
+      void runMarketingChange(value);
     },
-    [requireAuth, toggleBrand],
+    [dependentNotificationsDisabled, requireAuth, runMarketingChange],
   );
 
-  const controlsDisabled = !preferencesReady;
-  const pushEnabled =
-    isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
   const submissionApprovalEnabled =
-    isAuthenticated && preferences.submissionApprovalEnabled;
+    pushEnabled &&
+    (pendingSubmissionApprovalEnabled ?? preferences.submissionApprovalEnabled);
+  const marketingPushEnabled =
+    pushEnabled &&
+    (pendingMarketingPushEnabled ?? preferences.marketingPushEnabled);
   const permissionCopy = !isAuthenticated
     ? "로그인 후 원하는 알림을 직접 켤 수 있어요."
     : !pushEnabled
@@ -286,9 +353,17 @@ export function SettingsScreen() {
           : "앱 알림은 켜져 있지만 기기 권한 확인이 필요해요.";
 
   const performAccountDeletion = useCallback(async () => {
+    if (!accessToken) {
+      Alert.alert(
+        "로그인이 다시 필요해요",
+        "로그인 정보를 확인한 뒤 회원탈퇴를 다시 시도해주세요.",
+      );
+      return;
+    }
+
     setDeleting(true);
     try {
-      await deleteAccount();
+      await deleteAccount(accessToken);
       await clearLocalUserData(user?.id ? `user:${user.id}` : "guest");
       await signOut();
       navigation.goBack();
@@ -300,18 +375,18 @@ export function SettingsScreen() {
     } finally {
       setDeleting(false);
     }
-  }, [navigation, signOut, user]);
+  }, [accessToken, navigation, signOut, user]);
 
   const handleDeleteAccount = useCallback(() => {
     if (!user || deleting) return;
 
     Alert.alert(
-      "회원탈퇴",
-      "계정과 저장된 활동 데이터가 삭제되며 복구할 수 없어요. 정말 탈퇴할까요?",
+      "회원 탈퇴",
+      "정말 탈퇴하시겠습니까?\n탈퇴하면 계정과 저장된 활동 데이터가 삭제되며 복구할 수 없습니다.",
       [
         { text: "취소", style: "cancel" },
         {
-          text: "회원탈퇴",
+          text: "탈퇴하기",
           style: "destructive",
           onPress: () => void performAccountDeletion(),
         },
@@ -396,89 +471,95 @@ export function SettingsScreen() {
           </View>
           <View style={s.switchRow}>
             <View style={s.switchCopy}>
-              <SText variant="body" style={s.switchLabel}>
+              <SText
+                variant="body"
+                style={
+                  dependentNotificationsDisabled
+                    ? s.switchLabelDisabled
+                    : s.switchLabel
+                }
+              >
                 내 제보 승인 알림
               </SText>
-              <SText variant="caption" style={s.switchDescription}>
+              <SText
+                variant="caption"
+                style={
+                  dependentNotificationsDisabled
+                    ? s.switchDescriptionDisabled
+                    : s.switchDescription
+                }
+              >
                 내가 제보한 공구가 승인되면 알려드려요
               </SText>
             </View>
             <Switch
               accessibilityLabel="내 제보 승인 알림"
-              disabled={controlsDisabled || (isAuthenticated && !pushEnabled)}
+              accessibilityHint="푸시 알림을 먼저 켜야 설정할 수 있어요"
+              disabled={dependentNotificationsDisabled}
               onValueChange={(value) =>
                 void handleSubmissionApprovalChange(value)
               }
               thumbColor={
-                submissionApprovalEnabled ? colors.accent : colors.weak
+                dependentNotificationsDisabled
+                  ? colors.disabled
+                  : submissionApprovalEnabled
+                    ? colors.accent
+                    : colors.weak
               }
-              trackColor={{ false: colors.softBg, true: colors.accentSoft }}
+              trackColor={{
+                false: colors.softBg,
+                true: dependentNotificationsDisabled
+                  ? colors.softBg
+                  : colors.accentSoft,
+              }}
               testID="submission-approval-notification-toggle"
               value={submissionApprovalEnabled}
             />
           </View>
-
-          <View style={s.preferenceBlock}>
-            <SText variant="label" style={s.preferenceTitle}>
-              팔로우 알림
-            </SText>
-            <SText variant="caption" style={s.switchDescription}>
-              공구 상세에서 추가한 인플루언서와 브랜드예요. 탭하면 해제돼요.
-            </SText>
-            {preferences.followedInfluencers.length === 0 &&
-            preferences.followedBrands.length === 0 ? (
-              <SText variant="caption" style={s.emptyFollowText}>
-                아직 팔로우한 알림 대상이 없어요.
+          <View style={s.switchRow}>
+            <View style={s.switchCopy}>
+              <SText
+                variant="body"
+                style={
+                  dependentNotificationsDisabled
+                    ? s.switchLabelDisabled
+                    : s.switchLabel
+                }
+              >
+                마케팅 정보 수신
               </SText>
-            ) : (
-              <View style={s.followChipRow}>
-                {preferences.followedInfluencers.map((target) => (
-                  <Pressable
-                    accessibilityLabel={`@${target} 인플루언서 알림 해제`}
-                    accessibilityRole="button"
-                    key={`influencer:${target}`}
-                    onPress={() => handleFollowInfluencerPress(target)}
-                    style={({ pressed }) => [
-                      s.followChip,
-                      pressed && s.pressed,
-                    ]}
-                  >
-                    <InstagramIdentity
-                      textStyle={s.followChipText}
-                      username={target}
-                    />
-                    <Ionicons
-                      accessible={false}
-                      color={colors.accent}
-                      name="close"
-                      size={14}
-                    />
-                  </Pressable>
-                ))}
-                {preferences.followedBrands.map((target) => (
-                  <Pressable
-                    accessibilityLabel={`${target} 브랜드 알림 해제`}
-                    accessibilityRole="button"
-                    key={`brand:${target}`}
-                    onPress={() => handleFollowBrandPress(target)}
-                    style={({ pressed }) => [
-                      s.followChip,
-                      pressed && s.pressed,
-                    ]}
-                  >
-                    <SText style={s.followChipText} variant="caption">
-                      {target}
-                    </SText>
-                    <Ionicons
-                      accessible={false}
-                      color={colors.accent}
-                      name="close"
-                      size={14}
-                    />
-                  </Pressable>
-                ))}
-              </View>
-            )}
+              <SText
+                variant="caption"
+                style={
+                  dependentNotificationsDisabled
+                    ? s.switchDescriptionDisabled
+                    : s.switchDescription
+                }
+              >
+                새 공구·혜택·이벤트 소식을 받아요 (선택)
+              </SText>
+            </View>
+            <Switch
+              accessibilityLabel="마케팅 정보 수신"
+              accessibilityHint="광고성 푸시 알림 수신을 켜거나 끕니다"
+              disabled={dependentNotificationsDisabled}
+              onValueChange={(value) => void handleMarketingChange(value)}
+              thumbColor={
+                dependentNotificationsDisabled
+                  ? colors.disabled
+                  : marketingPushEnabled
+                    ? colors.accent
+                    : colors.weak
+              }
+              trackColor={{
+                false: colors.softBg,
+                true: dependentNotificationsDisabled
+                  ? colors.softBg
+                  : colors.accentSoft,
+              }}
+              testID="marketing-push-toggle"
+              value={marketingPushEnabled}
+            />
           </View>
 
           {preferencesError ? (
@@ -715,28 +796,9 @@ function makeStyles(
     },
     switchCopy: { flex: 1, gap: spacing.xs, paddingRight: spacing.md },
     switchLabel: { color: colors.text, fontWeight: "900" },
+    switchLabelDisabled: { color: colors.disabled, fontWeight: "900" },
     switchDescription: { color: colors.weak, fontWeight: "700" },
-    preferenceBlock: {
-      borderBottomColor: colors.borderLight,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      gap: spacing.sm,
-      paddingVertical: spacing.lg,
-    },
-    preferenceTitle: { color: colors.text, fontWeight: "900" },
-    followChipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-    followChip: {
-      alignItems: "center",
-      backgroundColor: colors.accentSoft,
-      borderRadius: radius.full,
-      flexDirection: "row",
-      gap: spacing.xs,
-      justifyContent: "center",
-      minHeight: 44,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs,
-    },
-    followChipText: { color: colors.accent, fontWeight: "900" },
-    emptyFollowText: { color: colors.weak, paddingVertical: spacing.sm },
+    switchDescriptionDisabled: { color: colors.disabled, fontWeight: "700" },
     preferenceError: {
       color: colors.error,
       fontWeight: "800",

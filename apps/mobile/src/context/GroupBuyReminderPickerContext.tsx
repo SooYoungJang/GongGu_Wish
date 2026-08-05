@@ -117,7 +117,7 @@ export function GroupBuyReminderPickerProvider({
 }: GroupBuyReminderPickerProviderProps) {
   const { colors } = useCommerceTheme();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { setAuthContinuation, user } = useAuth();
   const { preferences } = useNotificationPreferences();
   const {
     getNotificationReminderDays,
@@ -208,12 +208,8 @@ export function GroupBuyReminderPickerProvider({
     });
   }, [activeItem, backdropProgress, reduceMotion, sheetProgress]);
 
-  const openReminderPicker = useCallback(
+  const openReminderPickerNow = useCallback(
     (item: GroupBuy) => {
-      if (!user) {
-        onAuthenticationRequired?.();
-        return;
-      }
       const mode = getReminderPickerMode(item.startDate);
       const existingPreference = getNotificationReminderPreference(item.id);
       if (mode === "opening") {
@@ -250,10 +246,13 @@ export function GroupBuyReminderPickerProvider({
       backdropProgress,
       getNotificationReminderDays,
       getNotificationReminderPreference,
-      onAuthenticationRequired,
       sheetProgress,
-      user,
     ],
+  );
+
+  const openReminderPicker = useCallback(
+    (item: GroupBuy) => openReminderPickerNow(item),
+    [openReminderPickerNow],
   );
 
   const toggleDay = useCallback(
@@ -287,6 +286,27 @@ export function GroupBuyReminderPickerProvider({
     [activeItem?.startDate],
   );
 
+  const persistReminder = useCallback(
+    async (item: GroupBuy, reminderPreference: GroupBuyReminderUpdate) => {
+      try {
+        const state = await setNotificationReminders(item, reminderPreference);
+        if (state.status !== "failed") return;
+        Alert.alert(
+          "알림을 저장하지 못했어요",
+          "잠시 후 공구 카드의 알림 버튼에서 다시 시도해 주세요.",
+        );
+      } catch {
+        Alert.alert(
+          "알림을 저장하지 못했어요",
+          "네트워크 연결을 확인한 뒤 다시 시도해 주세요.",
+        );
+      }
+    },
+    [setNotificationReminders],
+  );
+  const latestPersistReminderRef = useRef(persistReminder);
+  latestPersistReminderRef.current = persistReminder;
+
   const persist = useCallback(
     (reminderDays: readonly OpeningReminderDay[]) => {
       if (!activeItem) return;
@@ -306,27 +326,24 @@ export function GroupBuyReminderPickerProvider({
               reminderTimeMinutes: null,
             };
       close();
-      void setNotificationReminders(item, reminderPreference)
-        .then((state) => {
-          if (state.status !== "failed") return;
-          Alert.alert(
-            "알림을 저장하지 못했어요",
-            "잠시 후 공구 카드의 알림 버튼에서 다시 시도해 주세요.",
-          );
-        })
-        .catch(() => {
-          Alert.alert(
-            "알림을 저장하지 못했어요",
-            "네트워크 연결을 확인한 뒤 다시 시도해 주세요.",
-          );
-        });
+      if (!user) {
+        setAuthContinuation(() =>
+          latestPersistReminderRef.current(item, reminderPreference),
+        );
+        onAuthenticationRequired?.();
+        return;
+      }
+      void persistReminder(item, reminderPreference);
     },
     [
       activeItem,
       close,
+      onAuthenticationRequired,
       reminderMode,
       reminderTimeMinutes,
-      setNotificationReminders,
+      persistReminder,
+      setAuthContinuation,
+      user,
     ],
   );
 
@@ -564,7 +581,7 @@ export function GroupBuyReminderPickerProvider({
 
             {notificationsPaused && !unavailableCopy ? (
               <SText style={s.pausedText} variant="caption">
-                푸시 알림이 꺼져 있어 선택만 저장돼요.
+                저장하면 푸시 알림도 함께 켜져요.
               </SText>
             ) : null}
 

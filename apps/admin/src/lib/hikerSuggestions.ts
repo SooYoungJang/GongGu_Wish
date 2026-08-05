@@ -173,6 +173,13 @@ function hasValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+export function resolveHikerSummary(
+  currentSummary: string,
+  caption: string | null | undefined,
+): string {
+  return caption || currentSummary;
+}
+
 function inferProductName(caption: string | null | undefined): string {
   for (const line of (caption ?? "").split(/\r?\n/)) {
     const productLine = normalizeProductLine(line);

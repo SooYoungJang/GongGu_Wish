@@ -11,6 +11,8 @@ export type GroupBuyStatus =
   | "REJECTED"
   | "EXPIRED";
 
+export type GroupBuyRequestStatus = "OPEN" | "FULFILLED" | "HIDDEN";
+
 export type MediaAsset = {
   url: string;
   mediaType: "IMAGE" | "VIDEO";
@@ -49,6 +51,7 @@ export type GongguSubmission = {
   productName: string | null;
   brandName: string | null;
   instagramUsername: string | null;
+  profileImageUrl?: string | null;
   category: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -84,6 +87,7 @@ export type GroupBuy = {
   productName: string | null;
   brandName: string | null;
   instagramUsername: string | null;
+  profileImageUrl?: string | null;
   category: string | null;
   startDate: string | null;
   endDate: string | null;
@@ -110,6 +114,15 @@ export type GroupBuy = {
   homeBannerEndDate: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type GroupBuyRequest = {
+  id: string;
+  productName: string;
+  status: GroupBuyRequestStatus;
+  requestCount: number;
+  createdAt: string;
+  latestRequestedAt: string | null;
 };
 
 export type DashboardResponse = {
@@ -144,6 +157,7 @@ export type PushNotificationInput = {
   body: string;
   data?: Record<string, unknown>;
   userIds?: string[];
+  marketing?: boolean;
 };
 
 export type PushNotificationResult = {
@@ -152,6 +166,7 @@ export type PushNotificationResult = {
     | "general"
     | "new_submission"
     | "deadline"
+    | "marketing"
     | "influencer"
     | "brand";
   targeted: number;
@@ -180,6 +195,7 @@ export type HikerLookupResult = {
   caption: string | null;
   likeCount: number | null;
   username: string | null;
+  profileImageUrl?: string | null;
   takenAt: string | null;
   suggestions?: HikerLlmSuggestions;
 };

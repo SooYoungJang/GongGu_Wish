@@ -265,6 +265,7 @@ function toRankingItem(row: RankingRpcRow): GroupBuyRankingItem {
     productName: row.product_name,
     brandName: row.brand_name,
     username: normalizeRankingUsername(row.username),
+    profileImageUrl: null,
     category: row.category as GroupBuyRankingItem["category"],
     thumbnailUrl: row.thumbnail_url,
     mediaUrls,

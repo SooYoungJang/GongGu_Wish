@@ -32,6 +32,8 @@ type OAuthCallbackResult =
   | { handled: false; error: null }
   | { handled: true; error: AuthError | null };
 
+export type AuthContinuation = () => void | Promise<void>;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AuthContextValue {
@@ -45,6 +47,12 @@ export interface AuthContextValue {
   isAudienceAuthIntentPending: boolean;
   /** Increments only when an explicit auth attempt applies its own session. */
   authCompletionRevision: number;
+  /** Store a user action to resume after a successful login. */
+  setAuthContinuation: (continuation: AuthContinuation | null) => void;
+  /** Take and clear the action that is waiting for successful login. */
+  takeAuthContinuation: () => AuthContinuation | null;
+  /** Clear a pending action when the login screen is dismissed. */
+  clearAuthContinuation: () => void;
   /** Login with email and password */
   signIn: (email: string, password: string) => Promise<AuthError | null>;
   /** Sign up with email, password, and optional metadata (nickname, etc.) */
@@ -182,6 +190,7 @@ export function AuthProvider({
   const [isAudienceAuthIntentPending, setIsAudienceAuthIntentPending] =
     useState(false);
   const [authCompletionRevision, setAuthCompletionRevision] = useState(0);
+  const authContinuationRef = useRef<AuthContinuation | null>(null);
   const isLoading = audiencePolicy.canAuthenticate && !sessionRestoreComplete;
   const canAuthenticateRef = useRef(audiencePolicy.canAuthenticate);
   const audienceAuthIntentRef = useRef(false);
@@ -204,10 +213,36 @@ export function AuthProvider({
     setIsAudienceAuthIntentPending(true);
   }, []);
 
+  const resumeOAuthAudienceAuthIntent = useCallback(() => {
+    // A persisted OAuth attempt is created only after the old local session is
+    // cleared. On a cold callback, mark that preparation as already complete:
+    // signing out here would delete Supabase's persisted PKCE code verifier.
+    audienceAuthIntentRef.current = true;
+    audienceAuthIntentPreparedRef.current = true;
+    setIsAudienceAuthIntentPending(true);
+  }, []);
+
   const cancelAudienceAuthIntent = useCallback(() => {
     audienceAuthIntentRef.current = false;
     audienceAuthIntentPreparedRef.current = false;
     setIsAudienceAuthIntentPending(false);
+  }, []);
+
+  const setAuthContinuation = useCallback(
+    (continuation: AuthContinuation | null) => {
+      authContinuationRef.current = continuation;
+    },
+    [],
+  );
+
+  const takeAuthContinuation = useCallback(() => {
+    const continuation = authContinuationRef.current;
+    authContinuationRef.current = null;
+    return continuation;
+  }, []);
+
+  const clearAuthContinuation = useCallback(() => {
+    authContinuationRef.current = null;
   }, []);
 
   const clearOAuthAttempt = useCallback(async () => {
@@ -325,8 +360,7 @@ export function AuthProvider({
         return { handled: false, error: null };
       }
 
-      startAudienceAuthIntent();
-      await prepareAudienceAuthIntent();
+      resumeOAuthAudienceAuthIntent();
       const code = getAuthCodeFromUrl(url);
       await clearOAuthAttempt();
       if (!code) {
@@ -361,9 +395,8 @@ export function AuthProvider({
       cancelAudienceAuthIntent,
       clearOAuthAttempt,
       loadOAuthAttempt,
-      prepareAudienceAuthIntent,
       rejectIfPolicyChanged,
-      startAudienceAuthIntent,
+      resumeOAuthAudienceAuthIntent,
     ],
   );
 
@@ -783,6 +816,9 @@ export function AuthProvider({
       isLoading,
       isAudienceAuthIntentPending,
       authCompletionRevision,
+      setAuthContinuation,
+      takeAuthContinuation,
+      clearAuthContinuation,
       signIn,
       signUp,
       signUpWithEmailCode,
@@ -800,6 +836,9 @@ export function AuthProvider({
       isLoading,
       isAudienceAuthIntentPending,
       authCompletionRevision,
+      setAuthContinuation,
+      takeAuthContinuation,
+      clearAuthContinuation,
       signIn,
       signUp,
       signUpWithEmailCode,

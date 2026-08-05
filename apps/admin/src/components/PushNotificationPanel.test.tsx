@@ -84,6 +84,47 @@ describe("PushNotificationPanel", () => {
     );
   });
 
+  it("sends a marketing flag for the consent-filtered audience", async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn().mockResolvedValue({
+      provider: "expo",
+      audienceType: "marketing",
+      targeted: 1,
+      sent: 1,
+      failed: 0,
+      preferenceFiltered: 2,
+      invalidTokensRemoved: 0,
+    });
+    const onSearchUsers = vi
+      .fn()
+      .mockResolvedValue({ items: users, total: users.length });
+
+    render(
+      <PushNotificationPanel onSearchUsers={onSearchUsers} onSend={onSend} />,
+    );
+    await user.click(
+      screen.getByRole("radio", { name: /^마케팅 수신동의 사용자/ }),
+    );
+    await user.type(screen.getByRole("textbox", { name: /^제목/ }), "이번 주 특가");
+    await user.type(
+      screen.getByRole("textbox", { name: /^본문/ }),
+      "새로운 공구 소식이에요",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "마케팅 수신동의 사용자에게 발송" }),
+    );
+    await user.click(screen.getByRole("button", { name: "확인하고 발송" }));
+
+    expect(onSend).toHaveBeenCalledWith({
+      title: "이번 주 특가",
+      body: "새로운 공구 소식이에요",
+      marketing: true,
+    });
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "사용자 설정 제외 2명",
+    );
+  });
+
   it("blocks invalid JSON before sending", async () => {
     const user = userEvent.setup();
     const onSend = vi.fn();

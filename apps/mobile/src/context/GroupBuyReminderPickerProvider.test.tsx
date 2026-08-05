@@ -22,6 +22,20 @@ const preferenceMocks = vi.hoisted(() => ({
     pushEnabled: true,
     deadlineRemindersEnabled: true,
   },
+  updatePreferences: vi.fn(async (patch: { pushEnabled?: boolean }) => {
+    if (patch.pushEnabled !== undefined) {
+      preferenceMocks.preferences.pushEnabled = patch.pushEnabled;
+    }
+    return preferenceMocks.preferences;
+  }),
+}));
+const authMocks = vi.hoisted(() => ({
+  user: { id: "user-1" } as { id: string } | null,
+  setAuthContinuation: vi.fn(),
+}));
+const notificationServiceMocks = vi.hoisted(() => ({
+  ensureNotificationPermission: vi.fn(async () => true),
+  requestNotificationPermissions: vi.fn(async () => true),
 }));
 
 vi.mock("../hooks/useLocalDeals", () => ({
@@ -40,8 +54,10 @@ vi.mock("@expo/ui/datetimepicker", () => ({
 }));
 
 vi.mock("./AuthContext", () => ({
-  useAuth: () => ({ user: { id: "user-1" } }),
+  useAuth: () => authMocks,
 }));
+
+vi.mock("../services/notifications", () => notificationServiceMocks);
 
 vi.mock("./NotificationPreferencesContext", () => ({
   useNotificationPreferences: () => preferenceMocks,
@@ -106,12 +122,68 @@ function PickerHarness({ item: target = item }: { item?: GroupBuy }) {
 
 describe("GroupBuyReminderPickerProvider", () => {
   beforeEach(() => {
+    authMocks.user = { id: "user-1" };
+    authMocks.setAuthContinuation.mockClear();
     notificationMocks.enabled = false;
     notificationMocks.reminderDays = [];
     notificationMocks.reminderPreference = null;
     notificationMocks.setNotificationReminders.mockClear();
     preferenceMocks.preferences.pushEnabled = true;
     preferenceMocks.preferences.deadlineRemindersEnabled = true;
+    preferenceMocks.updatePreferences.mockClear();
+    notificationServiceMocks.ensureNotificationPermission.mockClear();
+    notificationServiceMocks.requestNotificationPermissions.mockClear();
+  });
+
+  it("enables app push when a card notification is opened while push is off", async () => {
+    preferenceMocks.preferences.pushEnabled = false;
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <GroupBuyReminderPickerProvider>
+          <PickerHarness />
+        </GroupBuyReminderPickerProvider>,
+      );
+    });
+
+    await act(async () => {
+      renderer!.root
+        .findByProps({ testID: "open-reminder-picker" })
+        .props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(
+      notificationServiceMocks.ensureNotificationPermission,
+    ).not.toHaveBeenCalled();
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "group-buy-reminder-day-2" })
+        .props.onPress(),
+    );
+    notificationMocks.setNotificationReminders.mockImplementationOnce(
+      async () => {
+        await notificationServiceMocks.ensureNotificationPermission();
+        if (!preferenceMocks.preferences.pushEnabled) {
+          await preferenceMocks.updatePreferences({ pushEnabled: true });
+        }
+        return { status: "enabled" };
+      },
+    );
+    await act(async () => {
+      renderer!.root
+        .findByProps({ testID: "group-buy-reminder-save" })
+        .props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(
+      notificationServiceMocks.ensureNotificationPermission,
+    ).toHaveBeenCalledOnce();
+    expect(preferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
+    expect(renderer!.root.findByProps({ animationType: "none" })).toBeTruthy();
   });
 
   it("opens immediately with seven unselected reminder dates", () => {
@@ -204,6 +276,74 @@ describe("GroupBuyReminderPickerProvider", () => {
     );
   });
 
+  it("shows the picker to guests and gates login at save before permission", async () => {
+    authMocks.user = null;
+    const onAuthenticationRequired = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <GroupBuyReminderPickerProvider
+          onAuthenticationRequired={onAuthenticationRequired}
+        >
+          <PickerHarness />
+        </GroupBuyReminderPickerProvider>,
+      );
+    });
+
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "open-reminder-picker" })
+        .props.onPress(),
+    );
+
+    expect(renderer!.root.findByProps({ animationType: "none" })).toBeTruthy();
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "group-buy-reminder-day-2" })
+        .props.onPress(),
+    );
+    notificationMocks.setNotificationReminders.mockImplementationOnce(
+      async () => {
+        await notificationServiceMocks.ensureNotificationPermission();
+        return { status: "enabled" };
+      },
+    );
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "group-buy-reminder-save" })
+        .props.onPress(),
+    );
+
+    expect(onAuthenticationRequired).toHaveBeenCalledOnce();
+    expect(authMocks.setAuthContinuation).toHaveBeenCalledOnce();
+    const continuation = authMocks.setAuthContinuation.mock.calls[0][0];
+
+    authMocks.user = { id: "user-1" };
+    await act(async () => {
+      renderer!.update(
+        <GroupBuyReminderPickerProvider
+          onAuthenticationRequired={onAuthenticationRequired}
+        >
+          <PickerHarness />
+        </GroupBuyReminderPickerProvider>,
+      );
+      await continuation();
+      await Promise.resolve();
+    });
+
+    expect(
+      notificationServiceMocks.ensureNotificationPermission,
+    ).toHaveBeenCalledOnce();
+    expect(notificationMocks.setNotificationReminders).toHaveBeenCalledWith(
+      item,
+      {
+        type: "deadline",
+        reminderDays: [2],
+        reminderTimeMinutes: null,
+      },
+    );
+  });
+
   it("ignores the legacy deadline preference when global push is enabled", () => {
     preferenceMocks.preferences.deadlineRemindersEnabled = false;
     let renderer: TestRenderer.ReactTestRenderer;
@@ -242,7 +382,7 @@ describe("GroupBuyReminderPickerProvider", () => {
     );
 
     expect(JSON.stringify(renderer!.toJSON())).toContain(
-      "푸시 알림이 꺼져 있어 선택만 저장돼요.",
+      "저장하면 푸시 알림도 함께 켜져요.",
     );
   });
 

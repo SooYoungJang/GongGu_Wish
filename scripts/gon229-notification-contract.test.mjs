@@ -100,13 +100,17 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(notificationPayload, /AUTH_REDIRECT_URL/);
   assert.match(notificationPayload, /NOTIFICATION_URL_PREFIX/);
   assert.doesNotMatch(flow, /푸시 테스트/);
+  assert.match(
+    preferencesFlow,
+    /id: "push-notification-toggle"[\s\S]*?text: "공구위시 로그인 화면"/,
+  );
   assert.match(preferencesFlow, /text: "공구위시 로그인 화면"/);
   assert.match(preferencesFlow, /id: "fl-input-email"/);
   assert.match(preferencesFlow, /id: "fl-input-password"/);
   assert.match(preferencesFlow, /id: "auth-login-submit"/);
   assert.match(
     preferencesFlow,
-    /id: "auth-login-submit"[\s\S]*?text: "마이페이지"[\s\S]*?text: "설정 열기"[\s\S]*?text: "알림 설정"[\s\S]*?id: "submission-approval-notification-toggle"/,
+    /id: "auth-login-submit"[\s\S]*?text: "알림 설정"[\s\S]*?id: "submission-approval-notification-toggle"/,
   );
   assert.match(
     preferencesFlow,
@@ -121,11 +125,14 @@ test("Android notification runtime covers consent, deep links, and persistence",
     /scrollUntilVisible:[\s\S]*?id: "group-buy-reminder-button-gon263-e2e-beauty"[\s\S]*?direction: DOWN/,
   );
   assert.match(authScreen, /testID="auth-login-submit"/);
-  assert.match(flow, /id: "follow-influencer-notifications"/);
+  assert.match(flow, /id: "detail-notification-toggle"/);
   assert.match(flow, /id: "group-buy-reminder-day-1"/);
-  assert.match(flow, /text: "@gon263_price 인플루언서 알림 해제"/);
-  assert.match(flow, /text: "GON-263 Brand 브랜드 알림 해제"/);
-  assert.match(flow, /centerElement: true/);
+  assert.match(flow, /text: "알림 설정"/);
+  assert.doesNotMatch(flow, /follow-influencer-notifications/);
+  assert.doesNotMatch(flow, /follow-brand-notifications/);
+  assert.doesNotMatch(flow, /팔로우 알림/);
+  assert.doesNotMatch(flow, /@gon263_price 인플루언서 알림 해제/);
+  assert.doesNotMatch(flow, /GON-263 Brand 브랜드 알림 해제/);
   assert.doesNotMatch(flow, /@gon263_price ×/);
   assert.match(runner, /android\.intent\.action\.VIEW/);
   assert.match(expoConfig, /preview:[\s\S]*?scheme: "gongguwish-preview"/);
@@ -242,13 +249,13 @@ test("notification and bookmark actions require authentication", () => {
   assert.match(detail, /const handleBookmarkPress/);
   assert.match(detail, /if \(!requireAuth\(\)\) return/);
   assert.match(detail, /onPress=\{handleBookmarkPress\}/);
-  assert.match(detail, /handleInfluencerFollowPress/);
-  assert.match(detail, /handleBrandFollowPress/);
+  assert.doesNotMatch(detail, /handleInfluencerFollowPress/);
+  assert.doesNotMatch(detail, /handleBrandFollowPress/);
   assert.match(store, /handleToggleNotification/);
   assert.match(store, /if \(!requireAuth\(\)\) return/);
   assert.match(settings, /const pushEnabled\s*=\s*isAuthenticated/);
-  assert.match(settings, /const handleFollowInfluencerPress/);
-  assert.match(settings, /const handleFollowBrandPress/);
+  assert.doesNotMatch(settings, /const handleFollowInfluencerPress/);
+  assert.doesNotMatch(settings, /const handleFollowBrandPress/);
   assert.match(
     myPage,
     /const handleRemoveBookmark[\s\S]*?if \(!requireAuth\(\)\) return;[\s\S]*?removeBookmark\(item\.id\)/,
@@ -289,9 +296,9 @@ test("approved submissions deliver preference-aware approval push", () => {
     preferenceContract,
     /case "submission_approved":[\s\S]*?row\.submission_approval_notifications_enabled === true/,
   );
-  assert.match(publicSubmission, /deliverPendingSubmissionApprovalPushes/);
-  assert.match(
-    publicSubmission,
-    /const submission = await markSubmissionApproved\([\s\S]*?const notificationDelivery = await deliverApprovalPush\(/,
-  );
+  assert.match(adminApi, /finalize_gonggu_submission_approval/);
+  assert.match(adminApi, /deliverPendingSubmissionApprovalPushes/);
+  assert.match(publicSubmission, /status: "PENDING"/);
+  assert.doesNotMatch(publicSubmission, /markSubmissionApproved/);
+  assert.doesNotMatch(publicSubmission, /upsertApprovedGroupBuy/);
 });

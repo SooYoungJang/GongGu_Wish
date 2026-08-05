@@ -1,5 +1,5 @@
 import type { NotificationTriggerInput } from "expo-notifications";
-import { Platform } from "react-native";
+import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
 
 import { callEdgeFunction } from "../lib/postgrest-client";
@@ -94,6 +94,46 @@ export type CancelScheduledNotificationResult =
   | { status: "unsupported"; reason: "expo-go" | "native-module" }
   | { status: "failed"; reason: "cancel-failed" };
 
+export type NotificationScheduleOptions = GroupBuyReminderScheduleOptions & {
+  requestPermission?: boolean;
+};
+
+export type NotificationPermissionStatus =
+  | "granted"
+  | "denied"
+  | "undetermined"
+  | "unsupported"
+  | "error";
+
+type NotificationPermissionResponse = {
+  status?: string;
+  canAskAgain?: boolean | null;
+};
+
+type NotificationPermissionSnapshot = {
+  status: NotificationPermissionStatus;
+  canAskAgain: boolean | null;
+};
+
+function canRequestNotificationPermission(
+  response: NotificationPermissionResponse,
+): boolean {
+  if (response.status === "denied") return response.canAskAgain === true;
+  return response.canAskAgain !== false;
+}
+
+function shouldOpenNotificationSettings(
+  response: NotificationPermissionResponse,
+): boolean {
+  return response.status === "denied" && response.canAskAgain !== true;
+}
+
+function shouldRequestNotificationPermission(
+  options?: number | NotificationScheduleOptions,
+): boolean {
+  return typeof options !== "object" || options.requestPermission !== false;
+}
+
 async function getNotificationAvailability(
   requestPermission = true,
 ): Promise<NotificationAvailability> {
@@ -120,17 +160,22 @@ async function getNotificationAvailability(
       ]);
     }
 
-    const existingStatus = await Notifications.getPermissionsAsync();
+    const existingStatus =
+      (await Notifications.getPermissionsAsync()) as NotificationPermissionResponse;
     let finalStatus = existingStatus;
-    const currentStatus = (existingStatus as { status?: string }).status;
+    const currentStatus = existingStatus.status;
     if (currentStatus !== "granted") {
+      if (!canRequestNotificationPermission(existingStatus)) {
+        return { status: "unavailable", reason: "permission-denied" };
+      }
       if (!requestPermission) {
         return { status: "unavailable", reason: "permission-denied" };
       }
-      finalStatus = await Notifications.requestPermissionsAsync();
+      finalStatus =
+        (await Notifications.requestPermissionsAsync()) as NotificationPermissionResponse;
     }
 
-    const finalStatusValue = (finalStatus as { status?: string }).status;
+    const finalStatusValue = finalStatus.status;
     if (finalStatusValue !== "granted") {
       return { status: "unavailable", reason: "permission-denied" };
     }
@@ -145,25 +190,57 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   return (await getNotificationAvailability()).status === "available";
 }
 
-export type NotificationPermissionStatus =
-  | "granted"
-  | "denied"
-  | "undetermined"
-  | "unsupported"
-  | "error";
+async function getNotificationPermissionSnapshot(): Promise<NotificationPermissionSnapshot> {
+  if (IS_EXPO_GO) return { status: "unsupported", canAskAgain: null };
+  const Notifications = await getNotifications();
+  if (!Notifications) return { status: "unsupported", canAskAgain: null };
+  try {
+    const result =
+      (await Notifications.getPermissionsAsync()) as NotificationPermissionResponse;
+    const status = result.status;
+    return {
+      status:
+        status === "granted" || status === "denied" ? status : "undetermined",
+      canAskAgain:
+        typeof result.canAskAgain === "boolean" ? result.canAskAgain : null,
+    };
+  } catch {
+    return { status: "error", canAskAgain: null };
+  }
+}
 
 export async function getNotificationPermissionStatus(): Promise<NotificationPermissionStatus> {
-  if (IS_EXPO_GO) return "unsupported";
-  const Notifications = await getNotifications();
-  if (!Notifications) return "unsupported";
+  return (await getNotificationPermissionSnapshot()).status;
+}
+
+export async function openNotificationSettings(): Promise<boolean> {
   try {
-    const result = await Notifications.getPermissionsAsync();
-    const status = (result as { status?: string }).status;
-    if (status === "granted" || status === "denied") return status;
-    return "undetermined";
+    await Linking.openSettings();
+    return true;
   } catch {
-    return "error";
+    return false;
   }
+}
+
+export async function ensureNotificationPermission(): Promise<boolean> {
+  const permission = await getNotificationPermissionSnapshot();
+  if (permission.status === "granted") return true;
+  if (permission.status === "unsupported" || permission.status === "error") {
+    return false;
+  }
+  if (!canRequestNotificationPermission(permission)) {
+    if (shouldOpenNotificationSettings(permission)) {
+      await openNotificationSettings();
+    }
+    return false;
+  }
+
+  if (await requestNotificationPermissions()) return true;
+  const afterRequest = await getNotificationPermissionSnapshot();
+  if (shouldOpenNotificationSettings(afterRequest)) {
+    await openNotificationSettings();
+  }
+  return false;
 }
 
 export function getEasProjectId(): string | null {
@@ -375,7 +452,7 @@ export async function scheduleGroupBuyReminders(
   productName: string | null,
   endDate: string | null,
   reminderDays: readonly NotificationReminderDay[],
-  options?: number | GroupBuyReminderScheduleOptions,
+  options?: number | NotificationScheduleOptions,
 ): Promise<ScheduleGroupBuyRemindersResult> {
   const url = buildGroupBuyNotificationUrl(groupBuyId);
   if (!url) return { status: "failed", reason: "invalid-group-buy-id" };
@@ -389,7 +466,9 @@ export async function scheduleGroupBuyReminders(
     return { status: "unavailable", reason: "past-reminder-window" };
   }
 
-  const availability = await getNotificationAvailability();
+  const availability = await getNotificationAvailability(
+    shouldRequestNotificationPermission(options),
+  );
   if (availability.status !== "available") return availability;
   const Notifications = await getNotifications();
   if (!Notifications) return { status: "unsupported", reason: "native-module" };
@@ -461,7 +540,7 @@ export async function scheduleGroupBuyOpeningReminders(
   startDate: string | null,
   reminderDays: readonly OpeningReminderDay[],
   reminderTimeMinutes: number,
-  options?: number | GroupBuyReminderScheduleOptions,
+  options?: number | NotificationScheduleOptions,
 ): Promise<ScheduleGroupBuyOpeningRemindersResult> {
   const normalizedGroupBuyId = groupBuyId.trim();
   const url = buildGroupBuyNotificationUrl(normalizedGroupBuyId);
@@ -490,7 +569,9 @@ export async function scheduleGroupBuyOpeningReminders(
     return { status: "unavailable", reason: "past-reminder-window" };
   }
 
-  const availability = await getNotificationAvailability();
+  const availability = await getNotificationAvailability(
+    shouldRequestNotificationPermission(options),
+  );
   if (availability.status !== "available") return availability;
   const Notifications = await getNotifications();
   if (!Notifications) return { status: "unsupported", reason: "native-module" };

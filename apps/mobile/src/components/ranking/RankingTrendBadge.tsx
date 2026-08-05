@@ -1,8 +1,12 @@
 import { useMemo } from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { SText } from "../ui/SText";
-import type { CommerceColorPalette } from "../../design/commerce";
+import {
+  commerceRadius,
+  commerceSpacing,
+  type CommerceColorPalette,
+} from "../../design/commerce";
 import { useCommerceTheme } from "../../design/useCommerceTheme";
 import type { RankingTrend } from "../../features/ranking/types";
 
@@ -13,13 +17,29 @@ export interface RankingTrendBadgeProps {
 function getTrendStyle(trend: RankingTrend, colors: CommerceColorPalette) {
   switch (trend.kind) {
     case "up":
-      return { label: `▲${trend.delta}위`, text: colors.accent };
+      return {
+        background: colors.accentSoft,
+        label: `▲${trend.delta}`,
+        text: colors.accent,
+      };
     case "down":
-      return { label: `▼${trend.delta}위`, text: colors.blue };
+      return {
+        background: colors.blueSoft,
+        label: `▼${trend.delta}`,
+        text: colors.blue,
+      };
     case "new":
-      return { label: "NEW", text: colors.success };
+      return {
+        background: colors.successSoft,
+        label: "NEW",
+        text: colors.success,
+      };
     default:
-      return { label: "-", text: colors.weak };
+      return {
+        background: colors.softBg,
+        label: "-",
+        text: colors.weak,
+      };
   }
 }
 
@@ -29,17 +49,35 @@ export function RankingTrendBadge({ trend }: RankingTrendBadgeProps) {
   const styles = useMemo(() => makeStyles(), []);
 
   return (
-    <SText variant="caption" style={[styles.text, { color: palette.text }]}>
-      {palette.label}
-    </SText>
+    <View
+      style={[styles.badge, { backgroundColor: palette.background }]}
+      testID={`ranking-trend-badge-${trend.kind}`}
+    >
+      <SText variant="caption" style={[styles.text, { color: palette.text }]}>
+        {palette.label}
+      </SText>
+    </View>
   );
 }
 
 function makeStyles() {
   return StyleSheet.create({
+    badge: {
+      alignItems: "center",
+      borderCurve: "continuous",
+      borderRadius: commerceRadius.full,
+      flexShrink: 0,
+      justifyContent: "center",
+      minHeight: 24,
+      paddingHorizontal: commerceSpacing.xs,
+      paddingVertical: commerceSpacing.xxs,
+    },
     text: {
+      flexShrink: 0,
       fontSize: 11,
       fontWeight: "900",
+      includeFontPadding: false,
+      lineHeight: 16,
       minWidth: 24,
       textAlign: "center",
     },

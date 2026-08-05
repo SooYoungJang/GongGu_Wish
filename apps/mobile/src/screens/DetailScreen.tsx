@@ -75,6 +75,7 @@ import {
 } from "./reelsAdPlacement";
 import { PriceText } from "../components/ui/PriceText";
 import { InstagramIdentity } from "../components/ui/InstagramIdentity";
+import { InstagramProfileAvatar } from "../components/ui/InstagramProfileAvatar";
 import {
   useBookmarks,
   useNotifications,
@@ -87,16 +88,16 @@ import {
   REELS_SUMMARY_SHEET_ANIMATION_MS,
 } from "../design/bottomSheetMotion";
 import { useTheme } from "../context/ThemeContext";
-import { useNotificationPreferences } from "../context/NotificationPreferencesContext";
 import { useGroupBuyReminderPicker } from "../context/GroupBuyReminderPickerContext";
 import { usePostAudioPlayer } from "../hooks/usePostAudioPlayer";
 import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
-import { formatEndDate, getDaysRemaining } from "../utils";
+import { formatDateRange, getDaysRemaining } from "../utils";
 import { normalizeForSearch } from "../utils/search";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useAuthGate } from "../hooks/useAuthGate";
 import { useFocusedAndroidBackHandler } from "../navigation/androidBack";
+import { buildGroupBuyShareUrl } from "../services/notificationPayload";
 import {
   DEEP_VIEW_THRESHOLD_MS,
   isPlaybackEligible,
@@ -907,7 +908,8 @@ function DetailSearchSheet({
                         ) : null}
                         {sellerName ? (
                           <InstagramIdentity
-                            iconTestID={`detail-search-instagram-icon-${item.id}`}
+                            avatarTestID={`detail-search-instagram-avatar-${item.id}`}
+                            profileImageUrl={item.rawPost.influencer.profileImageUrl}
                             style={s.detailSearchInstagram}
                             textStyle={s.detailSearchInstagramText}
                             tone="inverse"
@@ -928,7 +930,7 @@ function DetailSearchSheet({
                           style={s.detailSearchResultMeta}
                           variant="caption"
                         >
-                          · {formatEndDate(item.endDate)}
+                          · {formatDateRange(item.startDate, item.endDate)}
                         </SText>
                       </View>
                     </View>
@@ -1103,13 +1105,6 @@ function ProductReelPageComponent({
   }, [groupBuy.id, isActive, postAudio.hasError, resolvedPostAudio.url]);
   const { colors } = useTheme();
   const { isAuthenticated, requireAuth } = useAuthGate();
-  const {
-    preferences,
-    ready: notificationPreferencesReady,
-    saving: notificationPreferencesSaving,
-    toggleBrand,
-    toggleInfluencer,
-  } = useNotificationPreferences();
   const [summaryScrollContentHeight, setSummaryScrollContentHeight] =
     useState(0);
   const [summaryScrollViewportHeight, setSummaryScrollViewportHeight] =
@@ -1155,10 +1150,9 @@ function ProductReelPageComponent({
             ? "알림 변경"
             : "알림";
   const handleNotificationPress = useCallback(() => {
-    if (!requireAuth()) return;
     openReminderPicker(groupBuy);
-  }, [groupBuy, openReminderPicker, requireAuth]);
-  const deadlineLabel = formatEndDate(groupBuy.endDate);
+  }, [groupBuy, openReminderPicker]);
+  const deadlineLabel = formatDateRange(groupBuy.startDate, groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
   const isUrgent = daysRemaining >= 0 && daysRemaining <= 3;
@@ -1168,35 +1162,10 @@ function ProductReelPageComponent({
     ) ?? "";
   const sellerHandle = sellerName ? `@${sellerName}` : null;
   const categoryLabel = getGroupBuyCategoryLabel(groupBuy.category);
-  const isInfluencerFollowed =
-    isAuthenticated &&
-    preferences.followedInfluencers.some(
-      (target) =>
-        target.toLocaleLowerCase("en-US") ===
-        sellerName.toLocaleLowerCase("en-US"),
-    );
-  const brandName = groupBuy.brandName?.trim() ?? "";
-  const isBrandFollowed =
-    isAuthenticated &&
-    preferences.followedBrands.some(
-      (target) =>
-        target.toLocaleLowerCase("en-US") ===
-        brandName.toLocaleLowerCase("en-US"),
-    );
-  const followControlsDisabled =
-    !notificationPreferencesReady || notificationPreferencesSaving;
   const handleBookmarkPress = useCallback(() => {
     if (!requireAuth()) return;
     toggleBookmark(groupBuy);
   }, [groupBuy, requireAuth, toggleBookmark]);
-  const handleInfluencerFollowPress = useCallback(() => {
-    if (!requireAuth()) return;
-    void toggleInfluencer(sellerName);
-  }, [requireAuth, sellerName, toggleInfluencer]);
-  const handleBrandFollowPress = useCallback(() => {
-    if (!requireAuth()) return;
-    void toggleBrand(brandName);
-  }, [brandName, requireAuth, toggleBrand]);
   const summary = groupBuy.summary ?? groupBuy.discountInfo ?? "";
   const summarySheetMaxHeight = Math.max(
     280,
@@ -1747,9 +1716,16 @@ function ProductReelPageComponent({
   const handleShare = async () => {
     const productName = groupBuy.productName ?? "공동구매";
     const sellerSuffix = sellerHandle ? ` (${sellerHandle})` : "";
+    const shareUrl = buildGroupBuyShareUrl(groupBuy.id);
+
+    if (!shareUrl) {
+      Alert.alert("오류", "공유 링크를 만들 수 없습니다.");
+      return;
+    }
+
     try {
       await Share.share({
-        message: `${productName}${sellerSuffix}\n${groupBuy.purchaseUrl ?? groupBuy.rawPost.postUrl}`,
+        message: `${productName}${sellerSuffix}\n${shareUrl}`,
       });
     } catch {
       Alert.alert("오류", "공유에 실패했습니다.");
@@ -2078,13 +2054,18 @@ function ProductReelPageComponent({
           <View style={s.bottomInfoScrim} pointerEvents="none" />
           {sellerHandle ? (
             <View style={s.sellerRow}>
-              <View style={s.avatar}>
-                <SText variant="caption" style={s.avatarText}>
-                  {sellerName.slice(0, 1).toUpperCase()}
-                </SText>
-              </View>
+              <InstagramProfileAvatar
+                imageTestID={`detail-reel-profile-image-${groupBuy.id}`}
+                profileImageUrl={groupBuy.rawPost.influencer.profileImageUrl}
+                size={38}
+                style={s.avatar}
+                testID={`detail-reel-profile-avatar-${groupBuy.id}`}
+                tone="inverse"
+                username={sellerName}
+              />
               <InstagramIdentity
-                iconTestID={`detail-reel-instagram-icon-${groupBuy.id}`}
+                profileImageUrl={groupBuy.rawPost.influencer.profileImageUrl}
+                showAvatar={false}
                 size="title"
                 style={s.sellerIdentity}
                 textStyle={s.sellerName}
@@ -2093,79 +2074,6 @@ function ProductReelPageComponent({
               />
             </View>
           ) : null}
-
-          <View style={s.followTargetRow}>
-            {sellerName ? (
-              <Pressable
-                accessibilityLabel={`@${sellerName} 인플루언서 알림 ${isInfluencerFollowed ? "해제" : "설정"}`}
-                accessibilityRole="checkbox"
-                accessibilityState={{
-                  checked: isInfluencerFollowed,
-                  disabled: followControlsDisabled,
-                }}
-                disabled={followControlsDisabled}
-                onPress={handleInfluencerFollowPress}
-                style={({ pressed }) => [
-                  s.followTargetChip,
-                  isInfluencerFollowed && s.followTargetChipActive,
-                  pressed && s.pressed,
-                ]}
-                testID="follow-influencer-notifications"
-              >
-                <Ionicons
-                  color={isInfluencerFollowed ? colors.accent : "#FFFFFF"}
-                  name={
-                    isInfluencerFollowed
-                      ? "notifications"
-                      : "notifications-outline"
-                  }
-                  size={14}
-                />
-                <SText
-                  style={[
-                    s.followTargetText,
-                    isInfluencerFollowed && s.followTargetTextActive,
-                  ]}
-                  variant="caption"
-                >
-                  인플루언서 알림
-                </SText>
-              </Pressable>
-            ) : null}
-            {brandName ? (
-              <Pressable
-                accessibilityLabel={`${brandName} 브랜드 알림 ${isBrandFollowed ? "해제" : "설정"}`}
-                accessibilityRole="checkbox"
-                accessibilityState={{
-                  checked: isBrandFollowed,
-                  disabled: followControlsDisabled,
-                }}
-                disabled={followControlsDisabled}
-                onPress={handleBrandFollowPress}
-                style={({ pressed }) => [
-                  s.followTargetChip,
-                  isBrandFollowed && s.followTargetChipActive,
-                  pressed && s.pressed,
-                ]}
-                testID="follow-brand-notifications"
-              >
-                <Ionicons
-                  color={isBrandFollowed ? colors.accent : "#FFFFFF"}
-                  name={isBrandFollowed ? "pricetag" : "pricetag-outline"}
-                  size={14}
-                />
-                <SText
-                  style={[
-                    s.followTargetText,
-                    isBrandFollowed && s.followTargetTextActive,
-                  ]}
-                  variant="caption"
-                >
-                  브랜드 알림
-                </SText>
-              </Pressable>
-            ) : null}
-          </View>
 
           <SText variant="cardTitle" style={s.productName} numberOfLines={2}>
             {groupBuy.productName ?? "제품명 미확인"}
@@ -2201,7 +2109,7 @@ function ProductReelPageComponent({
               ]}
             >
               <SText variant="caption" style={s.metaPillText}>
-                {isExpired ? "마감" : isUrgent ? "마감 임박" : deadlineLabel}
+                {deadlineLabel}
               </SText>
             </View>
             {categoryLabel ? (
@@ -2257,16 +2165,21 @@ function ProductReelPageComponent({
                 <View style={s.summarySheetHeader}>
                   <View style={s.summarySheetSeller}>
                     {sellerHandle ? (
-                      <View style={s.summarySheetAvatar}>
-                        <SText variant="caption" style={s.avatarText}>
-                          {sellerName.slice(0, 1).toUpperCase()}
-                        </SText>
-                      </View>
+                      <InstagramProfileAvatar
+                        imageTestID={`detail-summary-profile-image-${groupBuy.id}`}
+                        profileImageUrl={groupBuy.rawPost.influencer.profileImageUrl}
+                        size={48}
+                        style={s.summarySheetAvatar}
+                        testID={`detail-summary-profile-avatar-${groupBuy.id}`}
+                        tone="inverse"
+                        username={sellerName}
+                      />
                     ) : null}
                     <View style={s.summarySheetTitleBlock}>
                       {sellerHandle ? (
                         <InstagramIdentity
-                          iconTestID={`detail-summary-instagram-icon-${groupBuy.id}`}
+                          profileImageUrl={groupBuy.rawPost.influencer.profileImageUrl}
+                          showAvatar={false}
                           size="body"
                           textStyle={s.summarySheetSellerName}
                           tone="inverse"
@@ -3439,11 +3352,6 @@ export function makeStyles(
       justifyContent: "center",
       width: 38,
     },
-    avatarText: {
-      color: "#FFFFFF",
-      fontSize: 14,
-      fontWeight: "900",
-    },
     sellerName: {
       fontSize: 16,
       fontWeight: "800",
@@ -3454,32 +3362,6 @@ export function makeStyles(
     sellerIdentity: {
       flex: 1,
     },
-    followTargetRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: spacing.xs,
-      marginBottom: spacing.xs,
-      marginTop: spacing.xs,
-    },
-    followTargetChip: {
-      alignItems: "center",
-      backgroundColor: "rgba(0, 0, 0, 0.34)",
-      borderColor: "rgba(255, 255, 255, 0.34)",
-      borderRadius: 999,
-      borderWidth: 1,
-      flexDirection: "row",
-      gap: spacing.xs,
-      justifyContent: "center",
-      minHeight: 36,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
-    },
-    followTargetChipActive: {
-      backgroundColor: "rgba(255, 255, 255, 0.92)",
-      borderColor: colors.accent,
-    },
-    followTargetText: { color: "#FFFFFF", fontWeight: "900" },
-    followTargetTextActive: { color: colors.accent },
     productName: {
       color: "#FFFFFF",
       fontSize: 16,

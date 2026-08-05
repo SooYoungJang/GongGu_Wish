@@ -16,7 +16,17 @@ import {
   type CdnRefreshStatusRow,
   mapCdnRefreshStatusRow,
 } from "./cdnRefreshStatus.ts";
+import { mapAdminGroupBuyRequestList } from "./groupBuyRequestContract.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
+import {
+  hasInstagramOwnerChanged,
+  normalizeInstagramUsername,
+  normalizeProfileImageUrl,
+  parseInstagramUsernameWrite,
+  parseProfileImageWriteIntent,
+  type ProfileImageWriteIntent,
+  resolveCanonicalProfileImageWriteIntent,
+} from "./influencerProfile.ts";
 import {
   deliverPendingSubmissionApprovalPushes,
   type SubmissionApprovalDeliverySummary,
@@ -61,6 +71,7 @@ const SUBMISSION_SELECT = `
   product_name,
   brand_name,
   instagram_username,
+  profile_image_url,
   category,
   start_date,
   end_date,
@@ -96,6 +107,12 @@ const GROUP_BUY_SELECT = `
   product_name,
   brand_name,
   instagram_username,
+  influencer_id,
+  influencer:influencer_id (
+    id,
+    instagram_username,
+    profile_image_url
+  ),
   category,
   start_date,
   end_date,
@@ -341,8 +358,16 @@ function normalizeSubmissionPatch(
 
   if (hasOwn(body, "productName")) patch.product_name = str(body.productName);
   if (hasOwn(body, "brandName")) patch.brand_name = str(body.brandName);
-  if (hasOwn(body, "instagramUsername"))
-    patch.instagram_username = str(body.instagramUsername);
+  if (hasOwn(body, "instagramUsername")) {
+    patch.instagram_username = parseInstagramUsernameWrite(
+      body.instagramUsername,
+    );
+  }
+  if (hasOwn(body, "profileImageUrl"))
+    patch.profile_image_url = parseProfileImageWriteIntent(
+      body.profileImageUrl,
+      true,
+    ).profileImageUrl;
   if (hasOwn(body, "category")) patch.category = str(body.category);
   if (hasOwn(body, "startDate")) patch.start_date = str(body.startDate);
   if (hasOwn(body, "endDate")) patch.end_date = str(body.endDate);
@@ -373,8 +398,11 @@ function normalizeGroupBuyPatch(
 
   if (hasOwn(body, "productName")) patch.product_name = str(body.productName);
   if (hasOwn(body, "brandName")) patch.brand_name = str(body.brandName);
-  if (hasOwn(body, "instagramUsername"))
-    patch.instagram_username = str(body.instagramUsername);
+  if (hasOwn(body, "instagramUsername")) {
+    patch.instagram_username = parseInstagramUsernameWrite(
+      body.instagramUsername,
+    );
+  }
   if (hasOwn(body, "category")) patch.category = str(body.category);
   if (hasOwn(body, "startDate")) patch.start_date = str(body.startDate);
   if (hasOwn(body, "endDate")) patch.end_date = str(body.endDate);
@@ -441,6 +469,7 @@ function mapSubmission(
     productName: row.product_name,
     brandName: row.brand_name,
     instagramUsername: row.instagram_username,
+    profileImageUrl: normalizeProfileImageUrl(row.profile_image_url),
     category: row.category,
     startDate: row.start_date,
     endDate: row.end_date,
@@ -472,12 +501,28 @@ function mapSubmission(
   };
 }
 
+function relatedInfluencerRecord(
+  row: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const relatedInfluencer = Array.isArray(row.influencer)
+    ? row.influencer[0]
+    : row.influencer;
+  return relatedInfluencer && typeof relatedInfluencer === "object"
+    ? (relatedInfluencer as Record<string, unknown>)
+    : null;
+}
+
 function mapGroupBuy(row: Record<string, unknown>) {
+  const influencer = relatedInfluencerRecord(row);
+
   return {
     id: row.id,
     productName: row.product_name,
     brandName: row.brand_name,
-    instagramUsername: row.instagram_username,
+    instagramUsername:
+      row.instagram_username ?? influencer?.instagram_username ?? null,
+    influencerId: row.influencer_id,
+    profileImageUrl: normalizeProfileImageUrl(influencer?.profile_image_url),
     category: row.category,
     startDate: row.start_date,
     endDate: row.end_date,
@@ -571,6 +616,32 @@ async function listGroupBuys(
     items: (data ?? []).map((row) => mapGroupBuy(row)),
     total: count ?? 0,
   };
+}
+
+async function listGroupBuyRequests(
+  supabase: AdminClient,
+  params: AdminRequest["params"],
+) {
+  const page = Math.min(
+    Math.floor(listParam(params, "page", 1)),
+    1_000_000,
+  );
+  const limit = Math.min(Math.floor(listParam(params, "limit", 30)), 100);
+  const status = str(params?.status);
+  const q = sanitizeSearch(str(params?.q));
+  const { data, error } = await supabase.rpc("get_admin_group_buy_requests", {
+    p_page: page,
+    p_limit_count: limit,
+    p_status: status,
+    p_query: q,
+  });
+
+  if (error) {
+    console.error("Failed to list group-buy requests", error);
+    throw new Error("공구 요청 목록을 불러오지 못했습니다.");
+  }
+
+  return mapAdminGroupBuyRequestList(data);
 }
 
 async function dashboard(supabase: AdminClient) {
@@ -672,14 +743,27 @@ async function updateSubmission(
 ) {
   const { data: existing, error: findError } = await supabase
     .from("gonggu_submissions")
-    .select("is_home_banner, home_banner_start_date, home_banner_end_date")
+    .select(
+      "instagram_username, profile_image_url, is_home_banner, home_banner_start_date, home_banner_end_date",
+    )
     .eq("id", id)
     .single();
   if (findError) throw new Error(findError.message);
 
+  const patch = compact(normalizeSubmissionPatch(body, existing));
+  if (
+    hasOwn(body, "instagramUsername") &&
+    hasInstagramOwnerChanged(
+      existing.instagram_username,
+      body.instagramUsername,
+    ) && !hasOwn(body, "profileImageUrl")
+  ) {
+    patch.profile_image_url = null;
+  }
+
   const { data, error } = await supabase
     .from("gonggu_submissions")
-    .update(compact(normalizeSubmissionPatch(body, existing)))
+    .update(patch)
     .eq("id", id)
     .select(SUBMISSION_SELECT)
     .single();
@@ -707,20 +791,44 @@ async function approveSubmission(
   }
 
   const patch = compact(normalizeSubmissionPatch(body, existing));
+  const requestedInstagramUsername = hasOwn(body, "instagramUsername")
+    ? body.instagramUsername
+    : existing.instagram_username;
+  const ownerChanged = hasInstagramOwnerChanged(
+    existing.instagram_username,
+    requestedInstagramUsername,
+  );
+  if (ownerChanged && !hasOwn(body, "profileImageUrl")) {
+    patch.profile_image_url = null;
+  }
   const priceTouched = hasOwn(body, "priceKrw") || hasOwn(body, "price_krw");
   const productName = str(body.productName) ?? str(existing.product_name);
   if (!productName || productName.length < 2) {
     throw new Error("제품명을 입력해주세요.");
   }
+  const existingProfileImageUrl = normalizeProfileImageUrl(
+    existing.profile_image_url,
+  );
+
+  const instagramUsername = parseInstagramUsernameWrite(
+    requestedInstagramUsername,
+  );
+  const profileImageValue = hasOwn(body, "profileImageUrl")
+    ? body.profileImageUrl
+    : !ownerChanged && existingProfileImageUrl
+      ? existingProfileImageUrl
+      : undefined;
+  const profileImageWrite = resolveCanonicalProfileImageWriteIntent(
+    profileImageValue,
+    hasOwn(body, "profileImageUrl") || Boolean(profileImageValue),
+    ownerChanged,
+  );
 
   const groupBuyPayload = compact({
     product_name: productName,
     brand_name: hasOwn(body, "brandName")
       ? str(body.brandName)
       : existing.brand_name,
-    instagram_username: hasOwn(body, "instagramUsername")
-      ? str(body.instagramUsername)
-      : existing.instagram_username,
     category: hasOwn(body, "category") ? str(body.category) : existing.category,
     start_date: hasOwn(body, "startDate")
       ? str(body.startDate)
@@ -771,44 +879,48 @@ async function approveSubmission(
     home_banner_end_date: hasOwn(patch, "home_banner_end_date")
       ? patch.home_banner_end_date
       : existing.home_banner_end_date,
-    source_type: "SUBMISSION",
-    submission_id: id,
-    status: "APPROVED",
     confidence: hasOwn(body, "confidence") ? num(body.confidence, 0.9) : 0.9,
-    updated_at: new Date().toISOString(),
   });
 
-  const { data: groupBuy, error: groupBuyError } = await supabase
-    .from("group_buys")
-    .insert({
-      id: crypto.randomUUID(),
-      ...groupBuyPayload,
-      created_at: new Date().toISOString(),
-    })
-    .select(GROUP_BUY_SELECT)
-    .single();
-
-  if (groupBuyError) throw new Error(groupBuyError.message);
-
-  const { data: submission, error: submissionError } = await supabase
-    .from("gonggu_submissions")
-    .update({
-      ...patch,
-      status: "APPROVED",
-      group_buy_id: groupBuy.id,
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: adminId,
-      admin_memo: str(body.adminMemo),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select(SUBMISSION_SELECT)
-    .single();
-
-  if (submissionError) {
-    await supabase.from("group_buys").delete().eq("id", groupBuy.id);
-    throw new Error(submissionError.message);
+  const groupBuyId = crypto.randomUUID();
+  const { error: finalizeError } = await supabase.rpc(
+    "finalize_gonggu_submission_approval",
+    {
+      p_submission_id: id,
+      p_group_buy_id: groupBuyId,
+      p_admin_id: adminId,
+      p_expected_submission_updated_at: existing.updated_at,
+      p_group_buy_payload: groupBuyPayload,
+      p_submission_patch: patch,
+      p_instagram_username: instagramUsername,
+      p_profile_image_url: profileImageWrite.profileImageUrl,
+      p_update_profile_image: profileImageWrite.shouldUpdate,
+    },
+  );
+  if (finalizeError) {
+    throw new Error(finalizeError.message);
   }
+
+  const [submissionResponse, groupBuyResponse] = await Promise.all([
+    supabase
+      .from("gonggu_submissions")
+      .select(SUBMISSION_SELECT)
+      .eq("id", id)
+      .single(),
+    supabase
+      .from("group_buys")
+      .select(GROUP_BUY_SELECT)
+      .eq("id", groupBuyId)
+      .single(),
+  ]);
+  if (submissionResponse.error) {
+    throw new Error(submissionResponse.error.message);
+  }
+  if (groupBuyResponse.error) {
+    throw new Error(groupBuyResponse.error.message);
+  }
+  const submission = submissionResponse.data;
+  const approvedGroupBuy = groupBuyResponse.data;
   let notificationDelivery: SubmissionApprovalDeliverySummary;
   try {
     notificationDelivery = await deliverPendingSubmissionApprovalPushes(
@@ -820,7 +932,7 @@ async function approveSubmission(
       JSON.stringify({
         event: "submission_approval_push_queue_failed",
         submissionId: id,
-        groupBuyId: groupBuy.id,
+        groupBuyId: approvedGroupBuy.id,
         error:
           error instanceof Error
             ? error.message.slice(0, 500)
@@ -842,7 +954,7 @@ async function approveSubmission(
       (await getSubmissionNotificationDeliveries(supabase, [id])).get(id) ??
         null,
     ),
-    groupBuy: mapGroupBuy(groupBuy),
+    groupBuy: mapGroupBuy(approvedGroupBuy),
     notificationDelivery,
   };
 }
@@ -1149,6 +1261,9 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   if (path === "/admin/group-buys" && method === "GET") {
     return listGroupBuys(supabase, params);
   }
+  if (path === "/admin/group-buy-requests" && method === "GET") {
+    return listGroupBuyRequests(supabase, params);
+  }
   if (path === "/admin/users" && method === "GET") {
     return listUsers(supabase, params);
   }
@@ -1162,16 +1277,68 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
     const id = path.replace("/admin/group-buys/", "");
     const { data: existing, error: findError } = await supabase
       .from("group_buys")
-      .select("is_home_banner, home_banner_start_date, home_banner_end_date")
+      .select(
+        "instagram_username, influencer_id, influencer:influencer_id(instagram_username), is_home_banner, home_banner_start_date, home_banner_end_date",
+      )
       .eq("id", id)
       .single();
     if (findError) throw new Error(findError.message);
 
+    const groupBuyPatch = compact(normalizeGroupBuyPatch(body, existing));
+    const ownerTouched =
+      hasOwn(body, "instagramUsername") || hasOwn(body, "profileImageUrl");
+    let instagramUsername: string | null = null;
+    let profileImageWrite: ProfileImageWriteIntent = {
+      shouldUpdate: false,
+      profileImageUrl: null,
+    };
+    if (ownerTouched) {
+      const existingInfluencer = relatedInfluencerRecord(existing);
+      const existingInstagramUsername =
+        normalizeInstagramUsername(existing.instagram_username) ??
+        normalizeInstagramUsername(existingInfluencer?.instagram_username);
+      const profileInput: Record<string, unknown> = {
+        ...body,
+        instagramUsername: hasOwn(body, "instagramUsername")
+          ? body.instagramUsername
+          : existingInstagramUsername,
+      };
+      const ownerChanged = hasInstagramOwnerChanged(
+        existingInstagramUsername,
+        profileInput.instagramUsername,
+      );
+      instagramUsername = parseInstagramUsernameWrite(
+        profileInput.instagramUsername,
+      );
+      profileImageWrite = resolveCanonicalProfileImageWriteIntent(
+        profileInput.profileImageUrl,
+        hasOwn(body, "profileImageUrl"),
+        ownerChanged,
+      );
+      delete groupBuyPatch.instagram_username;
+    }
+
+    const { error: updateError } = await supabase.rpc(
+      "update_group_buy_with_influencer_profile",
+      {
+        p_group_buy_id: id,
+        p_expected_influencer_id:
+          typeof existing.influencer_id === "string"
+            ? existing.influencer_id
+            : null,
+        p_patch: groupBuyPatch,
+        p_owner_touched: ownerTouched,
+        p_instagram_username: instagramUsername,
+        p_profile_image_url: profileImageWrite.profileImageUrl,
+        p_update_profile_image: profileImageWrite.shouldUpdate,
+      },
+    );
+    if (updateError) throw new Error(updateError.message);
+
     const { data, error } = await supabase
       .from("group_buys")
-      .update(compact(normalizeGroupBuyPatch(body, existing)))
-      .eq("id", id)
       .select(GROUP_BUY_SELECT)
+      .eq("id", id)
       .single();
     if (error) throw new Error(error.message);
     return mapGroupBuy(data);

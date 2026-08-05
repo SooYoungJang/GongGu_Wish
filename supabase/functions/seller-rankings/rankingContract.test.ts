@@ -8,8 +8,51 @@ import {
   buildRankingResponse,
   decodeRankingCursor,
   encodeRankingCursor,
+  invokeRankingRpcWithFallback,
+  loadRankingProfileImageUrls,
   normalizeRankingRequest,
 } from "./rankingContract.ts";
+
+Deno.test("falls back to ranking v2 only while v3 is not deployed", async () => {
+  const calls: string[] = [];
+  const response = await invokeRankingRpcWithFallback(
+    async (functionName) => {
+      calls.push(functionName);
+      if (functionName === "get_group_buy_rankings_v3") {
+        return {
+          data: null,
+          error: {
+            code: "PGRST202",
+            message: "Could not find public.get_group_buy_rankings_v3",
+          },
+        };
+      }
+      return { data: [], error: null };
+    },
+    { category_filter: "all" },
+  );
+
+  assertEquals(calls, [
+    "get_group_buy_rankings_v3",
+    "get_group_buy_rankings_v2",
+  ]);
+  assertEquals(response, { data: [], error: null });
+});
+
+Deno.test("does not hide a ranking v3 execution failure", async () => {
+  const calls: string[] = [];
+  const databaseError = { code: "42501", message: "permission denied" };
+  const response = await invokeRankingRpcWithFallback(
+    async (functionName) => {
+      calls.push(functionName);
+      return { data: null, error: databaseError };
+    },
+    { category_filter: "all" },
+  );
+
+  assertEquals(calls, ["get_group_buy_rankings_v3"]);
+  assertEquals(response, { data: null, error: databaseError });
+});
 
 Deno.test(
   "normalizes the group-buy ranking request without hidden defaults",
@@ -237,6 +280,41 @@ Deno.test(
   },
 );
 
+Deno.test("preserves an uncategorized ranking row", () => {
+  const response = buildRankingResponse(
+    [
+      {
+        group_buy_id: "group-buy-uncategorized",
+        rank: 1,
+        previous_rank: null,
+        trend_kind: "new",
+        trend_delta: 0,
+        product_name: "카테고리 미지정 공구",
+        brand_name: null,
+        username: null,
+        category: null,
+        thumbnail_url: null,
+        media_urls: [],
+        start_date: null,
+        end_date: null,
+        price_krw: null,
+        created_at: "2026-08-02T00:00:00.000Z",
+        deep_views: 1,
+        bookmarks: 1,
+        notifications: 1,
+        search_clicks: 0,
+        score: 7,
+        score_delta: 7,
+        score_version: "v2",
+      },
+    ],
+    normalizeRankingRequest({ category: "all" }),
+    "2026-08-02T00:00:00.000Z",
+  );
+
+  assertEquals(response.data[0].category, null);
+});
+
 Deno.test(
   "derives the trend delta from rank movement instead of score delta",
   () => {
@@ -307,6 +385,91 @@ Deno.test("normalizes an unavailable ranking Instagram account to null", () => {
   );
 
   assertEquals(response.data[0].username, null);
+  assertEquals(response.data[0].profileImageUrl, null);
+});
+
+Deno.test(
+  "loads ranking profile images with one normalized batch query",
+  async () => {
+    const requestedUsernames: string[][] = [];
+    const profileImages = await loadRankingProfileImageUrls(
+      [
+        { username: "@Seller.One" },
+        { username: " seller_two " },
+        { username: "seller.one" },
+        { username: "unsafe,username" },
+        { username: null },
+      ],
+      (usernames) => {
+        requestedUsernames.push([...usernames]);
+        return Promise.resolve({
+          data: [
+            {
+              instagram_username: "@SELLER.ONE",
+              profile_image_url:
+                " https://scontent-test.cdninstagram.com/seller-one.jpg ",
+            },
+            {
+              instagram_username: "Seller_Two",
+              profile_image_url: "not-a-url",
+            },
+          ],
+          error: null,
+        });
+      },
+    );
+
+    assertEquals(requestedUsernames, [["seller.one", "seller_two"]]);
+    assertEquals(
+      profileImages.get("seller.one"),
+      "https://scontent-test.cdninstagram.com/seller-one.jpg",
+    );
+    assertEquals(profileImages.get("seller_two"), null);
+  },
+);
+
+Deno.test("attaches a matched profile image without changing ranking data", () => {
+  const response = buildRankingResponse(
+    [
+      {
+        group_buy_id: "group-buy-with-profile",
+        rank: 1,
+        previous_rank: null,
+        trend_kind: "new",
+        trend_delta: 0,
+        product_name: "프로필 이미지 공구",
+        brand_name: null,
+        username: "@Seller.One",
+        category: "food",
+        thumbnail_url: null,
+        media_urls: [],
+        start_date: null,
+        end_date: null,
+        price_krw: null,
+        created_at: "2026-08-02T00:00:00.000Z",
+        deep_views: 1,
+        bookmarks: 0,
+        notifications: 0,
+        search_clicks: 0,
+        score: 3,
+        score_delta: 3,
+        score_version: "v2",
+      },
+    ],
+    normalizeRankingRequest({ sort: "popular" }),
+    "2026-08-02T00:00:00.000Z",
+    new Map([
+      ["seller.one", "https://cdn.example.com/seller-one.jpg"],
+    ]),
+  );
+
+  assertEquals(response.data[0].username, "Seller.One");
+  assertEquals(
+    response.data[0].profileImageUrl,
+    "https://cdn.example.com/seller-one.jpg",
+  );
+  assertEquals(response.data[0].rank, 1);
+  assertEquals(response.pageInfo.nextCursor, null);
 });
 
 Deno.test("marks an item NEW when its previous score was zero", () => {

@@ -64,6 +64,7 @@ function sampleRanking(
       score: 100 - rank,
       scoreDelta: 0,
     },
+    profileImageUrl: null,
     scoreVersion: "v2",
     ...overrides,
   };
@@ -235,9 +236,9 @@ describe("RankingTopThree", () => {
     ).toBeTruthy();
     expect(text).toContain("지금 가장 인기 있는 공구");
     expect(text).not.toContain("순위 등락으로 달라진 관심을 확인해보세요");
-    expect(text).toContain("▲16위");
+    expect(text).toContain("▲16");
     expect(text).toContain("NEW");
-    expect(text).toContain("▼2위");
+    expect(text).toContain("▼2");
     expect(text).not.toContain("인기지수");
     expect(text).toContain("마감");
     expect(text).toContain("상품 이미지 준비 중");

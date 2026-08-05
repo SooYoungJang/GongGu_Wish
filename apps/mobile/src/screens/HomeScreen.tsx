@@ -23,7 +23,10 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 
@@ -37,6 +40,7 @@ import { NativeAdCard } from "../components/ads/NativeAdCard";
 import { CATEGORIES } from "../components/home/CategoryRow";
 import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
+import { HomeRequestTicker } from "../components/home/HomeRequestTicker";
 import { fetchGroupBuys, fetchHomeBannerGroupBuys } from "../api";
 import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
@@ -52,6 +56,11 @@ import type { CommerceColorPalette } from "../design/commerce";
 import type { GroupBuy, HomeScreenProps } from "../types";
 import { useAccessibilityAutoPlayPause } from "../hooks/useAccessibilityAutoPlayPause";
 import { useTabReselect } from "../hooks/useTabReselect";
+import { getHomeRequestTickerBottomOffset } from "../navigation/tabBarMetrics";
+import {
+  useGroupBuyRequestRankings,
+  type GroupBuyRequestRanking,
+} from "../features/groupBuyRequests";
 import promoScrimSource from "../assets/promo-scrim.png";
 
 type HomeAction = () => void;
@@ -66,6 +75,7 @@ const HOME_CATEGORY_OPTIONS: Array<{ key: HomeCategory; label: string }> = [
 type HomeScreenContentProps = {
   groupBuys: GroupBuy[];
   homeBannerGroupBuys?: GroupBuy[];
+  groupBuyRequestRankings?: GroupBuyRequestRanking[];
   isError: boolean;
   isFetching: boolean;
   isLoading?: boolean;
@@ -73,6 +83,7 @@ type HomeScreenContentProps = {
   onOpenSearch: HomeAction;
   onOpenCalendar: HomeAction;
   onPressDeal: DealAction;
+  onPressGroupBuyRequestRanking?: Dispatch<string>;
   scrollToTopRequest?: number | null;
 };
 
@@ -586,9 +597,10 @@ function PromoBanner({
             >
               {instagramHandle ? (
                 <InstagramIdentity
-                  iconTestID={
-                    clone ? undefined : `promo-account-icon-${item.id}`
+                  avatarTestID={
+                    clone ? undefined : `promo-account-avatar-${item.id}`
                   }
+                  profileImageUrl={item.rawPost.influencer.profileImageUrl}
                   size="compact"
                   style={s.promoAccountRow}
                   testID={clone ? undefined : `promo-account-${item.id}`}
@@ -762,8 +774,7 @@ function buildHomeAdInsertionPoints(ids: string[]): Set<number> {
   if (largestFirstGap < HOME_AD_GAP_MIN) return points;
   const random = seedRandomFromIds(ids);
   const randomGap = (max = HOME_AD_GAP_MAX) =>
-    Math.floor(random() * (max - HOME_AD_GAP_MIN + 1)) +
-    HOME_AD_GAP_MIN;
+    Math.floor(random() * (max - HOME_AD_GAP_MIN + 1)) + HOME_AD_GAP_MIN;
   let gap = randomGap(largestFirstGap);
   let index = gap - 1;
   while (index < ids.length) {
@@ -834,6 +845,7 @@ function RecommendedProducts({
 export function HomeScreenContent({
   groupBuys,
   homeBannerGroupBuys,
+  groupBuyRequestRankings = [],
   isError,
   isFetching,
   isLoading = false,
@@ -841,9 +853,11 @@ export function HomeScreenContent({
   onOpenSearch,
   onOpenCalendar,
   onPressDeal,
+  onPressGroupBuyRequestRanking,
   scrollToTopRequest = null,
 }: HomeScreenContentProps) {
   const { colors, isDark } = useCommerceTheme();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [selectedCategory, setSelectedCategory] = useState<HomeCategory>("all");
   const categoryFilterTopRef = useRef<number | null>(null);
@@ -867,6 +881,7 @@ export function HomeScreenContent({
     Math.round((width - promoCardWidth) / 2),
   );
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const requestTickerBottom = getHomeRequestTickerBottomOffset(insets.bottom);
 
   useEffect(() => {
     if (scrollToTopRequest == null) return;
@@ -992,6 +1007,13 @@ export function HomeScreenContent({
             />
           </View>
         ) : null}
+        <HomeRequestTicker
+          onPressRanking={
+            onPressGroupBuyRequestRanking ?? (() => onOpenSearch())
+          }
+          rankings={groupBuyRequestRankings}
+          style={[s.requestTickerDock, { bottom: requestTickerBottom }]}
+        />
       </View>
     </SafeAreaView>
   );
@@ -1009,13 +1031,14 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
   });
-  const {
-    data: homeBannerData,
-    refetch: refetchHomeBanners,
-  } = useQuery({
+  const { data: homeBannerData, refetch: refetchHomeBanners } = useQuery({
     queryKey: ["home-banner-group-buys", homeBannerDateKey],
     queryFn: () => fetchHomeBannerGroupBuys(),
   });
+  const {
+    data: groupBuyRequestRankings = [],
+    refetch: refetchGroupBuyRequestRankings,
+  } = useGroupBuyRequestRankings();
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -1024,10 +1047,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       const now = new Date();
       const nextMidnight = new Date(now);
       nextMidnight.setHours(24, 0, 0, 0);
-      timer = setTimeout(() => {
-        setHomeBannerDateKey(getHomeBannerDateKey());
-        scheduleNextDateCheck();
-      }, Math.max(1, nextMidnight.getTime() - now.getTime()));
+      timer = setTimeout(
+        () => {
+          setHomeBannerDateKey(getHomeBannerDateKey());
+          scheduleNextDateCheck();
+        },
+        Math.max(1, nextMidnight.getTime() - now.getTime()),
+      );
     };
 
     scheduleNextDateCheck();
@@ -1039,11 +1065,15 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
     try {
-      await Promise.all([refetch(), refetchHomeBanners()]);
+      await Promise.all([
+        refetch(),
+        refetchHomeBanners(),
+        refetchGroupBuyRequestRankings(),
+      ]);
     } finally {
       setIsManualRefreshing(false);
     }
-  }, [refetch, refetchHomeBanners]);
+  }, [refetch, refetchGroupBuyRequestRankings, refetchHomeBanners]);
 
   const handleHomeTabReselect = useCallback(() => {
     setScrollToTopRequest((request) => (request ?? 0) + 1);
@@ -1056,13 +1086,18 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   useFocusEffect(
     useCallback(() => {
-      void Promise.all([refetch(), refetchHomeBanners()]);
-    }, [refetch, refetchHomeBanners]),
+      void Promise.all([
+        refetch(),
+        refetchHomeBanners(),
+        refetchGroupBuyRequestRankings(),
+      ]);
+    }, [refetch, refetchGroupBuyRequestRankings, refetchHomeBanners]),
   );
 
   return (
     <HomeScreenContent
       groupBuys={groupBuys}
+      groupBuyRequestRankings={groupBuyRequestRankings}
       homeBannerGroupBuys={homeBannerData ?? []}
       isError={isError}
       isFetching={isManualRefreshing || isFetching}
@@ -1070,6 +1105,9 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       onRefresh={handleManualRefresh}
       scrollToTopRequest={scrollToTopRequest}
       onOpenSearch={() => navigation.navigate("SearchScreen")}
+      onPressGroupBuyRequestRanking={(productName) =>
+        navigation.navigate("SearchScreen", { initialQuery: productName })
+      }
       onOpenCalendar={() =>
         navigation.navigate("CalendarScreen", {
           initialDate: new Date().toISOString(),
@@ -1091,9 +1129,16 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingTop: 2,
     },
     listContent: {
-      paddingBottom: 122,
+      paddingBottom: 170,
       paddingHorizontal: 0,
       paddingTop: 0,
+    },
+    requestTickerDock: {
+      elevation: 4,
+      left: 0,
+      position: "absolute",
+      right: 0,
+      zIndex: 10,
     },
     queryState: {
       marginHorizontal: spacing.lg,

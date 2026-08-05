@@ -144,6 +144,61 @@ describe("adminApi", () => {
     expect(result.items[0].isHomeBanner).toBe(false);
   });
 
+  it("requests the paginated read-only group-buy request list", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          items: [
+            {
+              id: "request-1",
+              productName: "무선 청소기",
+              status: "OPEN",
+              requestCount: 12,
+              createdAt: "2026-08-01T00:00:00.000Z",
+              latestRequestedAt: "2026-08-02T00:00:00.000Z",
+            },
+          ],
+          total: 1,
+        },
+      }),
+    } as Response);
+
+    const result = await adminApi.listGroupBuyRequests({
+      page: 2,
+      limit: 25,
+      status: "OPEN",
+      q: "청소기",
+    });
+
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
+      path: string;
+      method: string;
+      params: Record<string, unknown>;
+      body: Record<string, unknown>;
+    };
+    expect(request).toEqual({
+      path: "/admin/group-buy-requests",
+      method: "GET",
+      params: { page: 2, limit: 25, status: "OPEN", q: "청소기" },
+      body: {},
+    });
+    expect(result).toEqual({
+      items: [
+        {
+          id: "request-1",
+          productName: "무선 청소기",
+          status: "OPEN",
+          requestCount: 12,
+          createdAt: "2026-08-01T00:00:00.000Z",
+          latestRequestedAt: "2026-08-02T00:00:00.000Z",
+        },
+      ],
+      total: 1,
+    });
+  });
+
   it("rejects a PATCH response that omits the persisted price field", async () => {
     vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,

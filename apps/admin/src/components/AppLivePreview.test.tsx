@@ -7,6 +7,7 @@ const activeDeal: AppLivePreviewDeal = {
   productName: "제주 감귤 3kg",
   brandName: "귤밭상회",
   instagramUsername: "gyulbbad",
+  profileImageUrl: "https://example.com/gyulbbad-profile.jpg",
   category: "과일",
   startDate: "2000-01-01",
   endDate: "2099-12-31",
@@ -57,6 +58,11 @@ describe("AppLivePreview", () => {
     expect(
       dealCard.querySelector(".app-live-preview__deal-card-brand")?.textContent,
     ).toBe("@gyulbbad");
+    expect(
+      screen
+        .getByRole("img", { name: "@gyulbbad 프로필 이미지" })
+        .getAttribute("src"),
+    ).toBe(activeDeal.profileImageUrl);
     expect(
       dealCard.querySelector(".app-live-preview__deal-card-deadline-badge")
         ?.textContent,

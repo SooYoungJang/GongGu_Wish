@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deleteAccount,
   fetchHomeBannerGroupBuys,
   fetchGroupBuyRankings,
   fetchGroupBuys,
@@ -172,6 +173,96 @@ describe("public data fetch diagnostics", () => {
     const [item] = await fetchGroupBuys();
 
     expect(item.rawPost.influencer.instagramUsername).toBe("saved_shop");
+  });
+
+  it("maps the direct influencer profile image before the legacy raw-post relation", () => {
+    const [item] = mapGroupBuyRows([
+      {
+        id: "group-buy-with-profile",
+        product_name: "프로필 이미지 공구",
+        instagram_username: "saved_shop",
+        confidence: 0,
+        media_urls: [],
+        media_items: [],
+        media_type: null,
+        influencer_id: {
+          instagram_username: "direct_shop",
+          profile_image_url:
+            "https://scontent-test.cdninstagram.com/direct.jpg",
+        },
+        raw_post_id: {
+          post_url: "https://instagram.com/p/legacy",
+          influencer_id: {
+            instagram_username: "legacy_shop",
+            profile_image_url:
+              "https://scontent-test.cdninstagram.com/legacy.jpg",
+          },
+        },
+      },
+    ]);
+
+    expect(item.rawPost.influencer).toEqual({
+      instagramUsername: "saved_shop",
+      profileImageUrl: "https://scontent-test.cdninstagram.com/direct.jpg",
+    });
+  });
+
+  it("falls back to the legacy influencer profile image", () => {
+    const [item] = mapGroupBuyRows([
+      {
+        id: "legacy-profile-group-buy",
+        product_name: "레거시 프로필 이미지 공구",
+        confidence: 0,
+        media_urls: [],
+        media_items: [],
+        media_type: null,
+        rawPostId: {
+          postUrl: "https://instagram.com/p/legacy",
+          influencerId: {
+            instagramUsername: "legacy_shop",
+            profileImageUrl:
+              "https://scontent-test.cdninstagram.com/legacy.jpg",
+          },
+        },
+      },
+    ]);
+
+    expect(item.rawPost.influencer.profileImageUrl).toBe(
+      "https://scontent-test.cdninstagram.com/legacy.jpg",
+    );
+  });
+
+  it("drops unsafe persisted profile image URLs without dropping their group buys", () => {
+    const unsafeUrls = [
+      "http://scontent-test.cdninstagram.com/profile.jpg",
+      "https://user:password@scontent-test.cdninstagram.com/profile.jpg",
+      "https://cdninstagram.com:444/profile.jpg",
+      "https://cdninstagram.com:443/profile.jpg",
+      "https://cdninstagram.com.attacker.example/profile.jpg",
+      "javascript:alert(1)",
+      `https://scontent-test.cdninstagram.com/${"a".repeat(8_193)}`,
+    ];
+
+    const items = mapGroupBuyRows(
+      unsafeUrls.map((profileImageUrl, index) => ({
+        id: `unsafe-profile-${index}`,
+        product_name: `안전하지 않은 프로필 ${index}`,
+        confidence: 0,
+        media_urls: [],
+        media_items: [],
+        media_type: null,
+        influencer_id: {
+          instagram_username: `unsafe_shop_${index}`,
+          profile_image_url: profileImageUrl,
+        },
+        raw_post_id: null,
+      })),
+    );
+
+    expect(items).toHaveLength(unsafeUrls.length);
+    for (const item of items) {
+      expect(item.rawPost.influencer).not.toHaveProperty("profileImageUrl");
+    }
   });
 
   it("maps post-level audio fields without replacing embedded video media", () => {
@@ -465,6 +556,35 @@ describe("public data fetch diagnostics", () => {
         }),
       }),
     );
+  });
+
+  it("sends the current session token when deleting an account", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ deleted: true }),
+    }) as unknown as typeof fetch;
+
+    await expect(deleteAccount("current-access-token")).resolves.toBeUndefined();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/functions/v1/delete-account"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer current-access-token",
+        }),
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(authTokenMocks.getAuthToken).not.toHaveBeenCalled();
+  });
+
+  it("rejects account deletion before the request when the session token is blank", async () => {
+    await expect(deleteAccount("   ")).rejects.toMatchObject({ status: 401 });
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(authTokenMocks.getAuthToken).not.toHaveBeenCalled();
   });
 
   it("posts public submissions through the Supabase public-submission function", async () => {

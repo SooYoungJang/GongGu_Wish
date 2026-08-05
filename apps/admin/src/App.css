@@ -813,6 +813,75 @@ a:focus-visible {
   display: grid;
   gap: 5px;
 }
+.profile-image-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.profile-image-field__preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.profile-image-field__preview > div {
+  min-width: 0;
+}
+.profile-image-field__preview strong,
+.profile-image-field__preview span {
+  display: block;
+}
+.profile-image-field__preview strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-image-field__preview > div > span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.profile-image-preview {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+.profile-image-preview__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.app-live-preview__account-avatar {
+  width: 22px;
+  height: 22px;
+  border-color: rgba(255, 255, 255, 0.5);
+  font-size: 9px;
+}
+.app-live-preview__home-banner-account,
+.app-live-preview__deal-card-brand,
+.app-live-preview__detail-seller {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .field span,
 .checkbox-field span {
   color: var(--muted);
@@ -1904,18 +1973,21 @@ textarea:focus {
   color: var(--amber);
 }
 .status-badge--approved,
+.status-badge--fulfilled,
 .status-badge--active {
   background: var(--green-soft);
   color: var(--green);
 }
 .status-badge--rejected,
 .status-badge--cancelled,
+.status-badge--hidden,
 .status-badge--banned {
   background: var(--red-soft);
   color: var(--red);
 }
 .status-badge--duplicate,
 .status-badge--expired,
+.status-badge--open,
 .status-badge--suspended {
   background: var(--surface-3);
   color: var(--muted);
@@ -1960,6 +2032,12 @@ textarea:focus {
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.mobile-record-card > .group-buy-request-product-name {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 .mobile-record-card > p {
   overflow: hidden;

@@ -11,7 +11,7 @@ export const createSubmissionSchema = z.object({
   endDate: z.string().date().optional(),
   purchaseUrl: z.string().url().optional(),
   discountInfo: z.string().max(200).optional(),
-  summary: z.string().max(500).optional(),
+  summary: z.string().optional(),
   instagramUrl: z.string().url().optional(),
   imageUrls: imageUrlsSchema.optional(),
   reporterName: z.string().max(30).optional(),

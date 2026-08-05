@@ -68,6 +68,7 @@ function rankingItem(id: string): GroupBuyRankingItem {
       score: 37,
       scoreDelta: 37,
     },
+    profileImageUrl: null,
     scoreVersion: 'v2',
   };
 }

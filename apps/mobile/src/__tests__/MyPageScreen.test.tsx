@@ -26,6 +26,7 @@ const authMocks = vi.hoisted(() => ({
 const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
 const notificationMocks = vi.hoisted(() => ({
   getNotificationPermissionStatus: vi.fn(async () => 'granted'),
+  openNotificationSettings: vi.fn(async () => true),
   registerForPushNotifications: vi.fn(
     async (): Promise<any> => ({
       status: 'registered',
@@ -61,13 +62,12 @@ const settingsPreferenceMocks = vi.hoisted(() => ({
     pushEnabled: true,
     deadlineRemindersEnabled: true,
     submissionApprovalEnabled: true,
+    marketingPushEnabled: false,
     reminderDays: [1, 3, 7] as Array<1 | 3 | 7>,
     followedInfluencers: ['seller.one'],
     followedBrands: ['Brand A'],
   },
   updatePreferences: vi.fn(async (patch: Record<string, unknown>) => patch),
-  toggleInfluencer: vi.fn(),
-  toggleBrand: vi.fn(),
 }));
 
 vi.mock('../ads/AdsContext', () => ({
@@ -92,8 +92,6 @@ vi.mock('../context/NotificationPreferencesContext', () => ({
     saving: settingsPreferenceMocks.saving,
     error: null,
     updatePreferences: settingsPreferenceMocks.updatePreferences,
-    toggleInfluencer: settingsPreferenceMocks.toggleInfluencer,
-    toggleBrand: settingsPreferenceMocks.toggleBrand,
   }),
 }));
 
@@ -101,6 +99,7 @@ vi.mock('../services/notifications', () => ({
   IS_EXPO_GO: false,
   getNotificationPermissionStatus:
     notificationMocks.getNotificationPermissionStatus,
+  openNotificationSettings: notificationMocks.openNotificationSettings,
   registerForPushNotifications: notificationMocks.registerForPushNotifications,
 }));
 
@@ -293,14 +292,14 @@ beforeEach(() => {
   settingsPreferenceMocks.preferences.pushEnabled = true;
   settingsPreferenceMocks.preferences.deadlineRemindersEnabled = true;
   settingsPreferenceMocks.preferences.submissionApprovalEnabled = true;
+  settingsPreferenceMocks.preferences.marketingPushEnabled = false;
   settingsPreferenceMocks.preferences.reminderDays = [1, 3, 7];
   settingsPreferenceMocks.preferences.followedInfluencers = ['seller.one'];
   settingsPreferenceMocks.preferences.followedBrands = ['Brand A'];
   settingsPreferenceMocks.saving = false;
   settingsPreferenceMocks.updatePreferences.mockClear();
-  settingsPreferenceMocks.toggleInfluencer.mockClear();
-  settingsPreferenceMocks.toggleBrand.mockClear();
   notificationMocks.getNotificationPermissionStatus.mockClear();
+  notificationMocks.openNotificationSettings.mockClear();
   notificationMocks.registerForPushNotifications.mockReset().mockResolvedValue({
     status: 'registered',
     token: 'ExpoPushToken[test-token]',
@@ -563,7 +562,7 @@ describe('MyPageScreen', () => {
     expect(navigationMocks.navigate).toHaveBeenCalledWith('Settings');
   });
 
-  it('renders notification and theme controls on the settings screen', () => {
+  it('renders notification and theme controls without follow notification controls', () => {
     const renderer = renderScreen(React.createElement(SettingsScreen));
     const rendered = JSON.stringify(renderer.toJSON());
 
@@ -585,10 +584,12 @@ describe('MyPageScreen', () => {
       renderer.root.findAllByProps({ testID: 'deadline-notification-toggle' }),
     ).toHaveLength(0);
     expect(rendered).toContain('내 제보 승인 알림');
+    expect(rendered).toContain('마케팅 정보 수신');
+    expect(rendered).not.toContain('팔로우 알림');
+    expect(rendered).not.toContain('@seller.one');
+    expect(rendered).not.toContain('Brand A');
     expect(rendered).not.toContain('마감 알림 날짜');
     expect(rendered).not.toContain('테스트 알림 보내기');
-    expect(rendered).toContain('@seller.one');
-    expect(rendered).toContain('Brand A');
   });
 
   it('shows legal document buttons and the app version in settings', async () => {
@@ -642,7 +643,7 @@ describe('MyPageScreen', () => {
     expect(adsMocks.showPrivacyOptions).toHaveBeenCalledOnce();
   });
 
-  it('persists own-submission approval and follow changes', async () => {
+  it('persists own-submission approval without exposing follow notification controls', async () => {
     authMocks.session = {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
@@ -655,26 +656,122 @@ describe('MyPageScreen', () => {
     const submissionApprovalSwitch = renderer.root.findByProps({
       accessibilityLabel: '내 제보 승인 알림',
     });
-    const influencer = renderer.root.findByProps({
-      accessibilityLabel: '@seller.one 인플루언서 알림 해제',
-    });
-    const brand = renderer.root.findByProps({
-      accessibilityLabel: 'Brand A 브랜드 알림 해제',
-    });
 
     await act(async () => {
       await submissionApprovalSwitch.props.onValueChange(false);
-      await influencer.props.onPress();
-      await brand.props.onPress();
     });
 
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       submissionApprovalEnabled: false,
     });
-    expect(settingsPreferenceMocks.toggleInfluencer).toHaveBeenCalledWith(
-      'seller.one',
+    expect(
+      renderer.root.findAllByProps({
+        accessibilityLabel: '@seller.one 인플루언서 알림 해제',
+      }),
+    ).toHaveLength(0);
+    expect(
+      renderer.root.findAllByProps({
+        accessibilityLabel: 'Brand A 브랜드 알림 해제',
+      }),
+    ).toHaveLength(0);
+  });
+
+  it('requests push permission before enabling own-submission approval', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = true;
+    settingsPreferenceMocks.preferences.submissionApprovalEnabled = false;
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const submissionApproval = renderer.root.findByProps({
+      accessibilityLabel: '내 제보 승인 알림',
+    });
+    await act(async () => {
+      await submissionApproval.props.onValueChange(true);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(notificationMocks.registerForPushNotifications).toHaveBeenCalledWith(
+      'access-token',
+      expect.objectContaining({ requestPermission: true }),
     );
-    expect(settingsPreferenceMocks.toggleBrand).toHaveBeenCalledWith('Brand A');
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      pushEnabled: true,
+    });
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      submissionApprovalEnabled: true,
+    });
+  });
+
+  it('opens OS settings when push permission was previously denied', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    notificationMocks.registerForPushNotifications.mockResolvedValueOnce({
+      status: 'unavailable',
+      reason: 'permission-denied',
+    });
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const push = renderer.root.findByProps({
+      accessibilityLabel: '푸시 알림',
+    });
+    await act(async () => {
+      await push.props.onValueChange(true);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(notificationMocks.openNotificationSettings).toHaveBeenCalledOnce();
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  it('disables dependent notification switches while push notifications are off', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    settingsPreferenceMocks.preferences.submissionApprovalEnabled = true;
+    settingsPreferenceMocks.preferences.marketingPushEnabled = true;
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const submissionApproval = renderer.root.findByProps({
+      accessibilityLabel: '내 제보 승인 알림',
+    });
+    const marketing = renderer.root.findByProps({
+      accessibilityLabel: '마케팅 정보 수신',
+    });
+
+    expect(submissionApproval.props.disabled).toBe(true);
+    expect(marketing.props.disabled).toBe(true);
+    expect(submissionApproval.props.value).toBe(false);
+    expect(marketing.props.value).toBe(false);
+
+    await act(async () => {
+      await submissionApproval.props.onValueChange(true);
+      await marketing.props.onValueChange(true);
+    });
+
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
+    expect(notificationMocks.registerForPushNotifications).not.toHaveBeenCalled();
   });
 
   it('keeps notification switches interactive while preferences sync', async () => {
@@ -704,12 +801,23 @@ describe('MyPageScreen', () => {
     const push = renderer.root.findByProps({
       accessibilityLabel: '푸시 알림',
     });
+    const submissionApproval = renderer.root.findByProps({
+      accessibilityLabel: '내 제보 승인 알림',
+    });
+    const marketing = renderer.root.findByProps({
+      accessibilityLabel: '마케팅 정보 수신',
+    });
+
+    expect(push.props.disabled).toBe(false);
+    expect(submissionApproval.props.disabled).toBe(true);
+    expect(marketing.props.disabled).toBe(true);
 
     await act(async () => {
       await push.props.onValueChange(true);
       await Promise.resolve();
     });
 
+    expect(navigationMocks.navigate).toHaveBeenCalledOnce();
     expect(navigationMocks.navigate).toHaveBeenCalledWith('Login');
     expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
     expect(push.props.value).toBe(false);
@@ -739,7 +847,7 @@ describe('MyPageScreen', () => {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
     };
-    settingsPreferenceMocks.preferences.pushEnabled = false;
+    settingsPreferenceMocks.preferences.pushEnabled = true;
     let resolveRegistration!: (result: {
       status: 'registered';
       token: string;
@@ -797,6 +905,137 @@ describe('MyPageScreen', () => {
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       pushEnabled: true,
     });
+  });
+
+  it('requests explicit push permission before enabling marketing messages', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = true;
+    settingsPreferenceMocks.preferences.marketingPushEnabled = false;
+    let resolveRegistration!: (result: {
+      status: 'registered';
+      token: string;
+    }) => void;
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRegistration = resolve;
+      }),
+    );
+
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const marketing = renderer.root.findByProps({
+      accessibilityLabel: '마케팅 정보 수신',
+    });
+    await act(async () => {
+      await marketing.props.onValueChange(true);
+      await Promise.resolve();
+    });
+
+    expect(notificationMocks.registerForPushNotifications).toHaveBeenCalledWith(
+      'access-token',
+      expect.objectContaining({ requestPermission: true }),
+    );
+    expect(
+      settingsPreferenceMocks.updatePreferences,
+    ).not.toHaveBeenCalledWith({ marketingPushEnabled: true });
+    expect(marketing.props.value).toBe(true);
+
+    await act(async () => {
+      resolveRegistration({
+        status: 'registered',
+        token: 'ExpoPushToken[test-token]',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      marketingPushEnabled: true,
+    });
+  });
+
+  it('rolls the marketing toggle back after push registration fails', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = true;
+    settingsPreferenceMocks.preferences.marketingPushEnabled = false;
+    let resolveRegistration!: (result: {
+      status: 'failed';
+      reason: 'token-request-failed';
+    }) => void;
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRegistration = resolve;
+      }),
+    );
+
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const marketing = renderer.root.findByProps({
+      accessibilityLabel: '마케팅 정보 수신',
+    });
+    act(() => {
+      marketing.props.onValueChange(true);
+    });
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '마케팅 정보 수신' })
+        .props.value,
+    ).toBe(true);
+
+    await act(async () => {
+      resolveRegistration({
+        status: 'failed',
+        reason: 'token-request-failed',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '마케팅 정보 수신' })
+        .props.value,
+    ).toBe(false);
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
+      marketingPushEnabled: true,
+    });
+  });
+
+  it('withdraws marketing consent without requesting push permission', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.marketingPushEnabled = true;
+
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const marketing = renderer.root.findByProps({
+      accessibilityLabel: '마케팅 정보 수신',
+    });
+    await act(async () => {
+      await marketing.props.onValueChange(false);
+    });
+
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      marketingPushEnabled: false,
+    });
+    expect(notificationMocks.registerForPushNotifications).not.toHaveBeenCalled();
   });
 
   it('rolls the optimistic push toggle back after a native token failure', async () => {
@@ -912,7 +1151,7 @@ describe('MyPageScreen', () => {
     expect(alertMocks.alert).not.toHaveBeenCalled();
   });
 
-  it('places account deletion at the bottom and asks for confirmation', async () => {
+  it('deletes the account only after explicit destructive confirmation', async () => {
     authMocks.session = {
       access_token: 'access-token',
       user: {
@@ -938,14 +1177,33 @@ describe('MyPageScreen', () => {
       deleteButton.props.onPress();
     });
 
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(authMocks.signOut).not.toHaveBeenCalled();
+    expect(navigationMocks.goBack).not.toHaveBeenCalled();
+    expect(alertMocks.alert).toHaveBeenCalledOnce();
     expect(alertMocks.alert).toHaveBeenCalledWith(
-      '회원탈퇴',
-      expect.stringContaining('복구할 수 없어요'),
-      expect.any(Array),
+      '회원 탈퇴',
+      '정말 탈퇴하시겠습니까?\n탈퇴하면 계정과 저장된 활동 데이터가 삭제되며 복구할 수 없습니다.',
+      [
+        { text: '취소', style: 'cancel' },
+        expect.objectContaining({
+          text: '탈퇴하기',
+          style: 'destructive',
+          onPress: expect.any(Function),
+        }),
+      ],
     );
     const options = alertMocks.alert.mock.calls.at(-1)?.[2] as Array<{
+      text: string;
+      style: string;
       onPress?: () => void;
     }>;
+
+    expect(options[0]?.onPress).toBeUndefined();
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(authMocks.signOut).not.toHaveBeenCalled();
+    expect(navigationMocks.goBack).not.toHaveBeenCalled();
+
     act(() => {
       options[1]?.onPress?.();
     });
@@ -955,6 +1213,9 @@ describe('MyPageScreen', () => {
     });
 
     expect(deleteSpy).toHaveBeenCalledOnce();
+    expect(deleteSpy).toHaveBeenCalledWith('access-token');
+    expect(authMocks.signOut).toHaveBeenCalledOnce();
+    expect(navigationMocks.goBack).toHaveBeenCalledOnce();
     deleteSpy.mockRestore();
   });
 });

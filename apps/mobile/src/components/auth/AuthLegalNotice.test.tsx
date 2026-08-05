@@ -58,7 +58,7 @@ describe("AuthLegalNotice", () => {
     const text = JSON.stringify(renderer.toJSON());
 
     expect(text).toContain("만 14세 이상");
-    expect(text).toContain("계속하면");
+    expect(text).toContain("로그인 또는 회원가입을 계속하면");
     expect(
       renderer.root.findAllByProps({ accessibilityRole: "checkbox" }),
     ).toHaveLength(0);

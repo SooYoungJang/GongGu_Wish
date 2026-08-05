@@ -9,6 +9,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
       "@gonggu/shared": path.resolve(__dirname, "../../packages/shared/src"),
       "@expo/vector-icons": path.resolve(__dirname, "./src/__mocks__/vector-icons.tsx"),
+      "expo-image": path.resolve(__dirname, "./src/__mocks__/expo-image.tsx"),
     },
   },
   test: {

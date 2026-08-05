@@ -7,7 +7,7 @@ import { spacing } from '../design/tokens';
 import { commerceRadius, type CommerceColorPalette } from '../design/commerce';
 import { useCommerceTheme } from '../design/useCommerceTheme';
 import type { GroupBuy } from '../types';
-import { formatEndDate } from '../utils';
+import { formatDateRange } from '../utils';
 
 type AlertCardProps = {
   item: GroupBuy;
@@ -20,7 +20,7 @@ export function AlertCard({ item, onPress }: AlertCardProps) {
 
   const brandLabel = item.brandName ?? '브랜드 미확인';
   const discountLabel = item.discountInfo ?? '혜택 확인 필요';
-  const deadlineLabel = formatEndDate(item.endDate);
+  const deadlineLabel = formatDateRange(item.startDate, item.endDate);
   const confidencePercent = Math.round(item.confidence * 100);
   const influencerUsername = item.rawPost.influencer.instagramUsername;
 
@@ -34,7 +34,8 @@ export function AlertCard({ item, onPress }: AlertCardProps) {
       <View style={s.info}>
         <View style={s.topRow}>
           <InstagramIdentity
-            iconTestID="alert-card-instagram-icon"
+            avatarTestID="alert-card-instagram-avatar"
+            profileImageUrl={item.rawPost.influencer.profileImageUrl}
             style={s.influencerIdentity}
             textStyle={s.influencerName}
             username={influencerUsername}

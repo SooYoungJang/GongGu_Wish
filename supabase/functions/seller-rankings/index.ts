@@ -9,6 +9,8 @@ import {
   assertRankingCursorMatchesRequest,
   buildRankingResponse,
   decodeRankingCursor,
+  invokeRankingRpcWithFallback,
+  loadRankingProfileImageUrls,
   normalizeRankingRequest,
   type RankingRequest,
   type RankingRpcRow,
@@ -78,7 +80,7 @@ serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data, error } = await supabase.rpc("get_group_buy_rankings_v2", {
+    const rpcParameters = {
       category_filter: request.category,
       period_filter: request.period,
       sort_filter: request.sort,
@@ -87,14 +89,46 @@ serve(async (req: Request) => {
       cursor_score: cursor?.secondaryScore ?? null,
       cursor_timestamp: cursor?.timestampValue ?? null,
       cursor_group_buy_id: cursor?.groupBuyId ?? null,
-    });
+    };
+    const rpcResponse = await invokeRankingRpcWithFallback(
+      async (functionName, parameters) => {
+        const { data, error } = await supabase.rpc(functionName, parameters);
+        return { data, error };
+      },
+      rpcParameters,
+    );
+    const { data, error } = rpcResponse;
 
     if (error) throw new Error(error.message);
     if (!Array.isArray(data)) {
       throw new Error("Ranking RPC returned a non-array response");
     }
 
-    return jsonResponse(buildRankingResponse(data as RankingRpcRow[], request));
+    const rankingRows = data as RankingRpcRow[];
+    let profileImageUrls: ReadonlyMap<string, string | null> = new Map();
+    try {
+      profileImageUrls = await loadRankingProfileImageUrls(
+        rankingRows.slice(0, request.limit),
+        async (usernames) => {
+          const { data: profiles, error: profileError } = await supabase.rpc(
+            "get_influencer_profiles_by_usernames",
+            { p_instagram_usernames: [...usernames] },
+          );
+          return { data: profiles, error: profileError };
+        },
+      );
+    } catch (profileError) {
+      console.warn(
+        "[seller-rankings] profile image enrichment failed:",
+        profileError instanceof Error
+          ? profileError.message
+          : String(profileError),
+      );
+    }
+
+    return jsonResponse(
+      buildRankingResponse(rankingRows, request, undefined, profileImageUrls),
+    );
   } catch (error) {
     console.error(
       "[seller-rankings] ranking query failed:",

@@ -17,6 +17,10 @@ const authMocks = vi.hoisted(() => ({
   signInWithOAuth: vi.fn(),
   startAudienceAuthIntent: vi.fn(),
   cancelAudienceAuthIntent: vi.fn(),
+  takeAuthContinuation: vi.fn<
+    () => (() => void | Promise<void>) | null
+  >(() => null),
+  clearAuthContinuation: vi.fn(),
 }));
 
 const audienceMocks = vi.hoisted(() => ({
@@ -188,6 +192,8 @@ describe("AuthScreen tab switching", () => {
     authMocks.signInWithOAuth.mockReset().mockResolvedValue(null);
     authMocks.startAudienceAuthIntent.mockReset();
     authMocks.cancelAudienceAuthIntent.mockReset();
+    authMocks.takeAuthContinuation.mockReset().mockReturnValue(null);
+    authMocks.clearAuthContinuation.mockReset();
     authMocks.signUpWithEmailCode.mockReset().mockResolvedValue(null);
     authMocks.resendEmailSignUpCode.mockReset().mockResolvedValue(null);
     authMocks.verifyEmailCode.mockReset().mockResolvedValue(null);
@@ -208,6 +214,7 @@ describe("AuthScreen tab switching", () => {
       data: { nickname: "공구러", phone: "" },
     });
     navigationMock.popTo.mockReset();
+    navigationMock.goBack.mockReset();
     navigationMock.addListener.mockReset().mockReturnValue(vi.fn());
   });
 
@@ -230,7 +237,7 @@ describe("AuthScreen tab switching", () => {
     expect(containsText(renderer, '또는 이메일 로그인')).toBe(true);
   });
 
-  it("로그인과 회원가입 탭 모두 체크박스 없는 약관 안내를 표시한다", () => {
+  it("로그인과 회원가입 탭 모두 소셜 인증 뒤에 체크박스 없는 약관 안내를 표시한다", () => {
     const renderer = renderAuthScreen();
 
     expect(containsText(renderer, "만 14세 이상")).toBe(true);
@@ -241,6 +248,25 @@ describe("AuthScreen tab switching", () => {
           node.props.testID === "auth-legal-notice",
       ),
     ).toHaveLength(1);
+    const loginNodes = renderer.root.findAll(() => true);
+    const loginSocialButtonIndex = Math.max(
+      ...loginNodes.map((node, index) =>
+        typeof node.props.accessibilityLabel === "string" &&
+        node.props.accessibilityLabel.endsWith("로 계속하기")
+          ? index
+          : -1,
+      ),
+    );
+    const loginNoticeIndex = loginNodes.findIndex(
+      (node) => node.props.testID === "auth-legal-notice",
+    );
+    const loginDividerIndex = loginNodes.findIndex(
+      (node) => node.props.children === "또는 이메일 로그인",
+    );
+
+    expect(loginSocialButtonIndex).toBeGreaterThanOrEqual(0);
+    expect(loginNoticeIndex).toBeGreaterThan(loginSocialButtonIndex);
+    expect(loginNoticeIndex).toBeLessThan(loginDividerIndex);
 
     pressByAccessibilityLabel(renderer, "회원가입 탭");
 
@@ -252,6 +278,25 @@ describe("AuthScreen tab switching", () => {
           node.props.testID === "auth-legal-notice",
       ),
     ).toHaveLength(1);
+    const signupNodes = renderer.root.findAll(() => true);
+    const signupSocialButtonIndex = Math.max(
+      ...signupNodes.map((node, index) =>
+        typeof node.props.accessibilityLabel === "string" &&
+        node.props.accessibilityLabel.endsWith("로 계속하기")
+          ? index
+          : -1,
+      ),
+    );
+    const signupNoticeIndex = signupNodes.findIndex(
+      (node) => node.props.testID === "auth-legal-notice",
+    );
+    const signupDividerIndex = signupNodes.findIndex(
+      (node) => node.props.children === "또는 이메일 회원가입",
+    );
+
+    expect(signupSocialButtonIndex).toBeGreaterThanOrEqual(0);
+    expect(signupNoticeIndex).toBeGreaterThan(signupSocialButtonIndex);
+    expect(signupNoticeIndex).toBeLessThan(signupDividerIndex);
   });
 
   it.each([
@@ -367,6 +412,45 @@ describe("AuthScreen tab switching", () => {
     expect(navigationMock.popTo).toHaveBeenCalledWith("MainTabs", {
       screen: "MyPage",
     });
+  });
+
+  it("resumes the pending notification action before returning to the previous screen", async () => {
+    const continuation = vi.fn().mockResolvedValue(undefined);
+    const renderer = renderAuthScreen();
+
+    (authMocks as any).user = { id: "selected-user" };
+    authMocks.authCompletionRevision = 1;
+    authMocks.takeAuthContinuation.mockReturnValueOnce(continuation);
+
+    await act(async () => {
+      renderer.update(<AuthScreen {...({} as any)} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(continuation).toHaveBeenCalledOnce();
+    expect(navigationMock.goBack).toHaveBeenCalledOnce();
+    expect(navigationMock.popTo).not.toHaveBeenCalled();
+  });
+
+  it("returns after a pending action throws synchronously", async () => {
+    const continuation = vi.fn(() => {
+      throw new Error("resume failed");
+    });
+    const renderer = renderAuthScreen();
+
+    (authMocks as any).user = { id: "selected-user" };
+    authMocks.authCompletionRevision = 1;
+    authMocks.takeAuthContinuation.mockReturnValueOnce(continuation);
+
+    await act(async () => {
+      renderer.update(<AuthScreen {...({} as any)} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(continuation).toHaveBeenCalledOnce();
+    expect(navigationMock.goBack).toHaveBeenCalledOnce();
   });
 
   it("이미 로그인된 user로 인증 화면이 마운트돼도 자동 이동하지 않는다", () => {

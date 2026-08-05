@@ -43,6 +43,7 @@ model Influencer {
   profileImageUrl   String?   @map("profile_image_url")
   isActive          Boolean   @default(true) @map("is_active")
   rawPosts          RawPost[]
+  groupBuys         GroupBuy[] @relation("GroupBuyInfluencer")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -78,6 +79,8 @@ model GroupBuy {
   id                       String                         @id @default(uuid())
   rawPostId                String?                        @unique @map("raw_post_id")
   rawPost                  RawPost?                       @relation(fields: [rawPostId], references: [id], onDelete: Cascade)
+  influencerId             String?                        @map("influencer_id")
+  influencer               Influencer?                    @relation("GroupBuyInfluencer", fields: [influencerId], references: [id], onDelete: SetNull)
   productName              String?                        @map("product_name")
   brandName                String?                        @map("brand_name")
   category                 String?
@@ -110,6 +113,7 @@ model GroupBuy {
   updatedAt                DateTime                       @updatedAt @map("updated_at")
 
   @@index([status])
+  @@index([influencerId])
   @@index([endDate])
   @@index([category])
   @@index([isMonthlyFeatured, monthlyFeaturedRank, endDate])
@@ -158,6 +162,7 @@ model GongguSubmission {
   // 제보 내용 (필수)
   productName         String    @map("product_name")
   brandName           String?   @map("brand_name")
+  profileImageUrl     String?   @map("profile_image_url")
   category            String?
   startDate           DateTime? @map("start_date")
   endDate             DateTime? @map("end_date")

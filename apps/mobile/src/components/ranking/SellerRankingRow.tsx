@@ -55,7 +55,7 @@ export const SellerRankingRow = memo(function SellerRankingRow({
     [imageUrl],
   );
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const deadline = formatRankingDeadline(item.endDate);
+  const deadline = formatRankingDeadline(item.startDate, item.endDate);
   const accessibilityLabel = getRankingItemAccessibilityLabel({
     rank: item.rank,
     name: displayName,
@@ -97,6 +97,7 @@ export const SellerRankingRow = memo(function SellerRankingRow({
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             style={s.rankColumn}
+            testID={`ranking-row-rank-column-${item.rank}`}
           >
             <RankBadge rank={item.rank} />
             <RankingTrendBadge trend={item.trend} />
@@ -163,7 +164,8 @@ export const SellerRankingRow = memo(function SellerRankingRow({
             >
               <InstagramIdentity
                 allowWrapping={largeText}
-                iconTestID={`ranking-row-seller-icon-${item.rank}`}
+                avatarTestID={`ranking-row-seller-avatar-${item.rank}`}
+                profileImageUrl={item.profileImageUrl}
                 size="body"
                 style={s.sellerIdentity}
                 testID={`ranking-row-seller-${item.rank}`}
@@ -181,7 +183,8 @@ export const SellerRankingRow = memo(function SellerRankingRow({
             <View style={s.sellerStatic}>
               <InstagramIdentity
                 allowWrapping={largeText}
-                iconTestID={`ranking-row-seller-icon-${item.rank}`}
+                avatarTestID={`ranking-row-seller-avatar-${item.rank}`}
+                profileImageUrl={item.profileImageUrl}
                 size="body"
                 style={s.sellerIdentity}
                 testID={`ranking-row-seller-${item.rank}`}
@@ -303,8 +306,9 @@ function makeStyles(theme: ReturnType<typeof useCommerceTheme>) {
     },
     rankColumn: {
       alignItems: "center",
+      flexShrink: 0,
       gap: spacing.xs,
-      width: 34,
+      minWidth: 34,
     },
     sellerAction: {
       alignItems: "center",

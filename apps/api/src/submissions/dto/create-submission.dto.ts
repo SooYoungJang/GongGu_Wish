@@ -60,7 +60,6 @@ export class CreateSubmissionDto {
   @ApiPropertyOptional({ example: '버터 향 가득한 정통 크로와상, 냉동 보관 가능', description: '한 줄 요약' })
   @IsOptional()
   @IsString()
-  @MaxLength(500)
   summary?: string;
 
   @ApiPropertyOptional({ example: 'https://www.instagram.com/p/ABC123/', description: '원본 인스타그램 포스트 URL' })

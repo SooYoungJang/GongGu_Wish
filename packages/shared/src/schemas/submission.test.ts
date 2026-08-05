@@ -222,10 +222,18 @@ describe("submission schemas", () => {
       expect(result.success).toBe(false);
     });
 
-    it("rejects summary exceeding max length", () => {
-      const form = createValidForm({ summary: "가".repeat(501) });
+    it("preserves a 1000-character summary without truncation", () => {
+      const sentinel = "END-SENTINEL";
+      const summary = `${"가".repeat(1000 - sentinel.length)}${sentinel}`;
+      const form = createValidForm({ summary });
       const result = submissionFormSchema.safeParse(form);
-      expect(result.success).toBe(false);
+
+      expect(summary).toHaveLength(1000);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.summary).toBe(summary);
+        expect(result.data.summary?.endsWith(sentinel)).toBe(true);
+      }
     });
 
     it("rejects invalid instagramUrl", () => {

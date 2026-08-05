@@ -51,7 +51,7 @@ export const RankingTopCard = memo(function RankingTopCard({
     [imageUrl],
   );
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const deadline = formatRankingDeadline(item.endDate);
+  const deadline = formatRankingDeadline(item.startDate, item.endDate);
   const detailLabel = getRankingItemAccessibilityLabel({
     rank: item.rank,
     name: displayName,
@@ -114,6 +114,7 @@ export const RankingTopCard = memo(function RankingTopCard({
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             style={s.rankOverlay}
+            testID={`ranking-rank-overlay-${item.rank}`}
           >
             <RankBadge rank={item.rank} />
             <RankingTrendBadge trend={item.trend} />
@@ -157,7 +158,8 @@ export const RankingTopCard = memo(function RankingTopCard({
             >
               <InstagramIdentity
                 allowWrapping={largeText}
-                iconTestID={`ranking-top-seller-icon-${item.rank}`}
+                avatarTestID={`ranking-top-seller-avatar-${item.rank}`}
+                profileImageUrl={item.profileImageUrl}
                 size="body"
                 style={s.sellerIdentity}
                 testID={`ranking-top-seller-${item.rank}`}
@@ -175,7 +177,8 @@ export const RankingTopCard = memo(function RankingTopCard({
             <View style={s.sellerStatic}>
               <InstagramIdentity
                 allowWrapping={largeText}
-                iconTestID={`ranking-top-seller-icon-${item.rank}`}
+                avatarTestID={`ranking-top-seller-avatar-${item.rank}`}
+                profileImageUrl={item.profileImageUrl}
                 size="body"
                 style={s.sellerIdentity}
                 testID={`ranking-top-seller-${item.rank}`}

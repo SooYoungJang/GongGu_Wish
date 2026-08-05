@@ -29,6 +29,14 @@ const previewBaselineSource = readFileSync(
 );
 const agentRules = readFileSync("AGENTS.md", "utf8");
 const branchStrategy = readFileSync("docs/branch-strategy.md", "utf8");
+const rankingEligibilityMigration = readFileSync(
+  "supabase/migrations/20260802000001_align_group_buy_ranking_eligibility.sql",
+  "utf8",
+).replace(/\r\n/g, "\n");
+const rankingV2CursorMigration = readFileSync(
+  "supabase/migrations/20260716000005_fix_group_buy_ranking_cursor.sql",
+  "utf8",
+).replace(/\r\n/g, "\n");
 
 function job(jobId) {
   const marker = `  ${jobId}:\n`;
@@ -100,6 +108,239 @@ test("runtime clients never fall back to the Production Supabase project", () =>
 test("hiker-lookup is declared for project-bound Git deployment", () => {
   assert.match(supabaseConfig, /^\[functions\.hiker-lookup\]$/m);
   assert.equal(existsSync("supabase/functions/hiker-lookup/index.ts"), true);
+});
+
+test("naver-userinfo accepts the upstream OAuth token without gateway JWT verification", () => {
+  assert.match(
+    supabaseConfig,
+    /^\[functions\.naver-userinfo\]\r?\n(?:#[^\r\n]*\r?\n)*verify_jwt = false$/m,
+  );
+  assert.equal(existsSync("supabase/functions/naver-userinfo/index.ts"), true);
+});
+
+test("service_role can delete user profiles required by delete-account", () => {
+  const deleteAccountSource = readFileSync(
+    "supabase/functions/delete-account/index.ts",
+    "utf8",
+  );
+  const migrations = readdirSync("supabase/migrations")
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .map((file) => readFileSync(`supabase/migrations/${file}`, "utf8"));
+
+  assert.match(
+    deleteAccountSource,
+    /\.from\(["']users["']\)\.delete\(\)/,
+    "delete-account must delete the authenticated user's public profile",
+  );
+
+  const userServiceRoleDeleteGrants = migrations
+    .flatMap(
+      (migration) =>
+        migration.replace(/--.*$/gm, "").match(/\bGRANT\b[^;]*;/gi) ?? [],
+    )
+    .map((grant) => grant.replace(/\s+/g, " ").trim())
+    .filter(
+      (grant) =>
+        /\b(?:DELETE|ALL(?:\s+PRIVILEGES)?)\b/i.test(grant) &&
+        /\bON\b[^;]*\bpublic\s*\.\s*users\b[^;]*\bTO\s+service_role\b/i.test(
+          grant,
+        ),
+    );
+  assert.deepEqual(
+    userServiceRoleDeleteGrants,
+    ["GRANT DELETE ON TABLE public.users TO service_role;"],
+    "delete-account must receive only the required public.users DELETE grant",
+  );
+});
+
+test("ranking v3 explicitly preserves v2 semantics with narrow eligibility changes", () => {
+  const functionDefinition = (source, functionName) => {
+    const start = source.indexOf(
+      `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+    );
+    assert.notEqual(start, -1, `${functionName} definition is required`);
+    const end = source.indexOf("\n$$;", start);
+    assert.notEqual(end, -1, `${functionName} definition must terminate`);
+    return source.slice(start, end + "\n$$;".length);
+  };
+
+  const originalUsername =
+    "COALESCE(i.instagram_username, 'unknown') AS username,";
+  const latestUsername =
+    "COALESCE(NULLIF(BTRIM(g.instagram_username), ''), NULLIF(BTRIM(i.instagram_username), '')) AS username,";
+  const originalExpiry = "AND (g.end_date IS NULL OR g.end_date >= now())";
+  const kstExpiry =
+    "AND (g.end_date IS NULL OR g.end_date::date >= (now() AT TIME ZONE 'Asia/Seoul')::date)";
+  const originalEligibility = `      AND CASE
+        WHEN g.category = 'lifestyle' THEN 'living'
+        WHEN g.category = 'digital' THEN 'electronics'
+        ELSE g.category
+      END IN (
+        'food', 'living', 'beauty', 'fashion', 'home', 'kitchen',
+        'electronics', 'pet', 'auto', 'hobby', 'baby', 'sports',
+        'stationery', 'books', 'media', 'travel'
+      )`;
+  const updatedEligibility = `      AND (
+        g.category IS NULL
+        OR CASE
+          WHEN g.category = 'lifestyle' THEN 'living'
+          WHEN g.category = 'digital' THEN 'electronics'
+          ELSE g.category
+        END IN (
+          'food', 'living', 'beauty', 'fashion', 'home', 'kitchen',
+          'electronics', 'pet', 'auto', 'hobby', 'baby', 'sports',
+          'stationery', 'books', 'media', 'travel'
+        )
+      )`;
+
+  const expectedV3 = functionDefinition(
+    rankingV2CursorMigration,
+    "get_group_buy_rankings_v2",
+  )
+    .replace("get_group_buy_rankings_v2", "get_group_buy_rankings_v3")
+    .replace(originalUsername, latestUsername)
+    .replace(originalExpiry, kstExpiry)
+    .replace(originalEligibility, updatedEligibility);
+  const actualV3 = functionDefinition(
+    rankingEligibilityMigration,
+    "get_group_buy_rankings_v3",
+  );
+  assert.equal(
+    actualV3,
+    expectedV3,
+    "ranking v3 may differ from v2 only at username fallback, KST expiry, and eligibility",
+  );
+
+  assert.match(rankingEligibilityMigration, /g\.category IS NULL\s+OR CASE/);
+  assert.match(
+    rankingEligibilityMigration,
+    new RegExp(kstExpiry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+  );
+  assert.match(
+    rankingEligibilityMigration,
+    new RegExp(latestUsername.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+  );
+
+  const allowlistSource = rankingEligibilityMigration.match(
+    /g\.category IS NULL\s+OR CASE[\s\S]*?END IN \(\s*([\s\S]*?)\s*\)\s*\)/,
+  )?.[1];
+  assert.ok(allowlistSource, "ranking v3 must retain a category allowlist");
+  assert.deepEqual(
+    [...allowlistSource.matchAll(/'([^']+)'/g)].map((match) => match[1]),
+    [
+      "food",
+      "living",
+      "beauty",
+      "fashion",
+      "home",
+      "kitchen",
+      "electronics",
+      "pet",
+      "auto",
+      "hobby",
+      "baby",
+      "sports",
+      "stationery",
+      "books",
+      "media",
+      "travel",
+    ],
+  );
+  const functionStart = rankingEligibilityMigration.indexOf(actualV3);
+  const preambleLines = rankingEligibilityMigration
+    .slice(0, functionStart)
+    .split("\n")
+    .filter((line) => line.trim().length > 0);
+  assert.ok(
+    preambleLines.every((line) => line.trimStart().startsWith("--")),
+    "ranking v3 migration may contain only comments before its function",
+  );
+
+  const expectedPrivileges = `REVOKE ALL ON FUNCTION public.get_group_buy_rankings_v3(
+  text,
+  text,
+  text,
+  integer,
+  numeric,
+  timestamp,
+  numeric,
+  text
+) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.get_group_buy_rankings_v3(
+  text,
+  text,
+  text,
+  integer,
+  numeric,
+  timestamp,
+  numeric,
+  text
+) TO service_role;`;
+  assert.equal(
+    rankingEligibilityMigration.slice(functionStart + actualV3.length).trim(),
+    expectedPrivileges,
+    "ranking v3 migration may contain only PUBLIC revoke and service_role grant after its function",
+  );
+});
+
+test("Auth users are provisioned and backfilled without overwriting public profiles", () => {
+  const migrations = readdirSync("supabase/migrations")
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .map((file) => readFileSync(`supabase/migrations/${file}`, "utf8"));
+  const provisioningMigration = migrations.find((migration) =>
+    /\bAFTER\s+INSERT\s+ON\s+auth\s*\.\s*users\b/i.test(
+      migration.replace(/--.*$/gm, ""),
+    ),
+  );
+
+  assert.ok(
+    provisioningMigration,
+    "a migration must provision public.users from an auth.users AFTER INSERT trigger",
+  );
+
+  const normalized = provisioningMigration
+    .replace(/--.*$/gm, "")
+    .replace(/\s+/g, " ");
+  assert.match(
+    normalized,
+    /\bINSERT\s+INTO\s+public\s*\.\s*users\b/i,
+    "the Auth trigger must insert the corresponding public.users profile",
+  );
+  assert.match(
+    normalized,
+    /\bFROM\s+auth\s*\.\s*users\b/i,
+    "the migration must backfill profiles for existing Auth users",
+  );
+  assert.match(
+    normalized,
+    /\braw_user_meta_data\b/i,
+    "profile provisioning must preserve signup and social-provider metadata",
+  );
+  assert.match(
+    normalized,
+    /\bSECURITY\s+DEFINER\b/i,
+    "the Auth trigger function must use the privileges required to insert a profile",
+  );
+  assert.match(
+    normalized,
+    /\bSET\s+search_path\s*=\s*''/i,
+    "the security-definer function must use an empty search_path",
+  );
+  assert.match(
+    normalized,
+    /\bREVOKE\s+ALL\s+ON\s+FUNCTION\b/i,
+    "the trigger function must not be directly executable by API roles",
+  );
+
+  const conflictSafeInserts =
+    normalized.match(/\bON\s+CONFLICT\s*\(\s*id\s*\)\s+DO\s+NOTHING\b/gi) ?? [];
+  assert.ok(
+    conflictSafeInserts.length >= 2,
+    "both trigger provisioning and backfill must preserve existing public.users rows",
+  );
 });
 
 test("the Worker deploy waits for the branch-specific Supabase gate", () => {
@@ -751,4 +992,36 @@ test("Production recovery is explicit, main-only, and reuses every deployment ga
     job("preview-release-gate"),
     /confirm_production_recovery/,
   );
+});
+
+test("Kakao provider readiness is public, environment-exact, and release-blocking", () => {
+  const providerJob = job("kakao-provider-ready");
+  assert.match(providerJob, /name:\s*Kakao Auth Provider Ready/);
+  assert.match(
+    providerJob,
+    /github\.ref == 'refs\/heads\/main' \|\| github\.base_ref == 'main'/,
+  );
+  assert.match(providerJob, /APP_VARIANT:/);
+  assert.match(providerJob, /SUPABASE_PROJECT_REF:/);
+  assert.match(providerJob, /iosdoheblabfimkjnvfj/);
+  assert.match(providerJob, /xwblovggtvbpiusjfokq/);
+  assert.match(
+    providerJob,
+    /node --test scripts\/check-kakao-provider\.test\.mjs/,
+  );
+  assert.match(providerJob, /node scripts\/check-kakao-provider\.mjs/);
+  assert.doesNotMatch(providerJob, /secrets\.|environment:/);
+
+  for (const gateId of ["preview-release-gate", "promotion-gate"]) {
+    const gate = job(gateId);
+    assert.equal(declaredNeeds(gate).has("kakao-provider-ready"), true);
+    assert.match(gate, /KAKAO_PROVIDER_RESULT/);
+    assert.match(gate, /needs\.kakao-provider-ready\.result/);
+    assert.match(gate, /Kakao Auth Provider Ready result is/);
+    assert.match(gate, /exit 1/);
+  }
+
+  const promotionGate = job("promotion-gate");
+  assert.match(promotionGate, /!cancelled\(\)/);
+  assert.doesNotMatch(promotionGate, /always\(\)/);
 });

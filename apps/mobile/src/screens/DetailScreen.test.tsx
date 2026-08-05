@@ -52,18 +52,6 @@ const authGateMock = vi.hoisted(() => ({
 const reminderPickerMock = vi.hoisted(() => ({
   openReminderPicker: vi.fn(),
 }));
-const notificationPreferencesMock = vi.hoisted(() => ({
-  preferences: {
-    pushEnabled: true,
-    deadlineRemindersEnabled: true,
-    submissionApprovalEnabled: true,
-    reminderDays: [1, 3, 7],
-    followedInfluencers: [] as string[],
-    followedBrands: [] as string[],
-  },
-  toggleInfluencer: vi.fn(),
-  toggleBrand: vi.fn(),
-}));
 const adsMock = vi.hoisted(() => ({
   enabled: false,
   isReady: false,
@@ -86,17 +74,6 @@ vi.mock("../components/ads/NativeAdCard", () => {
       adsMock.enabled ? ReactMock.createElement("NativeAdCard", props) : null,
   };
 });
-vi.mock("../context/NotificationPreferencesContext", () => ({
-  useNotificationPreferences: () => ({
-    preferences: notificationPreferencesMock.preferences,
-    ready: true,
-    saving: false,
-    error: null,
-    updatePreferences: vi.fn(),
-    toggleInfluencer: notificationPreferencesMock.toggleInfluencer,
-    toggleBrand: notificationPreferencesMock.toggleBrand,
-  }),
-}));
 vi.mock("../context/GroupBuyReminderPickerContext", () => ({
   useGroupBuyReminderPicker: () => reminderPickerMock,
 }));
@@ -732,10 +709,6 @@ beforeEach(() => {
   authGateMock.isAuthenticated = true;
   authGateMock.requireAuth.mockReset().mockReturnValue(true);
   reminderPickerMock.openReminderPicker.mockReset();
-  notificationPreferencesMock.preferences.followedInfluencers = [];
-  notificationPreferencesMock.preferences.followedBrands = [];
-  notificationPreferencesMock.toggleInfluencer.mockReset();
-  notificationPreferencesMock.toggleBrand.mockReset();
   flashListMock.scrollToOffset.mockClear();
   pagerViewMock.setPage.mockClear();
   pagerViewMock.setPageWithoutAnimation.mockClear();
@@ -774,10 +747,13 @@ describe("DetailScreen", () => {
     const text = flattenText(renderer!.toJSON());
     expect(text).toContain("@hanssang_home");
     expect(
-      renderer!.root.findByProps({
-        testID: `detail-reel-instagram-icon-${groupBuy.id}`,
-      }).props,
-    ).toMatchObject({ accessible: false, name: "logo-instagram" });
+      renderer!.root
+        .findAllByProps({
+          testID: `detail-reel-profile-avatar-${groupBuy.id}`,
+        })
+        .some((node) => node.props.accessibilityRole === "image"),
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ name: "logo-instagram" })).toHaveLength(0);
     expect(text).toContain("뷰티");
     expect(text).not.toContain("beauty");
   });
@@ -808,11 +784,36 @@ describe("DetailScreen", () => {
         .props.onPress();
     });
     expect(Share.share).toHaveBeenCalledWith({
-      message: "퍼스트 바이크\nhttps://example.com/buy",
+      message: "퍼스트 바이크\nhttps://gongguwish.com/group-buy/group-buy-1",
     });
   });
 
-  it("connects influencer and brand follow controls to notification preferences", () => {
+  it("does not fall back to an original URL when the group buy ID is missing", async () => {
+    const groupBuy: GroupBuy = { ...baseGroupBuy, id: "" };
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    await act(async () => {
+      renderer!.root
+        .findByProps({ accessibilityLabel: "공유" })
+        .props.onPress();
+    });
+    expect(Share.share).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith(
+      "오류",
+      "공유 링크를 만들 수 없습니다.",
+    );
+  });
+
+  it("does not render influencer or brand notification controls", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
@@ -829,28 +830,19 @@ describe("DetailScreen", () => {
       );
     });
 
-    const influencer = renderer!.root.findByProps({
-      accessibilityLabel: "@hanssang_home 인플루언서 알림 설정",
-    });
-    const brand = renderer!.root.findByProps({
-      accessibilityLabel: "퍼스트 브랜드 알림 설정",
-    });
-    expect(influencer.props.accessibilityState.checked).toBe(false);
-    expect(brand.props.accessibilityState.checked).toBe(false);
-
-    act(() => {
-      influencer.props.onPress();
-      brand.props.onPress();
-    });
-    expect(notificationPreferencesMock.toggleInfluencer).toHaveBeenCalledWith(
-      "hanssang_home",
-    );
-    expect(notificationPreferencesMock.toggleBrand).toHaveBeenCalledWith(
-      "퍼스트",
-    );
+    expect(
+      renderer!.root.findAllByProps({
+        testID: "follow-influencer-notifications",
+      }),
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findAllByProps({ testID: "follow-brand-notifications" }),
+    ).toHaveLength(0);
+    expect(flattenText(renderer!.toJSON())).not.toContain("인플루언서 알림");
+    expect(flattenText(renderer!.toJSON())).not.toContain("브랜드 알림");
   });
 
-  it("blocks every guest bookmark and notification action behind login", () => {
+  it("gates guest bookmarks and delegates notification auth to the shared picker", () => {
     authGateMock.isAuthenticated = false;
     authGateMock.requireAuth.mockReturnValue(false);
     let renderer: TestRenderer.ReactTestRenderer;
@@ -872,21 +864,15 @@ describe("DetailScreen", () => {
     const actions = [
       renderer!.root.findByProps({ accessibilityLabel: "북마크" }),
       renderer!.root.findByProps({ testID: "detail-notification-toggle" }),
-      renderer!.root.findByProps({
-        accessibilityLabel: "@hanssang_home 인플루언서 알림 설정",
-      }),
-      renderer!.root.findByProps({
-        accessibilityLabel: "퍼스트 브랜드 알림 설정",
-      }),
     ];
     act(() => actions.forEach((action) => action.props.onPress()));
 
-    expect(authGateMock.requireAuth).toHaveBeenCalledTimes(4);
+    expect(authGateMock.requireAuth).toHaveBeenCalledOnce();
     expect(localDealActionMocks.toggleBookmark).not.toHaveBeenCalled();
     expect(localDealActionMocks.toggleNotification).not.toHaveBeenCalled();
-    expect(reminderPickerMock.openReminderPicker).not.toHaveBeenCalled();
-    expect(notificationPreferencesMock.toggleInfluencer).not.toHaveBeenCalled();
-    expect(notificationPreferencesMock.toggleBrand).not.toHaveBeenCalled();
+    expect(reminderPickerMock.openReminderPicker).toHaveBeenCalledWith(
+      baseGroupBuy,
+    );
   });
 
   it("loads the canonical item for an ID-only notification route", () => {
@@ -1894,6 +1880,50 @@ describe("DetailScreen", () => {
     });
 
     expectPreparedSummarySheetClosed(renderer!);
+  });
+
+  it("keeps a 1000-character summary intact in the shared reels and detail more sheet", () => {
+    const tailSentinel = "[[SUMMARY-END-1000]]";
+    const summary = `${"가".repeat(1000 - tailSentinel.length)}${tailSentinel}`;
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      summary,
+    };
+
+    expect(summary).toHaveLength(1000);
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={
+            { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+          }
+        />,
+      );
+    });
+
+    const summaryButton = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "요약 자세히 보기",
+    );
+
+    act(() => {
+      summaryButton.props.onPress();
+    });
+
+    const expandedSummary = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Text" &&
+        node.props.children === summary &&
+        node.props.numberOfLines === undefined,
+    );
+
+    expect(expandedSummary.props.children).toBe(summary);
+    expect(expandedSummary.props.children).toContain(tailSentinel);
+    expect(expandedSummary.props.numberOfLines).toBeUndefined();
   });
 
   it("closes search then summary before delegating Android Back to the stack", () => {

@@ -53,6 +53,11 @@ import { ApiError, type ApiValidationError } from "./lib/api-types";
 import { normalizePriceKrw } from "./utils/price";
 import { filterActiveGroupBuys } from "./utils/groupBuyDates";
 import { canRecordBehaviorSignals } from "./audience/behaviorSignalsPolicy";
+import {
+  capturePopularitySignalGeneration,
+  enqueueBookmarkSignal,
+  enqueueDeepViewSignal,
+} from "./services/popularitySignalOutbox";
 
 // ─── Re-export ApiError for consumers that import it ─────────────────────────
 export type { ApiValidationError } from "./lib/api-types";
@@ -84,7 +89,8 @@ export const API_BASE_URL = Platform.select({
  * Fetch all group buys with raw post details.
  * GET /rest/v1/group_buys?select=*,raw_post_id(*)
  */
-const PUBLIC_GROUP_BUY_SELECT = "*,raw_post_id(*,influencer_id(*))";
+const PUBLIC_GROUP_BUY_SELECT =
+  "*,influencer_id(*),raw_post_id(*,influencer_id(*))";
 
 export async function fetchGroupBuys(): Promise<GroupBuy[]> {
   try {
@@ -180,6 +186,12 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
     const directInstagramUsername =
       normalizeOptionalInstagramUsername(item.instagramUsername) ??
       normalizeOptionalInstagramUsername(item.instagram_username);
+    const directInfluencer = item.influencerId ?? item.influencer_id;
+    const legacyInfluencer =
+      item.rawPostId?.influencerId ?? item.raw_post_id?.influencer_id;
+    const relatedInstagramUsername =
+      normalizeOptionalInstagramUsername(directInfluencer?.instagramUsername) ??
+      normalizeOptionalInstagramUsername(directInfluencer?.instagram_username);
     const legacyInstagramUsername =
       normalizeOptionalInstagramUsername(
         item.rawPostId?.influencerId?.instagramUsername,
@@ -190,6 +202,12 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
       normalizeOptionalInstagramUsername(
         item.raw_post_id?.influencer_id?.instagram_username,
       );
+    const directProfileImageUrl = normalizeTrustedInstagramProfileImageUrl(
+      directInfluencer?.profileImageUrl ?? directInfluencer?.profile_image_url,
+    );
+    const legacyProfileImageUrl = normalizeTrustedInstagramProfileImageUrl(
+      legacyInfluencer?.profileImageUrl ?? legacyInfluencer?.profile_image_url,
+    );
 
     return {
       id: item.id,
@@ -234,13 +252,64 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
           "",
         influencer: {
           instagramUsername:
-            directInstagramUsername ?? legacyInstagramUsername ?? "",
+            directInstagramUsername ??
+            relatedInstagramUsername ??
+            legacyInstagramUsername ??
+            "",
+          ...(directProfileImageUrl ?? legacyProfileImageUrl
+            ? {
+                profileImageUrl:
+                  directProfileImageUrl ?? legacyProfileImageUrl,
+              }
+            : {}),
         },
       },
     };
   });
 
   return validatePublicGroupBuys(mapped);
+}
+
+const INSTAGRAM_PROFILE_IMAGE_URL_MAX_LENGTH = 8_192;
+const INSTAGRAM_PROFILE_IMAGE_URL_PATTERN =
+  /^https:\/\/(?:[a-z0-9-]+\.)*(?:cdninstagram\.com|fbcdn\.net)(?:[/?#]|$)/iu;
+
+function normalizeTrustedInstagramProfileImageUrl(
+  value: unknown,
+): string | null {
+  if (typeof value !== "string") return null;
+  const candidate = value.trim();
+  if (
+    !candidate ||
+    candidate.length > INSTAGRAM_PROFILE_IMAGE_URL_MAX_LENGTH
+  ) {
+    return null;
+  }
+  if (!INSTAGRAM_PROFILE_IMAGE_URL_PATTERN.test(candidate)) return null;
+
+  try {
+    const url = new URL(candidate);
+    const hostname = url.hostname.toLowerCase();
+    const trustedHost =
+      hostname === "cdninstagram.com" ||
+      hostname.endsWith(".cdninstagram.com") ||
+      hostname === "fbcdn.net" ||
+      hostname.endsWith(".fbcdn.net");
+
+    if (
+      url.protocol !== "https:" ||
+      !trustedHost ||
+      url.username ||
+      url.password ||
+      url.port
+    ) {
+      return null;
+    }
+
+    return candidate;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -265,6 +334,8 @@ function mapGroupBuyToFeedPost(item: GroupBuy): FeedPost {
     mediaType: item.mediaType,
     caption: item.summary ?? null,
     accountName: item.rawPost.influencer.instagramUsername ?? null,
+    accountProfileImageUrl:
+      item.rawPost.influencer.profileImageUrl ?? null,
     linkUrl: item.purchaseUrl,
     openDate: item.startDate,
     closeDate: item.endDate,
@@ -288,7 +359,7 @@ export async function fetchFeeds(
 ): Promise<FeedPostListResponse> {
   try {
     const { data, meta } = await postgrestGet<any[]>(
-      "group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED&order=created_at.desc",
+      `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED&order=created_at.desc`,
       {
         pagination: { page, limit },
       },
@@ -313,7 +384,7 @@ export async function fetchFeeds(
  */
 export async function fetchFeedPost(id: string): Promise<FeedPost> {
   const { data } = await postgrestGet<any[]>(
-    `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
+    `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
   );
   const rows = data || [];
   const groupBuy = rows[0] ? mapGroupBuyRows([rows[0]])[0] : undefined;
@@ -325,7 +396,7 @@ export async function fetchFeedPost(id: string): Promise<FeedPost> {
 
 export async function fetchGroupBuyById(id: string): Promise<GroupBuy> {
   const { data } = await postgrestGet<any[]>(
-    `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
+    `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
   );
   const rows = data || [];
   const groupBuy = rows[0] ? mapGroupBuyRows([rows[0]])[0] : undefined;
@@ -426,19 +497,12 @@ export type PopularGroupBuy = {
  */
 export async function logDeepView(groupBuyId: string): Promise<void> {
   if (!canRecordBehaviorSignals()) return;
+  const signalGeneration = capturePopularitySignalGeneration();
   try {
     const { getSessionId } = await import("./utils/session");
     const sessionId = await getSessionId();
     if (!sessionId) return;
-    await postgrestFetch("group_buy_views", {
-      method: "POST",
-      body: {
-        group_buy_id: groupBuyId,
-        view_type: "deep",
-        session_id: sessionId,
-      },
-      prefer: "return=minimal",
-    });
+    await enqueueDeepViewSignal(groupBuyId, sessionId, signalGeneration);
   } catch (error) {
     console.log(
       "[Popularity] log deep view failed:",
@@ -456,22 +520,17 @@ export async function syncBookmark(
   bookmark: boolean,
 ): Promise<void> {
   if (!canRecordBehaviorSignals()) return;
+  const signalGeneration = capturePopularitySignalGeneration();
   try {
     const { getSessionId } = await import("./utils/session");
     const sessionId = await getSessionId();
     if (!sessionId) return;
-    if (bookmark) {
-      await postgrestFetch("group_buy_bookmarks", {
-        method: "POST",
-        body: { group_buy_id: groupBuyId, session_id: sessionId },
-        prefer: "return=minimal",
-      });
-    } else {
-      await postgrestFetch(
-        `group_buy_bookmarks?group_buy_id=eq.${encodeURIComponent(groupBuyId)}&session_id=eq.${encodeURIComponent(sessionId)}`,
-        { method: "DELETE" },
-      );
-    }
+    await enqueueBookmarkSignal(
+      groupBuyId,
+      sessionId,
+      bookmark,
+      signalGeneration,
+    );
   } catch (error) {
     console.log(
       "[Popularity] sync bookmark failed:",
@@ -735,7 +794,7 @@ export async function fetchGroupBuysByIds(ids: string[]): Promise<GroupBuy[]> {
   if (ids.length === 0) return [];
   try {
     const { data } = await postgrestGet<any[]>(
-      `group_buys?select=*,raw_post_id(*,influencer_id(*))&id=in.(${encodeURIComponent(ids.join(","))})&status=eq.APPROVED`,
+      `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&id=in.(${encodeURIComponent(ids.join(","))})&status=eq.APPROVED`,
     );
     return mapGroupBuyRows(data || []);
   } catch (error) {
@@ -776,9 +835,9 @@ export async function fetchGroupBuysByInfluencer(
   const encodedUsername = encodeURIComponent(normalizedUsername);
   const encodedUsernameWithAt = encodeURIComponent(`@${normalizedUsername}`);
   const directQueryPrefix =
-    "group_buys?select=*,raw_post_id(*,influencer_id(*))&status=eq.APPROVED";
+    `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED`;
   const legacyQueryPrefix =
-    "group_buys?select=*,raw_post_id!inner(*,influencer_id!inner(*))&status=eq.APPROVED";
+    "group_buys?select=*,influencer_id(*),raw_post_id!inner(*,influencer_id!inner(*))&status=eq.APPROVED";
   const [directResponse, legacyResponse] = await Promise.all([
     postgrestGet<any[]>(
       `${directQueryPrefix}&or=(instagram_username.ilike.${encodedUsername},instagram_username.ilike.${encodedUsernameWithAt})&order=created_at.desc`,
@@ -894,10 +953,16 @@ export async function refreshGroupBuyMedia(
 }
 
 /** Permanently delete the authenticated user's account and server-side profile. */
-export async function deleteAccount(): Promise<void> {
+export async function deleteAccount(authToken: string): Promise<void> {
+  const token = authToken.trim();
+  if (!token) {
+    throw new ApiError(401, "로그인 정보가 만료됐습니다.");
+  }
+
   const result = await callEdgeFunction<{ deleted?: boolean }>(
     "delete-account",
     {},
+    { authToken: token },
   );
   if (!result.deleted) {
     throw new ApiError(502, "회원탈퇴 처리 결과를 확인할 수 없습니다.");
