@@ -55,10 +55,8 @@ appId: com.gonggu.wish.preview
       text: "마이페이지"
     timeout: 30000
 
-# Successful authentication intentionally lands on MyPage. Re-enter Settings
-# before continuing the notification preference assertions.
-- tapOn:
-    text: "설정 열기"
+# Authentication resumes the original Settings screen after the push intent
+# has been applied, so continue the notification preference assertions there.
 - extendedWaitUntil:
     visible:
       text: "알림 설정"
