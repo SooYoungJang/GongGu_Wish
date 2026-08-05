@@ -1,8 +1,15 @@
 function formatMonthDay(dateString: string | null | undefined): string | null {
   if (!dateString) return null;
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return null;
-  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T|\s)/.exec(dateString);
+  if (!match) return null;
+
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const daysInMonth = new Date(Date.UTC(Number(match[1]), month, 0)).getUTCDate();
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth) return null;
+
+  return `${month}월 ${day}일`;
 }
 
 /**
