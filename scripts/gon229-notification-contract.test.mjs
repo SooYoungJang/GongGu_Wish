@@ -100,6 +100,10 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(notificationPayload, /AUTH_REDIRECT_URL/);
   assert.match(notificationPayload, /NOTIFICATION_URL_PREFIX/);
   assert.doesNotMatch(flow, /푸시 테스트/);
+  assert.match(
+    preferencesFlow,
+    /id: "push-notification-toggle"[\s\S]*?text: "공구위시 로그인 화면"/,
+  );
   assert.match(preferencesFlow, /text: "공구위시 로그인 화면"/);
   assert.match(preferencesFlow, /id: "fl-input-email"/);
   assert.match(preferencesFlow, /id: "fl-input-password"/);

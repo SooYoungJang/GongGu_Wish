@@ -32,9 +32,9 @@ appId: com.gonggu.wish.preview
     id: "test-notification-button"
 - takeScreenshot: gon229-android-01-settings-defaults
 
-# Guests are routed to authentication before any preference can change.
+# Guests are routed to authentication before enabling the dependent controls.
 - tapOn:
-    id: "submission-approval-notification-toggle"
+    id: "push-notification-toggle"
 - extendedWaitUntil:
     visible:
       text: "공구위시 로그인 화면"
