@@ -242,13 +242,13 @@ test("notification and bookmark actions require authentication", () => {
   assert.match(detail, /const handleBookmarkPress/);
   assert.match(detail, /if \(!requireAuth\(\)\) return/);
   assert.match(detail, /onPress=\{handleBookmarkPress\}/);
-  assert.match(detail, /handleInfluencerFollowPress/);
-  assert.match(detail, /handleBrandFollowPress/);
+  assert.doesNotMatch(detail, /handleInfluencerFollowPress/);
+  assert.doesNotMatch(detail, /handleBrandFollowPress/);
   assert.match(store, /handleToggleNotification/);
   assert.match(store, /if \(!requireAuth\(\)\) return/);
   assert.match(settings, /const pushEnabled\s*=\s*isAuthenticated/);
-  assert.match(settings, /const handleFollowInfluencerPress/);
-  assert.match(settings, /const handleFollowBrandPress/);
+  assert.doesNotMatch(settings, /const handleFollowInfluencerPress/);
+  assert.doesNotMatch(settings, /const handleFollowBrandPress/);
   assert.match(
     myPage,
     /const handleRemoveBookmark[\s\S]*?if \(!requireAuth\(\)\) return;[\s\S]*?removeBookmark\(item\.id\)/,
