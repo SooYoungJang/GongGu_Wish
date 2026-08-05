@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildGroupBuyShareUrl,
   buildGroupBuyNotificationUrl,
   notificationDataToUrl,
   parseGroupBuyNotificationUrl,
 } from "./notificationPayload";
 
 describe("notification payload", () => {
+  it("builds a copyable HTTPS group-buy share URL", () => {
+    expect(buildGroupBuyShareUrl(" group-buy-1 ")).toBe(
+      "https://gongguwish.com/group-buy/group-buy-1",
+    );
+    expect(buildGroupBuyShareUrl("a/b")).toBeNull();
+  });
+
   it("round-trips a bounded canonical group-buy URL", () => {
     const url = buildGroupBuyNotificationUrl(" group-buy-1 ");
     expect(url).toBe("gongguwish-preview://group-buy/group-buy-1");

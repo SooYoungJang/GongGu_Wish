@@ -784,7 +784,7 @@ describe("DetailScreen", () => {
         .props.onPress();
     });
     expect(Share.share).toHaveBeenCalledWith({
-      message: "퍼스트 바이크\ngongguwish-preview://group-buy/group-buy-1",
+      message: "퍼스트 바이크\nhttps://gongguwish.com/group-buy/group-buy-1",
     });
   });
 
