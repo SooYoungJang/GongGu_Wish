@@ -14,7 +14,7 @@ import { categoryColors, spacing } from "../design/tokens";
 import { commerceRadius, type CommerceColorPalette } from "../design/commerce";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import { formatPriceKrw } from "../utils/price";
-import { isGroupBuyExpired } from "../utils/groupBuyDates";
+import { formatDateRange } from "../utils";
 import type { CategoryColorName } from "../design/tokens";
 import type { GroupBuy } from "../types";
 import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
@@ -55,22 +55,12 @@ const CATEGORY_LABELS: Record<CategoryColorName, string> = {
   travel: "여행",
 };
 
-function formatDeadline(endDate: string | null, now = Date.now()) {
-  if (!endDate) return "마감일 미정";
-  const date = new Date(endDate);
-  if (Number.isNaN(date.getTime())) return "마감일 확인 필요";
-  if (isGroupBuyExpired({ endDate }, new Date(now))) return "마감됨";
-
-  const days = Math.ceil((date.getTime() - now) / 86_400_000);
-  if (days <= 0) return "오늘 마감";
-  if (days === 1) return "내일 마감";
-  if (days <= 7) return `${days}일 남음`;
-  return `${date.getMonth() + 1}월 ${date.getDate()}일 마감`;
+function formatDeadline(startDate: string | null, endDate: string | null) {
+  return formatDateRange(startDate, endDate);
 }
 
 export function buildDealCardAccessibilityLabel(
   item: GroupBuy,
-  now = Date.now(),
 ) {
   const productName = item.productName?.trim() || "공동구매 상품";
   const price = formatPriceKrw(item.priceKrw) ?? "미정";
@@ -83,7 +73,7 @@ export function buildDealCardAccessibilityLabel(
     productName,
     `가격 ${price}`,
     `판매자 ${seller}`,
-    formatDeadline(item.endDate, now),
+    formatDeadline(item.startDate, item.endDate),
     "상세 보기",
   ].join(", ");
 }
@@ -144,7 +134,7 @@ export function DealCard({
         ) : null}
         <View style={s.deadlineBadge}>
           <SText variant="caption" style={s.deadlineBadgeText}>
-            {formatDeadline(item.endDate)}
+            {formatDeadline(item.startDate, item.endDate)}
           </SText>
         </View>
       </View>

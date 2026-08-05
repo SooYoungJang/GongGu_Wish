@@ -832,7 +832,8 @@ describe("ranking components", () => {
 
   it("shows rank movement and deadline instead of popularity scores", () => {
     const item = sampleRanking({
-      endDate: "2099-07-31T15:00:00.000Z",
+      startDate: "2099-07-01T00:00:00.000Z",
+      endDate: "2099-07-31T23:59:59+09:00",
       trend: { kind: "up", delta: 4 },
       priceKrw: 25900,
       metrics: {
@@ -861,7 +862,7 @@ describe("ranking components", () => {
     const text = flattenText(renderer!.toJSON()).replace(/\s+/g, " ");
     expect(text).toContain("▲4");
     expect(text).not.toContain("인기지수");
-    expect(text).toContain("마감");
+    expect(text).toContain("7월 1일 ~ 7월 31일");
     expect(text).toContain("25,900원");
     expect(text).not.toContain("조회 1.2만 · 저장 7 · 알림 2");
     expect(text).not.toContain("공구 7개");

@@ -2,7 +2,7 @@ import {
   formatCompactCount,
   type GroupBuyRankingMetrics,
 } from "./types";
-import { formatEndDate } from "../../utils";
+import { formatDateRange } from "../../utils";
 import { formatPriceKrw } from "../../utils/price";
 
 export type PopularityTone =
@@ -76,9 +76,12 @@ export function getPopularityPresentation(
   };
 }
 
-export function formatRankingDeadline(endDate: string | null): string {
-  const label = formatEndDate(endDate);
-  return label === "미정" ? "마감일 미정" : label;
+export function formatRankingDeadline(
+  startDate: string | null,
+  endDate: string | null,
+): string {
+  const label = formatDateRange(startDate, endDate);
+  return label === "기간 미정" ? "마감일 미정" : label;
 }
 
 export function getRankingItemAccessibilityLabel({

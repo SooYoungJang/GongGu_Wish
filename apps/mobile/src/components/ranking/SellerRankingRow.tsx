@@ -55,7 +55,7 @@ export const SellerRankingRow = memo(function SellerRankingRow({
     [imageUrl],
   );
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const deadline = formatRankingDeadline(item.endDate);
+  const deadline = formatRankingDeadline(item.startDate, item.endDate);
   const accessibilityLabel = getRankingItemAccessibilityLabel({
     rank: item.rank,
     name: displayName,

@@ -1,59 +1,51 @@
 /**
  * 날짜/마감일 유틸 함수 테스트.
  *
- * formatEndDate: 사용자 친화적 마감 라벨 ("오늘 마감", "D-3" 등)
+ * formatDateRange: 시작일과 종료일을 함께 보여주는 기간 라벨
  * getDaysRemaining: 정수 일수 계산 (음수 = 마감됨)
  *
  * 타임존 독립성을 위해 setSystemTime과 마감 날짜를 같은 시각(정오)으로 맞춤.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
-import { formatEndDate, getDaysRemaining } from '../../utils';
+import { formatDateRange, getDaysRemaining } from '../../utils';
 
 // 기준 시각: 2026-07-01 정오 (KST)
 const NOW = '2026-07-01T12:00:00+09:00';
 
-describe('formatEndDate', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(NOW));
+describe('formatDateRange', () => {
+  it('시작일과 종료일을 모두 월일 범위로 표시한다', () => {
+    expect(
+      formatDateRange(
+        '2026-06-28T00:00:00+09:00',
+        '2026-07-04T00:00:00+09:00',
+      ),
+    ).toBe('6월 28일 ~ 7월 4일');
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it('이미 마감된 공구도 상대 문구 없이 날짜 범위를 표시한다', () => {
+    expect(
+      formatDateRange(
+        '2026-06-15T12:00:00+09:00',
+        '2026-06-30T23:59:59+09:00',
+      ),
+    ).toBe('6월 15일 ~ 6월 30일');
   });
 
-  it('null은 "미정"을 반환한다', () => {
-    expect(formatEndDate(null)).toBe('미정');
+  it('날짜가 없으면 기간 미정으로 표시한다', () => {
+    expect(formatDateRange(null, undefined)).toBe('기간 미정');
   });
 
-  it('undefined는 "미정"을 반환한다', () => {
-    expect(formatEndDate(undefined)).toBe('미정');
+  it('한쪽 날짜만 있으면 기간 미정으로 표시한다', () => {
+    expect(formatDateRange(null, '2026-07-04T12:00:00+09:00')).toBe(
+      '기간 미정',
+    );
   });
 
-  it('이미 지난 날짜는 "마감됨"을 반환한다', () => {
-    expect(formatEndDate('2026-06-15T12:00:00+09:00')).toBe('마감됨');
-  });
-
-  it('어제 마감했지만 24시간이 지나지 않은 공구도 "마감됨"을 반환한다', () => {
-    expect(formatEndDate('2026-06-30T23:59:59+09:00')).toBe('마감됨');
-  });
-
-  it('오늘 마감인 경우 "오늘 마감"을 반환한다', () => {
-    expect(formatEndDate('2026-07-01T12:00:00+09:00')).toBe('오늘 마감');
-  });
-
-  it('내일 마감인 경우 "내일 마감"을 반환한다', () => {
-    expect(formatEndDate('2026-07-02T12:00:00+09:00')).toBe('내일 마감');
-  });
-
-  it('3일 남은 경우 "N일 남음" 형식을 반환한다', () => {
-    expect(formatEndDate('2026-07-04T12:00:00+09:00')).toBe('7월 4일 마감 (3일 남음)');
-  });
-
-  it('잘못된 날짜 형식은 string을 반환한다', () => {
-    const result = formatEndDate('invalid-date');
-    expect(typeof result).toBe('string');
+  it('잘못된 날짜 형식도 안전한 기간 라벨을 반환한다', () => {
+    expect(formatDateRange('invalid-date', '2026-07-04T12:00:00+09:00')).toBe(
+      '기간 미정',
+    );
   });
 });
 
