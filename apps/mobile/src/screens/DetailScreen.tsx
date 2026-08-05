@@ -97,6 +97,7 @@ import { normalizeForSearch } from "../utils/search";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useAuthGate } from "../hooks/useAuthGate";
 import { useFocusedAndroidBackHandler } from "../navigation/androidBack";
+import { buildGroupBuyNotificationUrl } from "../services/notificationPayload";
 import {
   DEEP_VIEW_THRESHOLD_MS,
   isPlaybackEligible,
@@ -1715,9 +1716,16 @@ function ProductReelPageComponent({
   const handleShare = async () => {
     const productName = groupBuy.productName ?? "공동구매";
     const sellerSuffix = sellerHandle ? ` (${sellerHandle})` : "";
+    const appUrl = buildGroupBuyNotificationUrl(groupBuy.id);
+
+    if (!appUrl) {
+      Alert.alert("오류", "공유 링크를 만들 수 없습니다.");
+      return;
+    }
+
     try {
       await Share.share({
-        message: `${productName}${sellerSuffix}\n${groupBuy.purchaseUrl ?? groupBuy.rawPost.postUrl}`,
+        message: `${productName}${sellerSuffix}\n${appUrl}`,
       });
     } catch {
       Alert.alert("오류", "공유에 실패했습니다.");

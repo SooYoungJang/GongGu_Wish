@@ -784,8 +784,33 @@ describe("DetailScreen", () => {
         .props.onPress();
     });
     expect(Share.share).toHaveBeenCalledWith({
-      message: "퍼스트 바이크\nhttps://example.com/buy",
+      message: "퍼스트 바이크\ngongguwish-preview://group-buy/group-buy-1",
     });
+  });
+
+  it("does not fall back to an original URL when the group buy ID is missing", async () => {
+    const groupBuy: GroupBuy = { ...baseGroupBuy, id: "" };
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    await act(async () => {
+      renderer!.root
+        .findByProps({ accessibilityLabel: "공유" })
+        .props.onPress();
+    });
+    expect(Share.share).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledWith(
+      "오류",
+      "공유 링크를 만들 수 없습니다.",
+    );
   });
 
   it("does not render influencer or brand notification controls", () => {
