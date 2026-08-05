@@ -106,6 +106,10 @@ export function SettingsScreen() {
   );
   const pushWorkerRunning = useRef(false);
   const automatedE2E = isAutomatedE2E();
+  const controlsDisabled = !preferencesReady;
+  const pushEnabled =
+    isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
+  const dependentNotificationsDisabled = controlsDisabled || !pushEnabled;
   const [deleting, setDeleting] = useState(false);
   const [updatingAdPrivacy, setUpdatingAdPrivacy] = useState(false);
 
@@ -285,10 +289,11 @@ export function SettingsScreen() {
 
   const handleSubmissionApprovalChange = useCallback(
     (value: boolean) => {
+      if (dependentNotificationsDisabled) return;
       if (!requireAuth(() => runSubmissionApprovalChange(value))) return;
       void runSubmissionApprovalChange(value);
     },
-    [requireAuth, runSubmissionApprovalChange],
+    [dependentNotificationsDisabled, requireAuth, runSubmissionApprovalChange],
   );
 
   const runMarketingChange = useCallback(
@@ -315,20 +320,18 @@ export function SettingsScreen() {
 
   const handleMarketingChange = useCallback(
     (value: boolean) => {
+      if (dependentNotificationsDisabled) return;
       if (!requireAuth(() => runMarketingChange(value))) return;
       void runMarketingChange(value);
     },
-    [requireAuth, runMarketingChange],
+    [dependentNotificationsDisabled, requireAuth, runMarketingChange],
   );
 
-  const controlsDisabled = !preferencesReady;
-  const pushEnabled =
-    isAuthenticated && (pendingPushEnabled ?? preferences.pushEnabled);
   const submissionApprovalEnabled =
-    isAuthenticated &&
+    pushEnabled &&
     (pendingSubmissionApprovalEnabled ?? preferences.submissionApprovalEnabled);
   const marketingPushEnabled =
-    isAuthenticated &&
+    pushEnabled &&
     (pendingMarketingPushEnabled ?? preferences.marketingPushEnabled);
   const permissionCopy = !isAuthenticated
     ? "로그인 후 원하는 알림을 직접 켤 수 있어요."
@@ -459,45 +462,92 @@ export function SettingsScreen() {
           </View>
           <View style={s.switchRow}>
             <View style={s.switchCopy}>
-              <SText variant="body" style={s.switchLabel}>
+              <SText
+                variant="body"
+                style={
+                  dependentNotificationsDisabled
+                    ? s.switchLabelDisabled
+                    : s.switchLabel
+                }
+              >
                 내 제보 승인 알림
               </SText>
-              <SText variant="caption" style={s.switchDescription}>
+              <SText
+                variant="caption"
+                style={
+                  dependentNotificationsDisabled
+                    ? s.switchDescriptionDisabled
+                    : s.switchDescription
+                }
+              >
                 내가 제보한 공구가 승인되면 알려드려요
               </SText>
             </View>
             <Switch
               accessibilityLabel="내 제보 승인 알림"
-              disabled={controlsDisabled}
+              accessibilityHint="푸시 알림을 먼저 켜야 설정할 수 있어요"
+              disabled={dependentNotificationsDisabled}
               onValueChange={(value) =>
                 void handleSubmissionApprovalChange(value)
               }
               thumbColor={
-                submissionApprovalEnabled ? colors.accent : colors.weak
+                dependentNotificationsDisabled
+                  ? colors.disabled
+                  : submissionApprovalEnabled
+                    ? colors.accent
+                    : colors.weak
               }
-              trackColor={{ false: colors.softBg, true: colors.accentSoft }}
+              trackColor={{
+                false: colors.softBg,
+                true: dependentNotificationsDisabled
+                  ? colors.softBg
+                  : colors.accentSoft,
+              }}
               testID="submission-approval-notification-toggle"
               value={submissionApprovalEnabled}
             />
           </View>
           <View style={s.switchRow}>
             <View style={s.switchCopy}>
-              <SText variant="body" style={s.switchLabel}>
+              <SText
+                variant="body"
+                style={
+                  dependentNotificationsDisabled
+                    ? s.switchLabelDisabled
+                    : s.switchLabel
+                }
+              >
                 마케팅 정보 수신
               </SText>
-              <SText variant="caption" style={s.switchDescription}>
+              <SText
+                variant="caption"
+                style={
+                  dependentNotificationsDisabled
+                    ? s.switchDescriptionDisabled
+                    : s.switchDescription
+                }
+              >
                 새 공구·혜택·이벤트 소식을 받아요 (선택)
               </SText>
             </View>
             <Switch
               accessibilityLabel="마케팅 정보 수신"
               accessibilityHint="광고성 푸시 알림 수신을 켜거나 끕니다"
-              disabled={controlsDisabled}
+              disabled={dependentNotificationsDisabled}
               onValueChange={(value) => void handleMarketingChange(value)}
               thumbColor={
-                marketingPushEnabled ? colors.accent : colors.weak
+                dependentNotificationsDisabled
+                  ? colors.disabled
+                  : marketingPushEnabled
+                    ? colors.accent
+                    : colors.weak
               }
-              trackColor={{ false: colors.softBg, true: colors.accentSoft }}
+              trackColor={{
+                false: colors.softBg,
+                true: dependentNotificationsDisabled
+                  ? colors.softBg
+                  : colors.accentSoft,
+              }}
               testID="marketing-push-toggle"
               value={marketingPushEnabled}
             />
@@ -737,7 +787,9 @@ function makeStyles(
     },
     switchCopy: { flex: 1, gap: spacing.xs, paddingRight: spacing.md },
     switchLabel: { color: colors.text, fontWeight: "900" },
+    switchLabelDisabled: { color: colors.disabled, fontWeight: "900" },
     switchDescription: { color: colors.weak, fontWeight: "700" },
+    switchDescriptionDisabled: { color: colors.disabled, fontWeight: "700" },
     preferenceError: {
       color: colors.error,
       fontWeight: "800",

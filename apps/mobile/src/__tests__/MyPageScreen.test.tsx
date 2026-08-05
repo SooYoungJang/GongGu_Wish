@@ -678,7 +678,7 @@ describe('MyPageScreen', () => {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
     };
-    settingsPreferenceMocks.preferences.pushEnabled = false;
+    settingsPreferenceMocks.preferences.pushEnabled = true;
     settingsPreferenceMocks.preferences.submissionApprovalEnabled = false;
     const renderer = renderScreen(React.createElement(SettingsScreen));
     await act(async () => {
@@ -705,6 +705,41 @@ describe('MyPageScreen', () => {
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       submissionApprovalEnabled: true,
     });
+  });
+
+  it('disables dependent notification switches while push notifications are off', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    settingsPreferenceMocks.preferences.submissionApprovalEnabled = true;
+    settingsPreferenceMocks.preferences.marketingPushEnabled = true;
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const submissionApproval = renderer.root.findByProps({
+      accessibilityLabel: '내 제보 승인 알림',
+    });
+    const marketing = renderer.root.findByProps({
+      accessibilityLabel: '마케팅 정보 수신',
+    });
+
+    expect(submissionApproval.props.disabled).toBe(true);
+    expect(marketing.props.disabled).toBe(true);
+    expect(submissionApproval.props.value).toBe(false);
+    expect(marketing.props.value).toBe(false);
+
+    await act(async () => {
+      await submissionApproval.props.onValueChange(true);
+      await marketing.props.onValueChange(true);
+    });
+
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
+    expect(notificationMocks.registerForPushNotifications).not.toHaveBeenCalled();
   });
 
   it('keeps notification switches interactive while preferences sync', async () => {
@@ -742,17 +777,15 @@ describe('MyPageScreen', () => {
     });
 
     expect(push.props.disabled).toBe(false);
-    expect(submissionApproval.props.disabled).toBe(false);
-    expect(marketing.props.disabled).toBe(false);
+    expect(submissionApproval.props.disabled).toBe(true);
+    expect(marketing.props.disabled).toBe(true);
 
     await act(async () => {
       await push.props.onValueChange(true);
-      await submissionApproval.props.onValueChange(true);
-      await marketing.props.onValueChange(true);
       await Promise.resolve();
     });
 
-    expect(navigationMocks.navigate).toHaveBeenCalledTimes(3);
+    expect(navigationMocks.navigate).toHaveBeenCalledOnce();
     expect(navigationMocks.navigate).toHaveBeenCalledWith('Login');
     expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
     expect(push.props.value).toBe(false);
@@ -782,7 +815,7 @@ describe('MyPageScreen', () => {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
     };
-    settingsPreferenceMocks.preferences.pushEnabled = false;
+    settingsPreferenceMocks.preferences.pushEnabled = true;
     let resolveRegistration!: (result: {
       status: 'registered';
       token: string;
@@ -847,7 +880,7 @@ describe('MyPageScreen', () => {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
     };
-    settingsPreferenceMocks.preferences.pushEnabled = false;
+    settingsPreferenceMocks.preferences.pushEnabled = true;
     settingsPreferenceMocks.preferences.marketingPushEnabled = false;
     let resolveRegistration!: (result: {
       status: 'registered';
@@ -900,7 +933,7 @@ describe('MyPageScreen', () => {
       access_token: 'access-token',
       user: { id: 'user-1', email: 'user@example.com' },
     };
-    settingsPreferenceMocks.preferences.pushEnabled = false;
+    settingsPreferenceMocks.preferences.pushEnabled = true;
     settingsPreferenceMocks.preferences.marketingPushEnabled = false;
     let resolveRegistration!: (result: {
       status: 'failed';
