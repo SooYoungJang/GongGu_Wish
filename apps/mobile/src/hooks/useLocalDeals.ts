@@ -13,7 +13,7 @@ import type {
 } from "../services/notifications";
 import {
   cancelScheduledNotifications,
-  requestNotificationPermissions,
+  ensureNotificationPermission,
   scheduleGroupBuyOpeningReminders,
   scheduleGroupBuyReminders,
 } from "../services/notifications";
@@ -1148,9 +1148,9 @@ async function disableNotification(
 
 async function requestNotificationPermissionIfNeeded(
   reminder: GroupBuyReminderUpdate | readonly NotificationReminderDay[],
-): Promise<void> {
-  if (normalizeReminderUpdate(reminder).reminderDays.length === 0) return;
-  await requestNotificationPermissions();
+): Promise<boolean> {
+  if (normalizeReminderUpdate(reminder).reminderDays.length === 0) return true;
+  return ensureNotificationPermission();
 }
 
 async function configureNotification(
@@ -1369,7 +1369,7 @@ export function useRecentViews() {
 
 export function useNotifications() {
   const auth = useOptionalAuth();
-  const { preferences } = useNotificationPreferences();
+  const { preferences, updatePreferences } = useNotificationPreferences();
   const namespace = auth?.user?.id ? `user:${auth.user.id}` : GUEST_NAMESPACE;
   const storageKey = notificationStorageKey(namespace);
   const [notifications, setNotifications] = useState<NotificationEntry[]>(() =>
@@ -1492,6 +1492,20 @@ export function useNotifications() {
     [notifications],
   );
 
+  const activatePushForReminder = useCallback(
+    async (
+      reminder: GroupBuyReminderUpdate | readonly NotificationReminderDay[],
+    ): Promise<NotificationPreferences | null> => {
+      const permissionGranted = await requestNotificationPermissionIfNeeded(
+        reminder,
+      );
+      if (!permissionGranted) return null;
+      if (preferences.pushEnabled) return preferences;
+      return updatePreferences({ pushEnabled: true });
+    },
+    [preferences, updatePreferences],
+  );
+
   const setNotificationReminders = useCallback(
     (
       item: GroupBuy,
@@ -1501,18 +1515,24 @@ export function useNotifications() {
         return Promise.resolve({ status: "idle" } as const);
       }
       return enqueueNotificationOperation(namespace, item.id, async () => {
-        await requestNotificationPermissionIfNeeded(reminder);
+        const nextPreferences = await activatePushForReminder(reminder);
+        if (!nextPreferences) {
+          return {
+            status: "unavailable",
+            reason: "permission-denied",
+          } as const;
+        }
         return configureNotification(
           namespace,
           storageKey,
           getNotificationSnapshot(namespace),
           item,
-          preferences,
+          nextPreferences,
           reminder,
         );
       });
     },
-    [namespace, preferences, storageKey],
+    [activatePushForReminder, namespace, storageKey],
   );
 
   const toggleNotification = useCallback(
@@ -1526,18 +1546,26 @@ export function useNotifications() {
         if (existing) {
           return disableNotification(namespace, storageKey, current, existing);
         }
-        await requestNotificationPermissionIfNeeded(preferences.reminderDays);
+        const nextPreferences = await activatePushForReminder(
+          preferences.reminderDays,
+        );
+        if (!nextPreferences) {
+          return {
+            status: "unavailable",
+            reason: "permission-denied",
+          } as const;
+        }
         return enableNotification(
           namespace,
           storageKey,
           current,
           item,
-          preferences,
+          nextPreferences,
           preferences.reminderDays,
         );
       });
     },
-    [namespace, preferences, storageKey],
+    [activatePushForReminder, namespace, preferences.reminderDays, storageKey],
   );
 
   const retryNotification = useCallback(
@@ -1557,7 +1585,13 @@ export function useNotifications() {
         const reminder = existing
           ? getEntryReminderPreference(existing, preferences.reminderDays)
           : preferences.reminderDays;
-        await requestNotificationPermissionIfNeeded(reminder);
+        const nextPreferences = await activatePushForReminder(reminder);
+        if (!nextPreferences) {
+          return {
+            status: "unavailable",
+            reason: "permission-denied",
+          } as const;
+        }
         if (
           existing?.alertState?.status === "failed" &&
           getEntryNotificationIds(existing).length > 0
@@ -1566,7 +1600,7 @@ export function useNotifications() {
             namespace,
             storageKey,
             item.id,
-            preferences,
+            nextPreferences,
           );
         }
         return enableNotification(
@@ -1574,12 +1608,12 @@ export function useNotifications() {
           storageKey,
           current,
           item,
-          preferences,
+          nextPreferences,
           reminder,
         );
       });
     },
-    [namespace, preferences, storageKey],
+    [activatePushForReminder, namespace, preferences.reminderDays, storageKey],
   );
 
   const removeNotification = useCallback(

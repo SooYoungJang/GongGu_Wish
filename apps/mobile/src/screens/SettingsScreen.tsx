@@ -34,6 +34,7 @@ import { getSupabase } from "../lib/supabase";
 import {
   getNotificationPermissionStatus,
   IS_EXPO_GO,
+  openNotificationSettings,
   registerForPushNotifications,
   type NotificationPermissionStatus,
 } from "../services/notifications";
@@ -192,12 +193,20 @@ export function SettingsScreen() {
             result.reason === "permission-denied" ? "denied" : "error",
           );
           if (isLatest()) {
-            Alert.alert(
-              "알림을 켤 수 없어요",
-              result.reason === "permission-denied"
-                ? "기기 설정에서 알림 권한을 허용해 주세요."
-                : "기기 알림 권한을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
-            );
+            if (result.reason === "permission-denied") {
+              const opened = await openNotificationSettings();
+              if (!opened) {
+                Alert.alert(
+                  "알림을 켤 수 없어요",
+                  "기기 설정에서 알림 권한을 허용해 주세요.",
+                );
+              }
+            } else {
+              Alert.alert(
+                "알림을 켤 수 없어요",
+                "기기 알림 권한을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+              );
+            }
           }
           return false;
         }
