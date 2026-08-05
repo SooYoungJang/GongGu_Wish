@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { callEdgeFunction } = vi.hoisted(() => ({ callEdgeFunction: vi.fn() }));
+const linkingMocks = vi.hoisted(() => ({
+  openSettings: vi.fn().mockResolvedValue(undefined),
+}));
 const constantsMock = vi.hoisted(() => ({
   appOwnership: "standalone",
   easConfig: {} as { projectId?: string },
@@ -39,7 +42,7 @@ const notificationMocks = vi.hoisted(() => ({
 vi.mock("../lib/postgrest-client", () => ({ callEdgeFunction }));
 vi.mock("react-native", () => ({
   Linking: {
-    openSettings: vi.fn().mockResolvedValue(undefined),
+    openSettings: linkingMocks.openSettings,
   },
   Platform: {
     OS: "android",
@@ -71,6 +74,7 @@ describe("registerForPushNotifications", () => {
     callEdgeFunction.mockResolvedValue({
       data: { registered: true, provider: "expo" },
     });
+    linkingMocks.openSettings.mockReset().mockResolvedValue(undefined);
     notificationMocks.getPermissionsAsync.mockReset().mockResolvedValue({
       status: "granted",
     });
@@ -486,13 +490,28 @@ describe("registerForPushNotifications", () => {
   it("opens app settings when OS notification permission was previously denied", async () => {
     notificationMocks.getPermissionsAsync.mockResolvedValueOnce({
       status: "denied",
+      canAskAgain: false,
     });
-    const { Linking } = await import("react-native");
 
     await expect(ensureNotificationPermission()).resolves.toBe(false);
 
     expect(notificationMocks.requestPermissionsAsync).not.toHaveBeenCalled();
-    expect(Linking.openSettings).toHaveBeenCalledOnce();
+    expect(linkingMocks.openSettings).toHaveBeenCalledOnce();
+  });
+
+  it("requests permission when a denied status can still ask again", async () => {
+    notificationMocks.getPermissionsAsync
+      .mockResolvedValueOnce({ status: "denied", canAskAgain: true })
+      .mockResolvedValueOnce({ status: "denied", canAskAgain: true });
+    notificationMocks.requestPermissionsAsync.mockResolvedValueOnce({
+      status: "granted",
+      canAskAgain: true,
+    });
+
+    await expect(ensureNotificationPermission()).resolves.toBe(true);
+
+    expect(notificationMocks.requestPermissionsAsync).toHaveBeenCalledOnce();
+    expect(linkingMocks.openSettings).not.toHaveBeenCalled();
   });
 
   it("consumes a cold-start notification deep link only once", async () => {

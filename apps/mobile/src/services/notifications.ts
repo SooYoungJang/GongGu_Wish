@@ -98,6 +98,36 @@ export type NotificationScheduleOptions = GroupBuyReminderScheduleOptions & {
   requestPermission?: boolean;
 };
 
+export type NotificationPermissionStatus =
+  | "granted"
+  | "denied"
+  | "undetermined"
+  | "unsupported"
+  | "error";
+
+type NotificationPermissionResponse = {
+  status?: string;
+  canAskAgain?: boolean | null;
+};
+
+type NotificationPermissionSnapshot = {
+  status: NotificationPermissionStatus;
+  canAskAgain: boolean | null;
+};
+
+function canRequestNotificationPermission(
+  response: NotificationPermissionResponse,
+): boolean {
+  if (response.status === "denied") return response.canAskAgain === true;
+  return response.canAskAgain !== false;
+}
+
+function shouldOpenNotificationSettings(
+  response: NotificationPermissionResponse,
+): boolean {
+  return response.status === "denied" && response.canAskAgain !== true;
+}
+
 function shouldRequestNotificationPermission(
   options?: number | NotificationScheduleOptions,
 ): boolean {
@@ -130,20 +160,22 @@ async function getNotificationAvailability(
       ]);
     }
 
-    const existingStatus = await Notifications.getPermissionsAsync();
+    const existingStatus =
+      (await Notifications.getPermissionsAsync()) as NotificationPermissionResponse;
     let finalStatus = existingStatus;
-    const currentStatus = (existingStatus as { status?: string }).status;
-    if (currentStatus === "denied") {
-      return { status: "unavailable", reason: "permission-denied" };
-    }
+    const currentStatus = existingStatus.status;
     if (currentStatus !== "granted") {
+      if (!canRequestNotificationPermission(existingStatus)) {
+        return { status: "unavailable", reason: "permission-denied" };
+      }
       if (!requestPermission) {
         return { status: "unavailable", reason: "permission-denied" };
       }
-      finalStatus = await Notifications.requestPermissionsAsync();
+      finalStatus =
+        (await Notifications.requestPermissionsAsync()) as NotificationPermissionResponse;
     }
 
-    const finalStatusValue = (finalStatus as { status?: string }).status;
+    const finalStatusValue = finalStatus.status;
     if (finalStatusValue !== "granted") {
       return { status: "unavailable", reason: "permission-denied" };
     }
@@ -158,25 +190,27 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   return (await getNotificationAvailability()).status === "available";
 }
 
-export type NotificationPermissionStatus =
-  | "granted"
-  | "denied"
-  | "undetermined"
-  | "unsupported"
-  | "error";
+async function getNotificationPermissionSnapshot(): Promise<NotificationPermissionSnapshot> {
+  if (IS_EXPO_GO) return { status: "unsupported", canAskAgain: null };
+  const Notifications = await getNotifications();
+  if (!Notifications) return { status: "unsupported", canAskAgain: null };
+  try {
+    const result =
+      (await Notifications.getPermissionsAsync()) as NotificationPermissionResponse;
+    const status = result.status;
+    return {
+      status:
+        status === "granted" || status === "denied" ? status : "undetermined",
+      canAskAgain:
+        typeof result.canAskAgain === "boolean" ? result.canAskAgain : null,
+    };
+  } catch {
+    return { status: "error", canAskAgain: null };
+  }
+}
 
 export async function getNotificationPermissionStatus(): Promise<NotificationPermissionStatus> {
-  if (IS_EXPO_GO) return "unsupported";
-  const Notifications = await getNotifications();
-  if (!Notifications) return "unsupported";
-  try {
-    const result = await Notifications.getPermissionsAsync();
-    const status = (result as { status?: string }).status;
-    if (status === "granted" || status === "denied") return status;
-    return "undetermined";
-  } catch {
-    return "error";
-  }
+  return (await getNotificationPermissionSnapshot()).status;
 }
 
 export async function openNotificationSettings(): Promise<boolean> {
@@ -189,16 +223,21 @@ export async function openNotificationSettings(): Promise<boolean> {
 }
 
 export async function ensureNotificationPermission(): Promise<boolean> {
-  const status = await getNotificationPermissionStatus();
-  if (status === "granted") return true;
-  if (status === "denied") {
-    await openNotificationSettings();
+  const permission = await getNotificationPermissionSnapshot();
+  if (permission.status === "granted") return true;
+  if (permission.status === "unsupported" || permission.status === "error") {
     return false;
   }
-  if (status !== "undetermined") return false;
+  if (!canRequestNotificationPermission(permission)) {
+    if (shouldOpenNotificationSettings(permission)) {
+      await openNotificationSettings();
+    }
+    return false;
+  }
 
   if (await requestNotificationPermissions()) return true;
-  if ((await getNotificationPermissionStatus()) === "denied") {
+  const afterRequest = await getNotificationPermissionSnapshot();
+  if (shouldOpenNotificationSettings(afterRequest)) {
     await openNotificationSettings();
   }
   return false;
