@@ -1149,9 +1149,8 @@ function ProductReelPageComponent({
             ? "알림 변경"
             : "알림";
   const handleNotificationPress = useCallback(() => {
-    if (!requireAuth()) return;
     openReminderPicker(groupBuy);
-  }, [groupBuy, openReminderPicker, requireAuth]);
+  }, [groupBuy, openReminderPicker]);
   const deadlineLabel = formatEndDate(groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;

@@ -23,6 +23,13 @@ const preferenceMocks = vi.hoisted(() => ({
     deadlineRemindersEnabled: true,
   },
 }));
+const authMocks = vi.hoisted(() => ({
+  user: { id: "user-1" } as { id: string } | null,
+  setAuthContinuation: vi.fn(),
+}));
+const notificationServiceMocks = vi.hoisted(() => ({
+  requestNotificationPermissions: vi.fn(async () => true),
+}));
 
 vi.mock("../hooks/useLocalDeals", () => ({
   useNotifications: () => ({
@@ -40,8 +47,10 @@ vi.mock("@expo/ui/datetimepicker", () => ({
 }));
 
 vi.mock("./AuthContext", () => ({
-  useAuth: () => ({ user: { id: "user-1" } }),
+  useAuth: () => authMocks,
 }));
+
+vi.mock("../services/notifications", () => notificationServiceMocks);
 
 vi.mock("./NotificationPreferencesContext", () => ({
   useNotificationPreferences: () => preferenceMocks,
@@ -106,12 +115,15 @@ function PickerHarness({ item: target = item }: { item?: GroupBuy }) {
 
 describe("GroupBuyReminderPickerProvider", () => {
   beforeEach(() => {
+    authMocks.user = { id: "user-1" };
+    authMocks.setAuthContinuation.mockClear();
     notificationMocks.enabled = false;
     notificationMocks.reminderDays = [];
     notificationMocks.reminderPreference = null;
     notificationMocks.setNotificationReminders.mockClear();
     preferenceMocks.preferences.pushEnabled = true;
     preferenceMocks.preferences.deadlineRemindersEnabled = true;
+    notificationServiceMocks.requestNotificationPermissions.mockClear();
   });
 
   it("opens immediately with seven unselected reminder dates", () => {
@@ -202,6 +214,49 @@ describe("GroupBuyReminderPickerProvider", () => {
         reminderTimeMinutes: null,
       },
     );
+  });
+
+  it("redirects guests to login and resumes the reminder with permission", async () => {
+    authMocks.user = null;
+    const onAuthenticationRequired = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <GroupBuyReminderPickerProvider
+          onAuthenticationRequired={onAuthenticationRequired}
+        >
+          <PickerHarness />
+        </GroupBuyReminderPickerProvider>,
+      );
+    });
+
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "open-reminder-picker" })
+        .props.onPress(),
+    );
+
+    expect(onAuthenticationRequired).toHaveBeenCalledOnce();
+    expect(authMocks.setAuthContinuation).toHaveBeenCalledOnce();
+    const continuation = authMocks.setAuthContinuation.mock.calls[0][0];
+
+    authMocks.user = { id: "user-1" };
+    await act(async () => {
+      renderer!.update(
+        <GroupBuyReminderPickerProvider
+          onAuthenticationRequired={onAuthenticationRequired}
+        >
+          <PickerHarness />
+        </GroupBuyReminderPickerProvider>,
+      );
+      await continuation();
+      await Promise.resolve();
+    });
+
+    expect(
+      notificationServiceMocks.requestNotificationPermissions,
+    ).toHaveBeenCalledOnce();
+    expect(renderer!.root.findByProps({ animationType: "none" })).toBeTruthy();
   });
 
   it("ignores the legacy deadline preference when global push is enabled", () => {

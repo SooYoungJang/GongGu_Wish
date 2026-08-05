@@ -817,7 +817,7 @@ describe("DetailScreen", () => {
     expect(flattenText(renderer!.toJSON())).not.toContain("브랜드 알림");
   });
 
-  it("blocks every guest bookmark and notification action behind login", () => {
+  it("gates guest bookmarks and delegates notification auth to the shared picker", () => {
     authGateMock.isAuthenticated = false;
     authGateMock.requireAuth.mockReturnValue(false);
     let renderer: TestRenderer.ReactTestRenderer;
@@ -842,10 +842,12 @@ describe("DetailScreen", () => {
     ];
     act(() => actions.forEach((action) => action.props.onPress()));
 
-    expect(authGateMock.requireAuth).toHaveBeenCalledTimes(2);
+    expect(authGateMock.requireAuth).toHaveBeenCalledOnce();
     expect(localDealActionMocks.toggleBookmark).not.toHaveBeenCalled();
     expect(localDealActionMocks.toggleNotification).not.toHaveBeenCalled();
-    expect(reminderPickerMock.openReminderPicker).not.toHaveBeenCalled();
+    expect(reminderPickerMock.openReminderPicker).toHaveBeenCalledWith(
+      baseGroupBuy,
+    );
   });
 
   it("loads the canonical item for an ID-only notification route", () => {

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMock = vi.hoisted(() => ({
   user: null as { id: string } | null,
+  setAuthContinuation: vi.fn(),
+  clearAuthContinuation: vi.fn(),
 }));
 const audienceMock = vi.hoisted(() => ({
   canAuthenticate: true,
@@ -15,7 +17,7 @@ vi.mock("@react-navigation/native", () => ({
   useNavigation: () => navigationMock,
 }));
 vi.mock("../context/AuthContext", () => ({
-  useAuth: () => ({ user: authMock.user }),
+  useAuth: () => authMock,
 }));
 vi.mock("../audience/AudienceContext", () => ({
   useAudience: () => ({
@@ -28,6 +30,8 @@ import { useAuthGate } from "./useAuthGate";
 describe("useAuthGate", () => {
   beforeEach(() => {
     authMock.user = null;
+    authMock.setAuthContinuation.mockReset();
+    authMock.clearAuthContinuation.mockReset();
     audienceMock.canAuthenticate = true;
     navigationMock.navigate.mockReset();
   });
@@ -42,6 +46,18 @@ describe("useAuthGate", () => {
 
     expect(allowed).toBe(false);
     expect(gate.result.current.isAuthenticated).toBe(false);
+    expect(navigationMock.navigate).toHaveBeenCalledWith("Login");
+  });
+
+  it("keeps a guest action to resume after login", () => {
+    const resume = vi.fn();
+    const gate = renderHook(() => useAuthGate());
+
+    act(() => {
+      gate.result.current.requireAuth(resume);
+    });
+
+    expect(authMock.setAuthContinuation).toHaveBeenCalledWith(resume);
     expect(navigationMock.navigate).toHaveBeenCalledWith("Login");
   });
 

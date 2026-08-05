@@ -411,7 +411,9 @@ export function AuthScreen(_props: AuthScreenProps) {
   const {
     authCompletionRevision,
     cancelAudienceAuthIntent,
+    clearAuthContinuation,
     isAudienceAuthIntentPending,
+    takeAuthContinuation,
     user,
   } = useAuth();
   const navigation =
@@ -430,17 +432,36 @@ export function AuthScreen(_props: AuthScreenProps) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const completeAuthNavigation = useCallback(() => {
+    if (!user) return;
     if (authNavigationCompletedRef.current) return;
     authNavigationCompletedRef.current = true;
-    navigation.popTo('MainTabs', { screen: 'MyPage' });
-  }, [navigation]);
+    const continuation = takeAuthContinuation();
+    const finishNavigation = () => {
+      if (continuation) {
+        navigation.goBack();
+        return;
+      }
+      navigation.popTo('MainTabs', { screen: 'MyPage' });
+    };
+
+    if (!continuation) {
+      finishNavigation();
+      return;
+    }
+
+    void Promise.resolve()
+      .then(continuation)
+      .catch(() => undefined)
+      .finally(finishNavigation);
+  }, [navigation, takeAuthContinuation, user]);
 
   useEffect(
     () =>
       navigation.addListener("beforeRemove", () => {
+        clearAuthContinuation();
         cancelAudienceAuthIntent();
       }),
-    [cancelAudienceAuthIntent, navigation],
+    [cancelAudienceAuthIntent, clearAuthContinuation, navigation],
   );
 
   useEffect(() => {
