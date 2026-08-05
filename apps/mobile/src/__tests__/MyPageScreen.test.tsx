@@ -833,7 +833,7 @@ describe('MyPageScreen', () => {
     expect(
       settingsPreferenceMocks.updatePreferences,
     ).not.toHaveBeenCalledWith({ marketingPushEnabled: true });
-    expect(marketing.props.value).toBe(false);
+    expect(marketing.props.value).toBe(true);
 
     await act(async () => {
       resolveRegistration({
@@ -844,6 +844,58 @@ describe('MyPageScreen', () => {
       await Promise.resolve();
     });
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
+      marketingPushEnabled: true,
+    });
+  });
+
+  it('rolls the marketing toggle back after push registration fails', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    settingsPreferenceMocks.preferences.pushEnabled = false;
+    settingsPreferenceMocks.preferences.marketingPushEnabled = false;
+    let resolveRegistration!: (result: {
+      status: 'failed';
+      reason: 'token-request-failed';
+    }) => void;
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRegistration = resolve;
+      }),
+    );
+
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const marketing = renderer.root.findByProps({
+      accessibilityLabel: '마케팅 정보 수신',
+    });
+    act(() => {
+      marketing.props.onValueChange(true);
+    });
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '마케팅 정보 수신' })
+        .props.value,
+    ).toBe(true);
+
+    await act(async () => {
+      resolveRegistration({
+        status: 'failed',
+        reason: 'token-request-failed',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: '마케팅 정보 수신' })
+        .props.value,
+    ).toBe(false);
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalledWith({
       marketingPushEnabled: true,
     });
   });
