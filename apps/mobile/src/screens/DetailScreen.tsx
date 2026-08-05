@@ -92,7 +92,7 @@ import { useGroupBuyReminderPicker } from "../context/GroupBuyReminderPickerCont
 import { usePostAudioPlayer } from "../hooks/usePostAudioPlayer";
 import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
-import { formatEndDate, getDaysRemaining } from "../utils";
+import { formatDateRange, getDaysRemaining } from "../utils";
 import { normalizeForSearch } from "../utils/search";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useAuthGate } from "../hooks/useAuthGate";
@@ -929,7 +929,7 @@ function DetailSearchSheet({
                           style={s.detailSearchResultMeta}
                           variant="caption"
                         >
-                          · {formatEndDate(item.endDate)}
+                          · {formatDateRange(item.startDate, item.endDate)}
                         </SText>
                       </View>
                     </View>
@@ -1151,7 +1151,7 @@ function ProductReelPageComponent({
   const handleNotificationPress = useCallback(() => {
     openReminderPicker(groupBuy);
   }, [groupBuy, openReminderPicker]);
-  const deadlineLabel = formatEndDate(groupBuy.endDate);
+  const deadlineLabel = formatDateRange(groupBuy.startDate, groupBuy.endDate);
   const daysRemaining = getDaysRemaining(groupBuy.endDate);
   const isExpired = daysRemaining < 0;
   const isUrgent = daysRemaining >= 0 && daysRemaining <= 3;
@@ -2101,7 +2101,7 @@ function ProductReelPageComponent({
               ]}
             >
               <SText variant="caption" style={s.metaPillText}>
-                {isExpired ? "마감" : isUrgent ? "마감 임박" : deadlineLabel}
+                {deadlineLabel}
               </SText>
             </View>
             {categoryLabel ? (

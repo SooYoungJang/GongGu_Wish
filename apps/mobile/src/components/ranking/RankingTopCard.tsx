@@ -51,7 +51,7 @@ export const RankingTopCard = memo(function RankingTopCard({
     [imageUrl],
   );
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const deadline = formatRankingDeadline(item.endDate);
+  const deadline = formatRankingDeadline(item.startDate, item.endDate);
   const detailLabel = getRankingItemAccessibilityLabel({
     rank: item.rank,
     name: displayName,

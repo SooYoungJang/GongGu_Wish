@@ -97,19 +97,27 @@ describe("DealCard", () => {
   it("announces product, price, seller, and deadline details", () => {
     expect(
       buildDealCardAccessibilityLabel(
-        { ...item, endDate: "2026-07-20T00:00:00.000Z" },
-        Date.parse("2026-07-17T00:00:00.000Z"),
+        {
+          ...item,
+          startDate: "2026-07-17T00:00:00.000Z",
+          endDate: "2026-07-20T00:00:00.000Z",
+        },
       ),
-    ).toBe("제주 감귤 3kg, 가격 25,900원, 판매자 @sample, 3일 남음, 상세 보기");
+    ).toBe(
+      "제주 감귤 3kg, 가격 25,900원, 판매자 @sample, 7월 17일 ~ 7월 20일, 상세 보기",
+    );
   });
 
-  it("announces a previous-day deadline as expired instead of today", () => {
+  it("announces the date range even after the group buy has ended", () => {
     expect(
       buildDealCardAccessibilityLabel(
-        { ...item, endDate: "2026-07-16T23:59:59" },
-        Date.parse("2026-07-18T00:30:00"),
+        {
+          ...item,
+          startDate: "2026-07-10T00:00:00",
+          endDate: "2026-07-16T23:59:59",
+        },
       ),
-    ).toContain("마감됨");
+    ).toContain("7월 10일 ~ 7월 16일");
   });
 
   it("does not announce a product category as a missing seller", () => {

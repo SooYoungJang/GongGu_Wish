@@ -1,21 +1,23 @@
-import { isGroupBuyExpired } from './utils/groupBuyDates';
+function formatMonthDay(dateString: string | null | undefined): string | null {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
 
 /**
- * Format a date string into a human-readable deadline label.
- * Examples: "마감됨", "오늘 마감", "내일 마감", "6월 22일 마감 (3일 남음)"
+ * Format a group-buy period as a calendar range.
+ * Examples: "6월 28일 ~ 7월 4일", "기간 미정"
  */
-export function formatEndDate(dateString: string | null | undefined): string {
-  if (!dateString) return '미정';
-  const date = new Date(dateString);
-  if (isGroupBuyExpired({ endDate: dateString })) return '마감됨';
-  const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+export function formatDateRange(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+): string {
+  const startLabel = formatMonthDay(startDate);
+  const endLabel = formatMonthDay(endDate);
 
-  if (diffDays < 0) return '마감됨';
-  if (diffDays === 0) return '오늘 마감';
-  if (diffDays === 1) return '내일 마감';
-  return `${date.getMonth() + 1}월 ${date.getDate()}일 마감 (${diffDays}일 남음)`;
+  if (!startLabel || !endLabel) return '기간 미정';
+  return `${startLabel} ~ ${endLabel}`;
 }
 
 export function normalizeOptional(value: string) {

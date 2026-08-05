@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatRankingDeadline,
   getRankingItemAccessibilityLabel,
   getTopPopularityScore,
   getPopularityIndex,
@@ -87,13 +88,22 @@ describe("popularity presentation", () => {
     expect(getTopPopularityScore([-10, 0, Number.NaN])).toBe(0);
   });
 
+  it("formats ranking dates as a start-to-end range", () => {
+    expect(
+      formatRankingDeadline(
+        "2026-07-01T00:00:00+09:00",
+        "2026-07-31T23:59:59+09:00",
+      ),
+    ).toBe("7월 1일 ~ 7월 31일");
+  });
+
   it("builds one complete accessible label from the visible card facts", () => {
     expect(
       getRankingItemAccessibilityLabel({
         rank: 1,
         name: "여름 한정 공구",
         priceKrw: 200000,
-        deadline: "7월 31일 마감",
+          deadline: "7월 1일 ~ 7월 31일",
         popularity: {
           index: 100,
           reason: "저장 반응 있음",
@@ -106,7 +116,7 @@ describe("popularity presentation", () => {
         }),
       }),
     ).toBe(
-      "1위 여름 한정 공구, 200,000원, 7월 31일 마감, 인기지수 100, 저장 반응 있음, 조회 1.2만, 저장 83, 알림 7, 상세 보기",
+      "1위 여름 한정 공구, 200,000원, 7월 1일 ~ 7월 31일, 인기지수 100, 저장 반응 있음, 조회 1.2만, 저장 83, 알림 7, 상세 보기",
     );
   });
 });
