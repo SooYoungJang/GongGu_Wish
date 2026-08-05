@@ -153,7 +153,33 @@ describe("GroupBuyReminderPickerProvider", () => {
       await Promise.resolve();
     });
 
-    expect(notificationServiceMocks.ensureNotificationPermission).toHaveBeenCalledOnce();
+    expect(
+      notificationServiceMocks.ensureNotificationPermission,
+    ).not.toHaveBeenCalled();
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "group-buy-reminder-day-2" })
+        .props.onPress(),
+    );
+    notificationMocks.setNotificationReminders.mockImplementationOnce(
+      async () => {
+        await notificationServiceMocks.ensureNotificationPermission();
+        if (!preferenceMocks.preferences.pushEnabled) {
+          await preferenceMocks.updatePreferences({ pushEnabled: true });
+        }
+        return { status: "enabled" };
+      },
+    );
+    await act(async () => {
+      renderer!.root
+        .findByProps({ testID: "group-buy-reminder-save" })
+        .props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(
+      notificationServiceMocks.ensureNotificationPermission,
+    ).toHaveBeenCalledOnce();
     expect(preferenceMocks.updatePreferences).toHaveBeenCalledWith({
       pushEnabled: true,
     });
@@ -250,7 +276,7 @@ describe("GroupBuyReminderPickerProvider", () => {
     );
   });
 
-  it("redirects guests to login and resumes the reminder with permission", async () => {
+  it("shows the picker to guests and gates login at save before permission", async () => {
     authMocks.user = null;
     const onAuthenticationRequired = vi.fn();
     let renderer: TestRenderer.ReactTestRenderer;
@@ -267,6 +293,24 @@ describe("GroupBuyReminderPickerProvider", () => {
     act(() =>
       renderer!.root
         .findByProps({ testID: "open-reminder-picker" })
+        .props.onPress(),
+    );
+
+    expect(renderer!.root.findByProps({ animationType: "none" })).toBeTruthy();
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "group-buy-reminder-day-2" })
+        .props.onPress(),
+    );
+    notificationMocks.setNotificationReminders.mockImplementationOnce(
+      async () => {
+        await notificationServiceMocks.ensureNotificationPermission();
+        return { status: "enabled" };
+      },
+    );
+    act(() =>
+      renderer!.root
+        .findByProps({ testID: "group-buy-reminder-save" })
         .props.onPress(),
     );
 
@@ -290,7 +334,14 @@ describe("GroupBuyReminderPickerProvider", () => {
     expect(
       notificationServiceMocks.ensureNotificationPermission,
     ).toHaveBeenCalledOnce();
-    expect(renderer!.root.findByProps({ animationType: "none" })).toBeTruthy();
+    expect(notificationMocks.setNotificationReminders).toHaveBeenCalledWith(
+      item,
+      {
+        type: "deadline",
+        reminderDays: [2],
+        reminderTimeMinutes: null,
+      },
+    );
   });
 
   it("ignores the legacy deadline preference when global push is enabled", () => {
@@ -331,7 +382,7 @@ describe("GroupBuyReminderPickerProvider", () => {
     );
 
     expect(JSON.stringify(renderer!.toJSON())).toContain(
-      "푸시 알림이 꺼져 있어 선택만 저장돼요.",
+      "저장하면 푸시 알림도 함께 켜져요.",
     );
   });
 
