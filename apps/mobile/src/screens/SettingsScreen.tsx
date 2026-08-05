@@ -94,6 +94,8 @@ export function SettingsScreen() {
   const [pendingPushEnabled, setPendingPushEnabled] = useState<boolean | null>(
     null,
   );
+  const [pendingMarketingPushEnabled, setPendingMarketingPushEnabled] =
+    useState<boolean | null>(null);
   const latestPushRevision = useRef(0);
   const pendingPushIntent = useRef<{ value: boolean; revision: number } | null>(
     null,
@@ -232,6 +234,7 @@ export function SettingsScreen() {
     (value: boolean) => {
       if (!requireAuth()) return;
 
+      setPendingMarketingPushEnabled(null);
       const intent = { value, revision: ++latestPushRevision.current };
       pendingPushIntent.current = intent;
       setPendingPushEnabled(value);
@@ -256,14 +259,21 @@ export function SettingsScreen() {
       if (!requireAuth()) return;
 
       const revision = ++latestPushRevision.current;
-      if (!value) {
-        await updatePreferences({ marketingPushEnabled: false });
-        return;
-      }
+      setPendingMarketingPushEnabled(value);
+      try {
+        if (!value) {
+          await updatePreferences({ marketingPushEnabled: false });
+          return;
+        }
 
-      const registered = await applyPushIntent({ value: true, revision });
-      if (!registered || latestPushRevision.current !== revision) return;
-      await updatePreferences({ marketingPushEnabled: true });
+        const registered = await applyPushIntent({ value: true, revision });
+        if (!registered || latestPushRevision.current !== revision) return;
+        await updatePreferences({ marketingPushEnabled: true });
+      } finally {
+        if (latestPushRevision.current === revision) {
+          setPendingMarketingPushEnabled(null);
+        }
+      }
     },
     [applyPushIntent, requireAuth, updatePreferences],
   );
@@ -274,7 +284,8 @@ export function SettingsScreen() {
   const submissionApprovalEnabled =
     isAuthenticated && preferences.submissionApprovalEnabled;
   const marketingPushEnabled =
-    isAuthenticated && preferences.marketingPushEnabled;
+    isAuthenticated &&
+    (pendingMarketingPushEnabled ?? preferences.marketingPushEnabled);
   const permissionCopy = !isAuthenticated
     ? "로그인 후 원하는 알림을 직접 켤 수 있어요."
     : !pushEnabled
