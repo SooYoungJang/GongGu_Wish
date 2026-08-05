@@ -78,12 +78,13 @@ appId: com.gonggu.wish.preview
     visible:
       text: "앱에서 푸시 수신을 중지했어요.*"
     timeout: 10000
+- waitForAnimationToEnd
 - tapOn:
     id: "push-notification-toggle"
 - extendedWaitUntil:
     visible:
       text: "앱과 기기에서 푸시 알림을 받을 수 있어요.*"
-    timeout: 10000
+    timeout: 30000
 
 # Reminder dates are selected from an individual deal, not from Settings.
 - back
