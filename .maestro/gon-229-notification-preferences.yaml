@@ -66,12 +66,10 @@ appId: com.gonggu.wish.preview
 - takeScreenshot: gon229-android-03-custom-preferences
 - tapOn:
     id: "submission-approval-notification-toggle"
-- tapOn:
-    id: "push-notification-toggle"
 - extendedWaitUntil:
     visible:
       text: "앱과 기기에서 푸시 알림을 받을 수 있어요.*"
-    timeout: 10000
+    timeout: 30000
 - tapOn:
     id: "push-notification-toggle"
 - extendedWaitUntil:
