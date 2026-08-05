@@ -9,15 +9,7 @@ appId: com.gonggu.wish.preview
     text: "GON-263 기준 공구"
 - takeScreenshot: gon229-android-05-notification-deep-link
 
-# Follow targets and schedule the selected deadline reminder from Detail.
-- assertVisible:
-    id: "follow-influencer-notifications"
-- assertVisible:
-    id: "follow-brand-notifications"
-- tapOn:
-    id: "follow-influencer-notifications"
-- tapOn:
-    id: "follow-brand-notifications"
+# Schedule the selected deadline reminder from Detail.
 - tapOn:
     id: "detail-notification-toggle"
 - extendedWaitUntil:
@@ -50,16 +42,10 @@ appId: com.gonggu.wish.preview
     text: "설정 열기"
 - extendedWaitUntil:
     visible:
-      text: "팔로우 알림"
+      text: "알림 설정"
     timeout: 30000
-- scrollUntilVisible:
-    element:
-      text: "@gon263_price 인플루언서 알림 해제"
-    direction: DOWN
-    timeout: 30000
-    centerElement: true
 - assertVisible:
-    text: "@gon263_price 인플루언서 알림 해제"
+    id: "push-notification-toggle"
 - assertVisible:
-    text: "GON-263 Brand 브랜드 알림 해제"
+    id: "submission-approval-notification-toggle"
 - takeScreenshot: gon229-android-07-persisted-preferences
