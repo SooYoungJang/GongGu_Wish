@@ -52,15 +52,11 @@ appId: com.gonggu.wish.preview
     id: "auth-login-submit"
 - extendedWaitUntil:
     visible:
-      text: "마이페이지"
+      text: "알림 설정"
     timeout: 30000
 
 # Authentication resumes the original Settings screen after the push intent
 # has been applied, so continue the notification preference assertions there.
-- extendedWaitUntil:
-    visible:
-      text: "알림 설정"
-    timeout: 30000
 - assertVisible:
     id: "submission-approval-notification-toggle"
 
