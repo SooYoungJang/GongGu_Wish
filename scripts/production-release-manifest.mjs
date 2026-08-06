@@ -84,8 +84,13 @@ export function buildReleaseManifest({
     sourceSha: resolvedSha,
     migrations,
     edgeFunctions,
-    workerSha,
-    mobileDeployment,
+    workerSha: workerSha || null,
+    mobileDeployment:
+      mobileDeployment?.mode ||
+      mobileDeployment?.fingerprint ||
+      mobileDeployment?.runtimeVersion
+        ? mobileDeployment
+        : null,
   };
 }
 

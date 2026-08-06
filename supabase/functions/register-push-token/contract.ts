@@ -31,6 +31,24 @@ export type ValidatedPushRegistrationInput = {
   preferences: NotificationPreferences | null;
 };
 
+export type PushRegistrationErrorCode =
+  "SCHEMA_MISMATCH" | "PUSH_REGISTRATION_FAILED";
+
+export function classifyPushRegistrationError(
+  error: unknown,
+): PushRegistrationErrorCode {
+  const message = error instanceof Error ? error.message : String(error);
+  if (
+    /(?:column|relation|table|function|schema).*does not exist/i.test(
+      message,
+    ) ||
+    /could not find the (?:column|function|table|relation)/i.test(message)
+  ) {
+    return "SCHEMA_MISMATCH";
+  }
+  return "PUSH_REGISTRATION_FAILED";
+}
+
 const EXPO_PUSH_TOKEN_PATTERN = /^(Expo|Exponent)PushToken\[[^\]]+\]$/;
 const INFLUENCER_PATTERN = /^[a-z0-9._]+$/;
 const MAX_TARGETS = 50;

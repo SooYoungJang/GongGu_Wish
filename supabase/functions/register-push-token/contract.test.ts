@@ -5,6 +5,7 @@ import {
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   buildMarketingConsentColumns,
+  classifyPushRegistrationError,
   resolveAuthUserProfileEmail,
   toNotificationPreferenceColumns,
   validatePushRegistrationInput,
@@ -50,6 +51,21 @@ Deno.test("accepts a read-only authenticated preferences request", () => {
     tokenAction: "preserve",
     preferences: null,
   });
+});
+
+Deno.test("classifies schema drift without exposing database details", () => {
+  assertEquals(
+    classifyPushRegistrationError(
+      new Error(
+        'column "submission_approval_notifications_enabled" does not exist',
+      ),
+    ),
+    "SCHEMA_MISMATCH",
+  );
+  assertEquals(
+    classifyPushRegistrationError(new Error("network timeout")),
+    "PUSH_REGISTRATION_FAILED",
+  );
 });
 
 Deno.test("keeps legacy token registration backward compatible", () => {

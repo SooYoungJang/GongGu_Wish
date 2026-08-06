@@ -49,7 +49,7 @@ but only after `Preview Promotion Gate` and every affected required check pass.
 2. Open a PR targeting `develop`. CI classifies the diff and runs only the affected workspace, Edge Function, Supabase, Worker, Admin, and Mobile checks.
 3. After all required checks pass, merge into `develop` without bypassing branch protection. In this single-collaborator repository, `develop` requires zero human approvals because an author cannot approve their own PR; required status checks remain mandatory. `Change Plan & Policy` then classifies the changed paths. Only affected Preview components are tested and deployed. `Preview Green` records the source SHA plus the affected-component set; every affected component must pass its exact-SHA deployment or smoke contract, while unchanged components reuse their last verified deployment.
 4. Only after an explicit Production request, open a PR from the latest `develop` to `main`. `Preview Promotion Gate` requires the PR head to be the latest `develop` SHA and requires that exact SHA's successful `Preview Green` run.
-5. After all required checks pass, merge normally into `main`. The same classifier evaluates the complete `main...develop` promotion diff and runs only the affected Production DB, Edge Functions, Worker, Admin, and Mobile stages.
+5. After all required checks pass, merge normally into `main`. The same classifier evaluates the complete `main...develop` promotion diff and runs only the affected Production DB, Edge Functions, Worker, Admin, and Mobile stages. The protected `production` Environment supplies a manual approval gate before those jobs can mutate Production.
 
 Promotion copies Git-tracked code only. Preview database rows, Auth users, object
 storage, provider secrets, deployment credentials, and generated build artifacts
@@ -124,11 +124,12 @@ the `production` AAB profile and enabling EAS Submit.
 
 - Recompute affected paths across the complete promoted `main...develop` diff.
 - Run workspace quality gates only for affected packages and dependents.
-- Deploy Production Supabase DB/RLS only for migration or config changes.
-- Deploy Production Edge Functions only for function or config changes.
+- Link the exact `main` SHA to the Production Supabase project, preflight migration history, dry-run and apply tracked migrations, and verify the schema contract.
+- Deploy every tracked Production Edge Function only after the schema contract passes.
 - Deploy the Production Cloudflare Worker only for `workers/api-proxy` changes.
 - Let Vercel build Admin only for Admin, shared-package, or root dependency changes.
 - Run Android Production Build/OTA only for Mobile, shared-package, or root dependency changes.
+- Run an authenticated canary notification preference round-trip and publish a SHA-bound release manifest.
 - A documentation-only promotion updates Git history without rebuilding Production applications.
 
 ## GitHub Environments
@@ -151,8 +152,16 @@ Preview `HIKER_API_KEY` is a runtime secret stored directly in the Preview
 Supabase project and remains in place when the integration deploys the function.
 
 The `production` environment stores `SUPABASE_ACCESS_TOKEN`,
-`SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
-`EXPO_TOKEN`, and `HIKER_API_KEY` for the explicit `main` deployment jobs.
+`SUPABASE_DB_PASSWORD`, `SUPABASE_ANON_KEY`, `SUPABASE_SMOKE_EMAIL`,
+`SUPABASE_SMOKE_PASSWORD`, `CLOUDFLARE_API_TOKEN`,
+`CLOUDFLARE_ACCOUNT_ID`, and `EXPO_TOKEN` for the explicit
+`main` deployment jobs. Configure at least one required reviewer on this
+Environment: the workflow cannot apply a Production migration or run the
+Production canary until that approval is granted.
+Changed migration files are checked for destructive SQL. A destructive change
+fails a normal `main` push and requires a `workflow_dispatch` run of the latest
+main commit with both `confirm_production_recovery` and
+`confirm_production_destructive_migrations` enabled.
 
 The Preview environment also stores `VERCEL_PREVIEW_DEPLOY_HOOK_URL`, created
 for the Admin project's `develop` branch. It is project/repository/branch scoped
@@ -191,20 +200,24 @@ corresponding Production resource.
   `Supabase Preview` check for the exact `develop` SHA and expected project URL.
   Any `SUPABASE_ACCESS_TOKEN` configured in GitHub Preview fails the audit.
   Every `supabase/functions/*/index.ts` entrypoint is declared in
-  `supabase/config.toml`; the release contract enforces this so the integration
-  deploys the database migration and its matching Edge Function together.
+  `supabase/config.toml`; the Preview integration deploys the database migration
+  and its matching Edge Function together.
+- Production Supabase deployment is owned by GitHub Actions, not the provider
+  check. It links the exact `main` SHA, runs the migration history preflight,
+  applies only Git-tracked migrations, verifies required columns/functions, and
+  deploys every configured Edge Function. Missing credentials or schema drift
+  fail the release closed.
 - Cloudflare `Workers Scripts Write` is account-scoped, so the GitHub Preview
   environment must not contain an API token or account ID with that permission.
   `gonggu-api-proxy-preview` instead uses its connected Git production trigger,
   bound to `develop`; GitHub Actions observes `/health` until the exact SHA is
   active and never retriggers the build. Production keeps its account token in
   the GitHub Production environment.
-- Preview and Production use separate Hiker API keys. The Preview key is stored
-  only as a Preview Supabase runtime secret. The Production key is stored in the
-  GitHub Production environment and synced to the Production Supabase runtime
-  secret during deployment. Neither key is exposed through a `VITE_` variable
-  or committed file. A key disclosed in logs, chat, screenshots, or browser
-  automation is revoked before release.
+- Preview and Production use separate Hiker API keys. Each key is stored only
+  in its corresponding Supabase runtime secret; the release workflow does not
+  copy or print either credential. Neither key is exposed through a `VITE_`
+  variable or committed file. A key disclosed in logs, chat, screenshots, or
+  browser automation is revoked before release.
 - Expo/EAS credentials and variables remain environment-scoped. Preview builds
   use only the `preview` profile, channel, and environment.
 
@@ -243,6 +256,11 @@ Every affected deployed surface must identify as that SHA and the Preview tier:
 - Unaffected surfaces: reused from their last verified Preview deployment and
   not falsely labeled as the current SHA
 
+The `preview-release-<sha>` and `production-release-<sha>` artifacts also contain
+the source SHA, project ref, migration file hashes, Edge Function hashes,
+Worker SHA, and mobile fingerprint/deployment mode. A release is not Green when
+the manifest identity does not match the workflow SHA.
+
 An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 
 ## Safety Rules
@@ -280,6 +298,10 @@ An unknown, missing, malformed, cross-tier, or mismatched identity fails closed.
 - [x] Configure the Preview Worker connected Git build for `develop` and remove broad Cloudflare credentials and Deploy Hooks from GitHub Preview
 - [ ] Set the Preview Worker build watch include path to `workers/api-proxy/*` in Cloudflare Settings > Build
 - [x] Add affected-path CI planning, component-specific deployment gates, and documentation-only no-op releases
-- [ ] Revoke any previously exposed Preview Hiker key, set a fresh key only in Preview Supabase, and pass the real lookup smoke test
+- [x] Add direct Production migration/function deployment, schema contract, and canary Green gate
+- [x] Block changed destructive migrations unless a separate recovery approval is supplied
+- [ ] Reconcile the existing Production migration history/schema once before enabling the first direct Production migration run
+- [ ] Create the dedicated Production canary account and add `SUPABASE_ANON_KEY`, `SUPABASE_SMOKE_EMAIL`, and `SUPABASE_SMOKE_PASSWORD` to the protected Production Environment
+- [ ] Revoke any previously exposed Preview Hiker key, set fresh Preview/Production runtime keys, and pass the real lookup smoke test
 - [ ] Configure Apple signing credentials before enabling iOS jobs
 - [ ] Create an active Google Play developer account and EAS Submit service account before enabling store submission

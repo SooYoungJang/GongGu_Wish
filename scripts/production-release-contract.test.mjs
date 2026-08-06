@@ -1,8 +1,22 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+
+const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+
+function job(name) {
+  const marker = `  ${name}:`;
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, `missing workflow job ${name}`);
+  const remainder = workflow.slice(start + marker.length);
+  const boundary = remainder.search(/\n  (?=\S)/);
+  return workflow.slice(
+    start,
+    boundary === -1 ? workflow.length : start + marker.length + boundary,
+  );
+}
 
 import {
   buildReleaseManifest,
@@ -94,6 +108,7 @@ test("schema contract requires every current migration and notification dependen
   assert.match(sql, /20260807000001/);
   assert.match(sql, /20260807000002/);
   assert.match(sql, /missing migration versions/);
+  assert.match(sql, /RLS disabled on/);
 });
 
 test("migration history preflight fails closed when the history is absent or empty", () => {
@@ -112,4 +127,43 @@ test("migration versions are derived in timestamp order", () => {
     "20260806000001",
     "20260807000001",
   ]);
+});
+
+test("Production deploy owns migrations, schema verification, and functions", () => {
+  const production = job("supabase-production");
+
+  assert.match(production, /environment: production/);
+  assert.match(production, /SUPABASE_ACCESS_TOKEN/);
+  assert.match(production, /SUPABASE_DB_PASSWORD/);
+  assert.match(production, /production-schema-contract\.mjs/);
+  assert.match(production, /supabase db push --linked --dry-run/);
+  assert.match(production, /supabase db push --linked --yes/);
+  assert.match(production, /supabase functions deploy/);
+  assert.doesNotMatch(production, /Supabase Preview/);
+  assert.doesNotMatch(production, /commits\/\$GITHUB_SHA\/check-runs/);
+});
+
+test("Preview and Production publish exact-source release identity", () => {
+  const preview = job("preview-release-gate");
+  const production = job("production-green");
+
+  assert.match(preview, /production-release-manifest\.mjs/);
+  assert.match(preview, /--environment preview/);
+  assert.match(preview, /--project-ref xwblovggtvbpiusjfokq/);
+  assert.match(preview, /\.sourceSha == \$sha/);
+  assert.match(production, /production-notification-smoke\.mjs/);
+  assert.match(production, /SUPABASE_SMOKE_EMAIL/);
+  assert.match(production, /SUPABASE_SMOKE_PASSWORD/);
+  assert.match(production, /--environment production/);
+  assert.match(production, /--project-ref iosdoheblabfimkjnvfj/);
+  assert.match(production, /production-release-\$\{\{ github\.sha \}\}/);
+});
+
+test("destructive migrations require a separate explicit recovery approval", () => {
+  const production = job("supabase-production");
+
+  assert.match(workflow, /confirm_production_destructive_migrations/);
+  assert.match(production, /production-migration-policy\.mjs/);
+  assert.match(production, /ALLOW_DESTRUCTIVE/);
+  assert.match(production, /--allow-destructive/);
 });

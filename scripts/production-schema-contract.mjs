@@ -62,9 +62,22 @@ export function buildSchemaContractSql({
 DECLARE
   missing_columns text;
   missing_migrations text;
+  unprotected_tables text;
 BEGIN
   IF to_regclass('supabase_migrations.schema_migrations') IS NULL THEN
     RAISE EXCEPTION 'schema contract missing supabase_migrations.schema_migrations';
+  END IF;
+
+  SELECT string_agg(format('%I.%I', namespace.nspname, relation.relname), ', ' ORDER BY relation.relname)
+    INTO unprotected_tables
+  FROM pg_class relation
+  JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+  WHERE namespace.nspname = 'public'
+    AND relation.relkind = 'r'
+    AND relation.relrowsecurity = false;
+
+  IF unprotected_tables IS NOT NULL THEN
+    RAISE EXCEPTION 'schema contract RLS disabled on: %', unprotected_tables;
   END IF;
 
   SELECT string_agg(expected.column_name, ', ' ORDER BY expected.column_name)

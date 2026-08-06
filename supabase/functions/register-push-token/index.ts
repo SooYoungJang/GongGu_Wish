@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   buildMarketingConsentColumns,
+  classifyPushRegistrationError,
   fromNotificationPreferenceColumns,
   resolveAuthUserProfileEmail,
   toNotificationPreferenceColumns,
@@ -44,9 +45,8 @@ async function registerToken(req: Request) {
   if (!accessToken) return json({ error: "로그인이 필요합니다." }, 401);
 
   const supabase = createServiceClient();
-  const { data: authData, error: authError } = await supabase.auth.getUser(
-    accessToken,
-  );
+  const { data: authData, error: authError } =
+    await supabase.auth.getUser(accessToken);
   if (authError || !authData.user) {
     return json({ error: "세션이 만료되었습니다." }, 401);
   }
@@ -68,9 +68,8 @@ async function registerToken(req: Request) {
   } catch (error) {
     return json(
       {
-        error: error instanceof Error
-          ? error.message
-          : "요청이 올바르지 않습니다.",
+        error:
+          error instanceof Error ? error.message : "요청이 올바르지 않습니다.",
       },
       400,
     );
@@ -107,29 +106,30 @@ async function registerToken(req: Request) {
   const preferenceColumns = input.preferences
     ? toNotificationPreferenceColumns(input.preferences)
     : {};
-  const marketingConsentProvided =
-    Boolean(
-      input.preferences &&
-        body.preferences &&
-        typeof body.preferences === "object" &&
-        !Array.isArray(body.preferences) &&
-        Object.prototype.hasOwnProperty.call(
-          body.preferences,
-          "marketingPushEnabled",
-        ),
-    );
-  const marketingConsentColumns = input.preferences && marketingConsentProvided
-    ? buildMarketingConsentColumns(
-        existing?.marketing_push_enabled,
-        input.preferences.marketingPushEnabled,
-        now,
-      )
-    : {};
-  const tokenColumns = input.tokenAction === "set"
-    ? {}
-    : input.tokenAction === "clear"
-    ? { push_token: null, push_provider: null }
-    : {};
+  const marketingConsentProvided = Boolean(
+    input.preferences &&
+    body.preferences &&
+    typeof body.preferences === "object" &&
+    !Array.isArray(body.preferences) &&
+    Object.prototype.hasOwnProperty.call(
+      body.preferences,
+      "marketingPushEnabled",
+    ),
+  );
+  const marketingConsentColumns =
+    input.preferences && marketingConsentProvided
+      ? buildMarketingConsentColumns(
+          existing?.marketing_push_enabled,
+          input.preferences.marketingPushEnabled,
+          now,
+        )
+      : {};
+  const tokenColumns =
+    input.tokenAction === "set"
+      ? {}
+      : input.tokenAction === "clear"
+        ? { push_token: null, push_provider: null }
+        : {};
 
   let profileEmailSource: string | null = null;
   if (existing) {
@@ -189,7 +189,8 @@ async function registerToken(req: Request) {
     data: {
       preferencesSynced: Boolean(input.preferences),
       provider: "expo",
-      registered: tokenClaimed ||
+      registered:
+        tokenClaimed ||
         (input.tokenAction === "preserve" && Boolean(existing?.push_token)),
     },
   });
@@ -204,12 +205,13 @@ serve(async (req: Request) => {
   try {
     return await registerToken(req);
   } catch (error) {
+    const code = classifyPushRegistrationError(error);
     console.error(
       JSON.stringify({
         event: "push_registration_failed",
-        errorName: error instanceof Error ? error.name : typeof error,
+        code,
       }),
     );
-    return json({ error: "푸시 알림 설정을 저장하지 못했습니다." }, 500);
+    return json({ error: "푸시 알림 설정을 저장하지 못했습니다.", code }, 500);
   }
 });

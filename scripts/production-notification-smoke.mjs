@@ -102,7 +102,8 @@ export async function runNotificationSmoke({
   const target = {
     ...before,
     deadlineRemindersEnabled: !before.deadlineRemindersEnabled,
-    marketingPushEnabled: !before.marketingPushEnabled,
+    // Marketing consent has audit timestamps, so the canary leaves it unchanged.
+    submissionApprovalEnabled: !before.submissionApprovalEnabled,
   };
   let writeStarted = false;
   try {
