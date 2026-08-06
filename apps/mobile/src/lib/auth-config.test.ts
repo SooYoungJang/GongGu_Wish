@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_AUTH_REDIRECT_URL,
+  PRODUCTION_AUTH_REDIRECT_URL,
   resolveAuthRedirectUrl,
 } from "./auth-config";
 
@@ -22,6 +23,18 @@ describe("resolveAuthRedirectUrl", () => {
   it("uses the Preview callback as the safe fallback", () => {
     expect(resolveAuthRedirectUrl(undefined)).toBe(DEFAULT_AUTH_REDIRECT_URL);
     expect(resolveAuthRedirectUrl({ authRedirectUrl: "  " })).toBe(
+      DEFAULT_AUTH_REDIRECT_URL,
+    );
+  });
+
+  it("uses the native Production package when Expo extra is unavailable", () => {
+    expect(resolveAuthRedirectUrl(undefined, "com.gonggu.wish")).toBe(
+      PRODUCTION_AUTH_REDIRECT_URL,
+    );
+    expect(
+      resolveAuthRedirectUrl({ authRedirectUrl: "  " }, "com.gonggu.wish"),
+    ).toBe(PRODUCTION_AUTH_REDIRECT_URL);
+    expect(resolveAuthRedirectUrl(undefined, "com.gonggu.wish.preview")).toBe(
       DEFAULT_AUTH_REDIRECT_URL,
     );
   });
