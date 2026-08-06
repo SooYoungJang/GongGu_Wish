@@ -108,6 +108,27 @@ describe('postgrestFetch diagnostics', () => {
     );
   });
 
+  it('preserves schema-cache errors as a 400 with their PostgREST code', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: new Headers(),
+      json: vi.fn().mockResolvedValue({
+        code: 'PGRST200',
+        message:
+          "Could not find a relationship between 'group_buys' and 'influencers' in the schema cache",
+      }),
+    }) as unknown as typeof fetch;
+
+    await expect(
+      postgrestFetch('group_buys?select=*,influencer_id(*)'),
+    ).rejects.toMatchObject({
+      code: 'PGRST200',
+      status: 400,
+      message: expect.stringContaining('schema cache'),
+    });
+  });
+
   it('uses the current Supabase session token instead of a stale stored mirror', async () => {
     tokenSourceMocks.getStoredAuthToken.mockResolvedValue('stored-stale-token');
     tokenSourceMocks.client = {

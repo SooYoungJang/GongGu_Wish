@@ -15,6 +15,7 @@ export class ApiError extends Error {
     public readonly status: number,
     message: string,
     public readonly errors?: ApiValidationError[],
+    public readonly code?: string,
   ) {
     super(message);
     this.name = 'ApiError';
