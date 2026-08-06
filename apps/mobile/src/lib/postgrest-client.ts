@@ -165,8 +165,6 @@ async function buildHeaders(opts?: PostgrestHeaders): Promise<Record<string, str
  */
 const POSTGREST_ERROR_MAP: Record<string, { message: string; status: number }> = {
   PGRST116: { message: '조회 결과가 없습니다.', status: 200 }, // 0 rows — not really an error
-  PGRST200: { message: '로그인이 만료되었습니다. 다시 로그인해주세요.', status: 401 },
-  PGRST201: { message: '인증 정보가 유효하지 않습니다.', status: 401 },
   PGRST301: { message: '권한이 없습니다.', status: 403 },
   PGRST302: { message: '접근 권한이 없습니다.', status: 403 },
   '42501': { message: '권한이 없습니다.', status: 403 },
@@ -186,17 +184,17 @@ function handlePostgrestError(status: number, body: PostgrestErrorBody): never {
   const mapped = POSTGREST_ERROR_MAP[pgCode];
 
   if (mapped) {
-    throw new ApiError(mapped.status, mapped.message);
+    throw new ApiError(mapped.status, mapped.message, undefined, pgCode);
   }
 
   // PGRST116 with actual empty results — return empty body
   if (pgCode === 'PGRST116') {
-    throw new ApiError(200, body.message || '');
+    throw new ApiError(200, body.message || '', undefined, pgCode);
   }
 
   // Generic error
   const displayMessage = body?.message || `API 오류 (${status})`;
-  throw new ApiError(status, displayMessage);
+  throw new ApiError(status, displayMessage, body.errors, pgCode || undefined);
 }
 
 function parseApiErrorBody(status: number, text: string): ApiError {
