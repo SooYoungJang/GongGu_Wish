@@ -11,7 +11,7 @@ const DESTRUCTIVE_PATTERNS = [
   { code: "DELETE", pattern: /\bDELETE\s+FROM\b/i },
   {
     code: "ALTER_TYPE",
-    pattern: /\bALTER\s+(?:TABLE|COLUMN)\b[\s\S]*?\bTYPE\b/i,
+    pattern: /\bALTER\s+TABLE\b[\s\S]*?\bALTER\s+COLUMN\b[\s\S]*?\bTYPE\b/i,
   },
 ];
 

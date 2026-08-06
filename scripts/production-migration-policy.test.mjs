@@ -16,6 +16,7 @@ function fixture(contents) {
 test("accepts additive migrations", () => {
   const findings = findDestructiveMigrations([
     fixture("ALTER TABLE public.users ADD COLUMN IF NOT EXISTS example text;"),
+    fixture("ALTER TABLE public.users ADD COLUMN type text;"),
   ]);
   assert.deepEqual(findings, []);
 });
