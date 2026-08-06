@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildKakaoAuthorizeUrl,
   checkKakaoProvider,
+  checkProductionAuthFallback,
   resolveKakaoTarget,
 } from "./check-kakao-provider.mjs";
 
@@ -28,6 +29,16 @@ function kakaoResponse({
   return new Response(null, {
     status,
     headers: { location: location.href },
+  });
+}
+
+function authFallbackResponse({
+  location = "https://gongguwish.com/?error=access_denied",
+  status = 303,
+} = {}) {
+  return new Response(null, {
+    status,
+    headers: { location },
   });
 }
 
@@ -160,4 +171,56 @@ test("transient network and 5xx failures retry, then return a sanitized result",
 
   assert.equal(result.status, 302);
   assert.deepEqual(delays, [5, 10]);
+});
+
+test("Production Auth fallback rejects localhost Site URLs", async () => {
+  await assert.rejects(
+    checkProductionAuthFallback({
+      ...PRODUCTION,
+      fetchImpl: async () =>
+        authFallbackResponse({
+          location: "http://localhost:3000/?error=access_denied",
+        }),
+    }),
+    /Production Supabase Auth Site URL must not use localhost/,
+  );
+});
+
+test("Production Auth fallback accepts the public Site URL", async () => {
+  const requests = [];
+  const result = await checkProductionAuthFallback({
+    ...PRODUCTION,
+    fetchImpl: async (url, options) => {
+      requests.push({ options, url: String(url) });
+      return authFallbackResponse();
+    },
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].options.redirect, "manual");
+  assert.match(requests[0].url, /auth\/v1\/callback/);
+  assert.deepEqual(result, {
+    appVariant: "production",
+    fallbackOrigin: "https://gongguwish.com",
+    projectRef: "iosdoheblabfimkjnvfj",
+    status: 303,
+  });
+});
+
+test("Preview skips the Production-only Auth fallback check", async () => {
+  let calls = 0;
+  const result = await checkProductionAuthFallback({
+    ...PREVIEW,
+    fetchImpl: async () => {
+      calls += 1;
+      return authFallbackResponse();
+    },
+  });
+
+  assert.deepEqual(result, {
+    appVariant: "preview",
+    projectRef: "xwblovggtvbpiusjfokq",
+    skipped: true,
+  });
+  assert.equal(calls, 0);
 });
