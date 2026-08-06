@@ -400,6 +400,47 @@ describe("public data fetch diagnostics", () => {
     }
   });
 
+  it("retries public group buys without the optional influencer relation", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        headers: new Headers(),
+        json: async () => ({
+          code: "PGRST200",
+          message:
+            "Could not find a relationship between 'group_buys' and 'influencers' in the schema cache",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => [
+          {
+            id: "active-group-buy-after-fallback",
+            product_name: "관계 fallback 공구",
+            end_date: "2099-01-01",
+            confidence: 0,
+            media_urls: [],
+            media_items: [],
+            media_type: null,
+            raw_post_id: null,
+          },
+        ],
+      }) as unknown as typeof fetch;
+
+    await expect(fetchGroupBuys()).resolves.toEqual([
+      expect.objectContaining({ id: "active-group-buy-after-fallback" }),
+    ]);
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    const fallbackUrl = String(vi.mocked(global.fetch).mock.calls[1]?.[0]);
+    expect(fallbackUrl).toContain("raw_post_id(*,influencer_id(*))");
+    expect(fallbackUrl).not.toContain("influencer_id(*),raw_post_id");
+  });
+
   it("logs updatedAt revisions so stale or legacy banner responses are diagnosable", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,

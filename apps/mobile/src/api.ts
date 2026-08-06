@@ -91,10 +91,56 @@ export const API_BASE_URL = Platform.select({
  */
 const PUBLIC_GROUP_BUY_SELECT =
   "*,influencer_id(*),raw_post_id(*,influencer_id(*))";
+const LEGACY_PUBLIC_GROUP_BUY_SELECT = "*,raw_post_id(*,influencer_id(*))";
+const OPTIONAL_INFLUENCER_RELATION_ERROR_CODES = new Set([
+  "PGRST200",
+  "PGRST201",
+  "PGRST204",
+]);
+
+type PublicGroupBuyRequestOptions = {
+  pagination?: { page: number; limit: number };
+  prefer?: string;
+  signal?: AbortSignal;
+};
+
+function isOptionalInfluencerRelationError(error: unknown): error is ApiError {
+  if (!(error instanceof ApiError)) return false;
+  if (!OPTIONAL_INFLUENCER_RELATION_ERROR_CODES.has(error.code ?? "")) {
+    return false;
+  }
+
+  return /group_buys|influencer|relationship|schema cache/i.test(error.message);
+}
+
+async function postgrestGetPublicGroupBuys<T>(
+  path: string,
+  options: PublicGroupBuyRequestOptions = {},
+) {
+  try {
+    return await postgrestGet<T>(path, options);
+  } catch (error) {
+    if (
+      !isOptionalInfluencerRelationError(error) ||
+      !path.includes(PUBLIC_GROUP_BUY_SELECT)
+    ) {
+      throw error;
+    }
+
+    const legacyPath = path.replace(
+      PUBLIC_GROUP_BUY_SELECT,
+      LEGACY_PUBLIC_GROUP_BUY_SELECT,
+    );
+    console.warn("[GroupBuys] retrying without optional influencer relation", {
+      code: error.code,
+    });
+    return postgrestGet<T>(legacyPath, options);
+  }
+}
 
 export async function fetchGroupBuys(): Promise<GroupBuy[]> {
   try {
-    const { data } = await postgrestGet<any[]>(
+    const { data } = await postgrestGetPublicGroupBuys<any[]>(
       `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED&order=created_at.desc`,
     );
     return filterActiveGroupBuys(mapGroupBuyRows(data || []));
@@ -117,7 +163,7 @@ export async function fetchHomeBannerGroupBuys(
 ): Promise<GroupBuy[]> {
   const dateKey = getHomeBannerDateKey(now);
   try {
-    const { data } = await postgrestGet<any[]>(
+    const { data } = await postgrestGetPublicGroupBuys<any[]>(
       `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED&is_home_banner=eq.true&home_banner_start_date=lte.${dateKey}&home_banner_end_date=gte.${dateKey}&order=created_at.desc`,
     );
     const items = filterActiveGroupBuys(mapGroupBuyRows(data || []), now);
@@ -358,7 +404,7 @@ export async function fetchFeeds(
   limit = 20,
 ): Promise<FeedPostListResponse> {
   try {
-    const { data, meta } = await postgrestGet<any[]>(
+    const { data, meta } = await postgrestGetPublicGroupBuys<any[]>(
       `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&status=eq.APPROVED&order=created_at.desc`,
       {
         pagination: { page, limit },
@@ -383,7 +429,7 @@ export async function fetchFeeds(
  * GET /rest/v1/feed_posts?id=eq.{id}
  */
 export async function fetchFeedPost(id: string): Promise<FeedPost> {
-  const { data } = await postgrestGet<any[]>(
+  const { data } = await postgrestGetPublicGroupBuys<any[]>(
     `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
   );
   const rows = data || [];
@@ -395,7 +441,7 @@ export async function fetchFeedPost(id: string): Promise<FeedPost> {
 }
 
 export async function fetchGroupBuyById(id: string): Promise<GroupBuy> {
-  const { data } = await postgrestGet<any[]>(
+  const { data } = await postgrestGetPublicGroupBuys<any[]>(
     `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&id=eq.${encodeURIComponent(id)}&status=eq.APPROVED`,
   );
   const rows = data || [];
@@ -793,7 +839,7 @@ export const POPULAR_PERIOD_HOURS: Record<
 export async function fetchGroupBuysByIds(ids: string[]): Promise<GroupBuy[]> {
   if (ids.length === 0) return [];
   try {
-    const { data } = await postgrestGet<any[]>(
+    const { data } = await postgrestGetPublicGroupBuys<any[]>(
       `group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&id=in.(${encodeURIComponent(ids.join(","))})&status=eq.APPROVED`,
     );
     return mapGroupBuyRows(data || []);
@@ -839,7 +885,7 @@ export async function fetchGroupBuysByInfluencer(
   const legacyQueryPrefix =
     "group_buys?select=*,influencer_id(*),raw_post_id!inner(*,influencer_id!inner(*))&status=eq.APPROVED";
   const [directResponse, legacyResponse] = await Promise.all([
-    postgrestGet<any[]>(
+    postgrestGetPublicGroupBuys<any[]>(
       `${directQueryPrefix}&or=(instagram_username.ilike.${encodedUsername},instagram_username.ilike.${encodedUsernameWithAt})&order=created_at.desc`,
     ),
     postgrestGet<any[]>(
