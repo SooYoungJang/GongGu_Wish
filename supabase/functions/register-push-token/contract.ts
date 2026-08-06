@@ -42,7 +42,9 @@ export function classifyPushRegistrationError(
     /(?:column|relation|table|function|schema).*does not exist/i.test(
       message,
     ) ||
-    /could not find the (?:column|function|table|relation)/i.test(message)
+    /could not find the .*?(?:column|function|table|relation).*schema cache/i.test(
+      message,
+    )
   ) {
     return "SCHEMA_MISMATCH";
   }

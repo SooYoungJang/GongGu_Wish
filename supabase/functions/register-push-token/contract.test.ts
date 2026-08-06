@@ -66,6 +66,14 @@ Deno.test("classifies schema drift without exposing database details", () => {
     classifyPushRegistrationError(new Error("network timeout")),
     "PUSH_REGISTRATION_FAILED",
   );
+  assertEquals(
+    classifyPushRegistrationError(
+      new Error(
+        "Could not find the 'marketing_push_enabled' column of 'users' in the schema cache",
+      ),
+    ),
+    "SCHEMA_MISMATCH",
+  );
 });
 
 Deno.test("keeps legacy token registration backward compatible", () => {
