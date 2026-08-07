@@ -17,6 +17,8 @@ const TARGETS = Object.freeze({
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 750;
 const DEFAULT_TIMEOUT_MS = 10_000;
+const PRODUCTION_AUTH_SITE_ORIGIN = "https://gongguwish.com";
+const LOCAL_AUTH_FALLBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
 export function resolveKakaoTarget({ appVariant, projectRef }) {
   const target = TARGETS[appVariant];
@@ -150,6 +152,76 @@ export async function checkKakaoProvider({
   throw new Error(`${target.appVariant} Kakao readiness check did not finish`);
 }
 
+export async function checkProductionAuthFallback({
+  appVariant,
+  fetchImpl = globalThis.fetch,
+  projectRef,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+}) {
+  validatePositiveInteger(timeoutMs, "timeoutMs");
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation is required");
+  }
+
+  const target = resolveKakaoTarget({ appVariant, projectRef });
+  if (target.appVariant !== "production") {
+    return {
+      appVariant: target.appVariant,
+      projectRef: target.projectRef,
+      skipped: true,
+    };
+  }
+
+  const probeUrl = new URL(target.callbackUrl);
+  probeUrl.searchParams.set("error", "access_denied");
+  probeUrl.searchParams.set("error_description", "callback_probe");
+  probeUrl.searchParams.set("state", "invalid-callback-probe");
+
+  let response;
+  try {
+    response = await fetchImpl(probeUrl, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    throw new Error("Production Supabase Auth fallback probe failed");
+  }
+
+  if (response.status < 300 || response.status > 399) {
+    throw new Error(
+      `Production Supabase Auth fallback returned HTTP ${response.status}`,
+    );
+  }
+
+  let fallbackUrl;
+  try {
+    fallbackUrl = new URL(response.headers.get("location") ?? "");
+  } catch {
+    throw new Error(
+      "Production Supabase Auth fallback returned an invalid redirect",
+    );
+  }
+
+  if (LOCAL_AUTH_FALLBACK_HOSTS.has(fallbackUrl.hostname)) {
+    throw new Error(
+      "Production Supabase Auth Site URL must not use localhost; set it to https://gongguwish.com",
+    );
+  }
+
+  if (fallbackUrl.origin !== PRODUCTION_AUTH_SITE_ORIGIN) {
+    throw new Error(
+      "Production Supabase Auth Site URL must be https://gongguwish.com",
+    );
+  }
+
+  return {
+    appVariant: target.appVariant,
+    fallbackOrigin: fallbackUrl.origin,
+    projectRef: target.projectRef,
+    status: response.status,
+  };
+}
+
 function isDirectRun() {
   if (!process.argv[1]) return false;
   return pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
@@ -160,12 +232,19 @@ if (isDirectRun()) {
     appVariant: process.env.APP_VARIANT,
     projectRef: process.env.SUPABASE_PROJECT_REF,
   })
-    .then((result) => {
+    .then(async (result) => {
+      const authFallback = await checkProductionAuthFallback({
+        appVariant: process.env.APP_VARIANT,
+        projectRef: process.env.SUPABASE_PROJECT_REF,
+      });
       console.log(
         JSON.stringify({
           appVariant: result.appVariant,
           projectRef: result.projectRef,
           providerHost: result.providerHost,
+          ...(authFallback.skipped
+            ? { authFallback: "skipped" }
+            : { authFallback: authFallback.fallbackOrigin }),
           status: "ready",
         }),
       );

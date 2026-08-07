@@ -785,7 +785,8 @@ test("project-bound Supabase deployments are isolated by exact project URL", () 
   assert.match(productionIntegration, /iosdoheblabfimkjnvfj/);
   assert.doesNotMatch(productionIntegration, /xwblovggtvbpiusjfokq/);
   assert.doesNotMatch(previewIntegration, /SUPABASE_ACCESS_TOKEN/);
-  assert.doesNotMatch(productionIntegration, /SUPABASE_ACCESS_TOKEN/);
+  assert.match(productionIntegration, /SUPABASE_ACCESS_TOKEN/);
+  assert.match(productionIntegration, /SUPABASE_DB_PASSWORD/);
   assert.doesNotMatch(workerJob, /CLOUDFLARE_PREVIEW_DEPLOY_HOOK_URL/);
   assert.doesNotMatch(workerJob, /workers\/builds\/deploy_hooks/);
   assert.match(workerJob, /broad.*credential.*must not/is);
@@ -922,36 +923,19 @@ test("develop delegates Supabase deployment to the exact Preview integration", (
   }
 });
 
-test("Production delegates Supabase deployment to the exact project integration", () => {
+test("Production deploys Supabase from the exact main SHA", () => {
   const productionIntegration = job("supabase-production");
 
   assert.match(productionIntegration, /environment:\s*production/);
   assert.match(productionIntegration, /github\.ref == 'refs\/heads\/main'/);
   assert.match(productionIntegration, /outputs\.supabase == 'true'/);
-  assert.match(productionIntegration, /commits\/\$GITHUB_SHA\/check-runs/);
-  assert.match(productionIntegration, /\.head_sha == \$sha/);
-  assert.match(productionIntegration, /\.app\.slug == "supabase"/);
-  assert.match(productionIntegration, /\.name == "Supabase Preview"/);
   assert.match(productionIntegration, /iosdoheblabfimkjnvfj/);
-  assert.match(productionIntegration, /\.conclusion == "success"/);
-  assert.equal(
-    productionIntegration.match(/GH_TOKEN:\s*\$\{\{ github\.token \}\}/g)
-      ?.length,
-    2,
-    "Production check and recovery guard both require GitHub API auth",
-  );
-
-  for (const forbidden of [
-    /SUPABASE_ACCESS_TOKEN/,
-    /SUPABASE_DB_PASSWORD/,
-    /supabase\/setup-cli/,
-    /supabase link/,
-    /supabase db push/,
-    /supabase functions deploy/,
-    /supabase secrets set/,
-  ]) {
-    assert.doesNotMatch(productionIntegration, forbidden);
-  }
+  assert.match(productionIntegration, /supabase\/setup-cli/);
+  assert.match(productionIntegration, /supabase link/);
+  assert.match(productionIntegration, /supabase db push --linked --dry-run/);
+  assert.match(productionIntegration, /supabase db push --linked --yes/);
+  assert.match(productionIntegration, /supabase functions deploy/);
+  assert.match(productionIntegration, /production-schema-contract\.mjs/);
 
   for (const removedJob of ["supabase-db", "rls-audit", "supabase-functions"]) {
     assert.doesNotMatch(workflow, new RegExp(`^  ${removedJob}:`, "m"));
