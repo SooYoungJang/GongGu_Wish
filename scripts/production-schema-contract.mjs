@@ -24,6 +24,8 @@ export const REQUIRED_FUNCTIONS = [
   "public.set_my_group_buy_reminder_v2(text,text,integer[],integer)",
 ];
 
+export const RLS_EXCLUDED_PUBLIC_TABLES = ["_prisma_migrations"];
+
 function quote(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
@@ -49,6 +51,9 @@ export function buildSchemaContractSql({
   const migrationValues = migrationVersions
     .map((value) => `(${quote(value)})`)
     .join(",\n    ");
+  const rlsExclusions = RLS_EXCLUDED_PUBLIC_TABLES.map(
+    (value) => `relation.relname <> ${quote(value)}`,
+  ).join("\n    AND ");
   const functionChecks = requiredFunctions
     .map(
       (value) =>
@@ -74,7 +79,8 @@ BEGIN
   JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
   WHERE namespace.nspname = 'public'
     AND relation.relkind = 'r'
-    AND relation.relrowsecurity = false;
+    AND relation.relrowsecurity = false
+    AND ${rlsExclusions};
 
   IF unprotected_tables IS NOT NULL THEN
     RAISE EXCEPTION 'schema contract RLS disabled on: %', unprotected_tables;
