@@ -155,6 +155,8 @@ test("Preview and Production publish exact-source release identity", () => {
   assert.match(production, /production-notification-smoke\.mjs/);
   assert.match(production, /SUPABASE_SMOKE_EMAIL/);
   assert.match(production, /SUPABASE_SMOKE_PASSWORD/);
+  assert.match(production, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(production, /inputs\.confirm_production_recovery == true/);
   assert.match(production, /--environment production/);
   assert.match(production, /--project-ref iosdoheblabfimkjnvfj/);
   assert.match(production, /production-release-\$\{\{ github\.sha \}\}/);
