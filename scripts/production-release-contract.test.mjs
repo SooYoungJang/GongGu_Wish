@@ -109,6 +109,7 @@ test("schema contract requires every current migration and notification dependen
   assert.match(sql, /20260807000002/);
   assert.match(sql, /missing migration versions/);
   assert.match(sql, /RLS disabled on/);
+  assert.match(sql, /AND relation\.relname <> '_prisma_migrations'/);
 });
 
 test("migration history preflight fails closed when the history is absent or empty", () => {
