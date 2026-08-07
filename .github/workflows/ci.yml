@@ -918,7 +918,7 @@ jobs:
         deploy-mobile,
         kakao-provider-ready,
       ]
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-plan.outputs.docs_only != 'true' }}
+    if: ${{ always() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm_production_recovery == true)) && needs.change-plan.outputs.docs_only != 'true' }}
     permissions:
       contents: read
     steps:
