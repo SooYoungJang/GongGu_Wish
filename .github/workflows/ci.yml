@@ -22,6 +22,11 @@ on:
         required: false
         type: boolean
         default: false
+      confirm_production_destructive_migrations:
+        description: "Explicitly approve destructive migrations for a main recovery run"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -236,6 +241,9 @@ jobs:
           scripts/group-buy-request-contract.test.mjs
           scripts/opening-reminder-contract.test.mjs
           scripts/preview-release-contract.test.mjs
+          scripts/production-migration-policy.test.mjs
+          scripts/production-notification-smoke.test.mjs
+          scripts/production-release-contract.test.mjs
           scripts/public-submission-security-contract.test.mjs
       - name: Classify changed files
         id: plan
@@ -545,16 +553,17 @@ jobs:
         with:
           fail-on-severity: high
 
-  # ── Supabase Production Integration ─────────────────────────────────────
+  # ── Supabase Production Deployment ──────────────────────────────────────
   supabase-production:
-    name: Supabase Production Integration
+    name: Supabase Production Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     environment: production
+    env:
+      SUPABASE_PROJECT_REF: iosdoheblabfimkjnvfj
     needs: [change-plan, edge-tests, local-supabase-contracts]
     if: ${{ always() && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm_production_recovery == true)) && github.ref == 'refs/heads/main' && needs.change-plan.outputs.supabase == 'true' && needs.local-supabase-contracts.result == 'success' && (needs.change-plan.outputs.edge_tests != 'true' || needs.edge-tests.result == 'success') }}
     permissions:
-      checks: read
       contents: read
     steps:
       - name: Require latest main recovery commit
@@ -568,56 +577,103 @@ jobs:
             echo "::error::Production recovery SHA $GITHUB_SHA is not latest main $main_sha."
             exit 1
           fi
-      - name: Require exact Production project deployment
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
+        with:
+          version: latest
+      - name: Require Production Supabase credentials
         env:
-          GH_TOKEN: ${{ github.token }}
-          EXPECTED_DETAILS_URL: https://supabase.com/dashboard/project/iosdoheblabfimkjnvfj
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
-          response="$(mktemp)"
-          check="$(mktemp)"
-          trap 'rm -f "$response" "$check"' EXIT
-
-          # Supabase currently uses the provider-owned check name
-          # "Supabase Preview" for linked Production projects as well. The
-          # details URL is therefore the project identity boundary.
-          for attempt in {1..40}; do
-            gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100&filter=latest" > "$response"
-            jq --arg sha "$GITHUB_SHA" '
-              [
-                .check_runs[] |
-                select(
-                  .head_sha == $sha and
-                  .app.slug == "supabase" and
-                  .name == "Supabase Preview"
-                )
-              ] |
-              sort_by(.started_at) |
-              last // empty
-            ' "$response" > "$check"
-
-            if [[ -s "$check" ]]; then
-              details_url="$(jq -r '.details_url // ""' "$check")"
-              if [[ "$details_url" != "$EXPECTED_DETAILS_URL"* ]]; then
-                echo "::error::Supabase Production reported an unexpected project URL: $details_url"
-                exit 1
-              fi
-              if jq -e '.status == "completed" and .conclusion == "success"' "$check" > /dev/null; then
-                exit 0
-              fi
-              if jq -e '.status == "completed"' "$check" > /dev/null; then
-                conclusion="$(jq -r '.conclusion // "missing"' "$check")"
-                echo "::error::Supabase Production deployment for $GITHUB_SHA concluded with $conclusion."
-                exit 1
-              fi
-            fi
-
-            if [[ "$attempt" == "40" ]]; then
-              echo "::error::Supabase Production did not complete for exact SHA $GITHUB_SHA."
-              exit 1
-            fi
-            sleep 15
-          done
+          if [[ -z "$SUPABASE_ACCESS_TOKEN" || -z "$SUPABASE_DB_PASSWORD" ]]; then
+            echo "::error::Production Supabase credentials are not configured in the production environment."
+            exit 1
+          fi
+      - name: Enforce additive Production migration policy
+        env:
+          ALLOW_DESTRUCTIVE: ${{ inputs.confirm_production_destructive_migrations == true && 'true' || 'false' }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base_sha="$BEFORE_SHA"
+          if [[ ! "$base_sha" =~ ^[0-9a-f]{40}$ ]] || ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+            base_sha="$(git rev-parse "$GITHUB_SHA^")"
+          fi
+          git diff --name-only "$base_sha" "$GITHUB_SHA" -- supabase/migrations \
+            > "$RUNNER_TEMP/changed-production-migrations.txt"
+          policy_args=(
+            --files
+            "$RUNNER_TEMP/changed-production-migrations.txt"
+          )
+          if [[ "$ALLOW_DESTRUCTIVE" == "true" ]]; then
+            policy_args+=(--allow-destructive)
+          fi
+          node scripts/production-migration-policy.mjs "${policy_args[@]}"
+      - name: Link the exact Production project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          supabase link \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --password "$SUPABASE_DB_PASSWORD"
+      - name: Preflight Production migration history
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          node scripts/production-schema-contract.mjs --mode history \
+            > "$RUNNER_TEMP/production-migration-history.sql"
+          supabase db query --linked \
+            --file "$RUNNER_TEMP/production-migration-history.sql"
+      - name: Dry-run Production migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          supabase db push --linked --dry-run \
+            --password "$SUPABASE_DB_PASSWORD"
+      - name: Apply Production migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          supabase db push --linked --yes \
+            --password "$SUPABASE_DB_PASSWORD"
+      - name: Verify the Production schema contract
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          node scripts/production-schema-contract.mjs --mode schema \
+            > "$RUNNER_TEMP/production-schema-contract.sql"
+          supabase db query --linked \
+            --file "$RUNNER_TEMP/production-schema-contract.sql"
+      - name: Deploy every configured Production Edge Function
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r entrypoint; do
+            function_name="${entrypoint#supabase/functions/}"
+            function_name="${function_name%/index.ts}"
+            echo "Deploying Edge Function $function_name"
+            supabase functions deploy "$function_name" \
+              --project-ref "$SUPABASE_PROJECT_REF" \
+              --use-api
+          done < <(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name index.ts | sort)
 
   # ── Cloudflare Worker Checks ─────────────────────────────────────────────
   worker-tests:
@@ -841,6 +897,138 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # ── Production Green ─────────────────────────────────────────────────────
+  production-green:
+    name: Production Green
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    needs:
+      [
+        change-plan,
+        lint,
+        build,
+        test,
+        api-tests,
+        edge-tests,
+        local-supabase-contracts,
+        supabase-production,
+        worker-tests,
+        deploy-worker,
+        deploy-mobile,
+        kakao-provider-ready,
+      ]
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.change-plan.outputs.docs_only != 'true' }}
+    permissions:
+      contents: read
+    steps:
+      - name: Require every affected Production component
+        env:
+          PLAN_RESULT: ${{ needs.change-plan.result }}
+          QUALITY_REQUIRED: ${{ needs.change-plan.outputs.quality }}
+          TEST_REQUIRED: ${{ needs.change-plan.outputs.test }}
+          API_REQUIRED: ${{ needs.change-plan.outputs.api }}
+          EDGE_REQUIRED: ${{ needs.change-plan.outputs.edge_tests }}
+          LOCAL_SUPABASE_REQUIRED: ${{ needs.change-plan.outputs.local_supabase }}
+          SUPABASE_REQUIRED: ${{ needs.change-plan.outputs.supabase }}
+          WORKER_REQUIRED: ${{ needs.change-plan.outputs.worker }}
+          MOBILE_REQUIRED: ${{ needs.change-plan.outputs.mobile }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          API_RESULT: ${{ needs.api-tests.result }}
+          EDGE_RESULT: ${{ needs.edge-tests.result }}
+          LOCAL_SUPABASE_RESULT: ${{ needs.local-supabase-contracts.result }}
+          SUPABASE_RESULT: ${{ needs.supabase-production.result }}
+          WORKER_TEST_RESULT: ${{ needs.worker-tests.result }}
+          WORKER_RESULT: ${{ needs.deploy-worker.result }}
+          MOBILE_RESULT: ${{ needs.deploy-mobile.result }}
+          KAKAO_RESULT: ${{ needs.kakao-provider-ready.result }}
+        run: |
+          set -euo pipefail
+          if [[ "$PLAN_RESULT" != "success" ]]; then
+            echo "::error::Change Plan did not succeed: $PLAN_RESULT"
+            exit 1
+          fi
+          require_result() {
+            local required="$1"
+            local label="$2"
+            shift 2
+            if [[ "$required" != "true" ]]; then
+              return 0
+            fi
+            for result in "$@"; do
+              if [[ "$result" != "success" ]]; then
+                echo "::error::$label is $result, expected success."
+                exit 1
+              fi
+            done
+          }
+          require_result "$QUALITY_REQUIRED" "Quality gates" "$LINT_RESULT" "$BUILD_RESULT"
+          require_result "$TEST_REQUIRED" "Tests" "$TEST_RESULT"
+          require_result "$API_REQUIRED" "API tests" "$API_RESULT"
+          require_result "$EDGE_REQUIRED" "Edge tests" "$EDGE_RESULT"
+          require_result "$LOCAL_SUPABASE_REQUIRED" "Local Supabase contracts" "$LOCAL_SUPABASE_RESULT"
+          require_result "$SUPABASE_REQUIRED" "Production Supabase deployment" "$SUPABASE_RESULT"
+          require_result "$WORKER_REQUIRED" "Cloudflare Worker" "$WORKER_TEST_RESULT" "$WORKER_RESULT"
+          require_result "$MOBILE_REQUIRED" "React Native deployment" "$MOBILE_RESULT"
+          if [[ "$KAKAO_RESULT" != "success" ]]; then
+            echo "::error::Kakao provider readiness is $KAKAO_RESULT, expected success."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Run authenticated Production notification smoke
+        env:
+          SUPABASE_URL: https://iosdoheblabfimkjnvfj.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SMOKE_EMAIL: ${{ secrets.SUPABASE_SMOKE_EMAIL }}
+          SUPABASE_SMOKE_PASSWORD: ${{ secrets.SUPABASE_SMOKE_PASSWORD }}
+        run: node scripts/production-notification-smoke.mjs
+      - name: Create Production release manifest
+        env:
+          RELEASE_MANIFEST: ${{ runner.temp }}/production-release.json
+          MOBILE_DEPLOY_MODE: ${{ needs.deploy-mobile.outputs.mode }}
+          MOBILE_FINGERPRINT: ${{ needs.deploy-mobile.outputs.fingerprint }}
+          WORKER_REQUIRED: ${{ needs.change-plan.outputs.worker }}
+        run: |
+          set -euo pipefail
+          worker_sha=""
+          if [[ "$WORKER_REQUIRED" == "true" ]]; then
+            worker_sha="$GITHUB_SHA"
+          fi
+          node scripts/production-release-manifest.mjs \
+            --environment production \
+            --project-ref iosdoheblabfimkjnvfj \
+            --source-sha "$GITHUB_SHA" \
+            --worker-sha "$worker_sha" \
+            --mobile-mode "$MOBILE_DEPLOY_MODE" \
+            --mobile-fingerprint "$MOBILE_FINGERPRINT" \
+            --output "$RELEASE_MANIFEST"
+          jq -e --arg sha "$GITHUB_SHA" '
+            .environment == "production" and
+            .projectRef == "iosdoheblabfimkjnvfj" and
+            .sourceSha == $sha and
+            .releaseId == ("production:" + $sha)
+          ' "$RELEASE_MANIFEST" > /dev/null
+          {
+            echo "## Production Green"
+            echo ""
+            printf 'Production deployment and canary notification round-trip passed for `%s`.\n' "$GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Production release manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-release-${{ github.sha }}
+          path: ${{ runner.temp }}/production-release.json
+          if-no-files-found: error
+          retention-days: 90
+
   # ── Preview Release Gate ─────────────────────────────────────────────────
   preview-release-gate:
     name: Preview Green
@@ -869,6 +1057,39 @@ jobs:
       contents: read
       deployments: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Create immutable Preview source release identity
+        env:
+          SOURCE_RELEASE_MANIFEST: ${{ runner.temp }}/preview-source-release.json
+          MOBILE_DEPLOY_MODE: ${{ needs.deploy-mobile.outputs.mode }}
+          MOBILE_FINGERPRINT: ${{ needs.deploy-mobile.outputs.fingerprint }}
+          WORKER_REQUIRED: ${{ needs.change-plan.outputs.worker }}
+        run: |
+          set -euo pipefail
+          worker_sha=""
+          if [[ "$WORKER_REQUIRED" == "true" ]]; then
+            worker_sha="$GITHUB_SHA"
+          fi
+          node scripts/production-release-manifest.mjs \
+            --environment preview \
+            --project-ref xwblovggtvbpiusjfokq \
+            --source-sha "$GITHUB_SHA" \
+            --worker-sha "$worker_sha" \
+            --mobile-mode "$MOBILE_DEPLOY_MODE" \
+            --mobile-fingerprint "$MOBILE_FINGERPRINT" \
+            --output "$SOURCE_RELEASE_MANIFEST"
+          jq -e --arg sha "$GITHUB_SHA" '
+            .environment == "preview" and
+            .projectRef == "xwblovggtvbpiusjfokq" and
+            .sourceSha == $sha and
+            .releaseId == ("preview:" + $sha)
+          ' "$SOURCE_RELEASE_MANIFEST" > /dev/null
       - name: Require every affected Preview component
         env:
           PLAN_RESULT: ${{ needs.change-plan.result }}
@@ -1112,6 +1333,7 @@ jobs:
       - name: Create affected-components Preview release manifest
         env:
           RELEASE_MANIFEST: ${{ runner.temp }}/preview-release.json
+          SOURCE_RELEASE_MANIFEST: ${{ runner.temp }}/preview-source-release.json
           RUNTIME_BASELINE_MANIFEST: ${{ runner.temp }}/preview-runtime-baseline.json
           DOCS_ONLY: ${{ needs.change-plan.outputs.docs_only }}
           SUPABASE_REQUIRED: ${{ needs.change-plan.outputs.supabase }}
@@ -1139,6 +1361,7 @@ jobs:
             --arg mobileArtifactUrl "$MOBILE_ARTIFACT_URL" \
             --arg mobileApkSha256 "$MOBILE_APK_SHA256" \
             --arg mobileExpoUrl "$MOBILE_EXPO_URL" \
+            --slurpfile sourceRelease "$SOURCE_RELEASE_MANIFEST" \
             --argjson docsOnly "$DOCS_ONLY" \
             --argjson supabase "$SUPABASE_REQUIRED" \
             --argjson worker "$WORKER_REQUIRED" \
@@ -1146,6 +1369,14 @@ jobs:
             --argjson mobile "$MOBILE_REQUIRED" \
             '{
               sha: $sha,
+              schemaVersion: $sourceRelease[0].schemaVersion,
+              releaseId: $sourceRelease[0].releaseId,
+              environment: $sourceRelease[0].environment,
+              projectRef: $sourceRelease[0].projectRef,
+              sourceSha: $sourceRelease[0].sourceSha,
+              migrations: $sourceRelease[0].migrations,
+              edgeFunctions: $sourceRelease[0].edgeFunctions,
+              workerSha: $sourceRelease[0].workerSha,
               status: $status,
               docsOnly: $docsOnly,
               affected: {

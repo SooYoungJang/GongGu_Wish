@@ -163,17 +163,12 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.match(workflow, /gon229-deep-link-state\.txt/);
   assert.doesNotMatch(workflow, /gon229-notification-drawer\.xml/);
   assert.match(productionSupabaseJob, /^  supabase-production:$/m);
-  assert.match(productionSupabaseJob, /name: Supabase Production Integration/);
-  assert.match(
-    productionSupabaseJob,
-    /EXPECTED_DETAILS_URL: https:\/\/supabase\.com\/dashboard\/project\/iosdoheblabfimkjnvfj/,
-  );
-  assert.match(productionSupabaseJob, /\.app\.slug == "supabase"/);
-  assert.match(productionSupabaseJob, /\.name == "Supabase Preview"/);
-  assert.doesNotMatch(
-    ciWorkflow,
-    /supabase functions deploy register-push-token/,
-  );
+  assert.match(productionSupabaseJob, /name: Supabase Production Deploy/);
+  assert.match(productionSupabaseJob, /SUPABASE_ACCESS_TOKEN/);
+  assert.match(productionSupabaseJob, /SUPABASE_DB_PASSWORD/);
+  assert.match(productionSupabaseJob, /supabase db push --linked --yes/);
+  assert.match(productionSupabaseJob, /supabase functions deploy/);
+  assert.match(productionSupabaseJob, /production-schema-contract\.mjs/);
   assert.doesNotMatch(workflow, /gon229[^\n]*ios/i);
 });
 
