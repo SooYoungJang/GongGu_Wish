@@ -7,7 +7,10 @@ from urllib.parse import urljoin, urlparse
 
 INSTAGRAM_HOSTS = {"instagram.com", "www.instagram.com"}
 TRUSTED_MEDIA_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
-POST_PATH_RE = re.compile(r"^/(p|reel|tv)/([A-Za-z0-9_-]+)/?$")
+# Instagram profile pages may expose post links with the profile username in
+# the path (for example, ``/milkable/p/ABC123/``) or in the root form
+# (``/p/ABC123/``). Canonicalize both forms to the root post URL below.
+POST_PATH_RE = re.compile(r"^/(?:[A-Za-z0-9._]{1,30}/)?(p|reel|tv)/([A-Za-z0-9_-]+)/?$")
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._]{1,30}$")
 
 

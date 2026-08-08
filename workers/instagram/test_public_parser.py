@@ -20,6 +20,16 @@ class PublicParserTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             normalize_username("bad username")
 
+    def test_normalizes_account_prefixed_instagram_post_urls(self):
+        self.assertEqual(
+            normalize_post_url("/milkable/p/ABC_123/"),
+            ("p:ABC_123", "https://www.instagram.com/p/ABC_123/"),
+        )
+        self.assertEqual(
+            normalize_post_url("https://www.instagram.com/milkable/reel/REEL_123/"),
+            ("reel:REEL_123", "https://www.instagram.com/reel/REEL_123/"),
+        )
+
     def test_extracts_deduplicated_profile_post_links(self):
         html = """
         <a href="/p/first/"><img src="https://scontent.cdninstagram.com/first.jpg"></a>
@@ -30,6 +40,21 @@ class PublicParserTest(unittest.TestCase):
         posts = extract_profile_posts(html, limit=10)
         self.assertEqual([post.post_id for post in posts], ["p:first", "reel:second"])
         self.assertEqual(posts[0].image_url, "https://scontent.cdninstagram.com/first.jpg")
+
+    def test_extracts_profile_prefixed_post_links(self):
+        html = """
+        <a href="/milkable/p/first/"><img src="https://scontent.cdninstagram.com/first.jpg"></a>
+        <a href="/milkable/reel/second/"><img src="https://scontent.cdninstagram.com/second.jpg"></a>
+        """
+        posts = extract_profile_posts(html, base_url="https://www.instagram.com/milkable/")
+        self.assertEqual([post.post_id for post in posts], ["p:first", "reel:second"])
+        self.assertEqual(
+            [post.post_url for post in posts],
+            [
+                "https://www.instagram.com/p/first/",
+                "https://www.instagram.com/reel/second/",
+            ],
+        )
 
     def test_parses_post_metadata_without_network_calls(self):
         html = """
