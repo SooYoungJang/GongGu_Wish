@@ -13,7 +13,13 @@ enum ParsingStatus {
   EXPORTED
   PARSED
   NOT_GROUP_BUY
+  NOT_KOREA
   FAILED
+}
+
+enum RawPostCollectionSource {
+  LEGACY_INSTAGRAPI
+  PLAYWRIGHT_PUBLIC
 }
 
 enum GroupBuyStatus {
@@ -42,6 +48,12 @@ model Influencer {
   displayName       String?   @map("display_name")
   profileImageUrl   String?   @map("profile_image_url")
   isActive          Boolean   @default(true) @map("is_active")
+  playwrightCollectionEnabled Boolean @default(false) @map("playwright_collection_enabled")
+  playwrightLastAttemptAt     DateTime? @map("playwright_last_attempt_at")
+  playwrightLastSuccessAt     DateTime? @map("playwright_last_success_at")
+  playwrightLastError         String?   @map("playwright_last_error")
+  playwrightFailureCount      Int       @default(0) @map("playwright_failure_count")
+  playwrightNextRunAt         DateTime? @map("playwright_next_run_at")
   rawPosts          RawPost[]
   groupBuys         GroupBuy[] @relation("GroupBuyInfluencer")
   createdAt         DateTime  @default(now()) @map("created_at")
@@ -61,6 +73,8 @@ model RawPost {
   takenAt         DateTime      @map("taken_at")
   contentHash     String        @unique @map("content_hash")
   isCandidate     Boolean       @default(false) @map("is_candidate")
+  isKoreaCandidate Boolean       @default(false) @map("is_korea_candidate")
+  collectionSource RawPostCollectionSource @default(LEGACY_INSTAGRAPI) @map("collection_source")
   parsingStatus   ParsingStatus @default(NEW) @map("parsing_status")
   exportedAt      DateTime?     @map("exported_at")
   parsedAt        DateTime?     @map("parsed_at")
@@ -72,6 +86,7 @@ model RawPost {
 
   @@index([influencerId])
   @@index([isCandidate, parsingStatus])
+  @@index([collectionSource, isCandidate, isKoreaCandidate])
   @@map("raw_posts")
 }
 

@@ -33,6 +33,8 @@ SESSION_FILE = Path(os.getenv("INSTAGRAM_SESSION_FILE", "workers/instagram/sessi
 POLL_INTERVAL_SECONDS = int(os.getenv("INSTAGRAM_POLL_INTERVAL_SECONDS", "900"))
 PROXY_URL = os.getenv("INSTAGRAM_PROXY_URL")
 TWO_FACTOR_SECRET = os.getenv("INSTAGRAM_2FA_SECRET")  # For TOTP-based 2FA
+COLLECTOR_TOKEN = os.getenv("INSTAGRAM_COLLECTOR_TOKEN")
+COLLECTOR_HEADERS = {"X-Collector-Token": COLLECTOR_TOKEN} if COLLECTOR_TOKEN else {}
 
 
 def isoformat(value: datetime | None) -> str:
@@ -227,6 +229,7 @@ def collect_media(username: str, client: Client, amount: int = 12) -> None:
         response = requests.post(
             f"{API_BASE_URL}/raw-posts/collect",
             json=payload,
+            headers=COLLECTOR_HEADERS,
             timeout=15,
         )
         response.raise_for_status()

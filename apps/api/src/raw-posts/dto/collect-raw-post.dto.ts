@@ -1,5 +1,12 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsOptional, IsString, IsUrl } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { RawPostCollectionSource } from "@prisma/client";
+import {
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUrl,
+} from "class-validator";
 
 export class CollectRawPostDto {
   @ApiProperty()
@@ -30,4 +37,9 @@ export class CollectRawPostDto {
   @ApiProperty()
   @IsDateString()
   collectedAt!: string;
+
+  @ApiPropertyOptional({ enum: RawPostCollectionSource })
+  @IsOptional()
+  @IsEnum(RawPostCollectionSource)
+  collectionSource?: RawPostCollectionSource;
 }

@@ -34,6 +34,7 @@ apps/mobile/google-services.preview.json
 .venv/
 __pycache__/
 workers/instagram/session.json
+workers/instagram/storage-state*.json
 
 # Local LLM pipeline artifacts
 exports/*.jsonl
