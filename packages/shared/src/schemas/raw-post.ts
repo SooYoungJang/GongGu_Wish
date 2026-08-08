@@ -6,6 +6,7 @@ export const parsingStatusSchema = z.enum([
   "EXPORTED",
   "PARSED",
   "NOT_GROUP_BUY",
+  "NOT_KOREA",
   "FAILED",
 ]);
 
@@ -21,6 +22,10 @@ export const rawPostSchema = z.object({
   takenAt: z.string().datetime(),
   contentHash: z.string(),
   isCandidate: z.boolean(),
+  isKoreaCandidate: z.boolean().optional(),
+  collectionSource: z
+    .enum(["LEGACY_INSTAGRAPI", "PLAYWRIGHT_PUBLIC"])
+    .optional(),
   parsingStatus: parsingStatusSchema,
   exportedAt: z.string().datetime().nullable(),
   parsedAt: z.string().datetime().nullable(),

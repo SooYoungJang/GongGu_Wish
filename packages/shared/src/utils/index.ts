@@ -7,3 +7,4 @@ export * from "./homeBannerPresentation";
 export * from "./homeBanner";
 export * from "./instagram";
 export * from "./groupBuyCategory";
+export * from "./captionParser";

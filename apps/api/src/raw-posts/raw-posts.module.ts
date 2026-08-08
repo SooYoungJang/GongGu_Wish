@@ -1,11 +1,12 @@
-import { Module } from '@nestjs/common';
+import { Module } from "@nestjs/common";
 
-import { RawPostsController } from './raw-posts.controller';
-import { RawPostsService } from './raw-posts.service';
+import { CollectorAuthGuard } from "../collector/collector-auth.guard";
+import { RawPostsController } from "./raw-posts.controller";
+import { RawPostsService } from "./raw-posts.service";
 
 @Module({
   controllers: [RawPostsController],
-  providers: [RawPostsService],
+  providers: [RawPostsService, CollectorAuthGuard],
   exports: [RawPostsService],
 })
 export class RawPostsModule {}
