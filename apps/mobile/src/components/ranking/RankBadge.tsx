@@ -24,7 +24,7 @@ function getRankStyle(rank: number, colors: CommerceColorPalette) {
   if (rank === 2) return { backgroundColor: colors.weak, color: colors.promoText };
   if (rank === 3)
     return {
-      backgroundColor: colors.accent,
+      backgroundColor: colors.warning,
       color: colors.promoText,
     };
   return {
