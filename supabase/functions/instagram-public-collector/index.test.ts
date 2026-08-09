@@ -6,6 +6,7 @@ import {
 import {
   constantTimeTokenMatches,
   normalizeCollectorAction,
+  normalizeCollectPayload,
   normalizeCollectedPost,
 } from "./index.ts";
 
@@ -36,6 +37,34 @@ Deno.test("normalizes a Playwright collected post", () => {
       takenAt: "2026-08-08T00:00:00.000Z",
       collectedAt: "2026-08-08T00:01:00.000Z",
       collectionSource: "PLAYWRIGHT_PUBLIC",
+    }),
+    {
+      instagramPostId: "post-1",
+      influencerUsername: "milkable",
+      caption: "국내 배송 공구",
+      postUrl: "https://www.instagram.com/p/post-1/",
+      imageUrl: "https://scontent.cdninstagram.com/post.jpg",
+      takenAt: "2026-08-08T00:00:00.000Z",
+      collectedAt: "2026-08-08T00:01:00.000Z",
+      collectionSource: "PLAYWRIGHT_PUBLIC",
+    },
+  );
+});
+
+Deno.test("normalizes the worker's nested collect payload", () => {
+  assertEquals(
+    normalizeCollectPayload({
+      action: "collect",
+      post: {
+        instagramPostId: "post-1",
+        influencerUsername: "@Milkable",
+        caption: "국내 배송 공구",
+        postUrl: "https://www.instagram.com/p/post-1/",
+        imageUrl: "https://scontent.cdninstagram.com/post.jpg",
+        takenAt: "2026-08-08T00:00:00.000Z",
+        collectedAt: "2026-08-08T00:01:00.000Z",
+        collectionSource: "PLAYWRIGHT_PUBLIC",
+      },
     }),
     {
       instagramPostId: "post-1",

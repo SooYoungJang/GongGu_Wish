@@ -158,6 +158,20 @@ export function normalizeCollectedPost(
   };
 }
 
+export function normalizeCollectPayload(
+  body: Record<string, unknown>,
+): CollectedPost {
+  const nestedPost = body.post;
+  if (
+    nestedPost &&
+    typeof nestedPost === "object" &&
+    !Array.isArray(nestedPost)
+  ) {
+    return normalizeCollectedPost(nestedPost as Record<string, unknown>);
+  }
+  return normalizeCollectedPost(body);
+}
+
 type AdminClient = ReturnType<typeof createAdminClient>;
 
 async function sha256(input: string) {
@@ -486,7 +500,7 @@ export async function handler(request: Request) {
     if (action === "watchlist") return json(await watchlist(supabase));
     if (action === "status") return json(await updateStatus(supabase, body));
     return json({
-      result: await collectPost(supabase, normalizeCollectedPost(body)),
+      result: await collectPost(supabase, normalizeCollectPayload(body)),
     });
   } catch (error) {
     if (error instanceof CollectorInputError) {
