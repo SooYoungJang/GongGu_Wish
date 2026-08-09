@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from public_main import (
     PublicCollectionBlocked,
+    PublicCollectionError,
     PublicInstagramCollector,
     PublicInstagramWorker,
     RandomDiscoveryConfig,
@@ -238,12 +239,26 @@ class FakeResponse:
 
 
 class FakeSession:
-    def __init__(self):
+    def __init__(self, collect_response=None):
         self.headers = {}
         self.calls = []
+        self.collect_response = collect_response
 
     def request(self, method, url, **kwargs):
         self.calls.append((method, url, kwargs))
+        if kwargs.get("json", {}).get("action") == "collect":
+            if self.collect_response is not None:
+                return FakeResponse(self.collect_response)
+            return FakeResponse(
+                {
+                    "result": {
+                        "created": True,
+                        "duplicate": False,
+                        "groupBuyId": "group-buy-1",
+                        "reviewCandidateCreated": True,
+                    }
+                }
+            )
         return FakeResponse({"items": []})
 
 
@@ -484,7 +499,7 @@ class PublicMainTest(unittest.TestCase):
         )
 
         self.assertEqual(api.watchlist(), [])
-        api.collect_post({"instagramPostId": "post-1"})
+        collect_result = api.collect_post({"instagramPostId": "post-1"})
         api.update_status(
             "influencer-1",
             status="SUCCESS",
@@ -501,7 +516,28 @@ class PublicMainTest(unittest.TestCase):
             session.calls[1][2]["json"]["post"],
             {"instagramPostId": "post-1"},
         )
+        self.assertEqual(
+            collect_result,
+            {
+                "created": True,
+                "duplicate": False,
+                "groupBuyId": "group-buy-1",
+                "reviewCandidateCreated": True,
+            },
+        )
         self.assertEqual(session.calls[2][2]["json"]["influencerId"], "influencer-1")
+
+    def test_supabase_collector_api_rejects_malformed_collect_result(self):
+        api = SupabaseCollectorApi(
+            "https://preview.example/functions/v1/instagram-public-collector",
+            "collector-secret",
+            session=FakeSession({"result": []}),
+        )
+
+        with self.assertRaises(PublicCollectionError) as raised:
+            api.collect_post({"instagramPostId": "post-1"})
+
+        self.assertEqual(raised.exception.code, "API_CONTRACT")
 
     def test_next_run_stays_inside_bounded_jitter_window(self):
         clock = lambda: datetime(2026, 8, 8, tzinfo=timezone.utc)
