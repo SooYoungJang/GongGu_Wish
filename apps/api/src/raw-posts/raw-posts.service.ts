@@ -9,6 +9,7 @@ import { parseSubmissionCaption } from "@gonggu/shared";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { isGroupBuyCandidate } from "./candidate-rules";
+import { collectionResult } from "./collection-result";
 import { CollectRawPostDto } from "./dto/collect-raw-post.dto";
 import { ListRawPostsDto } from "./dto/list-raw-posts.dto";
 import { createContentHash } from "./hash";
@@ -101,10 +102,11 @@ export class RawPostsService {
         where: {
           OR: [{ instagramPostId: dto.instagramPostId }, { contentHash }],
         },
+        include: { groupBuy: { select: { id: true } } },
       });
 
       if (existing) {
-        return { rawPost: existing, created: false, duplicate: true };
+        return collectionResult(existing, false);
       }
 
       const rawPost = await tx.rawPost.create({
@@ -145,9 +147,10 @@ export class RawPostsService {
               }
             : undefined,
         },
+        include: { groupBuy: { select: { id: true } } },
       });
 
-      return { rawPost, created: true, duplicate: false };
+      return collectionResult(rawPost, true);
     });
   }
 }

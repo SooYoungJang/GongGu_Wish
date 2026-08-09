@@ -103,6 +103,23 @@ powershell -ExecutionPolicy Bypass -File scripts/run-instagram-random-discovery.
 Instagram HTTPS 해시태그·게시물·프로필 allowlist 안에서만 생성되며, 페이지에서 읽은
 임의 외부 URL로 이동하지 않습니다.
 
+저장 없이 탐색·최신 3건 동작을 확인하려면 읽기 전용 smoke를 실행합니다. 먼저
+로컬 fixture를 사용한 결정적 브라우저 E2E를 실행할 수 있습니다.
+
+```bash
+python workers/instagram/e2e_random_discovery.py --mock `
+  --evidence-dir .\test-results\instagram-random-discovery
+```
+
+실제 Instagram 로그인 세션을 확인할 때는 `storageState` 경로를 전달합니다. 이 명령은
+cookie나 storageState 내용을 출력하지 않으며 로그인·challenge 화면에서는 즉시 실패합니다.
+
+```bash
+python workers/instagram/e2e_random_discovery.py `
+  --storage-state .\storage-state.tmp.json `
+  --evidence-dir .\test-results\instagram-random-discovery
+```
+
 ### Production 실행 경계
 
 Production target은 기본적으로 차단됩니다. 로컬 Worker 테스트와 compileall을

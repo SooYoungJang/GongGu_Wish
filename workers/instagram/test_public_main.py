@@ -43,10 +43,11 @@ class FakeCollector:
 
 
 class FakeDiscoveryApi(FakeApi):
-    def __init__(self, candidate_accounts=(), duplicate_accounts=()):
+    def __init__(self, candidate_accounts=(), duplicate_accounts=(), existing_campaign_accounts=()):
         super().__init__()
         self.candidate_accounts = set(candidate_accounts)
         self.duplicate_accounts = set(duplicate_accounts)
+        self.existing_campaign_accounts = set(existing_campaign_accounts)
 
     def watchlist(self):
         return []
@@ -59,14 +60,28 @@ class FakeDiscoveryApi(FakeApi):
                 "created": False,
                 "duplicate": True,
                 "groupBuyId": f"existing:{username}",
+                "reviewCandidateCreated": False,
+            }
+        if username in self.existing_campaign_accounts:
+            return {
+                "created": True,
+                "duplicate": False,
+                "groupBuyId": f"existing-campaign:{username}",
+                "reviewCandidateCreated": False,
             }
         if username in self.candidate_accounts:
             return {
                 "created": True,
                 "duplicate": False,
                 "groupBuyId": f"new:{username}",
+                "reviewCandidateCreated": True,
             }
-        return {"created": True, "duplicate": False, "groupBuyId": None}
+        return {
+            "created": True,
+            "duplicate": False,
+            "groupBuyId": None,
+            "reviewCandidateCreated": False,
+        }
 
 
 class FakeDiscoveryCollector(FakeCollector):
@@ -321,6 +336,23 @@ class PublicMainTest(unittest.TestCase):
 
         self.assertEqual(worker.run_once(), 3)
         self.assertEqual(collector.accounts, ["duplicate0", "duplicate1", "newcandidate"])
+
+    def test_random_discovery_does_not_count_a_new_post_attached_to_an_existing_campaign(self):
+        api = FakeDiscoveryApi(
+            candidate_accounts={"newcandidate"},
+            existing_campaign_accounts={"campaignupdate"},
+        )
+        collector = FakeDiscoveryCollector(["campaignupdate", "newcandidate"])
+        worker = PublicInstagramWorker(
+            api,
+            collector,
+            watchlist_enabled=False,
+            discovery=self.discovery_config(target_group_buys=1),
+            monotonic=SequenceMonotonic(*([0] * 10)),
+        )
+
+        self.assertEqual(worker.run_once(), 2)
+        self.assertEqual(collector.accounts, ["campaignupdate", "newcandidate"])
 
     def test_random_discovery_stops_when_time_budget_expires(self):
         api = FakeDiscoveryApi()

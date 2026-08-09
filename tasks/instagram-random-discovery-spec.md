@@ -13,7 +13,7 @@
 3. 각 게시물의 공개 HTML에서 작성자 username을 추출한다.
 4. watchlist 계정과 이미 본 계정을 제외하고 작성자 프로필의 최신 3건을 수집한다.
 5. 기존 Preview `instagram-public-collector`가 한국·공구 여부와 중복을 판정한다.
-6. 응답이 `created=true`이고 `groupBuyId`가 있을 때만 새 검수 후보로 센다.
+6. 응답의 `reviewCandidateCreated=true`일 때만 새 검수 후보로 센다. 새 원본이 기존 공구에 연결된 경우는 목표 건수에 포함하지 않는다.
 
 계정 수에는 기본 하드 제한을 두지 않는다. 다음 조건 중 하나에서 종료한다.
 

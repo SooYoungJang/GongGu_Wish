@@ -22,6 +22,7 @@ from playwright.sync_api import BrowserContext, Page, sync_playwright
 
 try:
     from .public_parser import (
+        ProfilePostLink,
         blocked_page_reason,
         build_hashtag_url,
         extract_discovery_post_links,
@@ -33,6 +34,7 @@ try:
     from .target import resolve_collection_target
 except ImportError:
     from public_parser import (
+        ProfilePostLink,
         blocked_page_reason,
         build_hashtag_url,
         extract_discovery_post_links,
@@ -347,6 +349,48 @@ class PublicInstagramCollector:
         if reason:
             raise PublicCollectionBlocked(reason, "Instagram 공개 페이지 접근이 차단되었거나 로그인이 필요합니다.")
 
+    def _load_hashtag_post_links(
+        self,
+        page: Page,
+        hashtag: str,
+        scroll_passes: int,
+        should_continue: Callable[[], bool],
+    ) -> list[ProfilePostLink] | None:
+        if not should_continue():
+            return None
+        hashtag_url = build_hashtag_url(hashtag)
+        response = page.goto(
+            hashtag_url,
+            wait_until="domcontentloaded",
+            timeout=30_000,
+        )
+        self._check_page(page, response)
+        for _ in range(max(0, scroll_passes)):
+            if not should_continue():
+                return None
+            page.mouse.wheel(0, 4_000)
+            page.wait_for_timeout(750)
+            self._check_page(page, response)
+        return extract_discovery_post_links(page.content(), hashtag_url)
+
+    def _load_discovered_username(
+        self,
+        page: Page,
+        link: ProfilePostLink,
+        should_continue: Callable[[], bool],
+    ) -> str | None:
+        if not should_continue():
+            return None
+        response = page.goto(
+            link.post_url,
+            wait_until="domcontentloaded",
+            timeout=30_000,
+        )
+        self._check_page(page, response)
+        if not should_continue():
+            return None
+        return extract_post_username(page.content())
+
     def iter_discovered_accounts(
         self,
         *,
@@ -362,36 +406,23 @@ class PublicInstagramCollector:
         rng.shuffle(shuffled_hashtags)
         try:
             for hashtag in shuffled_hashtags:
-                if not should_continue():
-                    return
-                hashtag_url = build_hashtag_url(hashtag)
-                response = page.goto(
-                    hashtag_url,
-                    wait_until="domcontentloaded",
-                    timeout=30_000,
+                links = self._load_hashtag_post_links(
+                    page,
+                    hashtag,
+                    scroll_passes,
+                    should_continue,
                 )
-                self._check_page(page, response)
-                for _ in range(max(0, scroll_passes)):
-                    if not should_continue():
-                        return
-                    page.mouse.wheel(0, 4_000)
-                    page.wait_for_timeout(750)
-                    self._check_page(page, response)
-
-                links = extract_discovery_post_links(page.content(), hashtag_url)
+                if links is None:
+                    return
                 rng.shuffle(links)
                 for link in links:
                     if not should_continue():
                         return
-                    response = page.goto(
-                        link.post_url,
-                        wait_until="domcontentloaded",
-                        timeout=30_000,
+                    username = self._load_discovered_username(
+                        page,
+                        link,
+                        should_continue,
                     )
-                    self._check_page(page, response)
-                    if not should_continue():
-                        return
-                    username = extract_post_username(page.content())
                     if not username or username in seen:
                         continue
                     seen.add(username)
@@ -458,6 +489,22 @@ class PublicInstagramWorker:
     discovery: RandomDiscoveryConfig = field(default_factory=RandomDiscoveryConfig)
     monotonic: Callable[[], float] = time.monotonic
 
+    def _submit_discovered_account(
+        self,
+        username: str,
+        remaining_candidates: int,
+    ) -> tuple[int, int]:
+        submitted_count = 0
+        new_candidates = 0
+        for post in self.collector.collect_account(username):
+            result = self.api.collect_post(post)
+            submitted_count += 1
+            if result.get("reviewCandidateCreated") is True:
+                new_candidates += 1
+                if new_candidates >= remaining_candidates:
+                    break
+        return submitted_count, new_candidates
+
     def _run_random_discovery(self, excluded_usernames: set[str]) -> int:
         config = self.discovery
         if not config.enabled:
@@ -498,16 +545,14 @@ class PublicInstagramWorker:
 
                 scanned_accounts += 1
                 try:
-                    posts = self.collector.collect_account(username)
-                    for post in posts:
-                        result = self.api.collect_post(post)
-                        submitted_count += 1
-                        if result.get("created") is True and result.get("groupBuyId"):
-                            new_candidates += 1
-                            if new_candidates >= config.target_group_buys:
-                                stop_reason = "TARGET_REACHED"
-                                break
+                    submitted, created = self._submit_discovered_account(
+                        username,
+                        config.target_group_buys - new_candidates,
+                    )
+                    submitted_count += submitted
+                    new_candidates += created
                     if new_candidates >= config.target_group_buys:
+                        stop_reason = "TARGET_REACHED"
                         break
                 except PublicCollectionBlocked as error:
                     stop_reason = error.code
