@@ -20,6 +20,7 @@ import {
   submissionPayload,
   validOriginalPostUrl,
 } from "./App";
+import { automaticCollectionOriginalPostUrl } from "./lib/automaticCollectionSource";
 import { assertPersistedPriceMatches } from "./lib/priceKrw";
 
 const submissionForm = {
@@ -85,6 +86,34 @@ describe("automatic collection source links", () => {
     );
     expect(validOriginalPostUrl("javascript:alert(1)")).toBeNull();
     expect(validOriginalPostUrl("https://example.com/p/example/")).toBeNull();
+  });
+
+  it("keeps the initially collected source link after later catalog edits", () => {
+    expect(
+      automaticCollectionOriginalPostUrl({
+        originalPostUrl: "https://www.instagram.com/p/current/",
+        collectionProposalSnapshot: {
+          originalPostUrl: "https://www.instagram.com/p/collected/",
+        },
+      }),
+    ).toBe("https://www.instagram.com/p/collected/");
+  });
+});
+
+describe("automatic collection decision history", () => {
+  it("renders the decision-time snapshot instead of later catalog edits", () => {
+    const form = groupBuyToForm(
+      {
+        productName: "공구 관리에서 나중에 수정된 이름",
+        status: "APPROVED",
+      } as Parameters<typeof groupBuyToForm>[0],
+      {
+        productName: "검수 당시 상품명",
+      } as never,
+    );
+
+    expect(form.productName).toBe("검수 당시 상품명");
+    expect(form.status).toBe("APPROVED");
   });
 });
 

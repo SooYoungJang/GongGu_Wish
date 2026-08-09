@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Request,
   UseGuards,
 } from "@nestjs/common";
 import { ApiTags, ApiBearerAuth } from "@nestjs/swagger";
@@ -22,6 +23,10 @@ import { ListRawPostsDto } from "../raw-posts/dto/list-raw-posts.dto";
 import { RawPostsService } from "../raw-posts/raw-posts.service";
 import { AdminService } from "./admin.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+
+type AuthenticatedAdminRequest = {
+  user: { userId: string };
+};
 
 @ApiTags("admin")
 @ApiBearerAuth()
@@ -92,12 +97,19 @@ export class AdminController {
   }
 
   @Post("group-buys/:id/approve")
-  approve(@Param("id") id: string) {
-    return this.groupBuysService.approve(id);
+  approve(
+    @Param("id") id: string,
+    @Request() request: AuthenticatedAdminRequest,
+  ) {
+    return this.groupBuysService.approve(id, request.user.userId);
   }
 
   @Post("group-buys/:id/reject")
-  reject(@Param("id") id: string, @Body() dto: RejectGroupBuyDto) {
-    return this.groupBuysService.reject(id, dto.reason);
+  reject(
+    @Param("id") id: string,
+    @Body() dto: RejectGroupBuyDto,
+    @Request() request: AuthenticatedAdminRequest,
+  ) {
+    return this.groupBuysService.reject(id, dto.reason, request.user.userId);
   }
 }

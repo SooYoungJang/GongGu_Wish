@@ -5,6 +5,12 @@ import {
   classifyKoreaCaption,
   isGroupBuyCandidate,
 } from "../_shared/instagram-public-rules.ts";
+import {
+  AUTOMATIC_COLLECTION_RULESET_VERSION,
+  buildCollectionReviewSnapshot,
+  legacyCollectionReviewStatus,
+  type CollectionReviewStatus,
+} from "../_shared/automaticCollectionReview.ts";
 
 const MAX_BODY_BYTES = 1024 * 1024;
 const ACTIONS = ["watchlist", "collect", "status"] as const;
@@ -34,7 +40,41 @@ type ExistingCampaign = {
   id: string;
   raw_post_id: string | null;
   status: string;
+  collection_review_status: CollectionReviewStatus;
 };
+
+export function buildAutomaticProposalSnapshot(
+  post: CollectedPost,
+  rawPostId: string,
+  parsed: ParsedAutomaticCaption,
+) {
+  const mediaUrls = post.imageUrl ? [post.imageUrl] : [];
+  return buildCollectionReviewSnapshot({
+    rawPostId,
+    instagramPostId: post.instagramPostId,
+    originalPostUrl: post.postUrl,
+    takenAt: post.takenAt,
+    productName: parsed.productName,
+    brandName: parsed.brandName,
+    instagramUsername: post.influencerUsername,
+    category: null,
+    startDate: parsed.startDate,
+    endDate: parsed.endDate,
+    purchaseUrl: parsed.purchaseUrl,
+    discountInfo: parsed.discountInfo,
+    priceKrw: parsed.priceKrw,
+    summary: post.caption.slice(0, 500),
+    thumbnailUrl: post.imageUrl,
+    mediaUrls,
+    mediaItems: mediaUrls.map((url) => ({
+      url,
+      mediaType: "IMAGE",
+      thumbnailUrl: null,
+    })),
+    mediaType: post.imageUrl ? "IMAGE" : null,
+    confidence: 0.5,
+  });
+}
 
 const AUTOMATIC_PRODUCT_CTA_RE =
   /^(?:공구|공동구매|마켓|특가|할인|프로모션|구매|판매|링크|마감|오픈|프로필|스토리|dm|디엠)(?:\s|[:：\-–—!?]|은|는|이|가|을|를|의|부터|까지)/iu;
@@ -389,7 +429,7 @@ async function findExistingCampaign(
 ): Promise<ExistingCampaign | null> {
   const { data, error } = await supabase
     .from("group_buys")
-    .select("id,raw_post_id,status")
+    .select("id,raw_post_id,status,collection_review_status")
     .eq("dedupe_key", dedupeKey)
     .maybeSingle();
   if (error) throw error;
@@ -398,6 +438,12 @@ async function findExistingCampaign(
       id: String(data.id),
       raw_post_id: data.raw_post_id ? String(data.raw_post_id) : null,
       status: String(data.status ?? "REVIEW_REQUIRED"),
+      collection_review_status:
+        data.collection_review_status === "PENDING" ||
+        data.collection_review_status === "APPROVED" ||
+        data.collection_review_status === "REJECTED"
+          ? data.collection_review_status
+          : legacyCollectionReviewStatus(data.status),
     };
   }
 
@@ -406,7 +452,7 @@ async function findExistingCampaign(
   const { data: legacyRows, error: legacyError } = await supabase
     .from("group_buys")
     .select(
-      "id,raw_post_id,status,dedupe_key,product_name,brand_name,purchase_url,start_date,end_date,raw_post:raw_post_id(caption)",
+      "id,raw_post_id,status,collection_review_status,dedupe_key,product_name,brand_name,purchase_url,start_date,end_date,raw_post:raw_post_id(caption)",
     )
     .eq("source_type", "PLAYWRIGHT_PUBLIC")
     .is("dedupe_key", null)
@@ -448,7 +494,7 @@ async function findExistingCampaign(
 
     const { data: matched, error: matchedError } = await supabase
       .from("group_buys")
-      .select("id,raw_post_id,status")
+      .select("id,raw_post_id,status,collection_review_status")
       .eq("dedupe_key", dedupeKey)
       .maybeSingle();
     if (matchedError) throw matchedError;
@@ -460,6 +506,12 @@ async function findExistingCampaign(
             ? String(selected.raw_post_id)
             : null,
           status: String(selected.status ?? "REVIEW_REQUIRED"),
+          collection_review_status:
+            selected.collection_review_status === "PENDING" ||
+            selected.collection_review_status === "APPROVED" ||
+            selected.collection_review_status === "REJECTED"
+              ? selected.collection_review_status
+              : legacyCollectionReviewStatus(selected.status),
         }
       : null;
   }
@@ -484,7 +536,10 @@ async function attachLatestCampaignPost(
     influencer_id: influencerId,
     updated_at: new Date().toISOString(),
   };
-  if (campaign.status === "REVIEW_REQUIRED") {
+  if (
+    campaign.status === "REVIEW_REQUIRED" &&
+    campaign.collection_review_status === "PENDING"
+  ) {
     update.product_name = parsed.productName ?? null;
     update.brand_name = parsed.brandName ?? null;
     update.start_date = parsed.startDate ?? null;
@@ -493,6 +548,12 @@ async function attachLatestCampaignPost(
     update.discount_info = parsed.discountInfo ?? null;
     update.price_krw = parsed.priceKrw ?? null;
     update.summary = post.caption.slice(0, 500);
+    update.collection_proposal_snapshot = buildAutomaticProposalSnapshot(
+      post,
+      rawPostId,
+      parsed,
+    );
+    update.collection_ruleset_version = AUTOMATIC_COLLECTION_RULESET_VERSION;
   }
 
   const { error } = await supabase
@@ -529,6 +590,13 @@ async function createGroupBuy(
       confidence: 0.5,
       status: "REVIEW_REQUIRED",
       source_type: "PLAYWRIGHT_PUBLIC",
+      collection_review_status: "PENDING",
+      collection_proposal_snapshot: buildAutomaticProposalSnapshot(
+        post,
+        rawPostId,
+        parsed,
+      ),
+      collection_ruleset_version: AUTOMATIC_COLLECTION_RULESET_VERSION,
       updated_at: new Date().toISOString(),
     })
     .select("id")

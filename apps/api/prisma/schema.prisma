@@ -29,6 +29,12 @@ enum GroupBuyStatus {
   EXPIRED
 }
 
+enum CollectionReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum FeedMediaType {
   IMAGE
   VIDEO
@@ -110,6 +116,13 @@ model GroupBuy {
   status                   GroupBuyStatus                 @default(REVIEW_REQUIRED)
   rejectionReason          String?                        @map("rejection_reason")
   reviewedAt               DateTime?                      @map("reviewed_at")
+  reviewedBy               String?                        @map("reviewed_by")
+  collectionReviewStatus   CollectionReviewStatus?        @map("collection_review_status")
+  collectionProposalSnapshot Json?                        @map("collection_proposal_snapshot")
+  collectionReviewedSnapshot Json?                        @map("collection_reviewed_snapshot")
+  collectionRulesetVersion String?                        @map("collection_ruleset_version")
+  collectionHikerUsed      Boolean                        @default(false) @map("collection_hiker_used")
+  collectionHikerLookupAt  DateTime?                      @map("collection_hiker_lookup_at")
   favorites                Favorite[]
   // 제보 출처 추적
   sourceType               String?                        @default("CRAWLED") @map("source_type")
@@ -135,6 +148,7 @@ model GroupBuy {
   @@index([isMonthlyFeatured, monthlyFeaturedRank, endDate])
   @@index([isHomeBanner, homeBannerStartDate, homeBannerEndDate])
   @@index([sourceType])
+  @@index([sourceType, collectionReviewStatus, createdAt], map: "group_buys_source_review_created_idx")
   @@map("group_buys")
 }
 
