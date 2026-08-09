@@ -312,8 +312,14 @@ class SupabaseCollectorApi:
         return [item for item in items if isinstance(item, dict)]
 
     def collect_post(self, payload: dict[str, Any]) -> dict[str, Any]:
-        result = self._request("collect", post=payload)
-        return result if isinstance(result, dict) else {}
+        response = self._request("collect", post=payload)
+        result = response.get("result") if isinstance(response, dict) else None
+        if not isinstance(result, dict):
+            raise PublicCollectionError(
+                "API_CONTRACT",
+                "Supabase collector collect 응답 형식이 올바르지 않습니다.",
+            )
+        return result
 
     def update_status(
         self,
