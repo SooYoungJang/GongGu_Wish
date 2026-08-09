@@ -225,6 +225,9 @@ web3 = 30
 # secret = ""
 
 [functions.admin-api]
+[functions.instagram-public-collector]
+# The function authenticates the private worker with X-Collector-Token.
+verify_jwt = false
 [functions.process-notification-outbox]
 [functions.health]
 [functions.refresh-instagram-media]
