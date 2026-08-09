@@ -297,6 +297,40 @@ function normalizeCampaignDate(value: string | undefined) {
   return value ? value.slice(0, 10) : "";
 }
 
+function validCampaignDate(value: string | undefined) {
+  const date = normalizeCampaignDate(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) &&
+      parsed.toISOString().slice(0, 10) === date
+    ? date
+    : null;
+}
+
+function koreaCalendarDate(value: string) {
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return null;
+
+  return new Date(instant.getTime() + 9 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+export function isAutomaticCampaignCurrentOrUpcoming(
+  parsed: ParsedAutomaticCaption,
+  referenceTime: string,
+) {
+  const today = koreaCalendarDate(referenceTime);
+  if (!today) return false;
+
+  const endDate = validCampaignDate(parsed.endDate);
+  if (endDate) return endDate >= today;
+
+  const startDate = validCampaignDate(parsed.startDate);
+  return Boolean(startDate && startDate >= today);
+}
+
 export function normalizeAutoParsedCaption(
   parsed: ParsedAutomaticCaption,
   caption: string,
@@ -689,7 +723,10 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
   }
   const campaignDedupeKey = parseError ? null : buildCampaignDedupeKey(parsed);
   const shouldCreateGroupBuy = Boolean(
-    isCandidate && isKoreaCandidate && campaignDedupeKey,
+    isCandidate &&
+      isKoreaCandidate &&
+      campaignDedupeKey &&
+      isAutomaticCampaignCurrentOrUpcoming(parsed, new Date().toISOString()),
   );
 
   const existing = await findRawPost(supabase, post, contentHash);

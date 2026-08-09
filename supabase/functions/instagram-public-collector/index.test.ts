@@ -7,6 +7,7 @@ import {
   buildCampaignDedupeKey,
   buildAutomaticProposalSnapshot,
   constantTimeTokenMatches,
+  isAutomaticCampaignCurrentOrUpcoming,
   normalizeCollectorAction,
   normalizeCollectPayload,
   normalizeCollectedPost,
@@ -130,6 +131,75 @@ Deno.test("replaces CTA-like automatic product names with a meaningful hashtag",
   );
 
   assertEquals(normalized.productName, "로슬러실링팬");
+});
+
+Deno.test("rejects automatic campaigns that already ended in Korea", () => {
+  const referenceTime = "2026-08-09T15:30:00.000Z"; // 2026-08-10 KST
+
+  assertFalse(
+    isAutomaticCampaignCurrentOrUpcoming(
+      { startDate: "2026-08-01", endDate: "2026-08-09" },
+      referenceTime,
+    ),
+  );
+  assertEquals(
+    isAutomaticCampaignCurrentOrUpcoming(
+      { startDate: "2026-08-01", endDate: "2026-08-10" },
+      referenceTime,
+    ),
+    true,
+  );
+});
+
+Deno.test("accepts active and upcoming automatic campaigns", () => {
+  const referenceTime = "2026-08-10T00:00:00.000Z";
+
+  assertEquals(
+    isAutomaticCampaignCurrentOrUpcoming(
+      { startDate: "2026-08-01", endDate: "2026-08-15" },
+      referenceTime,
+    ),
+    true,
+  );
+  assertEquals(
+    isAutomaticCampaignCurrentOrUpcoming(
+      { endDate: "2026-08-15" },
+      referenceTime,
+    ),
+    true,
+  );
+  assertEquals(
+    isAutomaticCampaignCurrentOrUpcoming(
+      { startDate: "2026-08-10" },
+      referenceTime,
+    ),
+    true,
+  );
+  assertEquals(
+    isAutomaticCampaignCurrentOrUpcoming(
+      { startDate: "2026-08-11" },
+      referenceTime,
+    ),
+    true,
+  );
+});
+
+Deno.test("rejects automatic campaigns whose current state cannot be proven", () => {
+  const referenceTime = "2026-08-10T00:00:00.000Z";
+
+  assertFalse(isAutomaticCampaignCurrentOrUpcoming({}, referenceTime));
+  assertFalse(
+    isAutomaticCampaignCurrentOrUpcoming(
+      { startDate: "2026-08-01" },
+      referenceTime,
+    ),
+  );
+  assertFalse(
+    isAutomaticCampaignCurrentOrUpcoming(
+      { startDate: "invalid", endDate: "not-a-date" },
+      referenceTime,
+    ),
+  );
 });
 
 Deno.test("builds the same campaign key despite tracking parameters", () => {
