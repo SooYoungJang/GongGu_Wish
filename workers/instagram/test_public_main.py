@@ -1,10 +1,12 @@
 import random
 import unittest
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from public_main import (
     PublicCollectionBlocked,
+    PublicInstagramCollector,
     PublicInstagramWorker,
     RandomDiscoveryConfig,
     SupabaseCollectorApi,
@@ -12,6 +14,84 @@ from public_main import (
     latest_posts,
     load_random_discovery_config,
 )
+from public_parser import ProfilePostLink
+
+
+class FakeBodyLocator:
+    def inner_text(self, timeout):
+        return ""
+
+
+class FakeMouse:
+    def wheel(self, delta_x, delta_y):
+        return None
+
+
+class DelayedDiscoveryPage:
+    url = "https://www.instagram.com/explore/search/keyword/?q=%23%EA%B3%B5%EA%B5%AC"
+
+    def __init__(self):
+        self.elapsed_ms = 0
+        self.mouse = FakeMouse()
+
+    def goto(self, url, **kwargs):
+        return type("Response", (), {"status": 200})()
+
+    def locator(self, selector):
+        return FakeBodyLocator()
+
+    def wait_for_timeout(self, milliseconds):
+        self.elapsed_ms += milliseconds
+
+    def content(self):
+        if self.elapsed_ms < 3_000:
+            return "<html><body></body></html>"
+        return '<html><body><a href="/p/delayed123/">post</a></body></html>'
+
+
+class StaticPage:
+    def __init__(self, html=""):
+        self.html = html
+        self.mouse = FakeMouse()
+        self.url = ""
+
+    def goto(self, url, **kwargs):
+        self.url = url
+        return type("Response", (), {"status": 200})()
+
+    def locator(self, selector):
+        return FakeBodyLocator()
+
+    def content(self):
+        return self.html
+
+    def close(self):
+        return None
+
+
+class FallbackCollectionPage(StaticPage):
+    def __init__(self, profile_html="<html><body></body></html>"):
+        super().__init__()
+        self.profile_html = profile_html
+
+    def content(self):
+        if "/p/" not in self.url and "/reel/" not in self.url:
+            return self.profile_html
+        username = "other.seller" if "unrelated999" in self.url else "random.seller"
+        return f"""
+        <html><head>
+          <meta name="twitter:title"
+                content="판매자 (@{username}) • Instagram 릴스">
+        </head><body><main><a href="/{username}/">판매자</a></main></body></html>
+        """
+
+
+class FakeBrowserContext:
+    def __init__(self, page):
+        self.page = page
+
+    def new_page(self):
+        return self.page
 
 
 class FakeApi:
@@ -194,6 +274,163 @@ class PublicMainTest(unittest.TestCase):
             [post["instagramPostId"] for post in selected],
             ["newest", "middle", "old"],
         )
+
+    def test_discovery_waits_for_instagram_to_render_post_links(self):
+        collector = PublicInstagramCollector(None)
+        page = DelayedDiscoveryPage()
+
+        links = collector._load_hashtag_post_links(
+            page,
+            "공구",
+            scroll_passes=2,
+            should_continue=lambda: True,
+        )
+
+        self.assertEqual([link.post_id for link in links], ["p:delayed123"])
+        self.assertGreaterEqual(page.elapsed_ms, 3_000)
+
+    def test_collect_account_falls_back_to_verified_discovery_post_links(self):
+        collection_page = FallbackCollectionPage()
+        collector = PublicInstagramCollector(
+            FakeBrowserContext(collection_page),
+            limit=3,
+        )
+        discovery_page = StaticPage(
+            """
+            <html><main>
+              <a href="/random.seller/">판매자</a>
+              <a href="/p/seed123/">원본</a>
+              <a href="/p/unrelated999_1/">다른 계정 1</a>
+              <a href="/p/unrelated999_2/">다른 계정 2</a>
+              <a href="/p/unrelated999_3/">다른 계정 3</a>
+              <a href="/p/unrelated999_4/">다른 계정 4</a>
+              <a href="/p/unrelated999_5/">다른 계정 5</a>
+              <a href="/p/unrelated999_6/">다른 계정 6</a>
+              <a href="/p/unrelated999_7/">다른 계정 7</a>
+              <a href="/p/unrelated999_8/">다른 계정 8</a>
+              <a href="/reel/recent456_1/">같은 계정 1</a>
+              <a href="/reel/recent456_2/">같은 계정 2</a>
+              <a href="/reel/recent456_3/">같은 계정 3</a>
+            </main></html>
+            """
+        )
+        seed = ProfilePostLink(
+            "p:seed123",
+            "https://www.instagram.com/p/seed123/",
+            None,
+        )
+
+        username = collector._load_discovered_username(
+            discovery_page,
+            seed,
+            should_continue=lambda: True,
+        )
+
+        def parsed_post(html, post_url, image_url):
+            kind = "reel" if "/reel/" in post_url else "p"
+            post_id = post_url.rstrip("/").rsplit("/", 1)[-1]
+            suffix = int(post_id.rsplit("_", 1)[-1]) if "_" in post_id else 0
+            return SimpleNamespace(
+                post_id=f"{kind}:{post_id}",
+                caption="공구",
+                post_url=post_url,
+                image_url=image_url,
+                taken_at=f"2026-08-{suffix + 1:02d}T00:00:00+00:00",
+            )
+
+        with patch("public_main.parse_post_html", side_effect=parsed_post):
+            posts = collector.collect_account(username)
+
+        self.assertEqual(username, "random.seller")
+        self.assertEqual(
+            [post["instagramPostId"] for post in posts],
+            ["reel:recent456_3", "reel:recent456_2", "reel:recent456_1"],
+        )
+
+        with patch("public_main.parse_post_html", side_effect=parsed_post):
+            repeated_posts = collector.collect_account(username)
+        self.assertEqual(repeated_posts, [])
+
+    def test_collect_account_verifies_nonempty_profile_links(self):
+        collection_page = FallbackCollectionPage(
+            '<html><main><a href="/p/unrelated999/">추천 게시물</a></main></html>'
+        )
+        collector = PublicInstagramCollector(
+            FakeBrowserContext(collection_page),
+            limit=3,
+        )
+
+        with patch("public_main.parse_post_html") as parse_post:
+            posts = collector.collect_account("random.seller")
+
+        self.assertEqual(posts, [])
+        parse_post.assert_not_called()
+
+    def test_new_discovery_attempt_discards_unconsumed_pending_links(self):
+        collector = PublicInstagramCollector(
+            FakeBrowserContext(FallbackCollectionPage()),
+            limit=3,
+        )
+        first_seed = ProfilePostLink(
+            "p:first",
+            "https://www.instagram.com/p/first/",
+            None,
+        )
+        second_seed = ProfilePostLink(
+            "p:second",
+            "https://www.instagram.com/p/second/",
+            None,
+        )
+        first_username = collector._load_discovered_username(
+            StaticPage('<main><a href="/random.seller/">판매자</a></main>'),
+            first_seed,
+            should_continue=lambda: True,
+        )
+
+        second_username = collector._load_discovered_username(
+            StaticPage("<main></main>"),
+            second_seed,
+            should_continue=lambda: True,
+        )
+        posts = collector.collect_account(first_username)
+
+        self.assertIsNone(second_username)
+        self.assertEqual(posts, [])
+
+    def test_closing_discovery_iterator_discards_unconsumed_pending_links(self):
+        collector = PublicInstagramCollector(
+            FakeBrowserContext(StaticPage()),
+            limit=3,
+        )
+        seed = ProfilePostLink(
+            "p:seed",
+            "https://www.instagram.com/p/seed/",
+            None,
+        )
+
+        def discovered_username(page, link, should_continue):
+            collector._pending_discovery = ("random.seller", [seed])
+            return "random.seller"
+
+        with (
+            patch.object(collector, "_load_hashtag_post_links", return_value=[seed]),
+            patch.object(
+                collector,
+                "_load_discovered_username",
+                side_effect=discovered_username,
+            ),
+        ):
+            accounts = collector.iter_discovered_accounts(
+                hashtags=("공구",),
+                scroll_passes=0,
+                rng=random.Random(1),
+                excluded_usernames=set(),
+                should_continue=lambda: True,
+            )
+            self.assertEqual(next(accounts), "random.seller")
+            accounts.close()
+
+        self.assertIsNone(collector._pending_discovery)
 
     def test_random_discovery_config_has_no_account_limit_unless_explicit(self):
         with patch.dict(

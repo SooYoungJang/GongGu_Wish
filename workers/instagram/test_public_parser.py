@@ -49,6 +49,42 @@ class PublicParserTest(unittest.TestCase):
 
         self.assertEqual(extract_post_username(html), "random.seller")
 
+    def test_extracts_main_author_when_instagram_omits_article(self):
+        html = """
+        <nav>
+          <a href="/logged.in.user/">내 프로필</a>
+        </nav>
+        <main>
+          <div><a href="/gonggu_jupjup/">판매자</a></div>
+          <a href="/p/ABC_123/">게시물</a>
+        </main>
+        """
+
+        self.assertEqual(extract_post_username(html), "gonggu_jupjup")
+
+    def test_prefers_twitter_metadata_when_main_contains_multiple_profiles(self):
+        html = """
+        <html><head>
+          <meta name="twitter:title"
+                content="판매자 (@actual.seller) • Instagram 릴스">
+        </head><body><main>
+          <a href="/commenter.first/">댓글 작성자</a>
+          <a href="/actual.seller/">판매자</a>
+        </main></body></html>
+        """
+
+        self.assertEqual(extract_post_username(html), "actual.seller")
+
+    def test_rejects_ambiguous_main_profiles_without_author_metadata(self):
+        html = """
+        <main>
+          <a href="/possible.seller/">판매자 후보</a>
+          <a href="/commenter/">댓글 작성자</a>
+        </main>
+        """
+
+        self.assertIsNone(extract_post_username(html))
+
     def test_normalizes_only_instagram_post_urls(self):
         self.assertEqual(
             normalize_post_url("/p/ABC_123/"),
