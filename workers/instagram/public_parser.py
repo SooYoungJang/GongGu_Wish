@@ -88,7 +88,7 @@ class _ProfileLinkParser(HTMLParser):
 def extract_profile_posts(
     html: str,
     base_url: str = "https://www.instagram.com/",
-    limit: int = 12,
+    limit: int = 3,
 ) -> list[ProfilePostLink]:
     parser = _ProfileLinkParser()
     parser.feed(html)

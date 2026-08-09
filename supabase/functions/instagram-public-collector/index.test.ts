@@ -4,10 +4,12 @@ import {
   assertThrows,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  buildCampaignDedupeKey,
   constantTimeTokenMatches,
   normalizeCollectorAction,
   normalizeCollectPayload,
   normalizeCollectedPost,
+  normalizeAutoParsedCaption,
 } from "./index.ts";
 
 Deno.test("accepts only the public collector actions", () => {
@@ -114,4 +116,59 @@ Deno.test("rejects non-canonical or non-Instagram post URLs", () => {
       postUrl: "https://example.com/p/post-1/",
     }),
   );
+});
+
+Deno.test("replaces CTA-like automatic product names with a meaningful hashtag", () => {
+  const normalized = normalizeAutoParsedCaption(
+    {
+      productName: "공구는 자정 낮 1시 입니다",
+      brandName: undefined,
+      purchaseUrl: "https://shop.example/items/1",
+    },
+    "국내 배송 공구 19,900원 #로슬러실링팬 #공구",
+  );
+
+  assertEquals(normalized.productName, "로슬러실링팬");
+});
+
+Deno.test("builds the same campaign key despite tracking parameters", () => {
+  const first = buildCampaignDedupeKey(
+    {
+      productName: "로슬러실링팬",
+      brandName: "로슬러",
+      purchaseUrl: "https://shop.example/items/1?utm_source=instagram",
+      startDate: "2026-08-08",
+      endDate: "2026-08-15",
+    },
+  );
+  const second = buildCampaignDedupeKey(
+    {
+      productName: "로슬러 실링팬",
+      brandName: "로슬러",
+      purchaseUrl: "https://shop.example/items/1?fbclid=tracking",
+      startDate: "2026-08-08",
+      endDate: "2026-08-15",
+    },
+  );
+
+  assertEquals(first, second);
+});
+
+Deno.test("treats a changed campaign period as a new review candidate", () => {
+  const first = buildCampaignDedupeKey({
+    productName: "로슬러실링팬",
+    brandName: "로슬러",
+    purchaseUrl: "https://shop.example/items/1",
+    startDate: "2026-08-08",
+    endDate: "2026-08-15",
+  });
+  const second = buildCampaignDedupeKey({
+    productName: "로슬러실링팬",
+    brandName: "로슬러",
+    purchaseUrl: "https://shop.example/items/1",
+    startDate: "2026-08-16",
+    endDate: "2026-08-22",
+  });
+
+  assertFalse(first === second);
 });

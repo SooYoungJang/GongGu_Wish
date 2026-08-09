@@ -6,6 +6,7 @@ from public_main import (
     PublicInstagramWorker,
     SupabaseCollectorApi,
     bounded_next_run,
+    latest_posts,
 )
 
 
@@ -58,6 +59,35 @@ class FakeSession:
 
 
 class PublicMainTest(unittest.TestCase):
+    def test_latest_posts_returns_only_the_three_newest_known_posts(self):
+        posts = [
+            {"instagramPostId": "old", "takenAt": "2026-08-01T00:00:00+00:00"},
+            {"instagramPostId": "newest", "takenAt": "2026-08-08T00:00:00+00:00"},
+            {"instagramPostId": "middle", "takenAt": "2026-08-05T00:00:00+00:00"},
+            {"instagramPostId": "unknown", "takenAt": None},
+        ]
+
+        selected = latest_posts(posts, limit=3)
+
+        self.assertEqual(
+            [post["instagramPostId"] for post in selected],
+            ["newest", "middle", "old"],
+        )
+
+    def test_latest_posts_caps_the_requested_limit_at_three(self):
+        posts = [
+            {"instagramPostId": str(index), "takenAt": f"2026-08-{index + 1:02d}T00:00:00+00:00"}
+            for index in range(5)
+        ]
+
+        selected = latest_posts(posts, limit=10)
+
+        self.assertEqual(len(selected), 3)
+        self.assertEqual(
+            [post["instagramPostId"] for post in selected],
+            ["4", "3", "2"],
+        )
+
     def test_supabase_collector_api_uses_action_contract_and_token(self):
         session = FakeSession()
         api = SupabaseCollectorApi(

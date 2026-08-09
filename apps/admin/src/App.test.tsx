@@ -18,6 +18,7 @@ import {
   tabTitle,
   submissionToForm,
   submissionPayload,
+  validOriginalPostUrl,
 } from "./App";
 import { assertPersistedPriceMatches } from "./lib/priceKrw";
 
@@ -71,6 +72,19 @@ describe("admin tab labels", () => {
     expect(tabTitle("submissions")).toBe("위시 검수");
     expect(tabTitle("autoCollection")).toBe("자동 수집 검수");
     expect(tabTitle("groupBuys")).toBe("공구 관리");
+  });
+});
+
+describe("automatic collection source links", () => {
+  it("allows only canonical Instagram post links", () => {
+    expect(validOriginalPostUrl("https://www.instagram.com/p/example/")).toBe(
+      "https://www.instagram.com/p/example/",
+    );
+    expect(validOriginalPostUrl("https://instagram.com/reel/example/")).toBe(
+      "https://instagram.com/reel/example/",
+    );
+    expect(validOriginalPostUrl("javascript:alert(1)")).toBeNull();
+    expect(validOriginalPostUrl("https://example.com/p/example/")).toBeNull();
   });
 });
 
@@ -268,6 +282,7 @@ describe("Hiker profile image admin flow", () => {
       brandName: "귤밭상회",
       instagramUsername: "gyulbbad",
       profileImageUrl,
+      originalPostUrl: null,
       category: "food",
       startDate: "2026-07-01",
       endDate: "2026-07-31",

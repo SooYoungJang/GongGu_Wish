@@ -57,6 +57,7 @@ function createMockState() {
     productName: "승인된 모바일 라이브 프리뷰 공구",
     brandName: "프리뷰 브랜드",
     instagramUsername: "preview_shop",
+    originalPostUrl: null as string | null,
     category: "beauty",
     startDate: "2020-07-10T00:00:00.000Z",
     endDate: "2099-12-31T00:00:00.000Z",
@@ -605,6 +606,51 @@ test("공구 요청 탭은 집계 수요를 식별 정보 없이 읽기 전용�
   ).toBe(true);
   await page.screenshot({
     path: resolve(evidenceDir, "admin-group-buy-requests-mobile-390.png"),
+    fullPage: true,
+  });
+  expect(consoleErrors).toEqual([]);
+});
+
+test("자동 수집 검수 항목은 안전한 Instagram 원본 링크를 제공한다", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "자동 수집 원본 링크는 Chromium에서 한 번만 검증합니다.",
+  );
+  mkdirSync(evidenceDir, { recursive: true });
+  const consoleErrors = collectConsoleErrors(page);
+  const state = createMockState();
+  state.groupBuy.status = "REVIEW_REQUIRED";
+  state.groupBuy.sourceType = "PLAYWRIGHT_PUBLIC";
+  state.groupBuy.submissionId = null;
+  state.groupBuy.originalPostUrl =
+    "https://www.instagram.com/p/automatic-source/";
+  await installMocks(page, state);
+
+  await login(page);
+  const automaticCollectionTab = page
+    .locator("nav.nav-tabs button")
+    .filter({ hasText: "자동 수집 검수" });
+  await expect(automaticCollectionTab).toHaveCount(1);
+  await automaticCollectionTab.click();
+
+  const row = page.getByRole("row", {
+    name: /승인된 모바일 라이브 프리뷰 공구/,
+  });
+  await expect(row).toBeVisible();
+  const sourceLink = row.getByRole("link", {
+    name: "승인된 모바일 라이브 프리뷰 공구 원본 Instagram 게시물 열기",
+  });
+  await expect(sourceLink).toHaveCount(1);
+  await expect(sourceLink).toHaveAttribute(
+    "href",
+    "https://www.instagram.com/p/automatic-source/",
+  );
+  await expect(sourceLink).toHaveAttribute("target", "_blank");
+  await expect(sourceLink).toHaveAttribute("rel", "noopener noreferrer");
+  await page.screenshot({
+    path: resolve(evidenceDir, "admin-auto-collection-source-link.png"),
     fullPage: true,
   });
   expect(consoleErrors).toEqual([]);

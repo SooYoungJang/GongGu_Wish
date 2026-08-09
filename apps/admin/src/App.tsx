@@ -266,6 +266,28 @@ function validProfileImageUrl(value: string | null | undefined) {
   }
 }
 
+export function validOriginalPostUrl(value: string | null | undefined) {
+  const candidate = value?.trim();
+  if (!candidate) return null;
+
+  try {
+    const url = new URL(candidate);
+    const host = url.hostname.toLowerCase();
+    if (
+      url.protocol !== "https:" ||
+      !["instagram.com", "www.instagram.com", "instagr.am"].includes(host) ||
+      url.search ||
+      url.hash ||
+      !/^\/(?:p|reel|tv)\/[A-Za-z0-9_-]+\/?$/u.test(url.pathname)
+    ) {
+      return null;
+    }
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
 function dateInput(value: string | null | undefined) {
   return value ? value.slice(0, 10) : "";
 }
@@ -3154,6 +3176,7 @@ function GroupBuyPanel(props: {
                   <th>카테고리</th>
                   <th>마감</th>
                   <th>홈 배너 노출</th>
+                  <th>원본</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -3173,6 +3196,22 @@ function GroupBuyPanel(props: {
                       item.homeBannerEndDate
                         ? `${dateInput(item.homeBannerStartDate)} ~ ${dateInput(item.homeBannerEndDate)}`
                         : "-"}
+                    </td>
+                    <td>
+                      {validOriginalPostUrl(item.originalPostUrl) ? (
+                        <a
+                          aria-label={`${item.productName ?? "자동 수집 공구"} 원본 Instagram 게시물 열기`}
+                          className="source-link"
+                          href={validOriginalPostUrl(item.originalPostUrl) ?? undefined}
+                          onClick={(event) => event.stopPropagation()}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          Instagram 열기
+                        </a>
+                      ) : (
+                        "-"
+                      )}
                     </td>
                     <td>
                       <StatusBadge status={item.status} />
@@ -3392,6 +3431,18 @@ function MobileGroupBuyCards({
                 : "-"}
             </strong>
           </div>
+          {validOriginalPostUrl(item.originalPostUrl) ? (
+            <a
+              aria-label={`${item.productName ?? "자동 수집 공구"} 원본 Instagram 게시물 열기`}
+              className="source-link"
+              href={validOriginalPostUrl(item.originalPostUrl) ?? undefined}
+              onClick={(event) => event.stopPropagation()}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Instagram 원본 열기
+            </a>
+          ) : null}
         </article>
       ))}
     </div>
