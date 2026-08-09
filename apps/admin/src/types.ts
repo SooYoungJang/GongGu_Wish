@@ -13,6 +13,12 @@ export type GroupBuyStatus =
 
 export type CollectionReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 
+export type CollectionProfileLinkCandidate = {
+  url: string;
+  label: string | null;
+  source: "PLAYWRIGHT_PROFILE";
+};
+
 export type CollectionReviewSnapshot = {
   schemaVersion: 1;
   rawPostId: string | null;
@@ -27,6 +33,7 @@ export type CollectionReviewSnapshot = {
   startDate: string | null;
   endDate: string | null;
   purchaseUrl: string | null;
+  profileLinkCandidates: CollectionProfileLinkCandidate[];
   discountInfo: string | null;
   priceKrw: number | null;
   summary: string | null;

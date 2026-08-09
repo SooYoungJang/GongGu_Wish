@@ -23,6 +23,12 @@ describe("automatic collection review contract", () => {
         startDate: "2026-08-09",
         endDate: "2026-08-15",
         purchaseUrl: "https://example.com/buy",
+        profileLinkCandidates: [
+          {
+            url: "https://shop.example/item?utm_source=instagram&color=red",
+            label: "오늘 공구 구매",
+          },
+        ],
         discountInfo: "19,900원",
         priceKrw: "19900",
         summary: "국내 배송 공구",
@@ -59,6 +65,13 @@ describe("automatic collection review contract", () => {
       startDate: "2026-08-09",
       endDate: "2026-08-15",
       purchaseUrl: "https://example.com/buy",
+      profileLinkCandidates: [
+        {
+          url: "https://shop.example/item?color=red",
+          label: "오늘 공구 구매",
+          source: "PLAYWRIGHT_PROFILE",
+        },
+      ],
       discountInfo: "19,900원",
       priceKrw: 19900,
       summary: "국내 배송 공구",

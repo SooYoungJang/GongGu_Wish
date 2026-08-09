@@ -7,6 +7,7 @@ import {
   type AppLivePreviewDeal,
 } from "@/components/AppLivePreview";
 import { DatePickerField } from "@/components/DatePickerField";
+import { ProfileLinkCandidates } from "@/components/ProfileLinkCandidates";
 import { ProfileImagePreview } from "@/components/ProfileImagePreview";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import {
@@ -27,7 +28,11 @@ import {
   groupBuyStatusForVisibility,
   shouldReturnToGroupBuyList,
 } from "@/lib/groupBuyVisibility";
-import { automaticCollectionOriginalPostUrl } from "@/lib/automaticCollectionSource";
+import {
+  automaticCollectionOriginalPostUrl,
+  automaticCollectionProfileLinkCandidates,
+  automaticCollectionProfilePurchaseFallback,
+} from "@/lib/automaticCollectionSource";
 import { supabase } from "@/supabase/client";
 import type {
   CdnRefreshStatus,
@@ -508,7 +513,9 @@ export function groupBuyToForm(
   });
 }
 
-function groupBuyCollectionReviewStatus(item: GroupBuy): CollectionReviewStatus {
+function groupBuyCollectionReviewStatus(
+  item: GroupBuy,
+): CollectionReviewStatus {
   if (item.collectionReviewStatus) return item.collectionReviewStatus;
   if (item.status === "REVIEW_REQUIRED") return "PENDING";
   if (item.status === "REJECTED") return "REJECTED";
@@ -570,11 +577,9 @@ export function submissionPayload(form: SubmissionForm) {
     mediaType: inferFormMediaType(mediaItems, mediaUrls) || null,
     postAudioUrl: form.postAudioUrl || null,
     postAudioStartTimeMs: form.postAudioUrl
-      ? form.postAudioStartTimeMs ?? 0
+      ? (form.postAudioStartTimeMs ?? 0)
       : null,
-    postAudioDurationMs: form.postAudioUrl
-      ? form.postAudioDurationMs
-      : null,
+    postAudioDurationMs: form.postAudioUrl ? form.postAudioDurationMs : null,
     isHomeBanner: canonicalForm.isHomeBanner,
     homeBannerStartDate: canonicalForm.homeBannerStartDate,
     homeBannerEndDate: canonicalForm.homeBannerEndDate,
@@ -604,11 +609,9 @@ export function groupBuyReviewData(form: GroupBuyForm) {
     mediaType: inferFormMediaType(mediaItems, mediaUrls) || null,
     postAudioUrl: form.postAudioUrl || null,
     postAudioStartTimeMs: form.postAudioUrl
-      ? form.postAudioStartTimeMs ?? 0
+      ? (form.postAudioStartTimeMs ?? 0)
       : null,
-    postAudioDurationMs: form.postAudioUrl
-      ? form.postAudioDurationMs
-      : null,
+    postAudioDurationMs: form.postAudioUrl ? form.postAudioDurationMs : null,
     isHomeBanner: canonicalForm.isHomeBanner,
     homeBannerStartDate: canonicalForm.homeBannerStartDate,
     homeBannerEndDate: canonicalForm.homeBannerEndDate,
@@ -1162,8 +1165,7 @@ function AdminShell({ session }: { session: Session }) {
   }, [loadSubmissions, tab]);
 
   useEffect(() => {
-    if (tab === "groupBuys" || tab === "autoCollection")
-      void loadGroupBuys();
+    if (tab === "groupBuys" || tab === "autoCollection") void loadGroupBuys();
   }, [loadGroupBuys, tab]);
 
   useEffect(() => {
@@ -1511,7 +1513,8 @@ function AdminShell({ session }: { session: Session }) {
           ? applyHikerResultToGroupBuy(
               current,
               result,
-              automaticCollectionOriginalPostUrl(selectedGroupBuy) ?? "",
+              automaticCollectionProfilePurchaseFallback(selectedGroupBuy) ??
+                "",
             )
           : current,
       );
@@ -2352,8 +2355,8 @@ function applyHikerResultToReviewForm(
   const resolvedUsername = result.username?.trim() || form.instagramUsername;
   const ownerChanged = Boolean(
     result.username?.trim() &&
-      normalizeInstagramUsername(result.username) !==
-        normalizeInstagramUsername(form.instagramUsername),
+    normalizeInstagramUsername(result.username) !==
+      normalizeInstagramUsername(form.instagramUsername),
   );
   const hikerProfileImageUrl = validProfileImageUrl(result.profileImageUrl);
 
@@ -2391,22 +2394,19 @@ function applyHikerResultToReviewForm(
     mediaUrlsText: mediaUrls.join("\n"),
     mediaItems,
     mediaType: suggestions.mediaType ?? result.mediaType ?? form.mediaType,
-    postAudioUrl:
-      !shouldApplyPostAudio
-        ? form.postAudioUrl
-        : result.postAudioUrl ?? "",
-    postAudioStartTimeMs:
-      !shouldApplyPostAudio
-        ? form.postAudioStartTimeMs
-        : result.postAudioUrl
-          ? result.postAudioStartTimeMs ?? 0
-          : null,
-    postAudioDurationMs:
-      !shouldApplyPostAudio
-        ? form.postAudioDurationMs
-        : result.postAudioUrl
-          ? result.postAudioDurationMs ?? null
-          : null,
+    postAudioUrl: !shouldApplyPostAudio
+      ? form.postAudioUrl
+      : (result.postAudioUrl ?? ""),
+    postAudioStartTimeMs: !shouldApplyPostAudio
+      ? form.postAudioStartTimeMs
+      : result.postAudioUrl
+        ? (result.postAudioStartTimeMs ?? 0)
+        : null,
+    postAudioDurationMs: !shouldApplyPostAudio
+      ? form.postAudioDurationMs
+      : result.postAudioUrl
+        ? (result.postAudioDurationMs ?? null)
+        : null,
   };
 }
 
@@ -3526,8 +3526,8 @@ function GroupBuyPanel(props: {
                     ? "조건에 맞는 자동수집 히스토리가 없습니다."
                     : "검수 대기 중인 자동 수집 공구가 없습니다."
                   : isFiltered
-                  ? "조건에 맞는 공구가 없습니다."
-                  : "승인된 공구가 없습니다."
+                    ? "조건에 맞는 공구가 없습니다."
+                    : "승인된 공구가 없습니다."
               }
               onClear={isFiltered ? resetFilters : undefined}
             />
@@ -3739,9 +3739,7 @@ function MobileGroupBuyCards({
                 : "-"}
             </strong>
           </div>
-          {validOriginalPostUrl(
-            automaticCollectionOriginalPostUrl(item),
-          ) ? (
+          {validOriginalPostUrl(automaticCollectionOriginalPostUrl(item)) ? (
             <a
               aria-label={`${item.productName ?? "자동 수집 공구"} 원본 Instagram 게시물 열기`}
               className="source-link"
@@ -3763,7 +3761,7 @@ function MobileGroupBuyCards({
   );
 }
 
-function GroupBuyEditor(props: {
+export function GroupBuyEditor(props: {
   actionLoading: boolean;
   automaticCollection: boolean;
   form: GroupBuyForm | null;
@@ -3805,6 +3803,9 @@ function GroupBuyEditor(props: {
   const sourceOriginalPostUrl = automaticCollectionOriginalPostUrl(
     props.selected,
   );
+  const profileLinkCandidates = automaticCollectionProfileLinkCandidates(
+    props.selected,
+  );
 
   return (
     <aside className="detail-panel">
@@ -3841,9 +3842,7 @@ function GroupBuyEditor(props: {
           {validOriginalPostUrl(sourceOriginalPostUrl) ? (
             <a
               className="button button--ghost"
-              href={
-                validOriginalPostUrl(sourceOriginalPostUrl) ?? undefined
-              }
+              href={validOriginalPostUrl(sourceOriginalPostUrl) ?? undefined}
               rel="noopener noreferrer"
               target="_blank"
             >
@@ -3891,138 +3890,146 @@ function GroupBuyEditor(props: {
 
       <fieldset className="review-fieldset" disabled={reviewReadOnly}>
         <div className="form-grid">
-        <TextField
-          label="제품명"
-          value={form.productName}
-          onChange={(value) => setField("productName", value)}
-          required
-        />
-        <SelectField
-          label="카테고리"
-          value={form.category}
-          options={CATEGORY_OPTIONS}
-          onChange={(value) => setField("category", value)}
-        />
-        <TextField
-          label="브랜드명"
-          value={form.brandName}
-          onChange={(value) => setField("brandName", value)}
-        />
-        <TextField
-          label="인스타 계정"
-          value={form.instagramUsername}
-          onChange={(value) =>
-            props.onChange(applyInstagramUsernameChange(form, value))
-          }
-        />
-        <ProfileImageFormField
-          instagramUsername={form.instagramUsername}
-          profileImageUrl={form.profileImageUrl}
-          onChange={(value) =>
-            props.onChange(applyProfileImageUrlChange(form, value))
-          }
-        />
-        <TextField
-          label="구매 URL"
-          value={form.purchaseUrl}
-          onChange={(value) => setField("purchaseUrl", value)}
-        />
-        <DatePickerField
-          label="시작일"
-          value={form.startDate}
-          onChange={(value) => setField("startDate", value)}
-          max={form.endDate || undefined}
-        />
-        <DatePickerField
-          label="마감일"
-          value={form.endDate}
-          onChange={(value) => setField("endDate", value)}
-          min={form.startDate || undefined}
-        />
-        <TextField
-          label="할인 정보"
-          value={form.discountInfo}
-          onChange={(value) => setField("discountInfo", value)}
-        />
-        <TextField
-          label="가격 (원)"
-          value={form.priceKrw}
-          onChange={(value) => setField("priceKrw", value)}
-          type="number"
-          min={0}
-          max={MAX_PRICE_KRW}
-          step={1}
-        />
-        <TextField
-          label="썸네일 URL"
-          value={form.thumbnailUrl}
-          onChange={(value) => setField("thumbnailUrl", value)}
-        />
-        <div className="auto-field">
-          <span>미디어 타입</span>
-          <strong>
-            {mediaTypeLabel(
-              inferFormMediaType(
-                form.mediaItems,
-                splitLines(form.mediaUrlsText),
-              ),
-            )}
-          </strong>
-          <small>등록된 미디어를 기준으로 자동 감지됩니다.</small>
-        </div>
-        {!props.automaticCollection ? (
-          <SelectField
-            label="상태"
-            value={form.status}
-            options={GROUP_BUY_STATUS_OPTIONS.filter(
-              (item) => item.value !== "ALL",
-            )}
-            onChange={(value) => setField("status", value as GroupBuyStatus)}
+          <TextField
+            label="제품명"
+            value={form.productName}
+            onChange={(value) => setField("productName", value)}
+            required
           />
-        ) : null}
+          <SelectField
+            label="카테고리"
+            value={form.category}
+            options={CATEGORY_OPTIONS}
+            onChange={(value) => setField("category", value)}
+          />
+          <TextField
+            label="브랜드명"
+            value={form.brandName}
+            onChange={(value) => setField("brandName", value)}
+          />
+          <TextField
+            label="인스타 계정"
+            value={form.instagramUsername}
+            onChange={(value) =>
+              props.onChange(applyInstagramUsernameChange(form, value))
+            }
+          />
+          <ProfileImageFormField
+            instagramUsername={form.instagramUsername}
+            profileImageUrl={form.profileImageUrl}
+            onChange={(value) =>
+              props.onChange(applyProfileImageUrlChange(form, value))
+            }
+          />
+          <TextField
+            label="구매 URL"
+            value={form.purchaseUrl}
+            onChange={(value) => setField("purchaseUrl", value)}
+          />
+          {props.automaticCollection ? (
+            <ProfileLinkCandidates
+              candidates={profileLinkCandidates}
+              disabled={props.actionLoading || reviewReadOnly}
+              onSelect={(url) => setField("purchaseUrl", url)}
+              purchaseUrl={form.purchaseUrl}
+            />
+          ) : null}
+          <DatePickerField
+            label="시작일"
+            value={form.startDate}
+            onChange={(value) => setField("startDate", value)}
+            max={form.endDate || undefined}
+          />
+          <DatePickerField
+            label="마감일"
+            value={form.endDate}
+            onChange={(value) => setField("endDate", value)}
+            min={form.startDate || undefined}
+          />
+          <TextField
+            label="할인 정보"
+            value={form.discountInfo}
+            onChange={(value) => setField("discountInfo", value)}
+          />
+          <TextField
+            label="가격 (원)"
+            value={form.priceKrw}
+            onChange={(value) => setField("priceKrw", value)}
+            type="number"
+            min={0}
+            max={MAX_PRICE_KRW}
+            step={1}
+          />
+          <TextField
+            label="썸네일 URL"
+            value={form.thumbnailUrl}
+            onChange={(value) => setField("thumbnailUrl", value)}
+          />
+          <div className="auto-field">
+            <span>미디어 타입</span>
+            <strong>
+              {mediaTypeLabel(
+                inferFormMediaType(
+                  form.mediaItems,
+                  splitLines(form.mediaUrlsText),
+                ),
+              )}
+            </strong>
+            <small>등록된 미디어를 기준으로 자동 감지됩니다.</small>
+          </div>
+          {!props.automaticCollection ? (
+            <SelectField
+              label="상태"
+              value={form.status}
+              options={GROUP_BUY_STATUS_OPTIONS.filter(
+                (item) => item.value !== "ALL",
+              )}
+              onChange={(value) => setField("status", value as GroupBuyStatus)}
+            />
+          ) : null}
         </div>
 
-      <CheckboxField
-        label="홈 배너에 노출"
-        checked={form.isHomeBanner}
-        onChange={(value) => setField("isHomeBanner", value)}
-      />
-      {form.isHomeBanner ? (
-        <div className="form-grid banner-schedule-fields">
-          <DatePickerField
-            label="배너 노출 시작일"
-            value={form.homeBannerStartDate}
-            onChange={(value) => setField("homeBannerStartDate", value)}
-            max={form.homeBannerEndDate || undefined}
-          />
-          <DatePickerField
-            label="배너 노출 종료일"
-            value={form.homeBannerEndDate}
-            onChange={(value) => setField("homeBannerEndDate", value)}
-            min={form.homeBannerStartDate || undefined}
-          />
-        </div>
-      ) : null}
-      <TextareaField
-        label="요약"
-        value={form.summary}
-        onChange={(value) => setField("summary", value)}
-        rows={5}
-      />
-      <TextareaField
-        label="미디어 URL 목록"
-        value={form.mediaUrlsText}
-        onChange={(value) => setField("mediaUrlsText", value)}
-        rows={4}
-      />
-      {reviewPending ? (
-        <TextareaField
-          label="반려 사유"
-          value={props.rejectReason}
-          onChange={props.onRejectReasonChange}
-          rows={3}
+        <CheckboxField
+          label="홈 배너에 노출"
+          checked={form.isHomeBanner}
+          onChange={(value) => setField("isHomeBanner", value)}
         />
-      ) : null}
+        {form.isHomeBanner ? (
+          <div className="form-grid banner-schedule-fields">
+            <DatePickerField
+              label="배너 노출 시작일"
+              value={form.homeBannerStartDate}
+              onChange={(value) => setField("homeBannerStartDate", value)}
+              max={form.homeBannerEndDate || undefined}
+            />
+            <DatePickerField
+              label="배너 노출 종료일"
+              value={form.homeBannerEndDate}
+              onChange={(value) => setField("homeBannerEndDate", value)}
+              min={form.homeBannerStartDate || undefined}
+            />
+          </div>
+        ) : null}
+        <TextareaField
+          label="요약"
+          value={form.summary}
+          onChange={(value) => setField("summary", value)}
+          rows={5}
+        />
+        <TextareaField
+          label="미디어 URL 목록"
+          value={form.mediaUrlsText}
+          onChange={(value) => setField("mediaUrlsText", value)}
+          rows={4}
+        />
+        {reviewPending ? (
+          <TextareaField
+            label="반려 사유"
+            value={props.rejectReason}
+            onChange={props.onRejectReasonChange}
+            rows={3}
+          />
+        ) : null}
       </fieldset>
 
       {props.automaticCollection ? (
