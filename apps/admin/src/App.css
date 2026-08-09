@@ -808,6 +808,74 @@ a:focus-visible {
   line-height: 1.5;
 }
 
+.profile-link-candidates {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+.profile-link-candidates__header {
+  display: grid;
+  gap: 3px;
+}
+.profile-link-candidates__header strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+.profile-link-candidates__header small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.profile-link-candidates ul {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.profile-link-candidates li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.profile-link-candidates a {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  color: var(--accent-2);
+  text-decoration: none;
+}
+.profile-link-candidates a:hover {
+  text-decoration: underline;
+}
+.profile-link-candidates a span,
+.profile-link-candidates a small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-link-candidates a span {
+  font-size: 13px;
+  font-weight: 700;
+}
+.profile-link-candidates a small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.profile-link-candidates .button {
+  min-height: 34px;
+  white-space: nowrap;
+}
+
 /* User inline editor */
 .user-inline-editor {
   display: none;
@@ -1481,7 +1549,8 @@ textarea:focus {
 .app-live-preview__home-banner-price-label {
   font-weight: 500;
 }
-.app-live-preview__home-banner-status .app-live-preview__home-banner-price-value {
+.app-live-preview__home-banner-status
+  .app-live-preview__home-banner-price-value {
   color: #fff;
   font-weight: 900;
 }
@@ -2439,6 +2508,12 @@ textarea:focus {
   }
   .form-grid {
     gap: 8px;
+  }
+  .profile-link-candidates li {
+    grid-template-columns: 1fr;
+  }
+  .profile-link-candidates .button {
+    width: 100%;
   }
   .field span,
   .checkbox-field span {

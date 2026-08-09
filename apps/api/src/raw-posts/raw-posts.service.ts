@@ -8,6 +8,7 @@ import {
 import { parseSubmissionCaption } from "@gonggu/shared";
 
 import { PrismaService } from "../prisma/prisma.service";
+import { normalizeProfileLinkCandidates } from "../common/profile-link-candidates";
 import { isGroupBuyCandidate } from "./candidate-rules";
 import { collectionResult } from "./collection-result";
 import { CollectRawPostDto } from "./dto/collect-raw-post.dto";
@@ -90,6 +91,13 @@ export class RawPostsService {
           : ParsingStatus.PENDING;
     const shouldCreateReview =
       isPlaywrightCollection && isCandidate && isKoreaCandidate;
+    const profileLinkCandidates = normalizeProfileLinkCandidates(
+      dto.profileLinkCandidates,
+    );
+    const profilePurchaseUrl =
+      profileLinkCandidates.length === 1
+        ? profileLinkCandidates[0].url
+        : undefined;
 
     return this.prisma.$transaction(async (tx) => {
       const influencer = await tx.influencer.upsert({
@@ -136,13 +144,30 @@ export class RawPostsService {
                   brandName: parsedCaption.brandName,
                   startDate: parseDate(parsedCaption.startDate),
                   endDate: parseDate(parsedCaption.endDate),
-                  purchaseUrl: parsedCaption.purchaseUrl,
+                  purchaseUrl: parsedCaption.purchaseUrl ?? profilePurchaseUrl,
                   discountInfo: parsedCaption.discountInfo,
                   priceKrw: parsedCaption.priceKrw,
                   summary: dto.caption.slice(0, 500),
                   confidence: 0.5,
                   status: GroupBuyStatus.REVIEW_REQUIRED,
                   sourceType: "PLAYWRIGHT_PUBLIC",
+                  ...(profileLinkCandidates.length > 0
+                    ? {
+                        collectionProposalSnapshot: {
+                          schemaVersion: 1,
+                          instagramPostId: dto.instagramPostId,
+                          originalPostUrl: dto.postUrl,
+                          takenAt: dto.takenAt,
+                          productName: parsedCaption.productName ?? null,
+                          brandName: parsedCaption.brandName ?? null,
+                          purchaseUrl:
+                            parsedCaption.purchaseUrl ??
+                            profilePurchaseUrl ??
+                            null,
+                          profileLinkCandidates,
+                        },
+                      }
+                    : {}),
                 },
               }
             : undefined,

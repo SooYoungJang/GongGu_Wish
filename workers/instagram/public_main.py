@@ -27,6 +27,7 @@ try:
         build_hashtag_url,
         extract_discovery_post_links,
         extract_post_username,
+        extract_profile_external_links,
         extract_profile_posts,
         normalize_username,
         parse_post_html,
@@ -39,6 +40,7 @@ except ImportError:
         build_hashtag_url,
         extract_discovery_post_links,
         extract_post_username,
+        extract_profile_external_links,
         extract_profile_posts,
         normalize_username,
         parse_post_html,
@@ -493,11 +495,16 @@ class PublicInstagramCollector:
             profile_url = f"https://www.instagram.com/{normalized_username}/"
             response = page.goto(profile_url, wait_until="domcontentloaded", timeout=30_000)
             self._check_page(page, response)
+            profile_html = page.content()
             profile_links = extract_profile_posts(
-                page.content(),
+                profile_html,
                 profile_url,
                 limit=None,
             )
+            profile_link_candidates = [
+                {"url": link.url, "label": link.label}
+                for link in extract_profile_external_links(profile_html, profile_url)
+            ]
             posts: list[dict[str, Any]] = []
             seen_post_ids: set[str] = set()
             navigation_count = 0
@@ -528,6 +535,7 @@ class PublicInstagramCollector:
                         "takenAt": parsed.taken_at,
                         "collectedAt": isoformat(now_utc()),
                         "collectionSource": "PLAYWRIGHT_PUBLIC",
+                        "profileLinkCandidates": profile_link_candidates,
                     })
                     if len(posts) >= MAX_VERIFIED_POST_CANDIDATES_PER_ACCOUNT:
                         break

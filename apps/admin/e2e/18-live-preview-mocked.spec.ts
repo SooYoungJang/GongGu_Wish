@@ -84,11 +84,7 @@ function createMockState() {
     rejectionReason: null as string | null,
     reviewedAt: null as string | null,
     reviewedBy: null as string | null,
-    collectionReviewStatus: null as
-      | "PENDING"
-      | "APPROVED"
-      | "REJECTED"
-      | null,
+    collectionReviewStatus: null as "PENDING" | "APPROVED" | "REJECTED" | null,
     collectionProposalSnapshot: null as Record<string, unknown> | null,
     collectionReviewedSnapshot: null as Record<string, unknown> | null,
     collectionRulesetVersion: null as string | null,
@@ -221,8 +217,7 @@ async function installMocks(page: Page, state: MockState) {
         break;
       case "/admin/group-buys":
         {
-          const requestedReviewStatus = payload.params
-            ?.collectionReviewStatus;
+          const requestedReviewStatus = payload.params?.collectionReviewStatus;
           const items =
             typeof requestedReviewStatus !== "string" ||
             requestedReviewStatus === state.groupBuy.collectionReviewStatus
@@ -297,8 +292,7 @@ async function installMocks(page: Page, state: MockState) {
         expect(payload.method).toBe("POST");
         state.hikerLookups += 1;
         state.groupBuy.collectionHikerUsed = true;
-        state.groupBuy.collectionHikerLookupAt =
-          "2035-07-02T09:20:00.000Z";
+        state.groupBuy.collectionHikerLookupAt = "2035-07-02T09:20:00.000Z";
         data = {
           imageUrl: imageDataUrl,
           thumbnailUrl: imageDataUrl,
@@ -634,9 +628,7 @@ test("만료된 공구 카드 프리뷰는 음수 대신 마감으로 표시한�
 
   await login(page);
   await page.getByRole("button", { name: "위시 검수" }).click();
-  await page
-    .getByRole("row", { name: /대기중 라이브 프리뷰 위시/ })
-    .click();
+  await page.getByRole("row", { name: /대기중 라이브 프리뷰 위시/ }).click();
 
   const preview = page.locator(".detail-panel .app-live-preview");
   await preview.getByRole("tab", { name: "공구 카드" }).click();
@@ -776,11 +768,24 @@ test("자동 수집 검수에서 Hiker 보완 뒤 공구 등록하고 이력을 
   state.groupBuy.sourceType = "PLAYWRIGHT_PUBLIC";
   state.groupBuy.submissionId = null;
   state.groupBuy.collectionReviewStatus = "PENDING";
-  state.groupBuy.collectionRulesetVersion = "mock-latest3-v2";
+  state.groupBuy.collectionRulesetVersion = "mock-profile-links-v3";
   state.groupBuy.originalPostUrl =
     "https://www.instagram.com/p/automatic-current/";
+  state.groupBuy.purchaseUrl = null;
   state.groupBuy.collectionProposalSnapshot = {
     originalPostUrl: "https://www.instagram.com/p/automatic-collected/",
+    profileLinkCandidates: [
+      {
+        url: "https://shop.example.test/automatic-item",
+        label: "공구 상품 구매",
+        source: "PLAYWRIGHT_PROFILE",
+      },
+      {
+        url: "https://links.example.test/preview-shop",
+        label: "프로필 링크 모음",
+        source: "PLAYWRIGHT_PROFILE",
+      },
+    ],
   };
   await installMocks(page, state);
 
@@ -796,21 +801,31 @@ test("자동 수집 검수에서 Hiker 보완 뒤 공구 등록하고 이력을 
   const detail = page.locator(".detail-panel");
   await expect(
     detail.getByRole("link", { name: "Instagram 원본" }),
-  ).toHaveAttribute(
-    "href",
-    "https://www.instagram.com/p/automatic-collected/",
-  );
+  ).toHaveAttribute("href", "https://www.instagram.com/p/automatic-collected/");
+  await expect(detail.getByLabel("구매 URL")).toHaveValue("");
+  await expect(
+    detail.getByRole("link", { name: "공구 상품 구매 새 창에서 열기" }),
+  ).toHaveAttribute("href", "https://shop.example.test/automatic-item");
+  await expect(
+    detail.getByText("여러 후보 중 실제 공구 구매 링크를 선택하세요."),
+  ).toBeVisible();
   await detail.getByRole("button", { name: "Hiker 조회" }).click();
   await expect(page.getByRole("status")).toContainText(
     "Hiker 데이터로 자동수집 검수 폼을 채웠습니다.",
   );
-  await expect(detail.getByLabel("제품명")).toHaveValue(
-    "Hiker 자동 보완 공구",
-  );
+  await expect(detail.getByLabel("제품명")).toHaveValue("Hiker 자동 보완 공구");
   await expect(detail.getByLabel("가격 (원)")).toHaveValue("25900");
+  await expect(detail.getByLabel("구매 URL")).toHaveValue("");
   expect(state.hikerLookups).toBe(1);
+  await detail.getByRole("button", { name: "구매 URL로 사용" }).first().click();
+  await expect(detail.getByLabel("구매 URL")).toHaveValue(
+    "https://shop.example.test/automatic-item",
+  );
   await page.screenshot({
-    path: resolve(evidenceDir, "admin-auto-collection-hiker-pending.png"),
+    path: resolve(
+      evidenceDir,
+      "admin-auto-collection-profile-links-selected.png",
+    ),
     fullPage: true,
   });
 
@@ -826,6 +841,7 @@ test("자동 수집 검수에서 Hiker 보완 뒤 공구 등록하고 이력을 
         reviewedData: expect.objectContaining({
           productName: "Hiker 자동 보완 공구",
           priceKrw: 25900,
+          purchaseUrl: "https://shop.example.test/automatic-item",
         }),
       }),
     }),
@@ -843,6 +859,14 @@ test("자동 수집 검수에서 Hiker 보완 뒤 공구 등록하고 이력을 
   await expect(historyDetail.getByLabel("제품명")).toHaveValue(
     "Hiker 자동 보완 공구",
   );
+  await expect(
+    historyDetail.getByRole("link", {
+      name: "공구 상품 구매 새 창에서 열기",
+    }),
+  ).toHaveAttribute("href", "https://shop.example.test/automatic-item");
+  await expect(
+    historyDetail.getByRole("button", { name: "사용 중" }),
+  ).toBeDisabled();
   await expect(
     historyDetail.getByRole("button", { name: "공구 등록" }),
   ).toHaveCount(0);
@@ -888,9 +912,7 @@ test("자동 수집 검수 반려 사유와 결정 이력을 보존한다", asyn
     .click();
 
   const detail = page.locator(".detail-panel");
-  await detail
-    .getByLabel("반려 사유")
-    .fill("공구 상품이 아닌 일반 게시물");
+  await detail.getByLabel("반려 사유").fill("공구 상품이 아닌 일반 게시물");
   await detail.getByRole("button", { name: "반려", exact: true }).click();
   await expect(page.getByRole("status")).toContainText(
     "자동수집 항목을 반려했습니다.",

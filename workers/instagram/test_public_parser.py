@@ -5,7 +5,9 @@ from public_parser import (
     build_hashtag_url,
     extract_discovery_post_links,
     extract_post_username,
+    extract_profile_external_links,
     extract_profile_posts,
+    normalize_profile_external_url,
     normalize_post_url,
     normalize_username,
     parse_post_html,
@@ -128,6 +130,74 @@ class PublicParserTest(unittest.TestCase):
                 "https://www.instagram.com/p/first/",
                 "https://www.instagram.com/reel/second/",
             ],
+        )
+
+    def test_extracts_safe_profile_links_and_unwraps_instagram_redirects(self):
+        html = """
+        <header>
+          <a href="https://l.instagram.com/?u=https%3A%2F%2Fshop.example%2Fitem%3Futm_source%3Dinstagram%26color%3Dred%26fbclid%3Dtracking&amp;e=signature">
+            오늘 공구 구매
+          </a>
+          <a href="https://shop.example/item?color=red">중복 링크</a>
+          <a href="https://linktr.ee/random.seller" aria-label="전체 공구 링크">링크 모음</a>
+          <a href="/random.seller/">Instagram 내부 링크</a>
+        </header>
+        <footer><a href="https://about.meta.com/">Meta</a></footer>
+        """
+
+        links = extract_profile_external_links(html)
+
+        self.assertEqual(
+            [(link.url, link.label) for link in links],
+            [
+                ("https://shop.example/item?color=red", "오늘 공구 구매"),
+                ("https://linktr.ee/random.seller", "전체 공구 링크"),
+            ],
+        )
+
+    def test_only_profile_header_links_affect_candidate_count(self):
+        footer = '<footer><a href="https://about.meta.com/">Meta</a></footer>'
+        cases = [
+            ("", []),
+            (
+                '<a href="https://shop.example/one">구매</a>',
+                ["https://shop.example/one"],
+            ),
+            (
+                '<a href="https://shop.example/one">구매</a>'
+                '<a href="https://link.example/two">링크 모음</a>',
+                ["https://shop.example/one", "https://link.example/two"],
+            ),
+        ]
+
+        for header_links, expected_urls in cases:
+            with self.subTest(candidate_count=len(expected_urls)):
+                links = extract_profile_external_links(
+                    f"<main><header>{header_links}</header>{footer}</main>",
+                )
+                self.assertEqual([link.url for link in links], expected_urls)
+
+    def test_rejects_unsafe_profile_external_urls(self):
+        unsafe_urls = [
+            "javascript:alert(1)",
+            "https://instagram.com/random.seller/",
+            "https://instagr.am/p/SHORT/",
+            "https://www.instagr.am/p/SHORT/",
+            "https://user:password@shop.example/item",
+            "http://127.0.0.1/admin",
+            "https://[::1]/admin",
+            "https://localhost/admin",
+            "https://service.local/admin",
+            "https://intranet/admin",
+        ]
+
+        for value in unsafe_urls:
+            with self.subTest(value=value):
+                self.assertIsNone(normalize_profile_external_url(value))
+
+        self.assertEqual(
+            normalize_profile_external_url("http://shop.example/item"),
+            "http://shop.example/item",
         )
 
     def test_parses_post_metadata_without_network_calls(self):

@@ -9,6 +9,8 @@ import {
   AUTOMATIC_COLLECTION_RULESET_VERSION,
   buildCollectionReviewSnapshot,
   legacyCollectionReviewStatus,
+  normalizeProfileLinkCandidates,
+  type CollectionReviewProfileLinkCandidate,
   type CollectionReviewStatus,
 } from "../_shared/automaticCollectionReview.ts";
 
@@ -33,6 +35,7 @@ type CollectedPost = {
   takenAt: string;
   collectedAt: string;
   collectionSource: "PLAYWRIGHT_PUBLIC";
+  profileLinkCandidates: CollectionReviewProfileLinkCandidate[];
 };
 
 type ParsedAutomaticCaption = ReturnType<typeof parseSubmissionCaption>;
@@ -61,6 +64,7 @@ export function buildAutomaticProposalSnapshot(
     startDate: parsed.startDate,
     endDate: parsed.endDate,
     purchaseUrl: parsed.purchaseUrl,
+    profileLinkCandidates: post.profileLinkCandidates,
     discountInfo: parsed.discountInfo,
     priceKrw: parsed.priceKrw,
     summary: post.caption.slice(0, 500),
@@ -210,6 +214,9 @@ export function normalizeCollectedPost(
     takenAt: isoDate(body.takenAt, "takenAt"),
     collectedAt: isoDate(body.collectedAt, "collectedAt"),
     collectionSource: "PLAYWRIGHT_PUBLIC",
+    profileLinkCandidates: normalizeProfileLinkCandidates(
+      body.profileLinkCandidates,
+    ),
   };
 }
 
@@ -303,7 +310,7 @@ function validCampaignDate(value: string | undefined) {
 
   const parsed = new Date(`${date}T00:00:00.000Z`);
   return !Number.isNaN(parsed.getTime()) &&
-      parsed.toISOString().slice(0, 10) === date
+    parsed.toISOString().slice(0, 10) === date
     ? date
     : null;
 }
@@ -345,6 +352,14 @@ export function normalizeAutoParsedCaption(
     productName:
       productName ?? (parsed.purchaseUrl ? "상품명 확인 필요" : undefined),
   };
+}
+
+export function applyAutomaticProfilePurchaseFallback(
+  parsed: ParsedAutomaticCaption,
+  profileLinkCandidates: CollectionReviewProfileLinkCandidate[],
+) {
+  if (parsed.purchaseUrl || profileLinkCandidates.length !== 1) return parsed;
+  return { ...parsed, purchaseUrl: profileLinkCandidates[0].url };
 }
 
 export function buildCampaignDedupeKey(parsed: ParsedAutomaticCaption) {
@@ -722,11 +737,15 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
     }
   }
   const campaignDedupeKey = parseError ? null : buildCampaignDedupeKey(parsed);
+  const proposal = applyAutomaticProfilePurchaseFallback(
+    parsed,
+    post.profileLinkCandidates,
+  );
   const shouldCreateGroupBuy = Boolean(
     isCandidate &&
-      isKoreaCandidate &&
-      campaignDedupeKey &&
-      isAutomaticCampaignCurrentOrUpcoming(parsed, new Date().toISOString()),
+    isKoreaCandidate &&
+    campaignDedupeKey &&
+    isAutomaticCampaignCurrentOrUpcoming(parsed, new Date().toISOString()),
   );
 
   const existing = await findRawPost(supabase, post, contentHash);
@@ -743,7 +762,7 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
           post,
           String(existing.id),
           influencerId,
-          parsed,
+          proposal,
         );
       } else {
         const createdGroupBuy = await createGroupBuy(
@@ -751,7 +770,7 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
           post,
           String(existing.id),
           influencerId,
-          parsed,
+          proposal,
           campaignDedupeKey,
         );
         groupBuyId = createdGroupBuy.id;
@@ -806,7 +825,7 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
           post,
           String(rawPost.id),
           influencerId,
-          parsed,
+          proposal,
           campaignDedupeKey,
         )
       : null;

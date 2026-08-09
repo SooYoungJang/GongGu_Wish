@@ -2,11 +2,14 @@
 
 from dataclasses import dataclass
 from html.parser import HTMLParser
+import ipaddress
 import re
-from urllib.parse import quote, urljoin, urlparse
+from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlparse, urlunparse
 
 INSTAGRAM_HOSTS = {"instagram.com", "www.instagram.com"}
+INSTAGRAM_LINK_HOST = "l.instagram.com"
 TRUSTED_MEDIA_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
+TRACKING_QUERY_KEYS = {"dclid", "fbclid", "gclid", "igshid", "mc_cid", "mc_eid"}
 # Instagram profile pages may expose post links with the profile username in
 # the path (for example, ``/milkable/p/ABC123/``) or in the root form
 # (``/p/ABC123/``). Canonicalize both forms to the root post URL below.
@@ -37,6 +40,12 @@ class ProfilePostLink:
     post_id: str
     post_url: str
     image_url: str | None = None
+
+
+@dataclass(frozen=True)
+class ProfileExternalLink:
+    url: str
+    label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -103,6 +112,149 @@ def trusted_media_url(value: str | None) -> str | None:
     ):
         return None
     return value
+
+
+def _is_instagram_host(host: str) -> bool:
+    return (
+        host == "instagram.com"
+        or host.endswith(".instagram.com")
+        or host == "instagr.am"
+        or host.endswith(".instagr.am")
+    )
+
+
+def _is_public_external_host(host: str) -> bool:
+    if (
+        not host
+        or "." not in host
+        or host == "localhost"
+        or host.endswith((".localhost", ".local", ".internal"))
+    ):
+        return False
+    try:
+        return ipaddress.ip_address(host).is_global
+    except ValueError:
+        return True
+
+
+def normalize_profile_external_url(
+    value: str,
+    base_url: str = "https://www.instagram.com/",
+    *,
+    _redirect_depth: int = 0,
+) -> str | None:
+    if not value or len(value) > 4_096 or _redirect_depth > 2:
+        return None
+    parsed = urlparse(urljoin(base_url, value.strip()))
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
+        return None
+    if host == INSTAGRAM_LINK_HOST:
+        target = next(
+            (item for key, item in parse_qsl(parsed.query) if key == "u"),
+            None,
+        )
+        return (
+            normalize_profile_external_url(
+                target,
+                base_url,
+                _redirect_depth=_redirect_depth + 1,
+            )
+            if target
+            else None
+        )
+    if _is_instagram_host(host) or not _is_public_external_host(host):
+        return None
+
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+    canonical_host = host.encode("idna").decode("ascii")
+    if ":" in canonical_host:
+        canonical_host = f"[{canonical_host}]"
+    default_port = (parsed.scheme == "https" and port == 443) or (
+        parsed.scheme == "http" and port == 80
+    )
+    netloc = canonical_host if port is None or default_port else f"{canonical_host}:{port}"
+    query = urlencode(
+        [
+            (key, item)
+            for key, item in parse_qsl(parsed.query, keep_blank_values=True)
+            if not key.lower().startswith("utm_")
+            and key.lower() not in TRACKING_QUERY_KEYS
+        ],
+        doseq=True,
+    )
+    normalized = urlunparse(
+        (parsed.scheme.lower(), netloc, parsed.path, parsed.params, query, ""),
+    )
+    return normalized[:2_048] if len(normalized) <= 2_048 else None
+
+
+class _ProfileExternalLinkParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.links: list[tuple[str, str | None]] = []
+        self._profile_header_depth = 0
+        self._href: str | None = None
+        self._label_hint: str | None = None
+        self._text: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "header":
+            self._profile_header_depth += 1
+        if (
+            tag != "a"
+            or self._profile_header_depth == 0
+            or self._href is not None
+        ):
+            return
+        attributes = dict(attrs)
+        self._href = attributes.get("href")
+        self._label_hint = attributes.get("aria-label") or attributes.get("title")
+        self._text = []
+
+    def handle_data(self, data: str) -> None:
+        if self._href is not None and data.strip():
+            self._text.append(data.strip())
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a" and self._href is not None:
+            label = self._label_hint or " ".join(self._text)
+            normalized_label = " ".join(label.split())[:200] if label.strip() else None
+            self.links.append((self._href, normalized_label))
+            self._href = None
+            self._label_hint = None
+            self._text = []
+        if tag == "header" and self._profile_header_depth > 0:
+            self._profile_header_depth -= 1
+            if self._profile_header_depth == 0:
+                self._href = None
+                self._label_hint = None
+                self._text = []
+
+
+def extract_profile_external_links(
+    html: str,
+    base_url: str = "https://www.instagram.com/",
+    limit: int = 5,
+) -> list[ProfileExternalLink]:
+    if limit <= 0:
+        return []
+    parser = _ProfileExternalLinkParser()
+    parser.feed(html)
+    result: list[ProfileExternalLink] = []
+    seen: set[str] = set()
+    for href, label in parser.links:
+        normalized = normalize_profile_external_url(href, base_url)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(ProfileExternalLink(normalized, label))
+        if len(result) >= limit:
+            break
+    return result
 
 
 class _ProfileLinkParser(HTMLParser):

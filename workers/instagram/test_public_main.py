@@ -305,7 +305,18 @@ class PublicMainTest(unittest.TestCase):
         self.assertGreaterEqual(page.elapsed_ms, 3_000)
 
     def test_collect_account_falls_back_to_verified_discovery_post_links(self):
-        collection_page = FallbackCollectionPage()
+        collection_page = FallbackCollectionPage(
+            """
+            <html><body>
+              <header>
+                <a href="https://l.instagram.com/?u=https%3A%2F%2Fshop.example%2Ftoday">
+                  오늘 공구 구매
+                </a>
+              </header>
+              <footer><a href="https://about.meta.com/">Meta</a></footer>
+            </body></html>
+            """
+        )
         collector = PublicInstagramCollector(
             FakeBrowserContext(collection_page),
             limit=3,
@@ -360,6 +371,18 @@ class PublicMainTest(unittest.TestCase):
         self.assertEqual(
             [post["instagramPostId"] for post in posts],
             ["reel:recent456_3", "reel:recent456_2", "reel:recent456_1"],
+        )
+        self.assertTrue(
+            all(
+                post["profileLinkCandidates"]
+                == [
+                    {
+                        "url": "https://shop.example/today",
+                        "label": "오늘 공구 구매",
+                    }
+                ]
+                for post in posts
+            )
         )
 
         with patch("public_main.parse_post_html", side_effect=parsed_post):

@@ -1,10 +1,5 @@
-import {
-  ConflictException,
-} from "@nestjs/common";
-import {
-  CollectionReviewStatus,
-  GroupBuyStatus,
-} from "@prisma/client";
+import { ConflictException } from "@nestjs/common";
+import { CollectionReviewStatus, GroupBuyStatus } from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { GroupBuysService } from "./group-buys.service";
@@ -29,7 +24,15 @@ const automaticCandidate = {
   reviewedAt: null,
   reviewedBy: null,
   collectionReviewStatus: CollectionReviewStatus.PENDING,
-  collectionProposalSnapshot: null,
+  collectionProposalSnapshot: {
+    profileLinkCandidates: [
+      {
+        url: "https://shop.example/item?utm_source=instagram&color=red",
+        label: "오늘 공구 구매",
+        source: "PLAYWRIGHT_PROFILE",
+      },
+    ],
+  },
   collectionReviewedSnapshot: null,
   collectionRulesetVersion: "test-v1",
   collectionHikerUsed: true,
@@ -104,7 +107,9 @@ describe("GroupBuysService automatic collection decisions", () => {
       status: GroupBuyStatus.APPROVED,
       collectionReviewStatus: CollectionReviewStatus.APPROVED,
     };
-    findUnique.mockResolvedValueOnce(automaticCandidate).mockResolvedValueOnce(approved);
+    findUnique
+      .mockResolvedValueOnce(automaticCandidate)
+      .mockResolvedValueOnce(approved);
     updateMany.mockResolvedValue({ count: 1 });
 
     await service.approve(automaticCandidate.id, "admin-1");
@@ -127,6 +132,13 @@ describe("GroupBuysService automatic collection decisions", () => {
           productName: automaticCandidate.productName,
           instagramUsername: "milkable",
           originalPostUrl: automaticCandidate.rawPost.postUrl,
+          profileLinkCandidates: [
+            {
+              url: "https://shop.example/item?color=red",
+              label: "오늘 공구 구매",
+              source: "PLAYWRIGHT_PROFILE",
+            },
+          ],
         }),
       }),
     });
@@ -139,14 +151,12 @@ describe("GroupBuysService automatic collection decisions", () => {
       collectionReviewStatus: CollectionReviewStatus.REJECTED,
       rejectionReason: "공구 상품 아님",
     };
-    findUnique.mockResolvedValueOnce(automaticCandidate).mockResolvedValueOnce(rejected);
+    findUnique
+      .mockResolvedValueOnce(automaticCandidate)
+      .mockResolvedValueOnce(rejected);
     updateMany.mockResolvedValue({ count: 1 });
 
-    await service.reject(
-      automaticCandidate.id,
-      " 공구 상품 아님 ",
-      "admin-1",
-    );
+    await service.reject(automaticCandidate.id, " 공구 상품 아님 ", "admin-1");
 
     expect(updateMany).toHaveBeenCalledWith({
       where: {
@@ -197,12 +207,10 @@ describe("GroupBuysService automatic collection decisions", () => {
   });
 
   it("rejects a decision based on a stale edited candidate", async () => {
-    findUnique
-      .mockResolvedValueOnce(automaticCandidate)
-      .mockResolvedValueOnce({
-        ...automaticCandidate,
-        updatedAt: new Date("2026-08-09T00:05:00.000Z"),
-      });
+    findUnique.mockResolvedValueOnce(automaticCandidate).mockResolvedValueOnce({
+      ...automaticCandidate,
+      updatedAt: new Date("2026-08-09T00:05:00.000Z"),
+    });
     updateMany.mockResolvedValue({ count: 0 });
 
     await expect(
