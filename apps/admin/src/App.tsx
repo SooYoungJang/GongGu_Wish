@@ -51,6 +51,7 @@ type Notice = { tone: "success" | "error" | "info"; message: string } | null;
 type TabKey =
   | "dashboard"
   | "submissions"
+  | "autoCollection"
   | "groupBuys"
   | "groupBuyRequests"
   | "users"
@@ -779,6 +780,15 @@ function AdminShell({ session }: { session: Session }) {
       setExpandedUserId(null);
       setSelectedUser(null);
       setUserForm(null);
+      if (next === "autoCollection") {
+        setGroupBuyStatus("REVIEW_REQUIRED");
+        setGroupBuyQuery("");
+        setGroupBuyPage(1);
+      } else if (next === "groupBuys") {
+        setGroupBuyStatus("APPROVED");
+        setGroupBuyQuery("");
+        setGroupBuyPage(1);
+      }
       setTab(next);
     },
     [invalidateHikerLookup],
@@ -900,6 +910,8 @@ function AdminShell({ session }: { session: Session }) {
           limit: PAGE_SIZE,
           status: groupBuyStatus,
           q: requestQuery,
+          sourceType:
+            tab === "autoCollection" ? "PLAYWRIGHT_PUBLIC" : undefined,
         });
         if (
           requestId !== groupBuyRequestIdRef.current ||
@@ -936,7 +948,7 @@ function AdminShell({ session }: { session: Session }) {
           setGroupBuysLoading(false);
       }
     },
-    [debouncedGroupBuyQuery, groupBuyPage, groupBuyStatus],
+    [debouncedGroupBuyQuery, groupBuyPage, groupBuyStatus, tab],
   );
 
   const loadGroupBuyRequests = useCallback(async () => {
@@ -1035,7 +1047,8 @@ function AdminShell({ session }: { session: Session }) {
   }, [loadSubmissions, tab]);
 
   useEffect(() => {
-    if (tab === "groupBuys") void loadGroupBuys();
+    if (tab === "groupBuys" || tab === "autoCollection")
+      void loadGroupBuys();
   }, [loadGroupBuys, tab]);
 
   useEffect(() => {
@@ -1075,7 +1088,8 @@ function AdminShell({ session }: { session: Session }) {
     try {
       await loadDashboard();
       if (tab === "submissions") await loadSubmissions();
-      if (tab === "groupBuys") await loadGroupBuys();
+      if (tab === "groupBuys" || tab === "autoCollection")
+        await loadGroupBuys();
       if (tab === "groupBuyRequests") await loadGroupBuyRequests();
       if (tab === "users") await loadUsers();
       if (tab === "cdnRefresh") await loadCdnStatus();
@@ -1591,6 +1605,15 @@ function AdminShell({ session }: { session: Session }) {
             <strong>위시 검수</strong>
           </button>
           <button
+            aria-current={tab === "autoCollection" ? "page" : undefined}
+            className={tab === "autoCollection" ? "active" : ""}
+            onClick={() => switchTab("autoCollection")}
+            type="button"
+          >
+            <span>Playwright collection</span>
+            <strong>자동 수집 검수</strong>
+          </button>
+          <button
             aria-current={tab === "groupBuys" ? "page" : undefined}
             className={tab === "groupBuys" ? "active" : ""}
             onClick={() => switchTab("groupBuys")}
@@ -1775,9 +1798,10 @@ function AdminShell({ session }: { session: Session }) {
               />
             ) : null}
 
-            {tab === "groupBuys" ? (
+            {tab === "groupBuys" || tab === "autoCollection" ? (
               <GroupBuyPanel
                 actionLoading={groupBuyActionLoading}
+                automaticCollection={tab === "autoCollection"}
                 form={groupBuyForm}
                 items={groupBuys}
                 loading={groupBuysLoading}
@@ -1908,6 +1932,29 @@ function AdminShell({ session }: { session: Session }) {
             />
           </svg>
           <span>검수</span>
+        </button>
+        <button
+          aria-current={tab === "autoCollection" ? "page" : undefined}
+          className={tab === "autoCollection" ? "active" : ""}
+          onClick={() => switchTab("autoCollection")}
+          type="button"
+        >
+          <svg
+            fill="none"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M4 7h16M4 12h16M4 17h10"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+            />
+          </svg>
+          <span>자동 수집</span>
         </button>
         <button
           aria-current={tab === "groupBuys" ? "page" : undefined}
@@ -2121,8 +2168,9 @@ export function applyHikerResult(
           : null,
   };
 }
-function tabTitle(tab: TabKey) {
+export function tabTitle(tab: TabKey) {
   if (tab === "submissions") return "위시 검수";
+  if (tab === "autoCollection") return "자동 수집 검수";
   if (tab === "groupBuys") return "공구 관리";
   if (tab === "groupBuyRequests") return "공구 요청";
   if (tab === "users") return "가입자 관리";
@@ -3039,6 +3087,7 @@ function SubmissionEditor(props: {
 
 function GroupBuyPanel(props: {
   actionLoading: boolean;
+  automaticCollection: boolean;
   form: GroupBuyForm | null;
   items: GroupBuy[];
   loading: boolean;
@@ -3067,8 +3116,15 @@ function GroupBuyPanel(props: {
     <section className="panel">
       <div className="section-header">
         <div>
-          <p className="eyebrow">Group Buys</p>
-          <h2>공구 노출 관리</h2>
+          <p className="eyebrow">
+            {props.automaticCollection ? "Playwright collection" : "Group Buys"}
+          </p>
+          <h2>
+            {props.automaticCollection ? "자동 수집 검수" : "공구 노출 관리"}
+          </h2>
+          {props.automaticCollection ? (
+            <p>사용자 제보가 아닌 Playwright 공개 자동 수집 후보입니다.</p>
+          ) : null}
         </div>
         <Filters
           onClear={resetFilters}
@@ -3135,7 +3191,9 @@ function GroupBuyPanel(props: {
           {props.items.length === 0 && !props.loading ? (
             <ListEmptyState
               message={
-                isFiltered
+                props.automaticCollection
+                  ? "검수 대기 중인 자동 수집 공구가 없습니다."
+                  : isFiltered
                   ? "조건에 맞는 공구가 없습니다."
                   : "승인된 공구가 없습니다."
               }

@@ -239,6 +239,7 @@ export const adminApi = {
     limit?: number;
     status?: string;
     q?: string;
+    sourceType?: string;
   }) {
     return requestAdmin<ListResponse<GroupBuy>>("/admin/group-buys", "GET", {
       params,
