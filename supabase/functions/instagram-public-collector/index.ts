@@ -57,7 +57,7 @@ export function buildAutomaticProposalSnapshot(
     productName: parsed.productName,
     brandName: parsed.brandName,
     instagramUsername: post.influencerUsername,
-    category: parsed.category,
+    category: null,
     startDate: parsed.startDate,
     endDate: parsed.endDate,
     purchaseUrl: parsed.purchaseUrl,

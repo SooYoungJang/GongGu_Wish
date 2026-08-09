@@ -197,6 +197,7 @@ Deno.test("captures the automatic proposal used for later review learning", () =
   assertEquals(snapshot.rawPostId, "raw-1");
   assertEquals(snapshot.originalPostUrl, "https://www.instagram.com/p/post-1/");
   assertEquals(snapshot.productName, "실링팬");
+  assertEquals(snapshot.category, null);
   assertEquals(snapshot.mediaType, "IMAGE");
   assertEquals(snapshot.schemaVersion, 1);
 });
