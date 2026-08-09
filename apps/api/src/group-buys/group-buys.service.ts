@@ -4,12 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import {
-  CollectionReviewStatus,
-  GroupBuyStatus,
-  Prisma,
-} from "@prisma/client";
+import { CollectionReviewStatus, GroupBuyStatus, Prisma } from "@prisma/client";
 
+import { profileLinkCandidatesFromSnapshot } from "../common/profile-link-candidates";
 import { PrismaService } from "../prisma/prisma.service";
 import { CalendarQueryDto } from "./dto/calendar-query.dto";
 import { ListGroupBuysDto } from "./dto/list-group-buys.dto";
@@ -103,6 +100,9 @@ function automaticReviewSnapshot(groupBuy: AutomaticReviewGroupBuy) {
     startDate: iso(groupBuy.startDate),
     endDate: iso(groupBuy.endDate),
     purchaseUrl: groupBuy.purchaseUrl,
+    profileLinkCandidates: profileLinkCandidatesFromSnapshot(
+      groupBuy.collectionProposalSnapshot,
+    ),
     discountInfo: groupBuy.discountInfo,
     priceKrw: groupBuy.priceKrw,
     summary: groupBuy.summary,
@@ -260,14 +260,10 @@ export class GroupBuysService {
     }
 
     if (groupBuy.sourceType === "PLAYWRIGHT_PUBLIC") {
-      if (
-        groupBuy.collectionReviewStatus === CollectionReviewStatus.APPROVED
-      ) {
+      if (groupBuy.collectionReviewStatus === CollectionReviewStatus.APPROVED) {
         return serializeHomeBannerDates(groupBuy);
       }
-      if (
-        groupBuy.collectionReviewStatus === CollectionReviewStatus.REJECTED
-      ) {
+      if (groupBuy.collectionReviewStatus === CollectionReviewStatus.REJECTED) {
         throw new ConflictException("이미 반려된 자동수집 항목입니다.");
       }
 
@@ -335,14 +331,10 @@ export class GroupBuysService {
     if (!groupBuy) throw new NotFoundException("Group buy not found");
 
     if (groupBuy.sourceType === "PLAYWRIGHT_PUBLIC") {
-      if (
-        groupBuy.collectionReviewStatus === CollectionReviewStatus.REJECTED
-      ) {
+      if (groupBuy.collectionReviewStatus === CollectionReviewStatus.REJECTED) {
         return serializeHomeBannerDates(groupBuy);
       }
-      if (
-        groupBuy.collectionReviewStatus === CollectionReviewStatus.APPROVED
-      ) {
+      if (groupBuy.collectionReviewStatus === CollectionReviewStatus.APPROVED) {
         throw new ConflictException("이미 공구 등록된 자동수집 항목입니다.");
       }
 

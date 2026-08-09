@@ -115,7 +115,12 @@ def trusted_media_url(value: str | None) -> str | None:
 
 
 def _is_instagram_host(host: str) -> bool:
-    return host == "instagram.com" or host.endswith(".instagram.com")
+    return (
+        host == "instagram.com"
+        or host.endswith(".instagram.com")
+        or host == "instagr.am"
+        or host.endswith(".instagr.am")
+    )
 
 
 def _is_public_external_host(host: str) -> bool:
@@ -191,12 +196,19 @@ class _ProfileExternalLinkParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.links: list[tuple[str, str | None]] = []
+        self._profile_header_depth = 0
         self._href: str | None = None
         self._label_hint: str | None = None
         self._text: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag != "a" or self._href is not None:
+        if tag == "header":
+            self._profile_header_depth += 1
+        if (
+            tag != "a"
+            or self._profile_header_depth == 0
+            or self._href is not None
+        ):
             return
         attributes = dict(attrs)
         self._href = attributes.get("href")
@@ -208,14 +220,19 @@ class _ProfileExternalLinkParser(HTMLParser):
             self._text.append(data.strip())
 
     def handle_endtag(self, tag: str) -> None:
-        if tag != "a" or self._href is None:
-            return
-        label = self._label_hint or " ".join(self._text)
-        normalized_label = " ".join(label.split())[:200] if label.strip() else None
-        self.links.append((self._href, normalized_label))
-        self._href = None
-        self._label_hint = None
-        self._text = []
+        if tag == "a" and self._href is not None:
+            label = self._label_hint or " ".join(self._text)
+            normalized_label = " ".join(label.split())[:200] if label.strip() else None
+            self.links.append((self._href, normalized_label))
+            self._href = None
+            self._label_hint = None
+            self._text = []
+        if tag == "header" and self._profile_header_depth > 0:
+            self._profile_header_depth -= 1
+            if self._profile_header_depth == 0:
+                self._href = None
+                self._label_hint = None
+                self._text = []
 
 
 def extract_profile_external_links(

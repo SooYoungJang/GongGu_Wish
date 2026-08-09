@@ -1,5 +1,5 @@
 export const AUTOMATIC_COLLECTION_RULESET_VERSION =
-  "playwright-public-latest3-dedupe-v2";
+  "playwright-public-latest3-dedupe-profile-links-v3";
 export const COLLECTION_REVIEW_SNAPSHOT_VERSION = 1 as const;
 
 export type CollectionReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -9,6 +9,12 @@ export type CollectionReviewMediaItem = {
   url: string;
   mediaType: "IMAGE" | "VIDEO";
   thumbnailUrl: string | null;
+};
+
+export type CollectionReviewProfileLinkCandidate = {
+  url: string;
+  label: string | null;
+  source: "PLAYWRIGHT_PROFILE";
 };
 
 export type CollectionReviewSnapshot = {
@@ -25,6 +31,7 @@ export type CollectionReviewSnapshot = {
   startDate: string | null;
   endDate: string | null;
   purchaseUrl: string | null;
+  profileLinkCandidates: CollectionReviewProfileLinkCandidate[];
   discountInfo: string | null;
   priceKrw: number | null;
   summary: string | null;
@@ -83,14 +90,114 @@ function mediaItems(value: unknown): CollectionReviewMediaItem[] {
       return {
         url,
         mediaType,
-        thumbnailUrl: text(
-          record.thumbnailUrl ?? record.thumbnail_url,
-          2_048,
-        ),
+        thumbnailUrl: text(record.thumbnailUrl ?? record.thumbnail_url, 2_048),
       } satisfies CollectionReviewMediaItem;
     })
     .filter((item): item is CollectionReviewMediaItem => Boolean(item))
     .slice(0, 20);
+}
+
+const PROFILE_LINK_TRACKING_KEYS = new Set([
+  "dclid",
+  "fbclid",
+  "gclid",
+  "igshid",
+  "mc_cid",
+  "mc_eid",
+]);
+
+function isUnsafeProfileLinkHost(hostname: string) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    !host.includes(".") ||
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal") ||
+    host === "instagram.com" ||
+    host.endsWith(".instagram.com") ||
+    host === "instagr.am" ||
+    host.endsWith(".instagr.am") ||
+    host.includes(":")
+  ) {
+    return true;
+  }
+  const parts = host.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) {
+    return false;
+  }
+  if (parts.some((part) => part < 0 || part > 255)) return true;
+  const [first, second] = parts;
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    first >= 224 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 198 && (second === 18 || second === 19))
+  );
+}
+
+function profileLinkUrl(value: unknown) {
+  const candidate = text(value, 2_048);
+  if (!candidate) return null;
+  try {
+    const url = new URL(candidate);
+    if (
+      (url.protocol !== "https:" && url.protocol !== "http:") ||
+      url.username ||
+      url.password ||
+      isUnsafeProfileLinkHost(url.hostname)
+    ) {
+      return null;
+    }
+    for (const key of [...url.searchParams.keys()]) {
+      if (
+        key.toLowerCase().startsWith("utm_") ||
+        PROFILE_LINK_TRACKING_KEYS.has(key.toLowerCase())
+      ) {
+        url.searchParams.delete(key);
+      }
+    }
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+export function normalizeProfileLinkCandidates(
+  value: unknown,
+): CollectionReviewProfileLinkCandidate[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: CollectionReviewProfileLinkCandidate[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const url = profileLinkUrl(record.url);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    result.push({
+      url,
+      label: text(record.label, 200),
+      source: "PLAYWRIGHT_PROFILE",
+    });
+    if (result.length >= 5) break;
+  }
+  return result;
+}
+
+export function profileLinkCandidatesFromReviewSnapshot(
+  value: unknown,
+): CollectionReviewProfileLinkCandidate[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return normalizeProfileLinkCandidates(
+    (value as Record<string, unknown>).profileLinkCandidates,
+  );
 }
 
 export function buildCollectionReviewSnapshot(
@@ -118,6 +225,9 @@ export function buildCollectionReviewSnapshot(
     startDate: text(input.startDate, 100),
     endDate: text(input.endDate, 100),
     purchaseUrl: text(input.purchaseUrl, 2_048),
+    profileLinkCandidates: normalizeProfileLinkCandidates(
+      input.profileLinkCandidates,
+    ),
     discountInfo: text(input.discountInfo, 500),
     priceKrw: integer(input.priceKrw),
     summary: text(input.summary, 2_000),
@@ -133,6 +243,17 @@ export function buildCollectionReviewSnapshot(
     homeBannerStartDate: text(input.homeBannerStartDate, 100),
     homeBannerEndDate: text(input.homeBannerEndDate, 100),
   };
+}
+
+export function buildReviewedCollectionSnapshot(
+  input: Record<string, unknown>,
+  proposalSnapshot: unknown,
+): CollectionReviewSnapshot {
+  return buildCollectionReviewSnapshot({
+    ...input,
+    profileLinkCandidates:
+      profileLinkCandidatesFromReviewSnapshot(proposalSnapshot),
+  });
 }
 
 export function legacyCollectionReviewStatus(

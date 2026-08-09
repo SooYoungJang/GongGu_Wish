@@ -308,9 +308,12 @@ class PublicMainTest(unittest.TestCase):
         collection_page = FallbackCollectionPage(
             """
             <html><body>
-              <a href="https://l.instagram.com/?u=https%3A%2F%2Fshop.example%2Ftoday">
-                오늘 공구 구매
-              </a>
+              <header>
+                <a href="https://l.instagram.com/?u=https%3A%2F%2Fshop.example%2Ftoday">
+                  오늘 공구 구매
+                </a>
+              </header>
+              <footer><a href="https://about.meta.com/">Meta</a></footer>
             </body></html>
             """
         )

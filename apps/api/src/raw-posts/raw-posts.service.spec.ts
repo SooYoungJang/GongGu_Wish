@@ -86,6 +86,49 @@ describe("RawPostsService", () => {
     });
   });
 
+  it("uses one safe profile link when the caption has no purchase URL", async () => {
+    const parseSubmissionCaption = jest.requireMock("@gonggu/shared")
+      .parseSubmissionCaption as jest.Mock;
+    parseSubmissionCaption.mockReturnValueOnce({
+      productName: "국내 배송 공구",
+      endDate: "2026-08-20",
+      priceKrw: 10000,
+    });
+    const { service, tx } = createService();
+
+    await service.collect({
+      ...baseDto,
+      instagramPostId: "p:profile-link",
+      profileLinkCandidates: [
+        {
+          url: "https://shop.example/item?utm_source=instagram&color=red",
+          label: "오늘 공구 구매",
+        },
+      ],
+    });
+
+    expect(tx.rawPost.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        groupBuy: {
+          create: expect.objectContaining({
+            purchaseUrl: "https://shop.example/item?color=red",
+            collectionProposalSnapshot: expect.objectContaining({
+              originalPostUrl: baseDto.postUrl,
+              profileLinkCandidates: [
+                {
+                  url: "https://shop.example/item?color=red",
+                  label: "오늘 공구 구매",
+                  source: "PLAYWRIGHT_PROFILE",
+                },
+              ],
+            }),
+          }),
+        },
+      }),
+      include: { groupBuy: { select: { id: true } } },
+    });
+  });
+
   it("stores non-Korean candidates without publishing a review record", async () => {
     const { service, tx } = createService();
 

@@ -8,7 +8,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import {
-  buildCollectionReviewSnapshot,
+  buildReviewedCollectionSnapshot,
   legacyCollectionReviewStatus,
   reviewTransition,
   type CollectionReviewSnapshot,
@@ -693,10 +693,7 @@ async function listGroupBuyRequests(
   supabase: AdminClient,
   params: AdminRequest["params"],
 ) {
-  const page = Math.min(
-    Math.floor(listParam(params, "page", 1)),
-    1_000_000,
-  );
+  const page = Math.min(Math.floor(listParam(params, "page", 1)), 1_000_000);
   const limit = Math.min(Math.floor(listParam(params, "limit", 30)), 100);
   const status = str(params?.status);
   const q = sanitizeSearch(str(params?.q));
@@ -827,7 +824,8 @@ async function updateSubmission(
     hasInstagramOwnerChanged(
       existing.instagram_username,
       body.instagramUsername,
-    ) && !hasOwn(body, "profileImageUrl")
+    ) &&
+    !hasOwn(body, "profileImageUrl")
   ) {
     patch.profile_image_url = null;
   }
@@ -1301,10 +1299,7 @@ function collectionReviewStatusFromRow(
   return legacyCollectionReviewStatus(row.status);
 }
 
-async function automaticCollectionCandidate(
-  supabase: AdminClient,
-  id: string,
-) {
+async function automaticCollectionCandidate(supabase: AdminClient, id: string) {
   const { data, error } = await supabase
     .from("group_buys")
     .select(GROUP_BUY_SELECT)
@@ -1333,14 +1328,18 @@ function automaticReviewSnapshot(
   data: Record<string, unknown>,
 ) {
   const rawPost = relatedRawPostRecord(existing);
-  return buildCollectionReviewSnapshot({
-    ...mapGroupBuy(existing),
-    ...data,
-    rawPostId: rawPost?.id,
-    instagramPostId: rawPost?.instagram_post_id,
-    originalPostUrl: rawPost?.post_url,
-    takenAt: rawPost?.taken_at,
-  });
+  const proposalSnapshot = existing.collection_proposal_snapshot;
+  return buildReviewedCollectionSnapshot(
+    {
+      ...mapGroupBuy(existing),
+      ...data,
+      rawPostId: rawPost?.id,
+      instagramPostId: rawPost?.instagram_post_id,
+      originalPostUrl: rawPost?.post_url,
+      takenAt: rawPost?.taken_at,
+    },
+    proposalSnapshot,
+  );
 }
 
 function groupBuyProfileWrite(
