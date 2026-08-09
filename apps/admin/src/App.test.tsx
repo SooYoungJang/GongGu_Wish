@@ -15,6 +15,7 @@ import {
   formToPreviewDeal,
   groupBuyToForm,
   groupBuyPayload,
+  tabTitle,
   submissionToForm,
   submissionPayload,
 } from "./App";
@@ -62,6 +63,14 @@ describe("assertPersistedPriceMatches", () => {
     expect(() => assertPersistedPriceMatches(200000, null)).toThrow(
       "저장된 가격",
     );
+  });
+});
+
+describe("admin tab labels", () => {
+  it("labels the automatic collection review tab separately from user submissions", () => {
+    expect(tabTitle("submissions")).toBe("위시 검수");
+    expect(tabTitle("autoCollection")).toBe("자동 수집 검수");
+    expect(tabTitle("groupBuys")).toBe("공구 관리");
   });
 });
 

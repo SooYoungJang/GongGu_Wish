@@ -600,6 +600,7 @@ async function listGroupBuys(
   const start = (page - 1) * limit;
   const status = str(params?.status);
   const q = sanitizeSearch(str(params?.q));
+  const sourceType = str(params?.sourceType);
 
   let query = supabase
     .from("group_buys")
@@ -608,6 +609,7 @@ async function listGroupBuys(
     .range(start, start + limit - 1);
 
   if (status && status !== "ALL") query = query.eq("status", status);
+  if (sourceType) query = query.eq("source_type", sourceType);
   if (q) query = query.or(`product_name.ilike.%${q}%,brand_name.ilike.%${q}%`);
 
   const { data, error, count } = await query;
