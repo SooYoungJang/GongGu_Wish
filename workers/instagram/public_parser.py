@@ -12,6 +12,7 @@ TRUSTED_MEDIA_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
 # (``/p/ABC123/``). Canonicalize both forms to the root post URL below.
 POST_PATH_RE = re.compile(r"^/(?:[A-Za-z0-9._]{1,30}/)?(p|reel|tv)/([A-Za-z0-9_-]+)/?$")
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._]{1,30}$")
+TWITTER_TITLE_USERNAME_RE = re.compile(r"\(@([A-Za-z0-9._]{1,30})\)")
 HASHTAG_RE = re.compile(r"^[0-9A-Za-z_가-힣]{1,50}$")
 RESERVED_PROFILE_SEGMENTS = {
     "about",
@@ -162,27 +163,60 @@ class _PostAuthorParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self._article_depth = 0
-        self.usernames: list[str] = []
+        self._main_depth = 0
+        self.metadata_usernames: list[str] = []
+        self.article_usernames: list[str] = []
+        self.main_usernames: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if tag == "meta":
+            key = (attributes.get("property") or attributes.get("name") or "").lower()
+            content = attributes.get("content") or ""
+            match = (
+                TWITTER_TITLE_USERNAME_RE.search(content)
+                if key == "twitter:title"
+                else None
+            )
+            if match:
+                username = normalize_username(match.group(1))
+                if username not in self.metadata_usernames:
+                    self.metadata_usernames.append(username)
+            return
+        if tag == "main":
+            self._main_depth += 1
+            return
         if tag == "article":
             self._article_depth += 1
             return
-        if tag != "a" or not self._article_depth:
+        if tag != "a" or not (self._article_depth or self._main_depth):
             return
-        username = normalize_profile_url(dict(attrs).get("href") or "")
-        if username and username not in self.usernames:
-            self.usernames.append(username)
+        username = normalize_profile_url(attributes.get("href") or "")
+        if not username:
+            return
+        usernames = (
+            self.article_usernames if self._article_depth else self.main_usernames
+        )
+        if username not in usernames:
+            usernames.append(username)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "article" and self._article_depth:
             self._article_depth -= 1
+        elif tag == "main" and self._main_depth:
+            self._main_depth -= 1
 
 
 def extract_post_username(html: str) -> str | None:
     parser = _PostAuthorParser()
     parser.feed(html)
-    return parser.usernames[0] if parser.usernames else None
+    if len(parser.metadata_usernames) == 1:
+        return parser.metadata_usernames[0]
+    if parser.article_usernames:
+        return parser.article_usernames[0]
+    if len(parser.main_usernames) == 1:
+        return parser.main_usernames[0]
+    return None
 
 
 class _PostMetadataParser(HTMLParser):

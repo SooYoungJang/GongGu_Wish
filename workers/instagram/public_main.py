@@ -61,6 +61,10 @@ DEFAULT_DISCOVERY_HASHTAGS = (
     "마켓오픈",
     "오픈예정",
 )
+DISCOVERY_RENDER_POLL_INTERVAL_MS = 500
+DISCOVERY_RENDER_TIMEOUT_MS = 5_000
+MAX_VERIFIED_POST_CANDIDATES_PER_ACCOUNT = MAX_POSTS_PER_ACCOUNT * 3
+MAX_POST_NAVIGATIONS_PER_ACCOUNT = MAX_VERIFIED_POST_CANDIDATES_PER_ACCOUNT * 2
 
 
 class PublicCollectionError(RuntimeError):
@@ -338,6 +342,14 @@ class PublicInstagramCollector:
     def __init__(self, context: BrowserContext, limit: int = MAX_POSTS_PER_ACCOUNT) -> None:
         self.context = context
         self.limit = max(1, min(int(limit), MAX_POSTS_PER_ACCOUNT))
+        self._pending_discovery: tuple[str, list[ProfilePostLink]] | None = None
+
+    def _take_pending_discovery_links(self, username: str) -> list[ProfilePostLink]:
+        pending = self._pending_discovery
+        self._pending_discovery = None
+        if pending and pending[0] == username:
+            return pending[1]
+        return []
 
     def _check_page(self, page: Page, response: Any) -> None:
         status_code = getattr(response, "status", None)
@@ -371,7 +383,19 @@ class PublicInstagramCollector:
             page.mouse.wheel(0, 4_000)
             page.wait_for_timeout(750)
             self._check_page(page, response)
-        return extract_discovery_post_links(page.content(), hashtag_url)
+
+        links = extract_discovery_post_links(page.content(), hashtag_url)
+        for _ in range(
+            DISCOVERY_RENDER_TIMEOUT_MS // DISCOVERY_RENDER_POLL_INTERVAL_MS
+        ):
+            if links:
+                return links
+            if not should_continue():
+                return None
+            page.wait_for_timeout(DISCOVERY_RENDER_POLL_INTERVAL_MS)
+            self._check_page(page, response)
+            links = extract_discovery_post_links(page.content(), hashtag_url)
+        return links
 
     def _load_discovered_username(
         self,
@@ -379,6 +403,7 @@ class PublicInstagramCollector:
         link: ProfilePostLink,
         should_continue: Callable[[], bool],
     ) -> str | None:
+        self._pending_discovery = None
         if not should_continue():
             return None
         response = page.goto(
@@ -389,7 +414,22 @@ class PublicInstagramCollector:
         self._check_page(page, response)
         if not should_continue():
             return None
-        return extract_post_username(page.content())
+        html = page.content()
+        username = extract_post_username(html)
+        if username:
+            related_links = [link]
+            seen_post_ids = {link.post_id}
+            for candidate in extract_profile_posts(
+                html,
+                link.post_url,
+                limit=None,
+            ):
+                if candidate.post_id in seen_post_ids:
+                    continue
+                seen_post_ids.add(candidate.post_id)
+                related_links.append(candidate)
+            self._pending_discovery = (username, related_links)
+        return username
 
     def iter_discovered_accounts(
         self,
@@ -400,6 +440,7 @@ class PublicInstagramCollector:
         excluded_usernames: set[str],
         should_continue: Callable[[], bool],
     ) -> Iterator[str]:
+        self._pending_discovery = None
         page = self.context.new_page()
         seen = {normalize_username(username) for username in excluded_usernames}
         shuffled_hashtags = list(dict.fromkeys(hashtags))
@@ -435,35 +476,60 @@ class PublicInstagramCollector:
                 "Instagram 랜덤 계정 탐색 중 브라우저 오류가 발생했습니다.",
             ) from error
         finally:
+            self._pending_discovery = None
             page.close()
 
     def collect_account(self, username: str) -> list[dict[str, Any]]:
         normalized_username = normalize_username(username)
+        discovery_links = self._take_pending_discovery_links(normalized_username)
         page = self.context.new_page()
         try:
             profile_url = f"https://www.instagram.com/{normalized_username}/"
             response = page.goto(profile_url, wait_until="domcontentloaded", timeout=30_000)
             self._check_page(page, response)
-            links = extract_profile_posts(
+            profile_links = extract_profile_posts(
                 page.content(),
                 profile_url,
-                limit=min(self.limit * 2, MAX_POSTS_PER_ACCOUNT * 2),
+                limit=None,
             )
             posts: list[dict[str, Any]] = []
-            for link in links:
-                response = page.goto(link.post_url, wait_until="domcontentloaded", timeout=30_000)
-                self._check_page(page, response)
-                parsed = parse_post_html(page.content(), link.post_url, link.image_url)
-                posts.append({
-                    "instagramPostId": parsed.post_id,
-                    "influencerUsername": normalized_username,
-                    "caption": parsed.caption,
-                    "postUrl": parsed.post_url,
-                    "imageUrl": parsed.image_url,
-                    "takenAt": parsed.taken_at,
-                    "collectedAt": isoformat(now_utc()),
-                    "collectionSource": "PLAYWRIGHT_PUBLIC",
-                })
+            seen_post_ids: set[str] = set()
+            navigation_count = 0
+            for links in (discovery_links, profile_links):
+                for link in links:
+                    if link.post_id in seen_post_ids:
+                        continue
+                    if navigation_count >= MAX_POST_NAVIGATIONS_PER_ACCOUNT:
+                        break
+                    seen_post_ids.add(link.post_id)
+                    navigation_count += 1
+                    response = page.goto(
+                        link.post_url,
+                        wait_until="domcontentloaded",
+                        timeout=30_000,
+                    )
+                    self._check_page(page, response)
+                    html = page.content()
+                    if extract_post_username(html) != normalized_username:
+                        continue
+                    parsed = parse_post_html(html, link.post_url, link.image_url)
+                    posts.append({
+                        "instagramPostId": parsed.post_id,
+                        "influencerUsername": normalized_username,
+                        "caption": parsed.caption,
+                        "postUrl": parsed.post_url,
+                        "imageUrl": parsed.image_url,
+                        "takenAt": parsed.taken_at,
+                        "collectedAt": isoformat(now_utc()),
+                        "collectionSource": "PLAYWRIGHT_PUBLIC",
+                    })
+                    if len(posts) >= MAX_VERIFIED_POST_CANDIDATES_PER_ACCOUNT:
+                        break
+                if (
+                    navigation_count >= MAX_POST_NAVIGATIONS_PER_ACCOUNT
+                    or len(posts) >= MAX_VERIFIED_POST_CANDIDATES_PER_ACCOUNT
+                ):
+                    break
             selected = latest_posts(posts, self.limit)
             for post in selected:
                 if not post["takenAt"]:
