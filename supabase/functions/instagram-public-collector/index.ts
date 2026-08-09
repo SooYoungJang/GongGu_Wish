@@ -78,7 +78,8 @@ export function buildAutomaticProposalSnapshot(
 
 const AUTOMATIC_PRODUCT_CTA_RE =
   /^(?:공구|공동구매|마켓|특가|할인|프로모션|구매|판매|링크|마감|오픈|프로필|스토리|dm|디엠)(?:\s|[:：\-–—!?]|은|는|이|가|을|를|의|부터|까지)/iu;
-const GENERIC_HASHTAG_RE = /^(?:공구|공동구매|마켓|특가|할인|세일|추천|이벤트)$/iu;
+const GENERIC_HASHTAG_RE =
+  /^(?:공구|공동구매|마켓|특가|할인|세일|추천|이벤트)$/iu;
 const GENERIC_PRODUCT_RE =
   /^(?:공구|공동구매|마켓|특가|할인|프로모션|상품명\s*확인\s*필요)$/iu;
 const TRACKING_QUERY_RE = /^(?:utm_[^=]+|fbclid|gclid|dclid|mc_cid|mc_eid)$/iu;
@@ -256,10 +257,14 @@ function normalizeCampaignUrl(value: string | undefined) {
 
 function hashtagProductName(caption: string) {
   const candidates = (caption.match(/#[\p{L}\p{N}_-]{2,80}/gu) ?? [])
-    .map((value) => value.slice(1).replace(/(?:공동구매|공구|마켓|특가|할인|세일)$/u, ""))
+    .map((value) =>
+      value.slice(1).replace(/(?:공동구매|공구|마켓|특가|할인|세일)$/u, ""),
+    )
     .map((value) => value.trim())
     .filter((value) => value.length >= 2 && !GENERIC_HASHTAG_RE.test(value));
-  return candidates.sort((left, right) => right.length - left.length)[0] ?? null;
+  return (
+    candidates.sort((left, right) => right.length - left.length)[0] ?? null
+  );
 }
 
 function automaticProductName(
@@ -303,7 +308,8 @@ export function normalizeAutoParsedCaption(
   );
   return {
     ...parsed,
-    productName: productName ?? (parsed.purchaseUrl ? "상품명 확인 필요" : undefined),
+    productName:
+      productName ?? (parsed.purchaseUrl ? "상품명 확인 필요" : undefined),
   };
 }
 
@@ -460,16 +466,21 @@ async function findExistingCampaign(
   if (legacyError) throw legacyError;
 
   for (const row of legacyRows ?? []) {
-    const rawPost = Array.isArray(row.raw_post) ? row.raw_post[0] : row.raw_post;
+    const rawPost = Array.isArray(row.raw_post)
+      ? row.raw_post[0]
+      : row.raw_post;
     const caption =
-      rawPost && typeof rawPost === "object" && typeof rawPost.caption === "string"
+      rawPost &&
+      typeof rawPost === "object" &&
+      typeof rawPost.caption === "string"
         ? rawPost.caption
         : "";
     const legacyParsed = normalizeAutoParsedCaption(
       {
         productName:
           typeof row.product_name === "string" ? row.product_name : undefined,
-        brandName: typeof row.brand_name === "string" ? row.brand_name : undefined,
+        brandName:
+          typeof row.brand_name === "string" ? row.brand_name : undefined,
         purchaseUrl:
           typeof row.purchase_url === "string" ? row.purchase_url : undefined,
         startDate:
@@ -609,11 +620,16 @@ async function createGroupBuy(
         .eq("raw_post_id", rawPostId)
         .maybeSingle();
       if (findError) throw findError;
-      if (existing?.id) return String(existing.id);
+      if (existing?.id) {
+        return {
+          id: String(existing.id),
+          reviewCandidateCreated: false,
+        };
+      }
 
       const campaign = await findExistingCampaign(supabase, dedupeKey);
       if (campaign) {
-        return attachLatestCampaignPost(
+        const id = await attachLatestCampaignPost(
           supabase,
           campaign,
           post,
@@ -621,11 +637,15 @@ async function createGroupBuy(
           influencerId,
           parsed,
         );
+        return { id, reviewCandidateCreated: false };
       }
     }
     throw error;
   }
-  return String(data.id);
+  return {
+    id: String(data.id),
+    reviewCandidateCreated: true,
+  };
 }
 
 async function findGroupBuy(supabase: AdminClient, rawPostId: string) {
@@ -676,31 +696,37 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
   if (existing?.id) {
     const groupBuy = await findGroupBuy(supabase, String(existing.id));
     let groupBuyId = groupBuy?.id ? String(groupBuy.id) : null;
+    let reviewCandidateCreated = false;
     if (!groupBuyId && shouldCreateGroupBuy && campaignDedupeKey) {
       const campaign = await findExistingCampaign(supabase, campaignDedupeKey);
-      groupBuyId = campaign
-        ? await attachLatestCampaignPost(
-            supabase,
-            campaign,
-            post,
-            String(existing.id),
-            influencerId,
-            parsed,
-          )
-        : await createGroupBuy(
-            supabase,
-            post,
-            String(existing.id),
-            influencerId,
-            parsed,
-            campaignDedupeKey,
-          );
+      if (campaign) {
+        groupBuyId = await attachLatestCampaignPost(
+          supabase,
+          campaign,
+          post,
+          String(existing.id),
+          influencerId,
+          parsed,
+        );
+      } else {
+        const createdGroupBuy = await createGroupBuy(
+          supabase,
+          post,
+          String(existing.id),
+          influencerId,
+          parsed,
+          campaignDedupeKey,
+        );
+        groupBuyId = createdGroupBuy.id;
+        reviewCandidateCreated = createdGroupBuy.reviewCandidateCreated;
+      }
     }
     return {
       created: false,
       duplicate: true,
       rawPostId: String(existing.id),
       groupBuyId,
+      reviewCandidateCreated,
     };
   }
 
@@ -736,7 +762,7 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
     .single();
   if (rawPostError) throw rawPostError;
 
-  const groupBuyId =
+  const groupBuy =
     shouldCreateGroupBuy && campaignDedupeKey
       ? await createGroupBuy(
           supabase,
@@ -747,11 +773,13 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
           campaignDedupeKey,
         )
       : null;
+  const groupBuyId = groupBuy?.id ?? null;
   return {
     created: true,
     duplicate: false,
     rawPostId: String(rawPost.id),
     groupBuyId,
+    reviewCandidateCreated: groupBuy?.reviewCandidateCreated ?? false,
   };
 }
 

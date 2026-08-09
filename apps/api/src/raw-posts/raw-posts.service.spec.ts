@@ -36,9 +36,14 @@ describe("RawPostsService", () => {
       },
       rawPost: {
         findFirst: jest.fn().mockResolvedValue(null),
-        create: jest
-          .fn()
-          .mockImplementation(async ({ data }) => ({ id: "raw-1", ...data })),
+        create: jest.fn().mockImplementation(async ({ data }) => {
+          const { groupBuy, ...rawPost } = data;
+          return {
+            id: "raw-1",
+            ...rawPost,
+            groupBuy: groupBuy ? { id: "group-buy-1" } : null,
+          };
+        }),
       },
     };
     const prisma = {
@@ -71,14 +76,20 @@ describe("RawPostsService", () => {
           }),
         },
       }),
+      include: { groupBuy: { select: { id: true } } },
     });
-    expect(result.created).toBe(true);
+    expect(result).toMatchObject({
+      created: true,
+      duplicate: false,
+      groupBuyId: "group-buy-1",
+      reviewCandidateCreated: true,
+    });
   });
 
   it("stores non-Korean candidates without publishing a review record", async () => {
     const { service, tx } = createService();
 
-    await service.collect({
+    const result = await service.collect({
       ...baseDto,
       instagramPostId: "p:test-2",
       caption: "공구 now 10 USD",
@@ -91,13 +102,18 @@ describe("RawPostsService", () => {
         parsingStatus: ParsingStatus.NOT_KOREA,
         groupBuy: undefined,
       }),
+      include: { groupBuy: { select: { id: true } } },
+    });
+    expect(result).toMatchObject({
+      groupBuyId: null,
+      reviewCandidateCreated: false,
     });
   });
 
   it("keeps legacy collection status behavior", async () => {
     const { service, tx } = createService();
 
-    await service.collect({
+    const result = await service.collect({
       ...baseDto,
       instagramPostId: "legacy-1",
       collectionSource: undefined,
@@ -109,6 +125,11 @@ describe("RawPostsService", () => {
         collectionSource: RawPostCollectionSource.LEGACY_INSTAGRAPI,
         parsingStatus: ParsingStatus.PENDING,
       }),
+      include: { groupBuy: { select: { id: true } } },
+    });
+    expect(result).toMatchObject({
+      groupBuyId: null,
+      reviewCandidateCreated: false,
     });
   });
 
@@ -121,7 +142,12 @@ describe("RawPostsService", () => {
 
     const result = await service.collect(baseDto);
 
-    expect(result).toMatchObject({ created: false, duplicate: true });
+    expect(result).toMatchObject({
+      created: false,
+      duplicate: true,
+      groupBuyId: null,
+      reviewCandidateCreated: false,
+    });
     expect(tx.rawPost.create).not.toHaveBeenCalled();
   });
 });

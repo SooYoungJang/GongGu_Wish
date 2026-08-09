@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from html.parser import HTMLParser
 import re
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 INSTAGRAM_HOSTS = {"instagram.com", "www.instagram.com"}
 TRUSTED_MEDIA_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
@@ -12,6 +12,23 @@ TRUSTED_MEDIA_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
 # (``/p/ABC123/``). Canonicalize both forms to the root post URL below.
 POST_PATH_RE = re.compile(r"^/(?:[A-Za-z0-9._]{1,30}/)?(p|reel|tv)/([A-Za-z0-9_-]+)/?$")
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._]{1,30}$")
+HASHTAG_RE = re.compile(r"^[0-9A-Za-z_가-힣]{1,50}$")
+RESERVED_PROFILE_SEGMENTS = {
+    "about",
+    "accounts",
+    "challenge",
+    "developer",
+    "direct",
+    "explore",
+    "legal",
+    "p",
+    "privacy",
+    "reel",
+    "stories",
+    "terms",
+    "tv",
+    "web",
+}
 
 
 @dataclass(frozen=True)
@@ -35,6 +52,30 @@ def normalize_username(value: str) -> str:
     if not USERNAME_RE.fullmatch(username):
         raise ValueError("invalid Instagram username")
     return username
+
+
+def build_hashtag_url(value: str) -> str:
+    hashtag = value.strip().lstrip("#")
+    if not HASHTAG_RE.fullmatch(hashtag):
+        raise ValueError("invalid Instagram discovery hashtag")
+    return f"https://www.instagram.com/explore/tags/{quote(hashtag, safe='')}/"
+
+
+def normalize_profile_url(
+    value: str,
+    base_url: str = "https://www.instagram.com/",
+) -> str | None:
+    absolute_url = urljoin(base_url, value)
+    parsed = urlparse(absolute_url)
+    if parsed.scheme != "https" or parsed.hostname not in INSTAGRAM_HOSTS:
+        return None
+    segments = [segment for segment in parsed.path.split("/") if segment]
+    if len(segments) != 1 or segments[0].lower() in RESERVED_PROFILE_SEGMENTS:
+        return None
+    try:
+        return normalize_username(segments[0])
+    except ValueError:
+        return None
 
 
 def normalize_post_url(value: str, base_url: str = "https://www.instagram.com/") -> tuple[str, str] | None:
@@ -88,8 +129,10 @@ class _ProfileLinkParser(HTMLParser):
 def extract_profile_posts(
     html: str,
     base_url: str = "https://www.instagram.com/",
-    limit: int = 3,
+    limit: int | None = 3,
 ) -> list[ProfilePostLink]:
+    if limit is not None and limit <= 0:
+        return []
     parser = _ProfileLinkParser()
     parser.feed(html)
     result: list[ProfilePostLink] = []
@@ -103,9 +146,43 @@ def extract_profile_posts(
             continue
         seen.add(post_id)
         result.append(ProfilePostLink(post_id, post_url, image_url))
-        if len(result) >= limit:
+        if limit is not None and len(result) >= limit:
             break
     return result
+
+
+def extract_discovery_post_links(
+    html: str,
+    base_url: str = "https://www.instagram.com/",
+) -> list[ProfilePostLink]:
+    return extract_profile_posts(html, base_url=base_url, limit=None)
+
+
+class _PostAuthorParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._article_depth = 0
+        self.usernames: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "article":
+            self._article_depth += 1
+            return
+        if tag != "a" or not self._article_depth:
+            return
+        username = normalize_profile_url(dict(attrs).get("href") or "")
+        if username and username not in self.usernames:
+            self.usernames.append(username)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "article" and self._article_depth:
+            self._article_depth -= 1
+
+
+def extract_post_username(html: str) -> str | None:
+    parser = _PostAuthorParser()
+    parser.feed(html)
+    return parser.usernames[0] if parser.usernames else None
 
 
 class _PostMetadataParser(HTMLParser):

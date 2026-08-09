@@ -5,14 +5,16 @@
 
 ## Playwright 공개 페이지 수집기
 
-기능 플래그와 계정별 플래그가 모두 기본값 `false`입니다. Instagram/Meta 약관과
-계정 권한을 운영자가 검토한 뒤, 기존 관리자 화면에서 계정별로 켜야 합니다.
+기능 플래그와 계정별 플래그가 모두 기본값 `false`입니다. 지정 계정 수집은 기존
+관리자 화면에서 계정별로 켜고, 랜덤 계정 발견은 별도 원샷 스크립트로만 켭니다.
+Instagram/Meta 약관과 계정 권한을 운영자가 검토한 뒤 실행해야 합니다.
 검토 대상: [Instagram 이용 약관](https://www.facebook.com/help/instagram/581066165581870),
 [Meta 자동화된 데이터 수집 약관](https://www.facebook.com/legal/automated_data_collection_terms).
 
-수집 범위는 등록된 계정의 공개 프로필과 공개 게시물 URL뿐입니다. 비공개 API,
-프록시 회전, CAPTCHA/로그인 벽 우회, stealth 플러그인은 사용하지 않습니다. 로그인
-벽·challenge·403·429가 나오면 해당 계정 수집을 중단하고 관리자 상태에 오류를 남깁니다.
+수집 범위는 등록된 계정 또는 Instagram 해시태그 탐색에 현재 노출된 계정의 공개
+프로필과 공개 게시물 URL뿐입니다. 비공개 API, 프록시 회전, CAPTCHA/로그인 벽 우회,
+stealth 플러그인은 사용하지 않습니다. 로그인 벽·challenge·403·429가 나오면 즉시
+수집을 중단합니다.
 
 ### 설치
 
@@ -48,6 +50,15 @@ INSTAGRAM_PUBLIC_POLL_INTERVAL_SECONDS=900
 INSTAGRAM_PUBLIC_JITTER_SECONDS=300
 INSTAGRAM_PUBLIC_POST_LIMIT=3
 INSTAGRAM_PLAYWRIGHT_HEADLESS=true
+INSTAGRAM_PUBLIC_WATCHLIST_ENABLED=true
+INSTAGRAM_RANDOM_DISCOVERY_ENABLED=false
+INSTAGRAM_PUBLIC_RUN_ONCE=false
+INSTAGRAM_DISCOVERY_TARGET_GROUP_BUYS=3
+INSTAGRAM_DISCOVERY_TIME_BUDGET_SECONDS=900
+INSTAGRAM_DISCOVERY_SCROLL_PASSES=3
+INSTAGRAM_DISCOVERY_HASHTAGS=공구,공동구매,공구오픈,공구마감,마켓오픈,오픈예정
+# 선택값. 0 또는 미설정이면 계정 수 제한 없음
+INSTAGRAM_DISCOVERY_EMERGENCY_MAX_ACCOUNTS=0
 ```
 
 `900 ± 300초` 지터는 계정 요청을 한 시각에 몰리지 않게 하는 운영용 분산값입니다.
@@ -71,6 +82,43 @@ powershell -ExecutionPolicy Bypass -File scripts/run-instagram-public-collector.
 한국 신호 3개 중 2개(한글 캡션, 원화 가격, 국내 배송/커머스)를 만족하는 공구 후보만
 `REVIEW_REQUIRED`로 생성하며, 제품명·카테고리·구매 URL·일정을 관리자가 보완하기
 전에는 앱에 공개되지 않습니다.
+
+### 랜덤 계정 공구 발견
+
+아래 명령은 지정 계정 watchlist를 끄고 Instagram의 한국 공구 해시태그 탐색에
+노출된 게시물과 작성자 계정을 무작위 순서로 확인합니다. 각 계정에서는 기존과 같이
+최신 게시물 최대 3건만 Preview collector에 제출합니다.
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/run-instagram-random-discovery.ps1 `
+  -Target preview -TargetGroupBuys 3 -TimeBudgetSeconds 900
+```
+
+기본 계정 수 하드 제한은 없습니다. 새 공구 검수 후보 3건을 찾거나, 15분이 지나거나,
+탐색 결과를 모두 확인하거나, Instagram 차단 화면을 감지하면 종료합니다. 운영상
+비상 한도가 필요할 때만 `-EmergencyMaxAccounts 50`처럼 명시합니다. 중복 게시물이나
+이미 존재하는 공구는 목표 수에 포함하지 않습니다.
+
+탐색 범위는 `-Hashtags 공구,공동구매,공구오픈`처럼 바꿀 수 있습니다. URL은 항상
+Instagram HTTPS 해시태그·게시물·프로필 allowlist 안에서만 생성되며, 페이지에서 읽은
+임의 외부 URL로 이동하지 않습니다.
+
+저장 없이 탐색·최신 3건 동작을 확인하려면 읽기 전용 smoke를 실행합니다. 먼저
+로컬 fixture를 사용한 결정적 브라우저 E2E를 실행할 수 있습니다.
+
+```bash
+python workers/instagram/e2e_random_discovery.py --mock `
+  --evidence-dir .\test-results\instagram-random-discovery
+```
+
+실제 Instagram 로그인 세션을 확인할 때는 `storageState` 경로를 전달합니다. 이 명령은
+cookie나 storageState 내용을 출력하지 않으며 로그인·challenge 화면에서는 즉시 실패합니다.
+
+```bash
+python workers/instagram/e2e_random_discovery.py `
+  --storage-state .\storage-state.tmp.json `
+  --evidence-dir .\test-results\instagram-random-discovery
+```
 
 ### Production 실행 경계
 

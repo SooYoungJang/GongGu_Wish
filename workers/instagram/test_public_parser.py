@@ -2,6 +2,9 @@ import unittest
 
 from public_parser import (
     blocked_page_reason,
+    build_hashtag_url,
+    extract_discovery_post_links,
+    extract_post_username,
     extract_profile_posts,
     normalize_post_url,
     normalize_username,
@@ -11,6 +14,41 @@ from public_parser import (
 
 
 class PublicParserTest(unittest.TestCase):
+    def test_builds_only_canonical_instagram_hashtag_urls(self):
+        self.assertEqual(
+            build_hashtag_url("#공동구매"),
+            "https://www.instagram.com/explore/tags/%EA%B3%B5%EB%8F%99%EA%B5%AC%EB%A7%A4/",
+        )
+        with self.assertRaises(ValueError):
+            build_hashtag_url("../../accounts/login")
+
+    def test_extracts_all_unique_discovery_post_links_without_an_account_cap(self):
+        html = "".join(
+            f'<a href="/p/post_{index}/"><img src="https://scontent.cdninstagram.com/{index}.jpg"></a>'
+            for index in range(15)
+        )
+        html += '<a href="/p/post_3/">duplicate</a>'
+
+        posts = extract_discovery_post_links(html)
+
+        self.assertEqual(len(posts), 15)
+        self.assertEqual(posts[0].post_id, "p:post_0")
+        self.assertEqual(posts[-1].post_id, "p:post_14")
+
+    def test_extracts_article_author_and_ignores_navigation_profiles(self):
+        html = """
+        <nav>
+          <a href="/logged.in.user/">내 프로필</a>
+          <a href="/explore/">탐색</a>
+        </nav>
+        <article>
+          <header><a href="/random.seller/">판매자</a></header>
+          <a href="/p/ABC_123/">게시물</a>
+        </article>
+        """
+
+        self.assertEqual(extract_post_username(html), "random.seller")
+
     def test_normalizes_only_instagram_post_urls(self):
         self.assertEqual(
             normalize_post_url("/p/ABC_123/"),
