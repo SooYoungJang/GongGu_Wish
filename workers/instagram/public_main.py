@@ -26,6 +26,7 @@ try:
         normalize_username,
         parse_post_html,
     )
+    from .target import resolve_collection_target
 except ImportError:
     from public_parser import (
         blocked_page_reason,
@@ -33,6 +34,7 @@ except ImportError:
         normalize_username,
         parse_post_html,
     )
+    from target import resolve_collection_target
 
 load_dotenv()
 
@@ -164,6 +166,74 @@ class InternalApiClient:
         self._request("PATCH", f"/internal/instagram/influencers/{influencer_id}/status", json=body)
 
 
+class SupabaseCollectorApi:
+    def __init__(
+        self,
+        function_url: str,
+        collector_token: str,
+        session: requests.Session | None = None,
+    ) -> None:
+        self.function_url = function_url.rstrip("/")
+        self.session = session or requests.Session()
+        self.session.headers.update(
+            {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Collector-Token": collector_token,
+            }
+        )
+
+    def _request(self, action: str, **payload: Any) -> Any:
+        response = self.session.request(
+            "POST",
+            self.function_url,
+            timeout=(10, 30),
+            json={"action": action, **payload},
+        )
+        if not response.ok:
+            raise PublicCollectionError(
+                f"API_HTTP_{response.status_code}",
+                "Supabase collector 요청이 실패했습니다.",
+            )
+        return response.json()
+
+    def watchlist(self) -> list[dict[str, Any]]:
+        payload = self._request("watchlist")
+        items = payload.get("items") if isinstance(payload, dict) else None
+        if not isinstance(items, list):
+            raise PublicCollectionError(
+                "API_CONTRACT",
+                "Supabase collector watchlist 응답 형식이 올바르지 않습니다.",
+            )
+        return [item for item in items if isinstance(item, dict)]
+
+    def collect_post(self, payload: dict[str, Any]) -> dict[str, Any]:
+        result = self._request("collect", post=payload)
+        return result if isinstance(result, dict) else {}
+
+    def update_status(
+        self,
+        influencer_id: str,
+        *,
+        status: str,
+        attempt_at: datetime,
+        next_run_at: datetime,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        body: dict[str, Any] = {
+            "influencerId": influencer_id,
+            "status": status,
+            "attemptAt": isoformat(attempt_at),
+            "nextRunAt": isoformat(next_run_at),
+        }
+        if error_code:
+            body["errorCode"] = error_code[:80]
+        if error_message:
+            body["errorMessage"] = error_message[:400]
+        self._request("status", **body)
+
+
 class PublicInstagramCollector:
     def __init__(self, context: BrowserContext, limit: int = 12) -> None:
         self.context = context
@@ -213,7 +283,7 @@ class PublicInstagramCollector:
 
 @dataclass
 class PublicInstagramWorker:
-    api: InternalApiClient
+    api: InternalApiClient | SupabaseCollectorApi
     collector: PublicInstagramCollector
     poll_interval_seconds: int = 900
     jitter_seconds: int = 300
@@ -314,9 +384,15 @@ def main() -> None:
     if not collector_token:
         raise SystemExit("INSTAGRAM_COLLECTOR_TOKEN이 필요합니다.")
 
-    api = InternalApiClient(
-        os.getenv("API_INTERNAL_BASE_URL", "http://localhost:3000"),
-        collector_token,
+    target = resolve_collection_target()
+    if target.transport == "supabase_function":
+        api = SupabaseCollectorApi(target.endpoint, collector_token)
+    else:
+        api = InternalApiClient(target.endpoint, collector_token)
+    logger.info(
+        "Instagram 공개 수집 저장 대상: target=%s transport=%s",
+        target.name,
+        target.transport,
     )
     poll_interval_seconds = env_int("INSTAGRAM_PUBLIC_POLL_INTERVAL_SECONDS", 900, 60, 86_400)
     jitter_seconds = env_int("INSTAGRAM_PUBLIC_JITTER_SECONDS", 300, 0, 3_600)

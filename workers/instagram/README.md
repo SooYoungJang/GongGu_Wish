@@ -41,7 +41,9 @@ python workers/instagram/public_session_setup.py .\storage-state.tmp.json
 INSTAGRAM_PUBLIC_CRAWLER_ENABLED=false
 INSTAGRAM_COLLECTOR_TOKEN=<API와 공유하는 별도 secret>
 INSTAGRAM_PLAYWRIGHT_STORAGE_STATE_JSON=<Secret Manager 주입값>
-API_INTERNAL_BASE_URL=http://localhost:3000
+INSTAGRAM_COLLECTION_TARGET=preview
+# local target일 때만 사용: http://127.0.0.1:3000
+API_INTERNAL_BASE_URL=http://127.0.0.1:3000
 INSTAGRAM_PUBLIC_POLL_INTERVAL_SECONDS=900
 INSTAGRAM_PUBLIC_JITTER_SECONDS=300
 INSTAGRAM_PUBLIC_POST_LIMIT=12
@@ -53,15 +55,36 @@ INSTAGRAM_PLAYWRIGHT_HEADLESS=true
 
 ### 실행
 
+기본 실행은 로컬 Playwright 브라우저가 Preview Supabase의
+`instagram-public-collector` Edge Function으로 결과를 저장합니다. Worker에는
+service-role key나 DB password를 넣지 않습니다.
+
 ```bash
-python workers/instagram/public_main.py
+powershell -ExecutionPolicy Bypass -File scripts/run-instagram-public-collector.ps1 -Target preview
 ```
 
-워커는 내부 API의 `GET /api/v1/internal/instagram/watchlist`에서 활성화된 계정만
-받고, 게시물을 `POST /api/v1/raw-posts/collect`로 보냅니다. 한국 신호 3개 중 2개
-(한글 캡션, 원화 가격, 국내 배송/커머스)를 만족하는 공구 후보만
+`-Target local`을 명시하면 기존 로컬 Nest API의
+`GET /api/v1/internal/instagram/watchlist`와 `POST /api/v1/raw-posts/collect`를
+사용합니다. Preview/Production target은 각 Supabase 프로젝트의
+`POST /functions/v1/instagram-public-collector` action contract를 사용합니다.
+
+한국 신호 3개 중 2개(한글 캡션, 원화 가격, 국내 배송/커머스)를 만족하는 공구 후보만
 `REVIEW_REQUIRED`로 생성하며, 제품명·카테고리·구매 URL·일정을 관리자가 보완하기
 전에는 앱에 공개되지 않습니다.
+
+### Production 실행 경계
+
+Production target은 기본적으로 차단됩니다. 로컬 Worker 테스트와 compileall을
+먼저 통과시킨 뒤 래퍼가 preflight 표식을 세우고, 운영자가 명시적으로 실행해야
+합니다. 이 명령도 실제 Production 저장을 수행하므로 테스트 완료 후에만 실행합니다.
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/run-instagram-public-collector.ps1 `
+  -Target production -AllowProductionWrites
+```
+
+Production 실행은 이 명령을 직접 호출한 경우에만 가능하며, 이 저장소의 일반
+`develop` PR/Preview 검증이 Production 수집을 자동 실행하지는 않습니다.
 
 ## 기존 instagrapi 워커
 

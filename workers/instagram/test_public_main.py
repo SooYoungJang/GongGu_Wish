@@ -2,7 +2,11 @@ import random
 import unittest
 from datetime import datetime, timezone
 
-from public_main import PublicInstagramWorker, bounded_next_run
+from public_main import (
+    PublicInstagramWorker,
+    SupabaseCollectorApi,
+    bounded_next_run,
+)
 
 
 class FakeApi:
@@ -32,7 +36,56 @@ class FakeCollector:
         return [{"instagramPostId": f"p:{username}"}]
 
 
+class FakeResponse:
+    ok = True
+    status_code = 200
+
+    def __init__(self, payload):
+        self.payload = payload
+
+    def json(self):
+        return self.payload
+
+
+class FakeSession:
+    def __init__(self):
+        self.headers = {}
+        self.calls = []
+
+    def request(self, method, url, **kwargs):
+        self.calls.append((method, url, kwargs))
+        return FakeResponse({"items": []})
+
+
 class PublicMainTest(unittest.TestCase):
+    def test_supabase_collector_api_uses_action_contract_and_token(self):
+        session = FakeSession()
+        api = SupabaseCollectorApi(
+            "https://preview.example/functions/v1/instagram-public-collector",
+            "collector-secret",
+            session=session,
+        )
+
+        self.assertEqual(api.watchlist(), [])
+        api.collect_post({"instagramPostId": "post-1"})
+        api.update_status(
+            "influencer-1",
+            status="SUCCESS",
+            attempt_at=datetime(2026, 8, 8, tzinfo=timezone.utc),
+            next_run_at=datetime(2026, 8, 8, 0, 15, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(session.headers["X-Collector-Token"], "collector-secret")
+        self.assertEqual(
+            [call[2]["json"]["action"] for call in session.calls],
+            ["watchlist", "collect", "status"],
+        )
+        self.assertEqual(
+            session.calls[1][2]["json"]["post"],
+            {"instagramPostId": "post-1"},
+        )
+        self.assertEqual(session.calls[2][2]["json"]["influencerId"], "influencer-1")
+
     def test_next_run_stays_inside_bounded_jitter_window(self):
         clock = lambda: datetime(2026, 8, 8, tzinfo=timezone.utc)
         next_run = bounded_next_run(900, 300, rng=random.Random(1), clock=clock)
