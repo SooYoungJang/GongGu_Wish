@@ -88,6 +88,7 @@ export type GroupBuy = {
   brandName: string | null;
   instagramUsername: string | null;
   profileImageUrl?: string | null;
+  originalPostUrl: string | null;
   category: string | null;
   startDate: string | null;
   endDate: string | null;

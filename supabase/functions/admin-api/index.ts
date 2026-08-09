@@ -113,6 +113,13 @@ const GROUP_BUY_SELECT = `
     instagram_username,
     profile_image_url
   ),
+  raw_post:raw_post_id (
+    id,
+    post_url,
+    instagram_post_id,
+    taken_at,
+    collected_at
+  ),
   category,
   start_date,
   end_date,
@@ -512,8 +519,20 @@ function relatedInfluencerRecord(
     : null;
 }
 
+function relatedRawPostRecord(
+  row: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const relatedRawPost = Array.isArray(row.raw_post)
+    ? row.raw_post[0]
+    : row.raw_post;
+  return relatedRawPost && typeof relatedRawPost === "object"
+    ? (relatedRawPost as Record<string, unknown>)
+    : null;
+}
+
 function mapGroupBuy(row: Record<string, unknown>) {
   const influencer = relatedInfluencerRecord(row);
+  const rawPost = relatedRawPostRecord(row);
 
   return {
     id: row.id,
@@ -523,6 +542,8 @@ function mapGroupBuy(row: Record<string, unknown>) {
       row.instagram_username ?? influencer?.instagram_username ?? null,
     influencerId: row.influencer_id,
     profileImageUrl: normalizeProfileImageUrl(influencer?.profile_image_url),
+    originalPostUrl:
+      typeof rawPost?.post_url === "string" ? rawPost.post_url : null,
     category: row.category,
     startDate: row.start_date,
     endDate: row.end_date,

@@ -29,6 +29,20 @@ type CollectedPost = {
   collectionSource: "PLAYWRIGHT_PUBLIC";
 };
 
+type ParsedAutomaticCaption = ReturnType<typeof parseSubmissionCaption>;
+type ExistingCampaign = {
+  id: string;
+  raw_post_id: string | null;
+  status: string;
+};
+
+const AUTOMATIC_PRODUCT_CTA_RE =
+  /^(?:공구|공동구매|마켓|특가|할인|프로모션|구매|판매|링크|마감|오픈|프로필|스토리|dm|디엠)(?:\s|[:：\-–—!?]|은|는|이|가|을|를|의|부터|까지)/iu;
+const GENERIC_HASHTAG_RE = /^(?:공구|공동구매|마켓|특가|할인|세일|추천|이벤트)$/iu;
+const GENERIC_PRODUCT_RE =
+  /^(?:공구|공동구매|마켓|특가|할인|프로모션|상품명\s*확인\s*필요)$/iu;
+const TRACKING_QUERY_RE = /^(?:utm_[^=]+|fbclid|gclid|dclid|mc_cid|mc_eid)$/iu;
+
 class CollectorInputError extends Error {}
 
 function json(data: unknown, status = 200) {
@@ -172,6 +186,106 @@ export function normalizeCollectPayload(
   return normalizeCollectedPost(body);
 }
 
+function normalizeCampaignToken(value: string | undefined) {
+  if (!value) return null;
+  const normalized = value
+    .normalize("NFKC")
+    .toLocaleLowerCase("ko-KR")
+    .replace(/\s+/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "")
+    .slice(0, 120);
+  return normalized || null;
+}
+
+function normalizeCampaignUrl(value: string | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    for (const key of [...url.searchParams.keys()]) {
+      if (TRACKING_QUERY_RE.test(key)) url.searchParams.delete(key);
+    }
+    url.hash = "";
+    url.hostname = url.hostname.toLowerCase();
+    url.pathname = url.pathname.replace(/\/$/u, "") || "/";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function hashtagProductName(caption: string) {
+  const candidates = (caption.match(/#[\p{L}\p{N}_-]{2,80}/gu) ?? [])
+    .map((value) => value.slice(1).replace(/(?:공동구매|공구|마켓|특가|할인|세일)$/u, ""))
+    .map((value) => value.trim())
+    .filter((value) => value.length >= 2 && !GENERIC_HASHTAG_RE.test(value));
+  return candidates.sort((left, right) => right.length - left.length)[0] ?? null;
+}
+
+function automaticProductName(
+  productName: string | undefined,
+  brandName: string | undefined,
+  caption: string,
+) {
+  const candidate = productName?.trim().replace(/\s+/gu, " ");
+  if (
+    candidate &&
+    candidate.length >= 2 &&
+    candidate.length <= 120 &&
+    !AUTOMATIC_PRODUCT_CTA_RE.test(candidate) &&
+    !GENERIC_PRODUCT_RE.test(candidate)
+  ) {
+    return candidate;
+  }
+
+  const hashtag = hashtagProductName(caption);
+  if (hashtag) return hashtag;
+
+  const brand = brandName?.trim().replace(/\s+/gu, " ");
+  if (brand && brand.length >= 2 && brand.length <= 80) {
+    return `${brand} 공구`;
+  }
+  return null;
+}
+
+function normalizeCampaignDate(value: string | undefined) {
+  return value ? value.slice(0, 10) : "";
+}
+
+export function normalizeAutoParsedCaption(
+  parsed: ParsedAutomaticCaption,
+  caption: string,
+): ParsedAutomaticCaption {
+  const productName = automaticProductName(
+    parsed.productName,
+    parsed.brandName,
+    caption,
+  );
+  return {
+    ...parsed,
+    productName: productName ?? (parsed.purchaseUrl ? "상품명 확인 필요" : undefined),
+  };
+}
+
+export function buildCampaignDedupeKey(parsed: ParsedAutomaticCaption) {
+  const purchaseUrl = normalizeCampaignUrl(parsed.purchaseUrl);
+  const productName = normalizeCampaignToken(parsed.productName);
+  const brandName = normalizeCampaignToken(parsed.brandName);
+  const identity = purchaseUrl
+    ? `url:${purchaseUrl}`
+    : productName && !GENERIC_PRODUCT_RE.test(productName)
+      ? `product:${productName}|brand:${brandName ?? ""}`
+      : null;
+  if (!identity) return null;
+
+  return [
+    "PLAYWRIGHT_PUBLIC",
+    identity,
+    `start:${normalizeCampaignDate(parsed.startDate)}`,
+    `end:${normalizeCampaignDate(parsed.endDate)}`,
+  ].join("|");
+}
+
 type AdminClient = ReturnType<typeof createAdminClient>;
 
 async function sha256(input: string) {
@@ -269,12 +383,133 @@ async function findRawPost(
   return byHash;
 }
 
+async function findExistingCampaign(
+  supabase: AdminClient,
+  dedupeKey: string,
+): Promise<ExistingCampaign | null> {
+  const { data, error } = await supabase
+    .from("group_buys")
+    .select("id,raw_post_id,status")
+    .eq("dedupe_key", dedupeKey)
+    .maybeSingle();
+  if (error) throw error;
+  if (data?.id) {
+    return {
+      id: String(data.id),
+      raw_post_id: data.raw_post_id ? String(data.raw_post_id) : null,
+      status: String(data.status ?? "REVIEW_REQUIRED"),
+    };
+  }
+
+  // Rows created before dedupe_key was introduced are matched once and
+  // backfilled, so an existing Preview/Production review is not requeued.
+  const { data: legacyRows, error: legacyError } = await supabase
+    .from("group_buys")
+    .select(
+      "id,raw_post_id,status,dedupe_key,product_name,brand_name,purchase_url,start_date,end_date,raw_post:raw_post_id(caption)",
+    )
+    .eq("source_type", "PLAYWRIGHT_PUBLIC")
+    .is("dedupe_key", null)
+    .limit(200);
+  if (legacyError) throw legacyError;
+
+  for (const row of legacyRows ?? []) {
+    const rawPost = Array.isArray(row.raw_post) ? row.raw_post[0] : row.raw_post;
+    const caption =
+      rawPost && typeof rawPost === "object" && typeof rawPost.caption === "string"
+        ? rawPost.caption
+        : "";
+    const legacyParsed = normalizeAutoParsedCaption(
+      {
+        productName:
+          typeof row.product_name === "string" ? row.product_name : undefined,
+        brandName: typeof row.brand_name === "string" ? row.brand_name : undefined,
+        purchaseUrl:
+          typeof row.purchase_url === "string" ? row.purchase_url : undefined,
+        startDate:
+          typeof row.start_date === "string"
+            ? normalizeCampaignDate(row.start_date)
+            : undefined,
+        endDate:
+          typeof row.end_date === "string"
+            ? normalizeCampaignDate(row.end_date)
+            : undefined,
+      },
+      caption,
+    );
+    if (buildCampaignDedupeKey(legacyParsed) !== dedupeKey) continue;
+
+    const { error: backfillError } = await supabase
+      .from("group_buys")
+      .update({ dedupe_key: dedupeKey })
+      .eq("id", String(row.id))
+      .is("dedupe_key", null);
+    if (backfillError && backfillError.code !== "23505") throw backfillError;
+
+    const { data: matched, error: matchedError } = await supabase
+      .from("group_buys")
+      .select("id,raw_post_id,status")
+      .eq("dedupe_key", dedupeKey)
+      .maybeSingle();
+    if (matchedError) throw matchedError;
+    const selected = matched ?? row;
+    return selected?.id
+      ? {
+          id: String(selected.id),
+          raw_post_id: selected.raw_post_id
+            ? String(selected.raw_post_id)
+            : null,
+          status: String(selected.status ?? "REVIEW_REQUIRED"),
+        }
+      : null;
+  }
+
+  return null;
+}
+
+async function attachLatestCampaignPost(
+  supabase: AdminClient,
+  campaign: ExistingCampaign,
+  post: CollectedPost,
+  rawPostId: string,
+  influencerId: string,
+  parsed: ParsedAutomaticCaption,
+) {
+  if (campaign.status === "REJECTED" || campaign.status === "EXPIRED") {
+    return campaign.id;
+  }
+
+  const update: Record<string, unknown> = {
+    raw_post_id: rawPostId,
+    influencer_id: influencerId,
+    updated_at: new Date().toISOString(),
+  };
+  if (campaign.status === "REVIEW_REQUIRED") {
+    update.product_name = parsed.productName ?? null;
+    update.brand_name = parsed.brandName ?? null;
+    update.start_date = parsed.startDate ?? null;
+    update.end_date = parsed.endDate ?? null;
+    update.purchase_url = parsed.purchaseUrl ?? null;
+    update.discount_info = parsed.discountInfo ?? null;
+    update.price_krw = parsed.priceKrw ?? null;
+    update.summary = post.caption.slice(0, 500);
+  }
+
+  const { error } = await supabase
+    .from("group_buys")
+    .update(update)
+    .eq("id", campaign.id);
+  if (error) throw error;
+  return campaign.id;
+}
+
 async function createGroupBuy(
   supabase: AdminClient,
   post: CollectedPost,
   rawPostId: string,
   influencerId: string,
-  parsed: ReturnType<typeof parseSubmissionCaption>,
+  parsed: ParsedAutomaticCaption,
+  dedupeKey: string,
 ) {
   const { data, error } = await supabase
     .from("group_buys")
@@ -282,6 +517,7 @@ async function createGroupBuy(
       id: crypto.randomUUID(),
       raw_post_id: rawPostId,
       influencer_id: influencerId,
+      dedupe_key: dedupeKey,
       product_name: parsed.productName ?? null,
       brand_name: parsed.brandName ?? null,
       start_date: parsed.startDate ?? null,
@@ -306,6 +542,18 @@ async function createGroupBuy(
         .maybeSingle();
       if (findError) throw findError;
       if (existing?.id) return String(existing.id);
+
+      const campaign = await findExistingCampaign(supabase, dedupeKey);
+      if (campaign) {
+        return attachLatestCampaignPost(
+          supabase,
+          campaign,
+          post,
+          rawPostId,
+          influencerId,
+          parsed,
+        );
+      }
     }
     throw error;
   }
@@ -333,33 +581,53 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
   const isCandidate = isGroupBuyCandidate(post.caption);
   const koreaSignals = classifyKoreaCaption(post.caption);
   const isKoreaCandidate = koreaSignals.isKoreaCandidate;
-  let parsed: ReturnType<typeof parseSubmissionCaption> = {};
+  let parsed: ParsedAutomaticCaption = {};
   let parseError: string | null = null;
   if (isCandidate && isKoreaCandidate) {
     try {
-      parsed = parseSubmissionCaption(post.caption, {
-        referenceDate: new Date(post.takenAt),
-      });
+      parsed = normalizeAutoParsedCaption(
+        parseSubmissionCaption(post.caption, {
+          referenceDate: new Date(post.takenAt),
+        }),
+        post.caption,
+      );
+      if (!buildCampaignDedupeKey(parsed)) {
+        parseError = "자동 수집 상품 식별 정보가 없습니다.";
+      }
     } catch (error) {
       parseError =
         error instanceof Error ? error.message.slice(0, 500) : "parse failed";
     }
   }
+  const campaignDedupeKey = parseError ? null : buildCampaignDedupeKey(parsed);
+  const shouldCreateGroupBuy = Boolean(
+    isCandidate && isKoreaCandidate && campaignDedupeKey,
+  );
 
   const existing = await findRawPost(supabase, post, contentHash);
   if (existing?.id) {
     const groupBuy = await findGroupBuy(supabase, String(existing.id));
-    const groupBuyId = groupBuy?.id
-      ? String(groupBuy.id)
-      : isCandidate && isKoreaCandidate
-        ? await createGroupBuy(
+    let groupBuyId = groupBuy?.id ? String(groupBuy.id) : null;
+    if (!groupBuyId && shouldCreateGroupBuy && campaignDedupeKey) {
+      const campaign = await findExistingCampaign(supabase, campaignDedupeKey);
+      groupBuyId = campaign
+        ? await attachLatestCampaignPost(
             supabase,
+            campaign,
             post,
             String(existing.id),
             influencerId,
             parsed,
           )
-        : null;
+        : await createGroupBuy(
+            supabase,
+            post,
+            String(existing.id),
+            influencerId,
+            parsed,
+            campaignDedupeKey,
+          );
+    }
     return {
       created: false,
       duplicate: true,
@@ -392,7 +660,7 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
       is_korea_candidate: isKoreaCandidate,
       collection_source: "PLAYWRIGHT_PUBLIC",
       parsing_status: parsingStatus,
-      parsed_at: isCandidate && isKoreaCandidate ? now : null,
+      parsed_at: shouldCreateGroupBuy ? now : null,
       parse_error: parseError,
       updated_at: now,
     })
@@ -401,13 +669,14 @@ async function collectPost(supabase: AdminClient, post: CollectedPost) {
   if (rawPostError) throw rawPostError;
 
   const groupBuyId =
-    isCandidate && isKoreaCandidate
+    shouldCreateGroupBuy && campaignDedupeKey
       ? await createGroupBuy(
           supabase,
           post,
           String(rawPost.id),
           influencerId,
           parsed,
+          campaignDedupeKey,
         )
       : null;
   return {

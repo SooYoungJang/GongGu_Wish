@@ -80,6 +80,15 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
+.source-link {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
 /* ===== Boot / Login ===== */
 .boot-screen,
 .login-page {

@@ -43,6 +43,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 logger = logging.getLogger("instagram-public-worker")
+MAX_POSTS_PER_ACCOUNT = 3
 
 
 class PublicCollectionError(RuntimeError):
@@ -76,6 +77,28 @@ def now_utc() -> datetime:
 
 def isoformat(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat()
+
+
+def _taken_at_sort_key(post: dict[str, Any]) -> tuple[int, datetime]:
+    value = post.get("takenAt")
+    if not isinstance(value, str) or not value.strip():
+        return (0, datetime.min.replace(tzinfo=timezone.utc))
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return (0, datetime.min.replace(tzinfo=timezone.utc))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return (1, parsed.astimezone(timezone.utc))
+
+
+def latest_posts(
+    posts: list[dict[str, Any]],
+    limit: int = MAX_POSTS_PER_ACCOUNT,
+) -> list[dict[str, Any]]:
+    """Return at most the newest three posts; undated posts are considered last."""
+    bounded_limit = max(1, min(int(limit), MAX_POSTS_PER_ACCOUNT))
+    return sorted(posts, key=_taken_at_sort_key, reverse=True)[:bounded_limit]
 
 
 def bounded_next_run(
@@ -235,9 +258,9 @@ class SupabaseCollectorApi:
 
 
 class PublicInstagramCollector:
-    def __init__(self, context: BrowserContext, limit: int = 12) -> None:
+    def __init__(self, context: BrowserContext, limit: int = MAX_POSTS_PER_ACCOUNT) -> None:
         self.context = context
-        self.limit = limit
+        self.limit = max(1, min(int(limit), MAX_POSTS_PER_ACCOUNT))
 
     def _check_page(self, page: Page, response: Any) -> None:
         status_code = getattr(response, "status", None)
@@ -256,7 +279,11 @@ class PublicInstagramCollector:
             profile_url = f"https://www.instagram.com/{normalized_username}/"
             response = page.goto(profile_url, wait_until="domcontentloaded", timeout=30_000)
             self._check_page(page, response)
-            links = extract_profile_posts(page.content(), profile_url, limit=self.limit)
+            links = extract_profile_posts(
+                page.content(),
+                profile_url,
+                limit=min(self.limit * 2, MAX_POSTS_PER_ACCOUNT * 2),
+            )
             posts: list[dict[str, Any]] = []
             for link in links:
                 response = page.goto(link.post_url, wait_until="domcontentloaded", timeout=30_000)
@@ -268,11 +295,15 @@ class PublicInstagramCollector:
                     "caption": parsed.caption,
                     "postUrl": parsed.post_url,
                     "imageUrl": parsed.image_url,
-                    "takenAt": parsed.taken_at or isoformat(now_utc()),
+                    "takenAt": parsed.taken_at,
                     "collectedAt": isoformat(now_utc()),
                     "collectionSource": "PLAYWRIGHT_PUBLIC",
                 })
-            return posts
+            selected = latest_posts(posts, self.limit)
+            for post in selected:
+                if not post["takenAt"]:
+                    post["takenAt"] = post["collectedAt"]
+            return selected
         except PublicCollectionError:
             raise
         except Exception as error:
@@ -396,7 +427,12 @@ def main() -> None:
     )
     poll_interval_seconds = env_int("INSTAGRAM_PUBLIC_POLL_INTERVAL_SECONDS", 900, 60, 86_400)
     jitter_seconds = env_int("INSTAGRAM_PUBLIC_JITTER_SECONDS", 300, 0, 3_600)
-    limit = env_int("INSTAGRAM_PUBLIC_POST_LIMIT", 12, 1, 50)
+    limit = env_int(
+        "INSTAGRAM_PUBLIC_POST_LIMIT",
+        MAX_POSTS_PER_ACCOUNT,
+        1,
+        MAX_POSTS_PER_ACCOUNT,
+    )
 
     storage_state = load_storage_state()
     with sync_playwright() as playwright:

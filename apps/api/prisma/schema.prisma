@@ -94,6 +94,7 @@ model GroupBuy {
   id                       String                         @id @default(uuid())
   rawPostId                String?                        @unique @map("raw_post_id")
   rawPost                  RawPost?                       @relation(fields: [rawPostId], references: [id], onDelete: Cascade)
+  dedupeKey                String?                        @unique @map("dedupe_key")
   influencerId             String?                        @map("influencer_id")
   influencer               Influencer?                    @relation("GroupBuyInfluencer", fields: [influencerId], references: [id], onDelete: SetNull)
   productName              String?                        @map("product_name")
