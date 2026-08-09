@@ -693,7 +693,10 @@ async function listGroupBuyRequests(
   supabase: AdminClient,
   params: AdminRequest["params"],
 ) {
-  const page = Math.min(Math.floor(listParam(params, "page", 1)), 1_000_000);
+  const page = Math.min(
+    Math.floor(listParam(params, "page", 1)),
+    1_000_000,
+  );
   const limit = Math.min(Math.floor(listParam(params, "limit", 30)), 100);
   const status = str(params?.status);
   const q = sanitizeSearch(str(params?.q));
