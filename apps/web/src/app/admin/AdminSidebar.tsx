@@ -7,7 +7,7 @@ const adminNav = [
   { href: "/admin/dashboard", label: "대시보드" },
   { href: "/admin/submissions", label: "제보 검수" },
   { href: "/admin/influencers", label: "인플루언서 관리" },
-  { href: "/admin/group-buys", label: "공구 관리" },
+  { href: "/admin/group-buys", label: "자동 수집 검수" },
 ] as const;
 
 interface AdminSidebarProps {

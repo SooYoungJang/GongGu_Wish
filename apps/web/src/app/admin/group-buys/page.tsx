@@ -149,10 +149,13 @@ export default function AdminGroupBuysPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-3xl font-bold text-neutral-900">공구 후보 검수</h1>
+        <h1 className="text-3xl font-bold text-neutral-900">자동 수집 검수</h1>
         <p className="text-neutral-500 mt-1">
-          Playwright 공개 수집 후보는 필수 정보를 보완하고 승인해야 앱에
-          공개됩니다.
+          사용자 제보가 아닌 Playwright 공개 자동 수집 후보입니다. 필수 정보를
+          보완하고 승인해야 앱에 공개됩니다.
+        </p>
+        <p className="mt-3 inline-flex rounded-full bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700">
+          자동 수집 후보 · 사용자 제보 아님
         </p>
       </header>
 
