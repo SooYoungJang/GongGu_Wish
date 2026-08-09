@@ -1,9 +1,14 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { GroupBuyStatus, Prisma } from "@prisma/client";
+import {
+  CollectionReviewStatus,
+  GroupBuyStatus,
+  Prisma,
+} from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { CalendarQueryDto } from "./dto/calendar-query.dto";
@@ -33,6 +38,86 @@ function serializeHomeBannerDates<
         }
       : {}),
   };
+}
+
+const AUTOMATIC_REVIEW_INCLUDE = {
+  rawPost: { include: { influencer: true } },
+  influencer: true,
+} satisfies Prisma.GroupBuyInclude;
+
+type AutomaticReviewGroupBuy = Prisma.GroupBuyGetPayload<{
+  include: typeof AUTOMATIC_REVIEW_INCLUDE;
+}>;
+
+function iso(value: Date | null | undefined) {
+  return value?.toISOString() ?? null;
+}
+
+function automaticReviewMediaItems(value: Prisma.JsonValue) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const url = typeof item.url === "string" ? item.url : null;
+      const mediaType =
+        item.mediaType === "VIDEO" || item.media_type === "VIDEO"
+          ? "VIDEO"
+          : item.mediaType === "IMAGE" || item.media_type === "IMAGE"
+            ? "IMAGE"
+            : null;
+      if (!url || !mediaType) return null;
+      return {
+        url,
+        mediaType,
+        thumbnailUrl:
+          typeof item.thumbnailUrl === "string"
+            ? item.thumbnailUrl
+            : typeof item.thumbnail_url === "string"
+              ? item.thumbnail_url
+              : null,
+      };
+    })
+    .filter((item) => item !== null)
+    .slice(0, 20);
+}
+
+function automaticReviewSnapshot(groupBuy: AutomaticReviewGroupBuy) {
+  const influencer = groupBuy.influencer ?? groupBuy.rawPost?.influencer;
+  const mediaItems = automaticReviewMediaItems(groupBuy.mediaItems);
+  const mediaUrls = mediaItems.map((item) => item.url);
+  if (mediaUrls.length === 0 && groupBuy.rawPost?.imageUrl) {
+    mediaUrls.push(groupBuy.rawPost.imageUrl);
+  }
+
+  return {
+    schemaVersion: 1,
+    rawPostId: groupBuy.rawPostId,
+    instagramPostId: groupBuy.rawPost?.instagramPostId ?? null,
+    originalPostUrl: groupBuy.rawPost?.postUrl ?? null,
+    takenAt: iso(groupBuy.rawPost?.takenAt),
+    productName: groupBuy.productName,
+    brandName: groupBuy.brandName,
+    instagramUsername: influencer?.instagramUsername ?? null,
+    profileImageUrl: influencer?.profileImageUrl ?? null,
+    category: groupBuy.category,
+    startDate: iso(groupBuy.startDate),
+    endDate: iso(groupBuy.endDate),
+    purchaseUrl: groupBuy.purchaseUrl,
+    discountInfo: groupBuy.discountInfo,
+    priceKrw: groupBuy.priceKrw,
+    summary: groupBuy.summary,
+    thumbnailUrl: groupBuy.rawPost?.imageUrl ?? null,
+    mediaUrls,
+    mediaItems,
+    mediaType: mediaItems[0]?.mediaType ?? null,
+    confidence: groupBuy.confidence,
+    postAudioUrl: null,
+    postAudioStartTimeMs: null,
+    postAudioDurationMs: null,
+    isHomeBanner: groupBuy.isHomeBanner,
+    homeBannerStartDate: iso(groupBuy.homeBannerStartDate),
+    homeBannerEndDate: iso(groupBuy.homeBannerEndDate),
+  } satisfies Prisma.InputJsonObject;
 }
 
 @Injectable()
@@ -147,18 +232,10 @@ export class GroupBuysService {
     return serializeHomeBannerDates(updated);
   }
 
-  async approve(id: string) {
+  async approve(id: string, reviewedBy?: string) {
     const groupBuy = await this.prisma.groupBuy.findUnique({
       where: { id },
-      select: {
-        id: true,
-        startDate: true,
-        endDate: true,
-        productName: true,
-        category: true,
-        purchaseUrl: true,
-        sourceType: true,
-      },
+      include: AUTOMATIC_REVIEW_INCLUDE,
     });
 
     if (!groupBuy) {
@@ -182,12 +259,58 @@ export class GroupBuysService {
       );
     }
 
+    if (groupBuy.sourceType === "PLAYWRIGHT_PUBLIC") {
+      if (
+        groupBuy.collectionReviewStatus === CollectionReviewStatus.APPROVED
+      ) {
+        return serializeHomeBannerDates(groupBuy);
+      }
+      if (
+        groupBuy.collectionReviewStatus === CollectionReviewStatus.REJECTED
+      ) {
+        throw new ConflictException("이미 반려된 자동수집 항목입니다.");
+      }
+
+      const reviewedAt = new Date();
+      const result = await this.prisma.groupBuy.updateMany({
+        where: {
+          id,
+          updatedAt: groupBuy.updatedAt,
+          OR: [
+            { collectionReviewStatus: CollectionReviewStatus.PENDING },
+            { collectionReviewStatus: null },
+          ],
+        },
+        data: {
+          status: GroupBuyStatus.APPROVED,
+          rejectionReason: null,
+          reviewedAt,
+          ...(reviewedBy ? { reviewedBy } : {}),
+          collectionReviewStatus: CollectionReviewStatus.APPROVED,
+          collectionReviewedSnapshot: automaticReviewSnapshot(groupBuy),
+        },
+      });
+      const approved = await this.prisma.groupBuy.findUnique({
+        where: { id },
+        include: AUTOMATIC_REVIEW_INCLUDE,
+      });
+      if (!approved) throw new NotFoundException("Group buy not found");
+      if (
+        result.count === 0 &&
+        approved.collectionReviewStatus !== CollectionReviewStatus.APPROVED
+      ) {
+        throw new ConflictException("다른 검수 작업이 먼저 완료되었습니다.");
+      }
+      return serializeHomeBannerDates(approved);
+    }
+
     const approved = await this.prisma.groupBuy.update({
       where: { id },
       data: {
         status: GroupBuyStatus.APPROVED,
         rejectionReason: null,
         reviewedAt: new Date(),
+        ...(reviewedBy ? { reviewedBy } : {}),
       },
       include: { rawPost: { include: { influencer: true } } },
     });
@@ -195,10 +318,65 @@ export class GroupBuysService {
     return serializeHomeBannerDates(approved);
   }
 
-  async reject(id: string, reason: string) {
+  async reject(id: string, reason: string, reviewedBy?: string) {
     const rejectionReason = reason.trim();
     if (!rejectionReason) {
       throw new BadRequestException("반려 사유는 필수입니다.");
+    }
+
+    if (rejectionReason.length > 500) {
+      throw new BadRequestException("반려 사유는 500자 이하여야 합니다.");
+    }
+
+    const groupBuy = await this.prisma.groupBuy.findUnique({
+      where: { id },
+      include: AUTOMATIC_REVIEW_INCLUDE,
+    });
+    if (!groupBuy) throw new NotFoundException("Group buy not found");
+
+    if (groupBuy.sourceType === "PLAYWRIGHT_PUBLIC") {
+      if (
+        groupBuy.collectionReviewStatus === CollectionReviewStatus.REJECTED
+      ) {
+        return serializeHomeBannerDates(groupBuy);
+      }
+      if (
+        groupBuy.collectionReviewStatus === CollectionReviewStatus.APPROVED
+      ) {
+        throw new ConflictException("이미 공구 등록된 자동수집 항목입니다.");
+      }
+
+      const reviewedAt = new Date();
+      const result = await this.prisma.groupBuy.updateMany({
+        where: {
+          id,
+          updatedAt: groupBuy.updatedAt,
+          OR: [
+            { collectionReviewStatus: CollectionReviewStatus.PENDING },
+            { collectionReviewStatus: null },
+          ],
+        },
+        data: {
+          status: GroupBuyStatus.REJECTED,
+          rejectionReason,
+          reviewedAt,
+          ...(reviewedBy ? { reviewedBy } : {}),
+          collectionReviewStatus: CollectionReviewStatus.REJECTED,
+          collectionReviewedSnapshot: automaticReviewSnapshot(groupBuy),
+        },
+      });
+      const rejected = await this.prisma.groupBuy.findUnique({
+        where: { id },
+        include: AUTOMATIC_REVIEW_INCLUDE,
+      });
+      if (!rejected) throw new NotFoundException("Group buy not found");
+      if (
+        result.count === 0 &&
+        rejected.collectionReviewStatus !== CollectionReviewStatus.REJECTED
+      ) {
+        throw new ConflictException("다른 검수 작업이 먼저 완료되었습니다.");
+      }
+      return serializeHomeBannerDates(rejected);
     }
 
     const rejected = await this.prisma.groupBuy.update({
@@ -207,6 +385,7 @@ export class GroupBuysService {
         status: GroupBuyStatus.REJECTED,
         rejectionReason,
         reviewedAt: new Date(),
+        ...(reviewedBy ? { reviewedBy } : {}),
       },
       include: { rawPost: { include: { influencer: true } } },
     });

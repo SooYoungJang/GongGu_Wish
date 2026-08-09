@@ -7,7 +7,23 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
+import {
+  buildCollectionReviewSnapshot,
+  legacyCollectionReviewStatus,
+  reviewTransition,
+  type CollectionReviewSnapshot,
+  type CollectionReviewStatus,
+} from "../_shared/automaticCollectionReview.ts";
 import { isInstagramCdnUrl } from "../_shared/hiker-instagram-audio.ts";
+import {
+  automaticInstagramPostUrl,
+  collectionReviewFilter,
+  CollectionReviewContractError,
+  normalizeRejectionReason,
+  protectPendingAutomaticCatalogPatch,
+  reviewedData,
+  validateApprovalData,
+} from "./automaticCollectionReviewContract.ts";
 import {
   normalizeCommercePatch,
   normalizePersistedPriceKrw,
@@ -59,6 +75,16 @@ interface AdminRequest {
 }
 
 type AdminClient = ReturnType<typeof createAdminClient>;
+
+class AdminRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string,
+  ) {
+    super(message);
+  }
+}
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -138,6 +164,15 @@ const GROUP_BUY_SELECT = `
   post_audio_checked_at,
   confidence,
   status,
+  rejection_reason,
+  reviewed_at,
+  reviewed_by,
+  collection_review_status,
+  collection_proposal_snapshot,
+  collection_reviewed_snapshot,
+  collection_ruleset_version,
+  collection_hiker_used,
+  collection_hiker_lookup_at,
   source_type,
   submission_id,
   is_all_day,
@@ -561,6 +596,15 @@ function mapGroupBuy(row: Record<string, unknown>) {
     postAudioDurationMs: row.post_audio_duration_ms,
     confidence: row.confidence,
     status: row.status,
+    rejectionReason: row.rejection_reason,
+    reviewedAt: row.reviewed_at,
+    reviewedBy: row.reviewed_by,
+    collectionReviewStatus: row.collection_review_status,
+    collectionProposalSnapshot: row.collection_proposal_snapshot,
+    collectionReviewedSnapshot: row.collection_reviewed_snapshot,
+    collectionRulesetVersion: row.collection_ruleset_version,
+    collectionHikerUsed: row.collection_hiker_used === true,
+    collectionHikerLookupAt: row.collection_hiker_lookup_at,
     sourceType: row.source_type,
     submissionId: row.submission_id,
     isAllDay: row.is_all_day,
@@ -622,6 +666,7 @@ async function listGroupBuys(
   const status = str(params?.status);
   const q = sanitizeSearch(str(params?.q));
   const sourceType = str(params?.sourceType);
+  const reviewStatus = collectionReviewFilter(params?.collectionReviewStatus);
 
   let query = supabase
     .from("group_buys")
@@ -631,6 +676,9 @@ async function listGroupBuys(
 
   if (status && status !== "ALL") query = query.eq("status", status);
   if (sourceType) query = query.eq("source_type", sourceType);
+  if (reviewStatus) {
+    query = query.eq("collection_review_status", reviewStatus);
+  }
   if (q) query = query.or(`product_name.ilike.%${q}%,brand_name.ilike.%${q}%`);
 
   const { data, error, count } = await query;
@@ -1240,6 +1288,322 @@ async function lookupHiker(body: Record<string, unknown>) {
   return payload;
 }
 
+function collectionReviewStatusFromRow(
+  row: Record<string, unknown>,
+): CollectionReviewStatus {
+  if (
+    row.collection_review_status === "PENDING" ||
+    row.collection_review_status === "APPROVED" ||
+    row.collection_review_status === "REJECTED"
+  ) {
+    return row.collection_review_status;
+  }
+  return legacyCollectionReviewStatus(row.status);
+}
+
+async function automaticCollectionCandidate(
+  supabase: AdminClient,
+  id: string,
+) {
+  const { data, error } = await supabase
+    .from("group_buys")
+    .select(GROUP_BUY_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) {
+    throw new AdminRequestError(
+      "자동수집 검수 항목을 찾을 수 없습니다.",
+      404,
+      "AUTO_COLLECTION_NOT_FOUND",
+    );
+  }
+  if (data.source_type !== "PLAYWRIGHT_PUBLIC") {
+    throw new AdminRequestError(
+      "Playwright 자동수집 항목만 처리할 수 있습니다.",
+      422,
+      "NOT_AUTO_COLLECTION",
+    );
+  }
+  return data as Record<string, unknown>;
+}
+
+function automaticReviewSnapshot(
+  existing: Record<string, unknown>,
+  data: Record<string, unknown>,
+) {
+  const rawPost = relatedRawPostRecord(existing);
+  return buildCollectionReviewSnapshot({
+    ...mapGroupBuy(existing),
+    ...data,
+    rawPostId: rawPost?.id,
+    instagramPostId: rawPost?.instagram_post_id,
+    originalPostUrl: rawPost?.post_url,
+    takenAt: rawPost?.taken_at,
+  });
+}
+
+function groupBuyProfileWrite(
+  existing: Record<string, unknown>,
+  body: Record<string, unknown>,
+  patch: Record<string, unknown>,
+) {
+  const ownerTouched =
+    hasOwn(body, "instagramUsername") || hasOwn(body, "profileImageUrl");
+  let instagramUsername: string | null = null;
+  let profileImageWrite: ProfileImageWriteIntent = {
+    shouldUpdate: false,
+    profileImageUrl: null,
+  };
+  if (ownerTouched) {
+    const existingInfluencer = relatedInfluencerRecord(existing);
+    const existingInstagramUsername =
+      normalizeInstagramUsername(existing.instagram_username) ??
+      normalizeInstagramUsername(existingInfluencer?.instagram_username);
+    const profileInput: Record<string, unknown> = {
+      ...body,
+      instagramUsername: hasOwn(body, "instagramUsername")
+        ? body.instagramUsername
+        : existingInstagramUsername,
+    };
+    const ownerChanged = hasInstagramOwnerChanged(
+      existingInstagramUsername,
+      profileInput.instagramUsername,
+    );
+    instagramUsername = parseInstagramUsernameWrite(
+      profileInput.instagramUsername,
+    );
+    profileImageWrite = resolveCanonicalProfileImageWriteIntent(
+      profileInput.profileImageUrl,
+      hasOwn(body, "profileImageUrl"),
+      ownerChanged,
+    );
+    delete patch.instagram_username;
+  }
+
+  return {
+    expectedInfluencerId:
+      typeof existing.influencer_id === "string"
+        ? existing.influencer_id
+        : null,
+    instagramUsername,
+    ownerTouched,
+    profileImageUrl: profileImageWrite.profileImageUrl,
+    updateProfileImage: profileImageWrite.shouldUpdate,
+  };
+}
+
+async function persistGroupBuyPatchWithProfile(
+  supabase: AdminClient,
+  id: string,
+  existing: Record<string, unknown>,
+  body: Record<string, unknown>,
+  patch: Record<string, unknown>,
+) {
+  const profileWrite = groupBuyProfileWrite(existing, body, patch);
+
+  const { error: updateError } = await supabase.rpc(
+    "update_group_buy_with_influencer_profile",
+    {
+      p_group_buy_id: id,
+      p_expected_influencer_id: profileWrite.expectedInfluencerId,
+      p_patch: patch,
+      p_owner_touched: profileWrite.ownerTouched,
+      p_instagram_username: profileWrite.instagramUsername,
+      p_profile_image_url: profileWrite.profileImageUrl,
+      p_update_profile_image: profileWrite.updateProfileImage,
+    },
+  );
+  if (updateError) throw new Error(updateError.message);
+
+  const { data, error } = await supabase
+    .from("group_buys")
+    .select(GROUP_BUY_SELECT)
+    .eq("id", id)
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Record<string, unknown>;
+}
+
+async function finalizeAutomaticCollectionApprovalWithProfile(
+  supabase: AdminClient,
+  id: string,
+  existing: Record<string, unknown>,
+  body: Record<string, unknown>,
+  patch: Record<string, unknown>,
+  adminId: string,
+  reviewedSnapshot: CollectionReviewSnapshot,
+) {
+  const profileWrite = groupBuyProfileWrite(existing, body, patch);
+  const { error: updateError } = await supabase.rpc(
+    "finalize_automatic_collection_approval",
+    {
+      p_group_buy_id: id,
+      p_expected_influencer_id: profileWrite.expectedInfluencerId,
+      p_patch: patch,
+      p_owner_touched: profileWrite.ownerTouched,
+      p_instagram_username: profileWrite.instagramUsername,
+      p_profile_image_url: profileWrite.profileImageUrl,
+      p_update_profile_image: profileWrite.updateProfileImage,
+      p_admin_id: adminId,
+      p_reviewed_snapshot: reviewedSnapshot,
+    },
+  );
+  if (updateError?.code === "40001") {
+    throw new AdminRequestError(
+      "다른 검수 작업이 먼저 완료되었습니다.",
+      409,
+      "REVIEW_ALREADY_COMPLETED",
+    );
+  }
+  if (updateError) throw new Error(updateError.message);
+
+  const { data, error } = await supabase
+    .from("group_buys")
+    .select(GROUP_BUY_SELECT)
+    .eq("id", id)
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Record<string, unknown>;
+}
+
+async function approveAutomaticCollection(
+  supabase: AdminClient,
+  id: string,
+  body: Record<string, unknown>,
+  adminId: string,
+) {
+  const existing = await automaticCollectionCandidate(supabase, id);
+  const transition = reviewTransition(
+    collectionReviewStatusFromRow(existing),
+    "APPROVED",
+  );
+  if (transition === "IDEMPOTENT") return mapGroupBuy(existing);
+  if (transition === "CONFLICT") {
+    throw new AdminRequestError(
+      "이미 반려된 자동수집 항목입니다.",
+      409,
+      "REVIEW_ALREADY_COMPLETED",
+    );
+  }
+
+  const finalData = reviewedData(body);
+  validateApprovalData(finalData);
+  const patch = compact(normalizeGroupBuyPatch(finalData, existing));
+  delete patch.status;
+  const reviewedSnapshot = automaticReviewSnapshot(existing, finalData);
+
+  return mapGroupBuy(
+    await finalizeAutomaticCollectionApprovalWithProfile(
+      supabase,
+      id,
+      existing,
+      finalData,
+      patch,
+      adminId,
+      reviewedSnapshot,
+    ),
+  );
+}
+
+async function rejectAutomaticCollection(
+  supabase: AdminClient,
+  id: string,
+  body: Record<string, unknown>,
+  adminId: string,
+) {
+  const existing = await automaticCollectionCandidate(supabase, id);
+  const transition = reviewTransition(
+    collectionReviewStatusFromRow(existing),
+    "REJECTED",
+  );
+  if (transition === "IDEMPOTENT") return mapGroupBuy(existing);
+  if (transition === "CONFLICT") {
+    throw new AdminRequestError(
+      "이미 공구 등록된 자동수집 항목입니다.",
+      409,
+      "REVIEW_ALREADY_COMPLETED",
+    );
+  }
+
+  const finalData = reviewedData(body);
+  const reason = normalizeRejectionReason(body);
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("group_buys")
+    .update({
+      status: "REJECTED",
+      rejection_reason: reason,
+      reviewed_at: now,
+      reviewed_by: adminId,
+      collection_review_status: "REJECTED",
+      collection_reviewed_snapshot: automaticReviewSnapshot(
+        existing,
+        finalData,
+      ),
+      updated_at: now,
+    })
+    .eq("id", id)
+    .eq("collection_review_status", "PENDING")
+    .select(GROUP_BUY_SELECT)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) {
+    throw new AdminRequestError(
+      "다른 검수 작업이 먼저 완료되었습니다.",
+      409,
+      "REVIEW_ALREADY_COMPLETED",
+    );
+  }
+  return mapGroupBuy(data);
+}
+
+async function lookupAutomaticCollectionHiker(
+  supabase: AdminClient,
+  id: string,
+) {
+  const existing = await automaticCollectionCandidate(supabase, id);
+  if (collectionReviewStatusFromRow(existing) !== "PENDING") {
+    throw new AdminRequestError(
+      "처리 완료된 자동수집 히스토리는 Hiker 조회를 할 수 없습니다.",
+      409,
+      "REVIEW_ALREADY_COMPLETED",
+    );
+  }
+  const rawPost = relatedRawPostRecord(existing);
+  const url = automaticInstagramPostUrl(rawPost?.post_url);
+  if (!url) {
+    throw new AdminRequestError(
+      "조회 가능한 Instagram 원본 링크가 없습니다.",
+      422,
+      "INVALID_INSTAGRAM_SOURCE",
+    );
+  }
+
+  const result = await lookupHiker({ url });
+  const now = new Date().toISOString();
+  const { data: updated, error } = await supabase
+    .from("group_buys")
+    .update({
+      collection_hiker_used: true,
+      collection_hiker_lookup_at: now,
+      updated_at: now,
+    })
+    .eq("id", id)
+    .eq("collection_review_status", "PENDING")
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!updated) {
+    throw new AdminRequestError(
+      "Hiker 조회 중 다른 검수 작업이 먼저 완료되었습니다.",
+      409,
+      "REVIEW_ALREADY_COMPLETED",
+    );
+  }
+  return result;
+}
+
 async function handleAdminRequest(req: AdminRequest, adminId: string) {
   const supabase = createAdminClient();
   const { path, method, body = {}, params } = req;
@@ -1284,6 +1648,37 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   if (path === "/admin/group-buys" && method === "GET") {
     return listGroupBuys(supabase, params);
   }
+  if (
+    path.startsWith("/admin/group-buys/") &&
+    path.endsWith("/hiker-lookup") &&
+    method === "POST"
+  ) {
+    return lookupAutomaticCollectionHiker(supabase, path.split("/")[3]);
+  }
+  if (
+    path.startsWith("/admin/group-buys/") &&
+    path.endsWith("/approve") &&
+    method === "POST"
+  ) {
+    return approveAutomaticCollection(
+      supabase,
+      path.split("/")[3],
+      body,
+      adminId,
+    );
+  }
+  if (
+    path.startsWith("/admin/group-buys/") &&
+    path.endsWith("/reject") &&
+    method === "POST"
+  ) {
+    return rejectAutomaticCollection(
+      supabase,
+      path.split("/")[3],
+      body,
+      adminId,
+    );
+  }
   if (path === "/admin/group-buy-requests" && method === "GET") {
     return listGroupBuyRequests(supabase, params);
   }
@@ -1301,70 +1696,26 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
     const { data: existing, error: findError } = await supabase
       .from("group_buys")
       .select(
-        "instagram_username, influencer_id, influencer:influencer_id(instagram_username), is_home_banner, home_banner_start_date, home_banner_end_date",
+        "instagram_username, influencer_id, influencer:influencer_id(instagram_username), is_home_banner, home_banner_start_date, home_banner_end_date, source_type, status, collection_review_status",
       )
       .eq("id", id)
       .single();
     if (findError) throw new Error(findError.message);
 
-    const groupBuyPatch = compact(normalizeGroupBuyPatch(body, existing));
-    const ownerTouched =
-      hasOwn(body, "instagramUsername") || hasOwn(body, "profileImageUrl");
-    let instagramUsername: string | null = null;
-    let profileImageWrite: ProfileImageWriteIntent = {
-      shouldUpdate: false,
-      profileImageUrl: null,
-    };
-    if (ownerTouched) {
-      const existingInfluencer = relatedInfluencerRecord(existing);
-      const existingInstagramUsername =
-        normalizeInstagramUsername(existing.instagram_username) ??
-        normalizeInstagramUsername(existingInfluencer?.instagram_username);
-      const profileInput: Record<string, unknown> = {
-        ...body,
-        instagramUsername: hasOwn(body, "instagramUsername")
-          ? body.instagramUsername
-          : existingInstagramUsername,
-      };
-      const ownerChanged = hasInstagramOwnerChanged(
-        existingInstagramUsername,
-        profileInput.instagramUsername,
-      );
-      instagramUsername = parseInstagramUsernameWrite(
-        profileInput.instagramUsername,
-      );
-      profileImageWrite = resolveCanonicalProfileImageWriteIntent(
-        profileInput.profileImageUrl,
-        hasOwn(body, "profileImageUrl"),
-        ownerChanged,
-      );
-      delete groupBuyPatch.instagram_username;
-    }
-
-    const { error: updateError } = await supabase.rpc(
-      "update_group_buy_with_influencer_profile",
-      {
-        p_group_buy_id: id,
-        p_expected_influencer_id:
-          typeof existing.influencer_id === "string"
-            ? existing.influencer_id
-            : null,
-        p_patch: groupBuyPatch,
-        p_owner_touched: ownerTouched,
-        p_instagram_username: instagramUsername,
-        p_profile_image_url: profileImageWrite.profileImageUrl,
-        p_update_profile_image: profileImageWrite.shouldUpdate,
-      },
+    const groupBuyPatch = protectPendingAutomaticCatalogPatch(
+      existing.source_type,
+      collectionReviewStatusFromRow(existing),
+      compact(normalizeGroupBuyPatch(body, existing)),
     );
-    if (updateError) throw new Error(updateError.message);
-
-    const { data, error } = await supabase
-      .from("group_buys")
-      .select(GROUP_BUY_SELECT)
-      .eq("id", id)
-      .single();
-    if (error) throw new Error(error.message);
-    return mapGroupBuy(data);
+    return mapGroupBuy(
+      await persistGroupBuyPatchWithProfile(
+        supabase,
+        id,
+        existing,
+        body,
+        groupBuyPatch,
+      ),
+    );
   }
 
   if (path === "/admin/cdn-refresh" && method === "GET") {
@@ -1404,6 +1755,12 @@ export async function handler(req: Request) {
     const data = await handleAdminRequest(adminReq, admin.user.id);
     return json({ data });
   } catch (err) {
+    if (err instanceof CollectionReviewContractError) {
+      return json({ error: err.message, code: "VALIDATION_ERROR" }, 422);
+    }
+    if (err instanceof AdminRequestError) {
+      return json({ error: err.message, code: err.code }, err.status);
+    }
     const message =
       err instanceof Error ? err.message : "Internal server error";
     console.error("[admin-api] Error:", message);

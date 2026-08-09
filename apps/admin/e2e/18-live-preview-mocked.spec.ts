@@ -77,9 +77,23 @@ function createMockState() {
       },
     ],
     mediaType: "VIDEO",
+    confidence: 0.92,
     status: "APPROVED",
     sourceType: "SUBMISSION",
     submissionId: submission.id,
+    rejectionReason: null as string | null,
+    reviewedAt: null as string | null,
+    reviewedBy: null as string | null,
+    collectionReviewStatus: null as
+      | "PENDING"
+      | "APPROVED"
+      | "REJECTED"
+      | null,
+    collectionProposalSnapshot: null as Record<string, unknown> | null,
+    collectionReviewedSnapshot: null as Record<string, unknown> | null,
+    collectionRulesetVersion: null as string | null,
+    collectionHikerUsed: false,
+    collectionHikerLookupAt: null as string | null,
     isAllDay: true,
     isMonthlyFeatured: false,
     monthlyFeaturedRank: null,
@@ -206,7 +220,16 @@ async function installMocks(page: Page, state: MockState) {
         data = { items: [state.submission], total: 1 };
         break;
       case "/admin/group-buys":
-        data = { items: [state.groupBuy], total: 1 };
+        {
+          const requestedReviewStatus = payload.params
+            ?.collectionReviewStatus;
+          const items =
+            typeof requestedReviewStatus !== "string" ||
+            requestedReviewStatus === state.groupBuy.collectionReviewStatus
+              ? [state.groupBuy]
+              : [];
+          data = { items, total: items.length };
+        }
         break;
       case "/admin/group-buy-requests":
         state.groupBuyRequestCalls.push(payload.params ?? {});
@@ -269,6 +292,84 @@ async function installMocks(page: Page, state: MockState) {
           mediaUrls: [],
           mediaType: "IMAGE",
         };
+        break;
+      case `/admin/group-buys/${state.groupBuy.id}/hiker-lookup`:
+        expect(payload.method).toBe("POST");
+        state.hikerLookups += 1;
+        state.groupBuy.collectionHikerUsed = true;
+        state.groupBuy.collectionHikerLookupAt =
+          "2035-07-02T09:20:00.000Z";
+        data = {
+          imageUrl: imageDataUrl,
+          thumbnailUrl: imageDataUrl,
+          videoUrl: null,
+          mediaUrls: [imageDataUrl],
+          mediaItems: [{ url: imageDataUrl, mediaType: "IMAGE" }],
+          mediaType: "IMAGE",
+          caption: "Hiker 자동 보완 공구 게시물",
+          likeCount: 25,
+          username: "hiker_auto_shop",
+          profileImageUrl: imageDataUrl,
+          takenAt: "2035-07-01T08:00:00.000Z",
+          suggestions: {
+            source: "llm",
+            productName: "Hiker 자동 보완 공구",
+            brandName: "Hiker 브랜드",
+            category: "living",
+            discountInfo: "Hiker 확인 할인",
+            startDate: "2035-07-03",
+            endDate: "2035-07-15",
+            priceKrw: "25900",
+          },
+        };
+        break;
+      case `/admin/group-buys/${state.groupBuy.id}/approve`:
+        {
+          expect(payload.method).toBe("POST");
+          state.updates.push({
+            path: payload.path,
+            method: payload.method,
+            body,
+          });
+          const reviewedData =
+            body.reviewedData && typeof body.reviewedData === "object"
+              ? (body.reviewedData as Record<string, unknown>)
+              : {};
+          Object.assign(state.groupBuy, reviewedData, {
+            status: "APPROVED",
+            collectionReviewStatus: "APPROVED",
+            collectionReviewedSnapshot: reviewedData,
+            rejectionReason: null,
+            reviewedAt: "2035-07-02T09:30:00.000Z",
+            reviewedBy: "mock-admin-id",
+            updatedAt: "2035-07-02T09:30:00.000Z",
+          });
+          data = state.groupBuy;
+        }
+        break;
+      case `/admin/group-buys/${state.groupBuy.id}/reject`:
+        {
+          expect(payload.method).toBe("POST");
+          state.updates.push({
+            path: payload.path,
+            method: payload.method,
+            body,
+          });
+          const reviewedData =
+            body.reviewedData && typeof body.reviewedData === "object"
+              ? (body.reviewedData as Record<string, unknown>)
+              : {};
+          Object.assign(state.groupBuy, {
+            status: "REJECTED",
+            collectionReviewStatus: "REJECTED",
+            collectionReviewedSnapshot: reviewedData,
+            rejectionReason: String(body.reason ?? ""),
+            reviewedAt: "2035-07-02T09:35:00.000Z",
+            reviewedBy: "mock-admin-id",
+            updatedAt: "2035-07-02T09:35:00.000Z",
+          });
+          data = state.groupBuy;
+        }
         break;
       case `/admin/group-buys/${state.groupBuy.id}`:
         expect(payload.method).toBe("PATCH");
@@ -624,8 +725,13 @@ test("자동 수집 검수 항목은 안전한 Instagram 원본 링크를 제공
   state.groupBuy.status = "REVIEW_REQUIRED";
   state.groupBuy.sourceType = "PLAYWRIGHT_PUBLIC";
   state.groupBuy.submissionId = null;
+  state.groupBuy.collectionReviewStatus = "PENDING";
+  state.groupBuy.collectionRulesetVersion = "mock-latest3-v2";
   state.groupBuy.originalPostUrl =
-    "https://www.instagram.com/p/automatic-source/";
+    "https://www.instagram.com/p/automatic-current/";
+  state.groupBuy.collectionProposalSnapshot = {
+    originalPostUrl: "https://www.instagram.com/p/automatic-source/",
+  };
   await installMocks(page, state);
 
   await login(page);
@@ -651,6 +757,168 @@ test("자동 수집 검수 항목은 안전한 Instagram 원본 링크를 제공
   await expect(sourceLink).toHaveAttribute("rel", "noopener noreferrer");
   await page.screenshot({
     path: resolve(evidenceDir, "admin-auto-collection-source-link.png"),
+    fullPage: true,
+  });
+  expect(consoleErrors).toEqual([]);
+});
+
+test("자동 수집 검수에서 Hiker 보완 뒤 공구 등록하고 이력을 다시 조회한다", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "자동 수집 검수 작업은 Chromium에서 한 번만 검증합니다.",
+  );
+  mkdirSync(evidenceDir, { recursive: true });
+  const consoleErrors = collectConsoleErrors(page);
+  const state = createMockState();
+  state.groupBuy.status = "REVIEW_REQUIRED";
+  state.groupBuy.sourceType = "PLAYWRIGHT_PUBLIC";
+  state.groupBuy.submissionId = null;
+  state.groupBuy.collectionReviewStatus = "PENDING";
+  state.groupBuy.collectionRulesetVersion = "mock-latest3-v2";
+  state.groupBuy.originalPostUrl =
+    "https://www.instagram.com/p/automatic-current/";
+  state.groupBuy.collectionProposalSnapshot = {
+    originalPostUrl: "https://www.instagram.com/p/automatic-collected/",
+  };
+  await installMocks(page, state);
+
+  await login(page);
+  await page
+    .locator("nav.nav-tabs button")
+    .filter({ hasText: "자동 수집 검수" })
+    .click();
+  await page
+    .getByRole("row", { name: /승인된 모바일 라이브 프리뷰 공구/ })
+    .click();
+
+  const detail = page.locator(".detail-panel");
+  await expect(
+    detail.getByRole("link", { name: "Instagram 원본" }),
+  ).toHaveAttribute(
+    "href",
+    "https://www.instagram.com/p/automatic-collected/",
+  );
+  await detail.getByRole("button", { name: "Hiker 조회" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Hiker 데이터로 자동수집 검수 폼을 채웠습니다.",
+  );
+  await expect(detail.getByLabel("제품명")).toHaveValue(
+    "Hiker 자동 보완 공구",
+  );
+  await expect(detail.getByLabel("가격 (원)")).toHaveValue("25900");
+  expect(state.hikerLookups).toBe(1);
+  await page.screenshot({
+    path: resolve(evidenceDir, "admin-auto-collection-hiker-pending.png"),
+    fullPage: true,
+  });
+
+  await detail.getByRole("button", { name: "공구 등록" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "자동수집 공구를 등록했습니다.",
+  );
+  expect(state.updates).toContainEqual(
+    expect.objectContaining({
+      path: "/admin/group-buys/group-buy-live-preview/approve",
+      method: "POST",
+      body: expect.objectContaining({
+        reviewedData: expect.objectContaining({
+          productName: "Hiker 자동 보완 공구",
+          priceKrw: 25900,
+        }),
+      }),
+    }),
+  );
+  state.groupBuy.productName = "공구 관리에서 나중에 수정된 이름";
+
+  await page
+    .getByRole("combobox", { name: "상태 필터" })
+    .selectOption("APPROVED");
+  await page
+    .getByRole("row", { name: /공구 관리에서 나중에 수정된 이름/ })
+    .click();
+  const historyDetail = page.locator(".detail-panel");
+  await expect(historyDetail.getByLabel("제품명")).toBeDisabled();
+  await expect(historyDetail.getByLabel("제품명")).toHaveValue(
+    "Hiker 자동 보완 공구",
+  );
+  await expect(
+    historyDetail.getByRole("button", { name: "공구 등록" }),
+  ).toHaveCount(0);
+  await expect(historyDetail.locator(".audit-card")).toContainText(
+    "mock-admin-id",
+  );
+  await page.screenshot({
+    path: resolve(evidenceDir, "admin-auto-collection-approved-history.png"),
+    fullPage: true,
+  });
+  expect(consoleErrors).toEqual([]);
+});
+
+test("자동 수집 검수 반려 사유와 결정 이력을 보존한다", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "자동 수집 반려 작업은 Chromium에서 한 번만 검증합니다.",
+  );
+  mkdirSync(evidenceDir, { recursive: true });
+  const consoleErrors = collectConsoleErrors(page);
+  const state = createMockState();
+  state.groupBuy.status = "REVIEW_REQUIRED";
+  state.groupBuy.sourceType = "PLAYWRIGHT_PUBLIC";
+  state.groupBuy.submissionId = null;
+  state.groupBuy.collectionReviewStatus = "PENDING";
+  state.groupBuy.collectionRulesetVersion = "mock-latest3-v2";
+  state.groupBuy.originalPostUrl =
+    "https://www.instagram.com/reel/automatic-reject/";
+  state.groupBuy.collectionProposalSnapshot = {
+    originalPostUrl: state.groupBuy.originalPostUrl,
+  };
+  await installMocks(page, state);
+
+  await login(page);
+  await page
+    .locator("nav.nav-tabs button")
+    .filter({ hasText: "자동 수집 검수" })
+    .click();
+  await page
+    .getByRole("row", { name: /승인된 모바일 라이브 프리뷰 공구/ })
+    .click();
+
+  const detail = page.locator(".detail-panel");
+  await detail
+    .getByLabel("반려 사유")
+    .fill("공구 상품이 아닌 일반 게시물");
+  await detail.getByRole("button", { name: "반려", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "자동수집 항목을 반려했습니다.",
+  );
+  expect(state.updates).toContainEqual(
+    expect.objectContaining({
+      path: "/admin/group-buys/group-buy-live-preview/reject",
+      method: "POST",
+      body: expect.objectContaining({
+        reason: "공구 상품이 아닌 일반 게시물",
+        reviewedData: expect.any(Object),
+      }),
+    }),
+  );
+
+  await page
+    .getByRole("combobox", { name: "상태 필터" })
+    .selectOption("REJECTED");
+  await page
+    .getByRole("row", { name: /승인된 모바일 라이브 프리뷰 공구/ })
+    .click();
+  const historyDetail = page.locator(".detail-panel");
+  await expect(historyDetail.getByLabel("제품명")).toBeDisabled();
+  await expect(historyDetail.locator(".audit-card")).toContainText(
+    "공구 상품이 아닌 일반 게시물",
+  );
+  await page.screenshot({
+    path: resolve(evidenceDir, "admin-auto-collection-rejected-history.png"),
     fullPage: true,
   });
   expect(consoleErrors).toEqual([]);

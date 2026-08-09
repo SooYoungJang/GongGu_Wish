@@ -327,6 +327,10 @@ describe("GroupBuysService", () => {
         rejectionReason: "중복",
         reviewedAt: new Date(),
       };
+      prisma.groupBuy.findUnique.mockResolvedValue({
+        id: "gb-1",
+        sourceType: "CRAWLED",
+      });
       prisma.groupBuy.update.mockResolvedValue(rejected);
 
       const result = await service.reject("gb-1", "중복");

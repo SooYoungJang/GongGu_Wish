@@ -11,6 +11,38 @@ export type GroupBuyStatus =
   | "REJECTED"
   | "EXPIRED";
 
+export type CollectionReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type CollectionReviewSnapshot = {
+  schemaVersion: 1;
+  rawPostId: string | null;
+  instagramPostId: string | null;
+  originalPostUrl: string | null;
+  takenAt: string | null;
+  productName: string | null;
+  brandName: string | null;
+  instagramUsername: string | null;
+  profileImageUrl: string | null;
+  category: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  purchaseUrl: string | null;
+  discountInfo: string | null;
+  priceKrw: number | null;
+  summary: string | null;
+  thumbnailUrl: string | null;
+  mediaUrls: string[];
+  mediaItems: MediaAsset[];
+  mediaType: "IMAGE" | "VIDEO" | null;
+  confidence: number | null;
+  postAudioUrl: string | null;
+  postAudioStartTimeMs: number | null;
+  postAudioDurationMs: number | null;
+  isHomeBanner: boolean;
+  homeBannerStartDate: string | null;
+  homeBannerEndDate: string | null;
+};
+
 export type GroupBuyRequestStatus = "OPEN" | "FULFILLED" | "HIDDEN";
 
 export type MediaAsset = {
@@ -104,7 +136,17 @@ export type GroupBuy = {
   postAudioUrl?: string | null;
   postAudioStartTimeMs?: number | null;
   postAudioDurationMs?: number | null;
+  confidence: number | null;
   status: GroupBuyStatus;
+  rejectionReason: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  collectionReviewStatus: CollectionReviewStatus | null;
+  collectionProposalSnapshot: CollectionReviewSnapshot | null;
+  collectionReviewedSnapshot: CollectionReviewSnapshot | null;
+  collectionRulesetVersion: string | null;
+  collectionHikerUsed: boolean;
+  collectionHikerLookupAt: string | null;
   sourceType: string | null;
   submissionId: string | null;
   isAllDay: boolean;

@@ -5,6 +5,7 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   buildCampaignDedupeKey,
+  buildAutomaticProposalSnapshot,
   constantTimeTokenMatches,
   normalizeCollectorAction,
   normalizeCollectPayload,
@@ -171,4 +172,31 @@ Deno.test("treats a changed campaign period as a new review candidate", () => {
   });
 
   assertFalse(first === second);
+});
+
+Deno.test("captures the automatic proposal used for later review learning", () => {
+  const snapshot = buildAutomaticProposalSnapshot(
+    {
+      instagramPostId: "post-1",
+      influencerUsername: "milkable",
+      caption: "국내 배송 실링팬 공구",
+      postUrl: "https://www.instagram.com/p/post-1/",
+      imageUrl: "https://scontent.cdninstagram.com/post.jpg",
+      takenAt: "2026-08-09T00:00:00.000Z",
+      collectedAt: "2026-08-09T00:01:00.000Z",
+      collectionSource: "PLAYWRIGHT_PUBLIC",
+    },
+    "raw-1",
+    {
+      productName: "실링팬",
+      brandName: "로슬러",
+      purchaseUrl: "https://shop.example/items/1",
+    },
+  );
+
+  assertEquals(snapshot.rawPostId, "raw-1");
+  assertEquals(snapshot.originalPostUrl, "https://www.instagram.com/p/post-1/");
+  assertEquals(snapshot.productName, "실링팬");
+  assertEquals(snapshot.mediaType, "IMAGE");
+  assertEquals(snapshot.schemaVersion, 1);
 });

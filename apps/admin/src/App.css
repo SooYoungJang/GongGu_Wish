@@ -785,6 +785,29 @@ a:focus-visible {
   white-space: nowrap;
 }
 
+.review-fieldset {
+  display: grid;
+  min-inline-size: 0;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.review-fieldset:disabled {
+  opacity: 0.78;
+}
+.review-read-only-note {
+  padding: 10px 12px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 /* User inline editor */
 .user-inline-editor {
   display: none;
