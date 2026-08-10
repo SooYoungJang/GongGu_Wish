@@ -216,12 +216,18 @@ def load_storage_state() -> dict[str, Any]:
     return state
 
 
+def normalize_collector_token(value: str) -> str:
+    """Remove a UTF-8 BOM accidentally preserved by a secret manager."""
+    return value.lstrip("\ufeff")
+
+
 class InternalApiClient:
     def __init__(self, base_url: str, collector_token: str, session: requests.Session | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         if not self.base_url.endswith("/api/v1"):
             self.base_url = f"{self.base_url}/api/v1"
         self.session = session or requests.Session()
+        collector_token = normalize_collector_token(collector_token)
         self.session.headers.update({
             "Accept": "application/json",
             "Content-Type": "application/json",
@@ -281,6 +287,7 @@ class SupabaseCollectorApi:
     ) -> None:
         self.function_url = function_url.rstrip("/")
         self.session = session or requests.Session()
+        collector_token = normalize_collector_token(collector_token)
         self.session.headers.update(
             {
                 "Accept": "application/json",
@@ -765,7 +772,7 @@ def main() -> None:
         logger.warning("Instagram watchlist와 랜덤 발견이 모두 비활성화되어 있습니다.")
         return
 
-    collector_token = os.getenv("INSTAGRAM_COLLECTOR_TOKEN")
+    collector_token = normalize_collector_token(os.getenv("INSTAGRAM_COLLECTOR_TOKEN") or "")
     if not collector_token:
         raise SystemExit("INSTAGRAM_COLLECTOR_TOKEN이 필요합니다.")
 
