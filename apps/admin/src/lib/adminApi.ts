@@ -260,6 +260,13 @@ export const adminApi = {
     );
   },
 
+  rejectGroupBuyRequest(id: string) {
+    return requestAdmin<Pick<GroupBuyRequest, "id" | "status">>(
+      `/admin/group-buy-requests/${id}/reject`,
+      "POST",
+    );
+  },
+
   updateGroupBuy(id: string, body: Record<string, unknown>) {
     return requestAdmin<GroupBuy>(`/admin/group-buys/${id}`, "PATCH", {
       body,

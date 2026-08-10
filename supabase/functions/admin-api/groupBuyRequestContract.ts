@@ -1,5 +1,10 @@
 export type AdminGroupBuyRequestStatus = "OPEN" | "FULFILLED" | "HIDDEN";
 
+export type AdminGroupBuyRequestRejectionTransition =
+  | "UPDATE"
+  | "IDEMPOTENT"
+  | "CONFLICT";
+
 export type AdminGroupBuyRequest = {
   id: string;
   productName: string;
@@ -49,6 +54,14 @@ function requiredStatus(value: unknown): AdminGroupBuyRequestStatus {
     return value;
   }
   throw new AdminGroupBuyRequestContractError();
+}
+
+export function groupBuyRequestRejectionTransition(
+  status: AdminGroupBuyRequestStatus,
+): AdminGroupBuyRequestRejectionTransition {
+  if (status === "OPEN") return "UPDATE";
+  if (status === "HIDDEN") return "IDEMPOTENT";
+  return "CONFLICT";
 }
 
 export function mapAdminGroupBuyRequest(

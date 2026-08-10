@@ -32,7 +32,11 @@ import {
   type CdnRefreshStatusRow,
   mapCdnRefreshStatusRow,
 } from "./cdnRefreshStatus.ts";
-import { mapAdminGroupBuyRequestList } from "./groupBuyRequestContract.ts";
+import {
+  groupBuyRequestRejectionTransition,
+  mapAdminGroupBuyRequestList,
+  type AdminGroupBuyRequestStatus,
+} from "./groupBuyRequestContract.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
 import {
   hasInstagramOwnerChanged,
@@ -713,6 +717,61 @@ async function listGroupBuyRequests(
   }
 
   return mapAdminGroupBuyRequestList(data);
+}
+
+function adminGroupBuyRequestStatus(
+  value: unknown,
+): AdminGroupBuyRequestStatus {
+  if (value === "OPEN" || value === "FULFILLED" || value === "HIDDEN") {
+    return value;
+  }
+  throw new Error("공구 요청 상태가 올바르지 않습니다.");
+}
+
+async function rejectGroupBuyRequest(supabase: AdminClient, id: string) {
+  const { data: existing, error: findError } = await supabase
+    .from("group_buy_requests")
+    .select("id, status")
+    .eq("id", id)
+    .maybeSingle();
+  if (findError) throw new Error(findError.message);
+  if (!existing) {
+    throw new AdminRequestError(
+      "공구 요청을 찾을 수 없습니다.",
+      404,
+      "GROUP_BUY_REQUEST_NOT_FOUND",
+    );
+  }
+
+  const transition = groupBuyRequestRejectionTransition(
+    adminGroupBuyRequestStatus(existing.status),
+  );
+  if (transition === "IDEMPOTENT") return { id, status: "HIDDEN" as const };
+  if (transition === "CONFLICT") {
+    throw new AdminRequestError(
+      "이미 공구 등록 처리된 요청입니다.",
+      409,
+      "GROUP_BUY_REQUEST_ALREADY_COMPLETED",
+    );
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("group_buy_requests")
+    .update({ status: "HIDDEN" })
+    .eq("id", id)
+    .eq("status", "OPEN")
+    .select("id")
+    .maybeSingle();
+  if (updateError) throw new Error(updateError.message);
+  if (!updated) {
+    throw new AdminRequestError(
+      "다른 검수 작업이 먼저 완료되었습니다.",
+      409,
+      "GROUP_BUY_REQUEST_ALREADY_COMPLETED",
+    );
+  }
+
+  return { id, status: "HIDDEN" as const };
 }
 
 async function dashboard(supabase: AdminClient) {
@@ -1683,6 +1742,13 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   }
   if (path === "/admin/group-buy-requests" && method === "GET") {
     return listGroupBuyRequests(supabase, params);
+  }
+  if (
+    path.startsWith("/admin/group-buy-requests/") &&
+    path.endsWith("/reject") &&
+    method === "POST"
+  ) {
+    return rejectGroupBuyRequest(supabase, path.split("/")[3]);
   }
   if (path === "/admin/users" && method === "GET") {
     return listUsers(supabase, params);

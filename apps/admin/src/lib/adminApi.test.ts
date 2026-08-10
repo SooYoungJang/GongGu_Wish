@@ -236,6 +236,29 @@ describe("adminApi", () => {
     });
   });
 
+  it("rejects an open group-buy request through the admin review endpoint", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: { id: "request-1", status: "HIDDEN" },
+      }),
+    } as Response);
+
+    await adminApi.rejectGroupBuyRequest("request-1");
+
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
+      path: string;
+      method: string;
+      body: Record<string, unknown>;
+    };
+    expect(request).toMatchObject({
+      path: "/admin/group-buy-requests/request-1/reject",
+      method: "POST",
+      body: {},
+    });
+  });
+
   it("rejects a PATCH response that omits the persisted price field", async () => {
     vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,

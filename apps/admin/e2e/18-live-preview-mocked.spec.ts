@@ -230,6 +230,16 @@ async function installMocks(page: Page, state: MockState) {
         state.groupBuyRequestCalls.push(payload.params ?? {});
         data = { items: [state.groupBuyRequest], total: 1 };
         break;
+      case `/admin/group-buy-requests/${state.groupBuyRequest.id}/reject`:
+        expect(payload.method).toBe("POST");
+        state.updates.push({
+          path: payload.path,
+          method: payload.method,
+          body,
+        });
+        state.groupBuyRequest.status = "HIDDEN";
+        data = { id: state.groupBuyRequest.id, status: "HIDDEN" };
+        break;
       case `/admin/submissions/${state.submission.id}`:
         expect(payload.method).toBe("PATCH");
         state.updates.push({
@@ -641,7 +651,7 @@ test("만료된 공구 카드 프리뷰는 음수 대신 마감으로 표시한�
   expect(consoleErrors).toEqual([]);
 });
 
-test("공구 요청 탭은 집계 수요를 식별 정보 없이 읽기 전용으로 표시한다", async ({
+test("공구 요청 탭에서 집계 수요를 반려하고 이력을 보존한다", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -667,6 +677,10 @@ test("공구 요청 탭은 집계 수요를 식별 정보 없이 읽기 전용�
     }),
   ).toBeVisible();
   await expect(page.locator(".detail-panel")).toHaveCount(0);
+  const desktopReject = page
+    .locator(".desktop-table")
+    .getByRole("button", { name: `${state.groupBuyRequest.productName} 공구 요청 반려` });
+  await expect(desktopReject).toBeVisible();
   await page.screenshot({
     path: resolve(evidenceDir, "admin-group-buy-requests-desktop.png"),
     fullPage: true,
@@ -697,6 +711,24 @@ test("공구 요청 탭은 집계 수요를 식별 정보 없이 읽기 전용�
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,
     ),
   ).toBe(true);
+  const mobileReject = page
+    .locator(".mobile-card-list")
+    .getByRole("button", { name: `${state.groupBuyRequest.productName} 공구 요청 반려` });
+  await expect(mobileReject).toBeVisible();
+  await page.screenshot({
+    path: resolve(evidenceDir, "admin-group-buy-requests-mobile-action-390.png"),
+    fullPage: true,
+  });
+  await mobileReject.click();
+  await expect(page.getByRole("status")).toContainText(
+    "공구 요청을 반려했습니다.",
+  );
+  expect(state.updates).toContainEqual({
+    path: `/admin/group-buy-requests/${state.groupBuyRequest.id}/reject`,
+    method: "POST",
+    body: {},
+  });
+  await expect(page.locator(".mobile-card-list")).toContainText("숨김");
   await page.screenshot({
     path: resolve(evidenceDir, "admin-group-buy-requests-mobile-390.png"),
     fullPage: true,
@@ -880,7 +912,7 @@ test("자동 수집 검수에서 Hiker 보완 뒤 공구 등록하고 이력을 
   expect(consoleErrors).toEqual([]);
 });
 
-test("자동 수집 검수 반려 사유와 결정 이력을 보존한다", async ({
+test("자동 수집 검수는 빈 사유로도 반려하고 기본 사유를 보존한다", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -912,8 +944,9 @@ test("자동 수집 검수 반려 사유와 결정 이력을 보존한다", asyn
     .click();
 
   const detail = page.locator(".detail-panel");
-  await detail.getByLabel("반려 사유").fill("공구 상품이 아닌 일반 게시물");
-  await detail.getByRole("button", { name: "반려", exact: true }).click();
+  const rejectButton = detail.getByRole("button", { name: "반려", exact: true });
+  await expect(rejectButton).toBeEnabled();
+  await rejectButton.click();
   await expect(page.getByRole("status")).toContainText(
     "자동수집 항목을 반려했습니다.",
   );
@@ -922,7 +955,7 @@ test("자동 수집 검수 반려 사유와 결정 이력을 보존한다", asyn
       path: "/admin/group-buys/group-buy-live-preview/reject",
       method: "POST",
       body: expect.objectContaining({
-        reason: "공구 상품이 아닌 일반 게시물",
+        reason: "관리자 반려",
         reviewedData: expect.any(Object),
       }),
     }),
@@ -937,7 +970,7 @@ test("자동 수집 검수 반려 사유와 결정 이력을 보존한다", asyn
   const historyDetail = page.locator(".detail-panel");
   await expect(historyDetail.getByLabel("제품명")).toBeDisabled();
   await expect(historyDetail.locator(".audit-card")).toContainText(
-    "공구 상품이 아닌 일반 게시물",
+    "관리자 반려",
   );
   await page.screenshot({
     path: resolve(evidenceDir, "admin-auto-collection-rejected-history.png"),
