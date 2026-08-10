@@ -13,7 +13,13 @@ enum ParsingStatus {
   EXPORTED
   PARSED
   NOT_GROUP_BUY
+  NOT_KOREA
   FAILED
+}
+
+enum RawPostCollectionSource {
+  LEGACY_INSTAGRAPI
+  PLAYWRIGHT_PUBLIC
 }
 
 enum GroupBuyStatus {
@@ -21,6 +27,12 @@ enum GroupBuyStatus {
   REVIEW_REQUIRED
   REJECTED
   EXPIRED
+}
+
+enum CollectionReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum FeedMediaType {
@@ -42,6 +54,12 @@ model Influencer {
   displayName       String?   @map("display_name")
   profileImageUrl   String?   @map("profile_image_url")
   isActive          Boolean   @default(true) @map("is_active")
+  playwrightCollectionEnabled Boolean @default(false) @map("playwright_collection_enabled")
+  playwrightLastAttemptAt     DateTime? @map("playwright_last_attempt_at")
+  playwrightLastSuccessAt     DateTime? @map("playwright_last_success_at")
+  playwrightLastError         String?   @map("playwright_last_error")
+  playwrightFailureCount      Int       @default(0) @map("playwright_failure_count")
+  playwrightNextRunAt         DateTime? @map("playwright_next_run_at")
   rawPosts          RawPost[]
   groupBuys         GroupBuy[] @relation("GroupBuyInfluencer")
   createdAt         DateTime  @default(now()) @map("created_at")
@@ -61,6 +79,8 @@ model RawPost {
   takenAt         DateTime      @map("taken_at")
   contentHash     String        @unique @map("content_hash")
   isCandidate     Boolean       @default(false) @map("is_candidate")
+  isKoreaCandidate Boolean       @default(false) @map("is_korea_candidate")
+  collectionSource RawPostCollectionSource @default(LEGACY_INSTAGRAPI) @map("collection_source")
   parsingStatus   ParsingStatus @default(NEW) @map("parsing_status")
   exportedAt      DateTime?     @map("exported_at")
   parsedAt        DateTime?     @map("parsed_at")
@@ -72,6 +92,7 @@ model RawPost {
 
   @@index([influencerId])
   @@index([isCandidate, parsingStatus])
+  @@index([collectionSource, isCandidate, isKoreaCandidate])
   @@map("raw_posts")
 }
 
@@ -79,6 +100,7 @@ model GroupBuy {
   id                       String                         @id @default(uuid())
   rawPostId                String?                        @unique @map("raw_post_id")
   rawPost                  RawPost?                       @relation(fields: [rawPostId], references: [id], onDelete: Cascade)
+  dedupeKey                String?                        @unique @map("dedupe_key")
   influencerId             String?                        @map("influencer_id")
   influencer               Influencer?                    @relation("GroupBuyInfluencer", fields: [influencerId], references: [id], onDelete: SetNull)
   productName              String?                        @map("product_name")
@@ -94,6 +116,13 @@ model GroupBuy {
   status                   GroupBuyStatus                 @default(REVIEW_REQUIRED)
   rejectionReason          String?                        @map("rejection_reason")
   reviewedAt               DateTime?                      @map("reviewed_at")
+  reviewedBy               String?                        @map("reviewed_by")
+  collectionReviewStatus   CollectionReviewStatus?        @map("collection_review_status")
+  collectionProposalSnapshot Json?                        @map("collection_proposal_snapshot")
+  collectionReviewedSnapshot Json?                        @map("collection_reviewed_snapshot")
+  collectionRulesetVersion String?                        @map("collection_ruleset_version")
+  collectionHikerUsed      Boolean                        @default(false) @map("collection_hiker_used")
+  collectionHikerLookupAt  DateTime?                      @map("collection_hiker_lookup_at")
   favorites                Favorite[]
   // 제보 출처 추적
   sourceType               String?                        @default("CRAWLED") @map("source_type")
@@ -119,6 +148,7 @@ model GroupBuy {
   @@index([isMonthlyFeatured, monthlyFeaturedRank, endDate])
   @@index([isHomeBanner, homeBannerStartDate, homeBannerEndDate])
   @@index([sourceType])
+  @@index([sourceType, collectionReviewStatus, createdAt], map: "group_buys_source_review_created_idx")
   @@map("group_buys")
 }
 

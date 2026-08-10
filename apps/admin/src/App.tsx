@@ -7,6 +7,7 @@ import {
   type AppLivePreviewDeal,
 } from "@/components/AppLivePreview";
 import { DatePickerField } from "@/components/DatePickerField";
+import { ProfileLinkCandidates } from "@/components/ProfileLinkCandidates";
 import { ProfileImagePreview } from "@/components/ProfileImagePreview";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import {
@@ -27,10 +28,21 @@ import {
   groupBuyStatusForVisibility,
   shouldReturnToGroupBuyList,
 } from "@/lib/groupBuyVisibility";
+import {
+  automaticCollectionOriginalPostUrl,
+  automaticCollectionProfileLinkCandidates,
+  automaticCollectionProfilePurchaseFallback,
+} from "@/lib/automaticCollectionSource";
+import {
+  isReviewRejectDisabled,
+  reviewRejectionReason,
+} from "@/lib/reviewRejection";
 import { supabase } from "@/supabase/client";
 import type {
   CdnRefreshStatus,
   CdnRefreshStatusResponse,
+  CollectionReviewSnapshot,
+  CollectionReviewStatus,
   DashboardResponse,
   GongguSubmission,
   GroupBuy,
@@ -51,6 +63,7 @@ type Notice = { tone: "success" | "error" | "info"; message: string } | null;
 type TabKey =
   | "dashboard"
   | "submissions"
+  | "autoCollection"
   | "groupBuys"
   | "groupBuyRequests"
   | "users"
@@ -101,6 +114,9 @@ type GroupBuyForm = {
   mediaUrlsText: string;
   mediaItems: MediaAsset[];
   mediaType: "" | "IMAGE" | "VIDEO";
+  postAudioUrl: string;
+  postAudioStartTimeMs: number | null;
+  postAudioDurationMs: number | null;
   status: GroupBuyStatus;
   isHomeBanner: boolean;
   homeBannerStartDate: string;
@@ -157,6 +173,16 @@ const GROUP_BUY_STATUS_OPTIONS: Array<{
   { value: "REVIEW_REQUIRED", label: "검수 필요" },
   { value: "REJECTED", label: "반려" },
   { value: "EXPIRED", label: "마감" },
+  { value: "ALL", label: "전체" },
+];
+
+const COLLECTION_REVIEW_STATUS_OPTIONS: Array<{
+  value: "ALL" | CollectionReviewStatus;
+  label: string;
+}> = [
+  { value: "PENDING", label: "검수 대기" },
+  { value: "APPROVED", label: "공구 등록" },
+  { value: "REJECTED", label: "반려" },
   { value: "ALL", label: "전체" },
 ];
 
@@ -260,6 +286,28 @@ function validProfileImageUrl(value: string | null | undefined) {
     return url.protocol === "http:" || url.protocol === "https:"
       ? candidate
       : null;
+  } catch {
+    return null;
+  }
+}
+
+export function validOriginalPostUrl(value: string | null | undefined) {
+  const candidate = value?.trim();
+  if (!candidate) return null;
+
+  try {
+    const url = new URL(candidate);
+    const host = url.hostname.toLowerCase();
+    if (
+      url.protocol !== "https:" ||
+      !["instagram.com", "www.instagram.com", "instagr.am"].includes(host) ||
+      url.search ||
+      url.hash ||
+      !/^\/(?:p|reel|tv)\/[A-Za-z0-9_-]+\/?$/u.test(url.pathname)
+    ) {
+      return null;
+    }
+    return candidate;
   } catch {
     return null;
   }
@@ -437,29 +485,55 @@ export function submissionToForm(item: GongguSubmission): SubmissionForm {
   });
 }
 
-export function groupBuyToForm(item: GroupBuy): GroupBuyForm {
+export function groupBuyToForm(
+  item: GroupBuy,
+  reviewSnapshot: CollectionReviewSnapshot | null = null,
+): GroupBuyForm {
+  const source = reviewSnapshot ?? item;
   return canonicalizeHomeBannerForm({
-    productName: text(item.productName),
-    brandName: text(item.brandName),
-    instagramUsername: text(item.instagramUsername),
-    profileImageUrl: text(item.profileImageUrl),
+    productName: text(source.productName),
+    brandName: text(source.brandName),
+    instagramUsername: text(source.instagramUsername),
+    profileImageUrl: text(source.profileImageUrl),
     profileImageUrlTouched: false,
-    category: text(item.category),
-    startDate: dateInput(item.startDate),
-    endDate: dateInput(item.endDate),
-    purchaseUrl: text(item.purchaseUrl),
-    discountInfo: text(item.discountInfo),
-    priceKrw: priceInputValue(item.priceKrw),
-    summary: text(item.summary),
-    thumbnailUrl: text(item.thumbnailUrl),
-    mediaUrlsText: (item.mediaUrls ?? []).join("\n"),
-    mediaItems: item.mediaItems ?? [],
-    mediaType: item.mediaType ?? "",
+    category: text(source.category),
+    startDate: dateInput(source.startDate),
+    endDate: dateInput(source.endDate),
+    purchaseUrl: text(source.purchaseUrl),
+    discountInfo: text(source.discountInfo),
+    priceKrw: priceInputValue(source.priceKrw),
+    summary: text(source.summary),
+    thumbnailUrl: text(source.thumbnailUrl),
+    mediaUrlsText: (source.mediaUrls ?? []).join("\n"),
+    mediaItems: source.mediaItems ?? [],
+    mediaType: source.mediaType ?? "",
+    postAudioUrl: text(source.postAudioUrl),
+    postAudioStartTimeMs: source.postAudioStartTimeMs ?? null,
+    postAudioDurationMs: source.postAudioDurationMs ?? null,
     status: item.status,
-    isHomeBanner: Boolean(item.isHomeBanner),
-    homeBannerStartDate: dateInput(item.homeBannerStartDate),
-    homeBannerEndDate: dateInput(item.homeBannerEndDate),
+    isHomeBanner: Boolean(source.isHomeBanner),
+    homeBannerStartDate: dateInput(source.homeBannerStartDate),
+    homeBannerEndDate: dateInput(source.homeBannerEndDate),
   });
+}
+
+function groupBuyCollectionReviewStatus(
+  item: GroupBuy,
+): CollectionReviewStatus {
+  if (item.collectionReviewStatus) return item.collectionReviewStatus;
+  if (item.status === "REVIEW_REQUIRED") return "PENDING";
+  if (item.status === "REJECTED") return "REJECTED";
+  return "APPROVED";
+}
+
+function automaticCollectionFormSnapshot(
+  item: GroupBuy,
+  automaticCollection: boolean,
+) {
+  return automaticCollection &&
+    groupBuyCollectionReviewStatus(item) !== "PENDING"
+    ? item.collectionReviewedSnapshot
+    : null;
 }
 
 function mediaItemsForForm(form: SubmissionForm | GroupBuyForm) {
@@ -507,21 +581,17 @@ export function submissionPayload(form: SubmissionForm) {
     mediaType: inferFormMediaType(mediaItems, mediaUrls) || null,
     postAudioUrl: form.postAudioUrl || null,
     postAudioStartTimeMs: form.postAudioUrl
-      ? form.postAudioStartTimeMs ?? 0
+      ? (form.postAudioStartTimeMs ?? 0)
       : null,
-    postAudioDurationMs: form.postAudioUrl
-      ? form.postAudioDurationMs
-      : null,
+    postAudioDurationMs: form.postAudioUrl ? form.postAudioDurationMs : null,
     isHomeBanner: canonicalForm.isHomeBanner,
     homeBannerStartDate: canonicalForm.homeBannerStartDate,
     homeBannerEndDate: canonicalForm.homeBannerEndDate,
   };
 }
 
-export function groupBuyPayload(form: GroupBuyForm) {
+export function groupBuyReviewData(form: GroupBuyForm) {
   const canonicalForm = canonicalizeHomeBannerForm(form);
-  const bannerError = validateHomeBannerForm(canonicalForm);
-  if (bannerError) throw new Error(bannerError);
   const mediaUrls = splitLines(form.mediaUrlsText);
   const mediaItems = mediaItemsForForm(form);
   return {
@@ -541,7 +611,11 @@ export function groupBuyPayload(form: GroupBuyForm) {
     mediaUrls,
     mediaItems,
     mediaType: inferFormMediaType(mediaItems, mediaUrls) || null,
-    status: form.status,
+    postAudioUrl: form.postAudioUrl || null,
+    postAudioStartTimeMs: form.postAudioUrl
+      ? (form.postAudioStartTimeMs ?? 0)
+      : null,
+    postAudioDurationMs: form.postAudioUrl ? form.postAudioDurationMs : null,
     isHomeBanner: canonicalForm.isHomeBanner,
     homeBannerStartDate: canonicalForm.homeBannerStartDate,
     homeBannerEndDate: canonicalForm.homeBannerEndDate,
@@ -698,6 +772,9 @@ function AdminShell({ session }: { session: Session }) {
   const [groupBuyStatus, setGroupBuyStatus] = useState<"ALL" | GroupBuyStatus>(
     "APPROVED",
   );
+  const [collectionReviewStatus, setCollectionReviewStatus] = useState<
+    "ALL" | CollectionReviewStatus
+  >("PENDING");
   const [groupBuyQuery, setGroupBuyQuery] = useState("");
   const debouncedGroupBuyQuery = useDebouncedValue(groupBuyQuery);
   const [groupBuyPage, setGroupBuyPage] = useState(1);
@@ -709,6 +786,9 @@ function AdminShell({ session }: { session: Session }) {
   );
   const [groupBuyForm, setGroupBuyForm] = useState<GroupBuyForm | null>(null);
   const [groupBuyActionLoading, setGroupBuyActionLoading] = useState(false);
+  const [groupBuyHikerLookupLoading, setGroupBuyHikerLookupLoading] =
+    useState(false);
+  const [automaticRejectReason, setAutomaticRejectReason] = useState("");
 
   const [groupBuyRequestStatus, setGroupBuyRequestStatus] = useState<
     "ALL" | GroupBuyRequestStatus
@@ -721,6 +801,8 @@ function AdminShell({ session }: { session: Session }) {
   );
   const [groupBuyRequestsTotal, setGroupBuyRequestsTotal] = useState(0);
   const [groupBuyRequestsLoading, setGroupBuyRequestsLoading] = useState(false);
+  const [groupBuyRequestActionLoading, setGroupBuyRequestActionLoading] =
+    useState<string | null>(null);
 
   const [userQuery, setUserQuery] = useState("");
   const debouncedUserQuery = useDebouncedValue(userQuery);
@@ -746,10 +828,13 @@ function AdminShell({ session }: { session: Session }) {
   const submissionRequestIdRef = useRef(0);
   const hikerLookupRequestIdRef = useRef(0);
   const hikerLookupInFlightRef = useRef(false);
+  const groupBuyHikerLookupRequestIdRef = useRef(0);
+  const groupBuyHikerLookupInFlightRef = useRef(false);
   const groupBuyRequestIdRef = useRef(0);
   const groupBuyRequestsRequestIdRef = useRef(0);
   const userRequestIdRef = useRef(0);
   const selectedSubmissionIdRef = useRef<string | null>(null);
+  const selectedGroupBuyIdRef = useRef<string | null>(null);
   const submissionQueryRef = useRef(submissionQuery);
   const groupBuyQueryRef = useRef(groupBuyQuery);
   const groupBuyRequestQueryRef = useRef(groupBuyRequestQuery);
@@ -759,6 +844,7 @@ function AdminShell({ session }: { session: Session }) {
   groupBuyRequestQueryRef.current = groupBuyRequestQuery;
   userQueryRef.current = userQuery;
   selectedSubmissionIdRef.current = selectedSubmission?.id ?? null;
+  selectedGroupBuyIdRef.current = selectedGroupBuy?.id ?? null;
   const invalidateHikerLookup = useCallback((releaseLoading: boolean) => {
     hikerLookupRequestIdRef.current += 1;
     if (!hikerLookupInFlightRef.current) return;
@@ -768,9 +854,20 @@ function AdminShell({ session }: { session: Session }) {
       setSubmissionActionLoading(false);
     }
   }, []);
+  const invalidateGroupBuyHikerLookup = useCallback(
+    (releaseLoading: boolean) => {
+      groupBuyHikerLookupRequestIdRef.current += 1;
+      if (!groupBuyHikerLookupInFlightRef.current) return;
+      groupBuyHikerLookupInFlightRef.current = false;
+      setGroupBuyHikerLookupLoading(false);
+      if (releaseLoading) setGroupBuyActionLoading(false);
+    },
+    [],
+  );
   const switchTab = useCallback(
     (next: TabKey) => {
       invalidateHikerLookup(true);
+      invalidateGroupBuyHikerLookup(true);
       setDetailType(null);
       setSelectedSubmission(null);
       setSubmissionForm(null);
@@ -779,9 +876,19 @@ function AdminShell({ session }: { session: Session }) {
       setExpandedUserId(null);
       setSelectedUser(null);
       setUserForm(null);
+      if (next === "autoCollection") {
+        setCollectionReviewStatus("PENDING");
+        setAutomaticRejectReason("");
+        setGroupBuyQuery("");
+        setGroupBuyPage(1);
+      } else if (next === "groupBuys") {
+        setGroupBuyStatus("APPROVED");
+        setGroupBuyQuery("");
+        setGroupBuyPage(1);
+      }
       setTab(next);
     },
-    [invalidateHikerLookup],
+    [invalidateGroupBuyHikerLookup, invalidateHikerLookup],
   );
 
   const selectSubmission = useCallback(
@@ -799,13 +906,22 @@ function AdminShell({ session }: { session: Session }) {
 
   const selectGroupBuy = useCallback(
     (item: GroupBuy | null, addHistory = true) => {
+      invalidateGroupBuyHikerLookup(true);
       setSelectedGroupBuy(item);
-      setGroupBuyForm(item ? groupBuyToForm(item) : null);
+      setGroupBuyForm(
+        item
+          ? groupBuyToForm(
+              item,
+              automaticCollectionFormSnapshot(item, tab === "autoCollection"),
+            )
+          : null,
+      );
+      setAutomaticRejectReason(item?.rejectionReason ?? "");
       setDetailType(item ? "groupBuy" : null);
       if (item && addHistory)
         window.history.pushState({ detail: "groupBuy", id: item.id }, "");
     },
-    [],
+    [invalidateGroupBuyHikerLookup, tab],
   );
 
   const selectUser = useCallback((item: AppUser | null) => {
@@ -898,8 +1014,12 @@ function AdminShell({ session }: { session: Session }) {
         const data = await adminApi.listGroupBuys({
           page: groupBuyPage,
           limit: PAGE_SIZE,
-          status: groupBuyStatus,
+          status: tab === "autoCollection" ? undefined : groupBuyStatus,
           q: requestQuery,
+          sourceType:
+            tab === "autoCollection" ? "PLAYWRIGHT_PUBLIC" : undefined,
+          collectionReviewStatus:
+            tab === "autoCollection" ? collectionReviewStatus : undefined,
         });
         if (
           requestId !== groupBuyRequestIdRef.current ||
@@ -913,7 +1033,17 @@ function AdminShell({ session }: { session: Session }) {
             const next = current
               ? (data.items.find((item) => item.id === current.id) ?? null)
               : null;
-            setGroupBuyForm(next ? groupBuyToForm(next) : null);
+            setGroupBuyForm(
+              next
+                ? groupBuyToForm(
+                    next,
+                    automaticCollectionFormSnapshot(
+                      next,
+                      tab === "autoCollection",
+                    ),
+                  )
+                : null,
+            );
             return next;
           });
         }
@@ -936,7 +1066,13 @@ function AdminShell({ session }: { session: Session }) {
           setGroupBuysLoading(false);
       }
     },
-    [debouncedGroupBuyQuery, groupBuyPage, groupBuyStatus],
+    [
+      collectionReviewStatus,
+      debouncedGroupBuyQuery,
+      groupBuyPage,
+      groupBuyStatus,
+      tab,
+    ],
   );
 
   const loadGroupBuyRequests = useCallback(async () => {
@@ -1035,7 +1171,7 @@ function AdminShell({ session }: { session: Session }) {
   }, [loadSubmissions, tab]);
 
   useEffect(() => {
-    if (tab === "groupBuys") void loadGroupBuys();
+    if (tab === "groupBuys" || tab === "autoCollection") void loadGroupBuys();
   }, [loadGroupBuys, tab]);
 
   useEffect(() => {
@@ -1075,7 +1211,8 @@ function AdminShell({ session }: { session: Session }) {
     try {
       await loadDashboard();
       if (tab === "submissions") await loadSubmissions();
-      if (tab === "groupBuys") await loadGroupBuys();
+      if (tab === "groupBuys" || tab === "autoCollection")
+        await loadGroupBuys();
       if (tab === "groupBuyRequests") await loadGroupBuyRequests();
       if (tab === "users") await loadUsers();
       if (tab === "cdnRefresh") await loadCdnStatus();
@@ -1215,7 +1352,7 @@ function AdminShell({ session }: { session: Session }) {
     try {
       await adminApi.rejectSubmission(
         selectedSubmission.id,
-        rejectReason.trim() || "관리자 반려",
+        reviewRejectionReason(rejectReason),
       );
       setNotice({ tone: "success", message: "위시를 반려했습니다." });
       closeDetail();
@@ -1363,6 +1500,122 @@ function AdminShell({ session }: { session: Session }) {
     }
   }
 
+  async function lookupAutomaticGroupBuyHiker() {
+    if (!selectedGroupBuy || !groupBuyForm) return;
+    const groupBuyId = selectedGroupBuy.id;
+    const requestId = ++groupBuyHikerLookupRequestIdRef.current;
+    groupBuyHikerLookupInFlightRef.current = true;
+    setGroupBuyActionLoading(true);
+    setGroupBuyHikerLookupLoading(true);
+    try {
+      const result = await adminApi.lookupAutomaticGroupBuyHiker(groupBuyId);
+      if (
+        requestId !== groupBuyHikerLookupRequestIdRef.current ||
+        selectedGroupBuyIdRef.current !== groupBuyId
+      )
+        return;
+      setGroupBuyForm((current) =>
+        current
+          ? applyHikerResultToGroupBuy(
+              current,
+              result,
+              automaticCollectionProfilePurchaseFallback(selectedGroupBuy) ??
+                "",
+            )
+          : current,
+      );
+      setSelectedGroupBuy((current) =>
+        current?.id === groupBuyId
+          ? {
+              ...current,
+              collectionHikerUsed: true,
+              collectionHikerLookupAt: new Date().toISOString(),
+            }
+          : current,
+      );
+      setNotice({
+        tone: "success",
+        message: "Hiker 데이터로 자동수집 검수 폼을 채웠습니다.",
+      });
+    } catch (error) {
+      if (requestId !== groupBuyHikerLookupRequestIdRef.current) return;
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Hiker 조회 실패",
+      });
+    } finally {
+      if (requestId === groupBuyHikerLookupRequestIdRef.current) {
+        groupBuyHikerLookupInFlightRef.current = false;
+        setGroupBuyActionLoading(false);
+        setGroupBuyHikerLookupLoading(false);
+      }
+    }
+  }
+
+  async function approveAutomaticGroupBuy() {
+    if (!selectedGroupBuy || !groupBuyForm) return;
+    setGroupBuyActionLoading(true);
+    try {
+      const payload = groupBuyPayload(groupBuyForm);
+      invalidateGroupBuyHikerLookup(false);
+      await adminApi.approveAutomaticGroupBuy(selectedGroupBuy.id, payload);
+      setNotice({ tone: "success", message: "자동수집 공구를 등록했습니다." });
+      closeDetail();
+      await loadGroupBuys();
+      await loadDashboard();
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "공구 등록 실패",
+      });
+    } finally {
+      setGroupBuyActionLoading(false);
+    }
+  }
+
+  async function rejectAutomaticGroupBuy() {
+    if (!selectedGroupBuy || !groupBuyForm) return;
+    const reason = reviewRejectionReason(automaticRejectReason);
+    setGroupBuyActionLoading(true);
+    try {
+      invalidateGroupBuyHikerLookup(false);
+      await adminApi.rejectAutomaticGroupBuy(
+        selectedGroupBuy.id,
+        reason,
+        groupBuyReviewData(groupBuyForm),
+      );
+      setNotice({ tone: "success", message: "자동수집 항목을 반려했습니다." });
+      setAutomaticRejectReason("");
+      closeDetail();
+      await loadGroupBuys();
+      await loadDashboard();
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "반려 실패",
+      });
+    } finally {
+      setGroupBuyActionLoading(false);
+    }
+  }
+
+  async function rejectGroupBuyRequest(item: GroupBuyRequest) {
+    if (item.status !== "OPEN") return;
+    setGroupBuyRequestActionLoading(item.id);
+    try {
+      await adminApi.rejectGroupBuyRequest(item.id);
+      setNotice({ tone: "success", message: "공구 요청을 반려했습니다." });
+      await loadGroupBuyRequests();
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "공구 요청 반려 실패",
+      });
+    } finally {
+      setGroupBuyRequestActionLoading(null);
+    }
+  }
+
   async function saveGroupBuy() {
     if (!selectedGroupBuy || !groupBuyForm) return;
     setGroupBuyActionLoading(true);
@@ -1371,10 +1624,10 @@ function AdminShell({ session }: { session: Session }) {
       const next = await adminApi.updateGroupBuy(selectedGroupBuy.id, payload);
       assertPersistedPriceMatches(payload.priceKrw, next.priceKrw);
 
-      const returnToList = shouldReturnToGroupBuyList(
-        groupBuyStatus,
-        next.status,
-      );
+      const returnToList =
+        tab === "autoCollection"
+          ? false
+          : shouldReturnToGroupBuyList(groupBuyStatus, next.status);
       const refreshed = await loadGroupBuys({
         syncSelected: false,
         rethrowOnError: true,
@@ -1428,6 +1681,7 @@ function AdminShell({ session }: { session: Session }) {
 
   function closeDetail() {
     invalidateHikerLookup(true);
+    invalidateGroupBuyHikerLookup(true);
     setDetailType(null);
     setSelectedSubmission(null);
     setSubmissionForm(null);
@@ -1439,6 +1693,7 @@ function AdminShell({ session }: { session: Session }) {
   useEffect(() => {
     function handlePopState() {
       invalidateHikerLookup(true);
+      invalidateGroupBuyHikerLookup(true);
       setDetailType(null);
       setSelectedSubmission(null);
       setSubmissionForm(null);
@@ -1447,7 +1702,7 @@ function AdminShell({ session }: { session: Session }) {
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [invalidateHikerLookup]);
+  }, [invalidateGroupBuyHikerLookup, invalidateHikerLookup]);
 
   async function toggleGroupBuyVisibility(hide: boolean) {
     if (!selectedGroupBuy) return;
@@ -1591,6 +1846,15 @@ function AdminShell({ session }: { session: Session }) {
             <strong>위시 검수</strong>
           </button>
           <button
+            aria-current={tab === "autoCollection" ? "page" : undefined}
+            className={tab === "autoCollection" ? "active" : ""}
+            onClick={() => switchTab("autoCollection")}
+            type="button"
+          >
+            <span>Playwright collection</span>
+            <strong>자동 수집 검수</strong>
+          </button>
+          <button
             aria-current={tab === "groupBuys" ? "page" : undefined}
             className={tab === "groupBuys" ? "active" : ""}
             onClick={() => switchTab("groupBuys")}
@@ -1712,11 +1976,18 @@ function AdminShell({ session }: { session: Session }) {
         {showGroupBuyDetail ? (
           <GroupBuyEditor
             actionLoading={groupBuyActionLoading}
+            automaticCollection={tab === "autoCollection"}
             form={groupBuyForm}
+            hikerLookupLoading={groupBuyHikerLookupLoading}
+            onApprove={() => void approveAutomaticGroupBuy()}
             onChange={setGroupBuyForm}
             onClose={closeDetail}
+            onLookupHiker={() => void lookupAutomaticGroupBuyHiker()}
+            onReject={() => void rejectAutomaticGroupBuy()}
+            onRejectReasonChange={setAutomaticRejectReason}
             onSave={() => void saveGroupBuy()}
             onToggleVisibility={toggleGroupBuyVisibility}
+            rejectReason={automaticRejectReason}
             selected={selectedGroupBuy}
           />
         ) : null}
@@ -1775,16 +2046,26 @@ function AdminShell({ session }: { session: Session }) {
               />
             ) : null}
 
-            {tab === "groupBuys" ? (
+            {tab === "groupBuys" || tab === "autoCollection" ? (
               <GroupBuyPanel
                 actionLoading={groupBuyActionLoading}
+                automaticCollection={tab === "autoCollection"}
                 form={groupBuyForm}
+                hikerLookupLoading={groupBuyHikerLookupLoading}
                 items={groupBuys}
                 loading={groupBuysLoading}
+                onApprove={() => void approveAutomaticGroupBuy()}
                 onFormChange={setGroupBuyForm}
+                onLookupHiker={() => void lookupAutomaticGroupBuyHiker()}
                 onPageChange={setGroupBuyPage}
                 onQueryChange={(value) => {
                   setGroupBuyQuery(value);
+                  setGroupBuyPage(1);
+                }}
+                onReject={() => void rejectAutomaticGroupBuy()}
+                onRejectReasonChange={setAutomaticRejectReason}
+                onReviewStatusChange={(value) => {
+                  setCollectionReviewStatus(value);
                   setGroupBuyPage(1);
                 }}
                 onSave={() => void saveGroupBuy()}
@@ -1796,6 +2077,8 @@ function AdminShell({ session }: { session: Session }) {
                 }}
                 page={groupBuyPage}
                 query={groupBuyQuery}
+                rejectReason={automaticRejectReason}
+                reviewStatus={collectionReviewStatus}
                 selected={selectedGroupBuy}
                 status={groupBuyStatus}
                 total={groupBuysTotal}
@@ -1804,6 +2087,7 @@ function AdminShell({ session }: { session: Session }) {
             ) : null}
             {tab === "groupBuyRequests" ? (
               <GroupBuyRequestPanel
+                actionLoading={groupBuyRequestActionLoading}
                 items={groupBuyRequests}
                 loading={groupBuyRequestsLoading}
                 onPageChange={setGroupBuyRequestPage}
@@ -1815,6 +2099,7 @@ function AdminShell({ session }: { session: Session }) {
                   setGroupBuyRequestStatus(value);
                   setGroupBuyRequestPage(1);
                 }}
+                onReject={(item) => void rejectGroupBuyRequest(item)}
                 page={groupBuyRequestPage}
                 query={groupBuyRequestQuery}
                 status={groupBuyRequestStatus}
@@ -1908,6 +2193,29 @@ function AdminShell({ session }: { session: Session }) {
             />
           </svg>
           <span>검수</span>
+        </button>
+        <button
+          aria-current={tab === "autoCollection" ? "page" : undefined}
+          className={tab === "autoCollection" ? "active" : ""}
+          onClick={() => switchTab("autoCollection")}
+          type="button"
+        >
+          <svg
+            fill="none"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M4 7h16M4 12h16M4 17h10"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+            />
+          </svg>
+          <span>자동 수집</span>
         </button>
         <button
           aria-current={tab === "groupBuys" ? "page" : undefined}
@@ -2036,10 +2344,12 @@ function AdminShell({ session }: { session: Session }) {
   );
 }
 
-export function applyHikerResult(
-  form: SubmissionForm,
+function applyHikerResultToReviewForm(
+  form: SubmissionForm | GroupBuyForm,
   result: HikerLookupResult,
-): SubmissionForm {
+  fallbackPurchaseUrl: string,
+  emptyProductName?: string,
+): SubmissionForm | GroupBuyForm {
   const mediaItems = result.mediaItems ?? [];
   const mediaUrls = result.mediaUrls ?? [];
   const thumbnailUrl =
@@ -2047,7 +2357,9 @@ export function applyHikerResult(
   const suggestions = inferHikerSuggestions({
     caption: result.caption,
     currentProductName:
-      form.productName.trim() === "검수 대기 위시템" ? "" : form.productName,
+      emptyProductName && form.productName.trim() === emptyProductName
+        ? ""
+        : form.productName,
     currentCategory: form.category,
     mediaItems,
     mediaUrls,
@@ -2064,8 +2376,8 @@ export function applyHikerResult(
   const resolvedUsername = result.username?.trim() || form.instagramUsername;
   const ownerChanged = Boolean(
     result.username?.trim() &&
-      normalizeInstagramUsername(result.username) !==
-        normalizeInstagramUsername(form.instagramUsername),
+    normalizeInstagramUsername(result.username) !==
+      normalizeInstagramUsername(form.instagramUsername),
   );
   const hikerProfileImageUrl = validProfileImageUrl(result.profileImageUrl);
 
@@ -2097,32 +2409,61 @@ export function applyHikerResult(
     endDate: isLlm && suggestions.endDate ? suggestions.endDate : form.endDate,
     priceKrw:
       isLlm && suggestions.priceKrw ? suggestions.priceKrw : form.priceKrw,
-    purchaseUrl: form.purchaseUrl || form.instagramUrl,
+    purchaseUrl: form.purchaseUrl || fallbackPurchaseUrl,
     summary: resolveHikerSummary(form.summary, result.caption),
     thumbnailUrl,
     mediaUrlsText: mediaUrls.join("\n"),
     mediaItems,
     mediaType: suggestions.mediaType ?? result.mediaType ?? form.mediaType,
-    postAudioUrl:
-      !shouldApplyPostAudio
-        ? form.postAudioUrl
-        : result.postAudioUrl ?? "",
-    postAudioStartTimeMs:
-      !shouldApplyPostAudio
-        ? form.postAudioStartTimeMs
-        : result.postAudioUrl
-          ? result.postAudioStartTimeMs ?? 0
-          : null,
-    postAudioDurationMs:
-      !shouldApplyPostAudio
-        ? form.postAudioDurationMs
-        : result.postAudioUrl
-          ? result.postAudioDurationMs ?? null
-          : null,
+    postAudioUrl: !shouldApplyPostAudio
+      ? form.postAudioUrl
+      : (result.postAudioUrl ?? ""),
+    postAudioStartTimeMs: !shouldApplyPostAudio
+      ? form.postAudioStartTimeMs
+      : result.postAudioUrl
+        ? (result.postAudioStartTimeMs ?? 0)
+        : null,
+    postAudioDurationMs: !shouldApplyPostAudio
+      ? form.postAudioDurationMs
+      : result.postAudioUrl
+        ? (result.postAudioDurationMs ?? null)
+        : null,
   };
 }
-function tabTitle(tab: TabKey) {
+
+export function groupBuyPayload(form: GroupBuyForm) {
+  const canonicalForm = canonicalizeHomeBannerForm(form);
+  const bannerError = validateHomeBannerForm(canonicalForm);
+  if (bannerError) throw new Error(bannerError);
+  return { ...groupBuyReviewData(form), status: form.status };
+}
+
+export function applyHikerResult(
+  form: SubmissionForm,
+  result: HikerLookupResult,
+): SubmissionForm {
+  return applyHikerResultToReviewForm(
+    form,
+    result,
+    form.instagramUrl,
+    "검수 대기 위시템",
+  ) as SubmissionForm;
+}
+
+function applyHikerResultToGroupBuy(
+  form: GroupBuyForm,
+  result: HikerLookupResult,
+  originalPostUrl: string,
+): GroupBuyForm {
+  return applyHikerResultToReviewForm(
+    form,
+    result,
+    originalPostUrl,
+  ) as GroupBuyForm;
+}
+export function tabTitle(tab: TabKey) {
   if (tab === "submissions") return "위시 검수";
+  if (tab === "autoCollection") return "자동 수집 검수";
   if (tab === "groupBuys") return "공구 관리";
   if (tab === "groupBuyRequests") return "공구 요청";
   if (tab === "users") return "가입자 관리";
@@ -2960,7 +3301,7 @@ function SubmissionEditor(props: {
         rows={3}
       />
       <TextareaField
-        label="반려 사유"
+        label="반려 사유 (선택)"
         value={props.rejectReason}
         onChange={props.onRejectReasonChange}
         rows={3}
@@ -3018,7 +3359,7 @@ function SubmissionEditor(props: {
         </button>
         <button
           className="button button--danger"
-          disabled={props.actionLoading || !canApprove}
+          disabled={isReviewRejectDisabled(props.actionLoading, canApprove)}
           onClick={props.onReject}
           type="button"
         >
@@ -3039,47 +3380,83 @@ function SubmissionEditor(props: {
 
 function GroupBuyPanel(props: {
   actionLoading: boolean;
+  automaticCollection: boolean;
   form: GroupBuyForm | null;
+  hikerLookupLoading: boolean;
   items: GroupBuy[];
   loading: boolean;
+  onApprove: () => void;
   onFormChange: (form: GroupBuyForm | null) => void;
+  onLookupHiker: () => void;
   onPageChange: (page: number) => void;
   onQueryChange: (value: string) => void;
+  onReject: () => void;
+  onRejectReasonChange: (value: string) => void;
+  onReviewStatusChange: (value: "ALL" | CollectionReviewStatus) => void;
   onSave: () => void;
   onSelect: (item: GroupBuy | null) => void;
   onToggleVisibility: (hide: boolean) => void;
   onStatusChange: (value: "ALL" | GroupBuyStatus) => void;
   page: number;
   query: string;
+  rejectReason: string;
+  reviewStatus: "ALL" | CollectionReviewStatus;
   selected: GroupBuy | null;
   status: "ALL" | GroupBuyStatus;
   total: number;
   totalPages: number;
 }) {
   const isFiltered =
-    props.query.trim().length > 0 || props.status !== "APPROVED";
+    props.query.trim().length > 0 ||
+    (props.automaticCollection
+      ? props.reviewStatus !== "PENDING"
+      : props.status !== "APPROVED");
   const resetFilters = () => {
     props.onQueryChange("");
-    props.onStatusChange("APPROVED");
+    if (props.automaticCollection) {
+      props.onReviewStatusChange("PENDING");
+    } else {
+      props.onStatusChange("APPROVED");
+    }
   };
 
   return (
     <section className="panel">
       <div className="section-header">
         <div>
-          <p className="eyebrow">Group Buys</p>
-          <h2>공구 노출 관리</h2>
+          <p className="eyebrow">
+            {props.automaticCollection ? "Playwright collection" : "Group Buys"}
+          </p>
+          <h2>
+            {props.automaticCollection ? "자동 수집 검수" : "공구 노출 관리"}
+          </h2>
+          {props.automaticCollection ? (
+            <p>사용자 제보가 아닌 Playwright 공개 자동 수집 후보입니다.</p>
+          ) : null}
         </div>
-        <Filters
-          onClear={resetFilters}
-          query={props.query}
-          queryPlaceholder="상품명, 브랜드, URL"
-          showClear={isFiltered}
-          status={props.status}
-          statusOptions={GROUP_BUY_STATUS_OPTIONS}
-          onQueryChange={props.onQueryChange}
-          onStatusChange={props.onStatusChange}
-        />
+        {props.automaticCollection ? (
+          <Filters
+            onClear={resetFilters}
+            query={props.query}
+            queryPlaceholder="상품명, 브랜드, URL"
+            showClear={isFiltered}
+            status={props.reviewStatus}
+            statusOptions={COLLECTION_REVIEW_STATUS_OPTIONS}
+            onQueryChange={props.onQueryChange}
+            onStatusChange={props.onReviewStatusChange}
+          />
+        ) : (
+          <Filters
+            onClear={resetFilters}
+            query={props.query}
+            queryPlaceholder="상품명, 브랜드, URL"
+            showClear={isFiltered}
+            status={props.status}
+            statusOptions={GROUP_BUY_STATUS_OPTIONS}
+            onQueryChange={props.onQueryChange}
+            onStatusChange={props.onStatusChange}
+          />
+        )}
       </div>
 
       <div className="split-view">
@@ -3098,6 +3475,7 @@ function GroupBuyPanel(props: {
                   <th>카테고리</th>
                   <th>마감</th>
                   <th>홈 배너 노출</th>
+                  <th>원본</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -3119,7 +3497,35 @@ function GroupBuyPanel(props: {
                         : "-"}
                     </td>
                     <td>
-                      <StatusBadge status={item.status} />
+                      {validOriginalPostUrl(
+                        automaticCollectionOriginalPostUrl(item),
+                      ) ? (
+                        <a
+                          aria-label={`${item.productName ?? "자동 수집 공구"} 원본 Instagram 게시물 열기`}
+                          className="source-link"
+                          href={
+                            validOriginalPostUrl(
+                              automaticCollectionOriginalPostUrl(item),
+                            ) ?? undefined
+                          }
+                          onClick={(event) => event.stopPropagation()}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          Instagram 열기
+                        </a>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td>
+                      <StatusBadge
+                        status={
+                          props.automaticCollection
+                            ? groupBuyCollectionReviewStatus(item)
+                            : item.status
+                        }
+                      />
                     </td>
                   </tr>
                 ))}
@@ -3127,6 +3533,7 @@ function GroupBuyPanel(props: {
             </table>
           </div>
           <MobileGroupBuyCards
+            automaticCollection={props.automaticCollection}
             items={props.items}
             loading={props.loading}
             onSelect={props.onSelect}
@@ -3135,9 +3542,13 @@ function GroupBuyPanel(props: {
           {props.items.length === 0 && !props.loading ? (
             <ListEmptyState
               message={
-                isFiltered
-                  ? "조건에 맞는 공구가 없습니다."
-                  : "승인된 공구가 없습니다."
+                props.automaticCollection
+                  ? isFiltered
+                    ? "조건에 맞는 자동수집 히스토리가 없습니다."
+                    : "검수 대기 중인 자동 수집 공구가 없습니다."
+                  : isFiltered
+                    ? "조건에 맞는 공구가 없습니다."
+                    : "승인된 공구가 없습니다."
               }
               onClear={isFiltered ? resetFilters : undefined}
             />
@@ -3150,11 +3561,18 @@ function GroupBuyPanel(props: {
         </div>
         <GroupBuyEditor
           actionLoading={props.actionLoading}
+          automaticCollection={props.automaticCollection}
           form={props.form}
+          hikerLookupLoading={props.hikerLookupLoading}
+          onApprove={props.onApprove}
           onChange={props.onFormChange}
           onClose={() => props.onSelect(null)}
+          onLookupHiker={props.onLookupHiker}
+          onReject={props.onReject}
+          onRejectReasonChange={props.onRejectReasonChange}
           onSave={props.onSave}
           onToggleVisibility={props.onToggleVisibility}
+          rejectReason={props.rejectReason}
           selected={props.selected}
         />
       </div>
@@ -3163,10 +3581,12 @@ function GroupBuyPanel(props: {
 }
 
 function GroupBuyRequestPanel(props: {
+  actionLoading: string | null;
   items: GroupBuyRequest[];
   loading: boolean;
   onPageChange: (page: number) => void;
   onQueryChange: (value: string) => void;
+  onReject: (item: GroupBuyRequest) => void;
   onStatusChange: (value: "ALL" | GroupBuyRequestStatus) => void;
   page: number;
   query: string;
@@ -3216,6 +3636,7 @@ function GroupBuyRequestPanel(props: {
                 <th>최근 30일 요청</th>
                 <th>최근 요청일</th>
                 <th>등록일</th>
+                <th>검수</th>
               </tr>
             </thead>
             <tbody>
@@ -3230,6 +3651,23 @@ function GroupBuyRequestPanel(props: {
                   <td>{item.requestCount.toLocaleString()}건</td>
                   <td>{formatDateTime(item.latestRequestedAt)}</td>
                   <td>{formatDateTime(item.createdAt)}</td>
+                  <td>
+                    {item.status === "OPEN" ? (
+                      <button
+                        aria-label={`${item.productName} 공구 요청 반려`}
+                        className="button button--danger"
+                        disabled={props.actionLoading !== null}
+                        onClick={() => props.onReject(item)}
+                        type="button"
+                      >
+                        {props.actionLoading === item.id
+                          ? "반려 중..."
+                          : "반려"}
+                      </button>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -3257,6 +3695,19 @@ function GroupBuyRequestPanel(props: {
                 <span>등록일</span>
                 <strong>{formatDateTime(item.createdAt)}</strong>
               </div>
+              {item.status === "OPEN" ? (
+                <div className="action-row action-row--end">
+                  <button
+                    aria-label={`${item.productName} 공구 요청 반려`}
+                    className="button button--danger"
+                    disabled={props.actionLoading !== null}
+                    onClick={() => props.onReject(item)}
+                    type="button"
+                  >
+                    {props.actionLoading === item.id ? "반려 중..." : "반려"}
+                  </button>
+                </div>
+              ) : null}
             </article>
           ))}
         </div>
@@ -3281,11 +3732,13 @@ function GroupBuyRequestPanel(props: {
 }
 
 function MobileGroupBuyCards({
+  automaticCollection,
   items,
   loading,
   onSelect,
   selected,
 }: {
+  automaticCollection: boolean;
   items: GroupBuy[];
   loading: boolean;
   onSelect: (item: GroupBuy | null) => void;
@@ -3318,7 +3771,13 @@ function MobileGroupBuyCards({
             <span className="mobile-record-kicker">
               {item.category ?? "미지정"}
             </span>
-            <StatusBadge status={item.status} />
+            <StatusBadge
+              status={
+                automaticCollection
+                  ? groupBuyCollectionReviewStatus(item)
+                  : item.status
+              }
+            />
           </div>
           <strong>{item.productName || "상품명 없음"}</strong>
           <p>{item.brandName || "브랜드 미지정"}</p>
@@ -3334,17 +3793,40 @@ function MobileGroupBuyCards({
                 : "-"}
             </strong>
           </div>
+          {validOriginalPostUrl(automaticCollectionOriginalPostUrl(item)) ? (
+            <a
+              aria-label={`${item.productName ?? "자동 수집 공구"} 원본 Instagram 게시물 열기`}
+              className="source-link"
+              href={
+                validOriginalPostUrl(
+                  automaticCollectionOriginalPostUrl(item),
+                ) ?? undefined
+              }
+              onClick={(event) => event.stopPropagation()}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Instagram 원본 열기
+            </a>
+          ) : null}
         </article>
       ))}
     </div>
   );
 }
 
-function GroupBuyEditor(props: {
+export function GroupBuyEditor(props: {
   actionLoading: boolean;
+  automaticCollection: boolean;
   form: GroupBuyForm | null;
+  hikerLookupLoading: boolean;
+  onApprove: () => void;
   onChange: (form: GroupBuyForm | null) => void;
+  onLookupHiker: () => void;
+  onReject: () => void;
+  onRejectReasonChange: (value: string) => void;
   onSave: () => void;
+  rejectReason: string;
   selected: GroupBuy | null;
   onClose: () => void;
   onToggleVisibility: (hide: boolean) => void;
@@ -3369,9 +3851,32 @@ function GroupBuyEditor(props: {
     props.onChange({ ...form, [key]: value });
   };
   const visibility = getGroupBuyVisibility(form.status);
+  const reviewStatus = groupBuyCollectionReviewStatus(props.selected);
+  const reviewPending = props.automaticCollection && reviewStatus === "PENDING";
+  const reviewReadOnly = props.automaticCollection && !reviewPending;
+  const sourceOriginalPostUrl = automaticCollectionOriginalPostUrl(
+    props.selected,
+  );
+  const profileLinkCandidates = automaticCollectionProfileLinkCandidates(
+    props.selected,
+  );
 
   return (
     <aside className="detail-panel">
+      {props.hikerLookupLoading ? (
+        <div
+          aria-busy="true"
+          aria-live="polite"
+          className="hiker-lookup-overlay"
+          role="status"
+        >
+          <div className="hiker-lookup-overlay__content">
+            <span aria-hidden="true" className="hiker-lookup-spinner" />
+            <strong>Hiker 데이터를 조회하는 중</strong>
+            <span>자동수집 검수 폼을 보완하고 있습니다.</span>
+          </div>
+        </div>
+      ) : null}
       <div className="detail-back-bar">
         <button className="detail-back" onClick={props.onClose} type="button">
           ← 목록으로
@@ -3382,162 +3887,289 @@ function GroupBuyEditor(props: {
           <p className="eyebrow">{props.selected.sourceType ?? "GROUP_BUY"}</p>
           <h3>{form.productName || "상품명 없음"}</h3>
         </div>
-        <StatusBadge status={form.status} />
+        <StatusBadge
+          status={props.automaticCollection ? reviewStatus : form.status}
+        />
       </div>
-      <div className="visibility-toggle">
-        <button
-          className="button button--danger"
-          disabled={props.actionLoading || !visibility.canHide}
-          onClick={() => props.onToggleVisibility(true)}
-          type="button"
-        >
-          노출 중지
-        </button>
-        <button
-          className="button button--primary"
-          disabled={props.actionLoading || !visibility.canShow}
-          onClick={() => props.onToggleVisibility(false)}
-          type="button"
-        >
-          다시 노출
-        </button>
-      </div>
+      {props.automaticCollection ? (
+        <div className="action-row">
+          {validOriginalPostUrl(sourceOriginalPostUrl) ? (
+            <a
+              className="button button--ghost"
+              href={validOriginalPostUrl(sourceOriginalPostUrl) ?? undefined}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Instagram 원본
+            </a>
+          ) : null}
+          <button
+            className="button button--secondary"
+            disabled={props.actionLoading || !reviewPending}
+            onClick={props.onLookupHiker}
+            type="button"
+          >
+            Hiker 조회
+          </button>
+        </div>
+      ) : null}
+      {!props.automaticCollection ? (
+        <div className="visibility-toggle">
+          <button
+            className="button button--danger"
+            disabled={props.actionLoading || !visibility.canHide}
+            onClick={() => props.onToggleVisibility(true)}
+            type="button"
+          >
+            노출 중지
+          </button>
+          <button
+            className="button button--primary"
+            disabled={props.actionLoading || !visibility.canShow}
+            onClick={() => props.onToggleVisibility(false)}
+            type="button"
+          >
+            다시 노출
+          </button>
+        </div>
+      ) : null}
 
       <AppLivePreview deal={formToPreviewDeal(form)} />
 
-      <div className="form-grid">
-        <TextField
-          label="제품명"
-          value={form.productName}
-          onChange={(value) => setField("productName", value)}
-          required
-        />
-        <SelectField
-          label="카테고리"
-          value={form.category}
-          options={CATEGORY_OPTIONS}
-          onChange={(value) => setField("category", value)}
-        />
-        <TextField
-          label="브랜드명"
-          value={form.brandName}
-          onChange={(value) => setField("brandName", value)}
-        />
-        <TextField
-          label="인스타 계정"
-          value={form.instagramUsername}
-          onChange={(value) =>
-            props.onChange(applyInstagramUsernameChange(form, value))
-          }
-        />
-        <ProfileImageFormField
-          instagramUsername={form.instagramUsername}
-          profileImageUrl={form.profileImageUrl}
-          onChange={(value) =>
-            props.onChange(applyProfileImageUrlChange(form, value))
-          }
-        />
-        <TextField
-          label="구매 URL"
-          value={form.purchaseUrl}
-          onChange={(value) => setField("purchaseUrl", value)}
-        />
-        <DatePickerField
-          label="시작일"
-          value={form.startDate}
-          onChange={(value) => setField("startDate", value)}
-          max={form.endDate || undefined}
-        />
-        <DatePickerField
-          label="마감일"
-          value={form.endDate}
-          onChange={(value) => setField("endDate", value)}
-          min={form.startDate || undefined}
-        />
-        <TextField
-          label="할인 정보"
-          value={form.discountInfo}
-          onChange={(value) => setField("discountInfo", value)}
-        />
-        <TextField
-          label="가격 (원)"
-          value={form.priceKrw}
-          onChange={(value) => setField("priceKrw", value)}
-          type="number"
-          min={0}
-          max={MAX_PRICE_KRW}
-          step={1}
-        />
-        <TextField
-          label="썸네일 URL"
-          value={form.thumbnailUrl}
-          onChange={(value) => setField("thumbnailUrl", value)}
-        />
-        <div className="auto-field">
-          <span>미디어 타입</span>
-          <strong>
-            {mediaTypeLabel(
-              inferFormMediaType(
-                form.mediaItems,
-                splitLines(form.mediaUrlsText),
-              ),
-            )}
-          </strong>
-          <small>등록된 미디어를 기준으로 자동 감지됩니다.</small>
-        </div>
-        <SelectField
-          label="상태"
-          value={form.status}
-          options={GROUP_BUY_STATUS_OPTIONS.filter(
-            (item) => item.value !== "ALL",
-          )}
-          onChange={(value) => setField("status", value as GroupBuyStatus)}
-        />
-      </div>
+      {reviewReadOnly ? (
+        <p className="review-read-only-note">
+          처리 완료 당시 데이터입니다. 이후 수정은 공구 관리 탭에서 진행하세요.
+        </p>
+      ) : null}
 
-      <CheckboxField
-        label="홈 배너에 노출"
-        checked={form.isHomeBanner}
-        onChange={(value) => setField("isHomeBanner", value)}
-      />
-      {form.isHomeBanner ? (
-        <div className="form-grid banner-schedule-fields">
+      <fieldset className="review-fieldset" disabled={reviewReadOnly}>
+        <div className="form-grid">
+          <TextField
+            label="제품명"
+            value={form.productName}
+            onChange={(value) => setField("productName", value)}
+            required
+          />
+          <SelectField
+            label="카테고리"
+            value={form.category}
+            options={CATEGORY_OPTIONS}
+            onChange={(value) => setField("category", value)}
+          />
+          <TextField
+            label="브랜드명"
+            value={form.brandName}
+            onChange={(value) => setField("brandName", value)}
+          />
+          <TextField
+            label="인스타 계정"
+            value={form.instagramUsername}
+            onChange={(value) =>
+              props.onChange(applyInstagramUsernameChange(form, value))
+            }
+          />
+          <ProfileImageFormField
+            instagramUsername={form.instagramUsername}
+            profileImageUrl={form.profileImageUrl}
+            onChange={(value) =>
+              props.onChange(applyProfileImageUrlChange(form, value))
+            }
+          />
+          <TextField
+            label="구매 URL"
+            value={form.purchaseUrl}
+            onChange={(value) => setField("purchaseUrl", value)}
+          />
+          {props.automaticCollection ? (
+            <ProfileLinkCandidates
+              candidates={profileLinkCandidates}
+              disabled={props.actionLoading || reviewReadOnly}
+              onSelect={(url) => setField("purchaseUrl", url)}
+              purchaseUrl={form.purchaseUrl}
+            />
+          ) : null}
           <DatePickerField
-            label="배너 노출 시작일"
-            value={form.homeBannerStartDate}
-            onChange={(value) => setField("homeBannerStartDate", value)}
-            max={form.homeBannerEndDate || undefined}
+            label="시작일"
+            value={form.startDate}
+            onChange={(value) => setField("startDate", value)}
+            max={form.endDate || undefined}
           />
           <DatePickerField
-            label="배너 노출 종료일"
-            value={form.homeBannerEndDate}
-            onChange={(value) => setField("homeBannerEndDate", value)}
-            min={form.homeBannerStartDate || undefined}
+            label="마감일"
+            value={form.endDate}
+            onChange={(value) => setField("endDate", value)}
+            min={form.startDate || undefined}
           />
+          <TextField
+            label="할인 정보"
+            value={form.discountInfo}
+            onChange={(value) => setField("discountInfo", value)}
+          />
+          <TextField
+            label="가격 (원)"
+            value={form.priceKrw}
+            onChange={(value) => setField("priceKrw", value)}
+            type="number"
+            min={0}
+            max={MAX_PRICE_KRW}
+            step={1}
+          />
+          <TextField
+            label="썸네일 URL"
+            value={form.thumbnailUrl}
+            onChange={(value) => setField("thumbnailUrl", value)}
+          />
+          <div className="auto-field">
+            <span>미디어 타입</span>
+            <strong>
+              {mediaTypeLabel(
+                inferFormMediaType(
+                  form.mediaItems,
+                  splitLines(form.mediaUrlsText),
+                ),
+              )}
+            </strong>
+            <small>등록된 미디어를 기준으로 자동 감지됩니다.</small>
+          </div>
+          {!props.automaticCollection ? (
+            <SelectField
+              label="상태"
+              value={form.status}
+              options={GROUP_BUY_STATUS_OPTIONS.filter(
+                (item) => item.value !== "ALL",
+              )}
+              onChange={(value) => setField("status", value as GroupBuyStatus)}
+            />
+          ) : null}
+        </div>
+
+        <CheckboxField
+          label="홈 배너에 노출"
+          checked={form.isHomeBanner}
+          onChange={(value) => setField("isHomeBanner", value)}
+        />
+        {form.isHomeBanner ? (
+          <div className="form-grid banner-schedule-fields">
+            <DatePickerField
+              label="배너 노출 시작일"
+              value={form.homeBannerStartDate}
+              onChange={(value) => setField("homeBannerStartDate", value)}
+              max={form.homeBannerEndDate || undefined}
+            />
+            <DatePickerField
+              label="배너 노출 종료일"
+              value={form.homeBannerEndDate}
+              onChange={(value) => setField("homeBannerEndDate", value)}
+              min={form.homeBannerStartDate || undefined}
+            />
+          </div>
+        ) : null}
+        <TextareaField
+          label="요약"
+          value={form.summary}
+          onChange={(value) => setField("summary", value)}
+          rows={5}
+        />
+        <TextareaField
+          label="미디어 URL 목록"
+          value={form.mediaUrlsText}
+          onChange={(value) => setField("mediaUrlsText", value)}
+          rows={4}
+        />
+        {reviewPending ? (
+          <TextareaField
+            label="반려 사유 (선택)"
+            value={props.rejectReason}
+            onChange={props.onRejectReasonChange}
+            rows={3}
+          />
+        ) : null}
+      </fieldset>
+
+      {props.automaticCollection ? (
+        <div className="audit-card">
+          <div>
+            <span>수집 경로</span>
+            <strong>Playwright 공개 자동 수집</strong>
+          </div>
+          <div>
+            <span>검수 결과</span>
+            <strong>{statusLabel(reviewStatus)}</strong>
+          </div>
+          <div>
+            <span>Hiker 사용</span>
+            <strong>
+              {props.selected.collectionHikerUsed
+                ? `사용 · ${formatDateTime(props.selected.collectionHikerLookupAt)}`
+                : "미사용"}
+            </strong>
+          </div>
+          <div>
+            <span>검수자</span>
+            <strong>{props.selected.reviewedBy || "아직 없음"}</strong>
+          </div>
+          <div>
+            <span>검수 시각</span>
+            <strong>{formatDateTime(props.selected.reviewedAt)}</strong>
+          </div>
+          <div>
+            <span>수집 규칙</span>
+            <strong>
+              {props.selected.collectionRulesetVersion || "기록 없음"}
+            </strong>
+          </div>
+          {props.selected.rejectionReason ? (
+            <div>
+              <span>반려 사유</span>
+              <strong>{props.selected.rejectionReason}</strong>
+            </div>
+          ) : null}
         </div>
       ) : null}
-      <TextareaField
-        label="요약"
-        value={form.summary}
-        onChange={(value) => setField("summary", value)}
-        rows={5}
-      />
-      <TextareaField
-        label="미디어 URL 목록"
-        value={form.mediaUrlsText}
-        onChange={(value) => setField("mediaUrlsText", value)}
-        rows={4}
-      />
 
       <div className="action-row action-row--end">
-        <button
-          className="button button--primary"
-          disabled={props.actionLoading}
-          onClick={props.onSave}
-          type="button"
-        >
-          저장
-        </button>
+        {props.automaticCollection ? (
+          reviewPending ? (
+            <>
+              <button
+                className="button button--secondary"
+                disabled={props.actionLoading}
+                onClick={props.onSave}
+                type="button"
+              >
+                저장
+              </button>
+              <button
+                className="button button--danger"
+                disabled={isReviewRejectDisabled(
+                  props.actionLoading,
+                  reviewPending,
+                )}
+                onClick={props.onReject}
+                type="button"
+              >
+                반려
+              </button>
+              <button
+                className="button button--primary"
+                disabled={props.actionLoading}
+                onClick={props.onApprove}
+                type="button"
+              >
+                공구 등록
+              </button>
+            </>
+          ) : null
+        ) : (
+          <button
+            className="button button--primary"
+            disabled={props.actionLoading}
+            onClick={props.onSave}
+            type="button"
+          >
+            저장
+          </button>
+        )}
       </div>
     </aside>
   );

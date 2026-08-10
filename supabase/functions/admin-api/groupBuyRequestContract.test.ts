@@ -4,9 +4,16 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   AdminGroupBuyRequestContractError,
+  groupBuyRequestRejectionTransition,
   mapAdminGroupBuyRequest,
   mapAdminGroupBuyRequestList,
 } from "./groupBuyRequestContract.ts";
+
+Deno.test("allows only open group-buy requests to transition to hidden", () => {
+  assertEquals(groupBuyRequestRejectionTransition("OPEN"), "UPDATE");
+  assertEquals(groupBuyRequestRejectionTransition("HIDDEN"), "IDEMPOTENT");
+  assertEquals(groupBuyRequestRejectionTransition("FULFILLED"), "CONFLICT");
+});
 
 Deno.test(
   "maps the aggregate request contract without exposing actor identity",

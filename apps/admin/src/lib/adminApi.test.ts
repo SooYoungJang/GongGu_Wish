@@ -144,6 +144,43 @@ describe("adminApi", () => {
     expect(result.items[0].isHomeBanner).toBe(false);
   });
 
+  it("filters automatic collection candidates by source type", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          items: [
+            {
+              id: "group-buy-1",
+              priceKrw: null,
+              status: "REVIEW_REQUIRED",
+              sourceType: "PLAYWRIGHT_PUBLIC",
+            },
+          ],
+          total: 1,
+        },
+      }),
+    } as Response);
+
+    await adminApi.listGroupBuys({
+      page: 1,
+      limit: 25,
+      status: "REVIEW_REQUIRED",
+      sourceType: "PLAYWRIGHT_PUBLIC",
+    });
+
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
+      params: Record<string, unknown>;
+    };
+    expect(request.params).toEqual({
+      page: 1,
+      limit: 25,
+      status: "REVIEW_REQUIRED",
+      sourceType: "PLAYWRIGHT_PUBLIC",
+    });
+  });
+
   it("requests the paginated read-only group-buy request list", async () => {
     const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
@@ -196,6 +233,29 @@ describe("adminApi", () => {
         },
       ],
       total: 1,
+    });
+  });
+
+  it("rejects an open group-buy request through the admin review endpoint", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: { id: "request-1", status: "HIDDEN" },
+      }),
+    } as Response);
+
+    await adminApi.rejectGroupBuyRequest("request-1");
+
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
+      path: string;
+      method: string;
+      body: Record<string, unknown>;
+    };
+    expect(request).toMatchObject({
+      path: "/admin/group-buy-requests/request-1/reject",
+      method: "POST",
+      body: {},
     });
   });
 

@@ -239,6 +239,8 @@ export const adminApi = {
     limit?: number;
     status?: string;
     q?: string;
+    sourceType?: string;
+    collectionReviewStatus?: string;
   }) {
     return requestAdmin<ListResponse<GroupBuy>>("/admin/group-buys", "GET", {
       params,
@@ -258,9 +260,42 @@ export const adminApi = {
     );
   },
 
+  rejectGroupBuyRequest(id: string) {
+    return requestAdmin<Pick<GroupBuyRequest, "id" | "status">>(
+      `/admin/group-buy-requests/${id}/reject`,
+      "POST",
+    );
+  },
+
   updateGroupBuy(id: string, body: Record<string, unknown>) {
     return requestAdmin<GroupBuy>(`/admin/group-buys/${id}`, "PATCH", {
       body,
+    }).then(normalizeGroupBuyResponse);
+  },
+
+  lookupAutomaticGroupBuyHiker(id: string) {
+    return requestAdmin<HikerLookupResult>(
+      `/admin/group-buys/${id}/hiker-lookup`,
+      "POST",
+    );
+  },
+
+  approveAutomaticGroupBuy(
+    id: string,
+    reviewedData: Record<string, unknown>,
+  ) {
+    return requestAdmin<GroupBuy>(`/admin/group-buys/${id}/approve`, "POST", {
+      body: { reviewedData },
+    }).then(normalizeGroupBuyResponse);
+  },
+
+  rejectAutomaticGroupBuy(
+    id: string,
+    reason: string,
+    reviewedData: Record<string, unknown>,
+  ) {
+    return requestAdmin<GroupBuy>(`/admin/group-buys/${id}/reject`, "POST", {
+      body: { reason, reviewedData },
     }).then(normalizeGroupBuyResponse);
   },
 

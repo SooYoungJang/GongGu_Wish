@@ -15,9 +15,12 @@ import {
   formToPreviewDeal,
   groupBuyToForm,
   groupBuyPayload,
+  tabTitle,
   submissionToForm,
   submissionPayload,
+  validOriginalPostUrl,
 } from "./App";
+import { automaticCollectionOriginalPostUrl } from "./lib/automaticCollectionSource";
 import { assertPersistedPriceMatches } from "./lib/priceKrw";
 
 const submissionForm = {
@@ -62,6 +65,55 @@ describe("assertPersistedPriceMatches", () => {
     expect(() => assertPersistedPriceMatches(200000, null)).toThrow(
       "저장된 가격",
     );
+  });
+});
+
+describe("admin tab labels", () => {
+  it("labels the automatic collection review tab separately from user submissions", () => {
+    expect(tabTitle("submissions")).toBe("위시 검수");
+    expect(tabTitle("autoCollection")).toBe("자동 수집 검수");
+    expect(tabTitle("groupBuys")).toBe("공구 관리");
+  });
+});
+
+describe("automatic collection source links", () => {
+  it("allows only canonical Instagram post links", () => {
+    expect(validOriginalPostUrl("https://www.instagram.com/p/example/")).toBe(
+      "https://www.instagram.com/p/example/",
+    );
+    expect(validOriginalPostUrl("https://instagram.com/reel/example/")).toBe(
+      "https://instagram.com/reel/example/",
+    );
+    expect(validOriginalPostUrl("javascript:alert(1)")).toBeNull();
+    expect(validOriginalPostUrl("https://example.com/p/example/")).toBeNull();
+  });
+
+  it("keeps the initially collected source link after later catalog edits", () => {
+    expect(
+      automaticCollectionOriginalPostUrl({
+        originalPostUrl: "https://www.instagram.com/p/current/",
+        collectionProposalSnapshot: {
+          originalPostUrl: "https://www.instagram.com/p/collected/",
+        },
+      }),
+    ).toBe("https://www.instagram.com/p/collected/");
+  });
+});
+
+describe("automatic collection decision history", () => {
+  it("renders the decision-time snapshot instead of later catalog edits", () => {
+    const form = groupBuyToForm(
+      {
+        productName: "공구 관리에서 나중에 수정된 이름",
+        status: "APPROVED",
+      } as Parameters<typeof groupBuyToForm>[0],
+      {
+        productName: "검수 당시 상품명",
+      } as never,
+    );
+
+    expect(form.productName).toBe("검수 당시 상품명");
+    expect(form.status).toBe("APPROVED");
   });
 });
 
@@ -259,6 +311,7 @@ describe("Hiker profile image admin flow", () => {
       brandName: "귤밭상회",
       instagramUsername: "gyulbbad",
       profileImageUrl,
+      originalPostUrl: null,
       category: "food",
       startDate: "2026-07-01",
       endDate: "2026-07-31",
