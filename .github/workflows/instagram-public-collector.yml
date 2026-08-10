@@ -137,7 +137,8 @@ jobs:
           size = len(raw.encode("utf-8"))
           if size > 48 * 1024:
               raise SystemExit("storageState secret exceeds GitHub's 48 KiB secret limit")
-          state = json.loads(raw)
+          # GitHub Secret Manager may preserve a UTF-8 BOM from a Windows-created JSON file.
+          state = json.loads(raw.lstrip("\ufeff"))
           if not isinstance(state, dict):
               raise SystemExit("storageState secret must be a JSON object")
           print(f"storageState validated ({size} bytes)")
