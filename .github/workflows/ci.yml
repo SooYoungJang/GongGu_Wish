@@ -245,6 +245,7 @@ jobs:
           scripts/production-notification-smoke.test.mjs
           scripts/production-release-contract.test.mjs
           scripts/public-submission-security-contract.test.mjs
+          scripts/instagram-public-collector-contract.test.mjs
       - name: Classify changed files
         id: plan
         env:
