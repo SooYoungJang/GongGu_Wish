@@ -17,6 +17,15 @@ const secretSetup = readFileSync(
   ),
   "utf8",
 );
+const ciWorkflow = readFileSync(
+  path.join(root, ".github", "workflows", "ci.yml"),
+  "utf8",
+).replace(/\r\n/g, "\n");
+
+const productionSupabaseJob = ciWorkflow.slice(
+  ciWorkflow.indexOf("  supabase-production:\n"),
+  ciWorkflow.indexOf("\n  # ", ciWorkflow.indexOf("  supabase-production:\n") + 1),
+);
 
 test("remote collector is manual, Production-only, and latest-main guarded", () => {
   assert.match(workflow, /workflow_dispatch:/);
@@ -56,4 +65,24 @@ test("secret setup sends values through stdin instead of process arguments", () 
   assert.match(secretSetup, /EnvironmentVariableTarget\]::User/);
   assert.doesNotMatch(secretSetup, /--body\s+\$collectorToken/);
   assert.doesNotMatch(secretSetup, /Write-Output\s+\$collectorToken/);
+});
+
+test("Production Supabase deploy syncs the collector secret without logging its value", () => {
+  assert.match(
+    productionSupabaseJob,
+    /name: Sync Production Instagram collector secret/,
+  );
+  assert.match(
+    productionSupabaseJob,
+    /INSTAGRAM_COLLECTOR_TOKEN:\s+\$\{\{ secrets\.INSTAGRAM_COLLECTOR_TOKEN \}\}/,
+  );
+  assert.match(productionSupabaseJob, /lstrip\("\\ufeff"\)/);
+  assert.match(
+    productionSupabaseJob,
+    /supabase secrets set\s+\\\s+--env-file/,
+  );
+  assert.doesNotMatch(
+    productionSupabaseJob,
+    /echo\s+.*INSTAGRAM_COLLECTOR_TOKEN.*\$\{\{ secrets\./,
+  );
 });
