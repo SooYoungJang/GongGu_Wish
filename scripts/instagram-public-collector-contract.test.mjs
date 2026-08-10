@@ -43,6 +43,13 @@ test("remote collector requires masked Production secrets and existing write gua
   assert.match(workflow, /playwright install --with-deps chromium/);
 });
 
+test("storageState validation accepts a UTF-8 BOM from Secret Manager", () => {
+  assert.match(
+    workflow,
+    /state = json\.loads\(raw\.lstrip\(["']\\ufeff["']\)\)/,
+  );
+});
+
 test("secret setup sends values through stdin instead of process arguments", () => {
   assert.match(secretSetup, /RedirectStandardInput = \$true/);
   assert.match(secretSetup, /StandardInput\.BaseStream\.Write/);
