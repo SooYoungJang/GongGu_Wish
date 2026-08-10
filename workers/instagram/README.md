@@ -134,6 +134,58 @@ powershell -ExecutionPolicy Bypass -File scripts/run-instagram-public-collector.
 Production 실행은 이 명령을 직접 호출한 경우에만 가능하며, 이 저장소의 일반
 `develop` PR/Preview 검증이 Production 수집을 자동 실행하지는 않습니다.
 
+### 집에서 한 번 로그인한 뒤 원격 Production 수집
+
+집에서 한 번 만든 Instagram 로그인 세션을 GitHub `production` Environment
+Secret으로 등록하면, 이후에는 PC가 켜져 있지 않아도 GitHub Actions에서 원격으로
+원샷 수집할 수 있습니다. 원격 실행은 GitHub Actions 사용량을 사용하며, 실행할 때마다
+실제 Production DB에 수집 결과가 저장됩니다.
+
+1. 집에서 저장소를 최신 `main`으로 받은 뒤 로그인 세션 파일을 만듭니다. 이 창에서
+   Instagram에 직접 로그인하고, 완료 후 같은 창에서 Enter를 누릅니다.
+
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   pip install -r workers/instagram/requirements.txt
+   python -m playwright install chromium
+   python workers/instagram/public_session_setup.py `
+     "$env:TEMP\gonggu-wish-instagram-storage-state.json"
+   ```
+
+2. 생성된 세션과 현재 Windows 사용자 환경에 저장된 collector token을 GitHub
+   `production` Environment Secret으로 올립니다. 이 명령은 Secret 값을 화면이나
+   프로세스 인자에 출력하지 않습니다.
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File `
+     scripts/configure-instagram-public-collector-secrets.ps1 `
+     -StorageStatePath "$env:TEMP\gonggu-wish-instagram-storage-state.json" `
+     -UseCurrentUserCollectorToken
+   ```
+
+   `-UseCurrentUserCollectorToken`을 사용하지 않으려면 GitHub Secret 화면에서
+   `INSTAGRAM_COLLECTOR_TOKEN`을 별도로 등록합니다. 세션 파일은 GitHub에 업로드한
+   뒤 로컬에서도 삭제합니다. `storageState`는 Instagram 로그인 쿠키를 포함하므로
+   누구에게도 보내거나 저장소에 커밋하지 않습니다.
+
+3. GitHub의 `Actions → Instagram Public Collector → Run workflow`에서 branch를
+   `main`으로 선택합니다. `both`는 지정 계정 watchlist와 랜덤 한국 공구 탐색을
+   모두 실행하고, `watchlist` 또는 `random`만 선택할 수도 있습니다. 랜덤 탐색의
+   후보 목표는 1~20건, 시간 예산은 60~1800초 범위입니다.
+
+4. `실제 Production DB에 저장` 확인란을 체크해 실행합니다. Production Environment
+   승인 요청이 표시되면 승인해야 수집기가 시작됩니다. 워커는 자체 테스트와
+   `compileall`을 먼저 통과한 뒤 최신 3건·진행/예정 공구·중복 방지 규칙으로
+   `instagram-public-collector`에 저장합니다.
+
+5. 완료 후 관리자 페이지의 `자동 수집 검수` 탭에서 원본 링크를 열어 확인합니다.
+   후보는 관리자가 공구 등록 또는 반려해야 앱에 반영됩니다.
+
+이 워크플로는 현재 반복 스케줄 없이 수동 원샷으로만 동작합니다. Instagram 세션이
+만료되거나 challenge/login wall이 감지되면 실행이 실패하므로, 집에서 새 세션을
+만들어 `INSTAGRAM_PLAYWRIGHT_STORAGE_STATE_JSON` Secret을 교체한 뒤 다시 실행합니다.
+
 ## 기존 instagrapi 워커
 
 기존 `main.py`는 레거시 수집 경로입니다.
