@@ -232,6 +232,23 @@ test("admin group-buy request listings expose aggregate fields only", () => {
   );
 });
 
+test("admin rejection hides an open request without deleting its demand history", () => {
+  const adminApi = read("supabase/functions/admin-api/index.ts");
+
+  assert.match(
+    adminApi,
+    /path\.startsWith\("\/admin\/group-buy-requests\/"\)[\s\S]*path\.endsWith\("\/reject"\)[\s\S]*method === "POST"/,
+  );
+  assert.match(
+    adminApi,
+    /\.from\("group_buy_requests"\)[\s\S]*\.update\(\{ status: "HIDDEN" \}\)[\s\S]*\.eq\("status", "OPEN"\)/,
+  );
+  assert.doesNotMatch(
+    adminApi,
+    /\.from\("group_buy_request_participations"\)[\s\S]*\.delete\(\)/,
+  );
+});
+
 test("group-buy request Edge intake owns trusted identity derivation", () => {
   const edgeFunction = read("supabase/functions/group-buy-request/index.ts");
   const mobileApi = read("apps/mobile/src/features/groupBuyRequests/api.ts");

@@ -33,6 +33,10 @@ import {
   automaticCollectionProfileLinkCandidates,
   automaticCollectionProfilePurchaseFallback,
 } from "@/lib/automaticCollectionSource";
+import {
+  isReviewRejectDisabled,
+  reviewRejectionReason,
+} from "@/lib/reviewRejection";
 import { supabase } from "@/supabase/client";
 import type {
   CdnRefreshStatus,
@@ -797,6 +801,8 @@ function AdminShell({ session }: { session: Session }) {
   );
   const [groupBuyRequestsTotal, setGroupBuyRequestsTotal] = useState(0);
   const [groupBuyRequestsLoading, setGroupBuyRequestsLoading] = useState(false);
+  const [groupBuyRequestActionLoading, setGroupBuyRequestActionLoading] =
+    useState<string | null>(null);
 
   const [userQuery, setUserQuery] = useState("");
   const debouncedUserQuery = useDebouncedValue(userQuery);
@@ -1346,7 +1352,7 @@ function AdminShell({ session }: { session: Session }) {
     try {
       await adminApi.rejectSubmission(
         selectedSubmission.id,
-        rejectReason.trim() || "관리자 반려",
+        reviewRejectionReason(rejectReason),
       );
       setNotice({ tone: "success", message: "위시를 반려했습니다." });
       closeDetail();
@@ -1569,11 +1575,7 @@ function AdminShell({ session }: { session: Session }) {
 
   async function rejectAutomaticGroupBuy() {
     if (!selectedGroupBuy || !groupBuyForm) return;
-    const reason = automaticRejectReason.trim();
-    if (!reason) {
-      setNotice({ tone: "error", message: "반려 사유를 입력해주세요." });
-      return;
-    }
+    const reason = reviewRejectionReason(automaticRejectReason);
     setGroupBuyActionLoading(true);
     try {
       invalidateGroupBuyHikerLookup(false);
@@ -1594,6 +1596,23 @@ function AdminShell({ session }: { session: Session }) {
       });
     } finally {
       setGroupBuyActionLoading(false);
+    }
+  }
+
+  async function rejectGroupBuyRequest(item: GroupBuyRequest) {
+    if (item.status !== "OPEN") return;
+    setGroupBuyRequestActionLoading(item.id);
+    try {
+      await adminApi.rejectGroupBuyRequest(item.id);
+      setNotice({ tone: "success", message: "공구 요청을 반려했습니다." });
+      await loadGroupBuyRequests();
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "공구 요청 반려 실패",
+      });
+    } finally {
+      setGroupBuyRequestActionLoading(null);
     }
   }
 
@@ -2068,6 +2087,7 @@ function AdminShell({ session }: { session: Session }) {
             ) : null}
             {tab === "groupBuyRequests" ? (
               <GroupBuyRequestPanel
+                actionLoading={groupBuyRequestActionLoading}
                 items={groupBuyRequests}
                 loading={groupBuyRequestsLoading}
                 onPageChange={setGroupBuyRequestPage}
@@ -2079,6 +2099,7 @@ function AdminShell({ session }: { session: Session }) {
                   setGroupBuyRequestStatus(value);
                   setGroupBuyRequestPage(1);
                 }}
+                onReject={(item) => void rejectGroupBuyRequest(item)}
                 page={groupBuyRequestPage}
                 query={groupBuyRequestQuery}
                 status={groupBuyRequestStatus}
@@ -3280,7 +3301,7 @@ function SubmissionEditor(props: {
         rows={3}
       />
       <TextareaField
-        label="반려 사유"
+        label="반려 사유 (선택)"
         value={props.rejectReason}
         onChange={props.onRejectReasonChange}
         rows={3}
@@ -3338,7 +3359,7 @@ function SubmissionEditor(props: {
         </button>
         <button
           className="button button--danger"
-          disabled={props.actionLoading || !canApprove}
+          disabled={isReviewRejectDisabled(props.actionLoading, canApprove)}
           onClick={props.onReject}
           type="button"
         >
@@ -3560,10 +3581,12 @@ function GroupBuyPanel(props: {
 }
 
 function GroupBuyRequestPanel(props: {
+  actionLoading: string | null;
   items: GroupBuyRequest[];
   loading: boolean;
   onPageChange: (page: number) => void;
   onQueryChange: (value: string) => void;
+  onReject: (item: GroupBuyRequest) => void;
   onStatusChange: (value: "ALL" | GroupBuyRequestStatus) => void;
   page: number;
   query: string;
@@ -3613,6 +3636,7 @@ function GroupBuyRequestPanel(props: {
                 <th>최근 30일 요청</th>
                 <th>최근 요청일</th>
                 <th>등록일</th>
+                <th>검수</th>
               </tr>
             </thead>
             <tbody>
@@ -3627,6 +3651,23 @@ function GroupBuyRequestPanel(props: {
                   <td>{item.requestCount.toLocaleString()}건</td>
                   <td>{formatDateTime(item.latestRequestedAt)}</td>
                   <td>{formatDateTime(item.createdAt)}</td>
+                  <td>
+                    {item.status === "OPEN" ? (
+                      <button
+                        aria-label={`${item.productName} 공구 요청 반려`}
+                        className="button button--danger"
+                        disabled={props.actionLoading !== null}
+                        onClick={() => props.onReject(item)}
+                        type="button"
+                      >
+                        {props.actionLoading === item.id
+                          ? "반려 중..."
+                          : "반려"}
+                      </button>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -3654,6 +3695,19 @@ function GroupBuyRequestPanel(props: {
                 <span>등록일</span>
                 <strong>{formatDateTime(item.createdAt)}</strong>
               </div>
+              {item.status === "OPEN" ? (
+                <div className="action-row action-row--end">
+                  <button
+                    aria-label={`${item.productName} 공구 요청 반려`}
+                    className="button button--danger"
+                    disabled={props.actionLoading !== null}
+                    onClick={() => props.onReject(item)}
+                    type="button"
+                  >
+                    {props.actionLoading === item.id ? "반려 중..." : "반려"}
+                  </button>
+                </div>
+              ) : null}
             </article>
           ))}
         </div>
@@ -4024,7 +4078,7 @@ export function GroupBuyEditor(props: {
         />
         {reviewPending ? (
           <TextareaField
-            label="반려 사유"
+            label="반려 사유 (선택)"
             value={props.rejectReason}
             onChange={props.onRejectReasonChange}
             rows={3}
@@ -4087,7 +4141,10 @@ export function GroupBuyEditor(props: {
               </button>
               <button
                 className="button button--danger"
-                disabled={props.actionLoading || !props.rejectReason.trim()}
+                disabled={isReviewRejectDisabled(
+                  props.actionLoading,
+                  reviewPending,
+                )}
                 onClick={props.onReject}
                 type="button"
               >
