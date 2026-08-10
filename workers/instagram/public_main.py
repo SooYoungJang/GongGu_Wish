@@ -208,7 +208,7 @@ def load_storage_state() -> dict[str, Any]:
             "INSTAGRAM_PLAYWRIGHT_STORAGE_STATE_JSON이 설정되지 않았습니다.",
         )
     try:
-        state = json.loads(raw)
+        state = json.loads(raw.lstrip("\ufeff"))
     except json.JSONDecodeError as error:
         raise PublicCollectionError("INVALID_STORAGE_STATE", "storageState JSON이 유효하지 않습니다.") from error
     if not isinstance(state, dict):
