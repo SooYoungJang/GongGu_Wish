@@ -13,6 +13,7 @@ from public_main import (
     SupabaseCollectorApi,
     bounded_next_run,
     latest_posts,
+    load_storage_state,
     load_random_discovery_config,
 )
 from public_parser import ProfilePostLink
@@ -561,6 +562,14 @@ class PublicMainTest(unittest.TestCase):
             api.collect_post({"instagramPostId": "post-1"})
 
         self.assertEqual(raised.exception.code, "API_CONTRACT")
+
+    def test_load_storage_state_accepts_utf8_bom(self):
+        with patch.dict(
+            "public_main.os.environ",
+            {"INSTAGRAM_PLAYWRIGHT_STORAGE_STATE_JSON": '\ufeff{"cookies": []}'},
+            clear=False,
+        ):
+            self.assertEqual(load_storage_state(), {"cookies": []})
 
     def test_next_run_stays_inside_bounded_jitter_window(self):
         clock = lambda: datetime(2026, 8, 8, tzinfo=timezone.utc)
