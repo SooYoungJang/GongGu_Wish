@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from public_main import (
+    InternalApiClient,
     PublicCollectionBlocked,
     PublicCollectionError,
     PublicInstagramCollector,
@@ -550,6 +551,28 @@ class PublicMainTest(unittest.TestCase):
             },
         )
         self.assertEqual(session.calls[2][2]["json"]["influencerId"], "influencer-1")
+
+    def test_supabase_collector_api_strips_utf8_bom_from_token_header(self):
+        session = FakeSession()
+
+        SupabaseCollectorApi(
+            "https://preview.example/functions/v1/instagram-public-collector",
+            "\ufeffcollector-secret",
+            session=session,
+        )
+
+        self.assertEqual(session.headers["X-Collector-Token"], "collector-secret")
+
+    def test_internal_api_client_strips_utf8_bom_from_token_header(self):
+        session = FakeSession()
+
+        InternalApiClient(
+            "https://api.example",
+            "\ufeffcollector-secret",
+            session=session,
+        )
+
+        self.assertEqual(session.headers["X-Collector-Token"], "collector-secret")
 
     def test_supabase_collector_api_rejects_malformed_collect_result(self):
         api = SupabaseCollectorApi(
