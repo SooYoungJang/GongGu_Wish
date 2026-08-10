@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from html import escape
+from io import BytesIO
 from pathlib import Path
 
+from PIL import Image as PILImage
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import letter
@@ -25,7 +27,6 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
-from reportlab.lib.utils import ImageReader
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,10 +68,10 @@ def hyperlink(text, url, style):
 
 
 def image(path, width):
-    reader = ImageReader(str(path))
-    source_width, source_height = reader.getSize()
+    stream, source_width, source_height = optimized_stream(path)
+    stream.seek(0)
     height = width * source_height / source_width
-    return Image(str(path), width=width, height=height, hAlign="CENTER")
+    return Image(stream, width=width, height=height, hAlign="CENTER")
 
 
 def callout(title, text, accent=BLUE, fill=CALLOUT):
@@ -202,6 +203,28 @@ styles.add(ParagraphStyle("SmallTable", parent=styles["BodyText"], fontName="Mal
 styles.add(ParagraphStyle("Caption", parent=styles["BodyText"], fontName="Malgun", fontSize=8.3, leading=11, textColor=MUTED, alignment=TA_CENTER, spaceBefore=3, spaceAfter=6, wordWrap="CJK"))
 styles.add(ParagraphStyle("Small", parent=styles["BodyText"], fontName="Malgun", fontSize=8.5, leading=11, textColor=MUTED, wordWrap="CJK"))
 
+IMAGE_MAX_WIDTH = 1400
+JPEG_QUALITY = 78
+_IMAGE_CACHE = {}
+
+
+def optimized_stream(path):
+    cache_key = str(path)
+    if cache_key in _IMAGE_CACHE:
+        return _IMAGE_CACHE[cache_key]
+
+    with PILImage.open(path) as source:
+        image = source.convert("RGB")
+        if image.width > IMAGE_MAX_WIDTH:
+            target_height = round(image.height * IMAGE_MAX_WIDTH / image.width)
+            image = image.resize((IMAGE_MAX_WIDTH, target_height), PILImage.Resampling.LANCZOS)
+        stream = BytesIO()
+        image.save(stream, format="JPEG", quality=JPEG_QUALITY, optimize=True, progressive=True)
+
+    stream.seek(0)
+    _IMAGE_CACHE[cache_key] = (stream, image.width, image.height)
+    return _IMAGE_CACHE[cache_key]
+
 
 def build():
     for path in ASSETS.values():
@@ -217,6 +240,7 @@ def build():
         bottomMargin=0.82 * inch,
         title="네이버 로그인 검수 소명자료 - GongGu Wish",
         author="GongGu Wish",
+        pageCompression=1,
     )
     frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="normal")
     doc.addPageTemplates([PageTemplate(id="all", frames=[frame], onPage=on_page)])
