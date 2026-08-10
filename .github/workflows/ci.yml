@@ -662,6 +662,33 @@ jobs:
             > "$RUNNER_TEMP/production-schema-contract.sql"
           supabase db query --linked \
             --file "$RUNNER_TEMP/production-schema-contract.sql"
+      - name: Sync Production Instagram collector secret
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          INSTAGRAM_COLLECTOR_TOKEN: ${{ secrets.INSTAGRAM_COLLECTOR_TOKEN }}
+        run: |
+          set -euo pipefail
+          secret_file="$(mktemp)"
+          trap 'rm -f "$secret_file"' EXIT
+          python - "$secret_file" <<'PY'
+          import os
+          import pathlib
+          import sys
+
+          token = os.environ["INSTAGRAM_COLLECTOR_TOKEN"].lstrip("\ufeff").strip()
+          if not token:
+              raise SystemExit("Production Instagram collector token is not configured.")
+
+          secret_file = pathlib.Path(sys.argv[1])
+          secret_file.write_text(
+              f"INSTAGRAM_COLLECTOR_TOKEN={token}\n",
+              encoding="utf-8",
+          )
+          secret_file.chmod(0o600)
+          PY
+          supabase secrets set \
+            --env-file "$secret_file" \
+            --project-ref "$SUPABASE_PROJECT_REF"
       - name: Deploy every configured Production Edge Function
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
