@@ -37,6 +37,19 @@
       "typedRoutes": false
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFF5EC",
+          "image": "./assets/app-icon.png",
+          "imageWidth": 190,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#0F172A",
+            "image": "./assets/app-icon.png"
+          }
+        }
+      ],
       "expo-secure-store",
       "expo-asset",
       "expo-video",
