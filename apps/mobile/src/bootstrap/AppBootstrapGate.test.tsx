@@ -13,6 +13,10 @@ vi.mock("expo-splash-screen", () => ({
   hideAsync: bootstrapMocks.hideAsync,
 }));
 
+vi.mock("expo-image", () => ({
+  Image: "ExpoImage",
+}));
+
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => bootstrapMocks.queryClient,
 }));
@@ -30,7 +34,7 @@ describe("AppBootstrapGate", () => {
     bootstrapMocks.prefetch.mockReset();
   });
 
-  it("keeps the app hidden until bootstrap completes, then hides native splash", async () => {
+  it("replaces the native splash with full-screen artwork while bootstrap completes", async () => {
     let resolvePrefetch!: () => void;
     bootstrapMocks.prefetch.mockReturnValue(
       new Promise<void>((resolve) => {
@@ -47,11 +51,24 @@ describe("AppBootstrapGate", () => {
       );
     });
 
-    expect(renderer.toJSON()).toBeNull();
+    expect(
+      renderer.root.findByProps({ testID: "warm-commerce-splash" }),
+    ).toBeDefined();
     expect(bootstrapMocks.prefetch).toHaveBeenCalledWith(
       bootstrapMocks.queryClient,
     );
     expect(bootstrapMocks.hideAsync).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer.root
+        .findByProps({ testID: "warm-commerce-splash-artwork" })
+        .props.onDisplay();
+    });
+
+    expect(bootstrapMocks.hideAsync).toHaveBeenCalledOnce();
+    expect(
+      renderer.root.findByProps({ testID: "warm-commerce-splash" }),
+    ).toBeDefined();
 
     await act(async () => {
       resolvePrefetch();
@@ -62,7 +79,6 @@ describe("AppBootstrapGate", () => {
       props: {},
       children: ["app"],
     });
-    expect(bootstrapMocks.hideAsync).toHaveBeenCalledOnce();
   });
 
   it("releases the app after the timeout when the network never settles", async () => {
@@ -76,6 +92,12 @@ describe("AppBootstrapGate", () => {
           <span>app</span>
         </AppBootstrapGate>,
       );
+    });
+
+    await act(async () => {
+      renderer.root
+        .findByProps({ testID: "warm-commerce-splash-artwork" })
+        .props.onDisplay();
     });
 
     await act(async () => {
