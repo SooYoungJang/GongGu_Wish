@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as SplashScreen from "expo-splash-screen";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -7,6 +7,7 @@ import {
   HOME_BOOTSTRAP_TIMEOUT_MS,
   prefetchHomeBootstrap,
 } from "./appBootstrap";
+import { WarmCommerceSplashScreen } from "./WarmCommerceSplashScreen";
 
 type AppBootstrapGateProps = {
   children: React.ReactNode;
@@ -22,6 +23,15 @@ export function AppBootstrapGate({
   const { isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [isReady, setIsReady] = useState(false);
+  const [nativeSplashReleased, setNativeSplashReleased] = useState(false);
+  const nativeSplashReleaseRequested = useRef(false);
+
+  const releaseNativeSplash = useCallback(() => {
+    if (nativeSplashReleaseRequested.current) return;
+    nativeSplashReleaseRequested.current = true;
+    setNativeSplashReleased(true);
+    void SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (authLoading || isReady) return;
@@ -43,11 +53,8 @@ export function AppBootstrapGate({
     };
   }, [authLoading, isReady, prefetch, queryClient, timeoutMs]);
 
-  useEffect(() => {
-    if (!isReady) return;
-    void SplashScreen.hideAsync().catch(() => {});
-  }, [isReady]);
-
-  if (!isReady) return null;
+  if (!isReady || !nativeSplashReleased) {
+    return <WarmCommerceSplashScreen onReady={releaseNativeSplash} />;
+  }
   return <>{children}</>;
 }
