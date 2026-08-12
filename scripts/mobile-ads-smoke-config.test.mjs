@@ -22,7 +22,9 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   assert.match(workflow, /EXPO_PUBLIC_E2E_MODE: "false"/);
   assert.match(workflow, /build-mobile-ads-smoke\.sh/);
   assert.match(workflow, /run-mobile-ads-smoke\.sh/);
-  assert.match(workflow, /target: google_apis_playstore/);
+  assert.match(workflow, /api-level: 29/);
+  assert.match(workflow, /target: google_apis/);
+  assert.doesNotMatch(workflow, /target: google_apis_playstore/);
   assert.match(appConfig, /appVariant === "preview"/);
   assert.match(app, /<AdsRuntimeSmokeProbe \/>/);
   assert.ok(
