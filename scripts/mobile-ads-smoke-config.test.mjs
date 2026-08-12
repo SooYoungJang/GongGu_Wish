@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
-test("Android ads smoke verifies the Preview request lifecycle without masking no-fill", () => {
+test("Android ads smoke requires visible Preview test ads to load", () => {
   const app = read("apps/mobile/src/App.tsx");
   const appConfig = read("apps/mobile/app.config.js");
   const builder = read("scripts/build-mobile-ads-smoke.sh");
@@ -13,6 +13,10 @@ test("Android ads smoke verifies the Preview request lifecycle without masking n
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
 
   assert.match(workflow, /ads_runtime_smoke:[\s\S]*?type: boolean/);
+  assert.match(
+    workflow,
+    /ads-runtime-android:[\s\S]*?github\.event_name == 'pull_request'[\s\S]*?needs\.mobile-e2e-plan\.outputs\.affected == 'true'/,
+  );
   assert.match(workflow, /EXPO_PUBLIC_ADS_RUNTIME_SMOKE: "true"/);
   assert.match(workflow, /EXPO_PUBLIC_E2E_MODE: "false"/);
   assert.match(workflow, /build-mobile-ads-smoke\.sh/);
@@ -31,16 +35,20 @@ test("Android ads smoke verifies the Preview request lifecycle without masking n
   assert.match(probe, /placement="reels"/);
   assert.match(runner, /com\.gonggu\.wish\.preview/);
   assert.match(runner, /for launch_attempt in \$\(seq 1 30\)/);
+  assert.match(runner, /만 14세 이상입니다/);
+  assert.match(runner, /input tap/);
   assert.match(runner, /"event":"initialization_ready"/);
   assert.match(runner, /native_ad_request_started/);
   assert.match(runner, /native_ad_loaded/);
-  assert.match(runner, /native_ad_failed/);
-  assert.match(runner, /has_no_fill_failure/);
-  assert.match(runner, /errorCode/);
-  assert.match(runner, /google-mobile-ads\//);
+  assert.doesNotMatch(runner, /has_terminal_event/);
+  assert.doesNotMatch(runner, /has_no_fill_failure/);
+  assert.doesNotMatch(runner, /external_no_fill/);
   assert.doesNotMatch(runner, /Ad failed to load : 3/);
   assert.match(runner, /ads-runtime-result\.json/);
   assert.match(workflow, /ads-runtime-result\.json/);
+  assert.match(workflow, /"event":"native_ad_loaded","placement":"home"/);
+  assert.match(workflow, /"event":"native_ad_loaded","placement":"reels"/);
+  assert.doesNotMatch(workflow, /native_ad_\(loaded\|failed\)/);
   assert.match(runner, /ads-runtime-smoke\.png/);
   assert.doesNotMatch(builder, /com\.gonggu\.wish(?!\.preview)/);
 });
