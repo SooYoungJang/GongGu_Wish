@@ -38,14 +38,6 @@
     },
     "plugins": [
       [
-        "expo-build-properties",
-        {
-          "android": {
-            "kotlinVersion": "2.3.0"
-          }
-        }
-      ],
-      [
         "expo-splash-screen",
         {
           "backgroundColor": "#FFF4EA",

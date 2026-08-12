@@ -10,7 +10,7 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   const baseAppConfig = JSON.parse(read("apps/mobile/app.json"));
   const mobilePackage = JSON.parse(read("apps/mobile/package.json"));
   const mobileAdsPatch = read(
-    "apps/mobile/patches/react-native-google-mobile-ads+16.4.0.patch",
+    "apps/mobile/patches/react-native-google-mobile-ads+16.3.4.patch",
   );
   const builder = read("scripts/build-mobile-ads-smoke.sh");
   const probe = read("apps/mobile/src/ads/AdsRuntimeSmokeProbe.tsx");
@@ -33,23 +33,22 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   );
   assert.match(workflow, /api-level: 36/);
   assert.match(workflow, /target: google_apis_playstore/);
+  // 16.4.x bundles Ads SDK 25.4.x, whose Kotlin 2.3 metadata is newer than
+  // the Kotlin 2.1 toolchain used by Expo SDK 55 native modules.
   assert.equal(
     mobilePackage.dependencies["react-native-google-mobile-ads"],
-    "16.4.0",
+    "16.3.4",
   );
+  assert.equal(mobilePackage.dependencies["expo-build-properties"], undefined);
   assert.equal(
-    mobilePackage.dependencies["expo-build-properties"],
-    "~55.0.16",
-  );
-  assert.deepEqual(
     baseAppConfig.expo.plugins.find(
       (plugin) => Array.isArray(plugin) && plugin[0] === "expo-build-properties",
     ),
-    ["expo-build-properties", { android: { kotlinVersion: "2.3.0" } }],
+    undefined,
   );
   assert.equal(
     mobilePackage.scripts.postinstall,
-    "cd ../.. && patch-package --patch-dir apps/mobile/patches",
+    "patch-package --patch-dir patches",
   );
   assert.match(mobileAdsPatch, /override fun onAdFailedToLoad/);
   assert.match(mobileAdsPatch, /promise\.reject/);
@@ -61,7 +60,7 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
     "the ads smoke probe must render inside ThemeProvider",
   );
   assert.match(builder, /app:assembleRelease/);
-  assert.match(builder, /android\.kotlinVersion=2\.3\.0/);
+  assert.doesNotMatch(builder, /android\.kotlinVersion/);
   assert.match(builder, /gradle-9\.0\.0-bin\.zip/);
   assert.match(builder, /8fad3d78296ca518113f3d29016617c7f9367dc005f932bd9d93bf45ba46072b/);
   assert.match(builder, /curl[\s\S]*?--retry 5/);
