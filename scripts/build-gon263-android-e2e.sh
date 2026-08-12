@@ -23,6 +23,7 @@ cp apps/mobile/android/app/src/main/AndroidManifest.xml \
   artifacts/android/android-manifest.xml
 grep -F 'android:usesCleartextTraffic="true"' \
   artifacts/android/android-manifest.xml
+bash scripts/use-verified-gradle-distribution.sh
 node scripts/generate-gon263-android-codegen.mjs \
   2>&1 | tee artifacts/android/android-codegen.log
 
