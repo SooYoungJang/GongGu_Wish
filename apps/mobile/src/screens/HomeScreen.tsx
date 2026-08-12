@@ -41,7 +41,11 @@ import { CATEGORIES } from "../components/home/CategoryRow";
 import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
 import { HomeRequestTicker } from "../components/home/HomeRequestTicker";
-import { fetchGroupBuys, fetchHomeBannerGroupBuys } from "../api";
+import {
+  getGroupBuysQueryOptions,
+  getHomeBannerQueryOptions,
+  HOME_DATA_STALE_TIME_MS,
+} from "../bootstrap/appBootstrap";
 import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { getHomeBannerStatusCopy } from "@gonggu/shared/utils/homeBannerPresentation";
@@ -1027,14 +1031,19 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [scrollToTopRequest, setScrollToTopRequest] = useState<number | null>(
     null,
   );
-  const { data, isError, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["group-buys"],
-    queryFn: fetchGroupBuys,
-  });
-  const { data: homeBannerData, refetch: refetchHomeBanners } = useQuery({
-    queryKey: ["home-banner-group-buys", homeBannerDateKey],
-    queryFn: () => fetchHomeBannerGroupBuys(),
-  });
+  const {
+    data,
+    dataUpdatedAt: groupBuysUpdatedAt,
+    isError,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery(getGroupBuysQueryOptions());
+  const {
+    data: homeBannerData,
+    dataUpdatedAt: homeBannerUpdatedAt,
+    refetch: refetchHomeBanners,
+  } = useQuery(getHomeBannerQueryOptions(homeBannerDateKey));
   const {
     data: groupBuyRequestRankings = [],
     refetch: refetchGroupBuyRequestRankings,
@@ -1086,12 +1095,27 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   useFocusEffect(
     useCallback(() => {
-      void Promise.all([
-        refetch(),
-        refetchHomeBanners(),
-        refetchGroupBuyRequestRankings(),
-      ]);
-    }, [refetch, refetchGroupBuyRequestRankings, refetchHomeBanners]),
+      const homeDataUpdatedAt = Math.min(
+        groupBuysUpdatedAt,
+        homeBannerUpdatedAt,
+      );
+      const homeDataIsStale =
+        homeDataUpdatedAt === 0 ||
+        Date.now() - homeDataUpdatedAt >= HOME_DATA_STALE_TIME_MS;
+      const requests: Promise<unknown>[] = [refetchGroupBuyRequestRankings()];
+
+      if (homeDataIsStale) {
+        requests.push(refetch(), refetchHomeBanners());
+      }
+
+      void Promise.all(requests);
+    }, [
+      groupBuysUpdatedAt,
+      homeBannerUpdatedAt,
+      refetch,
+      refetchGroupBuyRequestRankings,
+      refetchHomeBanners,
+    ]),
   );
 
   return (

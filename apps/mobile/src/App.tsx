@@ -37,12 +37,14 @@ import {
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
+import * as SplashScreen from "expo-splash-screen";
 
 import { AdsProvider } from "./ads/AdsContext";
 import { AdsRuntimeSmokeProbe } from "./ads/AdsRuntimeSmokeProbe";
 import { AudienceGate } from "./audience/AudienceGate";
 import { AudienceProvider, useAudience } from "./audience/AudienceContext";
 import { RestrictedAudienceCleanupBridge } from "./audience/RestrictedAudienceCleanupBridge";
+import { AppBootstrapGate } from "./bootstrap/AppBootstrapGate";
 import type { MainTabParamList, RootStackParamList } from "./types";
 import { configurePostgrest } from "./lib/postgrest-client";
 import { configureSupabase } from "./lib/supabase";
@@ -81,6 +83,11 @@ import {
 import { notificationLinking } from "./navigation/notificationLinking";
 import { startPopularitySignalRecovery } from "./services/popularitySignalRecovery";
 import { publicBuildConfig } from "./lib/public-build-config";
+
+// Keep the native splash visible while audience settings, auth, and the first
+// home payload are prepared. Expo recommends calling this at module scope so
+// it runs before the native splash can auto-hide.
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // Initialize PostgREST client with the Supabase anon key
 const automatedE2E = isAutomatedE2E();
@@ -615,21 +622,23 @@ function AudienceApplication() {
         <ThemeProvider>
           <AdsRuntimeSmokeProbe />
           <AuthProvider audiencePolicy={policy}>
-            <RestrictedAudienceCleanupBridge />
-            <NotificationPreferencesBoundary>
-              <GroupBuyReminderPickerProvider
-                onAuthenticationRequired={() => {
-                  if (rootNavigationRef.isReady()) {
-                    rootNavigationRef.navigate("Login");
-                  }
-                }}
-              >
-                <NotificationScheduleBridge />
-                <ThemedNavigationContainer>
-                  <ThemedStackNavigator />
-                </ThemedNavigationContainer>
-              </GroupBuyReminderPickerProvider>
-            </NotificationPreferencesBoundary>
+            <AppBootstrapGate>
+              <RestrictedAudienceCleanupBridge />
+              <NotificationPreferencesBoundary>
+                <GroupBuyReminderPickerProvider
+                  onAuthenticationRequired={() => {
+                    if (rootNavigationRef.isReady()) {
+                      rootNavigationRef.navigate("Login");
+                    }
+                  }}
+                >
+                  <NotificationScheduleBridge />
+                  <ThemedNavigationContainer>
+                    <ThemedStackNavigator />
+                  </ThemedNavigationContainer>
+                </GroupBuyReminderPickerProvider>
+              </NotificationPreferencesBoundary>
+            </AppBootstrapGate>
           </AuthProvider>
         </ThemeProvider>
       </QueryClientProvider>
