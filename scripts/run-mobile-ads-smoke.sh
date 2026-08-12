@@ -51,13 +51,17 @@ for selection_attempt in $(seq 1 30); do
       "$artifact_dir/ads-age-selection.xml" \
       | grep -o 'bounds="[^"]*"' \
       | head -n 1)"
-    if [[ ! "$bounds" =~ ^bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"$ ]]; then
+    coordinates="$(printf '%s\n' "$bounds" \
+      | sed -nE 's/^bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]"$/\1 \2 \3 \4/p')"
+    if [[ -z "$coordinates" ]]; then
       echo "Preview age selection bounds were malformed" >&2
       exit 1
     fi
-    coordinates="$(printf '%s' "$bounds" \
-      | sed -E 's/.*\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\1 \2 \3 \4/')"
     read -r left top right bottom <<< "$coordinates"
+    if (( left >= right || top >= bottom )); then
+      echo "Preview age selection bounds were empty" >&2
+      exit 1
+    fi
     adb shell input tap "$(( (left + right) / 2 ))" "$(( (top + bottom) / 2 ))"
     age_selection_completed=true
     break
