@@ -113,12 +113,6 @@ export const NativeAdCard = memo(function NativeAdCard({
         });
         const nativeAd = await module.NativeAd.createForAdRequest(unitId, {
           adChoicesPlacement: module.NativeAdChoicesPlacement.TOP_RIGHT,
-          aspectRatio:
-            variant === "reel"
-              ? module.NativeMediaAspectRatio.PORTRAIT
-              : variant === "tile" || variant === "row"
-                ? module.NativeMediaAspectRatio.SQUARE
-                : module.NativeMediaAspectRatio.LANDSCAPE,
           startVideoMuted: true,
         });
         return { module, nativeAd };

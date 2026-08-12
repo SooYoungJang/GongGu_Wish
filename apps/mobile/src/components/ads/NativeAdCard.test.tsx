@@ -1,10 +1,7 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  NativeAd,
-  NativeMediaAspectRatio,
-} from "react-native-google-mobile-ads";
+import { NativeAd } from "react-native-google-mobile-ads";
 
 import { AdsContext } from "../../ads/AdsContext.android";
 import { NativeAdCard } from "./NativeAdCard.android";
@@ -124,7 +121,7 @@ describe("NativeAdCard", () => {
 
     expect(NativeAd.createForAdRequest).toHaveBeenCalledWith(
       "home-native-unit",
-      expect.objectContaining({ aspectRatio: expect.any(Number) }),
+      expect.not.objectContaining({ aspectRatio: expect.any(Number) }),
     );
     expect(onLoadStateChange).toHaveBeenLastCalledWith("loaded");
     expect(flattenText(renderer!.toJSON())).toContain("광고");
@@ -271,19 +268,17 @@ describe("NativeAdCard", () => {
         maxWidth: "47%",
         minHeight: 206,
       },
-      expectedAspectRatio: NativeMediaAspectRatio.SQUARE,
       mediaStyle: { aspectRatio: 1, width: "100%" },
       variant: "tile" as const,
     },
     {
       containerStyle: { flexDirection: "row", minHeight: 124 },
-      expectedAspectRatio: NativeMediaAspectRatio.SQUARE,
       mediaStyle: { width: 120 },
       variant: "row" as const,
     },
   ])(
     "uses commerce-card proportions for the $variant variant",
-    async ({ containerStyle, expectedAspectRatio, mediaStyle, variant }) => {
+    async ({ containerStyle, mediaStyle, variant }) => {
       const ad = {
         advertiser: "공구 파트너",
         body: "추천 상품",
@@ -328,7 +323,7 @@ describe("NativeAdCard", () => {
       );
       expect(NativeAd.createForAdRequest).toHaveBeenCalledWith(
         "home-native-unit",
-        expect.objectContaining({ aspectRatio: expectedAspectRatio }),
+        expect.not.objectContaining({ aspectRatio: expect.any(Number) }),
       );
       expect(mediaFrame?.props.style).toEqual(
         expect.objectContaining(mediaStyle),
