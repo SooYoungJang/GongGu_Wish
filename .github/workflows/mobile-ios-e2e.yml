@@ -233,6 +233,7 @@ jobs:
     timeout-minutes: 45
     env:
       APP_VARIANT: "preview"
+      ADS_GMS_WARMUP_SECONDS: "180"
       EXPO_NO_TELEMETRY: "1"
       EXPO_PUBLIC_ADS_RUNTIME_SMOKE: "true"
       EXPO_PUBLIC_ADMOB_MODE: "test"
@@ -274,13 +275,10 @@ jobs:
       - name: Build release app and exercise official Google test ad requests
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
-          # Match the upstream react-native-google-mobile-ads E2E image. The
-          # API 36 Play Store image timed out while collecting GMS ad signals
-          # and returned no-fill even for Google's deterministic test units.
-          api-level: 29
+          api-level: 36
           arch: x86_64
           profile: pixel_6
-          target: google_apis
+          target: google_apis_playstore
           disable-animations: true
           disk-size: 6000M
           heap-size: 2048M

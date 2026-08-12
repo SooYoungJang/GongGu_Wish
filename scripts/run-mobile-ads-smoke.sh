@@ -21,6 +21,31 @@ trap capture_evidence EXIT
 
 test -s "$apk"
 adb install -r "$apk"
+
+# Fresh Play Store emulator images finish provisioning GMS modules after the
+# Android boot-complete signal. Starting AdMob during that window can time out
+# signal collection and turn Google's deterministic test units into no-fill.
+# Let the image settle before the first app process starts, and keep version
+# evidence so a failure can be distinguished from an app integration issue.
+warmup_seconds="${ADS_GMS_WARMUP_SECONDS:-0}"
+{
+  adb shell dumpsys package com.google.android.gms \
+    | grep -E 'versionName=|versionCode=' \
+    | head -n 4 || true
+  adb shell dumpsys activity service com.google.android.gms/.chimera.GmsIntentOperationService \
+    | head -n 80 || true
+} > "$artifact_dir/gms-state-before-warmup.txt"
+if (( warmup_seconds > 0 )); then
+  sleep "$warmup_seconds"
+fi
+{
+  adb shell dumpsys package com.google.android.gms \
+    | grep -E 'versionName=|versionCode=' \
+    | head -n 4 || true
+  adb shell dumpsys activity service com.google.android.gms/.chimera.GmsIntentOperationService \
+    | head -n 80 || true
+} > "$artifact_dir/gms-state-after-warmup.txt"
+
 adb logcat -c
 adb shell am force-stop "$package_name"
 adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 \

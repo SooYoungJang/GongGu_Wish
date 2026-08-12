@@ -22,9 +22,12 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   assert.match(workflow, /EXPO_PUBLIC_E2E_MODE: "false"/);
   assert.match(workflow, /build-mobile-ads-smoke\.sh/);
   assert.match(workflow, /run-mobile-ads-smoke\.sh/);
-  assert.match(workflow, /api-level: 29/);
-  assert.match(workflow, /target: google_apis/);
-  assert.doesNotMatch(workflow, /target: google_apis_playstore/);
+  assert.match(
+    workflow,
+    /ads-runtime-android:[\s\S]*?ADS_GMS_WARMUP_SECONDS: "180"/,
+  );
+  assert.match(workflow, /api-level: 36/);
+  assert.match(workflow, /target: google_apis_playstore/);
   assert.match(appConfig, /appVariant === "preview"/);
   assert.match(app, /<AdsRuntimeSmokeProbe \/>/);
   assert.ok(
@@ -37,6 +40,9 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   assert.match(probe, /placement="home"/);
   assert.match(probe, /placement="reels"/);
   assert.match(runner, /com\.gonggu\.wish\.preview/);
+  assert.match(runner, /ADS_GMS_WARMUP_SECONDS/);
+  assert.match(runner, /gms-state-before-warmup\.txt/);
+  assert.match(runner, /gms-state-after-warmup\.txt/);
   assert.match(runner, /for launch_attempt in \$\(seq 1 30\)/);
   assert.match(runner, /만 14세 이상입니다/);
   assert.match(runner, /input tap/);
