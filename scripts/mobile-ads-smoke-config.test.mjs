@@ -62,6 +62,10 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   );
   assert.match(builder, /app:assembleRelease/);
   assert.match(builder, /android\.kotlinVersion=2\.3\.0/);
+  assert.match(builder, /gradle-9\.0\.0-bin\.zip/);
+  assert.match(builder, /8fad3d78296ca518113f3d29016617c7f9367dc005f932bd9d93bf45ba46072b/);
+  assert.match(builder, /curl[\s\S]*?--retry 5/);
+  assert.match(builder, /distributionUrl=file:/);
   assert.match(builder, /ca-app-pub-3940256099942544~3347511713/);
   assert.match(probe, /placement="home"/);
   assert.match(probe, /placement="reels"/);

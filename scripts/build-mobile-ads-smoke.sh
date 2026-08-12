@@ -28,6 +28,24 @@ grep -Fx 'android.kotlinVersion=2.3.0' \
 grep -F 'android:value="ca-app-pub-3940256099942544~3347511713"' \
   "$manifest"
 
+# The wrapper's single request occasionally receives a truncated Gradle ZIP
+# from services.gradle.org on GitHub-hosted runners. Download with bounded
+# retries and verify the official checksum before any native build starts.
+gradle_distribution="$RUNNER_TEMP/gradle-9.0.0-bin.zip"
+curl --fail --location --silent --show-error \
+  --retry 5 --retry-all-errors --retry-delay 3 \
+  --output "$gradle_distribution" \
+  https://services.gradle.org/distributions/gradle-9.0.0-bin.zip
+printf '%s  %s\n' \
+  '8fad3d78296ca518113f3d29016617c7f9367dc005f932bd9d93bf45ba46072b' \
+  "$gradle_distribution" \
+  | sha256sum --check
+sed -i \
+  "s#^distributionUrl=.*#distributionUrl=file\\:$gradle_distribution#" \
+  apps/mobile/android/gradle/wrapper/gradle-wrapper.properties
+grep -F 'distributionUrl=file:' \
+  apps/mobile/android/gradle/wrapper/gradle-wrapper.properties
+
 node scripts/generate-gon263-android-codegen.mjs \
   2>&1 | tee "$artifact_dir/android-codegen.log"
 
