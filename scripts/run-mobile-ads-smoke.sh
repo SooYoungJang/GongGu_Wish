@@ -21,6 +21,31 @@ trap capture_evidence EXIT
 
 test -s "$apk"
 adb install -r "$apk"
+
+# Fresh Play Store emulator images finish provisioning GMS modules after the
+# Android boot-complete signal. Starting AdMob during that window can time out
+# signal collection and turn Google's deterministic test units into no-fill.
+# Let the image settle before the first app process starts, and keep version
+# evidence so a failure can be distinguished from an app integration issue.
+warmup_seconds="${ADS_GMS_WARMUP_SECONDS:-0}"
+{
+  adb shell dumpsys package com.google.android.gms \
+    | grep -E 'versionName=|versionCode=' \
+    | head -n 4 || true
+  adb shell dumpsys activity service com.google.android.gms/.chimera.GmsIntentOperationService \
+    | head -n 80 || true
+} > "$artifact_dir/gms-state-before-warmup.txt"
+if (( warmup_seconds > 0 )); then
+  sleep "$warmup_seconds"
+fi
+{
+  adb shell dumpsys package com.google.android.gms \
+    | grep -E 'versionName=|versionCode=' \
+    | head -n 4 || true
+  adb shell dumpsys activity service com.google.android.gms/.chimera.GmsIntentOperationService \
+    | head -n 80 || true
+} > "$artifact_dir/gms-state-after-warmup.txt"
+
 adb logcat -c
 adb shell am force-stop "$package_name"
 adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 \
@@ -39,6 +64,40 @@ if [[ "$app_started" != "true" ]]; then
   exit 1
 fi
 
+age_selection_completed=false
+for selection_attempt in $(seq 1 30); do
+  adb shell uiautomator dump /sdcard/ads-age-selection.xml >/dev/null || true
+  adb pull /sdcard/ads-age-selection.xml \
+    "$artifact_dir/ads-age-selection.xml" >/dev/null || true
+  if [[ -s "$artifact_dir/ads-age-selection.xml" ]] \
+    && grep -F 'content-desc="만 14세 이상입니다"' \
+      "$artifact_dir/ads-age-selection.xml" >/dev/null; then
+    bounds="$(grep -o 'content-desc="만 14세 이상입니다"[^>]*bounds="[^"]*"' \
+      "$artifact_dir/ads-age-selection.xml" \
+      | grep -o 'bounds="[^"]*"' \
+      | head -n 1)"
+    coordinates="$(printf '%s\n' "$bounds" \
+      | sed -nE 's/^bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]"$/\1 \2 \3 \4/p')"
+    if [[ -z "$coordinates" ]]; then
+      echo "Preview age selection bounds were malformed" >&2
+      exit 1
+    fi
+    read -r left top right bottom <<< "$coordinates"
+    if (( left >= right || top >= bottom )); then
+      echo "Preview age selection bounds were empty" >&2
+      exit 1
+    fi
+    adb shell input tap "$(( (left + right) / 2 ))" "$(( (top + bottom) / 2 ))"
+    age_selection_completed=true
+    break
+  fi
+  sleep 1
+done
+if [[ "$age_selection_completed" != "true" ]]; then
+  echo "Preview age selection did not become actionable within 30 seconds" >&2
+  exit 1
+fi
+
 has_event() {
   local event="$1"
   local placement="$2"
@@ -46,41 +105,9 @@ has_event() {
     "$artifact_dir/ads-logcat-current.txt" >/dev/null
 }
 
-has_terminal_event() {
-  local placement="$1"
-  has_event "native_ad_loaded" "$placement" \
-    || has_event "native_ad_failed" "$placement"
-}
-
-has_no_fill_failure() {
-  local placement="$1"
-  grep -F "\"event\":\"native_ad_failed\",\"placement\":\"$placement\"" \
-    "$artifact_dir/ads-logcat-current.txt" \
-    | grep -E '"errorCode":"(google-mobile-ads/)?no-fill"' >/dev/null
-}
-
 write_result() {
-  local home_status
-  local reels_status
-  if has_event "native_ad_loaded" "home"; then
-    home_status="loaded"
-  elif has_no_fill_failure "home"; then
-    home_status="external_no_fill"
-  else
-    echo "Home native ad did not load or report structured no-fill" >&2
-    return 1
-  fi
-  if has_event "native_ad_loaded" "reels"; then
-    reels_status="loaded"
-  elif has_no_fill_failure "reels"; then
-    reels_status="external_no_fill"
-  else
-    echo "Reels native ad did not load or report structured no-fill" >&2
-    return 1
-  fi
   printf \
-    '{"sdk":"ready","appProcess":"alive","home":"%s","reels":"%s"}\n' \
-    "$home_status" "$reels_status" \
+    '{"sdk":"ready","appProcess":"alive","home":"loaded","reels":"loaded"}\n' \
     > "$artifact_dir/ads-runtime-result.json"
 }
 
@@ -97,15 +124,8 @@ for attempt in $(seq 1 120); do
       "$artifact_dir/ads-logcat-current.txt" >/dev/null \
     && has_event "native_ad_request_started" "home" \
     && has_event "native_ad_request_started" "reels" \
-    && has_terminal_event "home" \
-    && has_terminal_event "reels"; then
-    for placement in home reels; do
-      if has_event "native_ad_failed" "$placement" \
-        && ! has_no_fill_failure "$placement"; then
-        echo "$placement native ad failed without structured no-fill" >&2
-        exit 1
-      fi
-    done
+    && has_event "native_ad_loaded" "home" \
+    && has_event "native_ad_loaded" "reels"; then
     sleep 2
     adb shell pidof "$package_name" >/dev/null
     write_result
@@ -118,5 +138,5 @@ for attempt in $(seq 1 120); do
   sleep 1
 done
 
-echo "Timed out waiting for both official Google test ad request lifecycles" >&2
+echo "Timed out waiting for both official Google test ads to load" >&2
 exit 1

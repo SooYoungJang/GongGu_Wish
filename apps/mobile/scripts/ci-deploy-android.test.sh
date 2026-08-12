@@ -96,7 +96,7 @@ case "$command_name" in
         ;;
       production)
         [[ "${GONGGU_OTA_ADMOB_MODE:-}" == "production" ]]
-        [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "false" ]]
+        [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "true" ]]
         ;;
       *) echo "Unexpected app variant for EAS Update" >&2; exit 1 ;;
     esac
@@ -225,11 +225,11 @@ case "${APP_VARIANT:-}" in
     ;;
   production)
     [[ "${EXPO_PUBLIC_ADMOB_MODE:-}" == "production" ]]
-    [[ "${EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED:-}" == "false" ]]
+    [[ "${EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED:-}" == "true" ]]
     [[ "${GONGGU_OTA_ADMOB_MODE:-}" == "production" ]]
-    [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "false" ]]
+    [[ "${GONGGU_OTA_AD_REQUESTS_ENABLED:-}" == "true" ]]
     mode="production"
-    requests_enabled="false"
+    requests_enabled="true"
     ;;
   *) echo "Unexpected app variant for Expo config preflight" >&2; exit 1 ;;
 esac

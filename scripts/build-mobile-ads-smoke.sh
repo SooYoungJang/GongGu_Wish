@@ -26,6 +26,8 @@ cp "$manifest" "$artifact_dir/android-manifest.xml"
 grep -F 'android:value="ca-app-pub-3940256099942544~3347511713"' \
   "$manifest"
 
+bash scripts/use-verified-gradle-distribution.sh
+
 node scripts/generate-gon263-android-codegen.mjs \
   2>&1 | tee "$artifact_dir/android-codegen.log"
 
