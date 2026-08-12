@@ -7,6 +7,11 @@ const read = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 test("Android ads smoke requires visible Preview test ads to load", () => {
   const app = read("apps/mobile/src/App.tsx");
   const appConfig = read("apps/mobile/app.config.js");
+  const baseAppConfig = JSON.parse(read("apps/mobile/app.json"));
+  const mobilePackage = JSON.parse(read("apps/mobile/package.json"));
+  const mobileAdsPatch = read(
+    "apps/mobile/patches/react-native-google-mobile-ads+16.3.4.patch",
+  );
   const builder = read("scripts/build-mobile-ads-smoke.sh");
   const probe = read("apps/mobile/src/ads/AdsRuntimeSmokeProbe.tsx");
   const runner = read("scripts/run-mobile-ads-smoke.sh");
@@ -22,7 +27,31 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   assert.match(workflow, /EXPO_PUBLIC_E2E_MODE: "false"/);
   assert.match(workflow, /build-mobile-ads-smoke\.sh/);
   assert.match(workflow, /run-mobile-ads-smoke\.sh/);
+  assert.match(
+    workflow,
+    /ads-runtime-android:[\s\S]*?ADS_GMS_WARMUP_SECONDS: "180"/,
+  );
+  assert.match(workflow, /api-level: 36/);
   assert.match(workflow, /target: google_apis_playstore/);
+  // 16.4.x bundles Ads SDK 25.4.x, whose Kotlin 2.3 metadata is newer than
+  // the Kotlin 2.1 toolchain used by Expo SDK 55 native modules.
+  assert.equal(
+    mobilePackage.dependencies["react-native-google-mobile-ads"],
+    "16.3.4",
+  );
+  assert.equal(mobilePackage.dependencies["expo-build-properties"], undefined);
+  assert.equal(
+    baseAppConfig.expo.plugins.find(
+      (plugin) => Array.isArray(plugin) && plugin[0] === "expo-build-properties",
+    ),
+    undefined,
+  );
+  assert.equal(
+    mobilePackage.scripts.postinstall,
+    "patch-package --patch-dir patches",
+  );
+  assert.match(mobileAdsPatch, /override fun onAdFailedToLoad/);
+  assert.match(mobileAdsPatch, /promise\.reject/);
   assert.match(appConfig, /appVariant === "preview"/);
   assert.match(app, /<AdsRuntimeSmokeProbe \/>/);
   assert.ok(
@@ -31,10 +60,18 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
     "the ads smoke probe must render inside ThemeProvider",
   );
   assert.match(builder, /app:assembleRelease/);
+  assert.doesNotMatch(builder, /android\.kotlinVersion/);
+  assert.match(builder, /gradle-9\.0\.0-bin\.zip/);
+  assert.match(builder, /8fad3d78296ca518113f3d29016617c7f9367dc005f932bd9d93bf45ba46072b/);
+  assert.match(builder, /curl[\s\S]*?--retry 5/);
+  assert.match(builder, /distributionUrl=file:/);
   assert.match(builder, /ca-app-pub-3940256099942544~3347511713/);
   assert.match(probe, /placement="home"/);
   assert.match(probe, /placement="reels"/);
   assert.match(runner, /com\.gonggu\.wish\.preview/);
+  assert.match(runner, /ADS_GMS_WARMUP_SECONDS/);
+  assert.match(runner, /gms-state-before-warmup\.txt/);
+  assert.match(runner, /gms-state-after-warmup\.txt/);
   assert.match(runner, /for launch_attempt in \$\(seq 1 30\)/);
   assert.match(runner, /만 14세 이상입니다/);
   assert.match(runner, /input tap/);

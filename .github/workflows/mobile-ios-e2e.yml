@@ -233,6 +233,7 @@ jobs:
     timeout-minutes: 45
     env:
       APP_VARIANT: "preview"
+      ADS_GMS_WARMUP_SECONDS: "180"
       EXPO_NO_TELEMETRY: "1"
       EXPO_PUBLIC_ADS_RUNTIME_SMOKE: "true"
       EXPO_PUBLIC_ADMOB_MODE: "test"
