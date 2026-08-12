@@ -7,6 +7,10 @@ const read = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 test("Android ads smoke requires visible Preview test ads to load", () => {
   const app = read("apps/mobile/src/App.tsx");
   const appConfig = read("apps/mobile/app.config.js");
+  const mobilePackage = JSON.parse(read("apps/mobile/package.json"));
+  const mobileAdsPatch = read(
+    "apps/mobile/patches/react-native-google-mobile-ads+16.4.0.patch",
+  );
   const builder = read("scripts/build-mobile-ads-smoke.sh");
   const probe = read("apps/mobile/src/ads/AdsRuntimeSmokeProbe.tsx");
   const runner = read("scripts/run-mobile-ads-smoke.sh");
@@ -28,6 +32,16 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   );
   assert.match(workflow, /api-level: 36/);
   assert.match(workflow, /target: google_apis_playstore/);
+  assert.equal(
+    mobilePackage.dependencies["react-native-google-mobile-ads"],
+    "16.4.0",
+  );
+  assert.equal(
+    mobilePackage.scripts.postinstall,
+    "cd ../.. && patch-package --patch-dir apps/mobile/patches",
+  );
+  assert.match(mobileAdsPatch, /override fun onAdFailedToLoad/);
+  assert.match(mobileAdsPatch, /promise\.reject/);
   assert.match(appConfig, /appVariant === "preview"/);
   assert.match(app, /<AdsRuntimeSmokeProbe \/>/);
   assert.ok(
