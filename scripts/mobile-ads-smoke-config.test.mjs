@@ -37,6 +37,14 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   assert.match(runner, /for launch_attempt in \$\(seq 1 30\)/);
   assert.match(runner, /만 14세 이상입니다/);
   assert.match(runner, /input tap/);
+  assert.ok(
+    runner.includes(
+      `sed -nE 's/^bounds="\\[([0-9]+),([0-9]+)\\]\\[([0-9]+),([0-9]+)\\]"$/\\1 \\2 \\3 \\4/p'`,
+    ),
+  );
+  assert.doesNotMatch(runner, /\[\[ ! "\$bounds" =~/);
+  assert.match(runner, /\[\[ -z "\$coordinates" \]\]/);
+  assert.match(runner, /left >= right \|\| top >= bottom/);
   assert.match(runner, /"event":"initialization_ready"/);
   assert.match(runner, /native_ad_request_started/);
   assert.match(runner, /native_ad_loaded/);
