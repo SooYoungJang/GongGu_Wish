@@ -29,7 +29,7 @@
         "APP_VARIANT": "production",
         "GOOGLE_SERVICES_REQUIRED": "true",
         "EXPO_PUBLIC_ADMOB_MODE": "production",
-        "EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED": "false"
+        "EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED": "true"
       }
     },
     "production-apk": {

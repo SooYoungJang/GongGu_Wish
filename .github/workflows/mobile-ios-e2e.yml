@@ -226,7 +226,8 @@ jobs:
           fi
 
   ads-runtime-android:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.ads_runtime_smoke == true }}
+    needs: [mobile-e2e-plan]
+    if: ${{ always() && ((github.event_name == 'pull_request' && needs.mobile-e2e-plan.result == 'success' && needs.mobile-e2e-plan.outputs.affected == 'true') || (github.event_name == 'workflow_dispatch' && inputs.ads_runtime_smoke == true)) }}
     name: Preview Android ads runtime smoke
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -260,7 +261,9 @@ jobs:
         run: npm ci
 
       - name: Validate ads smoke contract
-        run: node --test scripts/mobile-ads-smoke-config.test.mjs
+        run: |
+          node --test scripts/mobile-ads-smoke-config.test.mjs
+          node --test scripts/mobile-admob-production-profile.test.mjs
 
       - name: Enable KVM access
         run: |
@@ -296,9 +299,9 @@ jobs:
             artifacts/mobile-ads-smoke/ads-logcat.txt
           grep -F '"event":"native_ad_request_started","placement":"reels"' \
             artifacts/mobile-ads-smoke/ads-logcat.txt
-          grep -E '"event":"native_ad_(loaded|failed)","placement":"home"' \
+          grep -F '"event":"native_ad_loaded","placement":"home"' \
             artifacts/mobile-ads-smoke/ads-logcat.txt
-          grep -E '"event":"native_ad_(loaded|failed)","placement":"reels"' \
+          grep -F '"event":"native_ad_loaded","placement":"reels"' \
             artifacts/mobile-ads-smoke/ads-logcat.txt
 
       - name: Upload ads runtime evidence
