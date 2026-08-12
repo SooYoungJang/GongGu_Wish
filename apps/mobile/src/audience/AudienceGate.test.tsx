@@ -8,9 +8,15 @@ const storage = vi.hoisted(() => ({
   setItem: vi.fn(),
   removeItem: vi.fn(),
 }));
+const nativeSplash = vi.hoisted(() => ({
+  hideAsync: vi.fn(),
+}));
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: storage,
+}));
+vi.mock("expo-splash-screen", () => ({
+  hideAsync: nativeSplash.hideAsync,
 }));
 vi.mock("react-native-safe-area-context", () => ({
   SafeAreaView: "SafeAreaView",
@@ -24,6 +30,35 @@ describe("AudienceGate", () => {
     storage.getItem.mockReset().mockResolvedValue(null);
     storage.setItem.mockReset().mockResolvedValue(undefined);
     storage.removeItem.mockReset().mockResolvedValue(undefined);
+    nativeSplash.hideAsync.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("releases the native splash when the first-run age screen is ready", async () => {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <AudienceProvider>
+          <AudienceGate>
+            <Text testID="app-content">공개 콘텐츠</Text>
+          </AudienceGate>
+        </AudienceProvider>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const ageScreen = renderer.root.findByProps({
+      testID: "age-selection-screen",
+    });
+    expect(nativeSplash.hideAsync).not.toHaveBeenCalled();
+
+    await act(async () => {
+      ageScreen.props.onLayout();
+      ageScreen.props.onLayout();
+      await Promise.resolve();
+    });
+
+    expect(nativeSplash.hideAsync).toHaveBeenCalledOnce();
   });
 
   it("asks for an age band on first run before opening public content", async () => {
