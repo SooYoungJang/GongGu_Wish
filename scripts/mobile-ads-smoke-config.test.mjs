@@ -7,6 +7,7 @@ const read = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 test("Android ads smoke requires visible Preview test ads to load", () => {
   const app = read("apps/mobile/src/App.tsx");
   const appConfig = read("apps/mobile/app.config.js");
+  const baseAppConfig = JSON.parse(read("apps/mobile/app.json"));
   const mobilePackage = JSON.parse(read("apps/mobile/package.json"));
   const mobileAdsPatch = read(
     "apps/mobile/patches/react-native-google-mobile-ads+16.4.0.patch",
@@ -37,6 +38,16 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
     "16.4.0",
   );
   assert.equal(
+    mobilePackage.dependencies["expo-build-properties"],
+    "~55.0.16",
+  );
+  assert.deepEqual(
+    baseAppConfig.expo.plugins.find(
+      (plugin) => Array.isArray(plugin) && plugin[0] === "expo-build-properties",
+    ),
+    ["expo-build-properties", { android: { kotlinVersion: "2.3.0" } }],
+  );
+  assert.equal(
     mobilePackage.scripts.postinstall,
     "cd ../.. && patch-package --patch-dir apps/mobile/patches",
   );
@@ -50,6 +61,7 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
     "the ads smoke probe must render inside ThemeProvider",
   );
   assert.match(builder, /app:assembleRelease/);
+  assert.match(builder, /android\.kotlinVersion=2\.3\.0/);
   assert.match(builder, /ca-app-pub-3940256099942544~3347511713/);
   assert.match(probe, /placement="home"/);
   assert.match(probe, /placement="reels"/);

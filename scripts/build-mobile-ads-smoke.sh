@@ -23,6 +23,8 @@ popd >/dev/null
 manifest="apps/mobile/android/app/src/main/AndroidManifest.xml"
 test -s "$manifest"
 cp "$manifest" "$artifact_dir/android-manifest.xml"
+grep -Fx 'android.kotlinVersion=2.3.0' \
+  apps/mobile/android/gradle.properties
 grep -F 'android:value="ca-app-pub-3940256099942544~3347511713"' \
   "$manifest"
 

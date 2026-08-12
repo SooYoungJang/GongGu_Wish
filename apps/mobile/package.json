@@ -41,6 +41,7 @@
     "expo-asset": "~55.0.18",
     "expo-audio": "~55.0.16",
     "expo-blur": "~55.0.16",
+    "expo-build-properties": "~55.0.16",
     "expo-constants": "~55.0.17",
     "expo-dev-client": "~55.0.37",
     "expo-image": "~55.0.11",
