@@ -18,6 +18,7 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
     /ads-runtime-android:[\s\S]*?github\.event_name == 'pull_request'[\s\S]*?needs\.mobile-e2e-plan\.outputs\.affected == 'true'/,
   );
   assert.match(workflow, /EXPO_PUBLIC_ADS_RUNTIME_SMOKE: "true"/);
+  assert.match(workflow, /EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED: "true"/);
   assert.match(workflow, /EXPO_PUBLIC_E2E_MODE: "false"/);
   assert.match(workflow, /build-mobile-ads-smoke\.sh/);
   assert.match(workflow, /run-mobile-ads-smoke\.sh/);

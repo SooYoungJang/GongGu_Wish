@@ -236,6 +236,7 @@ jobs:
       EXPO_NO_TELEMETRY: "1"
       EXPO_PUBLIC_ADS_RUNTIME_SMOKE: "true"
       EXPO_PUBLIC_ADMOB_MODE: "test"
+      EXPO_PUBLIC_ADMOB_REQUESTS_ENABLED: "true"
       EXPO_PUBLIC_API_PROXY_URL: "https://api-preview.gongguwish.com"
       EXPO_PUBLIC_E2E_MODE: "false"
       EXPO_PUBLIC_SUPABASE_ANON_KEY: "ads-smoke-placeholder"
