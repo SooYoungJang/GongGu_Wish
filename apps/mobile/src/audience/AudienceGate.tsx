@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import * as SplashScreen from "expo-splash-screen";
 import {
   ActivityIndicator,
   Pressable,
@@ -14,6 +15,12 @@ export function AudienceGate({ children }: { children: React.ReactNode }) {
   const { ageBand, isHydrated, selectAgeBand } = useAudience();
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionError, setSelectionError] = useState(false);
+  const nativeSplashReleaseRequested = useRef(false);
+  const releaseNativeSplash = useCallback(() => {
+    if (nativeSplashReleaseRequested.current) return;
+    nativeSplashReleaseRequested.current = true;
+    void SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   if (!isHydrated) {
     return (
@@ -39,7 +46,11 @@ export function AudienceGate({ children }: { children: React.ReactNode }) {
     };
 
     return (
-      <SafeAreaView style={styles.ageScreen} testID="age-selection-screen">
+      <SafeAreaView
+        onLayout={releaseNativeSplash}
+        style={styles.ageScreen}
+        testID="age-selection-screen"
+      >
         <View
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
