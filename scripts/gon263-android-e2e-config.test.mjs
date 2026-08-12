@@ -27,6 +27,7 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
   const seed = read("supabase/seed.sql");
   const builder = read("scripts/build-gon263-android-e2e.sh");
+  const gradleBootstrap = read("scripts/use-verified-gradle-distribution.sh");
   const codegen = read("scripts/generate-gon263-android-codegen.mjs");
   const runner = read("scripts/run-gon263-android-e2e.sh");
   const activeFlows = [
@@ -53,6 +54,14 @@ test("Android E2E verifies localhost origins through the app journeys", () => {
   assert.match(codegen, /target_compile_reactnative_options/);
   assert.match(codegen, /const libraryType = "all"/);
   assert.match(builder, /:app:generateCodegenArtifactsFromSchema/);
+  assert.match(builder, /use-verified-gradle-distribution\.sh/);
+  assert.match(gradleBootstrap, /gradle-9\.0\.0-bin\.zip/);
+  assert.match(
+    gradleBootstrap,
+    /8fad3d78296ca518113f3d29016617c7f9367dc005f932bd9d93bf45ba46072b/,
+  );
+  assert.match(gradleBootstrap, /curl[\s\S]*?--retry 5/);
+  assert.match(gradleBootstrap, /distributionUrl=file:/);
   assert.match(workflow, /unzip -Z1 "\$android_apk"/);
   assert.match(workflow, /lib\/x86_64\/.*\\\.so/);
   assert.doesNotMatch(workflow, /Android E2E compiled an unused ABI/);

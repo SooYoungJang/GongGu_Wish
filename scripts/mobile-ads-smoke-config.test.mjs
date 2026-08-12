@@ -13,6 +13,7 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
     "apps/mobile/patches/react-native-google-mobile-ads+16.3.4.patch",
   );
   const builder = read("scripts/build-mobile-ads-smoke.sh");
+  const gradleBootstrap = read("scripts/use-verified-gradle-distribution.sh");
   const probe = read("apps/mobile/src/ads/AdsRuntimeSmokeProbe.tsx");
   const runner = read("scripts/run-mobile-ads-smoke.sh");
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
@@ -61,10 +62,14 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   );
   assert.match(builder, /app:assembleRelease/);
   assert.doesNotMatch(builder, /android\.kotlinVersion/);
-  assert.match(builder, /gradle-9\.0\.0-bin\.zip/);
-  assert.match(builder, /8fad3d78296ca518113f3d29016617c7f9367dc005f932bd9d93bf45ba46072b/);
-  assert.match(builder, /curl[\s\S]*?--retry 5/);
-  assert.match(builder, /distributionUrl=file:/);
+  assert.match(builder, /use-verified-gradle-distribution\.sh/);
+  assert.match(gradleBootstrap, /gradle-9\.0\.0-bin\.zip/);
+  assert.match(
+    gradleBootstrap,
+    /8fad3d78296ca518113f3d29016617c7f9367dc005f932bd9d93bf45ba46072b/,
+  );
+  assert.match(gradleBootstrap, /curl[\s\S]*?--retry 5/);
+  assert.match(gradleBootstrap, /distributionUrl=file:/);
   assert.match(builder, /ca-app-pub-3940256099942544~3347511713/);
   assert.match(probe, /placement="home"/);
   assert.match(probe, /placement="reels"/);
