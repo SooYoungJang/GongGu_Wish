@@ -102,6 +102,61 @@ describe("resolveAppVariant", () => {
   );
 });
 
+describe("Android App Links", () => {
+  it("registers only the Preview HTTPS group-buy route for Preview", () => {
+    const previousVariant = process.env.APP_VARIANT;
+    process.env.APP_VARIANT = "preview";
+
+    try {
+      const resolved = createAppConfig({ config: {} });
+
+      expect(resolved.android?.intentFilters).toEqual([
+        {
+          action: "VIEW",
+          autoVerify: true,
+          category: ["BROWSABLE", "DEFAULT"],
+          data: [
+            {
+              scheme: "https",
+              host: "api-preview.gongguwish.com",
+              pathPrefix: "/group-buy/",
+            },
+          ],
+        },
+      ]);
+    } finally {
+      if (previousVariant === undefined) delete process.env.APP_VARIANT;
+      else process.env.APP_VARIANT = previousVariant;
+    }
+  });
+
+  it("registers only the Production HTTPS group-buy route for Production", () => {
+    const previousVariant = process.env.APP_VARIANT;
+    process.env.APP_VARIANT = "production";
+
+    try {
+      const resolved = createAppConfig({ config: {} });
+      expect(resolved.android?.intentFilters).toEqual([
+        {
+          action: "VIEW",
+          autoVerify: true,
+          category: ["BROWSABLE", "DEFAULT"],
+          data: [
+            {
+              scheme: "https",
+              host: "gongguwish.com",
+              pathPrefix: "/group-buy/",
+            },
+          ],
+        },
+      ]);
+    } finally {
+      if (previousVariant === undefined) delete process.env.APP_VARIANT;
+      else process.env.APP_VARIANT = previousVariant;
+    }
+  });
+});
+
 describe("resolveAdsRuntimeSmoke", () => {
   it("allows the diagnostic ad surface only in Preview", () => {
     expect(resolveAdsRuntimeSmoke("preview", "true")).toBe(true);

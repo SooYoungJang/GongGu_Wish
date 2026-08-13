@@ -46,6 +46,29 @@ const BACKEND_ENVIRONMENTS = Object.freeze({
     supabaseUrl: "https://iosdoheblabfimkjnvfj.supabase.co",
   }),
 });
+const ANDROID_APP_LINK_HOSTS = Object.freeze({
+  preview: "api-preview.gongguwish.com",
+  production: "gongguwish.com",
+});
+
+function resolveAndroidIntentFilters(appVariant) {
+  const host = ANDROID_APP_LINK_HOSTS[appVariant];
+  if (!host) throw new Error("Unknown Android App Link environment");
+  return [
+    {
+      action: "VIEW",
+      autoVerify: true,
+      category: ["BROWSABLE", "DEFAULT"],
+      data: [
+        {
+          scheme: "https",
+          host,
+          pathPrefix: "/group-buy/",
+        },
+      ],
+    },
+  ];
+}
 
 function normalizeValue(value) {
   const normalized = value?.trim();
@@ -503,6 +526,7 @@ const createAppConfig = ({ config }) => {
         ...(typeof runtimeVersion === "string" ? { runtimeVersion } : {}),
         package: appVariant.applicationId,
         googleServicesFile,
+        intentFilters: resolveAndroidIntentFilters(appVariant.key),
       },
     },
     ads.androidAppId,
@@ -533,6 +557,7 @@ createAppConfig.resolveAdsBuildConfig = resolveAdsBuildConfig;
 createAppConfig.resolveAdRequestsEnabled = resolveAdRequestsEnabled;
 createAppConfig.resolveAdsRuntimeSmoke = resolveAdsRuntimeSmoke;
 createAppConfig.resolveAppVariant = resolveAppVariant;
+createAppConfig.resolveAndroidIntentFilters = resolveAndroidIntentFilters;
 createAppConfig.resolveBackendEnvironment = resolveBackendEnvironment;
 createAppConfig.resolveGoogleServicesFile = resolveGoogleServicesFile;
 createAppConfig.resolveRuntimeVersion = resolveRuntimeVersion;
