@@ -8,10 +8,13 @@ import {
 } from "./notificationPayload";
 
 describe("notification payload", () => {
-  it("builds a copyable HTTPS group-buy share URL", () => {
+  it("builds a group-buy share URL that opens the app detail screen", () => {
     expect(buildGroupBuyShareUrl(" group-buy-1 ")).toBe(
-      "https://gongguwish.com/group-buy/group-buy-1",
+      "gongguwish-preview://group-buy/group-buy-1",
     );
+    expect(
+      parseGroupBuyNotificationUrl(buildGroupBuyShareUrl("group-buy-1")),
+    ).toBe("group-buy-1");
     expect(buildGroupBuyShareUrl("a/b")).toBeNull();
   });
 
