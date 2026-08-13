@@ -1009,3 +1009,34 @@ test("Kakao provider readiness is public, environment-exact, and release-blockin
   assert.match(promotionGate, /!cancelled\(\)/);
   assert.doesNotMatch(promotionGate, /always\(\)/);
 });
+
+test("Naver provider readiness is public, environment-exact, and release-blocking", () => {
+  const providerJob = job("naver-provider-ready");
+  assert.match(providerJob, /name:\s*Naver Auth Provider Ready/);
+  assert.match(
+    providerJob,
+    /github\.ref == 'refs\/heads\/main' \|\| github\.base_ref == 'main'/,
+  );
+  assert.match(providerJob, /APP_VARIANT:/);
+  assert.match(providerJob, /SUPABASE_PROJECT_REF:/);
+  assert.match(providerJob, /iosdoheblabfimkjnvfj/);
+  assert.match(providerJob, /xwblovggtvbpiusjfokq/);
+  assert.match(
+    providerJob,
+    /node --test scripts\/check-naver-provider\.test\.mjs/,
+  );
+  assert.match(providerJob, /node scripts\/check-naver-provider\.mjs/);
+  assert.doesNotMatch(providerJob, /secrets\.|environment:/);
+
+  for (const gateId of [
+    "preview-release-gate",
+    "promotion-gate",
+    "production-green",
+  ]) {
+    const gate = job(gateId);
+    assert.equal(declaredNeeds(gate).has("naver-provider-ready"), true);
+    assert.match(gate, /needs\.naver-provider-ready\.result/);
+    assert.match(gate, /Naver Auth Provider Ready result is/);
+    assert.match(gate, /exit 1/);
+  }
+});
