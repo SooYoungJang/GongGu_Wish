@@ -8,6 +8,7 @@ import {
   buildGroupBuyNotificationUrl,
   NOTIFICATION_URL_PREFIX,
   parseGroupBuyNotificationUrl,
+  SHARE_URL_ORIGIN,
 } from "../services/notificationPayload";
 
 type UrlListener = (url: string) => void;
@@ -40,7 +41,7 @@ export function createNotificationLinking(
   dependencies: NotificationLinkingDependencies = defaultDependencies,
 ) {
   return {
-    prefixes: [NOTIFICATION_URL_PREFIX],
+    prefixes: [NOTIFICATION_URL_PREFIX, SHARE_URL_ORIGIN],
     config: {
       screens: {
         Detail: "group-buy/:groupBuyId",
