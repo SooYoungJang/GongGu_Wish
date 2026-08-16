@@ -45,7 +45,7 @@ describe("usePlaybackLifecycle", () => {
     appStateMock.removals = [];
   });
 
-  it("requires navigator focus, active AppState, and Android interaction focus", () => {
+  it("requires navigator focus and active AppState while tracking Android interaction focus", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(<LifecycleHarness />);
@@ -61,7 +61,10 @@ describe("usePlaybackLifecycle", () => {
     });
 
     act(() => appStateMock.listeners.get("blur")?.());
-    expect(read().isPlaybackActive).toBe(false);
+    expect(read()).toMatchObject({
+      isAppFocused: false,
+      isPlaybackActive: true,
+    });
 
     act(() => appStateMock.listeners.get("focus")?.());
     expect(read().isPlaybackActive).toBe(true);

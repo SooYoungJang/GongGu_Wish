@@ -1,9 +1,11 @@
 const videoMock = vi.hoisted(() => ({
   players: [] as any[],
+  stableAcrossRenders: false,
 }));
 const audioMock = vi.hoisted(() => ({
   players: [] as any[],
   setAudioModeAsync: vi.fn(async () => undefined),
+  seekToImpl: null as any,
 }));
 const appStateMock = vi.hoisted(() => ({
   currentState: "active",
@@ -106,8 +108,7 @@ vi.mock("../hooks/usePlaybackLifecycle", () => ({
     ...playbackLifecycleMock,
     isPlaybackActive:
       playbackLifecycleMock.isScreenFocused &&
-      playbackLifecycleMock.isAppActive &&
-      playbackLifecycleMock.isAppFocused,
+      playbackLifecycleMock.isAppActive,
   }),
 }));
 const flashListMock = vi.hoisted(() => ({
@@ -124,43 +125,50 @@ vi.mock("expo-video", () => ({
     return ReactMock.createElement("VideoView", props, children);
   },
   useVideoPlayer: (source: any, setup?: any) => {
-    const listeners = new Map<string, Set<(payload: any) => void>>();
-    const player = {
-      play: vi.fn(),
-      pause: vi.fn(),
-      replace: vi.fn(),
-      replaceAsync: vi.fn(),
-      loop: false,
-      muted: true,
-      volume: 0,
-      audioMixingMode: "auto",
-      allowsExternalPlayback: true,
-      currentTime: 12,
-      playing: false,
-      addListener: vi.fn((event: string, listener: (payload: any) => void) => {
-        const eventListeners = listeners.get(event) ?? new Set();
-        eventListeners.add(listener);
-        listeners.set(event, eventListeners);
-        return {
-          remove: () => eventListeners.delete(listener),
-        };
-      }),
-      emit: (event: string, payload: any) => {
-        listeners.get(event)?.forEach((listener) => listener(payload));
-      },
-      source,
-    };
-    player.play.mockImplementation(() => {
-      player.playing = true;
-      player.emit("playingChange", { isPlaying: true });
-    });
-    player.pause.mockImplementation(() => {
-      player.playing = false;
-      player.emit("playingChange", { isPlaying: false });
-    });
-    setup?.(player);
-    videoMock.players.push(player);
-    return player;
+    const ReactMock = require("react");
+    const playerRef = ReactMock.useRef(null as any);
+    if (!videoMock.stableAcrossRenders || !playerRef.current) {
+      const listeners = new Map<string, Set<(payload: any) => void>>();
+      const player = {
+        play: vi.fn(),
+        pause: vi.fn(),
+        replace: vi.fn(),
+        replaceAsync: vi.fn(),
+        loop: false,
+        muted: true,
+        volume: 0,
+        audioMixingMode: "auto",
+        allowsExternalPlayback: true,
+        currentTime: 12,
+        playing: false,
+        addListener: vi.fn((event: string, listener: (payload: any) => void) => {
+          const eventListeners = listeners.get(event) ?? new Set();
+          eventListeners.add(listener);
+          listeners.set(event, eventListeners);
+          return {
+            remove: () => eventListeners.delete(listener),
+          };
+        }),
+        emit: (event: string, payload: any) => {
+          listeners.get(event)?.forEach((listener) => listener(payload));
+        },
+        source,
+      };
+      player.play.mockImplementation(() => {
+        player.playing = true;
+        player.emit("playingChange", { isPlaying: true });
+      });
+      player.pause.mockImplementation(() => {
+        player.playing = false;
+        player.emit("playingChange", { isPlaying: false });
+      });
+      setup?.(player);
+      videoMock.players.push(player);
+      playerRef.current = player;
+    } else {
+      playerRef.current.source = source;
+    }
+    return playerRef.current;
   },
 }));
 
@@ -178,7 +186,11 @@ vi.mock("expo-audio", () => ({
         volume: 1,
         play: vi.fn(),
         pause: vi.fn(),
-        seekTo: vi.fn(async () => undefined),
+        seekTo: vi.fn((time: number) =>
+          audioMock.seekToImpl
+            ? audioMock.seekToImpl(time)
+            : Promise.resolve(),
+        ),
         currentStatus: {
           id: `audio-${audioMock.players.length + 1}`,
           currentTime: 0,
@@ -688,8 +700,10 @@ beforeEach(() => {
   refreshGroupBuyMediaMock.mockReset();
   refreshGroupBuyMediaMock.mockRejectedValue(new Error("refresh unavailable"));
   videoMock.players = [];
+  videoMock.stableAcrossRenders = false;
   audioMock.players = [];
   audioMock.setAudioModeAsync.mockClear();
+  audioMock.seekToImpl = null;
   queryMock.groupBuys = undefined;
   queryMock.linkedGroupBuy = undefined;
   queryMock.linkedIsError = false;
@@ -2714,7 +2728,7 @@ describe("DetailScreen video playback", () => {
     });
   });
 
-  it("deactivates video for Android blur or background but not a summary sheet", () => {
+  it("keeps video active for Android blur and pauses it for background", () => {
     const groupBuy: GroupBuy = {
       ...baseGroupBuy,
       videoUrl: "https://example.com/lifecycle.mp4",
@@ -2738,7 +2752,7 @@ describe("DetailScreen video playback", () => {
 
     playbackLifecycleMock.isAppFocused = false;
     act(() => renderer!.update(renderScreen()));
-    expect(findPages().every((node) => !node.props.playbackAllowed)).toBe(true);
+    expect(findPages().some((node) => node.props.playbackAllowed)).toBe(true);
 
     playbackLifecycleMock.isAppFocused = true;
     act(() => renderer!.update(renderScreen()));
@@ -2766,6 +2780,143 @@ describe("DetailScreen video playback", () => {
     act(() => {
       renderer!.unmount();
     });
+  });
+
+  it("deactivates the reel when screen focus changes while backgrounded", () => {
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl: "https://example.com/background-navigation.mp4",
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+    const navigation = { addListener: vi.fn(() => () => {}) } as any;
+    const renderScreen = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={navigation}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderScreen());
+    });
+    const findPages = () => findProductReelPages(renderer!);
+
+    playbackLifecycleMock.isAppActive = false;
+    act(() => renderer!.update(renderScreen()));
+    expect(findPages().some((node) => node.props.isActive)).toBe(true);
+
+    playbackLifecycleMock.isScreenFocused = false;
+    act(() => renderer!.update(renderScreen()));
+    expect(findPages().every((node) => !node.props.isActive)).toBe(true);
+    expect(findPages().every((node) => !node.props.playbackAllowed)).toBe(true);
+
+    act(() => renderer!.unmount());
+  });
+
+  it("continues through Android blur and resumes from the same position after background", () => {
+    videoMock.stableAcrossRenders = true;
+    const videoUrl = "https://example.com/lifecycle-position.mp4";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl,
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+    const renderScreen = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderScreen());
+    });
+
+    const player = videoMock.players.find(
+      (candidate) => candidate.source?.uri === videoUrl,
+    );
+    expect(player).toBeDefined();
+    player.currentTime = 37;
+    player.pause.mockClear();
+    player.play.mockClear();
+
+    playbackLifecycleMock.isAppFocused = false;
+    act(() => renderer!.update(renderScreen()));
+    expect(player.pause).not.toHaveBeenCalled();
+    expect(player.currentTime).toBe(37);
+
+    playbackLifecycleMock.isAppActive = false;
+    act(() => renderer!.update(renderScreen()));
+    expect(player.pause).toHaveBeenCalled();
+    expect(player.currentTime).toBe(37);
+
+    player.play.mockClear();
+    playbackLifecycleMock.isAppActive = true;
+    playbackLifecycleMock.isAppFocused = true;
+    act(() => renderer!.update(renderScreen()));
+    expect(player.play).toHaveBeenCalled();
+    expect(player.currentTime).toBe(37);
+
+    act(() => renderer!.unmount());
+  });
+
+  it("resets the previous video when swiping to another reel", () => {
+    videoMock.stableAcrossRenders = true;
+    const firstVideoUrl = "https://example.com/reel-first.mp4";
+    const secondVideoUrl = "https://example.com/reel-second.mp4";
+    const firstGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: "group-buy-reel-first",
+      videoUrl: firstVideoUrl,
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+    const secondGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: "group-buy-reel-second",
+      videoUrl: secondVideoUrl,
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+    queryMock.groupBuys = [firstGroupBuy, secondGroupBuy];
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: firstGroupBuy },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const firstPlayer = videoMock.players.find(
+      (candidate) => candidate.source?.uri === firstVideoUrl,
+    );
+    expect(firstPlayer).toBeDefined();
+    firstPlayer.currentTime = 41;
+    firstPlayer.pause.mockClear();
+
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 1 },
+      });
+    });
+
+    expect(firstPlayer.pause).toHaveBeenCalled();
+    expect(firstPlayer.currentTime).toBe(0);
+
+    act(() => renderer!.unmount());
   });
 
   it("recognizes extension-based video media for playback eligibility", () => {
@@ -2984,7 +3135,7 @@ describe("DetailScreen video playback", () => {
     expect(audioPlayer.play).toHaveBeenCalled();
   });
 
-  it("keeps post music on image posts and pauses it when playback becomes inactive", async () => {
+  it("keeps post music position while background playback is paused", async () => {
     const postAudioUrl =
       "https://scontent-test.cdninstagram.com/audio/image-post-track.m4a";
     const groupBuy: GroupBuy = {
@@ -3025,13 +3176,89 @@ describe("DetailScreen video playback", () => {
       renderer!.root.findAll((node) => String(node.type) === "VideoView"),
     ).toHaveLength(0);
 
+    audioPlayer.currentStatus.currentTime = 23;
     audioPlayer.pause.mockClear();
+    audioPlayer.play.mockClear();
+    audioPlayer.seekTo.mockClear();
     playbackLifecycleMock.isAppActive = false;
     await act(async () => {
       renderer!.update(renderDetail());
       await Promise.resolve();
     });
     expect(audioPlayer.pause).toHaveBeenCalled();
+    expect(audioPlayer.seekTo).not.toHaveBeenCalled();
+
+    playbackLifecycleMock.isAppActive = true;
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+    });
+    expect(audioPlayer.play).toHaveBeenCalled();
+    expect(audioPlayer.seekTo).not.toHaveBeenCalled();
+    expect(audioPlayer.currentStatus.currentTime).toBe(23);
+  });
+
+  it("waits for post music initialization after a background transition", async () => {
+    let resolveSeek: (() => void) | undefined;
+    const pendingSeek = new Promise<void>((resolve) => {
+      resolveSeek = resolve;
+    });
+    audioMock.seekToImpl = vi.fn(() => pendingSeek);
+    const postAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/pending-track.m4a";
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      mediaType: "IMAGE",
+      mediaUrls: ["https://cdn.example.com/pending-image.jpg"],
+      mediaItems: [
+        {
+          url: "https://cdn.example.com/pending-image.jpg",
+          mediaType: "IMAGE",
+        },
+      ],
+      videoUrl: null,
+      postAudioUrl,
+      postAudioStartTimeMs: 12_000,
+      postAudioDurationMs: null,
+    };
+    const renderDetail = () => (
+      <DetailScreen
+        route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+        navigation={{ addListener: vi.fn(() => () => {}) } as any}
+      />
+    );
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderDetail());
+      await Promise.resolve();
+    });
+    const audioPlayer = audioMock.players.find(
+      (player) => player.source === postAudioUrl,
+    );
+    expect(audioPlayer.seekTo).toHaveBeenCalledTimes(1);
+    expect(audioPlayer.play).not.toHaveBeenCalled();
+
+    playbackLifecycleMock.isAppActive = false;
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+    });
+    playbackLifecycleMock.isAppActive = true;
+    await act(async () => {
+      renderer!.update(renderDetail());
+      await Promise.resolve();
+    });
+
+    expect(audioPlayer.seekTo).toHaveBeenCalledTimes(2);
+    expect(audioPlayer.play).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveSeek?.();
+      await pendingSeek;
+      await Promise.resolve();
+    });
+    expect(audioPlayer.play).toHaveBeenCalledTimes(1);
   });
 
   it("loops only the configured post music segment", async () => {
