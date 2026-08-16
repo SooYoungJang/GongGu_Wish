@@ -40,6 +40,7 @@ import type { CalendarScreenProps, GroupBuy } from "../types";
 import {
   formatDateKey,
   getGroupBuyDateRange,
+  isDateBeforeToday,
   parseDateKey,
 } from "../utils/groupBuyDates";
 import { useTheme } from "../context/ThemeContext";
@@ -632,6 +633,8 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
 
   const handleSelectDate = useCallback(
     (date: Date) => {
+      if (isDateBeforeToday(date)) return;
+
       pendingScrollDateKeyRef.current = formatDateKey(date);
       setSelectedDate(date);
       // If the selected date is in a different month, navigate to that month

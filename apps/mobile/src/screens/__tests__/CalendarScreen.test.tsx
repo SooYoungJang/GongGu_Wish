@@ -149,6 +149,7 @@ vi.mock("react-native", () => {
     },
     Pressable: ({
       children,
+      disabled,
       onPress,
       style,
       testID,
@@ -159,7 +160,8 @@ vi.mock("react-native", () => {
       ReactMock.createElement(
         "Pressable",
         {
-          onPress,
+          disabled,
+          onPress: disabled ? undefined : onPress,
           style,
           testID,
           accessibilityLabel,
@@ -503,6 +505,54 @@ describe("CalendarScreen", () => {
     expect(text).toContain(String(today.getDate()));
   });
 
+  it("disables past dates while keeping today and future dates selectable", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 19, 12));
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+
+    try {
+      renderer = renderCalendar();
+      openCalendarPicker(renderer);
+      const findDay = (label: string) =>
+        renderer!.root.find(
+          (node) =>
+            String(node.type) === "Pressable" &&
+            node.props.accessibilityLabel === label,
+        );
+      const pastDate = findDay("18일");
+      const today = findDay("19일 (오늘)");
+      const futureDate = findDay("20일");
+
+      expect(pastDate.props.disabled).toBe(true);
+      expect(pastDate.props.accessibilityState).toMatchObject({
+        disabled: true,
+      });
+      expect(pastDate.props.style).toEqual(
+        expect.arrayContaining([expect.objectContaining({ opacity: 0.36 })]),
+      );
+      expect(pastDate.props.onPress).toBeUndefined();
+      expect(today.props.disabled).toBe(false);
+      expect(today.props.accessibilityState).toMatchObject({
+        disabled: false,
+        selected: true,
+      });
+      expect(futureDate.props.disabled).toBe(false);
+
+      act(() => pastDate.props.onPress?.());
+      expect(
+        renderer.root.findAllByProps({ testID: "calendar-picker-modal" }),
+      ).not.toHaveLength(0);
+
+      act(() => futureDate.props.onPress());
+      expect(
+        renderer.root.findAllByProps({ testID: "calendar-picker-modal" }),
+      ).toHaveLength(0);
+    } finally {
+      renderer?.unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it("renders navigation arrows and today button", () => {
     const renderer = renderCalendar();
     openCalendarPicker(renderer);
@@ -807,8 +857,9 @@ describe("CalendarScreen", () => {
   it("closes the picker and scrolls the timeline after selecting a date", () => {
     const renderer = renderCalendar();
     openCalendarPicker(renderer);
+    const today = new Date();
     const dayCell = renderer.root.findAll(
-      (node) => node.props.accessibilityLabel === "1일",
+      (node) => node.props.accessibilityLabel === `${today.getDate()}일 (오늘)`,
     )[0];
 
     act(() => dayCell.props.onPress());
