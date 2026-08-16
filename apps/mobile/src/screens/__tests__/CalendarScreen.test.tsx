@@ -9,6 +9,7 @@ import {
   getCalendarLayoutMetrics,
 } from "../../components/calendar/CalendarDateRow";
 import { ThemeProvider } from "../../context/ThemeContext";
+import { commerceLightColors } from "../../design/commerce";
 import { AccessibilityInfo, Pressable } from "react-native";
 import { spacing } from "../../design/tokens";
 import type { GroupBuy } from "../../types";
@@ -433,6 +434,31 @@ describe("CalendarScreen", () => {
           testID: "calendar-today-button",
         }),
     ).toHaveLength(0);
+  });
+
+  it("shows the accent fill only while the today action is pressed", () => {
+    const renderer = renderCalendar();
+    const todayButton = renderer.root.findByProps({
+      testID: "calendar-today-button",
+    });
+
+    expect(typeof todayButton.props.style).toBe("function");
+    const resolveStyle = todayButton.props.style;
+    const idleStyle = flattenStyle(resolveStyle({ pressed: false }));
+    const pressedStyle = flattenStyle(resolveStyle({ pressed: true }));
+    const label = todayButton.findByProps({ children: "오늘" });
+
+    expect(idleStyle).toMatchObject({
+      backgroundColor: commerceLightColors.surface,
+      borderColor: commerceLightColors.accent,
+    });
+    expect(pressedStyle).toMatchObject({
+      backgroundColor: commerceLightColors.accentSoft,
+      borderColor: commerceLightColors.accent,
+    });
+    expect(flattenStyle(label.props.style)).toMatchObject({
+      color: commerceLightColors.text,
+    });
   });
 
   it("keeps the calendar picker closed by default and opens it from the year-month button", () => {
