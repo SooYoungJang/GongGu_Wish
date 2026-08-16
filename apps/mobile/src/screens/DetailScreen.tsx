@@ -312,6 +312,7 @@ function getVisibleDotIndexes(total: number, activeIndex: number) {
 type VideoSlideProps = {
   url: string;
   isActive: boolean;
+  playbackAllowed: boolean;
   thumbnailUrl?: string | null;
   replayKey?: number;
   muted?: boolean;
@@ -327,6 +328,7 @@ type VideoSlideProps = {
 const VideoSlide = memo(function VideoSlide({
   url,
   isActive,
+  playbackAllowed,
   replayKey,
   thumbnailUrl,
   muted,
@@ -358,8 +360,10 @@ const VideoSlide = memo(function VideoSlide({
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryRequestIdRef = useRef(0);
   const retryIsActiveRef = useRef(isActive);
+  const retryPlaybackAllowedRef = useRef(playbackAllowed);
   const retryShouldPlayRef = useRef(shouldPlay);
   retryIsActiveRef.current = isActive;
+  retryPlaybackAllowedRef.current = playbackAllowed;
   retryShouldPlayRef.current = shouldPlay;
   const source = useMemo(() => createVideoSource(url), [url]);
 
@@ -377,7 +381,7 @@ const VideoSlide = memo(function VideoSlide({
 
   useEffect(() => {
     const updatePlaybackState = (isPlaying: boolean) => {
-      onPlaybackStateChange?.(isActive && isPlaying);
+      onPlaybackStateChange?.(isActive && playbackAllowed && isPlaying);
     };
 
     updatePlaybackState(Boolean(player.playing));
@@ -390,7 +394,7 @@ const VideoSlide = memo(function VideoSlide({
       subscription?.remove();
       onPlaybackStateChange?.(false);
     };
-  }, [isActive, onPlaybackStateChange, player]);
+  }, [isActive, onPlaybackStateChange, playbackAllowed, player]);
 
   useEffect(() => {
     const subscription = player.addListener?.(
@@ -429,7 +433,11 @@ const VideoSlide = memo(function VideoSlide({
         void Promise.resolve(result)
           .then(() => {
             if (retryRequestIdRef.current !== requestId) return;
-            if (retryIsActiveRef.current && retryShouldPlayRef.current) {
+            if (
+              retryIsActiveRef.current &&
+              retryPlaybackAllowedRef.current &&
+              retryShouldPlayRef.current
+            ) {
               safelyCallVideoPlayer(() => player.play());
             }
           })
@@ -440,13 +448,18 @@ const VideoSlide = memo(function VideoSlide({
           });
         return;
       }
-      if (retryIsActiveRef.current && retryShouldPlayRef.current) player.play();
+      if (
+        retryIsActiveRef.current &&
+        retryPlaybackAllowedRef.current &&
+        retryShouldPlayRef.current
+      )
+        player.play();
     } catch (error: unknown) {
       if (retryRequestIdRef.current !== requestId) return;
       setPlayerStatus("error");
       setPlayerError(error);
     }
-  }, [isActive, player, shouldPlay, source]);
+  }, [isActive, playbackAllowed, player, shouldPlay, source]);
 
   const isPlayerLoading = playerStatus === "loading";
   const isPlayerError = playerStatus === "error" || Boolean(playerError);
@@ -468,14 +481,21 @@ const VideoSlide = memo(function VideoSlide({
       player.volume = 1;
       player.audioMixingMode = audioMixingMode;
 
-      if (isActive && shouldPlay) {
+      if (isActive && playbackAllowed && shouldPlay) {
         player.play();
       } else {
         player.pause();
         if (!isActive) player.currentTime = 0;
       }
     });
-  }, [audioMixingMode, effectiveMuted, isActive, player, shouldPlay]);
+  }, [
+    audioMixingMode,
+    effectiveMuted,
+    isActive,
+    playbackAllowed,
+    player,
+    shouldPlay,
+  ]);
 
   const replayKeyRef = useRef(replayKey);
   const isActiveRef = useRef(isActive);
@@ -489,9 +509,9 @@ const VideoSlide = memo(function VideoSlide({
     updateShouldPlay(true);
     safelyCallVideoPlayer(() => {
       player.currentTime = 0;
-      player.play();
+      if (playbackAllowed) player.play();
     });
-  }, [isActive, player, replayKey, updateShouldPlay]);
+  }, [isActive, playbackAllowed, player, replayKey, updateShouldPlay]);
 
   useEffect(() => {
     setHasFirstFrame(false);
@@ -513,7 +533,7 @@ const VideoSlide = memo(function VideoSlide({
       player.volume = 1;
       player.audioMixingMode = audioMixingMode;
 
-      if (next && isActive) {
+      if (next && isActive && playbackAllowed) {
         player.play();
       } else {
         player.pause();
@@ -524,6 +544,7 @@ const VideoSlide = memo(function VideoSlide({
     audioMixingMode,
     effectiveMuted,
     isActive,
+    playbackAllowed,
     player,
     shouldPlay,
     showControlsTemporarily,
@@ -554,7 +575,7 @@ const VideoSlide = memo(function VideoSlide({
             player.muted = effectiveMuted;
             player.volume = 1;
             player.audioMixingMode = audioMixingMode;
-            if (isActive && shouldPlay) player.play();
+            if (isActive && playbackAllowed && shouldPlay) player.play();
           });
         }}
       />
@@ -1028,7 +1049,8 @@ function ProductReelPageComponent({
     url: resolvedPostAudio.url,
     startTimeMs: resolvedPostAudio.startTimeMs,
     durationMs: resolvedPostAudio.durationMs,
-    isActive: isActive && playbackAllowed && shouldPlayMedia,
+    isActive,
+    playbackAllowed: playbackAllowed && shouldPlayMedia,
     muted: isMuted,
     replayKey,
   });
@@ -1789,10 +1811,9 @@ function ProductReelPageComponent({
 
   const renderMediaItem = useCallback(
     ({ item, index }: { item: MediaItem; index: number }) => {
-      const mediaActive =
-        isActive && playbackAllowed && index === activeMediaIndex;
+      const isSelectedMedia = isActive && index === activeMediaIndex;
       const shouldMountVideo =
-        mediaActive ||
+        isSelectedMedia ||
         (shouldPreloadVideo && index === activeMediaIndex) ||
         (isActive && Math.abs(index - activeMediaIndex) <= 1);
       const thumbnailUrl = item.thumbnailUrl ?? groupBuy.thumbnailUrl ?? null;
@@ -1804,7 +1825,8 @@ function ProductReelPageComponent({
               <VideoSlide
                 key={item.url}
                 url={item.url}
-                isActive={mediaActive}
+                isActive={isSelectedMedia}
+                playbackAllowed={playbackAllowed}
                 replayKey={replayKey}
                 thumbnailUrl={thumbnailUrl}
                 muted={isMuted}
@@ -1814,7 +1836,9 @@ function ProductReelPageComponent({
                 onMutedChange={handleMutedChange}
                 onShouldPlayChange={setShouldPlayMedia}
                 onPlaybackStateChange={
-                  mediaActive ? handleActiveMediaPlaybackStateChange : undefined
+                  isSelectedMedia
+                    ? handleActiveMediaPlaybackStateChange
+                    : undefined
                 }
                 s={s}
               />
@@ -2739,6 +2763,7 @@ function DetailScreenContent({
       insets.top,
       isOnAdPage,
       isPlaybackActive,
+      isScreenFocused,
       isSearchSheetVisible,
       navigation,
       s,

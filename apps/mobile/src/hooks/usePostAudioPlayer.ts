@@ -10,6 +10,7 @@ type UsePostAudioPlayerOptions = {
   startTimeMs?: number | null;
   durationMs?: number | null;
   isActive: boolean;
+  playbackAllowed?: boolean;
   muted: boolean;
   replayKey?: number;
 };
@@ -45,6 +46,7 @@ export function usePostAudioPlayer({
   startTimeMs,
   durationMs,
   isActive,
+  playbackAllowed = isActive,
   muted,
   replayKey,
 }: UsePostAudioPlayerOptions): PostAudioPlayerState {
@@ -59,11 +61,11 @@ export function usePostAudioPlayer({
     () => `${source ?? ""}:${startTimeSeconds}:${durationSeconds ?? "end"}:${replayKey ?? 0}`,
     [durationSeconds, replayKey, source, startTimeSeconds],
   );
-  const activeRef = useRef(isActive);
+  const shouldPlayRef = useRef(isActive && playbackAllowed);
   const initializedPlaybackKeyRef = useRef<string | null>(null);
   const playbackRequestIdRef = useRef(0);
   const segmentLoopInFlightRef = useRef(false);
-  activeRef.current = isActive;
+  shouldPlayRef.current = isActive && playbackAllowed;
 
   const hasError = Boolean(
     source && isFailedPlaybackState(status.playbackState),
@@ -105,26 +107,37 @@ export function usePostAudioPlayer({
       return;
     }
 
+    if (!playbackAllowed) {
+      player.pause();
+      return;
+    }
+
     if (!status.isLoaded) {
       initializedPlaybackKeyRef.current = null;
       return;
     }
-    if (initializedPlaybackKeyRef.current === playbackKey) return;
+    if (initializedPlaybackKeyRef.current === playbackKey) {
+      player.play();
+      return;
+    }
 
-    initializedPlaybackKeyRef.current = playbackKey;
+    // Do not let audio from the previous playback epoch advance while the
+    // asynchronous seek aligns a new source, segment, or replay.
+    player.pause();
     const playFromSegmentStart = async () => {
       try {
         await player.seekTo(startTimeSeconds);
         if (
           playbackRequestIdRef.current === requestId &&
-          activeRef.current
+          shouldPlayRef.current
         ) {
+          initializedPlaybackKeyRef.current = playbackKey;
           player.play();
         }
       } catch {
         if (
           playbackRequestIdRef.current !== requestId ||
-          !activeRef.current
+          !shouldPlayRef.current
         ) {
           return;
         }
@@ -137,6 +150,7 @@ export function usePostAudioPlayer({
   }, [
     hasError,
     isActive,
+    playbackAllowed,
     playbackKey,
     player,
     source,
@@ -145,7 +159,13 @@ export function usePostAudioPlayer({
   ]);
 
   useEffect(() => {
-    if (!isActive || !isReady || segmentLoopInFlightRef.current) return;
+    if (
+      !isActive ||
+      !playbackAllowed ||
+      !isReady ||
+      segmentLoopInFlightRef.current
+    )
+      return;
 
     const requestId = playbackRequestIdRef.current;
 
@@ -167,7 +187,7 @@ export function usePostAudioPlayer({
       .seekTo(startTimeSeconds)
       .then(() => {
         if (
-          activeRef.current &&
+          shouldPlayRef.current &&
           playbackRequestIdRef.current === requestId
         ) {
           player.play();
@@ -181,6 +201,7 @@ export function usePostAudioPlayer({
     durationSeconds,
     isActive,
     isReady,
+    playbackAllowed,
     player,
     startTimeSeconds,
     status.currentTime,
@@ -189,7 +210,7 @@ export function usePostAudioPlayer({
 
   useEffect(
     () => () => {
-      activeRef.current = false;
+      shouldPlayRef.current = false;
       playbackRequestIdRef.current += 1;
     },
     [],
@@ -197,7 +218,7 @@ export function usePostAudioPlayer({
 
   return {
     hasError,
-    isPlaying: isReady && isActive && status.playing,
+    isPlaying: isReady && isActive && playbackAllowed && status.playing,
     isReady,
   };
 }

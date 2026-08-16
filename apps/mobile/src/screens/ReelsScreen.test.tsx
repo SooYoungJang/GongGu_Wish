@@ -138,8 +138,7 @@ vi.mock("../hooks/usePlaybackLifecycle", () => ({
     ...playbackLifecycleMock,
     isPlaybackActive:
       playbackLifecycleMock.isScreenFocused &&
-      playbackLifecycleMock.isAppActive &&
-      playbackLifecycleMock.isAppFocused,
+      playbackLifecycleMock.isAppActive,
   }),
 }));
 
@@ -365,7 +364,7 @@ describe("ReelsScreen player lifecycle", () => {
     ).toBeTruthy();
   });
 
-  it("pauses for Android blur or background and releases the preloader after leaving Reels", () => {
+  it("keeps playing for Android blur, pauses for background, and releases the preloader after leaving Reels", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     const renderScreen = () => <ReelsScreen />;
 
@@ -377,9 +376,15 @@ describe("ReelsScreen player lifecycle", () => {
       renderer!.root.findAll(
         (node) => String(node.type) === "ReelVideoPreloader",
       );
+    const findActivePage = () =>
+      renderer!.root.findAll(
+        (node) =>
+          String(node.type) === "ProductReelPage" && node.props.isActive,
+      )[0];
 
     expect(findPreloaders()).toHaveLength(1);
     expect(findPreloaders()[0]?.props.enabled).toBe(true);
+    expect(findActivePage()?.props.playbackAllowed).toBe(true);
 
     playbackLifecycleMock.isAppFocused = false;
     act(() => {
@@ -387,7 +392,8 @@ describe("ReelsScreen player lifecycle", () => {
     });
 
     expect(findPreloaders()).toHaveLength(1);
-    expect(findPreloaders()[0]?.props.enabled).toBe(false);
+    expect(findPreloaders()[0]?.props.enabled).toBe(true);
+    expect(findActivePage()?.props.playbackAllowed).toBe(true);
 
     playbackLifecycleMock.isAppFocused = true;
     act(() => {
@@ -405,6 +411,7 @@ describe("ReelsScreen player lifecycle", () => {
 
     expect(findPreloaders()).toHaveLength(1);
     expect(findPreloaders()[0]?.props.enabled).toBe(false);
+    expect(findActivePage()?.props.playbackAllowed).toBe(false);
 
     playbackLifecycleMock.isScreenFocused = false;
     act(() => {
@@ -412,6 +419,7 @@ describe("ReelsScreen player lifecycle", () => {
     });
 
     expect(findPreloaders()).toHaveLength(0);
+    expect(findActivePage()).toBeUndefined();
 
     act(() => {
       renderer!.unmount();
