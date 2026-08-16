@@ -5,6 +5,7 @@ import {
   doesGroupBuyOverlapRange,
   filterActiveGroupBuys,
   formatDateKey,
+  isDateBeforeToday,
   isGroupBuyActiveOnDate,
   parseDateKey,
 } from './groupBuyDates';
@@ -46,6 +47,14 @@ describe('groupBuyDates', () => {
   it('rejects invalid date keys', () => {
     expect(parseDateKey('2026-02-31')).toBeNull();
     expect(parseDateKey('2026-7-2')).toBeNull();
+  });
+
+  it('compares calendar days without treating earlier times today as past', () => {
+    const today = new Date(2026, 7, 19, 23, 30);
+
+    expect(isDateBeforeToday(new Date(2026, 7, 18, 23, 59), today)).toBe(true);
+    expect(isDateBeforeToday(new Date(2026, 7, 19, 0, 1), today)).toBe(false);
+    expect(isDateBeforeToday(new Date(2026, 7, 20, 0, 0), today)).toBe(false);
   });
 
   it('treats a group buy as active between startDate and endDate', () => {
