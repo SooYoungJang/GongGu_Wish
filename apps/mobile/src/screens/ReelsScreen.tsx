@@ -324,6 +324,7 @@ export function ReelsScreen({
         isActive={isTabFocused && index === activeIndex}
         playbackAllowed={isPlaybackActive && index === activeIndex}
         replayKey={replayKey}
+        shouldPreloadAudio={Math.abs(index - activeIndex) <= 1}
         shouldPreloadVideo={Math.abs(index - activeIndex) <= 1}
         bottomChromeOffset={REELS_TAB_BAR_OVERLAY_OFFSET}
         pageHeight={screenHeight}

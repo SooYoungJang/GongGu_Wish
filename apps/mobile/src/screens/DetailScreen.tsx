@@ -1000,6 +1000,7 @@ export type ProductReelPageProps = {
   muted?: boolean;
   onMutedChange?: (muted: boolean) => void;
   onPlaybackStateChange?: (itemId: string, isPlaying: boolean) => void;
+  shouldPreloadAudio?: boolean;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
   s: ReturnType<typeof makeStyles>;
@@ -1025,6 +1026,7 @@ function ProductReelPageComponent({
   muted,
   onMutedChange,
   onPlaybackStateChange,
+  shouldPreloadAudio = false,
   onSummarySheetStateChange,
   s,
 }: ProductReelPageProps) {
@@ -1047,7 +1049,14 @@ function ProductReelPageComponent({
     [onMutedChange],
   );
   const postAudio = usePostAudioPlayer({
-    url: resolvedPostAudio.url,
+    // Keep distant detail pages from opening remote audio sources on first
+    // entry. The active page and its adjacent pages are warmed for a fast
+    // swipe, while distant pages prepare audio only when they enter that
+    // window.
+    url:
+      isActive || shouldPreloadAudio
+        ? resolvedPostAudio.url
+        : null,
     startTimeMs: resolvedPostAudio.startTimeMs,
     durationMs: resolvedPostAudio.durationMs,
     isActive,
@@ -2740,6 +2749,7 @@ function DetailScreenContent({
         }
         isSearchSheetVisible={isSearchSheetVisible}
         searchSheetMetrics={searchSheetMetrics}
+        shouldPreloadAudio={Math.abs(index - activeProductIndex) <= 1}
         shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
         bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
         pageHeight={screenHeight}
