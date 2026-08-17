@@ -57,6 +57,7 @@ type GroupBuyRow = {
   media_refreshed_at: string | null;
   media_refresh_attempted_at: string | null;
   end_date: string | null;
+  raw_post?: { post_url?: string | null } | null;
   submission?: { instagram_url?: string | null } | null;
 };
 
@@ -152,6 +153,7 @@ const GROUP_BUY_SELECT = [
   'media_refreshed_at',
   'media_refresh_attempted_at',
   'end_date',
+  'raw_post:raw_posts!group_buys_raw_post_id_fkey(post_url)',
   'submission:gonggu_submissions!group_buys_submission_id_fkey(instagram_url)',
 ].join(', ');
 
@@ -335,7 +337,7 @@ function getCdnExpiryMs(url?: string | null): number | null {
   }
 }
 
-function isGroupBuyExpired(row: GroupBuyRow): boolean {
+function isGroupBuyExpired(row: Pick<GroupBuyRow, 'end_date'>): boolean {
   if (!row.end_date) return false;
   const endTime = Date.parse(row.end_date);
   return Number.isFinite(endTime) && endTime < Date.now();
@@ -359,17 +361,34 @@ function cdnUrlNeedsRefresh(
   return expiresAt <= Date.now() + refreshWindowHours * 60 * 60 * 1000;
 }
 
-function needsRefresh(row: GroupBuyRow, force: boolean, refreshWindowHours: number): boolean {
+export function needsRefresh(
+  row: Pick<
+    GroupBuyRow,
+    | 'end_date'
+    | 'post_audio_checked_at'
+    | 'post_audio_url'
+    | 'thumbnail_url'
+    | 'video_url'
+  >,
+  force: boolean,
+  refreshWindowHours: number,
+): boolean {
   if (isGroupBuyExpired(row)) return false;
   if (force || !row.post_audio_checked_at) return true;
   return (
+    cdnUrlNeedsRefresh(row.thumbnail_url, row.end_date, refreshWindowHours) ||
     cdnUrlNeedsRefresh(row.video_url, row.end_date, refreshWindowHours) ||
     cdnUrlNeedsRefresh(row.post_audio_url, row.end_date, refreshWindowHours)
   );
 }
 
-function getOriginalInstagramUrl(row: GroupBuyRow): string | null {
-  return trustedInstagramPostUrl(row.submission?.instagram_url);
+export function getOriginalInstagramUrl(
+  row: Pick<GroupBuyRow, 'raw_post' | 'submission'>,
+): string | null {
+  return (
+    trustedInstagramPostUrl(row.raw_post?.post_url) ??
+    trustedInstagramPostUrl(row.submission?.instagram_url)
+  );
 }
 
 function getRecoverableInstagramUrl(row: GroupBuyRow): string | null {

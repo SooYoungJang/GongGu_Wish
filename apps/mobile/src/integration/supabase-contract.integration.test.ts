@@ -147,6 +147,91 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
     expect(homeBanners.some((item) => item.id === groupBuyId)).toBe(false);
   });
 
+  it("returns the raw-post Instagram URL for automatic media refresh", async () => {
+    if (!fixture)
+      throw new Error("[local-supabase:setup] Fixture is unavailable");
+    const groupBuyId = fixture.groupBuyIds[0];
+    const expiresAt = Math.floor(Date.now() / 1000 - 60 * 60)
+      .toString(16)
+      .toUpperCase();
+    const expiredThumbnailUrl = `https://scontent-test.cdninstagram.com/product.jpg?oe=${expiresAt}`;
+
+    try {
+      await invokeAdmin(config, fixture, "raw-post-media-expiry", {
+        path: `/admin/group-buys/${groupBuyId}`,
+        method: "PATCH",
+        body: {
+          thumbnailUrl: expiredThumbnailUrl,
+          videoUrl: null,
+          mediaUrls: [expiredThumbnailUrl],
+          mediaItems: [
+            {
+              url: expiredThumbnailUrl,
+              mediaType: "IMAGE",
+              thumbnailUrl: expiredThumbnailUrl,
+            },
+          ],
+          mediaType: "IMAGE",
+        },
+      });
+
+      const refreshableRows = await invokeReminderRpc<
+        Array<{
+          id: string;
+          submission: { instagram_url: string | null } | null;
+        }>
+      >(config, config.serviceRoleKey, "get_refreshable_instagram_media", {
+        limit_count: 100,
+        refresh_window_hours: 1,
+        minimum_attempt_age_seconds: 1,
+      });
+      const refreshableRow = refreshableRows.find(
+        (row) => row.id === groupBuyId,
+      );
+
+      expect(refreshableRow).toMatchObject({
+        id: groupBuyId,
+        submission: {
+          instagram_url: expect.stringMatching(
+            /^https:\/\/instagram\.com\/p\/gon263-0-/,
+          ),
+        },
+      });
+      expect(refreshableRow).not.toHaveProperty("raw_post");
+      expect(Object.keys(refreshableRow ?? {}).sort()).toEqual(
+        [
+          "end_date",
+          "id",
+          "media_items",
+          "media_refresh_attempted_at",
+          "media_refreshed_at",
+          "media_type",
+          "media_urls",
+          "post_audio_checked_at",
+          "post_audio_duration_ms",
+          "post_audio_start_time_ms",
+          "post_audio_url",
+          "status",
+          "submission",
+          "thumbnail_url",
+          "video_url",
+        ].sort(),
+      );
+    } finally {
+      await invokeAdmin(config, fixture, "raw-post-media-restore", {
+        path: `/admin/group-buys/${groupBuyId}`,
+        method: "PATCH",
+        body: {
+          thumbnailUrl: null,
+          videoUrl: null,
+          mediaUrls: [],
+          mediaItems: [],
+          mediaType: null,
+        },
+      });
+    }
+  });
+
   it("stores typed opening reminders while legacy RPCs remain deadline-only", async () => {
     if (!fixture)
       throw new Error("[local-supabase:setup] Fixture is unavailable");
