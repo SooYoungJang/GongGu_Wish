@@ -46,7 +46,7 @@ src/design/                 # 디자인 토큰 (commerce.ts, tokens.ts, tokensDa
 src/components/commerce/     # 재사용 커머스 컴포넌트 (CommerceUI.tsx)
 src/components/ui/           # 프리미티브 (SText, LineGlyphs)
 src/components/ranking/      # 셀러 랭킹 도메인 컴포넌트
-src/components/              # 도메인 컴포넌트 (DealCard, AlertCard, AppButton, ...)
+src/components/              # 도메인 컴포넌트 (DealCard, AppButton, ...)
 src/screens/                 # 화면 단위 (HomeScreen, SearchScreen, MyPageScreen, ...)
 src/context/                 # ThemeContext (ThemeProvider, useTheme)
 src/features/                # 도메인 타입/훅 (ranking/types.ts, useSellerRankings.ts)
