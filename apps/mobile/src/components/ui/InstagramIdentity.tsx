@@ -1,15 +1,22 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
+import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import {
+  Pressable,
   StyleSheet,
   View,
+  type GestureResponderEvent,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
 } from "react-native";
 
-import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
+import {
+  formatInstagramHandle,
+  normalizeOptionalInstagramUsername,
+} from "@gonggu/shared/utils/instagram";
 
 import { useCommerceTheme } from "../../design/useCommerceTheme";
+import type { RootStackParamList } from "../../types";
 import { InstagramProfileAvatar } from "./InstagramProfileAvatar";
 import { SText, type STextVariant } from "./SText";
 
@@ -22,6 +29,7 @@ export interface InstagramIdentityProps {
   size?: InstagramIdentitySize;
   tone?: InstagramIdentityTone;
   showAvatar?: boolean;
+  navigationEnabled?: boolean;
   allowWrapping?: boolean;
   numberOfLines?: number;
   style?: StyleProp<ViewStyle>;
@@ -46,6 +54,7 @@ export const InstagramIdentity = memo(function InstagramIdentity({
   size = "compact",
   tone = "default",
   showAvatar = true,
+  navigationEnabled = true,
   allowWrapping = false,
   numberOfLines = 1,
   style,
@@ -55,7 +64,22 @@ export const InstagramIdentity = memo(function InstagramIdentity({
   avatarImageTestID,
 }: InstagramIdentityProps) {
   const { colors } = useCommerceTheme();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const handle = formatInstagramHandle(username);
+  const normalizedUsername = normalizeOptionalInstagramUsername(username);
+  const handlePress = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      if (!navigation || !normalizedUsername) return;
+
+      navigation.navigate("InfluencerGroupBuys", {
+        influencerDisplayName: null,
+        influencerProfileImageUrl: profileImageUrl ?? null,
+        influencerUsername: normalizedUsername,
+      });
+    },
+    [navigation, normalizedUsername, profileImageUrl],
+  );
 
   if (!handle) return null;
 
@@ -67,8 +91,8 @@ export const InstagramIdentity = memo(function InstagramIdentity({
       ? colors.text
       : colors.muted;
 
-  return (
-    <View pointerEvents="none" style={[styles.row, style]}>
+  const content = (
+    <>
       {showAvatar ? (
         <InstagramProfileAvatar
           imageTestID={avatarImageTestID}
@@ -87,6 +111,31 @@ export const InstagramIdentity = memo(function InstagramIdentity({
       >
         {handle}
       </SText>
+    </>
+  );
+
+  if (navigationEnabled && navigation && normalizedUsername) {
+    return (
+      <Pressable
+        accessible
+        accessibilityLabel={`${handle} 인플루언서 공구 보기`}
+        accessibilityRole="button"
+        hitSlop={4}
+        onPress={handlePress}
+        style={({ pressed }) => [
+          styles.row,
+          style,
+          pressed ? styles.pressed : null,
+        ]}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+
+  return (
+    <View pointerEvents="none" style={[styles.row, style]}>
+      {content}
     </View>
   );
 });
@@ -102,5 +151,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     letterSpacing: 0,
     minWidth: 0,
+  },
+  pressed: {
+    opacity: 0.68,
   },
 });

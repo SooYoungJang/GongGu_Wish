@@ -5,25 +5,57 @@ import { describe, expect, it, vi } from 'vitest';
 import { FeedSection } from './FeedSection';
 import type { FeedPost } from '../../types';
 
+vi.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({ navigate: vi.fn() }),
+}));
+
 // Mock react-native
 vi.mock('react-native', () => {
   const ReactMock = require('react');
   const passthrough = (type: string) =>
-    ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement(type, props, children);
+    ({ children, ...props }: { children?: React.ReactNode }) =>
+      ReactMock.createElement(type, props, children);
 
   return {
     ActivityIndicator: ({ color, size }: { color?: string; size?: string }) =>
       ReactMock.createElement('ActivityIndicator', { color, size }),
     Image: ({ source, style, resizeMode }: any) =>
       ReactMock.createElement('Image', { source, style, resizeMode }),
-    Pressable: ({ children, onPress, style, testID, accessibilityLabel, accessibilityRole }: any) =>
-      ReactMock.createElement('Pressable', { onPress, style, testID, accessibilityLabel, accessibilityRole }, children),
-    ScrollView: ({ children, ...props }: any) => ReactMock.createElement('ScrollView', props, children),
-    StyleSheet: { create: (styles: unknown) => styles },
-    Text: ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement('Text', props, children),
-    View: ({ children, ...props }: { children?: React.ReactNode }) => ReactMock.createElement('View', props, children),
+    Pressable: passthrough('Pressable'),
+    ScrollView: ({ children, ...props }: any) =>
+      ReactMock.createElement('ScrollView', props, children),
+    StyleSheet: {
+      absoluteFillObject: {
+        bottom: 0,
+        left: 0,
+        position: 'absolute',
+        right: 0,
+        top: 0,
+      },
+      create: (styles: unknown) => styles,
+    },
+    Text: ({ children, ...props }: { children?: React.ReactNode }) =>
+      ReactMock.createElement('Text', props, children),
+    View: ({ children, ...props }: { children?: React.ReactNode }) =>
+      ReactMock.createElement('View', props, children),
   };
 });
+vi.mock('../ui/InstagramProfileAvatar', () => ({
+  InstagramProfileAvatar: (props: Record<string, unknown>) => {
+    const ReactMock = require('react');
+    return ReactMock.createElement('InstagramProfileAvatar', props);
+  },
+}));
+
+vi.mock('../../design/useCommerceTheme', () => ({
+  useCommerceTheme: () => ({
+    colors: {
+      inverse: '#FFFFFF',
+      muted: '#6B7280',
+      text: '#111827',
+    },
+  }),
+}));
 
 vi.mock('../../context/ThemeContext', () => ({
   useTheme: () => ({
@@ -86,10 +118,19 @@ const sampleFeedPosts: FeedPost[] = [
   },
 ];
 
-function flattenText(node: TestRenderer.ReactTestRendererJSON | TestRenderer.ReactTestRendererJSON[] | null): string {
+function flattenText(
+  node:
+    | TestRenderer.ReactTestRendererJSON
+    | TestRenderer.ReactTestRendererJSON[]
+    | null,
+): string {
   if (!node) return '';
   if (Array.isArray(node)) return node.map(flattenText).join(' ');
-  return node.children?.map((child) => (typeof child === 'string' ? child : flattenText(child))).join(' ') ?? '';
+  return (
+    node.children
+      ?.map((child) => (typeof child === 'string' ? child : flattenText(child)))
+      .join(' ') ?? ''
+  );
 }
 
 describe('FeedSection', () => {
@@ -130,7 +171,9 @@ describe('FeedSection', () => {
 
     const text = flattenText(renderer!.toJSON());
     expect(text).toContain('피드를 불러오는 중...');
-    const spinner = renderer!.root.findByType('ActivityIndicator' as React.ElementType);
+    const spinner = renderer!.root.findByType(
+      'ActivityIndicator' as React.ElementType,
+    );
     expect(spinner).toBeDefined();
   });
 
@@ -138,7 +181,12 @@ describe('FeedSection', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <FeedSection feedPosts={[]} onPressFeed={vi.fn()} isError={true} onRetry={vi.fn()} />,
+        <FeedSection
+          feedPosts={[]}
+          onPressFeed={vi.fn()}
+          isError={true}
+          onRetry={vi.fn()}
+        />,
       );
     });
 
@@ -151,12 +199,15 @@ describe('FeedSection', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <FeedSection feedPosts={sampleFeedPosts} onPressFeed={vi.fn()} isError={true} />,
+        <FeedSection
+          feedPosts={sampleFeedPosts}
+          onPressFeed={vi.fn()}
+          isError={true}
+        />,
       );
     });
 
     const text = flattenText(renderer!.toJSON());
-    // Should still show feed content, not error
     expect(text).toContain('비건 선크림 추천');
     expect(text).not.toContain('피드를 불러올 수 없습니다.');
   });
@@ -165,12 +216,15 @@ describe('FeedSection', () => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
-        <FeedSection feedPosts={sampleFeedPosts} onPressFeed={vi.fn()} isLoading={true} />,
+        <FeedSection
+          feedPosts={sampleFeedPosts}
+          onPressFeed={vi.fn()}
+          isLoading={true}
+        />,
       );
     });
 
     const text = flattenText(renderer!.toJSON());
-    // Should still show feed content, not loading
     expect(text).toContain('비건 선크림 추천');
     expect(text).not.toContain('피드를 불러오는 중...');
   });
@@ -184,10 +238,11 @@ describe('FeedSection', () => {
       );
     });
 
-    const pressables = renderer!.root.findAllByType('Pressable' as unknown as React.ElementType);
-    // Find pressables that are FeedCards (more than the header-related ones)
-    const feedCardPressables = pressables.filter(
-      (p) => p.props.accessibilityLabel?.includes('피드 열기'),
+    const pressables = renderer!.root.findAllByType(
+      'Pressable' as unknown as React.ElementType,
+    );
+    const feedCardPressables = pressables.filter((pressable) =>
+      pressable.props.accessibilityLabel?.includes('피드 열기'),
     );
     expect(feedCardPressables.length).toBeGreaterThanOrEqual(1);
 
@@ -196,5 +251,31 @@ describe('FeedSection', () => {
     });
     expect(onPressFeed).toHaveBeenCalledTimes(1);
     expect(onPressFeed).toHaveBeenCalledWith(sampleFeedPosts[0]);
+  });
+
+  it('keeps the feed and influencer actions as sibling controls', () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <FeedSection feedPosts={[sampleFeedPosts[0]]} onPressFeed={vi.fn()} />,
+      );
+    });
+
+    const feedAction = renderer!.root
+      .findAllByType('Pressable' as unknown as React.ElementType)
+      .find((node) => node.props.accessibilityLabel === '비건 선크림 추천 피드 열기')!;
+
+    expect(feedAction).toBeDefined();
+    expect(
+      renderer!.root.findAllByProps({
+        accessibilityLabel: '@beauty_pick 인플루언서 공구 보기',
+      }),
+    ).not.toHaveLength(0);
+    expect(
+      feedAction.findAllByProps({
+        accessibilityLabel: '@beauty_pick 인플루언서 공구 보기',
+      }),
+    ).toHaveLength(0);
   });
 });

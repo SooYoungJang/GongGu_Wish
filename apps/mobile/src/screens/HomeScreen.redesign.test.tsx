@@ -347,6 +347,20 @@ function findPromoBanner(
     .find((node) => node.props.accessibilityLabel?.startsWith(productName));
 }
 
+function findPromoCard(
+  renderer: TestRenderer.ReactTestRenderer,
+  productName: string,
+) {
+  let node: TestRenderer.ReactTestInstance | null =
+    findPromoBanner(renderer, productName) ?? null;
+
+  while (node && !node.props.testID?.startsWith('promo-card-')) {
+    node = node.parent;
+  }
+
+  return node;
+}
+
 beforeEach(() => {
   mockWindowDimensions.width = 393;
   mockWindowDimensions.fontScale = 1;
@@ -845,7 +859,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerText = banner!
       .findAllByType('Text' as unknown as React.ElementType)
       .flatMap((node) => node.props.children ?? [])
@@ -900,6 +914,7 @@ describe('HomeScreenContent redesign', () => {
     const overlay = renderer.root.findByProps({
       testID: 'promo-overlay-gb-1',
     });
+    expect(overlay.props.pointerEvents).toBe('box-none');
     const overlayStyle = flattenStyle(overlay.props.style);
     expect(overlayStyle.position).toBe('absolute');
     expect(overlayStyle.bottom).toBe(0);
@@ -1084,7 +1099,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerText = banner!
       .findAllByType('Text' as unknown as React.ElementType)
       .flatMap((node) => node.props.children ?? [])
@@ -1108,7 +1123,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerText = banner!
       .findAllByType('Text' as unknown as React.ElementType)
       .flatMap((node) => node.props.children ?? [])
@@ -1130,7 +1145,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerText = banner!
       .findAllByType('Text' as unknown as React.ElementType)
       .flatMap((node) => node.props.children ?? [])
@@ -1152,7 +1167,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerText = banner!
       .findAllByType('Text' as unknown as React.ElementType)
       .flatMap((node) => node.props.children ?? [])
@@ -1173,7 +1188,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerText = banner!
       .findAllByType('Text' as unknown as React.ElementType)
       .flatMap((node) => node.props.children ?? [])
@@ -1195,7 +1210,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerText = banner!
       .findAllByType('Text' as unknown as React.ElementType)
       .flatMap((node) => node.props.children ?? [])
@@ -1222,7 +1237,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerStyle = flattenStyle(banner!.props.style);
     expect(bannerStyle.borderWidth ?? 0).toBe(0);
     expect(bannerStyle.width).toBe(305);
@@ -1292,7 +1307,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerText = banner!
       .findAllByType('Text' as unknown as React.ElementType)
       .flatMap((node) => node.props.children ?? [])
@@ -1408,7 +1423,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     expect(flattenStyle(banner!.props.style).position).toBe('relative');
 
     const overlay = renderer.root.findByProps({ testID: 'promo-overlay-gb-1' });
@@ -1436,13 +1451,23 @@ describe('HomeScreenContent redesign', () => {
     ).toHaveLength(0);
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
     expect(banner!.props.accessibilityLabel).toContain('@beauty_pick');
+    expect(
+      renderer.root.findAllByProps({
+        accessibilityLabel: '@beauty_pick 인플루언서 공구 보기',
+      }),
+    ).not.toHaveLength(0);
+    expect(
+      banner!.findAllByProps({
+        accessibilityLabel: '@beauty_pick 인플루언서 공구 보기',
+      }),
+    ).toHaveLength(0);
   });
 
   it('keeps a centered, partially peeking promo card inside a 320px viewport', () => {
     mockWindowDimensions.width = 320;
     const renderer = renderHomeContent({ groupBuys: [sampleGroupBuys[0]] });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerStyle = flattenStyle(banner!.props.style);
     expect(bannerStyle.width).toBe(260);
     expect(bannerStyle.height).toBe(224);
@@ -1508,7 +1533,7 @@ describe('HomeScreenContent redesign', () => {
       ],
     });
 
-    const banner = findPromoBanner(renderer, '비건 선크림 공구');
+    const banner = findPromoCard(renderer, '비건 선크림 공구');
     const bannerText = banner!
       .findAllByType('Text' as unknown as React.ElementType)
       .flatMap((node) => node.props.children ?? [])

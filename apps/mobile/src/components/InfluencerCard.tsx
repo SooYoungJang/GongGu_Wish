@@ -41,6 +41,7 @@ export function InfluencerCard({ influencer, onPress }: InfluencerCardProps) {
           </SText>
         ) : null}
         <InstagramIdentity
+          navigationEnabled={false}
           showAvatar={false}
           size={displayName ? "compact" : "body"}
           textStyle={[s.username, !displayName && s.usernamePrimary]}

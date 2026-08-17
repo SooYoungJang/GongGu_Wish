@@ -70,6 +70,13 @@ vi.mock("react-native-safe-area-context", () => {
   };
 });
 
+vi.mock("expo-image", () => ({
+  Image: (props: Record<string, unknown>) => {
+    const ReactMock = require("react");
+    return ReactMock.createElement("ExpoImage", props);
+  },
+}));
+
 vi.mock("../components/GroupBuyReminderButton", () => ({
   GroupBuyReminderButton: (props: unknown) => {
     const ReactMock = require("react");
@@ -128,8 +135,29 @@ const secondGroupBuy: GroupBuy = {
   ],
 };
 
+const thirdGroupBuy: GroupBuy = {
+  ...firstGroupBuy,
+  id: "influencer-deal-3",
+  productName: "촉촉 선크림",
+  category: "beauty",
+  priceKrw: 22900,
+  thumbnailUrl: null,
+  mediaItems: undefined,
+  mediaUrls: ["https://example.com/images/suncream.jpg"],
+};
+
+const fourthGroupBuy: GroupBuy = {
+  ...firstGroupBuy,
+  id: "influencer-deal-4",
+  productName: "이미지 준비 중 상품",
+  category: "fashion",
+  thumbnailUrl: null,
+  mediaItems: undefined,
+  mediaUrls: [],
+};
+
 const queryResult = {
-  data: [firstGroupBuy, secondGroupBuy],
+  data: [firstGroupBuy, secondGroupBuy, thirdGroupBuy, fourthGroupBuy],
   isError: false,
   isFetching: false,
   refetch: vi.fn(),
@@ -217,39 +245,86 @@ describe("InfluencerGroupBuysScreen", () => {
     expect(navigation.goBack).toHaveBeenCalledOnce();
   });
 
-  it("renders standard two-column deal cards with images and basic deal data", () => {
+  it("renders a one-column divided list with images and basic deal data", () => {
     const { navigation, renderer } = renderScreen();
     const text = flattenText(renderer.toJSON()).replace(/\s+/g, " ");
     const list = renderer.root.findByType(
       "FlatList" as unknown as React.ElementType,
     );
     const images = renderer.root.findAllByType(
-      "Image" as unknown as React.ElementType,
+      "ExpoImage" as unknown as React.ElementType,
     );
-    const cards = renderer.root
-      .findAllByType("Pressable" as unknown as React.ElementType)
-      .filter((node) => node.props.accessibilityLabel?.includes("상세 보기"));
+    const rows = [firstGroupBuy, secondGroupBuy, thirdGroupBuy, fourthGroupBuy].map(
+      (item) => renderer.root.findByProps({ testID: `influencer-deal-row-${item.id}` }),
+    );
+    const detailActions = [
+      firstGroupBuy,
+      secondGroupBuy,
+      thirdGroupBuy,
+      fourthGroupBuy,
+    ].map((item) =>
+      renderer.root.findByProps({
+        testID: `influencer-deal-detail-${item.id}`,
+      }),
+    );
 
-    expect(list.props.numColumns).toBe(2);
+    expect(list.props.numColumns).toBeUndefined();
+    expect(list.props.columnWrapperStyle).toBeUndefined();
+    expect(list.props.ItemSeparatorComponent().props.testID).toBe(
+      "influencer-deal-separator",
+    );
     expect(images.map((image) => image.props.source?.uri)).toEqual([
       "https://example.com/images/duck.jpg",
       "https://example.com/images/granola-video.jpg",
+      "https://example.com/images/suncream.jpg",
     ]);
+    expect(images.map((image) => image.props.recyclingKey)).toEqual([
+      "influencer-deal-1",
+      "influencer-deal-2",
+      "influencer-deal-3",
+    ]);
+    expect(
+      renderer.root.findByProps({
+        testID: "influencer-deal-image-fallback-influencer-deal-4",
+      }),
+    ).toBeTruthy();
     expect(text).toContain("국내산 오리고기");
     expect(text).toContain("35,900원");
     expect(text).toContain("최대 64,000원 할인");
     expect(text).toContain("8월 6일 ~ 8월 21일");
-    expect(cards).toHaveLength(2);
+    expect(rows).toHaveLength(4);
+    expect(
+      renderer.root.findAllByType(
+        "GroupBuyReminderButton" as unknown as React.ElementType,
+      ),
+    ).toHaveLength(4);
 
-    const firstCardStyles = cards[0].props.style({ pressed: false });
-    expect(firstCardStyles).toEqual(
-      expect.arrayContaining([expect.objectContaining({ flexGrow: 0 })]),
-    );
+    const firstRowContent = renderer.root.findByProps({
+      testID: `influencer-deal-content-${firstGroupBuy.id}`,
+    });
+    expect(firstRowContent.props.style).toMatchObject({ flexDirection: "row" });
+    const flattenedRowStyle = Object.assign({}, rows[0].props.style);
+    expect(flattenedRowStyle).not.toHaveProperty("backgroundColor");
+    expect(flattenedRowStyle).not.toHaveProperty("borderRadius");
+    expect(flattenedRowStyle).not.toHaveProperty("borderWidth");
+    expect(rows[0].props.onPress).toBeUndefined();
+    expect(
+      detailActions[0].findAllByType(
+        "GroupBuyReminderButton" as unknown as React.ElementType,
+      ),
+    ).toHaveLength(0);
 
-    act(() => cards[0].props.onPress());
+    act(() => detailActions[0].props.onPress());
     expect(navigation.navigate).toHaveBeenCalledWith("Detail", {
       groupBuy: firstGroupBuy,
     });
+
+    act(() => images[0].props.onError());
+    expect(
+      renderer.root.findByProps({
+        testID: "influencer-deal-image-fallback-influencer-deal-1",
+      }),
+    ).toBeTruthy();
   });
 
   it("keeps loading, empty, error, and pull-to-refresh states", () => {

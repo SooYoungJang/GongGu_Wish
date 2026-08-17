@@ -159,6 +159,7 @@ export const RankingTopCard = memo(function RankingTopCard({
               <InstagramIdentity
                 allowWrapping={largeText}
                 avatarTestID={`ranking-top-seller-avatar-${item.rank}`}
+                navigationEnabled={false}
                 profileImageUrl={item.profileImageUrl}
                 size="body"
                 style={s.sellerIdentity}
