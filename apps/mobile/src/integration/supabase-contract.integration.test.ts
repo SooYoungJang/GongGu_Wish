@@ -197,6 +197,26 @@ describeLocal("local Supabase commerce and ranking contracts", () => {
           ),
         },
       });
+      expect(refreshableRow).not.toHaveProperty("raw_post");
+      expect(Object.keys(refreshableRow ?? {}).sort()).toEqual(
+        [
+          "end_date",
+          "id",
+          "media_items",
+          "media_refresh_attempted_at",
+          "media_refreshed_at",
+          "media_type",
+          "media_urls",
+          "post_audio_checked_at",
+          "post_audio_duration_ms",
+          "post_audio_start_time_ms",
+          "post_audio_url",
+          "status",
+          "submission",
+          "thumbnail_url",
+          "video_url",
+        ].sort(),
+      );
     } finally {
       await invokeAdmin(config, fixture, "raw-post-media-restore", {
         path: `/admin/group-buys/${groupBuyId}`,

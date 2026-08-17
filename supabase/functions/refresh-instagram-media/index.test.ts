@@ -28,6 +28,18 @@ Deno.test('recovers the original Instagram URL from raw-post group buys', () => 
   );
 });
 
+Deno.test('falls back to a canonical submission URL when the raw-post URL is invalid', () => {
+  const submissionUrl = 'https://www.instagram.com/p/DUMMY_SUBMISSION/';
+
+  assertEquals(
+    getOriginalInstagramUrl({
+      raw_post: { post_url: 'https://www.instagram.com/accounts/login/' },
+      submission: { instagram_url: submissionUrl },
+    }),
+    submissionUrl,
+  );
+});
+
 Deno.test('refreshes an expired product thumbnail after post audio was checked', () => {
   assert(
     needsRefresh(

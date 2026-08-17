@@ -40,13 +40,13 @@ as $$
     where gb.status = 'APPROVED'
       and (gb.end_date is null or gb.end_date >= now())
       and (
-        (
-          gb.post_audio_checked_at is null
-          and (
-            rp.post_url ~* '^https://([a-z0-9-]+\.)*instagram\.com/'
-            or gs.instagram_url ~* '^https://([a-z0-9-]+\.)*instagram\.com/'
-          )
-        )
+        rp.post_url
+          ~* '^https://([a-z0-9-]+\.)*instagram\.com/(p|reel|tv)/[^/?#]+/?([?#].*)?$'
+        or gs.instagram_url
+          ~* '^https://([a-z0-9-]+\.)*instagram\.com/(p|reel|tv)/[^/?#]+/?([?#].*)?$'
+      )
+      and (
+        gb.post_audio_checked_at is null
         or gb.thumbnail_url
           ~* '^https://([a-z0-9-]+\.)*(cdninstagram\.com|fbcdn\.net)([/:?#]|$)'
         or gb.video_url
@@ -78,7 +78,8 @@ as $$
     jsonb_build_object(
       'instagram_url',
       case
-        when c.raw_post_url ~* '^https://([a-z0-9-]+\.)*instagram\.com/'
+        when c.raw_post_url
+          ~* '^https://([a-z0-9-]+\.)*instagram\.com/(p|reel|tv)/[^/?#]+/?([?#].*)?$'
           then c.raw_post_url
         else c.instagram_url
       end
