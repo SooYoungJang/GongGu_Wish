@@ -79,16 +79,19 @@ const DealSearchResultRow = memo(function DealSearchResultRow({ chevronColor, it
   }, [item, onSelect]);
 
   return (
-    <Pressable
-      accessible
-      accessibilityRole="button"
-      accessibilityLabel={`${item.productName ?? item.rawPost.influencer.instagramUsername} 보기`}
-      onPress={handlePress}
-      style={({ pressed }) => [s.resultRow, pressed && s.pressed]}
-    >
-      <View style={s.resultLeft}>
-        <SText variant="body" style={s.resultName}>{item.productName ?? '제품명 없음'}</SText>
-        <View style={s.resultMetaRow}>
+    <View style={s.resultRow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${item.productName ?? item.rawPost.influencer.instagramUsername} 보기`}
+        onPress={handlePress}
+        style={({ pressed }) => [
+          s.resultDetailAction,
+          pressed ? s.resultDetailPressed : null,
+        ]}
+      />
+      <View pointerEvents="box-none" style={s.resultLeft}>
+        <SText pointerEvents="none" variant="body" style={s.resultName}>{item.productName ?? '제품명 없음'}</SText>
+        <View pointerEvents="box-none" style={s.resultMetaRow}>
           <InstagramIdentity
             profileImageUrl={item.rawPost.influencer.profileImageUrl}
             style={s.resultInstagram}
@@ -96,14 +99,14 @@ const DealSearchResultRow = memo(function DealSearchResultRow({ chevronColor, it
             username={item.rawPost.influencer.instagramUsername}
           />
           {item.discountInfo ? (
-            <SText numberOfLines={1} style={s.resultMeta} variant="caption">
+            <SText pointerEvents="none" numberOfLines={1} style={s.resultMeta} variant="caption">
               · {item.discountInfo}
             </SText>
           ) : null}
         </View>
       </View>
-      <Ionicons accessible={false} color={chevronColor} name="chevron-forward" size={20} />
-    </Pressable>
+      <Ionicons accessible={false} pointerEvents="none" color={chevronColor} name="chevron-forward" size={20} />
+    </View>
   );
 });
 
@@ -653,10 +656,13 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingVertical: 14,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.borderLight,
+      position: 'relative',
     },
+    resultDetailAction: { ...StyleSheet.absoluteFillObject, zIndex: 1 },
+    resultDetailPressed: { backgroundColor: colors.accentSoft, opacity: 0.3 },
     resultLeft: { flex: 1, minWidth: 0 },
     resultName: { fontSize: 15, fontWeight: '700', color: colors.text, letterSpacing: 0, lineHeight: 21 },
-    resultInstagram: { flexShrink: 1 },
+    resultInstagram: { flexShrink: 1, zIndex: 2 },
     resultInstagramText: { fontSize: 12, fontWeight: '600', lineHeight: 17 },
     resultMeta: { color: colors.weak, flexShrink: 1, fontSize: 12, fontWeight: '500', letterSpacing: 0, lineHeight: 17 },
     resultMetaRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs, marginTop: 3, minWidth: 0 },

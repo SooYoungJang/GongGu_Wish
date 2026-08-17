@@ -531,41 +531,49 @@ function SubmissionCard({
   styles: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.submissionCard,
         selected && styles.submissionCardSelected,
-        pressed && styles.pressed,
       ]}
     >
-      <View style={styles.cardHeader}>
-        <View style={styles.cardTitleBlock}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.submissionDetailAction,
+          pressed && styles.submissionDetailActionPressed,
+        ]}
+      />
+      <View pointerEvents="box-none" style={styles.cardHeader}>
+        <View pointerEvents="box-none" style={styles.cardTitleBlock}>
           <InstagramIdentity
             profileImageUrl={item.rawPost.influencer.profileImageUrl}
             size="body"
+            style={styles.submissionIdentityAction}
             textStyle={styles.itemHandle}
             username={item.rawPost.influencer.instagramUsername}
           />
-          <SText variant="cardTitle" numberOfLines={2} style={styles.itemTitle}>
+          <SText pointerEvents="none" variant="cardTitle" numberOfLines={2} style={styles.itemTitle}>
             {item.productName ?? '상품명 미확정'}
           </SText>
         </View>
-        <StatusPill label={formatStatus(item.status)} tone={statusTone(item.status)} colors={colors} />
+        <View pointerEvents="none">
+          <StatusPill label={formatStatus(item.status)} tone={statusTone(item.status)} colors={colors} />
+        </View>
       </View>
 
-      <SText variant="body" numberOfLines={2} style={styles.itemSummary}>
+      <SText pointerEvents="none" variant="body" numberOfLines={2} style={styles.itemSummary}>
         {item.summary ?? item.rawPost.caption}
       </SText>
 
-      <View style={styles.metaRow}>
+      <View pointerEvents="none" style={styles.metaRow}>
         <SText variant="caption" style={styles.itemMeta}>{item.brandName ?? '브랜드 미확정'}</SText>
         <SText variant="caption" style={styles.itemMeta}>{item.endDate ? `~ ${formatDate(item.endDate)}` : '종료일 미정'}</SText>
       </View>
-      <SText variant="label" style={styles.cardAction}>상세 검수 열기</SText>
-    </Pressable>
+      <SText pointerEvents="none" variant="label" style={styles.cardAction}>상세 검수 열기</SText>
+    </View>
   );
 }
 
@@ -889,7 +897,18 @@ function makeStyles(colors: CommerceColorPalette) {
       borderWidth: 1,
       gap: commerceSpacing.sm,
       padding: commerceSpacing.lg,
+      position: 'relative',
     },
+    submissionDetailAction: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: commerceRadius.xl,
+      zIndex: 1,
+    },
+    submissionDetailActionPressed: {
+      backgroundColor: colors.accentSoft,
+      opacity: 0.3,
+    },
+    submissionIdentityAction: { zIndex: 2 },
     submissionCardSelected: {
       borderColor: colors.accent,
       borderWidth: 2,

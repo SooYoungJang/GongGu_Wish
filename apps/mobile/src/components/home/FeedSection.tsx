@@ -23,13 +23,14 @@ function FeedCard({ item, onPress, s }: { item: FeedPost; onPress: () => void; s
   const accountName = item.accountName ?? null;
 
   return (
-    <Pressable
-      accessibilityLabel={`${title || accountName || '피드'} 피드 열기`}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={s.card}
-    >
-      <View style={s.thumbnailContainer}>
+    <View style={s.card}>
+      <Pressable
+        accessibilityLabel={`${title || accountName || '피드'} 피드 열기`}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={s.cardDetailAction}
+      />
+      <View pointerEvents="none" style={s.thumbnailContainer}>
         {imageUrl ? (
           <Image source={{ uri: imageUrl }} style={s.thumbnail} />
         ) : (
@@ -38,22 +39,25 @@ function FeedCard({ item, onPress, s }: { item: FeedPost; onPress: () => void; s
           </View>
         )}
       </View>
-      <View style={s.cardBody}>
-        <SText variant="cardBrand" numberOfLines={2} style={s.caption}>
-          {title || '새로운 피드'}
-        </SText>
-        {description ? (
-          <SText variant="caption" numberOfLines={2} style={s.description}>
-            {description}
+      <View pointerEvents="box-none" style={s.cardBody}>
+        <View pointerEvents="none">
+          <SText variant="cardBrand" numberOfLines={2} style={s.caption}>
+            {title || '새로운 피드'}
           </SText>
-        ) : null}
+          {description ? (
+            <SText variant="caption" numberOfLines={2} style={s.description}>
+              {description}
+            </SText>
+          ) : null}
+        </View>
         <InstagramIdentity
           profileImageUrl={item.accountProfileImageUrl}
+          style={s.identityAction}
           textStyle={s.accountName}
           username={accountName}
         />
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -150,7 +154,12 @@ function makeStyles(colors: ColorPalette) {
     card: {
       backgroundColor: 'transparent',
       minHeight: 44,
+      position: 'relative',
       width: 128,
+    },
+    cardDetailAction: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 1,
     },
     thumbnailContainer: {
       backgroundColor: colors.primaryBg,
@@ -163,6 +172,7 @@ function makeStyles(colors: ColorPalette) {
     placeholder: { alignItems: 'center', height: '100%', justifyContent: 'center' },
     placeholderIcon: { fontSize: 32 },
     cardBody: { paddingTop: spacing.xs, width: 128 },
+    identityAction: { zIndex: 2 },
     caption: {
       ...typography.cardBrand,
       color: colors.textPrimary,

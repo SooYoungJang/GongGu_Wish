@@ -93,6 +93,7 @@ import { usePostAudioPlayer } from "../hooks/usePostAudioPlayer";
 import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatDateRange, getDaysRemaining } from "../utils";
+import { resolveGroupBuyImageUrl } from "../utils/groupBuyMedia";
 import { normalizeForSearch } from "../utils/search";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useAuthGate } from "../hooks/useAuthGate";
@@ -263,18 +264,6 @@ function getReelItems(current: GroupBuy, fetched?: GroupBuy[]) {
 function getInitialReelIndex(current: GroupBuy, reelItems: GroupBuy[]) {
   const index = reelItems.findIndex((item) => item.id === current.id);
   return index >= 0 ? index : 0;
-}
-
-function getGroupBuyThumb(item: GroupBuy) {
-  return (
-    item.thumbnailUrl ??
-    item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ??
-    item.mediaItems?.find(
-      (media) => !media.mediaType || media.mediaType === "IMAGE",
-    )?.url ??
-    item.mediaUrls?.[0] ??
-    null
-  );
 }
 
 function getSearchText(item: GroupBuy) {
@@ -879,29 +868,35 @@ function DetailSearchSheet({
                 </View>
               }
               renderItem={({ item }) => {
-                const thumb = getGroupBuyThumb(item);
+                const thumb = resolveGroupBuyImageUrl(item);
                 const sellerName = normalizeOptionalInstagramUsername(
                   item.rawPost.influencer.instagramUsername,
                 );
                 const brandName = item.brandName?.trim() || null;
                 return (
-                  <Pressable
+                  <View
+                    style={s.detailSearchResult}
+                  >
+                    <Pressable
                     accessibilityLabel={`${item.productName ?? "상품"} 보기`}
                     accessibilityRole="button"
                     onPress={() => onSelect(item)}
                     style={({ pressed }) => [
-                      s.detailSearchResult,
-                      pressed && s.pressed,
+                      s.detailSearchResultAction,
+                      pressed ? s.detailSearchResultPressed : null,
                     ]}
-                  >
+                    />
                     {thumb ? (
-                      <Image
-                        source={{ uri: thumb }}
-                        style={s.detailSearchThumb}
-                        resizeMode="cover"
-                      />
+                      <View pointerEvents="none" style={s.detailSearchThumb}>
+                        <Image
+                          accessible={false}
+                          source={{ uri: thumb }}
+                          style={s.detailSearchThumbImage}
+                          resizeMode="cover"
+                        />
+                      </View>
                     ) : (
-                      <View style={s.detailSearchThumbFallback}>
+                      <View pointerEvents="none" style={s.detailSearchThumbFallback}>
                         <Ionicons
                           name="cube-outline"
                           size={20}
@@ -909,17 +904,19 @@ function DetailSearchSheet({
                         />
                       </View>
                     )}
-                    <View style={s.detailSearchResultBody}>
+                    <View pointerEvents="box-none" style={s.detailSearchResultBody}>
                       <SText
+                        pointerEvents="none"
                         variant="cardTitle"
                         style={s.detailSearchResultTitle}
                         numberOfLines={1}
                       >
                         {item.productName ?? "제품명 미확인"}
                       </SText>
-                      <View style={s.detailSearchResultMetaRow}>
+                      <View pointerEvents="box-none" style={s.detailSearchResultMetaRow}>
                         {brandName ? (
                           <SText
+                            pointerEvents="none"
                             numberOfLines={1}
                             style={s.detailSearchResultMeta}
                             variant="caption"
@@ -939,6 +936,7 @@ function DetailSearchSheet({
                         ) : null}
                         {!brandName && !sellerName ? (
                           <SText
+                            pointerEvents="none"
                             numberOfLines={1}
                             style={s.detailSearchResultMeta}
                             variant="caption"
@@ -947,6 +945,7 @@ function DetailSearchSheet({
                           </SText>
                         ) : null}
                         <SText
+                          pointerEvents="none"
                           numberOfLines={1}
                           style={s.detailSearchResultMeta}
                           variant="caption"
@@ -956,11 +955,13 @@ function DetailSearchSheet({
                       </View>
                     </View>
                     <Ionicons
+                      accessible={false}
                       name="chevron-forward"
+                      pointerEvents="none"
                       size={18}
                       color="rgba(255,255,255,0.42)"
                     />
-                  </Pressable>
+                  </View>
                 );
               }}
               maxToRenderPerBatch={8}
@@ -3035,12 +3036,25 @@ export function makeStyles(
       gap: spacing.md,
       minHeight: 70,
       paddingVertical: spacing.sm,
+      position: "relative",
+    },
+    detailSearchResultAction: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 1,
+    },
+    detailSearchResultPressed: {
+      backgroundColor: "rgba(255,255,255,0.08)",
     },
     detailSearchThumb: {
       backgroundColor: "rgba(255,255,255,0.08)",
       borderRadius: 12,
       height: 52,
       width: 52,
+    },
+    detailSearchThumbImage: {
+      borderRadius: 12,
+      height: "100%",
+      width: "100%",
     },
     detailSearchThumbFallback: {
       alignItems: "center",
@@ -3075,6 +3089,7 @@ export function makeStyles(
     detailSearchInstagram: {
       flexShrink: 1,
       maxWidth: "45%",
+      zIndex: 2,
     },
     detailSearchInstagramText: {
       color: "rgba(255,255,255,0.66)",

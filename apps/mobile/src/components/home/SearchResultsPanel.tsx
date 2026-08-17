@@ -48,6 +48,7 @@ const SearchResultRow = memo(function SearchResultRow({ chevronColor, influencer
           <SText variant="label" style={s.searchResultName}>{displayName}</SText>
         ) : null}
         <InstagramIdentity
+          navigationEnabled={false}
           showAvatar={false}
           size={displayName ? "compact" : "body"}
           textStyle={displayName ? s.searchResultMeta : s.searchResultPrimary}
