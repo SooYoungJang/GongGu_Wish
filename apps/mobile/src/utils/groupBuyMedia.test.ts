@@ -5,7 +5,7 @@ import { resolveGroupBuyImageUrl } from "./groupBuyMedia";
 
 type GroupBuyMedia = Pick<
   GroupBuy,
-  "mediaItems" | "mediaType" | "mediaUrls" | "thumbnailUrl"
+  "mediaItems" | "mediaType" | "mediaUrls" | "thumbnailUrl" | "videoUrl"
 >;
 
 const media = (overrides: Partial<GroupBuyMedia> = {}): GroupBuyMedia => ({
@@ -13,6 +13,7 @@ const media = (overrides: Partial<GroupBuyMedia> = {}): GroupBuyMedia => ({
   mediaType: null,
   mediaUrls: [],
   thumbnailUrl: null,
+  videoUrl: null,
   ...overrides,
 });
 
@@ -96,5 +97,35 @@ describe("resolveGroupBuyImageUrl", () => {
         }),
       ),
     ).toBe("https://example.com/legacy.png?size=large");
+  });
+
+  it("uses an extensionless legacy Instagram image when mediaType is missing", () => {
+    const imageUrl =
+      "https://scontent.cdninstagram.com/v/t51.29350-15/123456789_1?stp=dst-jpg";
+
+    expect(
+      resolveGroupBuyImageUrl(
+        media({
+          mediaType: null,
+          mediaUrls: [imageUrl],
+        }),
+      ),
+    ).toBe(imageUrl);
+  });
+
+  it("does not mistake a known video URL for an extensionless image", () => {
+    const videoUrl = "https://scontent.cdninstagram.com/o1/v/t16/video";
+    const imageUrl =
+      "https://scontent.cdninstagram.com/v/t51.29350-15/poster?stp=dst-jpg";
+
+    expect(
+      resolveGroupBuyImageUrl(
+        media({
+          mediaType: null,
+          mediaUrls: [videoUrl, imageUrl],
+          videoUrl,
+        }),
+      ),
+    ).toBe(imageUrl);
   });
 });

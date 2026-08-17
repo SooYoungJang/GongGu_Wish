@@ -143,7 +143,10 @@ const thirdGroupBuy: GroupBuy = {
   priceKrw: 22900,
   thumbnailUrl: null,
   mediaItems: undefined,
-  mediaUrls: ["https://example.com/images/suncream.jpg"],
+  mediaType: null,
+  mediaUrls: [
+    "https://scontent.cdninstagram.com/v/t51.29350-15/suncream?stp=dst-jpg",
+  ],
 };
 
 const fourthGroupBuy: GroupBuy = {
@@ -233,6 +236,7 @@ describe("InfluencerGroupBuysScreen", () => {
 
     expect(headerTitle?.props.children).toBe("인플루언서 공구");
     expect(text).toContain("@bada_ummaya");
+    expect(text.match(/@bada_ummaya/g)).toHaveLength(1);
     expect(profileAvatar.props.profileImageUrl).toBe(
       "https://example.com/images/bada.jpg",
     );
@@ -276,7 +280,7 @@ describe("InfluencerGroupBuysScreen", () => {
     expect(images.map((image) => image.props.source?.uri)).toEqual([
       "https://example.com/images/duck.jpg",
       "https://example.com/images/granola-video.jpg",
-      "https://example.com/images/suncream.jpg",
+      "https://scontent.cdninstagram.com/v/t51.29350-15/suncream?stp=dst-jpg",
     ]);
     expect(images.map((image) => image.props.recyclingKey)).toEqual([
       "influencer-deal-1",
