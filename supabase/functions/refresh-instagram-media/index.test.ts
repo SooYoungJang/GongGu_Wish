@@ -11,6 +11,7 @@ import {
   handler,
   isInstagramCdnUrl,
   isUserPostAudioRecoveryAllowed,
+  needsRefresh,
   normalizeRefreshExecution,
   trustedInstagramPostUrl,
 } from './index.ts';
@@ -24,6 +25,22 @@ Deno.test('recovers the original Instagram URL from raw-post group buys', () => 
       submission: { instagram_url: null },
     }),
     rawPostUrl,
+  );
+});
+
+Deno.test('refreshes an expired product thumbnail after post audio was checked', () => {
+  assert(
+    needsRefresh(
+      {
+        end_date: '2099-08-21T00:00:00.000Z',
+        post_audio_checked_at: '2026-08-16T00:00:00.000Z',
+        post_audio_url: null,
+        thumbnail_url: 'https://scontent-test.cdninstagram.com/product.jpg?oe=00000001',
+        video_url: null,
+      },
+      false,
+      1,
+    ),
   );
 });
 
