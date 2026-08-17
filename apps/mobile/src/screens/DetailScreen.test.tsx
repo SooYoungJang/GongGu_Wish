@@ -1866,6 +1866,13 @@ describe("DetailScreen", () => {
     );
     expect(flattenText(renderer!.toJSON())).toContain("구매 링크");
     expect(
+      renderer!.root.findAll(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === "링크",
+      ),
+    ).toHaveLength(0);
+    expect(
       renderer!.root.find(
         (node) =>
           String(node.type) === "Pressable" &&

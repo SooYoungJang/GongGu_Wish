@@ -2042,12 +2042,6 @@ function ProductReelPageComponent({
             s={s}
           />
           <ReelAction
-            icon={<Ionicons name="link-outline" size={26} color="#FFFFFF" />}
-            label="링크"
-            onPress={handleOpenLink}
-            s={s}
-          />
-          <ReelAction
             icon={
               <Ionicons name="share-social-outline" size={26} color="#FFFFFF" />
             }
