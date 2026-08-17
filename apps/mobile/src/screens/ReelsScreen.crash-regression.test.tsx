@@ -10,10 +10,11 @@ const audioMock = vi.hoisted(() => ({
   players: [] as any[],
   rejectSeek: null as (() => void) | null,
   resolveSeek: null as (() => void) | null,
+  setAudioModeAsync: vi.fn(async () => undefined),
 }));
 
 vi.mock("expo-audio", () => ({
-  setAudioModeAsync: vi.fn(async () => undefined),
+  setAudioModeAsync: audioMock.setAudioModeAsync,
   useAudioPlayer: (source: string | null, options?: unknown) => {
     const ReactMock = require("react");
     const currentPlayerRef = ReactMock.useRef(null);
@@ -90,10 +91,14 @@ vi.mock("expo-audio", () => ({
 function ReelPostAudioHarness({
   url,
   durationMs = null,
+  isActive = true,
+  playbackAllowed = isActive,
   renderTick = 0,
 }: {
   url: string;
   durationMs?: number | null;
+  isActive?: boolean;
+  playbackAllowed?: boolean;
   renderTick?: number;
 }) {
   void renderTick;
@@ -101,7 +106,8 @@ function ReelPostAudioHarness({
     url,
     startTimeMs: 0,
     durationMs,
-    isActive: true,
+    isActive,
+    playbackAllowed,
     muted: false,
   });
   return null;
@@ -114,6 +120,7 @@ describe("ReelsScreen native player recycling", () => {
     audioMock.players.length = 0;
     audioMock.rejectSeek = null;
     audioMock.resolveSeek = null;
+    audioMock.setAudioModeAsync.mockClear();
   });
 
   it("does not call a released post-audio player when a scrolled-off reel unmounts", async () => {
@@ -144,14 +151,68 @@ describe("ReelsScreen native player recycling", () => {
     expect(audioMock.callsAfterRelease).toBe(0);
   });
 
+  it("reconfigures the audio session before playing after returning to a reel", async () => {
+    const url = "https://scontent-test.cdninstagram.com/audio/resume.m4a";
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <ReelPostAudioHarness playbackAllowed isActive url={url} />,
+      );
+      await Promise.resolve();
+    });
+
+    const player = audioMock.players[0];
+    expect(player.play).toHaveBeenCalled();
+    audioMock.setAudioModeAsync.mockClear();
+    player.play.mockClear();
+
+    await act(async () => {
+      renderer!.update(
+        <ReelPostAudioHarness
+          isActive={false}
+          playbackAllowed={false}
+          url={url}
+        />,
+      );
+      await Promise.resolve();
+    });
+    expect(player.pause).toHaveBeenCalled();
+
+    let resolveAudioMode: (() => void) | undefined;
+    audioMock.setAudioModeAsync.mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          resolveAudioMode = () => resolve(undefined);
+        }),
+    );
+
+    await act(async () => {
+      renderer!.update(
+        <ReelPostAudioHarness playbackAllowed isActive url={url} />,
+      );
+      await Promise.resolve();
+    });
+
+    expect(audioMock.setAudioModeAsync).toHaveBeenCalledTimes(1);
+    expect(player.play).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveAudioMode?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(player.play).toHaveBeenCalled();
+
+    act(() => renderer!.unmount());
+  });
+
   it("ignores a pending seek rejection after the reel audio player is released", async () => {
     audioMock.deferSeek = true;
     let renderer: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <ReelPostAudioHarness
-          url="https://scontent-test.cdninstagram.com/audio/reel-a.m4a"
-        />,
+        <ReelPostAudioHarness url="https://scontent-test.cdninstagram.com/audio/reel-a.m4a" />,
       );
       await Promise.resolve();
     });
@@ -173,9 +234,7 @@ describe("ReelsScreen native player recycling", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <ReelPostAudioHarness
-          url="https://scontent-test.cdninstagram.com/audio/reel-a.m4a"
-        />,
+        <ReelPostAudioHarness url="https://scontent-test.cdninstagram.com/audio/reel-a.m4a" />,
       );
       await Promise.resolve();
     });
@@ -187,9 +246,7 @@ describe("ReelsScreen native player recycling", () => {
     audioMock.deferSeek = false;
     await act(async () => {
       renderer!.update(
-        <ReelPostAudioHarness
-          url="https://scontent-test.cdninstagram.com/audio/reel-b.m4a"
-        />,
+        <ReelPostAudioHarness url="https://scontent-test.cdninstagram.com/audio/reel-b.m4a" />,
       );
       await Promise.resolve();
     });
