@@ -57,6 +57,7 @@ type GroupBuyRow = {
   media_refreshed_at: string | null;
   media_refresh_attempted_at: string | null;
   end_date: string | null;
+  raw_post?: { post_url?: string | null } | null;
   submission?: { instagram_url?: string | null } | null;
 };
 
@@ -152,6 +153,7 @@ const GROUP_BUY_SELECT = [
   'media_refreshed_at',
   'media_refresh_attempted_at',
   'end_date',
+  'raw_post:raw_posts!group_buys_raw_post_id_fkey(post_url)',
   'submission:gonggu_submissions!group_buys_submission_id_fkey(instagram_url)',
 ].join(', ');
 
@@ -368,8 +370,13 @@ function needsRefresh(row: GroupBuyRow, force: boolean, refreshWindowHours: numb
   );
 }
 
-function getOriginalInstagramUrl(row: GroupBuyRow): string | null {
-  return trustedInstagramPostUrl(row.submission?.instagram_url);
+export function getOriginalInstagramUrl(
+  row: Pick<GroupBuyRow, 'raw_post' | 'submission'>,
+): string | null {
+  return (
+    trustedInstagramPostUrl(row.raw_post?.post_url) ??
+    trustedInstagramPostUrl(row.submission?.instagram_url)
+  );
 }
 
 function getRecoverableInstagramUrl(row: GroupBuyRow): string | null {

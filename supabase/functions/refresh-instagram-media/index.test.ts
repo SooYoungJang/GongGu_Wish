@@ -7,12 +7,25 @@ import {
 
 import {
   buildPostAudioUpdatePatch,
+  getOriginalInstagramUrl,
   handler,
   isInstagramCdnUrl,
   isUserPostAudioRecoveryAllowed,
   normalizeRefreshExecution,
   trustedInstagramPostUrl,
 } from './index.ts';
+
+Deno.test('recovers the original Instagram URL from raw-post group buys', () => {
+  const rawPostUrl = 'https://www.instagram.com/reel/DUMMY_RAW_POST/';
+
+  assertEquals(
+    getOriginalInstagramUrl({
+      raw_post: { post_url: rawPostUrl },
+      submission: { instagram_url: null },
+    }),
+    rawPostUrl,
+  );
+});
 
 Deno.test('recognizes Instagram media served from both CDN host families', () => {
   assert(
