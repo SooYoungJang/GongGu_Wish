@@ -106,14 +106,6 @@ const InfluencerDealListItem = memo(function InfluencerDealListItem({
         </View>
 
         <View style={s.info}>
-          <InstagramIdentity
-            navigationEnabled={false}
-            profileImageUrl={item.rawPost.influencer.profileImageUrl}
-            showAvatar={false}
-            size="compact"
-            textStyle={s.instagramHandle}
-            username={item.rawPost.influencer.instagramUsername}
-          />
           <SText numberOfLines={2} style={s.productName} variant="body">
             {item.productName ?? "공동구매 상품"}
           </SText>
@@ -338,10 +330,6 @@ function makeListItemStyles(theme: ReturnType<typeof useCommerceTheme>) {
       gap: spacing.xs,
       justifyContent: "center",
       minWidth: 0,
-    },
-    instagramHandle: {
-      color: colors.muted,
-      fontWeight: "700",
     },
     productName: {
       color: colors.text,
