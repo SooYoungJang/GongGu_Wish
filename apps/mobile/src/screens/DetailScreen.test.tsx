@@ -3135,6 +3135,60 @@ describe("DetailScreen video playback", () => {
     expect(audioPlayer.play).toHaveBeenCalled();
   });
 
+  it("prepares post music only for the active and adjacent detail pages", async () => {
+    const activeAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/active-track.m4a";
+    const adjacentAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/adjacent-track.m4a";
+    const distantAudioUrl =
+      "https://scontent-test.cdninstagram.com/audio/distant-track.m4a";
+    const activeGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: "detail-active",
+      postAudioUrl: activeAudioUrl,
+    };
+    const adjacentGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: "detail-adjacent",
+      postAudioUrl: adjacentAudioUrl,
+    };
+    const distantGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      id: "detail-distant",
+      postAudioUrl: distantAudioUrl,
+    };
+    queryMock.groupBuys = [
+      activeGroupBuy,
+      adjacentGroupBuy,
+      distantGroupBuy,
+    ];
+
+    await act(async () => {
+      TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: activeGroupBuy },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const preparedAudioSources = audioMock.players
+      .map((player) => player.source)
+      .filter(Boolean);
+    expect(preparedAudioSources).toHaveLength(2);
+    expect(preparedAudioSources).toEqual(
+      expect.arrayContaining([activeAudioUrl, adjacentAudioUrl]),
+    );
+    expect(preparedAudioSources).not.toContain(distantAudioUrl);
+  });
+
   it("keeps post music position while background playback is paused", async () => {
     const postAudioUrl =
       "https://scontent-test.cdninstagram.com/audio/image-post-track.m4a";
