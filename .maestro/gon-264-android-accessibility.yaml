@@ -46,8 +46,7 @@ appId: com.gonggu.wish.preview
     text: "달력 닫기"
 - takeScreenshot: gon264-android-04-calendar-modal
 - tapOn:
-    text: "달력 닫기"
-    index: 0
+    text: "닫기"
 - assertNotVisible:
     id: "calendar-picker-modal"
 - pressKey: back
