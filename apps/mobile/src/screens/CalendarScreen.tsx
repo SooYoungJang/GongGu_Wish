@@ -40,6 +40,7 @@ import type { CalendarScreenProps, GroupBuy } from "../types";
 import {
   formatDateKey,
   getGroupBuyDateRange,
+  isDateBeforeToday,
   parseDateKey,
 } from "../utils/groupBuyDates";
 import { useTheme } from "../context/ThemeContext";
@@ -233,7 +234,10 @@ function CalendarFilterBar({
           accessibilityLabel="오늘로 이동"
           accessibilityRole="button"
           onPress={onToday}
-          style={s.todayButton}
+          style={({ pressed }) => [
+            s.todayButton,
+            pressed ? s.todayButtonPressed : null,
+          ]}
           testID="calendar-today-button"
         >
           <SText variant="caption" style={s.todayButtonText}>
@@ -632,6 +636,8 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
 
   const handleSelectDate = useCallback(
     (date: Date) => {
+      if (isDateBeforeToday(date)) return;
+
       pendingScrollDateKeyRef.current = formatDateKey(date);
       setSelectedDate(date);
       // If the selected date is in a different month, navigate to that month
@@ -886,16 +892,20 @@ function makeStyles(colors: ColorPalette) {
     },
     todayButton: {
       alignItems: "center",
-      backgroundColor: colors.primaryBg,
+      backgroundColor: colors.surface,
       borderColor: colors.primary,
+      borderCurve: "continuous",
       borderRadius: commerceRadius.full,
       borderWidth: 1,
       justifyContent: "center",
       minHeight: 34,
       paddingHorizontal: spacing.md,
     },
+    todayButtonPressed: {
+      backgroundColor: colors.primaryBg,
+    },
     todayButtonText: {
-      color: colors.primary,
+      color: colors.textPrimary,
       fontWeight: "800",
     },
     calendarToggleIcon: {

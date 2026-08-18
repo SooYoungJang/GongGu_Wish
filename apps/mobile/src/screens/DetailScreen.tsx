@@ -93,6 +93,7 @@ import { usePostAudioPlayer } from "../hooks/usePostAudioPlayer";
 import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatDateRange, getDaysRemaining } from "../utils";
+import { resolveGroupBuyImageUrl } from "../utils/groupBuyMedia";
 import { normalizeForSearch } from "../utils/search";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useAuthGate } from "../hooks/useAuthGate";
@@ -265,18 +266,6 @@ function getInitialReelIndex(current: GroupBuy, reelItems: GroupBuy[]) {
   return index >= 0 ? index : 0;
 }
 
-function getGroupBuyThumb(item: GroupBuy) {
-  return (
-    item.thumbnailUrl ??
-    item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ??
-    item.mediaItems?.find(
-      (media) => !media.mediaType || media.mediaType === "IMAGE",
-    )?.url ??
-    item.mediaUrls?.[0] ??
-    null
-  );
-}
-
 function getSearchText(item: GroupBuy) {
   return [
     item.productName,
@@ -312,6 +301,7 @@ function getVisibleDotIndexes(total: number, activeIndex: number) {
 type VideoSlideProps = {
   url: string;
   isActive: boolean;
+  playbackAllowed: boolean;
   thumbnailUrl?: string | null;
   replayKey?: number;
   muted?: boolean;
@@ -327,6 +317,7 @@ type VideoSlideProps = {
 const VideoSlide = memo(function VideoSlide({
   url,
   isActive,
+  playbackAllowed,
   replayKey,
   thumbnailUrl,
   muted,
@@ -358,8 +349,10 @@ const VideoSlide = memo(function VideoSlide({
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryRequestIdRef = useRef(0);
   const retryIsActiveRef = useRef(isActive);
+  const retryPlaybackAllowedRef = useRef(playbackAllowed);
   const retryShouldPlayRef = useRef(shouldPlay);
   retryIsActiveRef.current = isActive;
+  retryPlaybackAllowedRef.current = playbackAllowed;
   retryShouldPlayRef.current = shouldPlay;
   const source = useMemo(() => createVideoSource(url), [url]);
 
@@ -377,7 +370,7 @@ const VideoSlide = memo(function VideoSlide({
 
   useEffect(() => {
     const updatePlaybackState = (isPlaying: boolean) => {
-      onPlaybackStateChange?.(isActive && isPlaying);
+      onPlaybackStateChange?.(isActive && playbackAllowed && isPlaying);
     };
 
     updatePlaybackState(Boolean(player.playing));
@@ -390,7 +383,7 @@ const VideoSlide = memo(function VideoSlide({
       subscription?.remove();
       onPlaybackStateChange?.(false);
     };
-  }, [isActive, onPlaybackStateChange, player]);
+  }, [isActive, onPlaybackStateChange, playbackAllowed, player]);
 
   useEffect(() => {
     const subscription = player.addListener?.(
@@ -429,7 +422,11 @@ const VideoSlide = memo(function VideoSlide({
         void Promise.resolve(result)
           .then(() => {
             if (retryRequestIdRef.current !== requestId) return;
-            if (retryIsActiveRef.current && retryShouldPlayRef.current) {
+            if (
+              retryIsActiveRef.current &&
+              retryPlaybackAllowedRef.current &&
+              retryShouldPlayRef.current
+            ) {
               safelyCallVideoPlayer(() => player.play());
             }
           })
@@ -440,13 +437,18 @@ const VideoSlide = memo(function VideoSlide({
           });
         return;
       }
-      if (retryIsActiveRef.current && retryShouldPlayRef.current) player.play();
+      if (
+        retryIsActiveRef.current &&
+        retryPlaybackAllowedRef.current &&
+        retryShouldPlayRef.current
+      )
+        player.play();
     } catch (error: unknown) {
       if (retryRequestIdRef.current !== requestId) return;
       setPlayerStatus("error");
       setPlayerError(error);
     }
-  }, [isActive, player, shouldPlay, source]);
+  }, [isActive, playbackAllowed, player, shouldPlay, source]);
 
   const isPlayerLoading = playerStatus === "loading";
   const isPlayerError = playerStatus === "error" || Boolean(playerError);
@@ -468,14 +470,21 @@ const VideoSlide = memo(function VideoSlide({
       player.volume = 1;
       player.audioMixingMode = audioMixingMode;
 
-      if (isActive && shouldPlay) {
+      if (isActive && playbackAllowed && shouldPlay) {
         player.play();
       } else {
         player.pause();
         if (!isActive) player.currentTime = 0;
       }
     });
-  }, [audioMixingMode, effectiveMuted, isActive, player, shouldPlay]);
+  }, [
+    audioMixingMode,
+    effectiveMuted,
+    isActive,
+    playbackAllowed,
+    player,
+    shouldPlay,
+  ]);
 
   const replayKeyRef = useRef(replayKey);
   const isActiveRef = useRef(isActive);
@@ -489,9 +498,9 @@ const VideoSlide = memo(function VideoSlide({
     updateShouldPlay(true);
     safelyCallVideoPlayer(() => {
       player.currentTime = 0;
-      player.play();
+      if (playbackAllowed) player.play();
     });
-  }, [isActive, player, replayKey, updateShouldPlay]);
+  }, [isActive, playbackAllowed, player, replayKey, updateShouldPlay]);
 
   useEffect(() => {
     setHasFirstFrame(false);
@@ -513,7 +522,7 @@ const VideoSlide = memo(function VideoSlide({
       player.volume = 1;
       player.audioMixingMode = audioMixingMode;
 
-      if (next && isActive) {
+      if (next && isActive && playbackAllowed) {
         player.play();
       } else {
         player.pause();
@@ -524,6 +533,7 @@ const VideoSlide = memo(function VideoSlide({
     audioMixingMode,
     effectiveMuted,
     isActive,
+    playbackAllowed,
     player,
     shouldPlay,
     showControlsTemporarily,
@@ -554,7 +564,7 @@ const VideoSlide = memo(function VideoSlide({
             player.muted = effectiveMuted;
             player.volume = 1;
             player.audioMixingMode = audioMixingMode;
-            if (isActive && shouldPlay) player.play();
+            if (isActive && playbackAllowed && shouldPlay) player.play();
           });
         }}
       />
@@ -858,29 +868,35 @@ function DetailSearchSheet({
                 </View>
               }
               renderItem={({ item }) => {
-                const thumb = getGroupBuyThumb(item);
+                const thumb = resolveGroupBuyImageUrl(item);
                 const sellerName = normalizeOptionalInstagramUsername(
                   item.rawPost.influencer.instagramUsername,
                 );
                 const brandName = item.brandName?.trim() || null;
                 return (
-                  <Pressable
+                  <View
+                    style={s.detailSearchResult}
+                  >
+                    <Pressable
                     accessibilityLabel={`${item.productName ?? "상품"} 보기`}
                     accessibilityRole="button"
                     onPress={() => onSelect(item)}
                     style={({ pressed }) => [
-                      s.detailSearchResult,
-                      pressed && s.pressed,
+                      s.detailSearchResultAction,
+                      pressed ? s.detailSearchResultPressed : null,
                     ]}
-                  >
+                    />
                     {thumb ? (
-                      <Image
-                        source={{ uri: thumb }}
-                        style={s.detailSearchThumb}
-                        resizeMode="cover"
-                      />
+                      <View pointerEvents="none" style={s.detailSearchThumb}>
+                        <Image
+                          accessible={false}
+                          source={{ uri: thumb }}
+                          style={s.detailSearchThumbImage}
+                          resizeMode="cover"
+                        />
+                      </View>
                     ) : (
-                      <View style={s.detailSearchThumbFallback}>
+                      <View pointerEvents="none" style={s.detailSearchThumbFallback}>
                         <Ionicons
                           name="cube-outline"
                           size={20}
@@ -888,17 +904,19 @@ function DetailSearchSheet({
                         />
                       </View>
                     )}
-                    <View style={s.detailSearchResultBody}>
+                    <View pointerEvents="box-none" style={s.detailSearchResultBody}>
                       <SText
+                        pointerEvents="none"
                         variant="cardTitle"
                         style={s.detailSearchResultTitle}
                         numberOfLines={1}
                       >
                         {item.productName ?? "제품명 미확인"}
                       </SText>
-                      <View style={s.detailSearchResultMetaRow}>
+                      <View pointerEvents="box-none" style={s.detailSearchResultMetaRow}>
                         {brandName ? (
                           <SText
+                            pointerEvents="none"
                             numberOfLines={1}
                             style={s.detailSearchResultMeta}
                             variant="caption"
@@ -918,6 +936,7 @@ function DetailSearchSheet({
                         ) : null}
                         {!brandName && !sellerName ? (
                           <SText
+                            pointerEvents="none"
                             numberOfLines={1}
                             style={s.detailSearchResultMeta}
                             variant="caption"
@@ -926,6 +945,7 @@ function DetailSearchSheet({
                           </SText>
                         ) : null}
                         <SText
+                          pointerEvents="none"
                           numberOfLines={1}
                           style={s.detailSearchResultMeta}
                           variant="caption"
@@ -935,11 +955,13 @@ function DetailSearchSheet({
                       </View>
                     </View>
                     <Ionicons
+                      accessible={false}
                       name="chevron-forward"
+                      pointerEvents="none"
                       size={18}
                       color="rgba(255,255,255,0.42)"
                     />
-                  </Pressable>
+                  </View>
                 );
               }}
               maxToRenderPerBatch={8}
@@ -978,6 +1000,7 @@ export type ProductReelPageProps = {
   muted?: boolean;
   onMutedChange?: (muted: boolean) => void;
   onPlaybackStateChange?: (itemId: string, isPlaying: boolean) => void;
+  shouldPreloadAudio?: boolean;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
   s: ReturnType<typeof makeStyles>;
@@ -1003,6 +1026,7 @@ function ProductReelPageComponent({
   muted,
   onMutedChange,
   onPlaybackStateChange,
+  shouldPreloadAudio = false,
   onSummarySheetStateChange,
   s,
 }: ProductReelPageProps) {
@@ -1025,10 +1049,18 @@ function ProductReelPageComponent({
     [onMutedChange],
   );
   const postAudio = usePostAudioPlayer({
-    url: resolvedPostAudio.url,
+    // Keep distant detail pages from opening remote audio sources on first
+    // entry. The active page and its adjacent pages are warmed for a fast
+    // swipe, while distant pages prepare audio only when they enter that
+    // window.
+    url:
+      isActive || shouldPreloadAudio
+        ? resolvedPostAudio.url
+        : null,
     startTimeMs: resolvedPostAudio.startTimeMs,
     durationMs: resolvedPostAudio.durationMs,
-    isActive: isActive && playbackAllowed && shouldPlayMedia,
+    isActive,
+    playbackAllowed: playbackAllowed && shouldPlayMedia,
     muted: isMuted,
     replayKey,
   });
@@ -1789,10 +1821,9 @@ function ProductReelPageComponent({
 
   const renderMediaItem = useCallback(
     ({ item, index }: { item: MediaItem; index: number }) => {
-      const mediaActive =
-        isActive && playbackAllowed && index === activeMediaIndex;
+      const isSelectedMedia = isActive && index === activeMediaIndex;
       const shouldMountVideo =
-        mediaActive ||
+        isSelectedMedia ||
         (shouldPreloadVideo && index === activeMediaIndex) ||
         (isActive && Math.abs(index - activeMediaIndex) <= 1);
       const thumbnailUrl = item.thumbnailUrl ?? groupBuy.thumbnailUrl ?? null;
@@ -1804,7 +1835,8 @@ function ProductReelPageComponent({
               <VideoSlide
                 key={item.url}
                 url={item.url}
-                isActive={mediaActive}
+                isActive={isSelectedMedia}
+                playbackAllowed={playbackAllowed}
                 replayKey={replayKey}
                 thumbnailUrl={thumbnailUrl}
                 muted={isMuted}
@@ -1814,7 +1846,9 @@ function ProductReelPageComponent({
                 onMutedChange={handleMutedChange}
                 onShouldPlayChange={setShouldPlayMedia}
                 onPlaybackStateChange={
-                  mediaActive ? handleActiveMediaPlaybackStateChange : undefined
+                  isSelectedMedia
+                    ? handleActiveMediaPlaybackStateChange
+                    : undefined
                 }
                 s={s}
               />
@@ -2005,12 +2039,6 @@ function ProductReelPageComponent({
                 : "북마크"
             }
             onPress={handleBookmarkPress}
-            s={s}
-          />
-          <ReelAction
-            icon={<Ionicons name="link-outline" size={26} color="#FFFFFF" />}
-            label="링크"
-            onPress={handleOpenLink}
             s={s}
           />
           <ReelAction
@@ -2715,6 +2743,7 @@ function DetailScreenContent({
         }
         isSearchSheetVisible={isSearchSheetVisible}
         searchSheetMetrics={searchSheetMetrics}
+        shouldPreloadAudio={Math.abs(index - activeProductIndex) <= 1}
         shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
         bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
         pageHeight={screenHeight}
@@ -2739,6 +2768,7 @@ function DetailScreenContent({
       insets.top,
       isOnAdPage,
       isPlaybackActive,
+      isScreenFocused,
       isSearchSheetVisible,
       navigation,
       s,
@@ -3010,12 +3040,25 @@ export function makeStyles(
       gap: spacing.md,
       minHeight: 70,
       paddingVertical: spacing.sm,
+      position: "relative",
+    },
+    detailSearchResultAction: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 1,
+    },
+    detailSearchResultPressed: {
+      backgroundColor: "rgba(255,255,255,0.08)",
     },
     detailSearchThumb: {
       backgroundColor: "rgba(255,255,255,0.08)",
       borderRadius: 12,
       height: 52,
       width: 52,
+    },
+    detailSearchThumbImage: {
+      borderRadius: 12,
+      height: "100%",
+      width: "100%",
     },
     detailSearchThumbFallback: {
       alignItems: "center",
@@ -3050,6 +3093,7 @@ export function makeStyles(
     detailSearchInstagram: {
       flexShrink: 1,
       maxWidth: "45%",
+      zIndex: 2,
     },
     detailSearchInstagramText: {
       color: "rgba(255,255,255,0.66)",

@@ -550,15 +550,28 @@ function PromoBanner({
           .filter((label): label is string => Boolean(label))
           .join(", ");
         return (
-          <Pressable
+          <View
             accessibilityElementsHidden={clone}
             accessibilityLabel={clone ? undefined : accessibilityLabel}
-            accessibilityRole="button"
             importantForAccessibility={clone ? "no-hide-descendants" : "auto"}
             key={`${item.id}-${renderIndex}-${clone ? "clone" : "real"}`}
-            onPress={() => onPressDeal(item)}
             style={[s.promoCard, { height: cardHeight, width: cardWidth }]}
+            testID={clone ? undefined : `promo-card-${item.id}`}
           >
+            <Pressable
+              accessible={!clone}
+              accessibilityElementsHidden={clone}
+              accessibilityLabel={clone ? undefined : accessibilityLabel}
+              accessibilityRole="button"
+              importantForAccessibility={
+                clone ? "no-hide-descendants" : "auto"
+              }
+              onPress={() => onPressDeal(item)}
+              style={({ pressed }) => [
+                s.promoDetailAction,
+                pressed ? s.promoDetailPressed : null,
+              ]}
+            />
             <View
               pointerEvents="none"
               style={s.promoBackground}
@@ -595,7 +608,7 @@ function PromoBanner({
               </SText>
             </View>
             <View
-              pointerEvents="none"
+              pointerEvents="box-none"
               style={s.promoOverlay}
               testID={clone ? undefined : `promo-overlay-${item.id}`}
             >
@@ -604,6 +617,7 @@ function PromoBanner({
                   avatarTestID={
                     clone ? undefined : `promo-account-avatar-${item.id}`
                   }
+                  navigationEnabled={!clone}
                   profileImageUrl={item.rawPost.influencer.profileImageUrl}
                   size="compact"
                   style={s.promoAccountRow}
@@ -613,61 +627,63 @@ function PromoBanner({
                   username={item.rawPost.influencer.instagramUsername}
                 />
               ) : null}
-              <SText variant="cardTitle" numberOfLines={2} style={s.promoTitle}>
-                {productName}
-              </SText>
-              <View
-                style={s.promoStatusRow}
-                testID={clone ? undefined : `promo-status-${item.id}`}
-              >
-                <SText
-                  variant="label"
-                  numberOfLines={1}
-                  style={s.promoStatusAccent}
-                >
-                  {statusCopy.accentLabel}
+              <View pointerEvents="none">
+                <SText variant="cardTitle" numberOfLines={2} style={s.promoTitle}>
+                  {productName}
                 </SText>
-                {statusCopy.detailLabel ? (
-                  statusCopy.pricePlacement === "detail" &&
+                <View
+                  style={s.promoStatusRow}
+                  testID={clone ? undefined : `promo-status-${item.id}`}
+                >
+                  <SText
+                    variant="label"
+                    numberOfLines={1}
+                    style={s.promoStatusAccent}
+                  >
+                    {statusCopy.accentLabel}
+                  </SText>
+                  {statusCopy.detailLabel ? (
+                    statusCopy.pricePlacement === "detail" &&
+                    statusCopy.priceKrw != null ? (
+                      <PriceText
+                        color="#FFFFFF"
+                        priceKrw={statusCopy.priceKrw}
+                        style={s.promoStatusDetail}
+                        variant="label"
+                      />
+                    ) : (
+                      <SText
+                        variant="label"
+                        numberOfLines={1}
+                        style={s.promoStatusDetail}
+                      >
+                        {statusCopy.detailLabel}
+                      </SText>
+                    )
+                  ) : null}
+                </View>
+                {statusCopy.secondaryLabel ? (
+                  statusCopy.pricePlacement === "secondary" &&
                   statusCopy.priceKrw != null ? (
                     <PriceText
                       color="#FFFFFF"
                       priceKrw={statusCopy.priceKrw}
-                      style={s.promoStatusDetail}
-                      variant="label"
+                      style={s.promoSecondary}
+                      variant="body"
                     />
                   ) : (
                     <SText
-                      variant="label"
+                      variant="body"
                       numberOfLines={1}
-                      style={s.promoStatusDetail}
+                      style={s.promoSecondary}
                     >
-                      {statusCopy.detailLabel}
+                      {statusCopy.secondaryLabel}
                     </SText>
                   )
                 ) : null}
               </View>
-              {statusCopy.secondaryLabel ? (
-                statusCopy.pricePlacement === "secondary" &&
-                statusCopy.priceKrw != null ? (
-                  <PriceText
-                    color="#FFFFFF"
-                    priceKrw={statusCopy.priceKrw}
-                    style={s.promoSecondary}
-                    variant="body"
-                  />
-                ) : (
-                  <SText
-                    variant="body"
-                    numberOfLines={1}
-                    style={s.promoSecondary}
-                  >
-                    {statusCopy.secondaryLabel}
-                  </SText>
-                )
-              ) : null}
             </View>
-          </Pressable>
+          </View>
         );
       })}
     </ScrollView>
@@ -1224,6 +1240,14 @@ function makeStyles(colors: CommerceColorPalette) {
       overflow: "hidden",
       position: "relative",
     },
+    promoDetailAction: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 1,
+    },
+    promoDetailPressed: {
+      backgroundColor: colors.overlay,
+      opacity: 0.22,
+    },
     promoBackground: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: colors.promoBg,
@@ -1250,6 +1274,7 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     promoAccountRow: {
       marginBottom: 3,
+      zIndex: 3,
     },
     promoImage: { ...StyleSheet.absoluteFillObject },
     promoImagePending: { opacity: 0 },
@@ -1298,6 +1323,7 @@ function makeStyles(colors: CommerceColorPalette) {
       paddingTop: 38,
       position: "absolute",
       right: 0,
+      zIndex: 2,
     },
     promoStatusRow: {
       alignItems: "center",

@@ -2,7 +2,21 @@ import { AUTH_REDIRECT_URL } from "../lib/auth-config";
 
 const NOTIFICATION_URL_PROTOCOL = new URL(AUTH_REDIRECT_URL).protocol;
 export const NOTIFICATION_URL_PREFIX = `${NOTIFICATION_URL_PROTOCOL}//`;
-const SHARE_URL_PREFIX = "https://gongguwish.com/";
+const SHARE_URL_ORIGINS = {
+  "gongguwish-preview:": "https://api-preview.gongguwish.com",
+  "gongguwish:": "https://gongguwish.com",
+} as const;
+
+export function resolveShareUrlOrigin(protocol: string) {
+  const origin = SHARE_URL_ORIGINS[protocol as keyof typeof SHARE_URL_ORIGINS];
+  if (!origin) throw new Error("Unsupported app scheme for share links");
+  return origin;
+}
+
+export const SHARE_URL_ORIGIN = resolveShareUrlOrigin(
+  NOTIFICATION_URL_PROTOCOL,
+);
+export const SHARE_URL_PREFIX = `${SHARE_URL_ORIGIN}/`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -55,15 +69,20 @@ export function parseGroupBuyNotificationUrl(value: unknown) {
   if (typeof value !== "string") return null;
   try {
     const parsed = new URL(value);
-    if (
-      parsed.protocol !== NOTIFICATION_URL_PROTOCOL ||
-      parsed.hostname !== "group-buy" ||
-      parsed.search ||
-      parsed.hash
-    ) {
+    if (parsed.username || parsed.password || parsed.port) return null;
+    const isCustomScheme =
+      parsed.protocol === NOTIFICATION_URL_PROTOCOL &&
+      parsed.hostname === "group-buy";
+    const shareOrigin = new URL(SHARE_URL_ORIGIN);
+    const isHttpsAppLink =
+      parsed.origin === shareOrigin.origin &&
+      parsed.pathname.startsWith("/group-buy/");
+    if ((!isCustomScheme && !isHttpsAppLink) || parsed.search || parsed.hash) {
       return null;
     }
-    const encodedId = parsed.pathname.replace(/^\//, "");
+    const encodedId = isCustomScheme
+      ? parsed.pathname.replace(/^\//, "")
+      : parsed.pathname.slice("/group-buy/".length);
     if (!encodedId || encodedId.includes("/")) return null;
     return normalizeGroupBuyId(decodeURIComponent(encodedId));
   } catch {

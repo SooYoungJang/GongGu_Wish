@@ -1,15 +1,36 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InstagramIdentity } from "./InstagramIdentity";
 
 vi.mock("react-native", () => ({
+  Pressable: ({
+    children,
+    ...props
+  }: {
+    children?: unknown;
+  }) => {
+    const ReactMock = require("react");
+    return ReactMock.createElement(
+      "Pressable",
+      props,
+      (typeof children === "function"
+        ? children({ pressed: false })
+        : children) as React.ReactNode,
+    );
+  },
   StyleSheet: { create: (styles: unknown) => styles },
   View: ({ children, ...props }: { children?: React.ReactNode }) => {
     const ReactMock = require("react");
     return ReactMock.createElement("View", props, children);
   },
+}));
+
+const navigationMock = vi.hoisted(() => ({ navigate: vi.fn() }));
+
+vi.mock("@react-navigation/native", () => ({
+  useNavigation: () => navigationMock,
 }));
 
 vi.mock("@expo/vector-icons", () => ({
@@ -60,6 +81,10 @@ function flattenText(
 }
 
 describe("InstagramIdentity", () => {
+  beforeEach(() => {
+    navigationMock.navigate.mockReset();
+  });
+
   it("normalizes the account and renders its profile avatar without an Instagram icon", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -111,6 +136,57 @@ describe("InstagramIdentity", () => {
     expect(text.props.style).toEqual(
       expect.arrayContaining([expect.objectContaining({ color: "#FFFFFF" })]),
     );
+  });
+
+  it("opens the matching influencer deals and stops a parent product press", () => {
+    const stopPropagation = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <InstagramIdentity
+          profileImageUrl="https://cdn.example.com/sample.jpg"
+          username="@@sample_shop"
+        />,
+      );
+    });
+
+    const link = renderer!.root.findByType(
+      "Pressable" as unknown as React.ElementType,
+    );
+
+    expect(link.props).toMatchObject({
+      accessible: true,
+      accessibilityLabel: "@sample_shop 인플루언서 공구 보기",
+      accessibilityRole: "button",
+    });
+
+    act(() => link.props.onPress({ stopPropagation }));
+
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(navigationMock.navigate).toHaveBeenCalledWith("InfluencerGroupBuys", {
+      influencerDisplayName: null,
+      influencerProfileImageUrl: "https://cdn.example.com/sample.jpg",
+      influencerUsername: "sample_shop",
+    });
+  });
+
+  it("can remain static on the influencer's own screen", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <InstagramIdentity navigationEnabled={false} username="sample_shop" />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByType(
+        "Pressable" as unknown as React.ElementType,
+      ),
+    ).toHaveLength(0);
+    expect(flattenText(renderer!.toJSON())).toBe("@sample_shop");
+    expect(navigationMock.navigate).not.toHaveBeenCalled();
   });
 
   it.each([null, undefined, "", "unknown", "@unknown"])(

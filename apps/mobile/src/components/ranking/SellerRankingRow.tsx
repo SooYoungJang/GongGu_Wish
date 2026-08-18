@@ -165,6 +165,7 @@ export const SellerRankingRow = memo(function SellerRankingRow({
               <InstagramIdentity
                 allowWrapping={largeText}
                 avatarTestID={`ranking-row-seller-avatar-${item.rank}`}
+                navigationEnabled={false}
                 profileImageUrl={item.profileImageUrl}
                 size="body"
                 style={s.sellerIdentity}

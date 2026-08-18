@@ -7,12 +7,54 @@ import {
 
 import {
   buildPostAudioUpdatePatch,
+  getOriginalInstagramUrl,
   handler,
   isInstagramCdnUrl,
   isUserPostAudioRecoveryAllowed,
+  needsRefresh,
   normalizeRefreshExecution,
   trustedInstagramPostUrl,
 } from './index.ts';
+
+Deno.test('recovers the original Instagram URL from raw-post group buys', () => {
+  const rawPostUrl = 'https://www.instagram.com/reel/DUMMY_RAW_POST/';
+
+  assertEquals(
+    getOriginalInstagramUrl({
+      raw_post: { post_url: rawPostUrl },
+      submission: { instagram_url: null },
+    }),
+    rawPostUrl,
+  );
+});
+
+Deno.test('falls back to a canonical submission URL when the raw-post URL is invalid', () => {
+  const submissionUrl = 'https://www.instagram.com/p/DUMMY_SUBMISSION/';
+
+  assertEquals(
+    getOriginalInstagramUrl({
+      raw_post: { post_url: 'https://www.instagram.com/accounts/login/' },
+      submission: { instagram_url: submissionUrl },
+    }),
+    submissionUrl,
+  );
+});
+
+Deno.test('refreshes an expired product thumbnail after post audio was checked', () => {
+  assert(
+    needsRefresh(
+      {
+        end_date: '2099-08-21T00:00:00.000Z',
+        post_audio_checked_at: '2026-08-16T00:00:00.000Z',
+        post_audio_url: null,
+        thumbnail_url: 'https://scontent-test.cdninstagram.com/product.jpg?oe=00000001',
+        video_url: null,
+      },
+      false,
+      1,
+    ),
+  );
+});
 
 Deno.test('recognizes Instagram media served from both CDN host families', () => {
   assert(

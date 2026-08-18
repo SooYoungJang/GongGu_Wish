@@ -1,9 +1,15 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GroupBuy } from "../types";
 import { buildDealCardAccessibilityLabel, DealCard } from "./DealCard";
+
+const navigationMock = vi.hoisted(() => ({ navigate: vi.fn() }));
+
+vi.mock("@react-navigation/native", () => ({
+  useNavigation: () => navigationMock,
+}));
 
 vi.mock("react-native", () => {
   const ReactMock = require("react");
@@ -94,6 +100,10 @@ const item: GroupBuy = {
 };
 
 describe("DealCard", () => {
+  beforeEach(() => {
+    navigationMock.navigate.mockReset();
+  });
+
   it("announces product, price, seller, and deadline details", () => {
     expect(
       buildDealCardAccessibilityLabel(
@@ -106,6 +116,13 @@ describe("DealCard", () => {
     ).toBe(
       "제주 감귤 3kg, 가격 25,900원, 판매자 @sample, 7월 17일 ~ 7월 20일, 상세 보기",
     );
+
+    expect(
+      buildDealCardAccessibilityLabel({
+        ...item,
+        discountInfo: "최대 20% 할인",
+      }),
+    ).toContain("최대 20% 할인");
   });
 
   it("announces the date range even after the group buy has ended", () => {
@@ -149,9 +166,10 @@ describe("DealCard", () => {
     expect(text).toContain("제주 감귤 3kg");
     expect(text).toContain("25,900원");
 
-    const card = renderer!.root.findByType(
-      "Pressable" as unknown as React.ElementType,
-    );
+    const card = renderer!.root
+      .findAllByType("Pressable" as unknown as React.ElementType)
+      .find((node) => node.props.accessibilityLabel?.includes("상세 보기"))!;
+    expect(card).toBeDefined();
     expect(card.props.accessibilityLabel).toContain("가격 25,900원");
     expect(card.props.accessibilityLabel).toContain("판매자 @sample");
     expect(
@@ -184,6 +202,117 @@ describe("DealCard", () => {
         .some((node) => node.props.accessibilityRole === "image"),
     ).toBe(true);
     expect(renderer!.root.findAllByProps({ name: "logo-instagram" })).toHaveLength(0);
+  });
+
+  it("opens the seller's deals without triggering the parent product action", () => {
+    const onPress = vi.fn();
+    const stopPropagation = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DealCard item={item} category="food" onPress={onPress} />,
+      );
+    });
+
+    const sellerLink = renderer!.root
+      .findAllByType("Pressable" as unknown as React.ElementType)
+      .find(
+        (node) =>
+          node.props.accessibilityLabel === "@sample 인플루언서 공구 보기",
+      );
+    expect(sellerLink).toBeDefined();
+
+    act(() => sellerLink!.props.onPress({ stopPropagation }));
+
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(onPress).not.toHaveBeenCalled();
+    expect(navigationMock.navigate).toHaveBeenCalledWith(
+      "InfluencerGroupBuys",
+      {
+        influencerDisplayName: null,
+        influencerProfileImageUrl: null,
+        influencerUsername: "sample",
+      },
+    );
+  });
+
+  it("exposes detail, seller, reminder, and trailing actions as sibling controls", () => {
+    const onPress = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DealCard
+          item={item}
+          category="food"
+          onPress={onPress}
+          trailingAction={{
+            accessibilityLabel: "북마크",
+            icon: React.createElement("BookmarkIcon"),
+            onPress: vi.fn(),
+            testID: "deal-card-bookmark-action",
+          }}
+        />,
+      );
+    });
+
+    const card = renderer!.root.findByProps({ testID: "deal-card" });
+    const detailAction = renderer!.root.findByProps({
+      testID: "deal-card-detail-action",
+    });
+
+    expect(card.props.onPress).toBeUndefined();
+    expect(card.props.accessibilityRole).toBeUndefined();
+    expect(detailAction.findAllByProps({
+      accessibilityLabel: "@sample 인플루언서 공구 보기",
+    })).toHaveLength(0);
+    expect(
+      detailAction.findAllByType(
+        "GroupBuyReminderButton" as unknown as React.ElementType,
+      ),
+    ).toHaveLength(0);
+    expect(
+      detailAction.findAllByProps({ testID: "deal-card-bookmark-action" }),
+    ).toHaveLength(0);
+
+    act(() => detailAction.props.onPress());
+    expect(onPress).toHaveBeenCalledOnce();
+  });
+
+  it("falls back when the selected image cannot be loaded", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DealCard
+          item={{
+            ...item,
+            mediaItems: [
+              {
+                mediaType: "IMAGE",
+                thumbnailUrl: null,
+                url: "https://example.com/image-without-thumbnail.jpg",
+              },
+            ],
+          }}
+          category="food"
+          onPress={vi.fn()}
+        />,
+      );
+    });
+
+    const image = renderer!.root.findByType(
+      "Image" as unknown as React.ElementType,
+    );
+    expect(image.props.source.uri).toBe(
+      "https://example.com/image-without-thumbnail.jpg",
+    );
+
+    act(() => image.props.onError());
+    expect(
+      renderer!.root.findByProps({ testID: "deal-card-image-fallback" }),
+    ).toBeTruthy();
   });
 
   it("keeps an empty seller slot when the Instagram account is missing", () => {

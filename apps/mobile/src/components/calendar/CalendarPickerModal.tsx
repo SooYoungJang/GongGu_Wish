@@ -11,7 +11,7 @@ import { SText } from '../ui/SText';
 import { commerceRadius } from '../../design/commerce';
 import { spacing } from '../../design/tokens';
 import type { ColorPalette } from '../../context/ThemeContext';
-import { formatDateKey } from '../../utils/groupBuyDates';
+import { formatDateKey, isDateBeforeToday } from '../../utils/groupBuyDates';
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 const DAY_CELL_SIZE = 36;
@@ -62,6 +62,7 @@ function DayCell({
   day,
   hasGroupBuys,
   isCurrentMonth,
+  isDisabled,
   isSelected,
   isTodayDate,
   onSelect,
@@ -71,17 +72,22 @@ function DayCell({
   day: number;
   hasGroupBuys: boolean;
   isCurrentMonth: boolean;
+  isDisabled: boolean;
   isSelected: boolean;
   isTodayDate: boolean;
   onSelect: Dispatch<Date>;
 }) {
   const s = useMemo(() => makeStyles(colors), [colors]);
-  const handleSelect = useCallback(() => onSelect(date), [date, onSelect]);
+  const handleSelect = useCallback(() => {
+    if (!isDisabled) onSelect(date);
+  }, [date, isDisabled, onSelect]);
 
   return (
     <Pressable
       accessibilityLabel={`${day}일${isTodayDate ? ' (오늘)' : ''}`}
       accessibilityRole="button"
+      accessibilityState={{ disabled: isDisabled, selected: isSelected }}
+      disabled={isDisabled}
       hitSlop={{ top: 2, bottom: 2 }}
       onPress={handleSelect}
       style={[
@@ -89,6 +95,7 @@ function DayCell({
         !isCurrentMonth && s.dayCellOtherMonth,
         isTodayDate && s.dayCellToday,
         isSelected && s.dayCellSelected,
+        isDisabled && s.dayCellDisabled,
       ]}
     >
       <SText
@@ -98,6 +105,7 @@ function DayCell({
           !isCurrentMonth && s.dayTextOtherMonth,
           isTodayDate && !isSelected && s.dayTextToday,
           isSelected && s.dayTextSelected,
+          isDisabled && s.dayTextDisabled,
         ]}
       >
         {day}
@@ -139,6 +147,7 @@ export function CalendarPickerModal({
   year: number;
 }) {
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const today = new Date();
 
   return (
     <Modal
@@ -229,6 +238,7 @@ export function CalendarPickerModal({
                         formatDateKey(cell.date),
                       )}
                       isCurrentMonth={cell.isCurrentMonth}
+                      isDisabled={isDateBeforeToday(cell.date, today)}
                       isSelected={isSameDay(cell.date, selectedDate)}
                       isTodayDate={isToday(cell.date)}
                       onSelect={onSelectDate}
@@ -372,6 +382,7 @@ function makeStyles(colors: ColorPalette) {
       borderRadius: commerceRadius.full,
       borderWidth: 0,
     },
+    dayCellDisabled: { opacity: 0.36 },
     dayText: {
       color: colors.textPrimary,
       fontWeight: '700',
@@ -380,6 +391,7 @@ function makeStyles(colors: ColorPalette) {
     dayTextOtherMonth: { color: colors.textPrimary },
     dayTextToday: { color: colors.primary },
     dayTextSelected: { color: colors.textInverse },
+    dayTextDisabled: { color: colors.textSecondary },
     dot: {
       backgroundColor: colors.accent,
       borderRadius: DOT_SIZE / 2,

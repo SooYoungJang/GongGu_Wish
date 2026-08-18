@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { SText } from '../../components/ui/SText';
 import { borderRadius, spacing } from '../../design/tokens';
 import { useTheme } from '../../context/ThemeContext';
 import type { ColorPalette } from '../../context/ThemeContext';
+import { isDateBeforeToday } from '../../utils/groupBuyDates';
 
 type WeeklyCalendarStripProps = {
   onPressCalendar: () => void;
@@ -30,8 +31,15 @@ export function WeeklyCalendarStrip({ onPressCalendar, selectedDate, onSelectDat
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const weekDays = useMemo(() => getWeekDays(), []);
+  const today = new Date();
   const isSameDay = (a: Date | null, b: Date) =>
     a != null && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const handleSelectDate = useCallback(
+    (date: Date) => {
+      if (!isDateBeforeToday(date)) onSelectDate(date);
+    },
+    [onSelectDate],
+  );
 
   return (
     <View style={s.calendarSection}>
@@ -48,29 +56,32 @@ export function WeeklyCalendarStrip({ onPressCalendar, selectedDate, onSelectDat
         </Pressable>
       </View>
       <View style={s.calendarStrip}>
-        {weekDays.map((day) => (
-          <Pressable
-            key={`${day.label}-${day.day}`}
-            style={s.calendarDay}
-            accessibilityLabel={`${day.label} ${day.day}일 공구 보기`}
-            accessibilityRole="button"
-            onPress={() => onSelectDate(day.date)}
-          >
-            <SText variant="caption">
-              {day.label}
-            </SText>
-            <View
-              style={[
-                s.calendarDateCircle,
-                isSameDay(selectedDate, day.date) && s.calendarDateCircleSelected,
-              ]}
+        {weekDays.map((day) => {
+          const isDisabled = isDateBeforeToday(day.date, today);
+          const isSelected = isSameDay(selectedDate, day.date);
+
+          return (
+            <Pressable
+              key={`${day.label}-${day.day}`}
+              accessibilityLabel={`${day.label} ${day.day}일 공구 보기`}
+              accessibilityRole="button"
+              accessibilityState={{
+                disabled: isDisabled,
+                selected: isSelected,
+              }}
+              disabled={isDisabled}
+              onPress={() => handleSelectDate(day.date)}
+              style={[s.calendarDay, isDisabled && s.calendarDayDisabled]}
             >
-              <SText variant="label" style={isSameDay(selectedDate, day.date) ? s.calendarDateTextSelected : undefined}>
-                {day.day}
-              </SText>
-            </View>
-          </Pressable>
-        ))}
+              <SText variant="caption">{day.label}</SText>
+              <View style={[s.calendarDateCircle, isSelected && s.calendarDateCircleSelected]}>
+                <SText variant="label" style={isSelected ? s.calendarDateTextSelected : undefined}>
+                  {day.day}
+                </SText>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -102,6 +113,7 @@ function makeStyles(colors: ColorPalette) {
       paddingVertical: spacing.sm,
     },
     calendarDay: { alignItems: 'center', flex: 1, minHeight: 58 },
+    calendarDayDisabled: { opacity: 0.36 },
     calendarDateCircle: {
       alignItems: 'center',
       borderRadius: borderRadius.full,

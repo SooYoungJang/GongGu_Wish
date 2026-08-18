@@ -19,14 +19,93 @@ function env(overrides = {}) {
   };
 }
 
-function request(path, init = {}, envOverrides = {}) {
+function request(
+  path,
+  init = {},
+  envOverrides = {},
+  origin = "api.gongguwish.com",
+) {
   return worker.fetch(
-    new Request(`https://api.gongguwish.com${path}`, init),
+    new Request(`https://${origin}${path}`, init),
     env(envOverrides),
   );
 }
 
 describe("gonggu API proxy", () => {
+  it("serves the Preview Android App Link association", async () => {
+    const response = await request(
+      "/.well-known/assetlinks.json",
+      {},
+      {},
+      "api-preview.gongguwish.com",
+    );
+
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type"), /^application\/json/);
+    assert.equal(response.headers.get("cache-control"), "public, max-age=300");
+    assert.deepEqual(await response.json(), [
+      {
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: {
+          namespace: "android_app",
+          package_name: "com.gonggu.wish.preview",
+          sha256_cert_fingerprints: [
+            "49:83:0D:45:2F:80:FC:9B:AF:6E:09:01:39:6B:CD:23:1E:DE:F2:26:1E:DC:49:D8:8D:D3:8C:9D:5A:60:DA:57",
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("serves a Preview app-open fallback when the OS does not intercept", async () => {
+    const response = await request(
+      "/group-buy/20f3a346-d55d-404f-80f0-edf721b82e7e",
+      {},
+      {},
+      "api-preview.gongguwish.com",
+    );
+
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type"), /^text\/html/);
+    assert.match(
+      await response.text(),
+      /gongguwish-preview:\/\/group-buy\/20f3a346-d55d-404f-80f0-edf721b82e7e/,
+    );
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  });
+
+  it("never exposes the Preview association from the Production worker", async () => {
+    const response = await request(
+      "/.well-known/assetlinks.json",
+      {},
+      {
+        APP_ENV: "production",
+        SUPABASE_ORIGIN: "https://iosdoheblabfimkjnvfj.supabase.co",
+      },
+      "api.gongguwish.com",
+    );
+
+    assert.equal(response.status, 404);
+  });
+
+  it("rejects malformed group-buy fallback paths", async () => {
+    const nestedPath = await request(
+      "/group-buy/a/b",
+      {},
+      {},
+      "api-preview.gongguwish.com",
+    );
+    const query = await request(
+      "/group-buy/deal-one?redirect=https://evil.example",
+      {},
+      {},
+      "api-preview.gongguwish.com",
+    );
+
+    assert.equal(nestedPath.status, 404);
+    assert.equal(query.status, 404);
+  });
+
   it("returns health without contacting Supabase", async () => {
     let called = false;
     globalThis.fetch = async () => {

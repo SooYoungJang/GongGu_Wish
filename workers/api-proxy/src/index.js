@@ -1,4 +1,17 @@
 const MAX_BODY_BYTES = 1024 * 1024;
+const PREVIEW_APP_LINK_HOST = "api-preview.gongguwish.com";
+const PREVIEW_ANDROID_APP_LINKS = [
+  {
+    relation: ["delegate_permission/common.handle_all_urls"],
+    target: {
+      namespace: "android_app",
+      package_name: "com.gonggu.wish.preview",
+      sha256_cert_fingerprints: [
+        "49:83:0D:45:2F:80:FC:9B:AF:6E:09:01:39:6B:CD:23:1E:DE:F2:26:1E:DC:49:D8:8D:D3:8C:9D:5A:60:DA:57",
+      ],
+    },
+  },
+];
 
 const REST_RULES = new Map([
   ["group_buys", new Set(["GET"])],
@@ -242,6 +255,79 @@ function healthResponse(request, env, requestId) {
   return withRequestId(new Response(body, { status: 200, headers }), requestId);
 }
 
+function previewAppLinkResponse(request, env, url, requestId) {
+  if (env.APP_ENV !== "preview" || url.hostname !== PREVIEW_APP_LINK_HOST) {
+    return null;
+  }
+  if (url.username || url.password || url.port || url.search || url.hash) {
+    return null;
+  }
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+
+  if (url.pathname === "/.well-known/assetlinks.json") {
+    const headers = securityHeaders();
+    headers.set("Cache-Control", "public, max-age=300");
+    headers.set("Content-Type", "application/json; charset=utf-8");
+    return withRequestId(
+      new Response(
+        request.method === "HEAD"
+          ? null
+          : JSON.stringify(PREVIEW_ANDROID_APP_LINKS),
+        { status: 200, headers },
+      ),
+      requestId,
+    );
+  }
+
+  const match = url.pathname.match(/^\/group-buy\/([^/]+)$/);
+  if (!match) return null;
+  let groupBuyId;
+  try {
+    groupBuyId = decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+  if (
+    !groupBuyId ||
+    groupBuyId.length > 128 ||
+    /[\\/\u0000-\u001f\u007f]/.test(groupBuyId)
+  ) {
+    return null;
+  }
+
+  const headers = securityHeaders();
+  headers.set("Content-Type", "text/html; charset=utf-8");
+  headers.set(
+    "Content-Security-Policy",
+    "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+  );
+  const appUrl = `gongguwish-preview://group-buy/${encodeURIComponent(groupBuyId)}`;
+  const body =
+    request.method === "HEAD"
+      ? null
+      : `<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>공구위시 Preview</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #fff4ea; color: #4b2e25; font-family: system-ui, sans-serif; }
+      main { padding: 32px; text-align: center; }
+      a { display: inline-block; margin-top: 16px; padding: 14px 22px; border-radius: 999px; background: #f0445e; color: white; font-weight: 700; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>공구위시 Preview</h1>
+      <p>앱이 자동으로 열리지 않았다면 아래 버튼을 눌러주세요.</p>
+      <a href="${appUrl}">앱에서 공구 보기</a>
+    </main>
+  </body>
+</html>`;
+  return withRequestId(new Response(body, { status: 200, headers }), requestId);
+}
+
 function preflightResponse(request, env, requestId, methods) {
   const headers = applyCors(securityHeaders(), request, env);
   headers.set(
@@ -337,6 +423,8 @@ async function proxyRequest(request, env, url, requestId) {
 export async function handleRequest(request, env) {
   const url = new URL(request.url);
   const requestId = request.headers.get("CF-Ray") ?? crypto.randomUUID();
+  const appLinkResponse = previewAppLinkResponse(request, env, url, requestId);
+  if (appLinkResponse) return appLinkResponse;
   if (url.pathname === "/health")
     return healthResponse(request, env, requestId);
 

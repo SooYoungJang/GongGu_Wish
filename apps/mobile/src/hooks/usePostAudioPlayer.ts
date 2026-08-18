@@ -10,6 +10,7 @@ type UsePostAudioPlayerOptions = {
   startTimeMs?: number | null;
   durationMs?: number | null;
   isActive: boolean;
+  playbackAllowed?: boolean;
   muted: boolean;
   replayKey?: number;
 };
@@ -29,7 +30,11 @@ function toNonNegativeSeconds(valueMs?: number | null) {
 }
 
 function toPositiveSeconds(valueMs?: number | null) {
-  if (typeof valueMs !== "number" || !Number.isFinite(valueMs) || valueMs <= 0) {
+  if (
+    typeof valueMs !== "number" ||
+    !Number.isFinite(valueMs) ||
+    valueMs <= 0
+  ) {
     return null;
   }
   return valueMs / 1000;
@@ -45,6 +50,7 @@ export function usePostAudioPlayer({
   startTimeMs,
   durationMs,
   isActive,
+  playbackAllowed = isActive,
   muted,
   replayKey,
 }: UsePostAudioPlayerOptions): PostAudioPlayerState {
@@ -56,24 +62,29 @@ export function usePostAudioPlayer({
   const startTimeSeconds = toNonNegativeSeconds(startTimeMs);
   const durationSeconds = toPositiveSeconds(durationMs);
   const playbackKey = useMemo(
-    () => `${source ?? ""}:${startTimeSeconds}:${durationSeconds ?? "end"}:${replayKey ?? 0}`,
+    () =>
+      `${source ?? ""}:${startTimeSeconds}:${durationSeconds ?? "end"}:${replayKey ?? 0}`,
     [durationSeconds, replayKey, source, startTimeSeconds],
   );
-  const activeRef = useRef(isActive);
+  const shouldPlayRef = useRef(isActive && playbackAllowed);
   const initializedPlaybackKeyRef = useRef<string | null>(null);
   const playbackRequestIdRef = useRef(0);
   const segmentLoopInFlightRef = useRef(false);
-  activeRef.current = isActive;
+  const audioModeRequestRef = useRef<Promise<void>>(Promise.resolve());
+  shouldPlayRef.current = isActive && playbackAllowed;
 
   const hasError = Boolean(
     source && isFailedPlaybackState(status.playbackState),
   );
   const isReady = Boolean(source && status.isLoaded && !hasError);
+  const isPlaybackActive = isActive && playbackAllowed;
 
+  // Navigation and AppState transitions can reset the native audio session
+  // while this player remains loaded, so refresh it for every resume epoch.
   useEffect(() => {
-    if (!source) return;
+    if (!source || !isPlaybackActive) return;
 
-    void setAudioModeAsync({
+    audioModeRequestRef.current = setAudioModeAsync({
       interruptionMode: "mixWithOthers",
       playsInSilentMode: true,
       shouldPlayInBackground: false,
@@ -81,7 +92,7 @@ export function usePostAudioPlayer({
     }).catch(() => {
       console.warn("게시물 음악 재생 모드를 설정하지 못했습니다.");
     });
-  }, [source]);
+  }, [isPlaybackActive, source]);
 
   useEffect(() => {
     player.muted = muted;
@@ -105,26 +116,45 @@ export function usePostAudioPlayer({
       return;
     }
 
+    if (!playbackAllowed) {
+      player.pause();
+      return;
+    }
+
     if (!status.isLoaded) {
       initializedPlaybackKeyRef.current = null;
       return;
     }
-    if (initializedPlaybackKeyRef.current === playbackKey) return;
+    if (initializedPlaybackKeyRef.current === playbackKey) {
+      player.play();
+      return;
+    }
 
-    initializedPlaybackKeyRef.current = playbackKey;
+    // Do not let audio from the previous playback epoch advance while the
+    // asynchronous seek aligns a new source, segment, or replay.
+    player.pause();
+    const audioModeRequest = audioModeRequestRef.current;
     const playFromSegmentStart = async () => {
       try {
+        await audioModeRequest;
+        if (
+          playbackRequestIdRef.current !== requestId ||
+          !shouldPlayRef.current
+        ) {
+          return;
+        }
         await player.seekTo(startTimeSeconds);
         if (
           playbackRequestIdRef.current === requestId &&
-          activeRef.current
+          shouldPlayRef.current
         ) {
+          initializedPlaybackKeyRef.current = playbackKey;
           player.play();
         }
       } catch {
         if (
           playbackRequestIdRef.current !== requestId ||
-          !activeRef.current
+          !shouldPlayRef.current
         ) {
           return;
         }
@@ -137,6 +167,7 @@ export function usePostAudioPlayer({
   }, [
     hasError,
     isActive,
+    playbackAllowed,
     playbackKey,
     player,
     source,
@@ -145,7 +176,13 @@ export function usePostAudioPlayer({
   ]);
 
   useEffect(() => {
-    if (!isActive || !isReady || segmentLoopInFlightRef.current) return;
+    if (
+      !isActive ||
+      !playbackAllowed ||
+      !isReady ||
+      segmentLoopInFlightRef.current
+    )
+      return;
 
     const requestId = playbackRequestIdRef.current;
 
@@ -163,24 +200,34 @@ export function usePostAudioPlayer({
     }
 
     segmentLoopInFlightRef.current = true;
-    void player
-      .seekTo(startTimeSeconds)
-      .then(() => {
+    const audioModeRequest = audioModeRequestRef.current;
+    void (async () => {
+      try {
+        await audioModeRequest;
         if (
-          activeRef.current &&
+          !shouldPlayRef.current ||
+          playbackRequestIdRef.current !== requestId
+        ) {
+          return;
+        }
+        await player.seekTo(startTimeSeconds);
+        if (
+          shouldPlayRef.current &&
           playbackRequestIdRef.current === requestId
         ) {
           player.play();
         }
-      })
-      .catch(() => undefined)
-      .finally(() => {
+      } catch {
+        // A failed audio-session refresh should not crash the reel.
+      } finally {
         segmentLoopInFlightRef.current = false;
-      });
+      }
+    })();
   }, [
     durationSeconds,
     isActive,
     isReady,
+    playbackAllowed,
     player,
     startTimeSeconds,
     status.currentTime,
@@ -189,7 +236,7 @@ export function usePostAudioPlayer({
 
   useEffect(
     () => () => {
-      activeRef.current = false;
+      shouldPlayRef.current = false;
       playbackRequestIdRef.current += 1;
     },
     [],
@@ -197,7 +244,7 @@ export function usePostAudioPlayer({
 
   return {
     hasError,
-    isPlaying: isReady && isActive && status.playing,
+    isPlaying: isReady && isActive && playbackAllowed && status.playing,
     isReady,
   };
 }

@@ -38,6 +38,8 @@ export function usePlaybackLifecycle() {
     isScreenFocused,
     isAppActive,
     isAppFocused,
-    isPlaybackActive: isScreenFocused && isAppActive && isAppFocused,
+    // Android emits blur for transient system UI such as the share sheet while
+    // AppState remains active. Only true screen/background loss gates playback.
+    isPlaybackActive: isScreenFocused && isAppActive,
   };
 }

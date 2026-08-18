@@ -8,6 +8,24 @@ vi.mock("../services/notifications", () => ({
 import { createNotificationLinking } from "./notificationLinking";
 
 describe("notification linking", () => {
+  it("canonicalizes a cold-start Preview HTTPS app link", async () => {
+    const linking = createNotificationLinking({
+      getInitialLinkingUrl: vi
+        .fn()
+        .mockResolvedValue(
+          "https://api-preview.gongguwish.com/group-buy/https-link",
+        ),
+      getLastNotificationUrl: vi.fn().mockResolvedValue(null),
+      subscribeLinkingUrls: vi.fn(() => vi.fn()),
+      subscribeNotificationUrls: vi.fn(() => vi.fn()),
+    });
+
+    expect(linking.prefixes).toContain("https://api-preview.gongguwish.com");
+    await expect(linking.getInitialURL()).resolves.toBe(
+      "gongguwish-preview://group-buy/https-link",
+    );
+  });
+
   it("prefers an OS initial URL before a cold-start notification response", async () => {
     const linking = createNotificationLinking({
       getInitialLinkingUrl: vi
@@ -60,7 +78,7 @@ describe("notification linking", () => {
     const listener = vi.fn();
 
     const unsubscribe = linking.subscribe(listener);
-    linkListeners[0]?.("gongguwish-preview://group-buy/link");
+    linkListeners[0]?.("https://api-preview.gongguwish.com/group-buy/link");
     notificationListeners[0]?.("gongguwish-preview://group-buy/notification");
     expect(listener.mock.calls).toEqual([
       ["gongguwish-preview://group-buy/link"],

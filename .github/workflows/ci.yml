@@ -315,6 +315,26 @@ jobs:
       - name: Verify Kakao provider readiness
         run: node scripts/check-kakao-provider.mjs
 
+  # ── Naver OAuth Provider Readiness ───────────────────────────────────────
+  naver-provider-ready:
+    name: Naver Auth Provider Ready
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_VARIANT: ${{ (github.ref == 'refs/heads/main' || github.base_ref == 'main') && 'production' || 'preview' }}
+      SUPABASE_PROJECT_REF: ${{ (github.ref == 'refs/heads/main' || github.base_ref == 'main') && 'iosdoheblabfimkjnvfj' || 'xwblovggtvbpiusjfokq' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Test Naver provider readiness contract
+        run: node --test scripts/check-naver-provider.test.mjs
+      - name: Verify Naver provider readiness
+        run: node scripts/check-naver-provider.mjs
+
   # ── Lint & Typecheck ──────────────────────────────────────────────────────
   lint:
     name: Lint & Typecheck
@@ -945,6 +965,7 @@ jobs:
         deploy-worker,
         deploy-mobile,
         kakao-provider-ready,
+        naver-provider-ready,
       ]
     if: ${{ always() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm_production_recovery == true)) && needs.change-plan.outputs.docs_only != 'true' }}
     permissions:
@@ -972,6 +993,7 @@ jobs:
           WORKER_RESULT: ${{ needs.deploy-worker.result }}
           MOBILE_RESULT: ${{ needs.deploy-mobile.result }}
           KAKAO_RESULT: ${{ needs.kakao-provider-ready.result }}
+          NAVER_RESULT: ${{ needs.naver-provider-ready.result }}
         run: |
           set -euo pipefail
           if [[ "$PLAN_RESULT" != "success" ]]; then
@@ -1002,6 +1024,10 @@ jobs:
           require_result "$MOBILE_REQUIRED" "React Native deployment" "$MOBILE_RESULT"
           if [[ "$KAKAO_RESULT" != "success" ]]; then
             echo "::error::Kakao provider readiness is $KAKAO_RESULT, expected success."
+            exit 1
+          fi
+          if [[ "$NAVER_RESULT" != "success" ]]; then
+            echo "::error::Naver Auth Provider Ready result is $NAVER_RESULT, expected success."
             exit 1
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1076,6 +1102,7 @@ jobs:
         deploy-worker,
         deploy-mobile,
         kakao-provider-ready,
+        naver-provider-ready,
       ]
     if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
     environment:
@@ -1140,6 +1167,7 @@ jobs:
           WORKER_RESULT: ${{ needs.deploy-worker.result }}
           MOBILE_RESULT: ${{ needs.deploy-mobile.result }}
           KAKAO_PROVIDER_RESULT: ${{ needs.kakao-provider-ready.result }}
+          NAVER_PROVIDER_RESULT: ${{ needs.naver-provider-ready.result }}
         run: |
           set -euo pipefail
           if [[ "$PLAN_RESULT" != "success" ]]; then
@@ -1148,6 +1176,10 @@ jobs:
           fi
           if [[ "$KAKAO_PROVIDER_RESULT" != "success" ]]; then
             echo "::error::Kakao Auth Provider Ready result is $KAKAO_PROVIDER_RESULT, expected success."
+            exit 1
+          fi
+          if [[ "$NAVER_PROVIDER_RESULT" != "success" ]]; then
+            echo "::error::Naver Auth Provider Ready result is $NAVER_PROVIDER_RESULT, expected success."
             exit 1
           fi
 
@@ -1491,7 +1523,7 @@ jobs:
     name: Preview Promotion Gate
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [kakao-provider-ready]
+    needs: [kakao-provider-ready, naver-provider-ready]
     if: ${{ !cancelled() && github.event_name == 'pull_request' && github.base_ref == 'main' }}
     permissions:
       actions: read
@@ -1503,6 +1535,14 @@ jobs:
         run: |
           if [[ "$KAKAO_PROVIDER_RESULT" != "success" ]]; then
             echo "::error::Kakao Auth Provider Ready result is $KAKAO_PROVIDER_RESULT, expected success."
+            exit 1
+          fi
+      - name: Require Production Naver provider readiness
+        env:
+          NAVER_PROVIDER_RESULT: ${{ needs.naver-provider-ready.result }}
+        run: |
+          if [[ "$NAVER_PROVIDER_RESULT" != "success" ]]; then
+            echo "::error::Naver Auth Provider Ready result is $NAVER_PROVIDER_RESULT, expected success."
             exit 1
           fi
       - name: Require the latest develop Preview-green SHA

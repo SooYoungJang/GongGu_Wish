@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
 import type {
   GestureResponderEvent,
@@ -18,6 +18,7 @@ import { formatDateRange } from "../utils";
 import type { CategoryColorName } from "../design/tokens";
 import type { GroupBuy } from "../types";
 import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
+import { resolveGroupBuyImageUrl } from "../utils/groupBuyMedia";
 
 type DealCardProps = {
   item: GroupBuy;
@@ -71,11 +72,14 @@ export function buildDealCardAccessibilityLabel(
 
   return [
     productName,
+    item.discountInfo?.trim() || null,
     `가격 ${price}`,
     `판매자 ${seller}`,
     formatDeadline(item.startDate, item.endDate),
     "상세 보기",
-  ].join(", ");
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 export function DealCard({
@@ -88,33 +92,49 @@ export function DealCard({
   const { colors } = useCommerceTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const token = categoryColors[category];
-  const imageUrl =
-    item.thumbnailUrl ??
-    item.mediaItems?.find((media) => media.thumbnailUrl)?.thumbnailUrl ??
-    item.mediaUrls?.[0] ??
-    null;
+  const imageUrl = resolveGroupBuyImageUrl(item);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const visibleImageUrl = imageUrl === failedImageUrl ? null : imageUrl;
   const fallbackLabel = CATEGORY_LABELS[category];
+  const handleImageError = useCallback(() => {
+    if (imageUrl) setFailedImageUrl(imageUrl);
+  }, [imageUrl]);
   const handleTrailingActionPress = (event: GestureResponderEvent) => {
     event.stopPropagation();
     trailingAction?.onPress();
   };
 
   return (
-    <Pressable
-      accessibilityLabel={buildDealCardAccessibilityLabel(item)}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [s.card, style, pressed && s.pressed]}
-    >
-      <View style={s.imageWrap}>
-        {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={s.image} />
+    <View style={[s.card, style]} testID="deal-card">
+      <Pressable
+        accessibilityHint="공구 상세 보기"
+        accessibilityLabel={buildDealCardAccessibilityLabel(item)}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [s.detailAction, pressed ? s.pressed : null]}
+        testID="deal-card-detail-action"
+      />
+
+      <View
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        pointerEvents="none"
+        style={s.imageWrap}
+      >
+        {visibleImageUrl ? (
+          <Image
+            accessible={false}
+            onError={handleImageError}
+            source={{ uri: visibleImageUrl }}
+            style={s.image}
+          />
         ) : (
           <View
             style={[
               s.imageFallback,
               { backgroundColor: token.bg, borderColor: token.border },
             ]}
+            testID="deal-card-image-fallback"
           >
             <SText
               variant="cardTitle"
@@ -124,7 +144,6 @@ export function DealCard({
             </SText>
           </View>
         )}
-        <GroupBuyReminderButton item={item} style={s.reminderButton} />
         {item.discountInfo ? (
           <View style={s.saleBadge}>
             <SText variant="caption" style={s.saleBadgeText}>
@@ -138,7 +157,14 @@ export function DealCard({
           </SText>
         </View>
       </View>
-      <View style={s.instagramSlot} testID="deal-card-instagram-slot">
+
+      <GroupBuyReminderButton item={item} style={s.reminderButton} />
+
+      <View
+        pointerEvents="box-none"
+        style={s.instagramSlot}
+        testID="deal-card-instagram-slot"
+      >
         <InstagramIdentity
           avatarTestID="deal-card-instagram-avatar"
           profileImageUrl={item.rawPost.influencer.profileImageUrl}
@@ -147,11 +173,24 @@ export function DealCard({
           username={item.rawPost.influencer.instagramUsername}
         />
       </View>
-      <SText variant="caption" numberOfLines={2} style={s.title}>
-        {item.productName ?? "공동구매 상품"}
-      </SText>
-      <View style={s.priceRow}>
-        <View style={s.priceSlot}>
+
+      <View
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        pointerEvents="none"
+      >
+        <SText variant="caption" numberOfLines={2} style={s.title}>
+          {item.productName ?? "공동구매 상품"}
+        </SText>
+      </View>
+
+      <View pointerEvents="box-none" style={s.priceRow}>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          pointerEvents="none"
+          style={s.priceSlot}
+        >
           <PriceText numberOfLines={1} priceKrw={item.priceKrw} style={s.price} />
         </View>
         {trailingAction ? (
@@ -172,7 +211,7 @@ export function DealCard({
           </Pressable>
         ) : null}
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -182,8 +221,17 @@ function makeStyles(colors: CommerceColorPalette) {
       flexBasis: "47%",
       flexGrow: 1,
       minHeight: 206,
+      position: "relative",
     },
-    pressed: { opacity: 0.74 },
+    detailAction: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: commerceRadius.lg,
+      zIndex: 1,
+    },
+    pressed: {
+      backgroundColor: colors.accentSoft,
+      opacity: 0.22,
+    },
     imageWrap: {
       aspectRatio: 1,
       backgroundColor: colors.softBg,
@@ -201,7 +249,7 @@ function makeStyles(colors: CommerceColorPalette) {
       position: "absolute",
       right: 8,
       top: 8,
-      zIndex: 2,
+      zIndex: 3,
     },
     imageFallback: {
       alignItems: "center",
@@ -255,6 +303,7 @@ function makeStyles(colors: CommerceColorPalette) {
       height: 32,
       justifyContent: "center",
       width: 32,
+      zIndex: 3,
     },
     trailingActionPressed: {
       opacity: 0.64,
@@ -269,6 +318,7 @@ function makeStyles(colors: CommerceColorPalette) {
       marginBottom: 2,
       marginTop: spacing.sm,
       minHeight: 18,
+      zIndex: 3,
     },
     deadlineBadge: {
       backgroundColor: colors.overlay,
