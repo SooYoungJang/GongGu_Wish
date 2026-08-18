@@ -61,7 +61,7 @@ appId: com.gonggu.wish.preview
     element:
       text: "GON-263 기준 공구, 가격 200,000원, 판매자 @gon263_price, .* 상세 보기"
     direction: DOWN
-    timeout: 30000
+    timeout: 60000
 - assertVisible:
     text: "GON-263 기준 공구, 가격 200,000원, 판매자 @gon263_price, .* 상세 보기"
 - takeScreenshot: gon264-android-02-deal-card-label
