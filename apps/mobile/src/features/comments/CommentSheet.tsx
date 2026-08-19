@@ -20,7 +20,6 @@ import { borderRadius, spacing } from "../../design/tokens";
 import { SText } from "../../components/ui/SText";
 import type { ColorPalette } from "../../context/ThemeContext";
 import {
-  acceptCommentTerms,
   blockUserFromComment,
   createComment,
   listCommentChildren,
@@ -148,7 +147,6 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
   const { isAuthenticated, requireAuth } = useAuthGate();
   const [sort, setSort] = useState<CommentSort>("latest");
   const [body, setBody] = useState("");
-  const [termsAccepted, setTermsAccepted] = useState(false);
   const [replyTarget, setReplyTarget] = useState<CommentView | null>(null);
   const [childrenByParent, setChildrenByParent] = useState<Record<string, CommentView[]>>({});
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -290,12 +288,7 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
       Alert.alert("댓글을 확인해 주세요", validationError);
       return;
     }
-    if (!termsAccepted) {
-      Alert.alert("커뮤니티 이용규칙", "댓글을 작성하려면 이용규칙에 동의해 주세요.");
-      return;
-    }
     try {
-      await acceptCommentTerms(COMMENT_TERMS_VERSION);
       await createComment({
         groupBuyId,
         parentId: replyTarget?.id,
@@ -308,7 +301,7 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
     } catch (error) {
       Alert.alert("댓글을 등록하지 못했어요", error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.");
     }
-  }, [body, groupBuyId, refreshComments, replyTarget, requireAuth, termsAccepted]);
+  }, [body, groupBuyId, refreshComments, replyTarget, requireAuth]);
 
   const renderChildren = useCallback(
     (items: CommentView[]): ReactNode =>
@@ -437,12 +430,6 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
                   <Pressable accessibilityLabel="답글 대상 취소" onPress={() => setReplyTarget(null)}><Ionicons name="close-circle" size={18} color={colors.textTertiary} /></Pressable>
                 </View>
               ) : null}
-              <View style={styles.termsRow}>
-                <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: termsAccepted }} onPress={() => setTermsAccepted((value) => !value)} style={styles.checkbox}>
-                  <Ionicons name={termsAccepted ? "checkbox" : "square-outline"} size={20} color={termsAccepted ? colors.primary : colors.textTertiary} />
-                </Pressable>
-                <SText variant="caption" style={{ color: colors.textTertiary, flex: 1 }}>커뮤니티 이용규칙에 동의합니다. 문의: tturrr10@gmail.com</SText>
-              </View>
               <View style={styles.inputRow}>
                 <TextInput
                   accessibilityLabel="댓글 입력"
@@ -503,8 +490,6 @@ const styles = StyleSheet.create({
   replyToggle: { alignItems: "center", flexDirection: "row", gap: spacing.xs, minHeight: 40, paddingTop: spacing.xs },
   composer: { borderTopWidth: StyleSheet.hairlineWidth, padding: spacing.md },
   replyingRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.xs },
-  termsRow: { alignItems: "center", flexDirection: "row", gap: spacing.xs, marginBottom: spacing.sm },
-  checkbox: { alignItems: "center", height: 36, justifyContent: "center", width: 36 },
   inputRow: { alignItems: "flex-end", flexDirection: "row", gap: spacing.sm },
   input: { borderRadius: 20, borderWidth: 1, flex: 1, maxHeight: 90, minHeight: 44, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   sendButton: { alignItems: "center", borderRadius: 22, height: 44, justifyContent: "center", width: 44 },
