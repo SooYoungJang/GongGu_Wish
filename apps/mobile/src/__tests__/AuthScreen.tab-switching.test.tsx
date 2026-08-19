@@ -460,7 +460,7 @@ describe("AuthScreen tab switching", () => {
     });
 
     expect(navigationMock.popTo).not.toHaveBeenCalled();
-    expect(containsText(renderer, "커뮤니티 이용규칙 동의를 저장하지 못했어요")).toBe(
+    expect(containsText(renderer, "커뮤니티 이용규칙을 저장하지 못했어요")).toBe(
       true,
     );
   });

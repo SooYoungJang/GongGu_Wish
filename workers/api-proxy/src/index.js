@@ -25,6 +25,7 @@ const REST_RULES = new Map([
   ["rpc/get_group_buy_request_rankings", new Set(["POST"])],
   ["rpc/list_comment_roots", new Set(["POST"])],
   ["rpc/list_comment_children", new Set(["POST"])],
+  ["rpc/accept_comment_terms", new Set(["POST"])],
 ]);
 
 const FUNCTION_RULES = new Map([
