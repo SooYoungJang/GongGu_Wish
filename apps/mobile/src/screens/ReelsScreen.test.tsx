@@ -497,6 +497,43 @@ describe("ReelsScreen player lifecycle", () => {
     vi.useRealTimers();
   });
 
+  it("hides Reels tab chrome while the comments sheet is open", () => {
+    const visibilityMock = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <ReelsScreen onSheetVisibilityChange={visibilityMock} />,
+      );
+    });
+
+    const findPages = () =>
+      renderer!.root.findAll((node) => String(node.type) === "ProductReelPage");
+    const findPager = () =>
+      renderer!.root.find((node) => String(node.type) === "PagerView");
+    const activePage = findPages().find((node) => node.props.isActive);
+    expect(activePage).toBeDefined();
+    visibilityMock.mockClear();
+
+    act(() => {
+      activePage!.props.onCommentsSheetStateChange?.(true);
+    });
+
+    expect(visibilityMock).toHaveBeenLastCalledWith(true);
+    expect(findPager().props.scrollEnabled).toBe(false);
+
+    act(() => {
+      activePage!.props.onCommentsSheetStateChange?.(false);
+    });
+
+    expect(visibilityMock).toHaveBeenLastCalledWith(false);
+    expect(findPager().props.scrollEnabled).toBe(true);
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
   it("keeps the pager page window bounded after repeated forward swipes", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 

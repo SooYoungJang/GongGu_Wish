@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuthGate } from "../../hooks/useAuthGate";
 import { useTheme } from "../../context/ThemeContext";
@@ -143,6 +144,7 @@ function CommentItem({
 
 export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { isAuthenticated, requireAuth } = useAuthGate();
   const [sort, setSort] = useState<CommentSort>("latest");
   const [body, setBody] = useState("");
@@ -420,7 +422,15 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
             />
           )}
           {isAuthenticated ? (
-            <View style={[styles.composer, { borderTopColor: colors.border }]}>
+            <View
+              style={[
+                styles.composer,
+                {
+                  borderTopColor: colors.border,
+                  paddingBottom: spacing.md + insets.bottom,
+                },
+              ]}
+            >
               {replyTarget ? (
                 <View style={styles.replyingRow}>
                   <SText variant="caption" style={{ color: colors.primary }}>@{replyTarget.authorDisplayName ?? "공구 사용자"}에게 답글</SText>
@@ -450,7 +460,18 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
               </View>
             </View>
           ) : (
-            <Pressable accessibilityRole="button" onPress={() => requireAuth()} style={[styles.loginPrompt, { borderTopColor: colors.border }]}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => requireAuth()}
+              style={[
+                styles.loginPrompt,
+                {
+                  borderTopColor: colors.border,
+                  minHeight: 58 + insets.bottom,
+                  paddingBottom: insets.bottom,
+                },
+              ]}
+            >
               <SText variant="label" style={{ color: colors.primary }}>로그인하고 댓글 쓰기</SText>
             </Pressable>
           )}
