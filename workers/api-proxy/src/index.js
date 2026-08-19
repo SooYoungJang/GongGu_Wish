@@ -23,6 +23,8 @@ const REST_RULES = new Map([
   ["rpc/get_popular_search_terms", new Set(["POST"])],
   ["rpc/get_popular_group_buys", new Set(["POST"])],
   ["rpc/get_group_buy_request_rankings", new Set(["POST"])],
+  ["rpc/list_comment_roots", new Set(["POST"])],
+  ["rpc/list_comment_children", new Set(["POST"])],
 ]);
 
 const FUNCTION_RULES = new Map([

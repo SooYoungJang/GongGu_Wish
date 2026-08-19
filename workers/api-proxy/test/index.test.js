@@ -243,6 +243,36 @@ describe("gonggu API proxy", () => {
     assert.deepEqual(await upstreamRequest.json(), { p_limit_count: 3 });
   });
 
+  it("forwards the product comments RPCs", async () => {
+    for (const rpc of ["list_comment_roots", "list_comment_children"]) {
+      let upstreamRequest;
+      globalThis.fetch = async (input) => {
+        upstreamRequest = input;
+        return Response.json({ items: [] });
+      };
+
+      const response = await request(`/rest/v1/rpc/${rpc}`, {
+        method: "POST",
+        headers: {
+          apikey: "public-key",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ p_group_buy_id: "deal-1", p_limit: 20 }),
+      });
+
+      assert.equal(response.status, 200);
+      assert.equal(
+        upstreamRequest.url,
+        `https://xwblovggtvbpiusjfokq.supabase.co/rest/v1/rpc/${rpc}`,
+      );
+      assert.equal(upstreamRequest.method, "POST");
+      assert.deepEqual(await upstreamRequest.json(), {
+        p_group_buy_id: "deal-1",
+        p_limit: 20,
+      });
+    }
+  });
+
   it("refuses to proxy when Preview points at the Production Supabase origin", async () => {
     let called = false;
     globalThis.fetch = async () => {
