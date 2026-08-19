@@ -202,6 +202,21 @@ export type AppUser = {
   status: string;
 };
 
+export type CommentModerationItem = {
+  id: string;
+  groupBuyId: string;
+  productName: string | null;
+  parentId: string | null;
+  body: string | null;
+  authorDisplayName: string | null;
+  state: "VISIBLE" | "HIDDEN" | "DELETED" | "ACCOUNT_ANONYMIZED";
+  likeCount: number;
+  reportCount: number;
+  contentVersion: number;
+  createdAt: string;
+  editedAt: string | null;
+};
+
 export type PushNotificationInput = {
   title: string;
   body: string;

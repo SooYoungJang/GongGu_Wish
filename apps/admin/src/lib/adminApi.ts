@@ -3,6 +3,7 @@ import type {
   AppUser,
   CdnRefreshResult,
   CdnRefreshStatusResponse,
+  CommentModerationItem,
   DashboardResponse,
   GongguSubmission,
   SubmissionApprovalDeliverySummary,
@@ -348,6 +349,36 @@ export const adminApi = {
       {
         body: { mode: "batch", limit, refreshWindowHours },
       },
+    );
+  },
+
+  listComments(params: {
+    page?: number;
+    limit?: number;
+    state?: string;
+    q?: string;
+  }) {
+    return requestAdmin<{ items: CommentModerationItem[]; total: number }>(
+      "/admin/comments",
+      "GET",
+      { params },
+    );
+  },
+
+  updateCommentModeration(
+    id: string,
+    body: { state: "HIDDEN" | "VISIBLE"; reason?: string; expectedVersion?: number },
+  ) {
+    return requestAdmin<CommentModerationItem>(`/admin/comments/${id}`, "PATCH", {
+      body,
+    });
+  },
+
+  setGroupBuyCommentsEnabled(groupBuyId: string, enabled: boolean) {
+    return requestAdmin<{ groupBuyId: string; commentsEnabled: boolean }>(
+      `/admin/group-buys/${groupBuyId}/comments`,
+      "PATCH",
+      { body: { enabled } },
     );
   },
 };

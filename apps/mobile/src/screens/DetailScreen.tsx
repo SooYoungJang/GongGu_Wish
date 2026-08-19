@@ -97,6 +97,7 @@ import { resolveGroupBuyImageUrl } from "../utils/groupBuyMedia";
 import { normalizeForSearch } from "../utils/search";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useAuthGate } from "../hooks/useAuthGate";
+import { CommentSheet } from "../features/comments/CommentSheet";
 import { useFocusedAndroidBackHandler } from "../navigation/androidBack";
 import { buildGroupBuyShareUrl } from "../services/notificationPayload";
 import {
@@ -1032,7 +1033,9 @@ function ProductReelPageComponent({
 }: ProductReelPageProps) {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
+  const [isCommentsVisible, setCommentsVisible] = useState(false);
   const [shouldPlayMedia, setShouldPlayMedia] = useState(true);
+  const commentsPlaybackStateRef = useRef<boolean | null>(null);
   const [localMuted, setLocalMuted] = useState(muted ?? false);
   const [resolvedPostAudio, setResolvedPostAudio] = useState(() => ({
     url: groupBuy.postAudioUrl ?? null,
@@ -1060,7 +1063,7 @@ function ProductReelPageComponent({
     startTimeMs: resolvedPostAudio.startTimeMs,
     durationMs: resolvedPostAudio.durationMs,
     isActive,
-    playbackAllowed: playbackAllowed && shouldPlayMedia,
+    playbackAllowed: playbackAllowed && shouldPlayMedia && !isCommentsVisible,
     muted: isMuted,
     replayKey,
   });
@@ -1198,6 +1201,16 @@ function ProductReelPageComponent({
     if (!requireAuth()) return;
     toggleBookmark(groupBuy);
   }, [groupBuy, requireAuth, toggleBookmark]);
+  const handleCommentsPress = useCallback(() => {
+    commentsPlaybackStateRef.current = shouldPlayMedia;
+    setShouldPlayMedia(false);
+    setCommentsVisible(true);
+  }, [shouldPlayMedia]);
+  const handleCommentsClose = useCallback(() => {
+    setCommentsVisible(false);
+    setShouldPlayMedia(commentsPlaybackStateRef.current ?? true);
+    commentsPlaybackStateRef.current = null;
+  }, []);
   const summary = groupBuy.summary ?? groupBuy.discountInfo ?? "";
   const summarySheetMaxHeight = Math.max(
     280,
@@ -1511,6 +1524,10 @@ function ProductReelPageComponent({
   // Focused custom overlays consume Back first; returning false delegates the
   // next press to the native stack so Detail itself can pop normally.
   const handleAndroidBack = useCallback(() => {
+    if (isCommentsVisible) {
+      handleCommentsClose();
+      return true;
+    }
     if (isSearchSheetVisible) {
       onCloseSearchSheet?.();
       return true;
@@ -1521,6 +1538,8 @@ function ProductReelPageComponent({
     }
     return false;
   }, [
+    handleCommentsClose,
+    isCommentsVisible,
     isSearchSheetVisible,
     isSummaryVisible,
     onCloseSearchSheet,
@@ -2052,6 +2071,19 @@ function ProductReelPageComponent({
           <ReelAction
             icon={
               <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={26}
+                color="#FFFFFF"
+              />
+            }
+            label="댓글"
+            onPress={handleCommentsPress}
+            s={s}
+            testID="detail-comments-toggle"
+          />
+          <ReelAction
+            icon={
+              <Ionicons
                 name={
                   notificationEnabled
                     ? "notifications"
@@ -2277,6 +2309,11 @@ function ProductReelPageComponent({
           </Reanimated.View>
         </View>
       ) : null}
+      <CommentSheet
+        groupBuyId={groupBuy.id}
+        onClose={handleCommentsClose}
+        visible={isCommentsVisible}
+      />
     </View>
   );
 }
