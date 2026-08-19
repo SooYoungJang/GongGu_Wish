@@ -171,6 +171,8 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
   const refreshComments = useCallback(async () => {
     setAdditionalRoots([]);
     setRootCursor(null);
+    setChildrenByParent({});
+    setExpandedIds(new Set());
     await refetchRoots();
   }, [refetchRoots]);
 
