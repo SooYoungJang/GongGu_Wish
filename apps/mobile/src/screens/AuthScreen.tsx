@@ -464,7 +464,7 @@ export function AuthScreen(_props: AuthScreenProps) {
       .catch(() => {
         authNavigationCompletedRef.current = false;
         setCommentTermsError(
-          '커뮤니티 이용규칙 동의를 저장하지 못했어요. 다시 시도해 주세요.',
+          '커뮤니티 이용규칙을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.',
         );
       });
   }, [navigation, takeAuthContinuation, user]);

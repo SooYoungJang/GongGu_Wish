@@ -243,8 +243,16 @@ describe("gonggu API proxy", () => {
     assert.deepEqual(await upstreamRequest.json(), { p_limit_count: 3 });
   });
 
-  it("forwards the product comments RPCs", async () => {
-    for (const rpc of ["list_comment_roots", "list_comment_children"]) {
+  it("forwards the product comments and consent RPCs", async () => {
+    for (const rpc of [
+      "list_comment_roots",
+      "list_comment_children",
+      "accept_comment_terms",
+    ]) {
+      const body =
+        rpc === "accept_comment_terms"
+          ? { p_terms_version: "community-v1" }
+          : { p_group_buy_id: "deal-1", p_limit: 20 };
       let upstreamRequest;
       globalThis.fetch = async (input) => {
         upstreamRequest = input;
@@ -255,9 +263,10 @@ describe("gonggu API proxy", () => {
         method: "POST",
         headers: {
           apikey: "public-key",
+          Authorization: "Bearer user-jwt",
           "content-type": "application/json",
         },
-        body: JSON.stringify({ p_group_buy_id: "deal-1", p_limit: 20 }),
+        body: JSON.stringify(body),
       });
 
       assert.equal(response.status, 200);
@@ -266,10 +275,11 @@ describe("gonggu API proxy", () => {
         `https://xwblovggtvbpiusjfokq.supabase.co/rest/v1/rpc/${rpc}`,
       );
       assert.equal(upstreamRequest.method, "POST");
-      assert.deepEqual(await upstreamRequest.json(), {
-        p_group_buy_id: "deal-1",
-        p_limit: 20,
-      });
+      assert.equal(
+        upstreamRequest.headers.get("authorization"),
+        "Bearer user-jwt",
+      );
+      assert.deepEqual(await upstreamRequest.json(), body);
     }
   });
 
