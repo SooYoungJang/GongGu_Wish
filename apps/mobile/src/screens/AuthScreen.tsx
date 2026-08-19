@@ -56,6 +56,8 @@ import {
 import { commerceRadius, type CommerceColorPalette } from "../design/commerce";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import { useAudienceConfirmedAction } from "../hooks/useAudienceConfirmedAction";
+import { acceptCommentTerms } from "../features/comments/api";
+import { COMMENT_TERMS_VERSION } from "../features/comments/utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -421,6 +423,7 @@ export function AuthScreen(_props: AuthScreenProps) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
   const [authBusy, setAuthBusy] = useState(false);
+  const [commentTermsError, setCommentTermsError] = useState<string | null>(null);
   const authFlowLocked = authBusy || isAudienceAuthIntentPending;
 
   const [actionBar, setActionBar] = useState<ActionBarConfig | null>(null);
@@ -435,24 +438,35 @@ export function AuthScreen(_props: AuthScreenProps) {
     if (!user) return;
     if (authNavigationCompletedRef.current) return;
     authNavigationCompletedRef.current = true;
-    const continuation = takeAuthContinuation();
-    const finishNavigation = () => {
-      if (continuation) {
-        navigation.goBack();
-        return;
-      }
-      navigation.popTo('MainTabs', { screen: 'MyPage' });
-    };
+    setCommentTermsError(null);
 
-    if (!continuation) {
-      finishNavigation();
-      return;
-    }
+    void acceptCommentTerms(COMMENT_TERMS_VERSION)
+      .then(() => {
+        const continuation = takeAuthContinuation();
+        const finishNavigation = () => {
+          if (continuation) {
+            navigation.goBack();
+            return;
+          }
+          navigation.popTo('MainTabs', { screen: 'MyPage' });
+        };
 
-    void Promise.resolve()
-      .then(continuation)
-      .catch(() => undefined)
-      .finally(finishNavigation);
+        if (!continuation) {
+          finishNavigation();
+          return;
+        }
+
+        void Promise.resolve()
+          .then(continuation)
+          .catch(() => undefined)
+          .finally(finishNavigation);
+      })
+      .catch(() => {
+        authNavigationCompletedRef.current = false;
+        setCommentTermsError(
+          '커뮤니티 이용규칙 동의를 저장하지 못했어요. 다시 시도해 주세요.',
+        );
+      });
   }, [navigation, takeAuthContinuation, user]);
 
   useEffect(
@@ -579,6 +593,11 @@ export function AuthScreen(_props: AuthScreenProps) {
             disabled={authFlowLocked}
             onTabChange={setActiveTab}
           />
+          {commentTermsError ? (
+            <Text accessibilityRole="alert" style={[styles.errorText, { marginBottom: 12 }]}>
+              {commentTermsError}
+            </Text>
+          ) : null}
           <AuthContentArea
             activeTab={activeTab}
             onActionBarChange={setActionBar}

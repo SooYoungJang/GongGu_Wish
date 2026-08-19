@@ -49,8 +49,9 @@ export function AuthLegalNotice() {
       testID="auth-legal-notice"
     >
       <Text style={styles.copy}>
-        로그인 또는 회원가입을 계속하면 만 14세 이상임을 확인하고 아래 약관에 동의한
-        것으로 봅니다.
+        로그인 또는 회원가입을 계속하면 만 14세 이상임을 확인하고 서비스 이용약관과
+        커뮤니티 이용규칙에 동의하며 개인정보처리방침을 확인한 것으로 봅니다.
+        커뮤니티 이용규칙 관련 문의: tturrr10@gmail.com
       </Text>
       <View style={styles.links}>
         <Pressable
