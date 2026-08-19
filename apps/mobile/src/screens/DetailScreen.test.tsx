@@ -103,6 +103,13 @@ vi.mock("../hooks/useLocalDeals", () => ({
 vi.mock("../hooks/useAuthGate", () => ({
   useAuthGate: () => authGateMock,
 }));
+vi.mock("../features/comments/CommentSheet", () => {
+  const ReactMock = require("react");
+  return {
+    CommentSheet: (props: Record<string, unknown>) =>
+      ReactMock.createElement("CommentSheet", props),
+  };
+});
 vi.mock("../hooks/usePlaybackLifecycle", () => ({
   usePlaybackLifecycle: () => ({
     ...playbackLifecycleMock,
@@ -2043,6 +2050,56 @@ describe("DetailScreen", () => {
     });
 
     expect(getSearchSheetTranslateY(renderer!)).toBe(-300);
+  });
+
+  it("hides the product search dock while the comments sheet is open", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{
+            key: "Detail",
+            name: "Detail",
+            params: { groupBuy: baseGroupBuy },
+          } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const findPressables = (accessibilityLabel: string) =>
+      renderer!.root.findAll(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === accessibilityLabel,
+      );
+    const commentsButton = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "댓글",
+    );
+
+    expect(findPressables("상품 검색")).toHaveLength(1);
+
+    act(() => {
+      commentsButton.props.onPress();
+    });
+
+    const commentSheet = renderer!.root.find(
+      (node) => String(node.type) === "CommentSheet",
+    );
+    expect(commentSheet.props.visible).toBe(true);
+    expect(findPressables("상품 검색")).toHaveLength(0);
+
+    act(() => {
+      commentSheet.props.onClose();
+    });
+
+    expect(findPressables("상품 검색")).toHaveLength(1);
+
+    act(() => {
+      renderer!.unmount();
+    });
   });
 
   it("shows an alert when the purchase link cannot be opened", async () => {

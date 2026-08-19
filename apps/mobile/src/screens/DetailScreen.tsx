@@ -1004,6 +1004,8 @@ export type ProductReelPageProps = {
   shouldPreloadAudio?: boolean;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
+  // eslint-disable-next-line no-unused-vars
+  onCommentsSheetStateChange?: (isOpen: boolean) => void;
   s: ReturnType<typeof makeStyles>;
 };
 
@@ -1029,6 +1031,7 @@ function ProductReelPageComponent({
   onPlaybackStateChange,
   shouldPreloadAudio = false,
   onSummarySheetStateChange,
+  onCommentsSheetStateChange,
   s,
 }: ProductReelPageProps) {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
@@ -1205,12 +1208,14 @@ function ProductReelPageComponent({
     commentsPlaybackStateRef.current = shouldPlayMedia;
     setShouldPlayMedia(false);
     setCommentsVisible(true);
-  }, [shouldPlayMedia]);
+    onCommentsSheetStateChange?.(true);
+  }, [onCommentsSheetStateChange, shouldPlayMedia]);
   const handleCommentsClose = useCallback(() => {
     setCommentsVisible(false);
     setShouldPlayMedia(commentsPlaybackStateRef.current ?? true);
     commentsPlaybackStateRef.current = null;
-  }, []);
+    onCommentsSheetStateChange?.(false);
+  }, [onCommentsSheetStateChange]);
   const summary = groupBuy.summary ?? groupBuy.discountInfo ?? "";
   const summarySheetMaxHeight = Math.max(
     280,
@@ -2410,6 +2415,7 @@ function DetailScreenContent({
     isOpen: false,
     canSwipeReel: true,
   });
+  const [commentsSheetOpen, setCommentsSheetOpen] = useState(false);
   const { isScreenFocused, isAppActive, isAppFocused, isPlaybackActive } =
     usePlaybackLifecycle();
   const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
@@ -2604,7 +2610,8 @@ function DetailScreenContent({
       clearTimeout(deepViewTimerRef.current);
       deepViewTimerRef.current = null;
     }
-    const overlayOpen = summarySheetGate.isOpen || isSearchSheetVisible;
+    const overlayOpen =
+      summarySheetGate.isOpen || isSearchSheetVisible || commentsSheetOpen;
     const playbackEligible = isPlaybackEligible({
       screenFocused: isScreenFocused,
       appActive: isAppActive && isAppFocused,
@@ -2633,6 +2640,7 @@ function DetailScreenContent({
     isAppActive,
     isAppFocused,
     isScreenFocused,
+    commentsSheetOpen,
     isSearchSheetVisible,
     summarySheetGate.isOpen,
   ]);
@@ -2646,6 +2654,9 @@ function DetailScreenContent({
     },
     [],
   );
+  const handleCommentsSheetStateChange = useCallback((isOpen: boolean) => {
+    setCommentsSheetOpen(isOpen);
+  }, []);
 
   useEffect(() => {
     if (!isSearchSheetVisible) {
@@ -2780,6 +2791,7 @@ function DetailScreenContent({
         }
         isSearchSheetVisible={isSearchSheetVisible}
         searchSheetMetrics={searchSheetMetrics}
+        onCommentsSheetStateChange={handleCommentsSheetStateChange}
         shouldPreloadAudio={Math.abs(index - activeProductIndex) <= 1}
         shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
         bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
@@ -2799,6 +2811,7 @@ function DetailScreenContent({
       activeProductIndex,
       closeSearchSheet,
       handleSummarySheetStateChange,
+      handleCommentsSheetStateChange,
       handlePlaybackStateChange,
       handleBack,
       insets.bottom,
@@ -2853,7 +2866,8 @@ function DetailScreenContent({
           screenHeight > 0 &&
           feedItems.length > 1 &&
           !summarySheetGate.isOpen &&
-          !isSearchSheetVisible
+          !isSearchSheetVisible &&
+          !commentsSheetOpen
         }
         style={s.verticalPager}
       >
@@ -2910,7 +2924,9 @@ function DetailScreenContent({
           );
         })}
       </PagerView>
-      {!summarySheetGate.isOpen && !isSearchSheetVisible ? (
+      {!summarySheetGate.isOpen &&
+      !isSearchSheetVisible &&
+      !commentsSheetOpen ? (
         <DetailSearchDock
           bottomInset={insets.bottom}
           onPress={openSearchSheet}

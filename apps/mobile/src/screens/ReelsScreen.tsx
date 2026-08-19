@@ -139,6 +139,7 @@ export function ReelsScreen({
     isOpen: false,
     canSwipeReel: true,
   });
+  const [commentsSheetOpen, setCommentsSheetOpen] = useState(false);
   const {
     isScreenFocused: isTabFocused,
     isAppActive,
@@ -150,8 +151,8 @@ export function ReelsScreen({
   const { recordView } = useRecentViews();
 
   useEffect(() => {
-    onSheetVisibilityChange?.(summarySheetGate.isOpen);
-  }, [onSheetVisibilityChange, summarySheetGate.isOpen]);
+    onSheetVisibilityChange?.(summarySheetGate.isOpen || commentsSheetOpen);
+  }, [commentsSheetOpen, onSheetVisibilityChange, summarySheetGate.isOpen]);
 
   const { data, isError, isFetching, isLoading, refetch } = useQuery({
     queryKey: ["group-buys"],
@@ -277,7 +278,7 @@ export function ReelsScreen({
     const playbackEligible = isPlaybackEligible({
       screenFocused: isTabFocused,
       appActive: isAppActive && isAppFocused,
-      overlayOpen: summarySheetGate.isOpen,
+      overlayOpen: summarySheetGate.isOpen || commentsSheetOpen,
       playerPlaying: isActivePlayerPlaying,
       hasPlayableMedia: hasPlayableActiveMedia,
     });
@@ -302,6 +303,7 @@ export function ReelsScreen({
     isAppActive,
     isAppFocused,
     isTabFocused,
+    commentsSheetOpen,
     summarySheetGate.isOpen,
   ]);
 
@@ -315,6 +317,9 @@ export function ReelsScreen({
     },
     [],
   );
+  const handleCommentsSheetStateChange = useCallback((isOpen: boolean) => {
+    setCommentsSheetOpen(isOpen);
+  }, []);
 
   const renderReelItem = useCallback(
     (item: GroupBuy, index: number) => (
@@ -337,6 +342,7 @@ export function ReelsScreen({
         onMutedChange={setReelsMuted}
         onPlaybackStateChange={handlePlaybackStateChange}
         onSummarySheetStateChange={handleSummarySheetStateChange}
+        onCommentsSheetStateChange={handleCommentsSheetStateChange}
         s={s}
       />
     ),
@@ -346,6 +352,7 @@ export function ReelsScreen({
       activeIndex,
       handleSummarySheetStateChange,
       handlePlaybackStateChange,
+      handleCommentsSheetStateChange,
       insets.bottom,
       insets.top,
       isReelsMuted,
@@ -430,7 +437,10 @@ export function ReelsScreen({
         orientation="vertical"
         overdrag
         scrollEnabled={
-          screenHeight > 0 && reelItems.length > 1 && !summarySheetGate.isOpen
+          screenHeight > 0 &&
+          reelItems.length > 1 &&
+          !summarySheetGate.isOpen &&
+          !commentsSheetOpen
         }
         style={s.verticalPager}
       >
@@ -469,7 +479,8 @@ export function ReelsScreen({
           enabled={
             activeOrganicIndex >= 0 &&
             isPlaybackActive &&
-            !summarySheetGate.isOpen
+            !summarySheetGate.isOpen &&
+            !commentsSheetOpen
           }
         />
       ) : null}
