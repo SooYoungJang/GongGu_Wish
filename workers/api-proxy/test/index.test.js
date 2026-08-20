@@ -243,7 +243,7 @@ describe("gonggu API proxy", () => {
     assert.deepEqual(await upstreamRequest.json(), { p_limit_count: 3 });
   });
 
-  it("forwards the product comments and consent RPCs", async () => {
+  it("forwards product comment, moderation, and consent RPCs", async () => {
     const rpcBodies = {
       list_comment_roots: { p_group_buy_id: "deal-1", p_limit: 20 },
       list_comment_children: { p_group_buy_id: "deal-1", p_limit: 20 },
@@ -254,6 +254,12 @@ describe("gonggu API proxy", () => {
         p_client_request_id: "client-1",
         p_terms_version: "community-v1",
       },
+      report_comment: {
+        p_comment_id: "comment-1",
+        p_reason: "spam",
+        p_details: "details",
+      },
+      block_user_from_comment: { p_comment_id: "comment-1" },
       accept_comment_terms: { p_terms_version: "community-v1" },
     };
 
