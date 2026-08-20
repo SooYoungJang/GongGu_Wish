@@ -244,15 +244,20 @@ describe("gonggu API proxy", () => {
   });
 
   it("forwards the product comments and consent RPCs", async () => {
-    for (const rpc of [
-      "list_comment_roots",
-      "list_comment_children",
-      "accept_comment_terms",
-    ]) {
-      const body =
-        rpc === "accept_comment_terms"
-          ? { p_terms_version: "community-v1" }
-          : { p_group_buy_id: "deal-1", p_limit: 20 };
+    const rpcBodies = {
+      list_comment_roots: { p_group_buy_id: "deal-1", p_limit: 20 },
+      list_comment_children: { p_group_buy_id: "deal-1", p_limit: 20 },
+      create_comment: {
+        p_group_buy_id: "deal-1",
+        p_parent_id: null,
+        p_body: "hello",
+        p_client_request_id: "client-1",
+        p_terms_version: "community-v1",
+      },
+      accept_comment_terms: { p_terms_version: "community-v1" },
+    };
+
+    for (const [rpc, body] of Object.entries(rpcBodies)) {
       let upstreamRequest;
       globalThis.fetch = async (input) => {
         upstreamRequest = input;
