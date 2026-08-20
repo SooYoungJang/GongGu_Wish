@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   commentPlaceholder,
+  formatCommentAge,
   validateCommentBody,
   visualCommentIndent,
 } from "./utils";
@@ -24,5 +25,14 @@ describe("comment utilities", () => {
   it("uses moderation-aware placeholders", () => {
     expect(commentPlaceholder("hidden")).toContain("숨겨진");
     expect(commentPlaceholder("deleted")).toContain("삭제된");
+  });
+
+  it("formats comment timestamps as relative Korean ages", () => {
+    const now = Date.parse("2026-08-20T00:00:00.000Z");
+    expect(formatCommentAge("2026-08-19T23:59:45.000Z", now)).toBe("방금 전");
+    expect(formatCommentAge("2026-08-19T23:30:00.000Z", now)).toBe("30분 전");
+    expect(formatCommentAge("2026-08-19T12:00:00.000Z", now)).toBe("12시간 전");
+    expect(formatCommentAge("2026-08-15T00:00:00.000Z", now)).toBe("5일 전");
+    expect(formatCommentAge("2026-06-20T00:00:00.000Z", now)).toBe("2개월 전");
   });
 });
