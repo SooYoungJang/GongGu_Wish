@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuthGate } from "../../hooks/useAuthGate";
@@ -502,7 +503,7 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
   return (
     <View style={styles.modalLayer}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.modalRoot}
       >
         <Pressable accessibilityLabel="댓글 닫기" accessibilityRole="button" onPress={onClose} style={styles.backdrop} />
@@ -610,37 +611,39 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
             />
           )}
           {isAuthenticated ? (
-            <View
-              style={[
-                styles.composer,
-                {
-                  borderTopColor: colors.border,
-                  paddingBottom: spacing.md + insets.bottom,
-                },
-              ]}
-            >
-              {replyTarget ? (
-                <View style={styles.replyingRow}>
-                  <SText variant="caption" style={{ color: colors.primary }}>@{replyTarget.authorDisplayName ?? "공구 사용자"}에게 답글</SText>
-                  <Pressable accessibilityLabel="답글 대상 취소" onPress={() => setReplyTarget(null)}><Ionicons name="close-circle" size={18} color={colors.textTertiary} /></Pressable>
+            <KeyboardStickyView enabled={Platform.OS === "android"}>
+              <View
+                style={[
+                  styles.composer,
+                  {
+                    borderTopColor: colors.border,
+                    paddingBottom: spacing.md + insets.bottom,
+                  },
+                ]}
+              >
+                {replyTarget ? (
+                  <View style={styles.replyingRow}>
+                    <SText variant="caption" style={{ color: colors.primary }}>@{replyTarget.authorDisplayName ?? "공구 사용자"}에게 답글</SText>
+                    <Pressable accessibilityLabel="답글 대상 취소" onPress={() => setReplyTarget(null)}><Ionicons name="close-circle" size={18} color={colors.textTertiary} /></Pressable>
+                  </View>
+                ) : null}
+                <View style={styles.inputRow}>
+                  <TextInput
+                    accessibilityLabel="댓글 입력"
+                    maxLength={MAX_COMMENT_LENGTH}
+                    multiline
+                    onChangeText={setBody}
+                    placeholder={replyTarget ? "답글을 입력하세요" : "댓글을 입력하세요"}
+                    placeholderTextColor={colors.textTertiary}
+                    style={[styles.input, { borderColor: colors.border, color: colors.textPrimary }]}
+                    value={body}
+                  />
+                  <Pressable accessibilityLabel="댓글 등록" accessibilityRole="button" disabled={!body.trim()} onPress={() => void submitComment()} style={[styles.sendButton, { backgroundColor: colors.primary }, !body.trim() && styles.disabledButton]}>
+                    <Ionicons name="arrow-up" size={20} color={colors.textInverse} />
+                  </Pressable>
                 </View>
-              ) : null}
-              <View style={styles.inputRow}>
-                <TextInput
-                  accessibilityLabel="댓글 입력"
-                  maxLength={MAX_COMMENT_LENGTH}
-                  multiline
-                  onChangeText={setBody}
-                  placeholder={replyTarget ? "답글을 입력하세요" : "댓글을 입력하세요"}
-                  placeholderTextColor={colors.textTertiary}
-                  style={[styles.input, { borderColor: colors.border, color: colors.textPrimary }]}
-                  value={body}
-                />
-                <Pressable accessibilityLabel="댓글 등록" accessibilityRole="button" disabled={!body.trim()} onPress={() => void submitComment()} style={[styles.sendButton, { backgroundColor: colors.primary }, !body.trim() && styles.disabledButton]}>
-                  <Ionicons name="arrow-up" size={20} color={colors.textInverse} />
-                </Pressable>
               </View>
-            </View>
+            </KeyboardStickyView>
           ) : (
             <Pressable
               accessibilityRole="button"

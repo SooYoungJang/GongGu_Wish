@@ -140,7 +140,7 @@ describe("CommentSheet", () => {
     queryResult.data = { items: [], nextCursor: null, liveRanking: false };
   });
 
-  it("uses keyboard-aware sheet behavior on Android", async () => {
+  it("sticks the Android composer to the keyboard without shrinking the sheet", async () => {
     nativeMocks.platform.OS = "android";
     let renderer!: TestRenderer.ReactTestRenderer;
 
@@ -154,7 +154,12 @@ describe("CommentSheet", () => {
     const keyboardAvoider = renderer.root.find(
       (node) => String(node.type) === "KeyboardAvoidingView",
     );
-    expect(keyboardAvoider.props.behavior).toBe("height");
+    expect(keyboardAvoider.props.behavior).toBeUndefined();
+
+    const stickyComposer = renderer.root.find(
+      (node) => String(node.type) === "KeyboardStickyView",
+    );
+    expect(stickyComposer.props.enabled).toBe(true);
   });
 
   it("does not ask for community rules again in the comment composer", async () => {
