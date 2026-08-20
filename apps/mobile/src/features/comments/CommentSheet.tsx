@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -447,6 +448,7 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
         body,
         termsVersion: COMMENT_TERMS_VERSION,
       });
+      Keyboard.dismiss();
       setBody("");
       setReplyTarget(null);
       await refreshComments();
