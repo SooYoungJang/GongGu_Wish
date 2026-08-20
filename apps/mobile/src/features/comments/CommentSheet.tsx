@@ -501,7 +501,10 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
 
   return (
     <View style={styles.modalLayer}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalRoot}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalRoot}
+      >
         <Pressable accessibilityLabel="댓글 닫기" accessibilityRole="button" onPress={onClose} style={styles.backdrop} />
         <View style={[styles.sheet, { backgroundColor: colors.bg }]}>
           <View style={styles.handle} />

@@ -15,6 +15,7 @@ const apiMocks = vi.hoisted(() => ({
 
 const nativeMocks = vi.hoisted(() => ({
   alert: vi.fn(),
+  platform: { OS: "ios" as "ios" | "android" },
 }));
 
 const queryResult = vi.hoisted(() => ({
@@ -44,7 +45,7 @@ vi.mock("react-native", () => {
         ListFooterComponent,
       ),
     KeyboardAvoidingView: passthrough("KeyboardAvoidingView"),
-    Platform: { OS: "ios" },
+    Platform: nativeMocks.platform,
     Pressable: ({ children, onPress, ...props }: any) =>
       ReactMock.createElement("Pressable", { onPress, ...props }, children),
     StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 },
@@ -135,7 +136,25 @@ describe("CommentSheet", () => {
     apiMocks.reportComment.mockReset();
     apiMocks.blockUserFromComment.mockReset();
     nativeMocks.alert.mockReset();
+    nativeMocks.platform.OS = "ios";
     queryResult.data = { items: [], nextCursor: null, liveRanking: false };
+  });
+
+  it("uses keyboard-aware sheet behavior on Android", async () => {
+    nativeMocks.platform.OS = "android";
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible />,
+      );
+      await Promise.resolve();
+    });
+
+    const keyboardAvoider = renderer.root.find(
+      (node) => String(node.type) === "KeyboardAvoidingView",
+    );
+    expect(keyboardAvoider.props.behavior).toBe("height");
   });
 
   it("does not ask for community rules again in the comment composer", async () => {
