@@ -238,6 +238,49 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
     }
   }, [groupBuyId, loadingMoreRoots, rootCursor, sort]);
 
+  const fetchAllChildrenForParent = useCallback(
+    async (parentId: string) => {
+      const items: CommentView[] = [];
+      let cursor: string | null = null;
+      do {
+        const page = await listCommentChildren(groupBuyId, parentId, cursor);
+        items.push(...page.items);
+        if (!page.nextCursor || page.nextCursor === cursor) {
+          cursor = null;
+        } else {
+          cursor = page.nextCursor;
+        }
+      } while (cursor);
+      return items;
+    },
+    [groupBuyId],
+  );
+
+  const fetchAllThreadChildren = useCallback(
+    async (rootId: string) => {
+      const loaded: Record<string, CommentView[]> = {};
+      const pending = [rootId];
+      const visited = new Set<string>();
+
+      while (pending.length > 0) {
+        const parentId = pending.shift();
+        if (!parentId || visited.has(parentId)) continue;
+        visited.add(parentId);
+
+        const children = await fetchAllChildrenForParent(parentId);
+        loaded[parentId] = children;
+        for (const child of children) {
+          if (child.directReplyCount > 0 && !visited.has(child.id)) {
+            pending.push(child.id);
+          }
+        }
+      }
+
+      return loaded;
+    },
+    [fetchAllChildrenForParent],
+  );
+
   const loadChildren = useCallback(
     async (comment: CommentView) => {
       if (expandedIds.has(comment.id)) {
@@ -250,8 +293,8 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
       }
       setLoadingChildren((current) => new Set(current).add(comment.id));
       try {
-        const page = await listCommentChildren(groupBuyId, comment.id);
-        setChildrenByParent((current) => ({ ...current, [comment.id]: page.items }));
+        const children = await fetchAllChildrenForParent(comment.id);
+        setChildrenByParent((current) => ({ ...current, [comment.id]: children }));
         setExpandedIds((current) => new Set(current).add(comment.id));
       } catch (error) {
         Alert.alert("답글을 불러오지 못했어요", error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.");
@@ -263,19 +306,23 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
         });
       }
     },
-    [expandedIds, groupBuyId],
+    [expandedIds, fetchAllChildrenForParent],
   );
 
   const openThread = useCallback(
     async (comment: CommentView) => {
       setActiveThreadRoot(comment);
       setExpandedIds((current) => new Set(current).add(comment.id));
-      if (childrenByParent[comment.id]) return;
 
       setLoadingChildren((current) => new Set(current).add(comment.id));
       try {
-        const page = await listCommentChildren(groupBuyId, comment.id);
-        setChildrenByParent((current) => ({ ...current, [comment.id]: page.items }));
+        const loaded = await fetchAllThreadChildren(comment.id);
+        setChildrenByParent((current) => ({ ...current, ...loaded }));
+        setExpandedIds((current) => {
+          const next = new Set(current);
+          Object.keys(loaded).forEach((parentId) => next.add(parentId));
+          return next;
+        });
       } catch (error) {
         setActiveThreadRoot(null);
         setExpandedIds((current) => {
@@ -292,7 +339,7 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
         });
       }
     },
-    [childrenByParent, groupBuyId],
+    [fetchAllThreadChildren],
   );
 
   const closeThread = useCallback(() => {
@@ -424,15 +471,25 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
               onMore={() => handleMore(item)}
               onReply={() => setReplyTarget(item)}
               renderChildren={renderChildren}
+              showReplyToggle={!activeThreadRoot}
             />
-            {expandedIds.has(item.id)
+            {(activeThreadRoot || expandedIds.has(item.id))
               ? renderNested(childrenByParent[item.id] ?? [])
               : null}
           </Fragment>
         ));
       return renderNested(items);
     },
-    [childrenByParent, colors, expandedIds, handleLike, handleMore, loadChildren, loadingChildren],
+    [
+      activeThreadRoot,
+      childrenByParent,
+      colors,
+      expandedIds,
+      handleLike,
+      handleMore,
+      loadChildren,
+      loadingChildren,
+    ],
   );
 
   const roots = useMemo(
