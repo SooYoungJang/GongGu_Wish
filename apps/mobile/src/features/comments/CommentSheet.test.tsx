@@ -160,6 +160,15 @@ describe("CommentSheet", () => {
       (node) => String(node.type) === "KeyboardStickyView",
     );
     expect(stickyComposer.props.enabled).toBe(true);
+
+    const composer = renderer.root.findByProps({ testID: "comment-composer" });
+    expect(composer.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          backgroundColor: expect.stringMatching(/^#/),
+        }),
+      ]),
+    );
   });
 
   it("does not ask for community rules again in the comment composer", async () => {

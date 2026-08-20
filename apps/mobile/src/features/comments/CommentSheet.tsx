@@ -613,9 +613,11 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
           {isAuthenticated ? (
             <KeyboardStickyView enabled={Platform.OS === "android"}>
               <View
+                testID="comment-composer"
                 style={[
                   styles.composer,
                   {
+                    backgroundColor: colors.bg,
                     borderTopColor: colors.border,
                     paddingBottom: spacing.md + insets.bottom,
                   },
