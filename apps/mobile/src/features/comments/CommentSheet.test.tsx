@@ -15,6 +15,7 @@ const apiMocks = vi.hoisted(() => ({
 
 const nativeMocks = vi.hoisted(() => ({
   alert: vi.fn(),
+  keyboardDismiss: vi.fn(),
   platform: { OS: "ios" as "ios" | "android" },
 }));
 
@@ -45,6 +46,7 @@ vi.mock("react-native", () => {
         ListFooterComponent,
       ),
     KeyboardAvoidingView: passthrough("KeyboardAvoidingView"),
+    Keyboard: { dismiss: nativeMocks.keyboardDismiss },
     Platform: nativeMocks.platform,
     Pressable: ({ children, onPress, ...props }: any) =>
       ReactMock.createElement("Pressable", { onPress, ...props }, children),
@@ -136,6 +138,7 @@ describe("CommentSheet", () => {
     apiMocks.reportComment.mockReset();
     apiMocks.blockUserFromComment.mockReset();
     nativeMocks.alert.mockReset();
+    nativeMocks.keyboardDismiss.mockReset();
     nativeMocks.platform.OS = "ios";
     queryResult.data = { items: [], nextCursor: null, liveRanking: false };
   });
@@ -330,5 +333,31 @@ describe("CommentSheet", () => {
         body: "구매했는데 만족해요",
       }),
     );
+    expect(nativeMocks.keyboardDismiss).toHaveBeenCalled();
+  });
+
+  it("submits a comment like when the like action is pressed", async () => {
+    const root = makeComment();
+    queryResult.data = { items: [root], nextCursor: null, liveRanking: false };
+    apiMocks.setCommentLike.mockResolvedValue(
+      makeComment({ likedByMe: true, likeCount: root.likeCount + 1 }),
+    );
+
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible />,
+      );
+      await Promise.resolve();
+    });
+
+    const likeButton = renderer.root.findByProps({ accessibilityLabel: "댓글 좋아요" });
+    expect(likeButton.props.disabled).toBe(false);
+    await act(async () => {
+      likeButton.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(apiMocks.setCommentLike).toHaveBeenCalledWith(root.id, true);
   });
 });

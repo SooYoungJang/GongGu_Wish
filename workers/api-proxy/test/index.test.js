@@ -254,6 +254,10 @@ describe("gonggu API proxy", () => {
         p_client_request_id: "client-1",
         p_terms_version: "community-v1",
       },
+      set_comment_like: {
+        p_comment_id: "comment-1",
+        p_liked: true,
+      },
       report_comment: {
         p_comment_id: "comment-1",
         p_reason: "spam",

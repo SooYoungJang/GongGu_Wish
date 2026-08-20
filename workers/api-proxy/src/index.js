@@ -26,6 +26,7 @@ const REST_RULES = new Map([
   ["rpc/list_comment_roots", new Set(["POST"])],
   ["rpc/list_comment_children", new Set(["POST"])],
   ["rpc/create_comment", new Set(["POST"])],
+  ["rpc/set_comment_like", new Set(["POST"])],
   ["rpc/report_comment", new Set(["POST"])],
   ["rpc/block_user_from_comment", new Set(["POST"])],
   ["rpc/accept_comment_terms", new Set(["POST"])],
