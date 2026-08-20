@@ -2792,6 +2792,71 @@ describe("DetailScreen video playback", () => {
     });
   });
 
+  it("shrinks the media stage and keeps video playback active while comments are open", () => {
+    videoMock.stableAcrossRenders = true;
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl: "https://example.com/comments-sheet.mp4",
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const player = videoMock.players.find(
+      (candidate) => candidate.source?.uri === groupBuy.videoUrl,
+    );
+    expect(player).toBeDefined();
+    player!.pause.mockClear();
+
+    const activePage = findProductReelPages(renderer!).find(
+      (node) => node.props.isActive,
+    );
+    expect(activePage).toBeDefined();
+    const commentsButton = activePage!.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "댓글",
+    );
+
+    act(() => {
+      commentsButton.props.onPress();
+    });
+
+    const videoSlides = findProductReelPages(renderer!)
+      .find((node) => node.props.isActive)!
+      .findAll(
+        (node) => node.props.shouldPlay !== undefined,
+      );
+    expect(videoSlides).toHaveLength(1);
+    expect(videoSlides[0]?.props.shouldPlay).toBe(true);
+    expect(player!.pause).not.toHaveBeenCalled();
+    expect(getMediaStageFrame(renderer!).contentScale).toBeLessThan(1);
+
+    const commentSheet = renderer!.root.find(
+      (node) => String(node.type) === "CommentSheet",
+    );
+    expect(commentSheet.props.visible).toBe(true);
+
+    act(() => {
+      commentSheet.props.onClose();
+    });
+
+    expect(getMediaStageFrame(renderer!).contentScale).toBeCloseTo(1, 2);
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
   it("keeps video active for Android blur and pauses it for background", () => {
     const groupBuy: GroupBuy = {
       ...baseGroupBuy,

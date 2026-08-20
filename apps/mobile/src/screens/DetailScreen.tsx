@@ -121,6 +121,8 @@ const SUMMARY_SCROLL_TOP_EPSILON = 2;
 const DETAIL_SEARCH_CHROME_OFFSET = 72;
 const SUMMARY_SHEET_MAX_HEIGHT_RATIO = 0.58;
 const SEARCH_SHEET_MAX_HEIGHT_RATIO = 0.7;
+const COMMENT_SHEET_MAX_HEIGHT_RATIO = 0.86;
+const COMMENT_SHEET_MIN_HEIGHT = 420;
 // When the summary sheet is open the media stage shrinks to a centered card
 // with this much inset on each side.
 const MEDIA_STAGE_SIDE_INSET = 48;
@@ -1038,7 +1040,6 @@ function ProductReelPageComponent({
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
   const [isCommentsVisible, setCommentsVisible] = useState(false);
   const [shouldPlayMedia, setShouldPlayMedia] = useState(true);
-  const commentsPlaybackStateRef = useRef<boolean | null>(null);
   const [localMuted, setLocalMuted] = useState(muted ?? false);
   const [resolvedPostAudio, setResolvedPostAudio] = useState(() => ({
     url: groupBuy.postAudioUrl ?? null,
@@ -1066,7 +1067,7 @@ function ProductReelPageComponent({
     startTimeMs: resolvedPostAudio.startTimeMs,
     durationMs: resolvedPostAudio.durationMs,
     isActive,
-    playbackAllowed: playbackAllowed && shouldPlayMedia && !isCommentsVisible,
+    playbackAllowed: playbackAllowed && shouldPlayMedia,
     muted: isMuted,
     replayKey,
   });
@@ -1204,19 +1205,24 @@ function ProductReelPageComponent({
     if (!requireAuth()) return;
     toggleBookmark(groupBuy);
   }, [groupBuy, requireAuth, toggleBookmark]);
+  const summary = groupBuy.summary ?? groupBuy.discountInfo ?? "";
+  const commentsSheetMaxHeight = Math.max(
+    COMMENT_SHEET_MIN_HEIGHT,
+    Math.min(
+      pageHeight - topInset - spacing.xl,
+      pageHeight * COMMENT_SHEET_MAX_HEIGHT_RATIO,
+    ),
+  );
+  const commentsSheetTranslate = useSharedValue(commentsSheetMaxHeight);
   const handleCommentsPress = useCallback(() => {
-    commentsPlaybackStateRef.current = shouldPlayMedia;
-    setShouldPlayMedia(false);
+    cancelAnimation(commentsSheetTranslate);
+    commentsSheetTranslate.value = withTiming(0, {
+      duration: BOTTOM_SHEET_ANIMATION_MS,
+      easing: Easing.out(Easing.cubic),
+    });
     setCommentsVisible(true);
     onCommentsSheetStateChange?.(true);
-  }, [onCommentsSheetStateChange, shouldPlayMedia]);
-  const handleCommentsClose = useCallback(() => {
-    setCommentsVisible(false);
-    setShouldPlayMedia(commentsPlaybackStateRef.current ?? true);
-    commentsPlaybackStateRef.current = null;
-    onCommentsSheetStateChange?.(false);
-  }, [onCommentsSheetStateChange]);
-  const summary = groupBuy.summary ?? groupBuy.discountInfo ?? "";
+  }, [commentsSheetTranslate, onCommentsSheetStateChange]);
   const summarySheetMaxHeight = Math.max(
     280,
     Math.min(
@@ -1225,6 +1231,32 @@ function ProductReelPageComponent({
     ),
   );
   const summarySheetTranslate = useSharedValue(summarySheetMaxHeight);
+  const handleCommentsClose = useCallback(() => {
+    cancelAnimation(commentsSheetTranslate);
+    commentsSheetTranslate.value = withTiming(
+      commentsSheetMaxHeight,
+      {
+        duration: BOTTOM_SHEET_ANIMATION_MS,
+        easing: Easing.out(Easing.cubic),
+      },
+      (finished) => {
+        if (!finished) return;
+        runOnJS(setCommentsVisible)(false);
+        if (onCommentsSheetStateChange) {
+          runOnJS(onCommentsSheetStateChange)(false);
+        }
+      },
+    );
+  }, [
+    commentsSheetMaxHeight,
+    commentsSheetTranslate,
+    onCommentsSheetStateChange,
+  ]);
+  useEffect(() => {
+    if (isCommentsVisible) return;
+    cancelAnimation(commentsSheetTranslate);
+    commentsSheetTranslate.value = commentsSheetMaxHeight;
+  }, [commentsSheetMaxHeight, commentsSheetTranslate, isCommentsVisible]);
   const summarySheetDragStartY = useSharedValue(0);
   const summaryCanPullFromScroll = useSharedValue(1);
   const summarySheetHeightForMedia = Math.max(
@@ -1234,14 +1266,22 @@ function ProductReelPageComponent({
       summarySheetMaxHeight,
     ),
   );
+  const commentsSheetHeightForMedia = Math.max(
+    1,
+    Math.min(commentsSheetMaxHeight, Math.max(1, pageHeight - (topInset + 64))),
+  );
   const activeSheetMediaTranslate =
     isSearchSheetVisible && searchSheetMetrics
       ? searchSheetMetrics.translateY
-      : summarySheetTranslate;
+      : isCommentsVisible
+        ? commentsSheetTranslate
+        : summarySheetTranslate;
   const activeSheetBaseHeightForMedia =
     isSearchSheetVisible && searchSheetMetrics
       ? Math.max(1, searchSheetMetrics.height)
-      : summarySheetHeightForMedia;
+      : isCommentsVisible
+        ? commentsSheetHeightForMedia
+        : summarySheetHeightForMedia;
   const activeKeyboardHeightForMedia =
     isSearchSheetVisible && searchSheetMetrics
       ? searchSheetMetrics.keyboardHeight
@@ -1404,7 +1444,7 @@ function ProductReelPageComponent({
     [summarySheetTranslate],
   );
   const reelChromeStyle = useAnimatedStyle(() => {
-    if (isSearchSheetVisible) {
+    if (isSearchSheetVisible || isCommentsVisible) {
       return { opacity: 0 };
     }
 
@@ -1418,7 +1458,12 @@ function ProductReelPageComponent({
     return {
       opacity: interpolate(progress, [0, 0.35], [0, 1], Extrapolation.CLAMP),
     };
-  }, [cappedSheetHeightForMedia, isSearchSheetVisible, summarySheetTranslate]);
+  }, [
+    cappedSheetHeightForMedia,
+    isCommentsVisible,
+    isSearchSheetVisible,
+    summarySheetTranslate,
+  ]);
 
   const resetSummarySheetState = useCallback(() => {
     setSummaryExpanded(false);
@@ -1966,7 +2011,9 @@ function ProductReelPageComponent({
 
       <Reanimated.View
         pointerEvents={
-          isSummaryExpanded || isSearchSheetVisible ? "none" : "auto"
+          isSummaryExpanded || isSearchSheetVisible || isCommentsVisible
+            ? "none"
+            : "auto"
         }
         style={[
           s.topBar,
@@ -2013,7 +2060,9 @@ function ProductReelPageComponent({
       <>
         <Reanimated.View
           pointerEvents={
-            isSummaryExpanded || isSearchSheetVisible ? "none" : "auto"
+            isSummaryExpanded || isSearchSheetVisible || isCommentsVisible
+              ? "none"
+              : "auto"
           }
           style={[
             s.rightRail,
@@ -2108,7 +2157,9 @@ function ProductReelPageComponent({
 
         <Reanimated.View
           pointerEvents={
-            isSummaryExpanded || isSearchSheetVisible ? "none" : "auto"
+            isSummaryExpanded || isSearchSheetVisible || isCommentsVisible
+              ? "none"
+              : "auto"
           }
           style={[
             s.bottomInfo,
