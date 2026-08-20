@@ -217,7 +217,7 @@ describe("CommentSheet", () => {
     ).toHaveLength(2);
   });
 
-  it("flattens nested replies into one thread while preserving reply-to-reply loading", async () => {
+  it("loads every nested reply when a YouTube-style thread opens", async () => {
     const root = makeComment({ directReplyCount: 1 });
     const reply = makeComment({
       id: "reply-1",
@@ -253,16 +253,17 @@ describe("CommentSheet", () => {
     await act(async () => {
       renderer.root.findByProps({ accessibilityLabel: "답글 1개 보기" }).props.onPress();
       await Promise.resolve();
-    });
-
-    expect(JSON.stringify(renderer.toJSON())).toContain("첫 답글");
-    await act(async () => {
-      renderer.root.findByProps({ accessibilityLabel: "답글 1개 보기" }).props.onPress();
+      await Promise.resolve();
       await Promise.resolve();
     });
 
     const thread = renderer.root.findByProps({ accessibilityLabel: "댓글 답글 목록" });
-    expect(thread.findAll((node) => String(node.type) === "Text").some((node) => node.children.includes("답글에 다시 답글"))).toBe(true);
+    const textNodes = thread.findAll((node) => String(node.type) === "Text");
+    expect(textNodes.some((node) => node.children.includes("첫 답글"))).toBe(true);
+    expect(textNodes.some((node) => node.children.includes("답글에 다시 답글"))).toBe(true);
+    expect(thread.findAllByProps({ accessibilityLabel: "답글 1개 보기" })).toHaveLength(0);
+    expect(apiMocks.listCommentChildren).toHaveBeenCalledWith("deal-1", root.id, null);
+    expect(apiMocks.listCommentChildren).toHaveBeenCalledWith("deal-1", reply.id, null);
   });
 
   it("submits a reply with the selected comment as parent", async () => {
