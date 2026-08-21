@@ -26,6 +26,7 @@ import { borderRadius, spacing } from "../../design/tokens";
 import { BOTTOM_SHEET_ANIMATION_MS } from "../../design/bottomSheetMotion";
 import {
   fetchPreviousProductGroupBuys,
+  getPreviousProductHistoryQueryKey,
   type PreviousProductGroupBuy,
 } from "../../api";
 import type { GroupBuy } from "../../types";
@@ -54,12 +55,7 @@ export function PreviousProductHistorySheet({
   const sheetDragStartY = useSharedValue(0);
 
   const historyQuery = useQuery({
-    queryKey: [
-      "previous-product-history",
-      current.id,
-      current.brandName,
-      current.productName,
-    ],
+    queryKey: getPreviousProductHistoryQueryKey(current),
     queryFn: () => fetchPreviousProductGroupBuys(current),
     enabled: visible,
     staleTime: 60_000,

@@ -470,6 +470,17 @@ export type PreviousProductGroupBuy = {
   createdAt?: string;
 };
 
+export function getPreviousProductHistoryQueryKey(
+  current: Pick<GroupBuy, "id" | "brandName" | "productName">,
+) {
+  return [
+    "previous-product-history",
+    current.id,
+    current.brandName,
+    current.productName,
+  ] as const;
+}
+
 export function mapPreviousProductRows(rows: any[]): PreviousProductGroupBuy[] {
   return (rows ?? [])
     .filter((item) => item?.id)
