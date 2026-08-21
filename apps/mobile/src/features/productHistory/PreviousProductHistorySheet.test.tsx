@@ -6,6 +6,12 @@ import type { PreviousProductGroupBuy } from "../../api";
 
 const apiMocks = vi.hoisted(() => ({
   fetchPreviousProductGroupBuys: vi.fn(),
+  getPreviousProductHistoryQueryKey: vi.fn((current: any) => [
+    "previous-product-history",
+    current.id,
+    current.brandName,
+    current.productName,
+  ]),
 }));
 
 const queryResult = vi.hoisted(() => ({

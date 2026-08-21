@@ -38,6 +38,7 @@ const queryMock = vi.hoisted(() => ({
   linkedIsError: false,
   linkedIsFetching: false,
   linkedRefetch: vi.fn(),
+  previousProductHistory: [] as any[],
 }));
 const recentViewsMock = vi.hoisted(() => ({
   recordView: vi.fn(),
@@ -232,7 +233,15 @@ vi.mock("expo-audio", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey?: unknown[] }) =>
-    options.queryKey?.[0] === "group-buy"
+    options.queryKey?.[0] === "previous-product-history"
+      ? {
+          data: queryMock.previousProductHistory,
+          isLoading: false,
+          isError: false,
+          isFetching: false,
+          refetch: vi.fn(),
+        }
+      : options.queryKey?.[0] === "group-buy"
       ? {
           data: queryMock.linkedGroupBuy,
           isLoading: !queryMock.linkedGroupBuy && !queryMock.linkedIsError,
@@ -252,6 +261,13 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("../api", () => ({
   fetchGroupBuyById: vi.fn(),
   fetchGroupBuys: vi.fn(),
+  fetchPreviousProductGroupBuys: vi.fn(),
+  getPreviousProductHistoryQueryKey: vi.fn((current: any) => [
+    "previous-product-history",
+    current.id,
+    current.brandName,
+    current.productName,
+  ]),
   logDeepView: logDeepViewMock,
   refreshGroupBuyMedia: refreshGroupBuyMediaMock,
 }));
@@ -716,6 +732,7 @@ beforeEach(() => {
   queryMock.linkedIsError = false;
   queryMock.linkedIsFetching = false;
   queryMock.linkedRefetch.mockReset();
+  queryMock.previousProductHistory = [];
   adsMock.enabled = false;
   adsMock.isReady = false;
   adsMock.isSettled = true;
@@ -743,6 +760,58 @@ beforeEach(() => {
 describe("DetailScreen", () => {
   it("memoizes product pages to avoid parent bookkeeping rerenders", () => {
     expect((ProductReelPage as any).$$typeof).toBe(Symbol.for("react.memo"));
+  });
+
+  it("shows the previous review action in the right rail when history exists", () => {
+    queryMock.previousProductHistory = [{ id: "previous-1" }];
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const historyAction = renderer!.root.findByProps({
+      testID: "detail-previous-product-history-toggle",
+    });
+    expect(historyAction.props.accessibilityLabel).toBe("이전 공구 후기");
+    expect(flattenText(renderer!.toJSON())).toContain("이전 후기");
+  });
+
+  it("hides the previous review action when no previous history exists", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByProps({
+        testID: "detail-previous-product-history-toggle",
+      }),
+    ).toHaveLength(0);
+    expect(flattenText(renderer!.toJSON())).not.toContain("이전 후기");
   });
 
   it("shows the Instagram handle and a Korean category label on reel details", () => {

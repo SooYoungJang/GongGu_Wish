@@ -58,6 +58,8 @@ import Reanimated, {
 import {
   fetchGroupBuyById,
   fetchGroupBuys,
+  fetchPreviousProductGroupBuys,
+  getPreviousProductHistoryQueryKey,
   logDeepView,
   refreshGroupBuyMedia,
 } from "../api";
@@ -1007,6 +1009,7 @@ export type ProductReelPageProps = {
   onMutedChange?: (muted: boolean) => void;
   onPlaybackStateChange?: (itemId: string, isPlaying: boolean) => void;
   shouldPreloadAudio?: boolean;
+  hasPreviousProductHistory?: boolean;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
   // eslint-disable-next-line no-unused-vars
@@ -1035,6 +1038,7 @@ function ProductReelPageComponent({
   onMutedChange,
   onPlaybackStateChange,
   shouldPreloadAudio = false,
+  hasPreviousProductHistory = false,
   onSummarySheetStateChange,
   onCommentsSheetStateChange,
   s,
@@ -2245,6 +2249,22 @@ function ProductReelPageComponent({
             s={s}
             testID="detail-notification-toggle"
           />
+          {hasPreviousProductHistory ? (
+            <ReelAction
+              accessibilityLabel="이전 공구 후기"
+              icon={
+                <Ionicons
+                  color="#FFFFFF"
+                  name="time-outline"
+                  size={26}
+                />
+              }
+              label="이전 후기"
+              onPress={handlePreviousProductHistoryPress}
+              s={s}
+              testID="detail-previous-product-history-toggle"
+            />
+          ) : null}
           <ReelPurchaseAction onPress={handleOpenLink} s={s} />
         </Reanimated.View>
 
@@ -2332,30 +2352,6 @@ function ProductReelPageComponent({
               </View>
             ) : null}
           </View>
-          <Pressable
-            accessibilityLabel="이 상품의 이전 공구 후기 보기"
-            accessibilityRole="button"
-            onPress={handlePreviousProductHistoryPress}
-            style={({ pressed }) => [
-              s.previousProductHistoryLink,
-              pressed && s.pressed,
-            ]}
-            testID="detail-previous-product-history-toggle"
-          >
-            <Ionicons
-              color="rgba(255,255,255,0.84)"
-              name="time-outline"
-              size={15}
-            />
-            <SText variant="caption" style={s.previousProductHistoryText}>
-              이 상품의 이전 공구 후기
-            </SText>
-            <Ionicons
-              color="rgba(255,255,255,0.62)"
-              name="chevron-forward"
-              size={15}
-            />
-          </Pressable>
         </Reanimated.View>
       </>
 
@@ -2731,6 +2727,13 @@ function DetailScreenContent({
   const activeGroupBuy = isOnAdPage
     ? groupBuy
     : (reelItems[activeProductIndex] ?? groupBuy);
+  const previousProductHistoryQuery = useQuery({
+    queryKey: getPreviousProductHistoryQueryKey(activeGroupBuy),
+    queryFn: () => fetchPreviousProductGroupBuys(activeGroupBuy),
+    enabled: Boolean(activeGroupBuy.productName?.trim()),
+  });
+  const hasPreviousProductHistory =
+    (previousProductHistoryQuery.data?.length ?? 0) > 0;
   const hasCanonicalRouteGroupBuy = Boolean(
     groupBuys?.some((item) => item.id === groupBuy.id),
   );
@@ -2968,6 +2971,9 @@ function DetailScreenContent({
       <ProductReelPage
         key={item.id}
         groupBuy={item}
+        hasPreviousProductHistory={
+          index === activeProductIndex && !isOnAdPage && hasPreviousProductHistory
+        }
         isActive={
           isScreenFocused && index === activeProductIndex && !isOnAdPage
         }
@@ -2999,6 +3005,7 @@ function DetailScreenContent({
       handleCommentsSheetStateChange,
       handlePlaybackStateChange,
       handleBack,
+      hasPreviousProductHistory,
       insets.bottom,
       insets.top,
       isOnAdPage,
@@ -3713,26 +3720,6 @@ export function makeStyles(
       color: "#FFFFFF",
       fontSize: 11,
       fontWeight: "800",
-    },
-    previousProductHistoryLink: {
-      alignItems: "center",
-      alignSelf: "flex-start",
-      borderColor: "rgba(255,255,255,0.34)",
-      borderRadius: borderRadius.full,
-      borderWidth: 1,
-      flexDirection: "row",
-      gap: 4,
-      marginTop: spacing.sm,
-      minHeight: 34,
-      paddingHorizontal: spacing.sm,
-    },
-    previousProductHistoryText: {
-      color: "rgba(255,255,255,0.9)",
-      fontSize: 11,
-      fontWeight: "800",
-      textShadowColor: "rgba(0,0,0,0.45)",
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 4,
     },
     summaryOverlay: {
       ...StyleSheet.absoluteFillObject,
