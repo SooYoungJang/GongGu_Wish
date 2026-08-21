@@ -5,6 +5,7 @@ import {
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  type LayoutChangeEvent,
   Platform,
   Pressable,
   StyleSheet,
@@ -13,12 +14,22 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Reanimated, {
+  Easing,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  type SharedValue,
+} from "react-native-reanimated";
 
 import { useAuthGate } from "../../hooks/useAuthGate";
 import { useTheme } from "../../context/ThemeContext";
 import { borderRadius, spacing } from "../../design/tokens";
+import { BOTTOM_SHEET_ANIMATION_MS } from "../../design/bottomSheetMotion";
 import { SText } from "../../components/ui/SText";
 import type { ColorPalette } from "../../context/ThemeContext";
 import {
@@ -43,6 +54,10 @@ type CommentSheetProps = {
   groupBuyId: string;
   visible: boolean;
   onClose: () => void;
+  maxHeight?: number;
+  sheetTranslate?: SharedValue<number>;
+  // eslint-disable-next-line no-unused-vars
+  onSheetLayout?: (event: LayoutChangeEvent) => void;
 };
 
 interface RenderCommentChildren {
@@ -178,10 +193,21 @@ function CommentItem({
   );
 }
 
-export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps) {
+export function CommentSheet({
+  groupBuyId,
+  visible,
+  onClose,
+  maxHeight,
+  sheetTranslate,
+  onSheetLayout,
+}: CommentSheetProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { isAuthenticated, requireAuth } = useAuthGate();
+  const resolvedMaxHeight = Math.max(1, maxHeight ?? 1);
+  const fallbackSheetTranslate = useSharedValue(resolvedMaxHeight);
+  const activeSheetTranslate = sheetTranslate ?? fallbackSheetTranslate;
+  const sheetDragStartY = useSharedValue(0);
   const [sort, setSort] = useState<CommentSort>("latest");
   const [body, setBody] = useState("");
   const [replyTarget, setReplyTarget] = useState<CommentView | null>(null);
@@ -500,6 +526,50 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
     [additionalRoots, rootsQuery.data?.items],
   );
 
+  const sheetStyle = useAnimatedStyle(
+    () => ({
+      transform: [{ translateY: activeSheetTranslate.value }],
+    }),
+    [activeSheetTranslate],
+  );
+
+  const dismissGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(6)
+        .failOffsetX([-24, 24])
+        .onBegin(() => {
+          sheetDragStartY.value = activeSheetTranslate.value;
+        })
+        .onUpdate((event) => {
+          const next = sheetDragStartY.value + event.translationY;
+          activeSheetTranslate.value = Math.min(
+            Math.max(next, 0),
+            resolvedMaxHeight,
+          );
+        })
+        .onEnd((event) => {
+          const draggedDown = event.translationY > 12;
+          const pastThreshold =
+            event.translationY > Math.max(72, resolvedMaxHeight * 0.28);
+          const flickedDown = event.velocityY > 650;
+          if (draggedDown && (pastThreshold || flickedDown)) {
+            runOnJS(onClose)();
+            return;
+          }
+          activeSheetTranslate.value = withTiming(0, {
+            duration: BOTTOM_SHEET_ANIMATION_MS,
+            easing: Easing.out(Easing.cubic),
+          });
+        }),
+    [
+      activeSheetTranslate,
+      onClose,
+      resolvedMaxHeight,
+      sheetDragStartY,
+    ],
+  );
+
   if (!visible) return null;
 
   return (
@@ -509,35 +579,44 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
         style={styles.modalRoot}
       >
         <Pressable accessibilityLabel="댓글 닫기" accessibilityRole="button" onPress={onClose} style={styles.backdrop} />
-        <View style={[styles.sheet, { backgroundColor: colors.bg }]}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <View style={styles.headerTitleRow}>
-              {activeThreadRoot ? (
-                <Pressable
-                  accessibilityLabel="댓글 스레드 닫기"
-                  accessibilityRole="button"
-                  onPress={closeThread}
-                  style={styles.backButton}
-                >
-                  <Ionicons name="arrow-back" size={23} color={colors.textPrimary} />
-                </Pressable>
-              ) : null}
-              <View>
-                <SText variant="cardTitle" style={{ color: colors.textPrimary }}>
-                  {activeThreadRoot ? "답글" : "댓글"}
-                </SText>
-                {!activeThreadRoot ? (
-                  <SText variant="caption" style={{ color: colors.textTertiary }}>
-                    상품에 대한 의견을 나눠보세요.
-                  </SText>
+        <GestureDetector gesture={dismissGesture}>
+          <Reanimated.View
+            onLayout={onSheetLayout}
+            style={[
+              styles.sheet,
+              maxHeight ? { maxHeight } : null,
+              { backgroundColor: colors.bg },
+              sheetStyle,
+            ]}
+          >
+            <View style={styles.handle} />
+            <View style={styles.header}>
+              <View style={styles.headerTitleRow}>
+                {activeThreadRoot ? (
+                  <Pressable
+                    accessibilityLabel="댓글 스레드 닫기"
+                    accessibilityRole="button"
+                    onPress={closeThread}
+                    style={styles.backButton}
+                  >
+                    <Ionicons name="arrow-back" size={23} color={colors.textPrimary} />
+                  </Pressable>
                 ) : null}
+                <View>
+                  <SText variant="cardTitle" style={{ color: colors.textPrimary }}>
+                    {activeThreadRoot ? "답글" : "댓글"}
+                  </SText>
+                  {!activeThreadRoot ? (
+                    <SText variant="caption" style={{ color: colors.textTertiary }}>
+                      상품에 대한 의견을 나눠보세요.
+                    </SText>
+                  ) : null}
+                </View>
               </View>
+              <Pressable accessibilityLabel="댓글 창 닫기" accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </Pressable>
             </View>
-            <Pressable accessibilityLabel="댓글 창 닫기" accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={colors.textPrimary} />
-            </Pressable>
-          </View>
           {!activeThreadRoot ? (
             <View style={styles.sortTabs}>
               {(["latest", "popular"] as const).map((value) => (
@@ -663,8 +742,9 @@ export function CommentSheet({ groupBuyId, visible, onClose }: CommentSheetProps
             >
               <SText variant="label" style={{ color: colors.primary }}>로그인하고 댓글 쓰기</SText>
             </Pressable>
-          )}
-        </View>
+            )}
+          </Reanimated.View>
+        </GestureDetector>
       </KeyboardAvoidingView>
     </View>
   );
