@@ -98,6 +98,7 @@ import { normalizeForSearch } from "../utils/search";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useAuthGate } from "../hooks/useAuthGate";
 import { CommentSheet } from "../features/comments/CommentSheet";
+import { PreviousProductHistorySheet } from "../features/productHistory/PreviousProductHistorySheet";
 import { useFocusedAndroidBackHandler } from "../navigation/androidBack";
 import { buildGroupBuyShareUrl } from "../services/notificationPayload";
 import {
@@ -123,6 +124,8 @@ const SUMMARY_SHEET_MAX_HEIGHT_RATIO = 0.58;
 const SEARCH_SHEET_MAX_HEIGHT_RATIO = 0.7;
 const COMMENT_SHEET_MAX_HEIGHT_RATIO = 0.86;
 const COMMENT_SHEET_MIN_HEIGHT = 420;
+const PREVIOUS_PRODUCT_HISTORY_MAX_HEIGHT_RATIO = 0.72;
+const PREVIOUS_PRODUCT_HISTORY_MIN_HEIGHT = 320;
 // When the summary sheet is open the media stage shrinks to a centered card
 // with this much inset on each side.
 const MEDIA_STAGE_SIDE_INSET = 48;
@@ -1039,6 +1042,9 @@ function ProductReelPageComponent({
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
   const [isCommentsVisible, setCommentsVisible] = useState(false);
+  const [isPreviousProductHistoryVisible, setPreviousProductHistoryVisible] =
+    useState(false);
+  const [commentGroupBuyId, setCommentGroupBuyId] = useState(groupBuy.id);
   const [shouldPlayMedia, setShouldPlayMedia] = useState(true);
   const [localMuted, setLocalMuted] = useState(muted ?? false);
   const [resolvedPostAudio, setResolvedPostAudio] = useState(() => ({
@@ -1228,20 +1234,49 @@ function ProductReelPageComponent({
     },
     [commentsSheetMaxHeight],
   );
+  const openCommentsForGroupBuy = useCallback(
+    (targetGroupBuyId: string) => {
+      cancelAnimation(commentsSheetTranslate);
+      commentsSheetTranslate.value = commentsSheetMaxHeight;
+      commentsSheetTranslate.value = withTiming(0, {
+        duration: BOTTOM_SHEET_ANIMATION_MS,
+        easing: Easing.out(Easing.cubic),
+      });
+      setCommentsVisible(true);
+      onCommentsSheetStateChange?.(true);
+      setCommentGroupBuyId(targetGroupBuyId);
+    },
+    [
+      commentsSheetMaxHeight,
+      commentsSheetTranslate,
+      onCommentsSheetStateChange,
+    ],
+  );
   const handleCommentsPress = useCallback(() => {
-    cancelAnimation(commentsSheetTranslate);
-    commentsSheetTranslate.value = commentsSheetMaxHeight;
-    commentsSheetTranslate.value = withTiming(0, {
-      duration: BOTTOM_SHEET_ANIMATION_MS,
-      easing: Easing.out(Easing.cubic),
-    });
-    setCommentsVisible(true);
+    openCommentsForGroupBuy(groupBuy.id);
+  }, [groupBuy.id, openCommentsForGroupBuy]);
+  const previousProductHistoryMaxHeight = Math.max(
+    PREVIOUS_PRODUCT_HISTORY_MIN_HEIGHT,
+    Math.min(
+      pageHeight - topInset - spacing.xl,
+      pageHeight * PREVIOUS_PRODUCT_HISTORY_MAX_HEIGHT_RATIO,
+    ),
+  );
+  const handlePreviousProductHistoryPress = useCallback(() => {
+    setPreviousProductHistoryVisible(true);
     onCommentsSheetStateChange?.(true);
-  }, [
-    commentsSheetMaxHeight,
-    commentsSheetTranslate,
-    onCommentsSheetStateChange,
-  ]);
+  }, [onCommentsSheetStateChange]);
+  const handlePreviousProductHistoryClose = useCallback(() => {
+    setPreviousProductHistoryVisible(false);
+    onCommentsSheetStateChange?.(false);
+  }, [onCommentsSheetStateChange]);
+  const handlePreviousProductCommentsOpen = useCallback(
+    (targetGroupBuyId: string) => {
+      handlePreviousProductHistoryClose();
+      openCommentsForGroupBuy(targetGroupBuyId);
+    },
+    [handlePreviousProductHistoryClose, openCommentsForGroupBuy],
+  );
   const summarySheetMaxHeight = Math.max(
     280,
     Math.min(
@@ -1467,7 +1502,11 @@ function ProductReelPageComponent({
     [summarySheetTranslate],
   );
   const reelChromeStyle = useAnimatedStyle(() => {
-    if (isSearchSheetVisible || isCommentsVisible) {
+    if (
+      isSearchSheetVisible ||
+      isCommentsVisible ||
+      isPreviousProductHistoryVisible
+    ) {
       return { opacity: 0 };
     }
 
@@ -1484,6 +1523,7 @@ function ProductReelPageComponent({
   }, [
     cappedSheetHeightForMedia,
     isCommentsVisible,
+    isPreviousProductHistoryVisible,
     isSearchSheetVisible,
     summarySheetTranslate,
   ]);
@@ -1594,9 +1634,20 @@ function ProductReelPageComponent({
     resetSummarySheetState,
   ]);
 
+  useEffect(() => {
+    if (!isActive && isPreviousProductHistoryVisible) {
+      setPreviousProductHistoryVisible(false);
+      onCommentsSheetStateChange?.(false);
+    }
+  }, [isActive, isPreviousProductHistoryVisible, onCommentsSheetStateChange]);
+
   // Focused custom overlays consume Back first; returning false delegates the
   // next press to the native stack so Detail itself can pop normally.
   const handleAndroidBack = useCallback(() => {
+    if (isPreviousProductHistoryVisible) {
+      handlePreviousProductHistoryClose();
+      return true;
+    }
     if (isCommentsVisible) {
       handleCommentsClose();
       return true;
@@ -1612,7 +1663,9 @@ function ProductReelPageComponent({
     return false;
   }, [
     handleCommentsClose,
+    handlePreviousProductHistoryClose,
     isCommentsVisible,
+    isPreviousProductHistoryVisible,
     isSearchSheetVisible,
     isSummaryVisible,
     onCloseSearchSheet,
@@ -1622,9 +1675,20 @@ function ProductReelPageComponent({
 
   useEffect(() => {
     setActiveMediaIndex(0);
+    setCommentGroupBuyId(groupBuy.id);
+    if (isPreviousProductHistoryVisible) {
+      setPreviousProductHistoryVisible(false);
+      onCommentsSheetStateChange?.(false);
+    }
     resetSummarySheetState();
     onSummarySheetStateChange(false, true);
-  }, [groupBuy.id, onSummarySheetStateChange, resetSummarySheetState]);
+  }, [
+    groupBuy.id,
+    isPreviousProductHistoryVisible,
+    onCommentsSheetStateChange,
+    onSummarySheetStateChange,
+    resetSummarySheetState,
+  ]);
 
   const canSwipeReelFromSummaryOffset = useCallback(
     (
@@ -2034,7 +2098,10 @@ function ProductReelPageComponent({
 
       <Reanimated.View
         pointerEvents={
-          isSummaryExpanded || isSearchSheetVisible || isCommentsVisible
+          isSummaryExpanded ||
+          isSearchSheetVisible ||
+          isCommentsVisible ||
+          isPreviousProductHistoryVisible
             ? "none"
             : "auto"
         }
@@ -2083,7 +2150,10 @@ function ProductReelPageComponent({
       <>
         <Reanimated.View
           pointerEvents={
-            isSummaryExpanded || isSearchSheetVisible || isCommentsVisible
+            isSummaryExpanded ||
+            isSearchSheetVisible ||
+            isCommentsVisible ||
+            isPreviousProductHistoryVisible
               ? "none"
               : "auto"
           }
@@ -2180,7 +2250,10 @@ function ProductReelPageComponent({
 
         <Reanimated.View
           pointerEvents={
-            isSummaryExpanded || isSearchSheetVisible || isCommentsVisible
+            isSummaryExpanded ||
+            isSearchSheetVisible ||
+            isCommentsVisible ||
+            isPreviousProductHistoryVisible
               ? "none"
               : "auto"
           }
@@ -2259,6 +2332,30 @@ function ProductReelPageComponent({
               </View>
             ) : null}
           </View>
+          <Pressable
+            accessibilityLabel="이 상품의 이전 공구 후기 보기"
+            accessibilityRole="button"
+            onPress={handlePreviousProductHistoryPress}
+            style={({ pressed }) => [
+              s.previousProductHistoryLink,
+              pressed && s.pressed,
+            ]}
+            testID="detail-previous-product-history-toggle"
+          >
+            <Ionicons
+              color="rgba(255,255,255,0.84)"
+              name="time-outline"
+              size={15}
+            />
+            <SText variant="caption" style={s.previousProductHistoryText}>
+              이 상품의 이전 공구 후기
+            </SText>
+            <Ionicons
+              color="rgba(255,255,255,0.62)"
+              name="chevron-forward"
+              size={15}
+            />
+          </Pressable>
         </Reanimated.View>
       </>
 
@@ -2388,8 +2485,19 @@ function ProductReelPageComponent({
           </Reanimated.View>
         </View>
       ) : null}
+      <PreviousProductHistorySheet
+        current={{
+          id: groupBuy.id,
+          brandName: groupBuy.brandName,
+          productName: groupBuy.productName,
+        }}
+        maxHeight={previousProductHistoryMaxHeight}
+        onClose={handlePreviousProductHistoryClose}
+        onOpenComments={handlePreviousProductCommentsOpen}
+        visible={isPreviousProductHistoryVisible}
+      />
       <CommentSheet
-        groupBuyId={groupBuy.id}
+        groupBuyId={commentGroupBuyId}
         maxHeight={commentsSheetMaxHeight}
         onClose={handleCommentsClose}
         onSheetLayout={handleCommentsSheetLayout}
@@ -3605,6 +3713,26 @@ export function makeStyles(
       color: "#FFFFFF",
       fontSize: 11,
       fontWeight: "800",
+    },
+    previousProductHistoryLink: {
+      alignItems: "center",
+      alignSelf: "flex-start",
+      borderColor: "rgba(255,255,255,0.34)",
+      borderRadius: borderRadius.full,
+      borderWidth: 1,
+      flexDirection: "row",
+      gap: 4,
+      marginTop: spacing.sm,
+      minHeight: 34,
+      paddingHorizontal: spacing.sm,
+    },
+    previousProductHistoryText: {
+      color: "rgba(255,255,255,0.9)",
+      fontSize: 11,
+      fontWeight: "800",
+      textShadowColor: "rgba(0,0,0,0.45)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 4,
     },
     summaryOverlay: {
       ...StyleSheet.absoluteFillObject,
