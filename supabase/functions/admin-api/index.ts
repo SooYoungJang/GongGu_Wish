@@ -37,6 +37,11 @@ import {
   mapAdminGroupBuyRequestList,
   type AdminGroupBuyRequestStatus,
 } from "./groupBuyRequestContract.ts";
+import {
+  buildGroupBuyFilterExpression,
+  getGroupBuyStatusFilter,
+  koreaCalendarDate,
+} from "./groupBuyVisibility.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
 import {
   hasInstagramOwnerChanged,
@@ -686,6 +691,10 @@ async function listGroupBuys(
   const q = sanitizeSearch(str(params?.q));
   const sourceType = str(params?.sourceType);
   const reviewStatus = collectionReviewFilter(params?.collectionReviewStatus);
+  const statusFilter = getGroupBuyStatusFilter(
+    status,
+    koreaCalendarDate(new Date()) ?? new Date().toISOString().slice(0, 10),
+  );
 
   let query = supabase
     .from("group_buys")
@@ -693,12 +702,35 @@ async function listGroupBuys(
     .order("created_at", { ascending: false })
     .range(start, start + limit - 1);
 
-  if (status && status !== "ALL") query = query.eq("status", status);
+  if (statusFilter.kind === "visible") {
+    query = query
+      .eq("status", statusFilter.status)
+      .or(
+        buildGroupBuyFilterExpression(
+          [`end_date.gte.${statusFilter.endDate.value}`, "end_date.is.null"],
+          q,
+        ),
+      );
+  } else if (statusFilter.kind === "expired") {
+    query = query.or(
+      buildGroupBuyFilterExpression(
+        [
+          `status.eq.${statusFilter.explicitStatus}`,
+          `and(status.eq.${statusFilter.approvedStatus},end_date.lt.${statusFilter.endDate.value})`,
+        ],
+        q,
+      ),
+    );
+  } else if (statusFilter.kind === "status") {
+    query = query.eq("status", statusFilter.value);
+  }
   if (sourceType) query = query.eq("source_type", sourceType);
   if (reviewStatus) {
     query = query.eq("collection_review_status", reviewStatus);
   }
-  if (q) query = query.or(`product_name.ilike.%${q}%,brand_name.ilike.%${q}%`);
+  if (q && statusFilter.kind !== "visible" && statusFilter.kind !== "expired") {
+    query = query.or(`product_name.ilike.%${q}%,brand_name.ilike.%${q}%`);
+  }
 
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
