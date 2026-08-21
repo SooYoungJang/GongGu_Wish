@@ -38,6 +38,7 @@ const queryMock = vi.hoisted(() => ({
   linkedIsError: false,
   linkedIsFetching: false,
   linkedRefetch: vi.fn(),
+  ownSubmissionIds: [] as string[],
   previousProductHistory: [] as any[],
 }));
 const recentViewsMock = vi.hoisted(() => ({
@@ -51,6 +52,9 @@ const localDealActionMocks = vi.hoisted(() => ({
 const authGateMock = vi.hoisted(() => ({
   isAuthenticated: true,
   requireAuth: vi.fn(() => true),
+}));
+const authContextMock = vi.hoisted(() => ({
+  user: null as { id: string } | null,
 }));
 const reminderPickerMock = vi.hoisted(() => ({
   openReminderPicker: vi.fn(),
@@ -103,6 +107,9 @@ vi.mock("../hooks/useLocalDeals", () => ({
 }));
 vi.mock("../hooks/useAuthGate", () => ({
   useAuthGate: () => authGateMock,
+}));
+vi.mock("../context/AuthContext", () => ({
+  useAuth: () => authContextMock,
 }));
 vi.mock("../features/comments/CommentSheet", () => {
   const ReactMock = require("react");
@@ -233,7 +240,15 @@ vi.mock("expo-audio", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey?: unknown[] }) =>
-    options.queryKey?.[0] === "previous-product-history"
+    options.queryKey?.[0] === "own-submission-ids"
+      ? {
+          data: queryMock.ownSubmissionIds,
+          isLoading: false,
+          isError: false,
+          isFetching: false,
+          refetch: vi.fn(),
+        }
+      : options.queryKey?.[0] === "previous-product-history"
       ? {
           data: queryMock.previousProductHistory,
           isLoading: false,
@@ -261,6 +276,7 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("../api", () => ({
   fetchGroupBuyById: vi.fn(),
   fetchGroupBuys: vi.fn(),
+  fetchOwnSubmissionIds: vi.fn(),
   fetchPreviousProductGroupBuys: vi.fn(),
   getPreviousProductHistoryQueryKey: vi.fn((current: any) => [
     "previous-product-history",
@@ -732,6 +748,7 @@ beforeEach(() => {
   queryMock.linkedIsError = false;
   queryMock.linkedIsFetching = false;
   queryMock.linkedRefetch.mockReset();
+  queryMock.ownSubmissionIds = [];
   queryMock.previousProductHistory = [];
   adsMock.enabled = false;
   adsMock.isReady = false;
@@ -746,6 +763,7 @@ beforeEach(() => {
   localDealActionMocks.toggleNotification.mockReset();
   authGateMock.isAuthenticated = true;
   authGateMock.requireAuth.mockReset().mockReturnValue(true);
+  authContextMock.user = null;
   reminderPickerMock.openReminderPicker.mockReset();
   flashListMock.scrollToOffset.mockClear();
   pagerViewMock.setPage.mockClear();
@@ -812,6 +830,62 @@ describe("DetailScreen", () => {
       }),
     ).toHaveLength(0);
     expect(flattenText(renderer!.toJSON())).not.toContain("이전 후기");
+  });
+
+  it("hides the comment action for the current user's own group buy", () => {
+    const ownedGroupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      submissionId: "submission-owned",
+    };
+    authContextMock.user = { id: "user-1" };
+    queryMock.groupBuys = [ownedGroupBuy];
+    queryMock.ownSubmissionIds = ["submission-owned"];
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: ownedGroupBuy },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByProps({ testID: "detail-comments-toggle" }),
+    ).toHaveLength(0);
+  });
+
+  it("keeps the comment action for another user's group buy", () => {
+    authContextMock.user = { id: "user-1" };
+    queryMock.groupBuys = [baseGroupBuy];
+    queryMock.ownSubmissionIds = ["submission-other"];
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByProps({ testID: "detail-comments-toggle" }),
+    ).not.toHaveLength(0);
   });
 
   it("shows the Instagram handle and a Korean category label on reel details", () => {
