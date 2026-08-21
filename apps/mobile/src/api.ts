@@ -51,7 +51,11 @@ import {
 } from "./lib/postgrest-client";
 import { ApiError, type ApiValidationError } from "./lib/api-types";
 import { normalizePriceKrw } from "./utils/price";
-import { filterActiveGroupBuys } from "./utils/groupBuyDates";
+import {
+  filterActiveGroupBuys,
+  isGroupBuyExpired,
+} from "./utils/groupBuyDates";
+import { isSameProduct, normalizeProductPart } from "./utils/productHistory";
 import { canRecordBehaviorSignals } from "./audience/behaviorSignalsPolicy";
 import {
   capturePopularitySignalGeneration,
@@ -92,6 +96,8 @@ export const API_BASE_URL = Platform.select({
 const PUBLIC_GROUP_BUY_SELECT =
   "*,influencer_id(*),raw_post_id(*,influencer_id(*))";
 const LEGACY_PUBLIC_GROUP_BUY_SELECT = "*,raw_post_id(*,influencer_id(*))";
+const PUBLIC_PRODUCT_HISTORY_SELECT =
+  "id,product_name,brand_name,start_date,end_date,summary,discount_info,thumbnail_url,status,created_at";
 const OPTIONAL_INFLUENCER_RELATION_ERROR_CODES = new Set([
   "PGRST200",
   "PGRST201",
@@ -450,6 +456,61 @@ export async function fetchGroupBuyById(id: string): Promise<GroupBuy> {
     throw new ApiError(404, "Group buy not found");
   }
   return groupBuy;
+}
+
+export type PreviousProductGroupBuy = {
+  id: string;
+  productName: string | null;
+  brandName: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  summary: string | null;
+  thumbnailUrl: string | null;
+  status: "APPROVED" | "EXPIRED";
+  createdAt?: string;
+};
+
+export function mapPreviousProductRows(rows: any[]): PreviousProductGroupBuy[] {
+  return (rows ?? [])
+    .filter((item) => item?.id)
+    .map((item) => ({
+      id: String(item.id),
+      productName: item.productName ?? item.product_name ?? null,
+      brandName: item.brandName ?? item.brand_name ?? null,
+      startDate: item.startDate ?? item.start_date ?? null,
+      endDate: item.endDate ?? item.end_date ?? null,
+      summary: item.summary ?? item.discountInfo ?? item.discount_info ?? null,
+      thumbnailUrl: item.thumbnailUrl ?? item.thumbnail_url ?? null,
+      status:
+        String(item.status ?? "APPROVED").toUpperCase() === "EXPIRED"
+          ? "EXPIRED"
+          : "APPROVED",
+      createdAt: item.createdAt ?? item.created_at ?? undefined,
+    }));
+}
+
+export async function fetchPreviousProductGroupBuys(
+  current: Pick<GroupBuy, "id" | "brandName" | "productName">,
+): Promise<PreviousProductGroupBuy[]> {
+  if (!normalizeProductPart(current.productName)) return [];
+
+  const { data } = await postgrestGet<any[]>(
+    `group_buys?select=${PUBLIC_PRODUCT_HISTORY_SELECT}&status=in.(APPROVED,EXPIRED)&order=created_at.desc&limit=200`,
+  );
+  const rows = data ?? [];
+  const rawStatusById = new Map(
+    rows
+      .filter((row) => row?.id)
+      .map((row) => [String(row.id), String(row.status ?? "").toUpperCase()]),
+  );
+
+  return mapPreviousProductRows(rows).filter((item) => {
+    if (item.id === current.id || !isSameProduct(current, item)) return false;
+    return (
+      rawStatusById.get(item.id) === "EXPIRED" ||
+      isGroupBuyExpired({ endDate: item.endDate })
+    );
+  });
 }
 
 /**
