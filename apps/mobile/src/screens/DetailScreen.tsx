@@ -1159,6 +1159,8 @@ function ProductReelPageComponent({
   const [isSummaryVisible, setSummaryVisible] = useState(false);
   const [summarySheetMeasuredHeight, setSummarySheetMeasuredHeight] =
     useState(0);
+  const [commentsSheetMeasuredHeight, setCommentsSheetMeasuredHeight] =
+    useState(0);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
 
   useEffect(() => {
@@ -1214,15 +1216,32 @@ function ProductReelPageComponent({
     ),
   );
   const commentsSheetTranslate = useSharedValue(commentsSheetMaxHeight);
+  const handleCommentsSheetLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const nextHeight = Math.min(
+        event.nativeEvent.layout.height,
+        commentsSheetMaxHeight,
+      );
+      setCommentsSheetMeasuredHeight((current) =>
+        Math.abs(current - nextHeight) < 1 ? current : nextHeight,
+      );
+    },
+    [commentsSheetMaxHeight],
+  );
   const handleCommentsPress = useCallback(() => {
     cancelAnimation(commentsSheetTranslate);
+    commentsSheetTranslate.value = commentsSheetMaxHeight;
     commentsSheetTranslate.value = withTiming(0, {
       duration: BOTTOM_SHEET_ANIMATION_MS,
       easing: Easing.out(Easing.cubic),
     });
     setCommentsVisible(true);
     onCommentsSheetStateChange?.(true);
-  }, [commentsSheetTranslate, onCommentsSheetStateChange]);
+  }, [
+    commentsSheetMaxHeight,
+    commentsSheetTranslate,
+    onCommentsSheetStateChange,
+  ]);
   const summarySheetMaxHeight = Math.max(
     280,
     Math.min(
@@ -1232,6 +1251,7 @@ function ProductReelPageComponent({
   );
   const summarySheetTranslate = useSharedValue(summarySheetMaxHeight);
   const handleCommentsClose = useCallback(() => {
+    Keyboard.dismiss();
     cancelAnimation(commentsSheetTranslate);
     commentsSheetTranslate.value = withTiming(
       commentsSheetMaxHeight,
@@ -1268,7 +1288,10 @@ function ProductReelPageComponent({
   );
   const commentsSheetHeightForMedia = Math.max(
     1,
-    Math.min(commentsSheetMaxHeight, Math.max(1, pageHeight - (topInset + 64))),
+    Math.min(
+      commentsSheetMeasuredHeight || commentsSheetMaxHeight,
+      Math.max(1, pageHeight - (topInset + 64)),
+    ),
   );
   const activeSheetMediaTranslate =
     isSearchSheetVisible && searchSheetMetrics
@@ -2367,7 +2390,10 @@ function ProductReelPageComponent({
       ) : null}
       <CommentSheet
         groupBuyId={groupBuy.id}
+        maxHeight={commentsSheetMaxHeight}
         onClose={handleCommentsClose}
+        onSheetLayout={handleCommentsSheetLayout}
+        sheetTranslate={commentsSheetTranslate}
         visible={isCommentsVisible}
       />
     </View>

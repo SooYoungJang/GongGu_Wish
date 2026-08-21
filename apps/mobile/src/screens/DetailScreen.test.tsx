@@ -2089,6 +2089,9 @@ describe("DetailScreen", () => {
       (node) => String(node.type) === "CommentSheet",
     );
     expect(commentSheet.props.visible).toBe(true);
+    expect(commentSheet.props.maxHeight).toBeGreaterThan(0);
+    expect(commentSheet.props.sheetTranslate).toBeDefined();
+    expect(commentSheet.props.onSheetLayout).toEqual(expect.any(Function));
     expect(findPressables("상품 검색")).toHaveLength(0);
 
     act(() => {
