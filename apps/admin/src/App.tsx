@@ -25,6 +25,7 @@ import {
   parsePriceKrwInput,
 } from "@/lib/priceKrw";
 import {
+  getGroupBuyListStatus,
   getGroupBuyVisibility,
   groupBuyStatusForVisibility,
   shouldReturnToGroupBuyList,
@@ -526,6 +527,15 @@ function groupBuyCollectionReviewStatus(
   if (item.status === "REVIEW_REQUIRED") return "PENDING";
   if (item.status === "REJECTED") return "REJECTED";
   return "APPROVED";
+}
+
+function groupBuyStatusBadgeProps(
+  item: GroupBuy,
+  automaticCollection: boolean,
+) {
+  return automaticCollection
+    ? { status: groupBuyCollectionReviewStatus(item) }
+    : getGroupBuyListStatus(item.status, item.endDate);
 }
 
 function automaticCollectionFormSnapshot(
@@ -3556,11 +3566,10 @@ function GroupBuyPanel(props: {
                     </td>
                     <td>
                       <StatusBadge
-                        status={
-                          props.automaticCollection
-                            ? groupBuyCollectionReviewStatus(item)
-                            : item.status
-                        }
+                        {...groupBuyStatusBadgeProps(
+                          item,
+                          props.automaticCollection,
+                        )}
                       />
                     </td>
                   </tr>
@@ -3808,11 +3817,7 @@ function MobileGroupBuyCards({
               {item.category ?? "미지정"}
             </span>
             <StatusBadge
-              status={
-                automaticCollection
-                  ? groupBuyCollectionReviewStatus(item)
-                  : item.status
-              }
+              {...groupBuyStatusBadgeProps(item, automaticCollection)}
             />
           </div>
           <strong>{item.productName || "상품명 없음"}</strong>
@@ -4833,10 +4838,16 @@ function CheckboxField({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  label,
+  status,
+}: {
+  label?: string;
+  status: string;
+}) {
   return (
     <span className={`status-badge status-badge--${status.toLowerCase()}`}>
-      {statusLabel(status)}
+      {label ?? statusLabel(status)}
     </span>
   );
 }
