@@ -131,7 +131,7 @@ export function PreviousProductHistorySheet({
     ({ item }: { item: PreviousProductGroupBuy }) => {
       return (
         <Pressable
-          accessibilityLabel={`${formatDateRange(item.startDate, item.endDate)} 이전 공구 후기 보기`}
+          accessibilityLabel={`${formatDateRange(item.startDate, item.endDate)} 이전 공구 댓글 보기`}
           accessibilityRole="button"
           onPress={() => onOpenComments(item.id)}
           style={({ pressed }) => [
@@ -191,7 +191,7 @@ export function PreviousProductHistorySheet({
                 style={[styles.previewText, { color: colors.textSecondary }]}
                 variant="caption"
               >
-                후기 보러가기
+                댓글 보러가기
               </SText>
             </View>
           </View>
@@ -212,7 +212,7 @@ export function PreviousProductHistorySheet({
     <View style={styles.modalLayer} testID="previous-product-history-sheet">
       <View style={styles.modalRoot}>
         <Pressable
-          accessibilityLabel="이 상품의 이전 공구 창 닫기"
+          accessibilityLabel="이 상품의 이전 댓글 창 닫기"
           accessibilityRole="button"
           onPress={closeSheet}
           style={styles.backdrop}
@@ -233,17 +233,17 @@ export function PreviousProductHistorySheet({
                     variant="cardTitle"
                     style={{ color: colors.textPrimary }}
                   >
-                    이 상품의 이전 공구
+                    이 상품의 이전 댓글
                   </SText>
                   <SText
                     variant="caption"
                     style={{ color: colors.textTertiary }}
                   >
-                    동일 상품으로 진행된 이전 공구의 후기를 확인해 보세요.
+                    동일 상품으로 진행된 이전 공구의 댓글을 확인해 보세요.
                   </SText>
                 </View>
                 <Pressable
-                  accessibilityLabel="이 상품의 이전 공구 창 닫기"
+                  accessibilityLabel="이 상품의 이전 댓글 창 닫기"
                   accessibilityRole="button"
                   onPress={closeSheet}
                   style={styles.closeButton}
@@ -259,7 +259,7 @@ export function PreviousProductHistorySheet({
           ) : historyQuery.isError ? (
             <View style={styles.emptyState}>
               <SText variant="body" style={{ color: colors.textSecondary }}>
-                이전 공구 기록을 불러오지 못했어요.
+                이전 공구 댓글을 불러오지 못했어요.
               </SText>
               <Pressable
                 accessibilityRole="button"
@@ -287,7 +287,7 @@ export function PreviousProductHistorySheet({
                     size={28}
                   />
                   <SText variant="body" style={{ color: colors.textSecondary }}>
-                    아직 이전 공구 기록이 없어요.
+                    아직 이전 공구 댓글이 없어요.
                   </SText>
                 </View>
               }

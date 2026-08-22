@@ -762,7 +762,7 @@ describe("DetailScreen", () => {
     expect((ProductReelPage as any).$$typeof).toBe(Symbol.for("react.memo"));
   });
 
-  it("shows the previous review action in the right rail when history exists", () => {
+  it("shows the previous comment action in the right rail when history exists", () => {
     queryMock.previousProductHistory = [{ id: "previous-1" }];
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -784,11 +784,42 @@ describe("DetailScreen", () => {
     const historyAction = renderer!.root.findByProps({
       testID: "detail-previous-product-history-toggle",
     });
-    expect(historyAction.props.accessibilityLabel).toBe("이전 공구 후기");
-    expect(flattenText(renderer!.toJSON())).toContain("이전 후기");
+    expect(historyAction.props.accessibilityLabel).toBe("이전 댓글");
+    expect(flattenText(renderer!.toJSON())).toContain("이전 댓글");
   });
 
-  it("hides the previous review action when no previous history exists", () => {
+  it("opens the previous product history sheet when the action is pressed", async () => {
+    queryMock.previousProductHistory = [{ id: "previous-1" }];
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      renderer!.root
+        .findByProps({ testID: "detail-previous-product-history-toggle" })
+        .props.onPress();
+    });
+
+    expect(
+      renderer!.root.findByProps({ testID: "previous-product-history-sheet" }),
+    ).toBeTruthy();
+  });
+
+  it("hides the previous comment action when no previous history exists", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -811,7 +842,7 @@ describe("DetailScreen", () => {
         testID: "detail-previous-product-history-toggle",
       }),
     ).toHaveLength(0);
-    expect(flattenText(renderer!.toJSON())).not.toContain("이전 후기");
+    expect(flattenText(renderer!.toJSON())).not.toContain("이전 댓글");
   });
 
   it("shows the Instagram handle and a Korean category label on reel details", () => {
