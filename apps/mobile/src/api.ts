@@ -160,20 +160,6 @@ export async function fetchGroupBuys(): Promise<GroupBuy[]> {
 }
 
 /**
- * Fetch submission ids owned by the authenticated user.
- * RLS on gonggu_submission_submitters limits this response to the current user.
- */
-export async function fetchOwnSubmissionIds(): Promise<string[]> {
-  const { data } = await postgrestGet<
-    Array<{ submissionId?: string | null; submission_id?: string | null }>
-  >("gonggu_submission_submitters?select=submission_id");
-
-  return (data ?? [])
-    .map((row) => row.submissionId ?? row.submission_id ?? null)
-    .filter((submissionId): submissionId is string => Boolean(submissionId));
-}
-
-/**
  * Fetch only rows eligible for the home-banner rail.
  * The date and opt-in filters are pushed to PostgREST so stale or legacy rows
  * never enter the home-banner collection in the first place.
@@ -277,9 +263,6 @@ export function mapGroupBuyRows(rows: any[]): GroupBuy[] {
 
     return {
       id: item.id,
-      ...(item.submissionId !== undefined || item.submission_id !== undefined
-        ? { submissionId: item.submissionId ?? item.submission_id }
-        : {}),
       productName: item.productName ?? item.product_name ?? null,
       brandName: item.brandName ?? item.brand_name ?? null,
       category: item.category ?? null,

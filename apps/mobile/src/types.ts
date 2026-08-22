@@ -58,7 +58,6 @@ export type MediaAsset = {
 
 export type GroupBuy = {
   id: string;
-  submissionId?: string | null;
   productName: string | null;
   brandName: string | null;
   category?: GroupBuyCategory | null;

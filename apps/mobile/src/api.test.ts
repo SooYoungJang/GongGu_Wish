@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   deleteAccount,
-  fetchOwnSubmissionIds,
   fetchHomeBannerGroupBuys,
   fetchGroupBuyRankings,
   fetchPreviousProductGroupBuys,
@@ -148,47 +147,6 @@ describe("public data fetch diagnostics", () => {
     const [item] = await fetchGroupBuys();
 
     expect(item.isHomeBanner).toBe(false);
-  });
-
-  it("fetches the current user's submitted group-buy ids", async () => {
-    authTokenMocks.getAuthToken.mockResolvedValue("user-token");
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: { get: () => null },
-      json: async () => [
-        { submission_id: "submission-owned" },
-        { submission_id: null },
-      ],
-    }) as unknown as typeof fetch;
-
-    await expect(fetchOwnSubmissionIds()).resolves.toEqual([
-      "submission-owned",
-    ]);
-
-    const [requestUrl, requestInit] = vi.mocked(global.fetch).mock.calls[0];
-    expect(String(requestUrl)).toContain(
-      "/gonggu_submission_submitters?select=submission_id",
-    );
-    expect(requestInit?.headers).toMatchObject({
-      Authorization: "Bearer user-token",
-    });
-  });
-
-  it("preserves the submission id needed for owner-aware detail actions", () => {
-    const [item] = mapGroupBuyRows([
-      {
-        id: "group-buy-with-submission",
-        product_name: "소유자 확인 공구",
-        confidence: 0,
-        media_urls: [],
-        media_items: [],
-        media_type: null,
-        submission_id: "submission-owned",
-      },
-    ]);
-
-    expect(item.submissionId).toBe("submission-owned");
   });
 
   it("prefers the Instagram account saved on the group buy", async () => {

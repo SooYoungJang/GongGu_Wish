@@ -58,7 +58,6 @@ import Reanimated, {
 import {
   fetchGroupBuyById,
   fetchGroupBuys,
-  fetchOwnSubmissionIds,
   fetchPreviousProductGroupBuys,
   getPreviousProductHistoryQueryKey,
   logDeepView,
@@ -91,7 +90,6 @@ import {
   REELS_SUMMARY_SHEET_ANIMATION_MS,
 } from "../design/bottomSheetMotion";
 import { useTheme } from "../context/ThemeContext";
-import { useAuth } from "../context/AuthContext";
 import { useGroupBuyReminderPicker } from "../context/GroupBuyReminderPickerContext";
 import { usePostAudioPlayer } from "../hooks/usePostAudioPlayer";
 import type { ColorPalette } from "../context/ThemeContext";
@@ -1012,7 +1010,6 @@ export type ProductReelPageProps = {
   onPlaybackStateChange?: (itemId: string, isPlaying: boolean) => void;
   shouldPreloadAudio?: boolean;
   hasPreviousProductHistory?: boolean;
-  isOwnGroupBuy?: boolean;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
   // eslint-disable-next-line no-unused-vars
@@ -1042,7 +1039,6 @@ function ProductReelPageComponent({
   onPlaybackStateChange,
   shouldPreloadAudio = false,
   hasPreviousProductHistory = false,
-  isOwnGroupBuy = false,
   onSummarySheetStateChange,
   onCommentsSheetStateChange,
   s,
@@ -2223,21 +2219,19 @@ function ProductReelPageComponent({
             onPress={handleShare}
             s={s}
           />
-          {!isOwnGroupBuy ? (
-            <ReelAction
-              icon={
-                <Ionicons
-                  name="chatbubble-ellipses-outline"
-                  size={26}
-                  color="#FFFFFF"
-                />
-              }
-              label="댓글"
-              onPress={handleCommentsPress}
-              s={s}
-              testID="detail-comments-toggle"
-            />
-          ) : null}
+          <ReelAction
+            icon={
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={26}
+                color="#FFFFFF"
+              />
+            }
+            label="댓글"
+            onPress={handleCommentsPress}
+            s={s}
+            testID="detail-comments-toggle"
+          />
           <ReelAction
             icon={
               <Ionicons
@@ -2651,16 +2645,6 @@ function DetailScreenContent({
     queryKey: ["group-buys"],
     queryFn: fetchGroupBuys,
   });
-  const { user } = useAuth();
-  const ownSubmissionIdsQuery = useQuery({
-    queryKey: ["own-submission-ids", user?.id],
-    queryFn: fetchOwnSubmissionIds,
-    enabled: Boolean(user?.id),
-  });
-  const ownSubmissionIdSet = useMemo(
-    () => new Set(ownSubmissionIdsQuery.data ?? []),
-    [ownSubmissionIdsQuery.data],
-  );
 
   const reelItems = useMemo(
     () => getReelItems(groupBuy, groupBuys),
@@ -2987,9 +2971,6 @@ function DetailScreenContent({
       <ProductReelPage
         key={item.id}
         groupBuy={item}
-        isOwnGroupBuy={Boolean(
-          item.submissionId && ownSubmissionIdSet.has(item.submissionId),
-        )}
         hasPreviousProductHistory={
           index === activeProductIndex && !isOnAdPage && hasPreviousProductHistory
         }
@@ -3025,7 +3006,6 @@ function DetailScreenContent({
       handlePlaybackStateChange,
       handleBack,
       hasPreviousProductHistory,
-      ownSubmissionIdSet,
       insets.bottom,
       insets.top,
       isOnAdPage,
