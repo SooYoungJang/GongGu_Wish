@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   StyleSheet,
   View,
@@ -141,27 +140,6 @@ export function PreviousProductHistorySheet({
           ]}
           testID={`previous-product-history-item-${item.id}`}
         >
-          {item.thumbnailUrl ? (
-            <Image
-              accessibilityIgnoresInvertColors
-              source={{ uri: item.thumbnailUrl }}
-              style={styles.thumbnail}
-            />
-          ) : (
-            <View
-              style={[
-                styles.thumbnail,
-                styles.thumbnailFallback,
-                { backgroundColor: colors.surfaceHover },
-              ]}
-            >
-              <Ionicons
-                color={colors.textTertiary}
-                name="image-outline"
-                size={20}
-              />
-            </View>
-          )}
           <View style={styles.cardBody}>
             <View style={styles.cardMetaRow}>
               <SText variant="caption" style={{ color: colors.textTertiary }}>
@@ -344,12 +322,10 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     gap: spacing.sm,
-    minHeight: 94,
+    minHeight: 76,
     padding: spacing.sm,
   },
   pressed: { opacity: 0.78 },
-  thumbnail: { borderRadius: borderRadius.md, height: 70, width: 70 },
-  thumbnailFallback: { alignItems: "center", justifyContent: "center" },
   cardBody: { flex: 1, gap: 5, minWidth: 0 },
   cardMetaRow: { flexDirection: "row", gap: spacing.xs },
   summary: { fontWeight: "700" },
