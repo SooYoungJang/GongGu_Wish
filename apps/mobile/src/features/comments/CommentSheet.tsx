@@ -157,12 +157,14 @@ function CommentItem({
               {comment.likeCount}
             </SText>
           </Pressable>
-          <Pressable accessibilityLabel="답글 작성" accessibilityRole="button" onPress={onReply} style={styles.commentAction}>
-            <Ionicons name="chatbubble-outline" size={16} color={colors.textTertiary} />
-            <SText variant="caption" style={{ color: colors.textTertiary }}>
-              답글
-            </SText>
-          </Pressable>
+          {!comment.canEdit ? (
+            <Pressable accessibilityLabel="답글 작성" accessibilityRole="button" onPress={onReply} style={styles.commentAction}>
+              <Ionicons name="chatbubble-outline" size={16} color={colors.textTertiary} />
+              <SText variant="caption" style={{ color: colors.textTertiary }}>
+                답글
+              </SText>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
       {showReplyToggle && comment.directReplyCount > 0 ? (

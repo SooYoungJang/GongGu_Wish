@@ -376,6 +376,36 @@ describe("CommentSheet", () => {
     expect(nativeMocks.keyboardDismiss).toHaveBeenCalled();
   });
 
+  it("hides the reply action on comments authored by the current user", async () => {
+    const ownComment = makeComment({ canEdit: true });
+    const otherComment = makeComment({
+      id: "root-2",
+      rootId: "root-2",
+      authorDisplayName: "다른 사용자",
+    });
+    queryResult.data = {
+      items: [ownComment, otherComment],
+      nextCursor: null,
+      liveRanking: false,
+    };
+
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible />,
+      );
+      await Promise.resolve();
+    });
+
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === "답글 작성",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("submits a comment like when the like action is pressed", async () => {
     const root = makeComment();
     queryResult.data = { items: [root], nextCursor: null, liveRanking: false };
