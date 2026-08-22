@@ -37,6 +37,11 @@ import {
   mapAdminGroupBuyRequestList,
   type AdminGroupBuyRequestStatus,
 } from "./groupBuyRequestContract.ts";
+import {
+  buildGroupBuyFilterExpression,
+  getGroupBuyStatusFilter,
+  koreaCalendarDate,
+} from "./groupBuyVisibility.ts";
 import { normalizeMonthlyFeaturedRank } from "./monthlyFeaturedRank.ts";
 import {
   hasInstagramOwnerChanged,
@@ -199,6 +204,21 @@ const USER_SELECT = `
   created_at,
   updated_at,
   status
+`;
+
+const COMMENT_MODERATION_SELECT = `
+  id,
+  group_buy_id,
+  parent_id,
+  body,
+  author_display_name,
+  state,
+  like_count,
+  content_version,
+  created_at,
+  edited_at,
+  group_buys(product_name),
+  comment_reports(count)
 `;
 
 function json(data: unknown, status = 200) {
@@ -671,6 +691,10 @@ async function listGroupBuys(
   const q = sanitizeSearch(str(params?.q));
   const sourceType = str(params?.sourceType);
   const reviewStatus = collectionReviewFilter(params?.collectionReviewStatus);
+  const statusFilter = getGroupBuyStatusFilter(
+    status,
+    koreaCalendarDate(new Date()) ?? new Date().toISOString().slice(0, 10),
+  );
 
   let query = supabase
     .from("group_buys")
@@ -678,12 +702,35 @@ async function listGroupBuys(
     .order("created_at", { ascending: false })
     .range(start, start + limit - 1);
 
-  if (status && status !== "ALL") query = query.eq("status", status);
+  if (statusFilter.kind === "visible") {
+    query = query
+      .eq("status", statusFilter.status)
+      .or(
+        buildGroupBuyFilterExpression(
+          [`end_date.gte.${statusFilter.endDate.value}`, "end_date.is.null"],
+          q,
+        ),
+      );
+  } else if (statusFilter.kind === "expired") {
+    query = query.or(
+      buildGroupBuyFilterExpression(
+        [
+          `status.eq.${statusFilter.explicitStatus}`,
+          `and(status.eq.${statusFilter.approvedStatus},end_date.lt.${statusFilter.endDate.value})`,
+        ],
+        q,
+      ),
+    );
+  } else if (statusFilter.kind === "status") {
+    query = query.eq("status", statusFilter.value);
+  }
   if (sourceType) query = query.eq("source_type", sourceType);
   if (reviewStatus) {
     query = query.eq("collection_review_status", reviewStatus);
   }
-  if (q) query = query.or(`product_name.ilike.%${q}%,brand_name.ilike.%${q}%`);
+  if (q && statusFilter.kind !== "visible" && statusFilter.kind !== "expired") {
+    query = query.or(`product_name.ilike.%${q}%,brand_name.ilike.%${q}%`);
+  }
 
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
@@ -1189,6 +1236,7 @@ async function updateUser(
   const patch: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
+  let moderationStatus: "ACTIVE" | "SUSPENDED" | "BANNED" | null = null;
   if (hasOwn(body, "nickname")) patch.nickname = str(body.nickname);
   if (hasOwn(body, "fcmToken")) patch.fcm_token = str(body.fcmToken);
   if (hasOwn(body, "status")) {
@@ -1196,7 +1244,11 @@ async function updateUser(
     if (status && !["ACTIVE", "SUSPENDED", "BANNED"].includes(status)) {
       throw new Error("유효하지 않은 상태입니다.");
     }
-    patch.status = status ?? "ACTIVE";
+    moderationStatus = (status ?? "ACTIVE") as
+      | "ACTIVE"
+      | "SUSPENDED"
+      | "BANNED";
+    patch.status = moderationStatus;
   }
 
   const { data, error } = await supabase
@@ -1207,7 +1259,221 @@ async function updateUser(
     .single();
 
   if (error) throw new Error(error.message);
+  if (moderationStatus) {
+    const { error: moderationError } = await supabase
+      .from("comment_user_moderation")
+      .upsert(
+        {
+          user_id: id,
+          status: moderationStatus,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" },
+      );
+    if (moderationError) throw new Error(moderationError.message);
+  }
   return mapAdminUser(data);
+}
+
+function relatedCommentRecord(value: unknown) {
+  if (Array.isArray(value)) {
+    const first = value[0];
+    return first && typeof first === "object"
+      ? (first as Record<string, unknown>)
+      : null;
+  }
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function mapCommentModeration(row: Record<string, unknown>) {
+  const product = relatedCommentRecord(row.group_buys);
+  const reports = Array.isArray(row.comment_reports)
+    ? row.comment_reports
+    : [];
+  const reportCount = reports.reduce((total, item) => {
+    if (!item || typeof item !== "object") return total;
+    const count = num((item as Record<string, unknown>).count, 0) ?? 0;
+    return total + count;
+  }, 0);
+  const rawState = str(row.state);
+  const state = [
+    "VISIBLE",
+    "HIDDEN",
+    "DELETED",
+    "ACCOUNT_ANONYMIZED",
+  ].includes(rawState ?? "")
+    ? rawState
+    : "HIDDEN";
+
+  return {
+    id: String(row.id ?? ""),
+    groupBuyId: String(row.group_buy_id ?? ""),
+    productName: str(product?.product_name),
+    parentId: str(row.parent_id),
+    body: typeof row.body === "string" ? row.body : null,
+    authorDisplayName: str(row.author_display_name),
+    state,
+    likeCount: num(row.like_count, 0) ?? 0,
+    reportCount,
+    contentVersion: num(row.content_version, 1) ?? 1,
+    createdAt: typeof row.created_at === "string" ? row.created_at : "",
+    editedAt: typeof row.edited_at === "string" ? row.edited_at : null,
+  };
+}
+
+async function listComments(
+  supabase: AdminClient,
+  params: AdminRequest["params"],
+) {
+  const page = listParam(params, "page", 1);
+  const limit = Math.min(listParam(params, "limit", 30), 100);
+  const start = (page - 1) * limit;
+  const state = str(params?.state);
+  const q = sanitizeSearch(str(params?.q));
+
+  let query = supabase
+    .from("group_buy_comments")
+    .select(COMMENT_MODERATION_SELECT, { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(start, start + limit - 1);
+
+  if (state && state !== "ALL") query = query.eq("state", state);
+  if (q) query = query.or(`body.ilike.%${q}%,author_display_name.ilike.%${q}%`);
+
+  const { data, error, count } = await query;
+  if (error) throw new Error(error.message);
+  return {
+    items: ((data ?? []) as Record<string, unknown>[]).map(
+      mapCommentModeration,
+    ),
+    total: count ?? 0,
+  };
+}
+
+async function updateCommentModeration(
+  supabase: AdminClient,
+  id: string,
+  body: Record<string, unknown>,
+  adminId: string,
+) {
+  const nextState = str(body.state);
+  if (nextState !== "VISIBLE" && nextState !== "HIDDEN") {
+    throw new AdminRequestError(
+      "댓글 상태는 VISIBLE 또는 HIDDEN이어야 합니다.",
+      422,
+      "INVALID_COMMENT_STATE",
+    );
+  }
+  const reason = str(body.reason)?.slice(0, 500) ?? null;
+  const expectedVersion = num(body.expectedVersion);
+  const { data: existing, error: findError } = await supabase
+    .from("group_buy_comments")
+    .select("id,state,content_version")
+    .eq("id", id)
+    .maybeSingle();
+  if (findError) throw new Error(findError.message);
+  if (!existing) {
+    throw new AdminRequestError(
+      "댓글을 찾을 수 없습니다.",
+      404,
+      "COMMENT_NOT_FOUND",
+    );
+  }
+  const currentState = str(existing.state) ?? "HIDDEN";
+  const currentVersion = num(existing.content_version, 1) ?? 1;
+  if (expectedVersion !== null && expectedVersion !== currentVersion) {
+    throw new AdminRequestError(
+      "다른 운영자가 먼저 댓글을 변경했습니다. 새로고침 후 다시 시도해주세요.",
+      409,
+      "COMMENT_VERSION_CONFLICT",
+    );
+  }
+  if (currentState === "DELETED" || currentState === "ACCOUNT_ANONYMIZED") {
+    throw new AdminRequestError(
+      "삭제된 댓글은 복원하거나 숨길 수 없습니다.",
+      409,
+      "COMMENT_TOMBSTONED",
+    );
+  }
+  if (currentState === nextState) {
+    const { data, error } = await supabase
+      .from("group_buy_comments")
+      .select(COMMENT_MODERATION_SELECT)
+      .eq("id", id)
+      .single();
+    if (error) throw new Error(error.message);
+    return mapCommentModeration(data as Record<string, unknown>);
+  }
+
+  const nextVersion = currentVersion + 1;
+  const now = new Date().toISOString();
+  const { data: updated, error: updateError } = await supabase
+    .from("group_buy_comments")
+    .update({
+      state: nextState,
+      content_version: nextVersion,
+      updated_at: now,
+    })
+    .eq("id", id)
+    .eq("content_version", currentVersion)
+    .select(COMMENT_MODERATION_SELECT)
+    .maybeSingle();
+  if (updateError) throw new Error(updateError.message);
+  if (!updated) {
+    throw new AdminRequestError(
+      "다른 운영자가 먼저 댓글을 변경했습니다. 새로고침 후 다시 시도해주세요.",
+      409,
+      "COMMENT_VERSION_CONFLICT",
+    );
+  }
+
+  const { error: eventError } = await supabase
+    .from("comment_moderation_events")
+    .insert({
+      comment_id: id,
+      actor_id: adminId,
+      action: nextState === "HIDDEN" ? "HIDE" : "RESTORE",
+      reason,
+      previous_state: currentState,
+      next_state: nextState,
+      content_version: nextVersion,
+    });
+  if (eventError) throw new Error(eventError.message);
+  return mapCommentModeration(updated as Record<string, unknown>);
+}
+
+async function setGroupBuyCommentsEnabled(
+  supabase: AdminClient,
+  id: string,
+  body: Record<string, unknown>,
+) {
+  if (!hasOwn(body, "enabled") || typeof body.enabled !== "boolean") {
+    throw new AdminRequestError(
+      "enabled는 boolean이어야 합니다.",
+      422,
+      "INVALID_COMMENTS_ENABLED",
+    );
+  }
+  const { data, error } = await supabase
+    .from("group_buys")
+    .update({ comments_enabled: body.enabled, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("id,comments_enabled")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) {
+    throw new AdminRequestError(
+      "공구 상품을 찾을 수 없습니다.",
+      404,
+      "GROUP_BUY_NOT_FOUND",
+    );
+  }
+  return {
+    groupBuyId: String(data.id),
+    commentsEnabled: Boolean(data.comments_enabled),
+  };
 }
 
 type CdnRefreshStatusResponse = {
@@ -1756,8 +2022,30 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   if (path.startsWith("/admin/users/") && method === "PATCH") {
     return updateUser(supabase, path.replace("/admin/users/", ""), body);
   }
+  if (path === "/admin/comments" && method === "GET") {
+    return listComments(supabase, params);
+  }
+  if (path.startsWith("/admin/comments/") && method === "PATCH") {
+    return updateCommentModeration(
+      supabase,
+      path.replace("/admin/comments/", ""),
+      body,
+      adminId,
+    );
+  }
   if (path === "/admin/notifications" && method === "POST") {
     return sendPushNotification(supabase, body);
+  }
+  if (
+    path.startsWith("/admin/group-buys/") &&
+    path.endsWith("/comments") &&
+    method === "PATCH"
+  ) {
+    return setGroupBuyCommentsEnabled(
+      supabase,
+      path.split("/")[3],
+      body,
+    );
   }
   if (path.startsWith("/admin/group-buys/") && method === "PATCH") {
     const id = path.replace("/admin/group-buys/", "");

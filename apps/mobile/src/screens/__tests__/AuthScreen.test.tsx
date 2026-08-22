@@ -35,6 +35,7 @@ const {
   mockVerifyOtp,
   mockExchangeCodeForSession,
   mockSignInWithOAuth,
+  mockAcceptCommentTerms,
   mockOpenAuthSessionAsync,
   mockSecureStoreDeleteItem,
   mockSecureStoreGetItem,
@@ -50,6 +51,7 @@ const {
   const mockVerifyOtp = vi.fn();
   const mockExchangeCodeForSession = vi.fn();
   const mockSignInWithOAuth = vi.fn();
+  const mockAcceptCommentTerms = vi.fn();
   const mockOpenAuthSessionAsync = vi.fn();
   const mockSecureStoreDeleteItem = vi.fn();
   const mockSecureStoreGetItem = vi.fn();
@@ -74,6 +76,7 @@ const {
     mockVerifyOtp,
     mockExchangeCodeForSession,
     mockSignInWithOAuth,
+    mockAcceptCommentTerms,
     mockOpenAuthSessionAsync,
     mockSecureStoreDeleteItem,
     mockSecureStoreGetItem,
@@ -133,6 +136,10 @@ vi.mock('../../lib/supabase', () => ({
   })),
 }));
 
+vi.mock('../../features/comments/api', () => ({
+  acceptCommentTerms: mockAcceptCommentTerms,
+}));
+
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }),
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -186,6 +193,7 @@ function findPressableByText(
 
 describe("AuthScreen", () => {
   beforeEach(() => {
+    mockAcceptCommentTerms.mockReset().mockResolvedValue(undefined);
     mockSecureStoreGetItem.mockReset().mockResolvedValue(null);
     mockSecureStoreSetItem.mockReset().mockResolvedValue(undefined);
     mockSecureStoreDeleteItem.mockReset().mockResolvedValue(undefined);

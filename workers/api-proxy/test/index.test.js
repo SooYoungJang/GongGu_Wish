@@ -243,6 +243,61 @@ describe("gonggu API proxy", () => {
     assert.deepEqual(await upstreamRequest.json(), { p_limit_count: 3 });
   });
 
+  it("forwards product comment, moderation, and consent RPCs", async () => {
+    const rpcBodies = {
+      list_comment_roots: { p_group_buy_id: "deal-1", p_limit: 20 },
+      list_comment_children: { p_group_buy_id: "deal-1", p_limit: 20 },
+      create_comment: {
+        p_group_buy_id: "deal-1",
+        p_parent_id: null,
+        p_body: "hello",
+        p_client_request_id: "client-1",
+        p_terms_version: "community-v1",
+      },
+      set_comment_like: {
+        p_comment_id: "comment-1",
+        p_liked: true,
+      },
+      report_comment: {
+        p_comment_id: "comment-1",
+        p_reason: "spam",
+        p_details: "details",
+      },
+      block_user_from_comment: { p_comment_id: "comment-1" },
+      accept_comment_terms: { p_terms_version: "community-v1" },
+    };
+
+    for (const [rpc, body] of Object.entries(rpcBodies)) {
+      let upstreamRequest;
+      globalThis.fetch = async (input) => {
+        upstreamRequest = input;
+        return Response.json({ items: [] });
+      };
+
+      const response = await request(`/rest/v1/rpc/${rpc}`, {
+        method: "POST",
+        headers: {
+          apikey: "public-key",
+          Authorization: "Bearer user-jwt",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      assert.equal(response.status, 200);
+      assert.equal(
+        upstreamRequest.url,
+        `https://xwblovggtvbpiusjfokq.supabase.co/rest/v1/rpc/${rpc}`,
+      );
+      assert.equal(upstreamRequest.method, "POST");
+      assert.equal(
+        upstreamRequest.headers.get("authorization"),
+        "Bearer user-jwt",
+      );
+      assert.deepEqual(await upstreamRequest.json(), body);
+    }
+  });
+
   it("refuses to proxy when Preview points at the Production Supabase origin", async () => {
     let called = false;
     globalThis.fetch = async () => {

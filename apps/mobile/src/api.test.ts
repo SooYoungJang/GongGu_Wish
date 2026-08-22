@@ -4,6 +4,7 @@ import {
   deleteAccount,
   fetchHomeBannerGroupBuys,
   fetchGroupBuyRankings,
+  fetchPreviousProductGroupBuys,
   fetchGroupBuys,
   fetchGroupBuysByInfluencer,
   fetchNotificationReminders,
@@ -338,6 +339,55 @@ describe("public data fetch diagnostics", () => {
     );
     expect(String(vi.mocked(global.fetch).mock.calls[1]?.[0])).toContain(
       "instagram_username=ilike.Saved_Shop",
+    );
+  });
+
+  it("returns only closed records for the same product", async () => {
+    const row = (overrides: Record<string, unknown>) => ({
+      id: "row-id",
+      product_name: "진정 크림 50ml",
+      brand_name: "브랜드 A",
+      start_date: "2026-07-01T00:00:00",
+      end_date: "2026-07-10T23:59:59",
+      summary: "이전 공구 안내",
+      thumbnail_url: "https://cdn.example.invalid/cream.jpg",
+      status: "EXPIRED",
+      created_at: "2026-07-01T00:00:00.000Z",
+      ...overrides,
+    });
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [
+        row({ id: "current" }),
+        row({ id: "previous" }),
+        row({ id: "different-brand", brand_name: "브랜드 B" }),
+        row({
+          id: "ended-approved",
+          status: "APPROVED",
+          end_date: "2020-07-10T23:59:59",
+        }),
+        row({
+          id: "still-open",
+          status: "APPROVED",
+          end_date: "2099-07-10T23:59:59",
+        }),
+      ],
+    }) as unknown as typeof fetch;
+
+    const result = await fetchPreviousProductGroupBuys({
+      id: "current",
+      brandName: "브랜드A",
+      productName: "진정크림 50ML",
+    });
+
+    expect(result.map((item) => item.id)).toEqual([
+      "previous",
+      "ended-approved",
+    ]);
+    expect(String(vi.mocked(global.fetch).mock.calls[0]?.[0])).toContain(
+      "status=in.(APPROVED,EXPIRED)",
     );
   });
 

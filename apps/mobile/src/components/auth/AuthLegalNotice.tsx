@@ -49,8 +49,8 @@ export function AuthLegalNotice() {
       testID="auth-legal-notice"
     >
       <Text style={styles.copy}>
-        로그인 또는 회원가입을 계속하면 만 14세 이상임을 확인하고 아래 약관에 동의한
-        것으로 봅니다.
+        계속하면 만 14세 이상이며, 서비스 이용약관·커뮤니티 이용규칙에 동의하고
+        개인정보처리방침을 확인한 것으로 봅니다.
       </Text>
       <View style={styles.links}>
         <Pressable
@@ -74,6 +74,7 @@ export function AuthLegalNotice() {
           <Text style={styles.link}>개인정보처리방침</Text>
         </Pressable>
       </View>
+      <Text style={styles.support}>커뮤니티 문의 · tturrr10@gmail.com</Text>
     </View>
   );
 }
@@ -88,6 +89,12 @@ const makeStyles = (colors: CommerceColorPalette) =>
       color: colors.muted,
       fontSize: 12,
       lineHeight: 18,
+      textAlign: "center",
+    },
+    support: {
+      color: colors.muted,
+      fontSize: 11,
+      lineHeight: 16,
       textAlign: "center",
     },
     link: {

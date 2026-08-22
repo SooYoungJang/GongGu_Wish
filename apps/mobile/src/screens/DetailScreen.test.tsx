@@ -38,6 +38,7 @@ const queryMock = vi.hoisted(() => ({
   linkedIsError: false,
   linkedIsFetching: false,
   linkedRefetch: vi.fn(),
+  previousProductHistory: [] as any[],
 }));
 const recentViewsMock = vi.hoisted(() => ({
   recordView: vi.fn(),
@@ -103,6 +104,13 @@ vi.mock("../hooks/useLocalDeals", () => ({
 vi.mock("../hooks/useAuthGate", () => ({
   useAuthGate: () => authGateMock,
 }));
+vi.mock("../features/comments/CommentSheet", () => {
+  const ReactMock = require("react");
+  return {
+    CommentSheet: (props: Record<string, unknown>) =>
+      ReactMock.createElement("CommentSheet", props),
+  };
+});
 vi.mock("../hooks/usePlaybackLifecycle", () => ({
   usePlaybackLifecycle: () => ({
     ...playbackLifecycleMock,
@@ -225,7 +233,15 @@ vi.mock("expo-audio", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey?: unknown[] }) =>
-    options.queryKey?.[0] === "group-buy"
+    options.queryKey?.[0] === "previous-product-history"
+      ? {
+          data: queryMock.previousProductHistory,
+          isLoading: false,
+          isError: false,
+          isFetching: false,
+          refetch: vi.fn(),
+        }
+      : options.queryKey?.[0] === "group-buy"
       ? {
           data: queryMock.linkedGroupBuy,
           isLoading: !queryMock.linkedGroupBuy && !queryMock.linkedIsError,
@@ -245,6 +261,13 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("../api", () => ({
   fetchGroupBuyById: vi.fn(),
   fetchGroupBuys: vi.fn(),
+  fetchPreviousProductGroupBuys: vi.fn(),
+  getPreviousProductHistoryQueryKey: vi.fn((current: any) => [
+    "previous-product-history",
+    current.id,
+    current.brandName,
+    current.productName,
+  ]),
   logDeepView: logDeepViewMock,
   refreshGroupBuyMedia: refreshGroupBuyMediaMock,
 }));
@@ -709,6 +732,7 @@ beforeEach(() => {
   queryMock.linkedIsError = false;
   queryMock.linkedIsFetching = false;
   queryMock.linkedRefetch.mockReset();
+  queryMock.previousProductHistory = [];
   adsMock.enabled = false;
   adsMock.isReady = false;
   adsMock.isSettled = true;
@@ -736,6 +760,89 @@ beforeEach(() => {
 describe("DetailScreen", () => {
   it("memoizes product pages to avoid parent bookkeeping rerenders", () => {
     expect((ProductReelPage as any).$$typeof).toBe(Symbol.for("react.memo"));
+  });
+
+  it("shows the previous comment action in the right rail when history exists", () => {
+    queryMock.previousProductHistory = [{ id: "previous-1" }];
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const historyAction = renderer!.root.findByProps({
+      testID: "detail-previous-product-history-toggle",
+    });
+    expect(historyAction.props.accessibilityLabel).toBe("이전 댓글");
+    expect(flattenText(renderer!.toJSON())).toContain("이전 댓글");
+  });
+
+  it("opens the previous product history sheet when the action is pressed", async () => {
+    queryMock.previousProductHistory = [{ id: "previous-1" }];
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      renderer!.root
+        .findByProps({ testID: "detail-previous-product-history-toggle" })
+        .props.onPress();
+    });
+
+    expect(
+      renderer!.root.findByProps({ testID: "previous-product-history-sheet" }),
+    ).toBeTruthy();
+  });
+
+  it("hides the previous comment action when no previous history exists", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByProps({
+        testID: "detail-previous-product-history-toggle",
+      }),
+    ).toHaveLength(0);
+    expect(flattenText(renderer!.toJSON())).not.toContain("이전 댓글");
   });
 
   it("shows the Instagram handle and a Korean category label on reel details", () => {
@@ -2045,6 +2152,59 @@ describe("DetailScreen", () => {
     expect(getSearchSheetTranslateY(renderer!)).toBe(-300);
   });
 
+  it("hides the product search dock while the comments sheet is open", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{
+            key: "Detail",
+            name: "Detail",
+            params: { groupBuy: baseGroupBuy },
+          } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const findPressables = (accessibilityLabel: string) =>
+      renderer!.root.findAll(
+        (node) =>
+          String(node.type) === "Pressable" &&
+          node.props.accessibilityLabel === accessibilityLabel,
+      );
+    const commentsButton = renderer!.root.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "댓글",
+    );
+
+    expect(findPressables("상품 검색")).toHaveLength(1);
+
+    act(() => {
+      commentsButton.props.onPress();
+    });
+
+    const commentSheet = renderer!.root.find(
+      (node) => String(node.type) === "CommentSheet",
+    );
+    expect(commentSheet.props.visible).toBe(true);
+    expect(commentSheet.props.maxHeight).toBeGreaterThan(0);
+    expect(commentSheet.props.sheetTranslate).toBeDefined();
+    expect(commentSheet.props.onSheetLayout).toEqual(expect.any(Function));
+    expect(findPressables("상품 검색")).toHaveLength(0);
+
+    act(() => {
+      commentSheet.props.onClose();
+    });
+
+    expect(findPressables("상품 검색")).toHaveLength(1);
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
   it("shows an alert when the purchase link cannot be opened", async () => {
     (Linking.openURL as any).mockRejectedValueOnce(new Error("cannot open"));
 
@@ -2729,6 +2889,71 @@ describe("DetailScreen video playback", () => {
     expect(
       findPages().find((node) => node.props.isActive)?.props.playbackAllowed,
     ).toBe(true);
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
+  it("shrinks the media stage and keeps video playback active while comments are open", () => {
+    videoMock.stableAcrossRenders = true;
+    const groupBuy: GroupBuy = {
+      ...baseGroupBuy,
+      videoUrl: "https://example.com/comments-sheet.mp4",
+      mediaUrls: [],
+      mediaType: "VIDEO",
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ key: "Detail", name: "Detail", params: { groupBuy } } as any}
+          navigation={{ addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+
+    const player = videoMock.players.find(
+      (candidate) => candidate.source?.uri === groupBuy.videoUrl,
+    );
+    expect(player).toBeDefined();
+    player!.pause.mockClear();
+
+    const activePage = findProductReelPages(renderer!).find(
+      (node) => node.props.isActive,
+    );
+    expect(activePage).toBeDefined();
+    const commentsButton = activePage!.find(
+      (node) =>
+        String(node.type) === "Pressable" &&
+        node.props.accessibilityLabel === "댓글",
+    );
+
+    act(() => {
+      commentsButton.props.onPress();
+    });
+
+    const videoSlides = findProductReelPages(renderer!)
+      .find((node) => node.props.isActive)!
+      .findAll(
+        (node) => node.props.shouldPlay !== undefined,
+      );
+    expect(videoSlides).toHaveLength(1);
+    expect(videoSlides[0]?.props.shouldPlay).toBe(true);
+    expect(player!.pause).not.toHaveBeenCalled();
+    expect(getMediaStageFrame(renderer!).contentScale).toBeLessThan(1);
+
+    const commentSheet = renderer!.root.find(
+      (node) => String(node.type) === "CommentSheet",
+    );
+    expect(commentSheet.props.visible).toBe(true);
+
+    act(() => {
+      commentSheet.props.onClose();
+    });
+
+    expect(getMediaStageFrame(renderer!).contentScale).toBeCloseTo(1, 2);
 
     act(() => {
       renderer!.unmount();

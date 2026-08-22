@@ -58,6 +58,8 @@ import Reanimated, {
 import {
   fetchGroupBuyById,
   fetchGroupBuys,
+  fetchPreviousProductGroupBuys,
+  getPreviousProductHistoryQueryKey,
   logDeepView,
   refreshGroupBuyMedia,
 } from "../api";
@@ -97,6 +99,8 @@ import { resolveGroupBuyImageUrl } from "../utils/groupBuyMedia";
 import { normalizeForSearch } from "../utils/search";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useAuthGate } from "../hooks/useAuthGate";
+import { CommentSheet } from "../features/comments/CommentSheet";
+import { PreviousProductHistorySheet } from "../features/productHistory/PreviousProductHistorySheet";
 import { useFocusedAndroidBackHandler } from "../navigation/androidBack";
 import { buildGroupBuyShareUrl } from "../services/notificationPayload";
 import {
@@ -120,6 +124,10 @@ const SUMMARY_SCROLL_TOP_EPSILON = 2;
 const DETAIL_SEARCH_CHROME_OFFSET = 72;
 const SUMMARY_SHEET_MAX_HEIGHT_RATIO = 0.58;
 const SEARCH_SHEET_MAX_HEIGHT_RATIO = 0.7;
+const COMMENT_SHEET_MAX_HEIGHT_RATIO = 0.86;
+const COMMENT_SHEET_MIN_HEIGHT = 420;
+const PREVIOUS_PRODUCT_HISTORY_MAX_HEIGHT_RATIO = 0.72;
+const PREVIOUS_PRODUCT_HISTORY_MIN_HEIGHT = 320;
 // When the summary sheet is open the media stage shrinks to a centered card
 // with this much inset on each side.
 const MEDIA_STAGE_SIDE_INSET = 48;
@@ -1001,8 +1009,11 @@ export type ProductReelPageProps = {
   onMutedChange?: (muted: boolean) => void;
   onPlaybackStateChange?: (itemId: string, isPlaying: boolean) => void;
   shouldPreloadAudio?: boolean;
+  hasPreviousProductHistory?: boolean;
   // eslint-disable-next-line no-unused-vars
   onSummarySheetStateChange(isOpen: boolean, canSwipeReel: boolean): void;
+  // eslint-disable-next-line no-unused-vars
+  onCommentsSheetStateChange?: (isOpen: boolean) => void;
   s: ReturnType<typeof makeStyles>;
 };
 
@@ -1027,11 +1038,17 @@ function ProductReelPageComponent({
   onMutedChange,
   onPlaybackStateChange,
   shouldPreloadAudio = false,
+  hasPreviousProductHistory = false,
   onSummarySheetStateChange,
+  onCommentsSheetStateChange,
   s,
 }: ProductReelPageProps) {
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [isSummaryExpanded, setSummaryExpanded] = useState(false);
+  const [isCommentsVisible, setCommentsVisible] = useState(false);
+  const [isPreviousProductHistoryVisible, setPreviousProductHistoryVisible] =
+    useState(false);
+  const [commentGroupBuyId, setCommentGroupBuyId] = useState(groupBuy.id);
   const [shouldPlayMedia, setShouldPlayMedia] = useState(true);
   const [localMuted, setLocalMuted] = useState(muted ?? false);
   const [resolvedPostAudio, setResolvedPostAudio] = useState(() => ({
@@ -1152,6 +1169,8 @@ function ProductReelPageComponent({
   const [isSummaryVisible, setSummaryVisible] = useState(false);
   const [summarySheetMeasuredHeight, setSummarySheetMeasuredHeight] =
     useState(0);
+  const [commentsSheetMeasuredHeight, setCommentsSheetMeasuredHeight] =
+    useState(0);
   const mediaItems = useMemo(() => getDisplayMedia(groupBuy), [groupBuy]);
 
   useEffect(() => {
@@ -1199,6 +1218,69 @@ function ProductReelPageComponent({
     toggleBookmark(groupBuy);
   }, [groupBuy, requireAuth, toggleBookmark]);
   const summary = groupBuy.summary ?? groupBuy.discountInfo ?? "";
+  const commentsSheetMaxHeight = Math.max(
+    COMMENT_SHEET_MIN_HEIGHT,
+    Math.min(
+      pageHeight - topInset - spacing.xl,
+      pageHeight * COMMENT_SHEET_MAX_HEIGHT_RATIO,
+    ),
+  );
+  const commentsSheetTranslate = useSharedValue(commentsSheetMaxHeight);
+  const handleCommentsSheetLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const nextHeight = Math.min(
+        event.nativeEvent.layout.height,
+        commentsSheetMaxHeight,
+      );
+      setCommentsSheetMeasuredHeight((current) =>
+        Math.abs(current - nextHeight) < 1 ? current : nextHeight,
+      );
+    },
+    [commentsSheetMaxHeight],
+  );
+  const openCommentsForGroupBuy = useCallback(
+    (targetGroupBuyId: string) => {
+      cancelAnimation(commentsSheetTranslate);
+      commentsSheetTranslate.value = commentsSheetMaxHeight;
+      commentsSheetTranslate.value = withTiming(0, {
+        duration: BOTTOM_SHEET_ANIMATION_MS,
+        easing: Easing.out(Easing.cubic),
+      });
+      setCommentsVisible(true);
+      onCommentsSheetStateChange?.(true);
+      setCommentGroupBuyId(targetGroupBuyId);
+    },
+    [
+      commentsSheetMaxHeight,
+      commentsSheetTranslate,
+      onCommentsSheetStateChange,
+    ],
+  );
+  const handleCommentsPress = useCallback(() => {
+    openCommentsForGroupBuy(groupBuy.id);
+  }, [groupBuy.id, openCommentsForGroupBuy]);
+  const previousProductHistoryMaxHeight = Math.max(
+    PREVIOUS_PRODUCT_HISTORY_MIN_HEIGHT,
+    Math.min(
+      pageHeight - topInset - spacing.xl,
+      pageHeight * PREVIOUS_PRODUCT_HISTORY_MAX_HEIGHT_RATIO,
+    ),
+  );
+  const handlePreviousProductHistoryPress = useCallback(() => {
+    setPreviousProductHistoryVisible(true);
+    onCommentsSheetStateChange?.(true);
+  }, [onCommentsSheetStateChange]);
+  const handlePreviousProductHistoryClose = useCallback(() => {
+    setPreviousProductHistoryVisible(false);
+    onCommentsSheetStateChange?.(false);
+  }, [onCommentsSheetStateChange]);
+  const handlePreviousProductCommentsOpen = useCallback(
+    (targetGroupBuyId: string) => {
+      handlePreviousProductHistoryClose();
+      openCommentsForGroupBuy(targetGroupBuyId);
+    },
+    [handlePreviousProductHistoryClose, openCommentsForGroupBuy],
+  );
   const summarySheetMaxHeight = Math.max(
     280,
     Math.min(
@@ -1207,6 +1289,33 @@ function ProductReelPageComponent({
     ),
   );
   const summarySheetTranslate = useSharedValue(summarySheetMaxHeight);
+  const handleCommentsClose = useCallback(() => {
+    Keyboard.dismiss();
+    cancelAnimation(commentsSheetTranslate);
+    commentsSheetTranslate.value = withTiming(
+      commentsSheetMaxHeight,
+      {
+        duration: BOTTOM_SHEET_ANIMATION_MS,
+        easing: Easing.out(Easing.cubic),
+      },
+      (finished) => {
+        if (!finished) return;
+        runOnJS(setCommentsVisible)(false);
+        if (onCommentsSheetStateChange) {
+          runOnJS(onCommentsSheetStateChange)(false);
+        }
+      },
+    );
+  }, [
+    commentsSheetMaxHeight,
+    commentsSheetTranslate,
+    onCommentsSheetStateChange,
+  ]);
+  useEffect(() => {
+    if (isCommentsVisible) return;
+    cancelAnimation(commentsSheetTranslate);
+    commentsSheetTranslate.value = commentsSheetMaxHeight;
+  }, [commentsSheetMaxHeight, commentsSheetTranslate, isCommentsVisible]);
   const summarySheetDragStartY = useSharedValue(0);
   const summaryCanPullFromScroll = useSharedValue(1);
   const summarySheetHeightForMedia = Math.max(
@@ -1216,14 +1325,25 @@ function ProductReelPageComponent({
       summarySheetMaxHeight,
     ),
   );
+  const commentsSheetHeightForMedia = Math.max(
+    1,
+    Math.min(
+      commentsSheetMeasuredHeight || commentsSheetMaxHeight,
+      Math.max(1, pageHeight - (topInset + 64)),
+    ),
+  );
   const activeSheetMediaTranslate =
     isSearchSheetVisible && searchSheetMetrics
       ? searchSheetMetrics.translateY
-      : summarySheetTranslate;
+      : isCommentsVisible
+        ? commentsSheetTranslate
+        : summarySheetTranslate;
   const activeSheetBaseHeightForMedia =
     isSearchSheetVisible && searchSheetMetrics
       ? Math.max(1, searchSheetMetrics.height)
-      : summarySheetHeightForMedia;
+      : isCommentsVisible
+        ? commentsSheetHeightForMedia
+        : summarySheetHeightForMedia;
   const activeKeyboardHeightForMedia =
     isSearchSheetVisible && searchSheetMetrics
       ? searchSheetMetrics.keyboardHeight
@@ -1386,7 +1506,11 @@ function ProductReelPageComponent({
     [summarySheetTranslate],
   );
   const reelChromeStyle = useAnimatedStyle(() => {
-    if (isSearchSheetVisible) {
+    if (
+      isSearchSheetVisible ||
+      isCommentsVisible ||
+      isPreviousProductHistoryVisible
+    ) {
       return { opacity: 0 };
     }
 
@@ -1400,7 +1524,13 @@ function ProductReelPageComponent({
     return {
       opacity: interpolate(progress, [0, 0.35], [0, 1], Extrapolation.CLAMP),
     };
-  }, [cappedSheetHeightForMedia, isSearchSheetVisible, summarySheetTranslate]);
+  }, [
+    cappedSheetHeightForMedia,
+    isCommentsVisible,
+    isPreviousProductHistoryVisible,
+    isSearchSheetVisible,
+    summarySheetTranslate,
+  ]);
 
   const resetSummarySheetState = useCallback(() => {
     setSummaryExpanded(false);
@@ -1508,9 +1638,24 @@ function ProductReelPageComponent({
     resetSummarySheetState,
   ]);
 
+  useEffect(() => {
+    if (!isActive && isPreviousProductHistoryVisible) {
+      setPreviousProductHistoryVisible(false);
+      onCommentsSheetStateChange?.(false);
+    }
+  }, [isActive, isPreviousProductHistoryVisible, onCommentsSheetStateChange]);
+
   // Focused custom overlays consume Back first; returning false delegates the
   // next press to the native stack so Detail itself can pop normally.
   const handleAndroidBack = useCallback(() => {
+    if (isPreviousProductHistoryVisible) {
+      handlePreviousProductHistoryClose();
+      return true;
+    }
+    if (isCommentsVisible) {
+      handleCommentsClose();
+      return true;
+    }
     if (isSearchSheetVisible) {
       onCloseSearchSheet?.();
       return true;
@@ -1521,6 +1666,10 @@ function ProductReelPageComponent({
     }
     return false;
   }, [
+    handleCommentsClose,
+    handlePreviousProductHistoryClose,
+    isCommentsVisible,
+    isPreviousProductHistoryVisible,
     isSearchSheetVisible,
     isSummaryVisible,
     onCloseSearchSheet,
@@ -1530,9 +1679,15 @@ function ProductReelPageComponent({
 
   useEffect(() => {
     setActiveMediaIndex(0);
+    setCommentGroupBuyId(groupBuy.id);
+    setPreviousProductHistoryVisible(false);
     resetSummarySheetState();
     onSummarySheetStateChange(false, true);
-  }, [groupBuy.id, onSummarySheetStateChange, resetSummarySheetState]);
+  }, [
+    groupBuy.id,
+    onSummarySheetStateChange,
+    resetSummarySheetState,
+  ]);
 
   const canSwipeReelFromSummaryOffset = useCallback(
     (
@@ -1942,7 +2097,12 @@ function ProductReelPageComponent({
 
       <Reanimated.View
         pointerEvents={
-          isSummaryExpanded || isSearchSheetVisible ? "none" : "auto"
+          isSummaryExpanded ||
+          isSearchSheetVisible ||
+          isCommentsVisible ||
+          isPreviousProductHistoryVisible
+            ? "none"
+            : "auto"
         }
         style={[
           s.topBar,
@@ -1989,7 +2149,12 @@ function ProductReelPageComponent({
       <>
         <Reanimated.View
           pointerEvents={
-            isSummaryExpanded || isSearchSheetVisible ? "none" : "auto"
+            isSummaryExpanded ||
+            isSearchSheetVisible ||
+            isCommentsVisible ||
+            isPreviousProductHistoryVisible
+              ? "none"
+              : "auto"
           }
           style={[
             s.rightRail,
@@ -2052,6 +2217,19 @@ function ProductReelPageComponent({
           <ReelAction
             icon={
               <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={26}
+                color="#FFFFFF"
+              />
+            }
+            label="댓글"
+            onPress={handleCommentsPress}
+            s={s}
+            testID="detail-comments-toggle"
+          />
+          <ReelAction
+            icon={
+              <Ionicons
                 name={
                   notificationEnabled
                     ? "notifications"
@@ -2066,12 +2244,33 @@ function ProductReelPageComponent({
             s={s}
             testID="detail-notification-toggle"
           />
+          {hasPreviousProductHistory ? (
+            <ReelAction
+              accessibilityLabel="이전 댓글"
+              icon={
+                <Ionicons
+                  color="#FFFFFF"
+                  name="time-outline"
+                  size={26}
+                />
+              }
+              label="이전 댓글"
+              onPress={handlePreviousProductHistoryPress}
+              s={s}
+              testID="detail-previous-product-history-toggle"
+            />
+          ) : null}
           <ReelPurchaseAction onPress={handleOpenLink} s={s} />
         </Reanimated.View>
 
         <Reanimated.View
           pointerEvents={
-            isSummaryExpanded || isSearchSheetVisible ? "none" : "auto"
+            isSummaryExpanded ||
+            isSearchSheetVisible ||
+            isCommentsVisible ||
+            isPreviousProductHistoryVisible
+              ? "none"
+              : "auto"
           }
           style={[
             s.bottomInfo,
@@ -2277,6 +2476,25 @@ function ProductReelPageComponent({
           </Reanimated.View>
         </View>
       ) : null}
+      <PreviousProductHistorySheet
+        current={{
+          id: groupBuy.id,
+          brandName: groupBuy.brandName,
+          productName: groupBuy.productName,
+        }}
+        maxHeight={previousProductHistoryMaxHeight}
+        onClose={handlePreviousProductHistoryClose}
+        onOpenComments={handlePreviousProductCommentsOpen}
+        visible={isPreviousProductHistoryVisible}
+      />
+      <CommentSheet
+        groupBuyId={commentGroupBuyId}
+        maxHeight={commentsSheetMaxHeight}
+        onClose={handleCommentsClose}
+        onSheetLayout={handleCommentsSheetLayout}
+        sheetTranslate={commentsSheetTranslate}
+        visible={isCommentsVisible}
+      />
     </View>
   );
 }
@@ -2373,6 +2591,7 @@ function DetailScreenContent({
     isOpen: false,
     canSwipeReel: true,
   });
+  const [commentsSheetOpen, setCommentsSheetOpen] = useState(false);
   const { isScreenFocused, isAppActive, isAppFocused, isPlaybackActive } =
     usePlaybackLifecycle();
   const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
@@ -2503,6 +2722,13 @@ function DetailScreenContent({
   const activeGroupBuy = isOnAdPage
     ? groupBuy
     : (reelItems[activeProductIndex] ?? groupBuy);
+  const previousProductHistoryQuery = useQuery({
+    queryKey: getPreviousProductHistoryQueryKey(activeGroupBuy),
+    queryFn: () => fetchPreviousProductGroupBuys(activeGroupBuy),
+    enabled: Boolean(activeGroupBuy.productName?.trim()),
+  });
+  const hasPreviousProductHistory =
+    (previousProductHistoryQuery.data?.length ?? 0) > 0;
   const hasCanonicalRouteGroupBuy = Boolean(
     groupBuys?.some((item) => item.id === groupBuy.id),
   );
@@ -2567,7 +2793,8 @@ function DetailScreenContent({
       clearTimeout(deepViewTimerRef.current);
       deepViewTimerRef.current = null;
     }
-    const overlayOpen = summarySheetGate.isOpen || isSearchSheetVisible;
+    const overlayOpen =
+      summarySheetGate.isOpen || isSearchSheetVisible || commentsSheetOpen;
     const playbackEligible = isPlaybackEligible({
       screenFocused: isScreenFocused,
       appActive: isAppActive && isAppFocused,
@@ -2596,6 +2823,7 @@ function DetailScreenContent({
     isAppActive,
     isAppFocused,
     isScreenFocused,
+    commentsSheetOpen,
     isSearchSheetVisible,
     summarySheetGate.isOpen,
   ]);
@@ -2609,6 +2837,9 @@ function DetailScreenContent({
     },
     [],
   );
+  const handleCommentsSheetStateChange = useCallback((isOpen: boolean) => {
+    setCommentsSheetOpen(isOpen);
+  }, []);
 
   useEffect(() => {
     if (!isSearchSheetVisible) {
@@ -2735,6 +2966,9 @@ function DetailScreenContent({
       <ProductReelPage
         key={item.id}
         groupBuy={item}
+        hasPreviousProductHistory={
+          index === activeProductIndex && !isOnAdPage && hasPreviousProductHistory
+        }
         isActive={
           isScreenFocused && index === activeProductIndex && !isOnAdPage
         }
@@ -2743,6 +2977,7 @@ function DetailScreenContent({
         }
         isSearchSheetVisible={isSearchSheetVisible}
         searchSheetMetrics={searchSheetMetrics}
+        onCommentsSheetStateChange={handleCommentsSheetStateChange}
         shouldPreloadAudio={Math.abs(index - activeProductIndex) <= 1}
         shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
         bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
@@ -2762,8 +2997,10 @@ function DetailScreenContent({
       activeProductIndex,
       closeSearchSheet,
       handleSummarySheetStateChange,
+      handleCommentsSheetStateChange,
       handlePlaybackStateChange,
       handleBack,
+      hasPreviousProductHistory,
       insets.bottom,
       insets.top,
       isOnAdPage,
@@ -2816,7 +3053,8 @@ function DetailScreenContent({
           screenHeight > 0 &&
           feedItems.length > 1 &&
           !summarySheetGate.isOpen &&
-          !isSearchSheetVisible
+          !isSearchSheetVisible &&
+          !commentsSheetOpen
         }
         style={s.verticalPager}
       >
@@ -2873,7 +3111,9 @@ function DetailScreenContent({
           );
         })}
       </PagerView>
-      {!summarySheetGate.isOpen && !isSearchSheetVisible ? (
+      {!summarySheetGate.isOpen &&
+      !isSearchSheetVisible &&
+      !commentsSheetOpen ? (
         <DetailSearchDock
           bottomInset={insets.bottom}
           onPress={openSearchSheet}

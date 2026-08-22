@@ -10,6 +10,7 @@ import { DatePickerField } from "@/components/DatePickerField";
 import { ProfileLinkCandidates } from "@/components/ProfileLinkCandidates";
 import { ProfileImagePreview } from "@/components/ProfileImagePreview";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
+import { CommentsPanel } from "@/components/CommentsPanel";
 import {
   inferHikerSuggestions,
   resolveHikerSummary,
@@ -24,6 +25,7 @@ import {
   parsePriceKrwInput,
 } from "@/lib/priceKrw";
 import {
+  getGroupBuyListStatus,
   getGroupBuyVisibility,
   groupBuyStatusForVisibility,
   shouldReturnToGroupBuyList,
@@ -68,6 +70,7 @@ type TabKey =
   | "groupBuyRequests"
   | "users"
   | "notifications"
+  | "comments"
   | "cdnRefresh";
 
 type SubmissionForm = {
@@ -524,6 +527,15 @@ function groupBuyCollectionReviewStatus(
   if (item.status === "REVIEW_REQUIRED") return "PENDING";
   if (item.status === "REJECTED") return "REJECTED";
   return "APPROVED";
+}
+
+function groupBuyStatusBadgeProps(
+  item: GroupBuy,
+  automaticCollection: boolean,
+) {
+  return automaticCollection
+    ? { status: groupBuyCollectionReviewStatus(item) }
+    : getGroupBuyListStatus(item.status, item.endDate);
 }
 
 function automaticCollectionFormSnapshot(
@@ -1891,6 +1903,15 @@ function AdminShell({ session }: { session: Session }) {
             <strong>푸시 발송</strong>
           </button>
           <button
+            aria-current={tab === "comments" ? "page" : undefined}
+            className={tab === "comments" ? "active" : ""}
+            onClick={() => switchTab("comments")}
+            type="button"
+          >
+            <span>Community safety</span>
+            <strong>댓글 관리</strong>
+          </button>
+          <button
             aria-current={tab === "cdnRefresh" ? "page" : undefined}
             className={tab === "cdnRefresh" ? "active" : ""}
             onClick={() => switchTab("cdnRefresh")}
@@ -2135,6 +2156,7 @@ function AdminShell({ session }: { session: Session }) {
                 onSend={(input) => adminApi.sendPushNotification(input)}
               />
             ) : null}
+            {tab === "comments" ? <CommentsPanel /> : null}
             {tab === "cdnRefresh" ? (
               <CdnRefreshPanel
                 loading={cdnLoading}
@@ -2310,6 +2332,29 @@ function AdminShell({ session }: { session: Session }) {
           <span>푸시</span>
         </button>
         <button
+          aria-current={tab === "comments" ? "page" : undefined}
+          className={tab === "comments" ? "active" : ""}
+          onClick={() => switchTab("comments")}
+          type="button"
+        >
+          <svg
+            fill="none"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-4 4v-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+            />
+          </svg>
+          <span>댓글</span>
+        </button>
+        <button
           aria-current={tab === "cdnRefresh" ? "page" : undefined}
           className={tab === "cdnRefresh" ? "active" : ""}
           onClick={() => switchTab("cdnRefresh")}
@@ -2468,6 +2513,7 @@ export function tabTitle(tab: TabKey) {
   if (tab === "groupBuyRequests") return "공구 요청";
   if (tab === "users") return "가입자 관리";
   if (tab === "notifications") return "푸시 발송";
+  if (tab === "comments") return "댓글 관리";
   if (tab === "cdnRefresh") return "CDN 갱신";
   return "대시보드";
 }
@@ -3520,11 +3566,10 @@ function GroupBuyPanel(props: {
                     </td>
                     <td>
                       <StatusBadge
-                        status={
-                          props.automaticCollection
-                            ? groupBuyCollectionReviewStatus(item)
-                            : item.status
-                        }
+                        {...groupBuyStatusBadgeProps(
+                          item,
+                          props.automaticCollection,
+                        )}
                       />
                     </td>
                   </tr>
@@ -3772,11 +3817,7 @@ function MobileGroupBuyCards({
               {item.category ?? "미지정"}
             </span>
             <StatusBadge
-              status={
-                automaticCollection
-                  ? groupBuyCollectionReviewStatus(item)
-                  : item.status
-              }
+              {...groupBuyStatusBadgeProps(item, automaticCollection)}
             />
           </div>
           <strong>{item.productName || "상품명 없음"}</strong>
@@ -4797,10 +4838,16 @@ function CheckboxField({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  label,
+  status,
+}: {
+  label?: string;
+  status: string;
+}) {
   return (
     <span className={`status-badge status-badge--${status.toLowerCase()}`}>
-      {statusLabel(status)}
+      {label ?? statusLabel(status)}
     </span>
   );
 }

@@ -34,6 +34,10 @@ const schemaMocks = vi.hoisted(() => ({
   signupStep2SafeParse: vi.fn(),
 }));
 
+const commentMocks = vi.hoisted(() => ({
+  acceptCommentTerms: vi.fn(),
+}));
+
 const navigationMock = vi.hoisted(() => ({
   addListener: vi.fn(),
   navigate: vi.fn(),
@@ -147,6 +151,10 @@ vi.mock('../utils/authHelpers', () => ({
   ]),
 }));
 
+vi.mock('../features/comments/api', () => ({
+  acceptCommentTerms: commentMocks.acceptCommentTerms,
+}));
+
 import { AuthScreen } from '../screens/AuthScreen';
 
 function renderAuthScreen() {
@@ -190,6 +198,7 @@ describe("AuthScreen tab switching", () => {
     audienceMocks.selectAgeBand.mockReset().mockResolvedValue(undefined);
     authMocks.signIn.mockReset().mockResolvedValue({ message: "로그인 실패" });
     authMocks.signInWithOAuth.mockReset().mockResolvedValue(null);
+    commentMocks.acceptCommentTerms.mockReset().mockResolvedValue(undefined);
     authMocks.startAudienceAuthIntent.mockReset();
     authMocks.cancelAudienceAuthIntent.mockReset();
     authMocks.takeAuthContinuation.mockReset().mockReturnValue(null);
@@ -412,6 +421,48 @@ describe("AuthScreen tab switching", () => {
     expect(navigationMock.popTo).toHaveBeenCalledWith("MainTabs", {
       screen: "MyPage",
     });
+  });
+
+  it("인증 성공 전에 커뮤니티 이용규칙 동의를 저장한다", async () => {
+    const renderer = renderAuthScreen();
+
+    (authMocks as any).user = { id: "selected-user" };
+    authMocks.authCompletionRevision = 1;
+
+    await act(async () => {
+      renderer.update(<AuthScreen {...({} as any)} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(commentMocks.acceptCommentTerms).toHaveBeenCalledWith(
+      "community-v1",
+    );
+    expect(commentMocks.acceptCommentTerms).toHaveBeenCalledTimes(1);
+    expect(navigationMock.popTo).toHaveBeenCalledWith("MainTabs", {
+      screen: "MyPage",
+    });
+  });
+
+  it("커뮤니티 이용규칙 동의 저장에 실패하면 인증 화면에 남는다", async () => {
+    commentMocks.acceptCommentTerms.mockRejectedValueOnce(
+      new Error("temporary failure"),
+    );
+    const renderer = renderAuthScreen();
+
+    (authMocks as any).user = { id: "selected-user" };
+    authMocks.authCompletionRevision = 1;
+
+    await act(async () => {
+      renderer.update(<AuthScreen {...({} as any)} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(navigationMock.popTo).not.toHaveBeenCalled();
+    expect(containsText(renderer, "커뮤니티 이용규칙을 저장하지 못했어요")).toBe(
+      true,
+    );
   });
 
   it("resumes the pending notification action before returning to the previous screen", async () => {

@@ -55,6 +55,14 @@ export async function handler(req: Request): Promise<Response> {
 
     if (userError || !user) return json({ error: '인증 정보가 유효하지 않습니다.' }, 401);
 
+    const { error: commentScrubError } = await supabase.rpc(
+      'scrub_comments_for_deleted_user',
+      { p_user_id: user.id },
+    );
+    if (commentScrubError) {
+      throw new Error(`댓글 개인정보 정리 실패: ${commentScrubError.message}`);
+    }
+
     // The profile table is keyed by the Supabase Auth user id. Its favorites
     // are removed by the foreign key, while Auth-linked signal rows cascade
     // when the Auth user is deleted below.
