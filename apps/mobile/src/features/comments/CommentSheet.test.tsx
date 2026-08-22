@@ -214,6 +214,50 @@ describe("CommentSheet", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the comment list scroll gesture when the list is not at the top", async () => {
+    const onClose = vi.fn();
+    const sheetTranslate = { value: 0 };
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <CommentSheet
+          groupBuyId="deal-1"
+          maxHeight={640}
+          onClose={onClose}
+          sheetTranslate={sheetTranslate as any}
+          visible
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const list = renderer.root.find(
+      (node) => String(node.type) === "FlatList",
+    );
+    act(() => {
+      list.props.onScroll?.({ nativeEvent: { contentOffset: { y: 240 } } });
+    });
+
+    const gestureDetector = renderer.root.find(
+      (node) => String(node.type) === "GestureDetector",
+    );
+    const handlers = (
+      gestureDetector.props.gesture as {
+        __handlers: Record<string, Function>;
+      }
+    ).__handlers;
+    expect(handlers.enabled).toBe(false);
+    act(() => {
+      handlers.onBegin();
+      handlers.onUpdate({ translationY: 200 });
+      handlers.onEnd({ translationY: 200, velocityY: 0 });
+    });
+
+    expect(sheetTranslate.value).toBe(0);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("does not ask for community rules again in the comment composer", async () => {
     let renderer!: TestRenderer.ReactTestRenderer;
 

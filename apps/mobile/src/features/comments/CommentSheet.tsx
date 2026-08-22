@@ -6,6 +6,8 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Platform,
   Pressable,
   StyleSheet,
@@ -220,6 +222,7 @@ export function CommentSheet({
   const [additionalRoots, setAdditionalRoots] = useState<CommentView[]>([]);
   const [rootCursor, setRootCursor] = useState<string | null>(null);
   const [loadingMoreRoots, setLoadingMoreRoots] = useState(false);
+  const [isCommentListAtTop, setIsCommentListAtTop] = useState(true);
 
   const rootsQuery = useQuery({
     queryKey: ["comments", groupBuyId, sort, "roots"],
@@ -239,6 +242,7 @@ export function CommentSheet({
       setActiveThreadRoot(null);
       setReplyTarget(null);
       setExpandedIds(new Set());
+      setIsCommentListAtTop(true);
     }
   }, [visible]);
 
@@ -528,6 +532,16 @@ export function CommentSheet({
     [additionalRoots, rootsQuery.data?.items],
   );
 
+  const handleCommentListScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const nextIsAtTop = event.nativeEvent.contentOffset.y <= 0;
+      setIsCommentListAtTop((current) =>
+        current === nextIsAtTop ? current : nextIsAtTop,
+      );
+    },
+    [],
+  );
+
   const sheetStyle = useAnimatedStyle(
     () => ({
       transform: [{ translateY: activeSheetTranslate.value }],
@@ -538,12 +552,15 @@ export function CommentSheet({
   const dismissGesture = useMemo(
     () =>
       Gesture.Pan()
+        .enabled(isCommentListAtTop)
         .activeOffsetY(6)
         .failOffsetX([-24, 24])
         .onBegin(() => {
+          if (!isCommentListAtTop) return;
           sheetDragStartY.value = activeSheetTranslate.value;
         })
         .onUpdate((event) => {
+          if (!isCommentListAtTop) return;
           const next = sheetDragStartY.value + event.translationY;
           activeSheetTranslate.value = Math.min(
             Math.max(next, 0),
@@ -551,6 +568,7 @@ export function CommentSheet({
           );
         })
         .onEnd((event) => {
+          if (!isCommentListAtTop) return;
           const draggedDown = event.translationY > 12;
           const pastThreshold =
             event.translationY > Math.max(72, resolvedMaxHeight * 0.28);
@@ -566,6 +584,7 @@ export function CommentSheet({
         }),
     [
       activeSheetTranslate,
+      isCommentListAtTop,
       onClose,
       resolvedMaxHeight,
       sheetDragStartY,
@@ -652,6 +671,7 @@ export function CommentSheet({
               data={activeThreadRoot ? [activeThreadRoot] : roots}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
+              onScroll={handleCommentListScroll}
               ListEmptyComponent={<View style={styles.emptyState}><SText variant="body" style={{ color: colors.textSecondary }}>아직 댓글이 없어요. 첫 의견을 남겨보세요.</SText></View>}
               ListFooterComponent={
                 !activeThreadRoot && rootCursor ? (
@@ -690,6 +710,7 @@ export function CommentSheet({
                 />
               )}
               showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
               style={styles.list}
             />
           )}
