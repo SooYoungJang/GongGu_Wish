@@ -165,6 +165,34 @@ describe("PreviousProductHistorySheet", () => {
     expect(JSON.stringify(renderer.toJSON())).toContain("댓글 보러가기");
   });
 
+  it("does not render a thumbnail area for previous group-buy cards", async () => {
+    queryResult.data = [
+      {
+        ...previous,
+        thumbnailUrl: "https://cdn.example.invalid/expired-thumbnail.jpg",
+      },
+    ];
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <PreviousProductHistorySheet
+          current={current}
+          maxHeight={600}
+          onClose={vi.fn()}
+          onOpenComments={vi.fn()}
+          visible
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    expect(renderer.root.findAllByType("Image" as any)).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ name: "image-outline" })).toHaveLength(
+      0,
+    );
+  });
+
   it("opens the selected previous group-buy comments and closes the sheet", async () => {
     const onClose = vi.fn();
     const onOpenComments = vi.fn();
