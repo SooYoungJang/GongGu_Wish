@@ -117,6 +117,7 @@ import { AdminScreen } from "./screens/AdminScreen";
 import { AuthScreen } from "./screens/AuthScreen";
 import { CalendarScreen } from "./screens/CalendarScreen";
 import { FeedDetailScreen } from "./screens/FeedDetailScreen";
+import { GroupBuyRequestRankingsScreen } from "./screens/GroupBuyRequestRankingsScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { InfluencerGroupBuysScreen } from "./screens/InfluencerGroupBuysScreen";
 import { DetailScreen } from "./screens/DetailScreen";
@@ -597,6 +598,10 @@ function ThemedStackNavigator() {
         component={InfluencerGroupBuysScreen}
       />
       <Stack.Screen name="SearchScreen" component={SearchScreen} />
+      <Stack.Screen
+        name="GroupBuyRequestRankings"
+        component={GroupBuyRequestRankingsScreen}
+      />
       <Stack.Screen name="Admin" component={AdminScreen} />
       <Stack.Screen
         name="Settings"

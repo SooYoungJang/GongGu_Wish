@@ -15,6 +15,7 @@ export type RootStackParamList = {
     influencerProfileImageUrl?: string | null;
   };
   SearchScreen: { initialQuery?: string } | undefined;
+  GroupBuyRequestRankings: undefined;
   Admin: undefined;
   Login: undefined;
   Submit: undefined;

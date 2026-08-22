@@ -1145,8 +1145,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       onRefresh={handleManualRefresh}
       scrollToTopRequest={scrollToTopRequest}
       onOpenSearch={() => navigation.navigate("SearchScreen")}
-      onPressGroupBuyRequestRanking={(productName) =>
-        navigation.navigate("SearchScreen", { initialQuery: productName })
+      onPressGroupBuyRequestRanking={() =>
+        navigation.navigate("GroupBuyRequestRankings")
       }
       onOpenCalendar={() =>
         navigation.navigate("CalendarScreen", {
