@@ -162,7 +162,7 @@ describe("PreviousProductHistorySheet", () => {
       }),
     ).toBeTruthy();
     expect(JSON.stringify(renderer.toJSON())).toContain("공구 종료");
-    expect(JSON.stringify(renderer.toJSON())).toContain("후기 보러가기");
+    expect(JSON.stringify(renderer.toJSON())).toContain("댓글 보러가기");
   });
 
   it("opens the selected previous group-buy comments and closes the sheet", async () => {
@@ -193,7 +193,7 @@ describe("PreviousProductHistorySheet", () => {
     await act(async () => {
       renderer.root
         .findAllByProps({
-          accessibilityLabel: "이 상품의 이전 공구 창 닫기",
+          accessibilityLabel: "이 상품의 이전 댓글 창 닫기",
         })[0]
         .props.onPress();
     });

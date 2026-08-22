@@ -1680,16 +1680,11 @@ function ProductReelPageComponent({
   useEffect(() => {
     setActiveMediaIndex(0);
     setCommentGroupBuyId(groupBuy.id);
-    if (isPreviousProductHistoryVisible) {
-      setPreviousProductHistoryVisible(false);
-      onCommentsSheetStateChange?.(false);
-    }
+    setPreviousProductHistoryVisible(false);
     resetSummarySheetState();
     onSummarySheetStateChange(false, true);
   }, [
     groupBuy.id,
-    isPreviousProductHistoryVisible,
-    onCommentsSheetStateChange,
     onSummarySheetStateChange,
     resetSummarySheetState,
   ]);
@@ -2251,7 +2246,7 @@ function ProductReelPageComponent({
           />
           {hasPreviousProductHistory ? (
             <ReelAction
-              accessibilityLabel="이전 공구 후기"
+              accessibilityLabel="이전 댓글"
               icon={
                 <Ionicons
                   color="#FFFFFF"
@@ -2259,7 +2254,7 @@ function ProductReelPageComponent({
                   size={26}
                 />
               }
-              label="이전 후기"
+              label="이전 댓글"
               onPress={handlePreviousProductHistoryPress}
               s={s}
               testID="detail-previous-product-history-toggle"
