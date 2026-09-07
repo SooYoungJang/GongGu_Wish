@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { InteractionManager, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, InteractionManager, Pressable, StatusBar, StyleSheet, TextInput, View } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -16,7 +16,8 @@ import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { InstagramIdentity } from '../components/ui/InstagramIdentity';
 import { SText } from '../components/ui/SText';
 import { AsyncStateNotice } from '../components/ui/AsyncStateNotice';
-import { fetchGroupBuys, fetchInfluencers, fetchPopularSearchTerms, logSearchTerm, searchInfluencers, type PopularSearchTerm } from '../api';
+import { fetchInfluencers, fetchPopularSearchTerms, logSearchTerm, searchInfluencers, type PopularSearchTerm } from '../api';
+import { useGroupBuySearch } from '../features/search/useGroupBuySearch';
 import { useAudience } from '../audience/AudienceContext';
 import { normalizeForSearch, pushRecentTerm, RECENT_SEARCH_STORAGE_KEY } from '../utils/search';
 import { spacing } from '../design/tokens';
@@ -45,15 +46,6 @@ type RequestFeedback = {
 type RequestError = {
   message: string;
   requestKey: string;
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  beauty: '뷰티',
-  fashion: '패션',
-  food: '푸드',
-  lifestyle: '라이프',
-  baby: '육아',
-  digital: '디지털',
 };
 
 function ClockGlyph({ s }: { s: ReturnType<typeof makeStyles> }) {
@@ -117,6 +109,7 @@ export function SearchScreen() {
   const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const inputRef = useRef<TextInput>(null);
   const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
+  const resultsRef = useRef<FlatList<GroupBuy>>(null);
   const { colors, isDark } = useCommerceTheme();
   const { policy: audiencePolicy } = useAudience();
   const queryClient = useQueryClient();
@@ -146,12 +139,18 @@ export function SearchScreen() {
   const {
     data: groupBuysData,
     isError: isGroupBuysError,
+    isPending: isGroupBuysPending,
     isFetching: isGroupBuysFetching,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    hasNextPage,
+    fetchNextPage,
     refetch: refetchGroupBuys,
-  } = useQuery({ queryKey: ['group-buys'], queryFn: fetchGroupBuys });
+  } = useGroupBuySearch(debouncedQuery);
   const {
     data: influencersData,
     isError: isInfluencersError,
+    isPending: isInfluencersPending,
     isFetching: isInfluencersFetching,
     refetch: refetchInfluencers,
   } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers });
@@ -163,12 +162,13 @@ export function SearchScreen() {
 
   const handleSearchTabReselect = useCallback(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
+    resultsRef.current?.scrollToOffset({ offset: 0, animated: true });
     void Promise.all([
-      refetchGroupBuys(),
+      ...(debouncedQuery.trim() ? [refetchGroupBuys()] : []),
       refetchInfluencers(),
       refetchPopularTerms(),
     ]);
-  }, [refetchGroupBuys, refetchInfluencers, refetchPopularTerms]);
+  }, [debouncedQuery, refetchGroupBuys, refetchInfluencers, refetchPopularTerms]);
 
   useTabReselect(tabNavigation, handleSearchTabReselect);
 
@@ -226,43 +226,33 @@ export function SearchScreen() {
     });
   }, [audiencePolicy.canRecordBehaviorSignals]);
 
-  const groupBuys = useMemo(() => groupBuysData ?? [], [groupBuysData]);
+  const isSearchSettled =
+    normalizeForSearch(query) === normalizeForSearch(debouncedQuery);
+  const dealResults = useMemo(
+    () => isSearchSettled ? groupBuysData?.pages.flatMap((page) => page.items) ?? [] : [],
+    [groupBuysData, isSearchSettled],
+  );
   const influencers = useMemo(() => influencersData ?? [], [influencersData]);
-  const hasPublicDataError = Boolean(isGroupBuysError || isInfluencersError);
-  const hasPublicData = groupBuys.length > 0 || influencers.length > 0;
+  const hasPublicDataError = isSearchSettled && Boolean(isGroupBuysError || isInfluencersError);
+  const hasPublicData = dealResults.length > 0 || influencers.length > 0;
   const handleRetryPublicData = useCallback(() => {
-    void Promise.all([refetchGroupBuys(), refetchInfluencers()]);
-  }, [refetchGroupBuys, refetchInfluencers]);
+    if (isGroupBuysFetching || isInfluencersFetching) return;
+    void Promise.all([
+      isFetchNextPageError ? fetchNextPage() : refetchGroupBuys(),
+      refetchInfluencers(),
+    ]);
+  }, [fetchNextPage, isFetchNextPageError, isGroupBuysFetching, isInfluencersFetching, refetchGroupBuys, refetchInfluencers]);
   const searchResults = useMemo(
-    () => searchInfluencers(influencers, debouncedQuery).slice(0, 8),
-    [influencers, debouncedQuery],
+    () => isSearchSettled ? searchInfluencers(influencers, debouncedQuery).slice(0, 8) : [],
+    [influencers, debouncedQuery, isSearchSettled],
   );
-  const groupBuySearchIndex = useMemo(
-    () => groupBuys.map((gb) => ({
-      item: gb,
-      text: [
-        gb.productName,
-        gb.brandName,
-        gb.category ? CATEGORY_LABELS[gb.category] ?? gb.category : null,
-        gb.category,
-        gb.rawPost.influencer.instagramUsername,
-      ]
-        .filter(Boolean)
-        .map((part) => normalizeForSearch(part))
-        .join(' '),
-    })),
-    [groupBuys],
-  );
-  const dealResults = useMemo(() => {
-    const q = normalizeForSearch(debouncedQuery);
-    if (!q) return [];
-    return groupBuySearchIndex
-      .filter(({ text }) => text.includes(q))
-      .slice(0, 10)
-      .map(({ item }) => item);
-  }, [groupBuySearchIndex, debouncedQuery]);
-
-  const hasQuery = debouncedQuery.trim().length > 0;
+  const hasQuery = query.trim().length > 0;
+  const isInitialSearchPending = !isSearchSettled || isGroupBuysPending || isInfluencersPending;
+  const handleLoadMore = useCallback(() => {
+    if (hasNextPage && !isGroupBuysFetching && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, isGroupBuysFetching]);
   const requestProductName = query.trim().replace(/\s+/g, ' ');
   // Keep this key aligned with the database request identity: collapse
   // whitespace, preserve meaningful spaces, then lowercase.
@@ -270,8 +260,6 @@ export function SearchScreen() {
   const isRequestNameValid =
     requestProductName.length >= REQUEST_PRODUCT_NAME_MIN_LENGTH &&
     requestProductName.length <= REQUEST_PRODUCT_NAME_MAX_LENGTH;
-  const isSearchSettled =
-    normalizeForSearch(query) === normalizeForSearch(debouncedQuery);
   const currentRequestFeedback =
     requestFeedback?.requestKey === requestStateKey
       ? requestFeedback.result
@@ -426,50 +414,71 @@ export function SearchScreen() {
         </View>
       </View>
 
-      <KeyboardFormScreen
-        keyboardShouldPersistTaps="handled"
-        scrollRef={scrollRef}
-        contentContainerStyle={s.scrollContent}
-      >
-        {hasPublicDataError ? (
-          <AsyncStateNotice
-            compact
-            isRetrying={isGroupBuysFetching || isInfluencersFetching}
-            message={
-              hasPublicData
-                ? '저장된 검색 정보를 계속 표시하고 있어요.'
-                : '네트워크 연결 상태를 확인하고 다시 시도해주세요.'
-            }
-            onRetry={handleRetryPublicData}
-            testID="search-query-state"
-            title={
-              hasPublicData
-                ? '최신 검색 정보를 확인하지 못했어요'
-                : '검색 정보를 불러오지 못했어요'
-            }
-            variant={hasPublicData ? 'stale' : 'error'}
-          />
-        ) : null}
-        {hasQuery ? (
-          <View style={s.resultsWrap}>
-            {dealResults.length > 0 && (
-              <>
+      {hasQuery ? (
+        <FlatList
+          key={normalizeForSearch(debouncedQuery)}
+          ref={resultsRef}
+          data={dealResults}
+          keyExtractor={(item) => item.id}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={[s.scrollContent, s.resultsWrap]}
+          renderItem={({ item }) => (
+            <DealSearchResultRow
+              chevronColor={colors.weak}
+              item={item}
+              onSelect={handleSelectDeal}
+              s={s}
+            />
+          )}
+          ListHeaderComponent={(
+            <>
+              {isInitialSearchPending && !hasPublicDataError ? (
+                <SText accessibilityLiveRegion="polite" variant="body" style={s.requestHint}>
+                  공구를 찾고 있어요
+                </SText>
+              ) : null}
+              {dealResults.length > 0 ? (
                 <SText variant="label" style={s.resultTitle}>공구</SText>
-                {dealResults.map((gb) => (
-                  <DealSearchResultRow
-                    chevronColor={colors.weak}
-                    key={gb.id}
-                    item={gb}
-                    onSelect={handleSelectDeal}
-                    s={s}
-                  />
-                ))}
-              </>
-            )}
+              ) : null}
+            </>
+          )}
+          ListFooterComponent={(
+            <>
+              {hasNextPage && isSearchSettled ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="검색 결과 더 보기"
+                  accessibilityState={{ busy: isFetchingNextPage, disabled: isGroupBuysFetching || isFetchingNextPage }}
+                  disabled={isGroupBuysFetching || isFetchingNextPage}
+                  onPress={handleLoadMore}
+                  style={({ pressed }) => [s.requestButton, pressed && s.pressed]}
+                >
+                  <SText variant="label" style={s.requestButtonText}>
+                    {isFetchingNextPage ? '불러오는 중…' : '검색 결과 더 보기'}
+                  </SText>
+                </Pressable>
+              ) : null}
+              {hasPublicDataError ? (
+                <AsyncStateNotice
+                  compact
+                  isRetrying={isGroupBuysFetching || isInfluencersFetching}
+                  message={hasPublicData
+                    ? '저장된 검색 정보를 계속 표시하고 있어요.'
+                    : '네트워크 연결 상태를 확인하고 다시 시도해주세요.'}
+                  onRetry={handleRetryPublicData}
+                  testID="search-query-state"
+                  title={hasPublicData
+                    ? '최신 검색 정보를 확인하지 못했어요'
+                    : '검색 정보를 불러오지 못했어요'}
+                  variant={hasPublicData ? 'stale' : 'error'}
+                />
+              ) : null}
             {searchResults.length > 0 && (
               <SearchResultsPanel results={searchResults} onPressInfluencer={handleSelectInfluencer} />
             )}
-            {dealResults.length === 0 && searchResults.length === 0 && !hasPublicDataError && (
+            {dealResults.length === 0 && searchResults.length === 0 && !hasPublicDataError && !isInitialSearchPending && (
               <View style={s.requestState}>
                 {isSearchSettled ? (
                   <View
@@ -543,8 +552,15 @@ export function SearchScreen() {
                 ) : null}
               </View>
             )}
-          </View>
-        ) : (
+            </>
+          )}
+        />
+      ) : (
+      <KeyboardFormScreen
+        keyboardShouldPersistTaps="handled"
+        scrollRef={scrollRef}
+        contentContainerStyle={s.scrollContent}
+      >
           <View style={s.suggestWrap}>
             {recentTerms.length > 0 ? (
               <>
@@ -597,8 +613,8 @@ export function SearchScreen() {
               </>
             ) : null}
           </View>
-        )}
       </KeyboardFormScreen>
+      )}
     </View>
   );
 }

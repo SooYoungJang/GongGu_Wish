@@ -243,6 +243,25 @@ describe("gonggu API proxy", () => {
     assert.deepEqual(await upstreamRequest.json(), { p_limit_count: 3 });
   });
 
+  it("forwards public search query and cursor only for GET", async () => {
+    let upstreamRequest;
+    let calls = 0;
+    globalThis.fetch = async (input) => {
+      calls += 1;
+      upstreamRequest = input;
+      return Response.json([]);
+    };
+    const path = "/rest/v1/rpc/search_public_group_buys?p_query=100%25_&p_limit=21&p_before_id=text-id";
+    const response = await request(path, { headers: { apikey: "public-key" } });
+    assert.equal(response.status, 200);
+    assert.equal(new URL(upstreamRequest.url).search, new URL(`https://example.test${path}`).search);
+    assert.equal(upstreamRequest.method, "GET");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const rejected = await request(path, { method: "POST" });
+    assert.equal(rejected.status, 405);
+    assert.equal(calls, 1);
+  });
+
   it("forwards product comment, moderation, and consent RPCs", async () => {
     const rpcBodies = {
       list_comment_roots: { p_group_buy_id: "deal-1", p_limit: 20 },
