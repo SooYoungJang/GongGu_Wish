@@ -142,6 +142,7 @@ export function SearchScreen() {
     isPending: isGroupBuysPending,
     isFetching: isGroupBuysFetching,
     isFetchingNextPage,
+    isFetchNextPageError,
     hasNextPage,
     fetchNextPage,
     refetch: refetchGroupBuys,
@@ -237,10 +238,10 @@ export function SearchScreen() {
   const handleRetryPublicData = useCallback(() => {
     if (isGroupBuysFetching || isInfluencersFetching) return;
     void Promise.all([
-      hasNextPage && dealResults.length > 0 ? fetchNextPage() : refetchGroupBuys(),
+      isFetchNextPageError ? fetchNextPage() : refetchGroupBuys(),
       refetchInfluencers(),
     ]);
-  }, [dealResults.length, fetchNextPage, hasNextPage, isGroupBuysFetching, isInfluencersFetching, refetchGroupBuys, refetchInfluencers]);
+  }, [fetchNextPage, isFetchNextPageError, isGroupBuysFetching, isInfluencersFetching, refetchGroupBuys, refetchInfluencers]);
   const searchResults = useMemo(
     () => isSearchSettled ? searchInfluencers(influencers, debouncedQuery).slice(0, 8) : [],
     [influencers, debouncedQuery, isSearchSettled],
@@ -415,6 +416,7 @@ export function SearchScreen() {
 
       {hasQuery ? (
         <FlatList
+          key={normalizeForSearch(debouncedQuery)}
           ref={resultsRef}
           data={dealResults}
           keyExtractor={(item) => item.id}

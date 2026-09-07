@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => {
 	    groupBuysError: false,
 	    groupBuysFetching: false,
 	    groupBuysFetchingNextPage: false,
+	    groupBuysFetchNextPageError: false,
 	    groupBuysHasNextPage: false,
 	    groupBuysFetchNextPage: vi.fn(() => Promise.resolve()),
 	    groupBuysRefetch: vi.fn(),
@@ -280,6 +281,7 @@ function groupBuySearchResult(items = mocks.groupBuys) {
     isError: mocks.groupBuysError,
     isFetching: mocks.groupBuysFetching,
     isFetchingNextPage: mocks.groupBuysFetchingNextPage,
+    isFetchNextPageError: mocks.groupBuysFetchNextPageError,
     hasNextPage: mocks.groupBuysHasNextPage,
     fetchNextPage: mocks.groupBuysFetchNextPage,
     refetch: mocks.groupBuysRefetch,
@@ -294,6 +296,7 @@ describe('SearchScreen redesign', () => {
     mocks.groupBuysError = false;
     mocks.groupBuysFetching = false;
     mocks.groupBuysFetchingNextPage = false;
+    mocks.groupBuysFetchNextPageError = false;
     mocks.groupBuysHasNextPage = false;
     mocks.groupBuysFetchNextPage.mockClear();
     mocks.useGroupBuySearch.mockReset();
@@ -955,6 +958,7 @@ describe('SearchScreen redesign', () => {
         await view.root.findByProps({ accessibilityLabel: '검색 결과 더 보기' }).props.onPress();
       });
       mocks.groupBuysError = true;
+      mocks.groupBuysFetchNextPageError = true;
       await refreshResults();
 
       expect(view.root.findByProps({ accessibilityLabel: `${mocks.groupBuy.productName} 보기` }))
@@ -964,12 +968,21 @@ describe('SearchScreen redesign', () => {
         await view.root.findByProps({ accessibilityLabel: '다시 불러오기' }).props.onPress();
       });
 
-      expect(
-        mocks.groupBuysRefetch.mock.calls.length +
-        mocks.groupBuysFetchNextPage.mock.calls.length - pageCallsBeforeRetry,
-      ).toBe(1);
+      expect(mocks.groupBuysFetchNextPage).toHaveBeenCalledTimes(pageCallsBeforeRetry + 1);
+      expect(mocks.groupBuysRefetch).not.toHaveBeenCalled();
       expect(view.root.findAllByProps({ accessibilityLabel: '베개 공구 요청하기' }))
         .toHaveLength(0);
+    });
+
+    it('refreshes existing pages when a background refresh fails', async () => {
+      mocks.groupBuysHasNextPage = true;
+      mocks.groupBuysError = true;
+      const view = await renderResults('베개');
+      await act(async () => {
+        await view.root.findByProps({ accessibilityLabel: '다시 불러오기' }).props.onPress();
+      });
+      expect(mocks.groupBuysRefetch).toHaveBeenCalledTimes(1);
+      expect(mocks.groupBuysFetchNextPage).not.toHaveBeenCalled();
     });
   });
 });
