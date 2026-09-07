@@ -53,6 +53,7 @@ import { ApiError, type ApiValidationError } from "./lib/api-types";
 import { normalizePriceKrw } from "./utils/price";
 import {
   filterActiveGroupBuys,
+  formatDateKey,
   isGroupBuyExpired,
 } from "./utils/groupBuyDates";
 import { isSameProduct, normalizeProductPart } from "./utils/productHistory";
@@ -157,6 +158,48 @@ export async function fetchGroupBuys(): Promise<GroupBuy[]> {
     );
     throw error;
   }
+}
+
+export type GroupBuySearchCursor = { createdAt: string; id: string };
+export type GroupBuySearchPage = {
+  items: GroupBuy[];
+  nextCursor: GroupBuySearchCursor | null;
+};
+const SEARCH_PAGE_SIZE = 20;
+
+export async function searchGroupBuys(
+  query: string,
+  cursor: GroupBuySearchCursor | null = null,
+  signal?: AbortSignal,
+): Promise<GroupBuySearchPage> {
+  const term = query.trim().slice(0, 200);
+  if (!term) return { items: [], nextCursor: null };
+
+  const params = new URLSearchParams({
+    p_query: term,
+    p_limit: String(SEARCH_PAGE_SIZE + 1),
+    p_today: formatDateKey(new Date()),
+  });
+  if (cursor) {
+    params.set("p_before_created_at", cursor.createdAt);
+    params.set("p_before_id", cursor.id);
+  }
+  const { data } = await postgrestGetPublicGroupBuys<any[]>(
+    `rpc/search_public_group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&${params}`,
+    { signal },
+  );
+  const rows = data ?? [];
+  const items = mapGroupBuyRows(rows.slice(0, SEARCH_PAGE_SIZE));
+  const last = items[items.length - 1];
+  if (rows.length > SEARCH_PAGE_SIZE && !last?.createdAt) {
+    throw new ApiError(502, "Invalid group buy search cursor");
+  }
+  return {
+    items,
+    nextCursor: rows.length > SEARCH_PAGE_SIZE && last?.createdAt
+      ? { createdAt: last.createdAt, id: last.id }
+      : null,
+  };
 }
 
 /**

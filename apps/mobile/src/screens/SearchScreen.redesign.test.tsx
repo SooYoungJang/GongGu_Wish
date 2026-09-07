@@ -1,9 +1,14 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SearchScreen } from './SearchScreen';
 import type { GroupBuy, Influencer } from '../types';
+
+type SearchPage = {
+  items: GroupBuy[];
+  nextCursor: { createdAt: string; id: string } | null;
+};
 
 const mocks = vi.hoisted(() => {
   const groupBuy: GroupBuy = {
@@ -32,11 +37,18 @@ const mocks = vi.hoisted(() => {
 	  return {
 	    groupBuy,
 	    groupBuys: [groupBuy],
+	    groupBuyPages: null as SearchPage[] | null,
+	    groupBuysPending: false,
 	    groupBuysError: false,
 	    groupBuysFetching: false,
+	    groupBuysFetchingNextPage: false,
+	    groupBuysHasNextPage: false,
+	    groupBuysFetchNextPage: vi.fn(() => Promise.resolve()),
 	    groupBuysRefetch: vi.fn(),
+	    useGroupBuySearch: vi.fn(),
 	    influencer,
 	    influencers: [influencer],
+	    influencersPending: false,
 	    influencersError: false,
 	    influencersFetching: false,
 	    influencersRefetch: vi.fn(),
@@ -61,6 +73,10 @@ const mocks = vi.hoisted(() => {
 	    routeParams: undefined as { initialQuery?: string } | undefined,
 	  };
 });
+
+vi.mock('../features/search/useGroupBuySearch', () => ({
+  useGroupBuySearch: mocks.useGroupBuySearch,
+}));
 
 vi.mock('../features/groupBuyRequests', () => ({
   GROUP_BUY_REQUEST_RANKINGS_QUERY_KEY: ['group-buy-request-rankings'],
@@ -139,7 +155,8 @@ vi.mock('../context/ThemeContext', () => ({
 	      refetch: mocks.popularTermsRefetch,
 	    };
 	    return {
-	      data: mocks.influencers,
+	      data: mocks.influencersPending ? undefined : mocks.influencers,
+	      isPending: mocks.influencersPending,
 	      isError: mocks.influencersError,
 	      isFetching: mocks.influencersFetching,
 	      refetch: mocks.influencersRefetch,
@@ -196,6 +213,31 @@ vi.mock('react-native', () => {
 	  });
 
 	  return {
+	    FlatList: ({
+	      data = [],
+	      renderItem,
+	      keyExtractor,
+	      ListHeaderComponent,
+	      ListFooterComponent,
+	      ListEmptyComponent,
+	      ...props
+	    }: any) => {
+	      const renderSlot = (slot: React.ReactNode | React.ComponentType) =>
+	        typeof slot === 'function' ? ReactMock.createElement(slot) : slot;
+	      return ReactMock.createElement(
+	        'FlatList',
+	        props,
+	        renderSlot(ListHeaderComponent),
+	        data.length > 0
+	          ? data.map((item: GroupBuy, index: number) => ReactMock.createElement(
+	            ReactMock.Fragment,
+	            { key: keyExtractor?.(item, index) ?? index },
+	            renderItem({ item, index }),
+	          ))
+	          : renderSlot(ListEmptyComponent),
+	        renderSlot(ListFooterComponent),
+	      );
+	    },
 	    Image: passthrough('Image'),
 	    InteractionManager: {
 	      runAfterInteractions: vi.fn((callback: () => void) => {
@@ -229,12 +271,37 @@ async function renderSearchScreen() {
   return renderer!;
 }
 
+function groupBuySearchResult(items = mocks.groupBuys) {
+  return {
+    data: mocks.groupBuysPending
+      ? undefined
+      : { pages: mocks.groupBuyPages ?? [{ items, nextCursor: null }] },
+    isPending: mocks.groupBuysPending,
+    isError: mocks.groupBuysError,
+    isFetching: mocks.groupBuysFetching,
+    isFetchingNextPage: mocks.groupBuysFetchingNextPage,
+    hasNextPage: mocks.groupBuysHasNextPage,
+    fetchNextPage: mocks.groupBuysFetchNextPage,
+    refetch: mocks.groupBuysRefetch,
+  };
+}
+
 describe('SearchScreen redesign', () => {
   beforeEach(() => {
     mocks.groupBuys = [mocks.groupBuy];
+    mocks.groupBuyPages = null;
+    mocks.groupBuysPending = false;
     mocks.groupBuysError = false;
     mocks.groupBuysFetching = false;
+    mocks.groupBuysFetchingNextPage = false;
+    mocks.groupBuysHasNextPage = false;
+    mocks.groupBuysFetchNextPage.mockClear();
+    mocks.useGroupBuySearch.mockReset();
+    mocks.useGroupBuySearch.mockImplementation((query: string) => query.trim()
+      ? groupBuySearchResult()
+      : { ...groupBuySearchResult([]), data: undefined, isPending: true, isError: false });
     mocks.influencers = [mocks.influencer];
+    mocks.influencersPending = false;
     mocks.influencersError = false;
     mocks.influencersFetching = false;
     mocks.groupBuysRefetch.mockClear();
@@ -263,7 +330,11 @@ describe('SearchScreen redesign', () => {
     mocks.groupBuys = [];
     mocks.influencers = [];
     mocks.groupBuysError = true;
+    mocks.routeParams = { initialQuery: '없는 공구' };
     const renderer = await renderSearchScreen();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
     const notice = renderer.root.find(
       (node) =>
         node.props.testID === 'search-query-state' &&
@@ -271,6 +342,8 @@ describe('SearchScreen redesign', () => {
     );
 
     expect(notice.props.accessibilityLiveRegion).toBe('assertive');
+    expect(renderer.root.findAllByProps({ accessibilityLabel: '없는 공구 공구 요청하기' }))
+      .toHaveLength(0);
     act(() => {
       renderer.root
         .findByProps({ accessibilityLabel: '다시 불러오기' })
@@ -282,7 +355,11 @@ describe('SearchScreen redesign', () => {
 
   it('keeps cached search sources visible with a stale notice', async () => {
     mocks.groupBuysError = true;
+    mocks.routeParams = { initialQuery: '베개' };
     const renderer = await renderSearchScreen();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
     const notice = renderer.root.find(
       (node) =>
         node.props.testID === 'search-query-state' &&
@@ -681,4 +758,218 @@ describe('SearchScreen redesign', () => {
 	      '최근 한 달 홈 순위 후보에 반영됐어요.',
 	    );
 	  });
+
+  describe('paginated search results', () => {
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      mocks.influencers = [];
+    });
+
+    afterEach(() => {
+      if (renderer) act(() => renderer!.unmount());
+      renderer = undefined;
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    });
+
+    async function renderResults(query = '검색 공구') {
+      mocks.routeParams = { initialQuery: query };
+      renderer = await renderSearchScreen();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250);
+      });
+      return renderer;
+    }
+
+    async function refreshResults() {
+      await act(async () => {
+        renderer!.update(<SearchScreen />);
+        await Promise.resolve();
+      });
+    }
+
+    it('renders and opens matching products beyond the first ten results', async () => {
+      mocks.groupBuys = Array.from({ length: 12 }, (_, index) => ({
+        ...mocks.groupBuy,
+        id: `result-${index + 1}`,
+        productName: `검색 공구 ${index + 1}`,
+      }));
+      const view = await renderResults();
+      const twelfthProduct = mocks.groupBuys[11];
+
+      expect(flattenText(view.toJSON())).toContain(twelfthProduct.productName);
+      act(() => {
+        view.root.findByProps({
+          accessibilityLabel: `${twelfthProduct.productName} 보기`,
+        }).props.onPress();
+      });
+
+      expect(mocks.navigate).toHaveBeenCalledWith('Detail', { groupBuy: twelfthProduct });
+      expect(mocks.logSearchTerm).toHaveBeenCalledWith(
+        twelfthProduct.productName,
+        twelfthProduct.id,
+      );
+    });
+
+    it('appends the next page and removes the more action after the last page', async () => {
+      const firstPage = Array.from({ length: 10 }, (_, index) => ({
+        ...mocks.groupBuy,
+        id: `page-one-${index + 1}`,
+        productName: `검색 공구 ${index + 1}`,
+      }));
+      const nextProduct = { ...mocks.groupBuy, id: 'page-two-1', productName: '검색 공구 11' };
+      const cursor = { createdAt: '2026-09-06T00:00:00.000Z', id: firstPage[9].id };
+      mocks.groupBuys = firstPage;
+      mocks.groupBuyPages = [{ items: firstPage, nextCursor: cursor }];
+      mocks.groupBuysHasNextPage = true;
+      const view = await renderResults();
+
+      await act(async () => {
+        await view.root.findByProps({ accessibilityLabel: '검색 결과 더 보기' }).props.onPress();
+      });
+
+      expect(mocks.groupBuysFetchNextPage).toHaveBeenCalledTimes(1);
+      mocks.groupBuyPages = [
+        { items: firstPage, nextCursor: cursor },
+        { items: [nextProduct], nextCursor: null },
+      ];
+      mocks.groupBuysHasNextPage = false;
+      await refreshResults();
+
+      expect(view.root.findByProps({ accessibilityLabel: `${firstPage[0].productName} 보기` }))
+        .toBeTruthy();
+      expect(view.root.findByProps({ accessibilityLabel: `${nextProduct.productName} 보기` }))
+        .toBeTruthy();
+      expect(view.root.findAllByProps({ accessibilityLabel: '검색 결과 더 보기' }))
+        .toHaveLength(0);
+    });
+
+    it('disables the more action while fetching and rejects duplicate page requests', async () => {
+      mocks.groupBuysHasNextPage = true;
+      const view = await renderResults('베개');
+      await act(async () => {
+        await view.root.findByProps({ accessibilityLabel: '검색 결과 더 보기' }).props.onPress();
+      });
+      mocks.groupBuysFetching = true;
+      mocks.groupBuysFetchingNextPage = true;
+      await refreshResults();
+      const busyButton = view.root.findByProps({ accessibilityLabel: '검색 결과 더 보기' });
+
+      expect(busyButton.props.disabled).toBe(true);
+      expect(busyButton.props.accessibilityState.busy).toBe(true);
+      await act(async () => {
+        await busyButton.props.onPress();
+        await busyButton.props.onPress();
+      });
+
+      expect(mocks.groupBuysFetchNextPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for the initial product response before offering a missing-product request', async () => {
+      mocks.groupBuys = [];
+      mocks.groupBuysPending = true;
+      mocks.groupBuysFetching = true;
+      const view = await renderResults('없는 공구');
+
+      expect(flattenText(view.toJSON())).toContain('공구를 찾고 있어요');
+      expect(view.root.findAllByProps({ accessibilityLabel: '없는 공구 공구 요청하기' }))
+        .toHaveLength(0);
+      expect(mocks.requestGroupBuy).not.toHaveBeenCalled();
+
+      mocks.groupBuysPending = false;
+      mocks.groupBuysFetching = false;
+      await refreshResults();
+
+      expect(view.root.findByProps({ accessibilityLabel: '없는 공구 공구 요청하기' }))
+        .toBeTruthy();
+    });
+
+    it('waits for the initial influencer response before offering a missing-product request', async () => {
+      mocks.groupBuys = [];
+      mocks.influencersPending = true;
+      mocks.influencersFetching = true;
+      const view = await renderResults('없는 공구');
+
+      expect(view.root.findAllByProps({ accessibilityLabel: '없는 공구 공구 요청하기' }))
+        .toHaveLength(0);
+      expect(mocks.requestGroupBuy).not.toHaveBeenCalled();
+
+      mocks.influencersPending = false;
+      mocks.influencersFetching = false;
+      await refreshResults();
+
+      const requestButton = view.root.findByProps({ accessibilityLabel: '없는 공구 공구 요청하기' });
+      expect(requestButton.props.disabled).toBe(false);
+      await act(async () => {
+        await requestButton.props.onPress();
+      });
+      expect(mocks.requestGroupBuy).toHaveBeenCalledWith('없는 공구');
+    });
+
+    it('does not offer a request when the influencer lookup fails', async () => {
+      mocks.groupBuys = [];
+      mocks.influencersError = true;
+      const view = await renderResults('없는 공구');
+
+      expect(view.root.findAllByProps({ accessibilityLabel: '없는 공구 공구 요청하기' }))
+        .toHaveLength(0);
+      expect(view.root.findByProps({ accessibilityLabel: '다시 불러오기' })).toBeTruthy();
+    });
+
+    it('hides earlier results as the query changes and searches the settled replacement query', async () => {
+      const previousProduct = { ...mocks.groupBuy, id: 'previous-product', productName: '이전 공구' };
+      const replacementProduct = { ...mocks.groupBuy, id: 'replacement-product', productName: '새로운 공구' };
+      mocks.groupBuys = [previousProduct];
+      mocks.useGroupBuySearch.mockImplementation((query: string) => groupBuySearchResult(
+        query === '이전 공구' ? [previousProduct] : query === '새로운 공구' ? [replacementProduct] : [],
+      ));
+      const view = await renderResults('이전 공구');
+      expect(view.root.findByProps({ accessibilityLabel: '이전 공구 보기' })).toBeTruthy();
+
+      act(() => {
+        view.root.findByProps({ accessibilityLabel: '공구 검색' }).props.onChangeText('새로운 공구');
+      });
+      expect(view.root.findAllByProps({ accessibilityLabel: '이전 공구 보기' })).toHaveLength(0);
+      expect(view.root.findAllByProps({ accessibilityLabel: '새로운 공구 공구 요청하기' }))
+        .toHaveLength(0);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(249);
+      });
+      expect(mocks.useGroupBuySearch).not.toHaveBeenCalledWith('새로운 공구');
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      expect(mocks.useGroupBuySearch).toHaveBeenLastCalledWith('새로운 공구');
+      expect(view.root.findAllByProps({ accessibilityLabel: '이전 공구 보기' })).toHaveLength(0);
+      expect(view.root.findByProps({ accessibilityLabel: '새로운 공구 보기' })).toBeTruthy();
+    });
+
+    it('keeps loaded products selectable and offers a retry after the next page fails', async () => {
+      mocks.groupBuysHasNextPage = true;
+      const view = await renderResults('베개');
+      await act(async () => {
+        await view.root.findByProps({ accessibilityLabel: '검색 결과 더 보기' }).props.onPress();
+      });
+      mocks.groupBuysError = true;
+      await refreshResults();
+
+      expect(view.root.findByProps({ accessibilityLabel: `${mocks.groupBuy.productName} 보기` }))
+        .toBeTruthy();
+      const pageCallsBeforeRetry = mocks.groupBuysFetchNextPage.mock.calls.length;
+      await act(async () => {
+        await view.root.findByProps({ accessibilityLabel: '다시 불러오기' }).props.onPress();
+      });
+
+      expect(
+        mocks.groupBuysRefetch.mock.calls.length +
+        mocks.groupBuysFetchNextPage.mock.calls.length - pageCallsBeforeRetry,
+      ).toBe(1);
+      expect(view.root.findAllByProps({ accessibilityLabel: '베개 공구 요청하기' }))
+        .toHaveLength(0);
+    });
+  });
 });
