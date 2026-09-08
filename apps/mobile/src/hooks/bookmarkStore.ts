@@ -11,7 +11,7 @@ export const BOOKMARK_STORAGE_KEY = "@gonggu/bookmarks/v1";
 // eslint-disable-next-line no-unused-vars
 type BookmarkListener = (entries: StoredGroupBuy[]) => void;
 
-type BookmarkStoreDependencies = {
+export type BookmarkStoreDependencies = {
   // eslint-disable-next-line no-unused-vars
   hydrateStored: (items: StoredGroupBuy[]) => Promise<StoredGroupBuy[]>;
   // eslint-disable-next-line no-unused-vars
@@ -162,13 +162,14 @@ export async function clearBookmarkStore(): Promise<void> {
 export function useBookmarkStore({
   hydrateStored,
   toStored,
-}: BookmarkStoreDependencies) {
+}: BookmarkStoreDependencies, enabled = true) {
   const [bookmarks, setBookmarks] = useState<StoredGroupBuy[]>(
     () => snapshot ?? [],
   );
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(() => {
+    if (!enabled) return;
     if (!canRecordBehaviorSignals()) {
       publish([]);
       setReady(true);
@@ -180,7 +181,7 @@ export function useBookmarkStore({
       return;
     }
     void hydrate(hydrateStored).finally(() => setReady(true));
-  }, [hydrateStored]);
+  }, [enabled, hydrateStored]);
 
   useEffect(() => {
     const unsubscribe = subscribe(setBookmarks);

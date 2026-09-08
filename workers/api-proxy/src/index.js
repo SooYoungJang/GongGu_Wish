@@ -24,6 +24,8 @@ const REST_RULES = new Map([
   ["rpc/get_popular_group_buys", new Set(["POST"])],
   ["rpc/get_group_buy_request_rankings", new Set(["POST"])],
   ["rpc/search_public_group_buys", new Set(["GET"])],
+  ["rpc/list_my_bookmarks", new Set(["POST"])],
+  ["rpc/set_my_bookmark", new Set(["POST"])],
   ["rpc/list_comment_roots", new Set(["POST"])],
   ["rpc/list_comment_children", new Set(["POST"])],
   ["rpc/create_comment", new Set(["POST"])],

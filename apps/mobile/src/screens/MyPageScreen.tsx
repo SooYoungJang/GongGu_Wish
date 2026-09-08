@@ -18,6 +18,7 @@ import Animated, { FadeOut, LinearTransition, ReduceMotion } from 'react-native-
 
 import { ApiError, postPublicJson } from '../api';
 import { useBookmarks, useRecentViews, useNotifications, useWishItems } from '../hooks/useLocalDeals';
+import { AsyncStateNotice } from '../components/ui/AsyncStateNotice';
 import type { NotificationEntry } from '../hooks/useLocalDeals';
 import { AppButton } from '../components/AppButton';
 import { DealCard } from '../components/DealCard';
@@ -190,7 +191,7 @@ export function MyPageScreen() {
   const s = useMemo(() => makeStyles(colors), [colors]);
   const scrollRef = useRef<ScrollView>(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  const { bookmarks: bookmarkedDeals, removeBookmark, refresh: refreshBookmarks } = useBookmarks();
+  const { bookmarks: bookmarkedDeals, removeBookmark, refresh: refreshBookmarks, ready: bookmarksReady, syncError: bookmarkSyncError } = useBookmarks();
   const { recentViews: viewedToday, refresh: refreshRecent } = useRecentViews();
   const { notifications, refresh: refreshNotifications } = useNotifications();
   const { wishItems, recordWishItem, refresh: refreshWishItems } = useWishItems();
@@ -433,13 +434,23 @@ export function MyPageScreen() {
 
         <DealShelf
           title="북마크한 공구"
-          subtitle={user ? '저장해둔 공구를 모아봤어요' : '이 기기에 저장된 공구예요'}
+          subtitle={user ? '내 계정에 저장한 공구예요' : '이 기기에 저장된 공구예요'}
           items={bookmarkedDeals}
-          emptyText="북마크한 공구가 아직 없어요."
+          emptyText={bookmarksReady ? '북마크한 공구가 아직 없어요.' : '저장한 공구를 불러오는 중이에요.'}
           onPressDeal={handlePressDeal}
           onUnbookmarkDeal={handleRemoveBookmark}
           s={s}
         />
+        {bookmarkSyncError ? (
+          <AsyncStateNotice
+            compact
+            testID="bookmark-sync-state"
+            variant="stale"
+            title="계정의 북마크를 동기화하지 못했어요"
+            message="이 기기의 변경은 보관하고 있어요. 연결을 확인한 뒤 다시 시도해 주세요."
+            onRetry={refreshBookmarks}
+          />
+        ) : null}
 
         <DealShelf
           title="알림 설정한 공구"

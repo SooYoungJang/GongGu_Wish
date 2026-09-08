@@ -313,7 +313,8 @@ vi.mock("react-native-keyboard-controller", () => {
   };
 });
 
-vi.mock("@tanstack/react-query", () => ({
+vi.mock("@tanstack/react-query", async importOriginal => ({
+  onlineManager: (await importOriginal<typeof import("@tanstack/react-query")>()).onlineManager,
   QueryClient: class QueryClient {
     constructor(_options?: unknown) {}
     clear = vi.fn();
