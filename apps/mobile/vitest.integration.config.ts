@@ -11,6 +11,9 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Suites share one database. Fixture cleanup must not alter another suite's
+    // ranking snapshot while it walks the same catalog through cursor pages.
+    fileParallelism: false,
     hookTimeout: 120_000,
     include: ["src/integration/**/*.integration.test.ts"],
     setupFiles: ["src/integration/requireLocalSupabase.ts"],

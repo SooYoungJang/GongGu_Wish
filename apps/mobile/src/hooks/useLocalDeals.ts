@@ -39,6 +39,7 @@ import {
   clearBookmarkStore,
   useBookmarkStore,
 } from "./bookmarkStore";
+import { clearAccountBookmarkStore, useAccountBookmarkStore } from "./accountBookmarkStore";
 
 const RECENT_KEY = "@gonggu/recent-views/v1";
 const NOTI_KEY = "@gonggu/notifications/v1";
@@ -1286,7 +1287,11 @@ async function rescheduleNotification(
 export async function clearLocalUserData(
   namespace = GUEST_NAMESPACE,
 ): Promise<void> {
-  await clearBookmarkStore();
+  if (namespace.startsWith("user:")) {
+    await clearAccountBookmarkStore(namespace.slice(5));
+  } else {
+    await clearBookmarkStore();
+  }
   await notificationRefreshes.get(namespace)?.catch(() => undefined);
   await notificationOperations.get(namespace)?.catch(() => undefined);
   await notificationMirrorOperations.get(namespace)?.catch(() => undefined);
@@ -1328,7 +1333,11 @@ export async function clearLocalUserData(
 }
 
 export function useBookmarks() {
-  return useBookmarkStore(BOOKMARK_STORE_DEPENDENCIES);
+  const auth = useOptionalAuth();
+  const userId = auth?.user?.id ?? null;
+  const guest = useBookmarkStore(BOOKMARK_STORE_DEPENDENCIES, !userId);
+  const account = useAccountBookmarkStore(BOOKMARK_STORE_DEPENDENCIES, userId);
+  return userId ? account : { ...guest, syncError: false };
 }
 
 export function useRecentViews() {

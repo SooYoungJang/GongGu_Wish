@@ -167,6 +167,39 @@ export type GroupBuySearchPage = {
 };
 const SEARCH_PAGE_SIZE = 20;
 
+/** Personal state is separate from the anonymous popularity bookmark signal. */
+export async function fetchAccountBookmarks(userId: string): Promise<GroupBuy[]> {
+  const items: GroupBuy[] = [];
+  const cursors = new Set<string>();
+  let afterId: string | null = null;
+  for (;;) {
+    const { data }: { data: Array<{ group_buy_id: string; snapshot: unknown }> } = await postgrestFetch(
+      "rpc/list_my_bookmarks",
+      { method: "POST", body: { p_expected_user_id: userId, p_after_id: afterId, p_limit: 100 } },
+    );
+    if (!Array.isArray(data) || data.some(row => !row || typeof row.group_buy_id !== "string" || !row.group_buy_id)) {
+      throw new ApiError(502, "Invalid account bookmark response");
+    }
+    const page = mapGroupBuyRows(data.map(row => row.snapshot));
+    if (page.length !== data.length || page.some((item, index) => item.id !== data[index].group_buy_id)) {
+      throw new ApiError(502, "Invalid account bookmark identity");
+    }
+    items.push(...page);
+    if (data.length < 100) return items;
+    afterId = data[data.length - 1].group_buy_id;
+    if (cursors.has(afterId)) throw new ApiError(502, "Invalid account bookmark cursor");
+    cursors.add(afterId);
+  }
+}
+
+export async function setAccountBookmark(userId: string, groupBuyId: string, selected: boolean): Promise<void> {
+  await postgrestPost("rpc/set_my_bookmark", {
+    p_expected_user_id: userId,
+    p_group_buy_id: groupBuyId,
+    p_selected: selected,
+  });
+}
+
 export async function searchGroupBuys(
   query: string,
   cursor: GroupBuySearchCursor | null = null,
