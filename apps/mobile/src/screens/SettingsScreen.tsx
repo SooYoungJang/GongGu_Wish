@@ -588,6 +588,15 @@ export function SettingsScreen() {
             앱 정보
           </SText>
           <View style={s.infoList}>
+            <Pressable accessibilityRole="button" accessibilityLabel="고객 문의"
+              onPress={() => { void Linking.openURL("mailto:tturrr10@gmail.com").catch(() => Alert.alert("메일 앱을 열지 못했어요", "tturrr10@gmail.com으로 문의해 주세요.")); }}
+              style={({ pressed }) => [s.infoRow, pressed && s.pressed]}>
+              <View style={s.infoRowLeading}>
+                <View style={s.infoIcon}><Ionicons color={colors.accent} name="mail-outline" size={20} /></View>
+                <SText style={s.infoRowLabel} variant="body">고객 문의</SText>
+              </View>
+              <Ionicons color={colors.weak} name="chevron-forward" size={20} />
+            </Pressable>
             <Pressable
               accessibilityHint="개인정보 처리방침 문서를 엽니다"
               accessibilityLabel="개인정보 처리방침"

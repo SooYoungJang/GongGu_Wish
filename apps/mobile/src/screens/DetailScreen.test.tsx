@@ -4010,3 +4010,6 @@ describe("DetailScreen video playback", () => {
     expect(retryPlayer!.play).toHaveBeenCalledTimes(playCallsBeforeRetry);
   });
 });
+vi.mock("../features/productReports/ProductReportButton", () => ({
+  ProductReportButton: () => null,
+}));

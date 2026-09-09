@@ -266,6 +266,7 @@ describe("gonggu API proxy", () => {
     const rpcBodies = {
       list_my_bookmarks: { p_expected_user_id: "user-a", p_after_id: null, p_limit: 100 },
       set_my_bookmark: { p_expected_user_id: "user-a", p_group_buy_id: "deal-1", p_selected: true },
+      submit_product_report: { p_expected_user_id: "user-a", p_group_buy_id: "deal-1", p_reason: "PRICE" },
       list_comment_roots: { p_group_buy_id: "deal-1", p_limit: 20 },
       list_comment_children: { p_group_buy_id: "deal-1", p_limit: 20 },
       create_comment: {

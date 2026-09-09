@@ -32,6 +32,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
+import { ProductReportButton } from "../features/productReports/ProductReportButton";
 import { FlashList } from "@shopify/flash-list";
 import { getGroupBuyCategoryLabel } from "@gonggu/shared/utils/groupBuyCategory";
 import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagram";
@@ -1049,7 +1050,9 @@ function ProductReelPageComponent({
   const [isPreviousProductHistoryVisible, setPreviousProductHistoryVisible] =
     useState(false);
   const [commentGroupBuyId, setCommentGroupBuyId] = useState(groupBuy.id);
-  const [shouldPlayMedia, setShouldPlayMedia] = useState(true);
+  const [isReportVisible, setReportVisible] = useState(false);
+  const [isMediaPlaybackRequested, setShouldPlayMedia] = useState(true);
+  const shouldPlayMedia = isMediaPlaybackRequested && !isReportVisible;
   const [localMuted, setLocalMuted] = useState(muted ?? false);
   const [resolvedPostAudio, setResolvedPostAudio] = useState(() => ({
     url: groupBuy.postAudioUrl ?? null,
@@ -2346,6 +2349,7 @@ function ProductReelPageComponent({
                 </SText>
               </View>
             ) : null}
+            {isActive ? <ProductReportButton groupBuyId={groupBuy.id} productName={groupBuy.productName ?? "공구 상품"} onOpenChange={setReportVisible} /> : null}
           </View>
         </Reanimated.View>
       </>

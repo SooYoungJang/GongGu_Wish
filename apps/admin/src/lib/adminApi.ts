@@ -4,6 +4,7 @@ import type {
   CdnRefreshResult,
   CdnRefreshStatusResponse,
   CommentModerationItem,
+  ProductInformationReport,
   DashboardResponse,
   GongguSubmission,
   SubmissionApprovalDeliverySummary,
@@ -259,6 +260,14 @@ export const adminApi = {
       "GET",
       { params },
     );
+  },
+
+  listProductReports(params: { page: number; limit: number; status: string }) {
+    return requestAdmin<ListResponse<ProductInformationReport>>("/admin/product-reports", "GET", { params });
+  },
+
+  reviewProductReport(id: string, body: { status: "RESOLVED" | "DISMISSED"; reviewNote: string }) {
+    return requestAdmin<ProductInformationReport>(`/admin/product-reports/${id}`, "PATCH", { body });
   },
 
   rejectGroupBuyRequest(id: string) {
