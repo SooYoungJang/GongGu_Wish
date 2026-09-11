@@ -1,0 +1,40 @@
+.product-reports-table textarea {
+  width: 100%;
+  min-width: 12rem;
+  min-height: 5rem;
+}
+
+@media (max-width: 767px) {
+  .product-reports-wrap .product-reports-table,
+  .product-reports-wrap .product-reports-table tbody,
+  .product-reports-wrap .product-reports-table tr,
+  .product-reports-wrap .product-reports-table td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .product-reports-wrap .product-reports-table thead {
+    display: none;
+  }
+  .product-reports-wrap .product-reports-table td {
+    padding: 0.75rem 0;
+    border: 0;
+  }
+  .product-reports-wrap .product-reports-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+  .product-reports-wrap .product-reports-table td strong {
+    white-space: normal;
+    max-width: none;
+    overflow: visible;
+  }
+  .product-reports-wrap .product-reports-table textarea {
+    min-width: 0;
+  }
+}

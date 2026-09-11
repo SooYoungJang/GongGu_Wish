@@ -11,6 +11,7 @@ import { ProfileLinkCandidates } from "@/components/ProfileLinkCandidates";
 import { ProfileImagePreview } from "@/components/ProfileImagePreview";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import { CommentsPanel } from "@/components/CommentsPanel";
+import { ProductReportsPanel } from "@/components/ProductReportsPanel";
 import {
   inferHikerSuggestions,
   resolveHikerSummary,
@@ -71,6 +72,7 @@ type TabKey =
   | "users"
   | "notifications"
   | "comments"
+  | "productReports"
   | "cdnRefresh";
 
 type SubmissionForm = {
@@ -1903,6 +1905,12 @@ function AdminShell({ session }: { session: Session }) {
             <strong>푸시 발송</strong>
           </button>
           <button
+            aria-current={tab === "productReports" ? "page" : undefined}
+            className={tab === "productReports" ? "active" : ""}
+            onClick={() => switchTab("productReports")} type="button">
+            <span>상품 정보</span><strong>정보 신고</strong>
+          </button>
+          <button
             aria-current={tab === "comments" ? "page" : undefined}
             className={tab === "comments" ? "active" : ""}
             onClick={() => switchTab("comments")}
@@ -2157,6 +2165,7 @@ function AdminShell({ session }: { session: Session }) {
               />
             ) : null}
             {tab === "comments" ? <CommentsPanel /> : null}
+            {tab === "productReports" ? <ProductReportsPanel /> : null}
             {tab === "cdnRefresh" ? (
               <CdnRefreshPanel
                 loading={cdnLoading}
@@ -2330,6 +2339,12 @@ function AdminShell({ session }: { session: Session }) {
             />
           </svg>
           <span>푸시</span>
+        </button>
+        <button
+          aria-current={tab === "productReports" ? "page" : undefined}
+          className={tab === "productReports" ? "active" : ""}
+          onClick={() => switchTab("productReports")} type="button">
+          <span>정보 신고</span>
         </button>
         <button
           aria-current={tab === "comments" ? "page" : undefined}
@@ -2514,6 +2529,7 @@ export function tabTitle(tab: TabKey) {
   if (tab === "users") return "가입자 관리";
   if (tab === "notifications") return "푸시 발송";
   if (tab === "comments") return "댓글 관리";
+  if (tab === "productReports") return "상품 정보 신고";
   if (tab === "cdnRefresh") return "CDN 갱신";
   return "대시보드";
 }
