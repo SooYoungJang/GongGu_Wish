@@ -249,6 +249,10 @@ export const adminApi = {
     }).then(normalizeGroupBuyListResponse);
   },
 
+  fulfillGroupBuyRequest(id: string, groupBuyId: string) {
+    return requestAdmin<{ requestId: string; groupBuyId: string; status: "FULFILLED"; queued: number }>(`/admin/group-buy-requests/${id}/fulfill`, "POST", { body: { groupBuyId } });
+  },
+
   listGroupBuyRequests(params: {
     page?: number;
     limit?: number;

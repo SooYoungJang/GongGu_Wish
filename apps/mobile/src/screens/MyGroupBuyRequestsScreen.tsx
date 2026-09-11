@@ -10,6 +10,7 @@ import { SText } from "../components/ui/SText";
 import { useAuth } from "../context/AuthContext";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import { fetchMyGroupBuyRequests, type MyRequestCursor } from "../features/groupBuyRequests/myRequestsApi";
+import { RequestNotificationToggle } from "../features/groupBuyRequests/RequestNotificationToggle";
 import type { RootStackParamList } from "../types";
 
 const statusLabels = { OPEN: "진행 중", FULFILLED: "요청 완료", HIDDEN: "접수 종료" };
@@ -56,6 +57,8 @@ export function MyGroupBuyRequestsScreen({ navigation }: NativeStackScreenProps<
             <SText variant="cardTitle" style={styles.text}>{item.productName}</SText>
             <SText variant="label" style={styles.text}>{statusLabels[item.status]}</SText>
             <SText variant="caption" style={styles.muted}>{new Date(item.requestedAt).toLocaleDateString("ko-KR")} 요청</SText>
+            {item.groupBuyId ? <Pressable accessibilityRole="button" style={styles.action} onPress={() => navigation.navigate("Detail", { groupBuyId: item.groupBuyId! })}><SText variant="label" style={styles.text}>등록된 공구 보기</SText></Pressable> : item.status === "FULFILLED" ? <SText variant="caption" style={styles.muted}>연결된 공구가 없거나 현재 볼 수 없어요.</SText> : null}
+            <RequestNotificationToggle key={`${user.id}:${item.id}`} userId={user.id} requestId={item.id} enabled={item.notificationEnabled} closed={item.status !== "OPEN"} onSettings={() => navigation.navigate("Settings")} onChanged={() => { void requests.refetch(); }} />
           </View>}
           ListEmptyComponent={requests.isPending ? <ActivityIndicator color={colors.accent} /> : !requests.isError ? <AsyncStateNotice variant="empty" title="아직 연결된 요청이 없어요" message="원하는 상품을 공구 요청으로 남겨보세요." /> : null}
           ListFooterComponent={requests.isError ? <AsyncStateNotice variant="error" title="요청을 불러오지 못했어요" message="연결 상태를 확인하고 다시 시도해주세요." onRetry={retry} isRetrying={requests.isFetching} /> : requests.isFetchingNextPage ? <ActivityIndicator color={colors.accent} /> : requests.hasNextPage ? <Pressable accessibilityRole="button" style={styles.action} onPress={() => { if (!requests.isFetching) void requests.fetchNextPage(); }}><SText variant="label" style={styles.text}>더 보기</SText></Pressable> : null}

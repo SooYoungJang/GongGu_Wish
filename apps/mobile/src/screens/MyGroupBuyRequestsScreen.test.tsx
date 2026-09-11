@@ -8,6 +8,7 @@ vi.mock("../context/AuthContext", () => ({ useAuth: () => ({ user: mock.user, is
 vi.mock("@tanstack/react-query", () => ({ useInfiniteQuery: (options: unknown) => { mock.options = options; return mock.query; } }));
 vi.mock("@react-navigation/native", () => ({ useFocusEffect: () => {} }));
 vi.mock("../features/groupBuyRequests/myRequestsApi", () => ({ fetchMyGroupBuyRequests: vi.fn() }));
+vi.mock("../features/groupBuyRequests/RequestNotificationToggle", () => ({ RequestNotificationToggle: () => null }));
 vi.mock("../design/useCommerceTheme", () => ({ useCommerceTheme: () => ({ colors: {} }) }));
 vi.mock("react-native", () => {
   const React = require("react");
@@ -51,5 +52,18 @@ describe("my requests screen", () => {
     act(() => renderer.root.findByType("button").props.onClick());
     expect(mock.query.refetch).toHaveBeenCalledOnce();
     expect(mock.query.fetchNextPage).not.toHaveBeenCalled();
+  });
+  it("opens the operator-linked product by id", () => {
+    mock.query.data.pages[0].items[0] = { ...mock.query.data.pages[0].items[0], status: "FULFILLED", groupBuyId: "linked-deal" };
+    const navigate = vi.fn();
+    act(() => { renderer = TestRenderer.create(<MyGroupBuyRequestsScreen navigation={{ navigate } as any} route={{} as any} />); });
+    act(() => renderer.root.findAllByType("Pressable" as any)[0].props.onPress());
+    expect(navigate).toHaveBeenCalledWith("Detail", { groupBuyId: "linked-deal" });
+  });
+  it("explains a fulfilled request without a visible linked product", () => {
+    mock.query.data.pages[0].items[0].status = "FULFILLED";
+    mount();
+    expect(JSON.stringify(renderer.toJSON())).toContain("연결된 공구가 없거나 현재 볼 수 없어요.");
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("등록된 공구 보기");
   });
 });
