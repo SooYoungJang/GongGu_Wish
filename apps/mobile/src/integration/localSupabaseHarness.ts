@@ -309,7 +309,7 @@ export async function invokeAdmin<T>(
   phase: string,
   request: {
     path: string;
-    method: "GET" | "PATCH";
+    method: "GET" | "POST" | "PATCH";
     body?: unknown;
     params?: unknown;
   },

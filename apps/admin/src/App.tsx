@@ -12,6 +12,7 @@ import { ProfileImagePreview } from "@/components/ProfileImagePreview";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import { CommentsPanel } from "@/components/CommentsPanel";
 import { ProductReportsPanel } from "@/components/ProductReportsPanel";
+import { RequestFulfillmentDialog } from "@/components/RequestFulfillmentDialog";
 import {
   inferHikerSuggestions,
   resolveHikerSummary,
@@ -2129,6 +2130,7 @@ function AdminShell({ session }: { session: Session }) {
                   setGroupBuyRequestPage(1);
                 }}
                 onReject={(item) => void rejectGroupBuyRequest(item)}
+                onFulfilled={() => { setNotice({ tone: "success", message: "요청에 공구를 연결했습니다." }); void loadGroupBuyRequests(); }}
                 page={groupBuyRequestPage}
                 query={groupBuyRequestQuery}
                 status={groupBuyRequestStatus}
@@ -3648,6 +3650,7 @@ function GroupBuyRequestPanel(props: {
   onPageChange: (page: number) => void;
   onQueryChange: (value: string) => void;
   onReject: (item: GroupBuyRequest) => void;
+  onFulfilled: () => void;
   onStatusChange: (value: "ALL" | GroupBuyRequestStatus) => void;
   page: number;
   query: string;
@@ -3656,6 +3659,7 @@ function GroupBuyRequestPanel(props: {
   totalPages: number;
 }) {
   const isFiltered = props.query.trim().length > 0 || props.status !== "ALL";
+  const [fulfilling, setFulfilling] = useState<GroupBuyRequest | null>(null);
   const resetFilters = () => {
     props.onQueryChange("");
     props.onStatusChange("ALL");
@@ -3663,6 +3667,7 @@ function GroupBuyRequestPanel(props: {
 
   return (
     <section className="panel">
+      {fulfilling ? <RequestFulfillmentDialog key={fulfilling.id} request={fulfilling} onClose={() => setFulfilling(null)} onComplete={() => { setFulfilling(null); props.onFulfilled(); }} /> : null}
       <div className="section-header">
         <div>
           <p className="eyebrow">Request demand</p>
@@ -3713,6 +3718,7 @@ function GroupBuyRequestPanel(props: {
                   <td>{formatDateTime(item.latestRequestedAt)}</td>
                   <td>{formatDateTime(item.createdAt)}</td>
                   <td>
+                    {item.status === "OPEN" ? <button className="button" type="button" disabled={props.actionLoading !== null} onClick={() => setFulfilling(item)} aria-label={`${item.productName} 공구 연결`}>공구 연결</button> : null}
                     {item.status === "OPEN" ? (
                       <button
                         aria-label={`${item.productName} 공구 요청 반려`}
@@ -3748,6 +3754,7 @@ function GroupBuyRequestPanel(props: {
               <strong className="group-buy-request-product-name">
                 {item.productName}
               </strong>
+              {item.status === "OPEN" ? <button className="button" type="button" disabled={props.actionLoading !== null} onClick={() => setFulfilling(item)} aria-label={`${item.productName} 공구 연결`}>공구 연결</button> : null}
               <div className="mobile-record-meta">
                 <span>요청 수</span>
                 <strong>{item.requestCount.toLocaleString()}건</strong>

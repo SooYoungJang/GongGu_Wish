@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import { deliverPendingSubmissionApprovalPushes } from "../admin-api/submissionApprovalPush.ts";
+import { deliverPendingRequestFulfillmentPushes } from "../admin-api/requestFulfillmentPush.ts";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -31,7 +32,10 @@ export async function handler(request: Request) {
       createAdminClient(),
       { limit: Math.min(Math.max(Math.trunc(requestedLimit), 1), 100) },
     );
-    return json(result);
+    const requestFulfillment = await deliverPendingRequestFulfillmentPushes(createAdminClient(), {
+      limit: Math.min(Math.max(Math.trunc(requestedLimit), 1), 100),
+    });
+    return json({ ...result, requestFulfillment });
   } catch (error) {
     console.error(
       JSON.stringify({
