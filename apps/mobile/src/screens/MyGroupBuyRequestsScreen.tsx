@@ -51,7 +51,7 @@ export function MyGroupBuyRequestsScreen({ navigation }: NativeStackScreenProps<
           onRefresh={() => { void requests.refetch(); }}
           onEndReached={() => { if (requests.hasNextPage && !requests.isFetching && !requests.isFetchNextPageError) void requests.fetchNextPage(); }}
           onEndReachedThreshold={0.4}
-          ListHeaderComponent={<SText variant="caption" style={styles.muted}>계정에 연결된 요청만 표시돼요. 비회원 요청은 같은 기기에서 로그인 후 다시 요청하면 연결돼요.</SText>}
+          ListHeaderComponent={<SText variant="caption" style={styles.muted}>계정에 연결된 요청만 표시돼요. 같은 기기의 최근 30일 비회원 요청은 로그인 후 다시 요청하면 연결돼요.</SText>}
           renderItem={({ item }) => <View style={styles.row}>
             <SText variant="cardTitle" style={styles.text}>{item.productName}</SText>
             <SText variant="label" style={styles.text}>{statusLabels[item.status]}</SText>
