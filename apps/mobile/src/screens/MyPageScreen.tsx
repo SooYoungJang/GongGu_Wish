@@ -417,6 +417,17 @@ export function MyPageScreen() {
           </View>
         )}
 
+        {user ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="내 공구 요청 보기"
+            onPress={() => navigation.navigate('MyGroupBuyRequests')}
+            style={({ pressed }) => [s.softLoginButton, pressed && s.pressed]}
+          >
+            <SText variant="label" style={s.softLoginText}>내 공구 요청 보기</SText>
+          </Pressable>
+        ) : null}
+
         <GuestSummaryCards
           wishItemCount={wishItems.length}
           onPressRegisterWish={handleRegisterWish}
