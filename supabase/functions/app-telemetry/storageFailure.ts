@@ -6,3 +6,11 @@ export function safeStorageFailure(error: { code?: string; message?: string }, s
   else if (error.message?.includes("fetch failed")) storageCode = "NETWORK_ERROR";
   return { storageCode, storageStatus: Number.isInteger(status) && status >= 0 && status <= 599 ? status : 0 };
 }
+
+export function safeJwtFailureReason(message?: string): string {
+  if (message === "JWT expired") return "expired";
+  if (message === "JWT not yet valid") return "not_yet_valid";
+  if (message === "JWT issued at future") return "issued_in_future";
+  if (message === "JWT not in audience") return "audience";
+  return "unknown";
+}
