@@ -2083,6 +2083,13 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   if (path === "/admin/product-reports" && method === "GET") {
     return listProductReports(supabase, params);
   }
+  if (path === "/admin/app-diagnostics" && method === "GET") {
+    const days = Number(params?.days ?? 7);
+    if (![1, 7, 14].includes(days)) throw new AdminRequestError("조회 기간을 확인해 주세요.", 400, "INVALID_PERIOD");
+    const { data, error } = await supabase.rpc("get_app_telemetry_summary", { p_days: days });
+    if (error) throw new AdminRequestError("앱 진단을 불러오지 못했습니다.", 503, "TELEMETRY_UNAVAILABLE");
+    return { items: data ?? [], days };
+  }
   if (path.startsWith("/admin/product-reports/") && method === "PATCH") {
     return reviewProductReport(supabase, path.replace("/admin/product-reports/", ""), body, adminId);
   }

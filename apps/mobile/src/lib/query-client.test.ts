@@ -188,7 +188,7 @@ describe("mobile query policy", () => {
     expect(setOnline).toHaveBeenNthCalledWith(3, false);
   });
 
-  it("logs query failures with a key and safe error metadata", () => {
+  it("logs only bounded error metadata without query keys or messages", () => {
     const error = new ApiError(503, "Unavailable");
     const consoleError = vi
       .spyOn(console, "error")
@@ -197,10 +197,8 @@ describe("mobile query policy", () => {
     reportQueryError(error, ["home-banner-group-buys", "2026-07-17"]);
 
     expect(consoleError).toHaveBeenCalledWith("[Query] request failed", {
-      message: "Unavailable",
-      name: "ApiError",
-      queryKey: ["home-banner-group-buys", "2026-07-17"],
-      status: 503,
+      errorKind: "ApiError",
+      httpStatus: 503,
     });
   });
 });

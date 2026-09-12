@@ -32,6 +32,21 @@ function request(
 }
 
 describe("gonggu API proxy", () => {
+  it("forwards anonymous telemetry POST without opening private diagnostic RPCs", async () => {
+    let forwarded;
+    globalThis.fetch = async (input) => {
+      forwarded = { url: input.url, method: input.method, body: await input.text() };
+      return new Response('{"accepted":1}', { headers: { "Content-Type": "application/json" } });
+    };
+    const response = await request("/functions/v1/app-telemetry", { method: "POST", headers: { apikey: "test-anon-key", "Content-Type": "application/json" }, body: '{"sessionId":"test","events":[]}' });
+    assert.equal(response.status, 200);
+    assert.equal(forwarded.method, "POST");
+    assert.equal(forwarded.body, '{"sessionId":"test","events":[]}');
+    assert.match(forwarded.url, /\/functions\/v1\/app-telemetry$/);
+    assert.equal((await request("/rest/v1/rpc/ingest_app_telemetry", { method: "POST" })).status, 404);
+    assert.equal((await request("/rest/v1/rpc/get_app_telemetry_summary", { method: "POST" })).status, 404);
+    assert.equal((await request("/functions/v1/app-telemetry")).status, 405);
+  });
   it("serves the Preview Android App Link association", async () => {
     const response = await request(
       "/.well-known/assetlinks.json",

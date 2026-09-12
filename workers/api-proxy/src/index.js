@@ -40,6 +40,7 @@ const REST_RULES = new Map([
 ]);
 
 const FUNCTION_RULES = new Map([
+  ["app-telemetry", new Set(["POST"])],
   ["seller-rankings", new Set(["POST"])],
   ["hiker-lookup", new Set(["POST"])],
   ["refresh-instagram-media", new Set(["POST"])],

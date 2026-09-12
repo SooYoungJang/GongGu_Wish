@@ -57,6 +57,7 @@ import {
   type OpeningReminderDay,
 } from "../services/reminderDates";
 import type { GroupBuy } from "../types";
+import { telemetry } from "../telemetry/telemetry";
 
 type GroupBuyReminderPickerContextValue = {
   getReminderDays: (groupBuyId: string) => readonly NotificationReminderDay[];
@@ -290,7 +291,11 @@ export function GroupBuyReminderPickerProvider({
     async (item: GroupBuy, reminderPreference: GroupBuyReminderUpdate) => {
       try {
         const state = await setNotificationReminders(item, reminderPreference);
-        if (state.status !== "failed") return;
+        if (state.status !== "failed") {
+          if (state.status === "enabled") telemetry.record("reminder_set", "on");
+          else if (state.status === "idle" && reminderPreference.reminderDays.length === 0) telemetry.record("reminder_set", "off");
+          return;
+        }
         Alert.alert(
           "알림을 저장하지 못했어요",
           "잠시 후 공구 카드의 알림 버튼에서 다시 시도해 주세요.",
