@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import { parseTelemetryBatch } from "./contract.ts";
 import { safeStorageFailure } from "./storageFailure.ts";
+import { resolveServerKey } from "./serverKey.ts";
 
 const headers = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS", "Cache-Control": "no-store" };
 async function readBody(request: Request) {
@@ -36,7 +37,7 @@ export async function handler(request: Request) {
     try { batch = parseTelemetryBatch(await readBody(request)); }
     catch { return respond({ error: "Invalid telemetry batch" }); }
     failureStage = "configuration";
-    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), url = Deno.env.get("SUPABASE_URL");
+    const key = resolveServerKey(name => Deno.env.get(name)), url = Deno.env.get("SUPABASE_URL");
     if (!key || !url) throw new Error("Configuration missing");
     failureStage = "source_hash";
     // Domain-separated HMAC: retain neither the address nor a reversible identifier.
