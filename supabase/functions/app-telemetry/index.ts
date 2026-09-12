@@ -26,29 +26,37 @@ export async function handler(request: Request) {
   if (request.method === "OPTIONS") return new Response(null, { headers, status: 204 });
   const requestId = crypto.randomUUID(), started = performance.now();
   let status = 400, count = 0;
+  let failureStage = "validation", storageCode: string | null = null;
   const respond = (body: unknown) => new Response(JSON.stringify({ ...body as Record<string, unknown>, requestId }), { status, headers: { ...headers, "X-Request-Id": requestId } });
   try {
     if (request.method !== "POST") { status = 405; return respond({ error: "Method not allowed" }); }
     let batch: ReturnType<typeof parseTelemetryBatch>;
     try { batch = parseTelemetryBatch(await readBody(request)); }
     catch { return respond({ error: "Invalid telemetry batch" }); }
+    failureStage = "configuration";
     const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), url = Deno.env.get("SUPABASE_URL");
     if (!key || !url) throw new Error("Configuration missing");
+    failureStage = "source_hash";
     // Domain-separated HMAC: retain neither the address nor a reversible identifier.
     const address = (request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown").slice(0, 128);
     const secret = await crypto.subtle.importKey("raw", new TextEncoder().encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
     const digest = await crypto.subtle.sign("HMAC", secret, new TextEncoder().encode(`app-telemetry:${address}`));
     const sourceHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+    failureStage = "storage";
     const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data, error } = await client.rpc("ingest_app_telemetry", { p_source_hash: sourceHash, p_session_id: batch.sessionId, p_events: batch.events });
     if (error?.code === "PT429") { status = 429; return respond({ error: "Rate limited" }); }
-    if (error) throw new Error("Storage failed");
+    if (error) {
+      // Only protocol identifiers, never SQL details, payloads or credentials.
+      storageCode = ["42501", "42P01", "42883", "22023", "23502", "23514", "PGRST202", "PGRST301", "PGRST302"].includes(error.code) ? error.code : "OTHER";
+      throw new Error("Storage failed");
+    }
     status = 200; count = typeof data === "number" ? data : 0;
     return respond({ accepted: count });
   } catch {
-    status = 503; return respond({ error: "Telemetry unavailable" });
+    status = 503; return respond({ error: "Telemetry unavailable", failureStage, storageCode });
   } finally {
-    console.log(JSON.stringify({ event: "app_telemetry_ingest", entryPoint: "app_telemetry_http", requestId, status, count, durationMs: Math.round(performance.now() - started) }));
+    console.log(JSON.stringify({ event: "app_telemetry_ingest", entryPoint: "app_telemetry_http", requestId, status, count, ...(status === 503 ? { failureStage, storageCode } : {}), durationMs: Math.round(performance.now() - started) }));
   }
 }
 if (import.meta.main) serve(handler);
