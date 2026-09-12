@@ -8,4 +8,7 @@ Deno.test("accepts only bounded, explicitly allowed diagnostic fields", () => {
   assertThrows(() => parseTelemetryBatch({ ...batch, events: [{ ...event, screen: "private text" }] }));
   assertThrows(() => parseTelemetryBatch({ ...batch, events: Array(21).fill(event) }));
   assertThrows(() => parseTelemetryBatch({ ...batch, userId: "private" }));
+  for (const invalid of [{ eventName: ["js_error"] }, { screen: ["Detail"] }, { platform: ["android"] }, { errorKind: ["TypeError"] }, { value: ["success"] }, { httpStatus: "503" }, { httpStatus: 600 }]) {
+    assertThrows(() => parseTelemetryBatch({ ...batch, events: [{ ...event, ...invalid }] }));
+  }
 });

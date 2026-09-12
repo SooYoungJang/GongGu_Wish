@@ -5,17 +5,18 @@ const errors = new Set(["Error", "TypeError", "RangeError", "ReferenceError", "S
 const values = new Set(["zero", "some", "many", "on", "off", "success", "failed"]);
 const fields = new Set(["id", "eventName", "screen", "appVersion", "releaseId", "platform", "errorKind", "httpStatus", "value"]);
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+const member = (values: Set<string>, value: unknown) => typeof value === "string" && values.has(value);
 export function parseTelemetryBatch(value: unknown) {
   if (!record(value) || Object.keys(value).some(k => k !== "sessionId" && k !== "events") || typeof value.sessionId !== "string" || !uuid.test(value.sessionId) || !Array.isArray(value.events) || !value.events.length || value.events.length > 20) throw new Error("Invalid telemetry batch");
   for (const event of value.events) {
     if (!record(event) || Object.keys(event).some(key => !fields.has(key)) ||
-      typeof event.id !== "string" || !uuid.test(event.id) || !events.has(String(event.eventName)) || !screens.has(String(event.screen)) ||
+      typeof event.id !== "string" || !uuid.test(event.id) || !member(events, event.eventName) || !member(screens, event.screen) ||
       typeof event.appVersion !== "string" || !/^[0-9][0-9A-Za-z.+-]{0,39}$/.test(event.appVersion) ||
       typeof event.releaseId !== "string" || !(event.releaseId === "native" || uuid.test(event.releaseId)) ||
-      !["android", "ios", "web", "unknown"].includes(String(event.platform)) ||
-      !(event.errorKind === null || errors.has(String(event.errorKind))) ||
+      typeof event.platform !== "string" || !["android", "ios", "web", "unknown"].includes(event.platform) ||
+      !(event.errorKind === null || member(errors, event.errorKind)) ||
       !(event.httpStatus === null || typeof event.httpStatus === "number" && Number.isInteger(event.httpStatus) && event.httpStatus >= 0 && event.httpStatus <= 599) ||
-      !(event.value === null || values.has(String(event.value)))) throw new Error("Invalid telemetry event");
+      !(event.value === null || member(values, event.value))) throw new Error("Invalid telemetry event");
   }
   return { sessionId: value.sessionId, events: value.events as Record<string, unknown>[] };
 }
