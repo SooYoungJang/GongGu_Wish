@@ -12,6 +12,7 @@ import { ProfileImagePreview } from "@/components/ProfileImagePreview";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import { CommentsPanel } from "@/components/CommentsPanel";
 import { ProductReportsPanel } from "@/components/ProductReportsPanel";
+import { AppDiagnosticsPanel } from "@/components/AppDiagnosticsPanel";
 import { RequestFulfillmentDialog } from "@/components/RequestFulfillmentDialog";
 import {
   inferHikerSuggestions,
@@ -74,6 +75,7 @@ type TabKey =
   | "notifications"
   | "comments"
   | "productReports"
+  | "appDiagnostics"
   | "cdnRefresh";
 
 type SubmissionForm = {
@@ -1911,6 +1913,9 @@ function AdminShell({ session }: { session: Session }) {
             onClick={() => switchTab("productReports")} type="button">
             <span>상품 정보</span><strong>정보 신고</strong>
           </button>
+          <button aria-current={tab === "appDiagnostics" ? "page" : undefined} className={tab === "appDiagnostics" ? "active" : ""} onClick={() => switchTab("appDiagnostics")} type="button">
+            <span>운영</span><strong>앱 진단</strong>
+          </button>
           <button
             aria-current={tab === "comments" ? "page" : undefined}
             className={tab === "comments" ? "active" : ""}
@@ -2168,6 +2173,7 @@ function AdminShell({ session }: { session: Session }) {
             ) : null}
             {tab === "comments" ? <CommentsPanel /> : null}
             {tab === "productReports" ? <ProductReportsPanel /> : null}
+            {tab === "appDiagnostics" ? <AppDiagnosticsPanel /> : null}
             {tab === "cdnRefresh" ? (
               <CdnRefreshPanel
                 loading={cdnLoading}
@@ -2347,6 +2353,9 @@ function AdminShell({ session }: { session: Session }) {
           className={tab === "productReports" ? "active" : ""}
           onClick={() => switchTab("productReports")} type="button">
           <span>정보 신고</span>
+        </button>
+        <button aria-current={tab === "appDiagnostics" ? "page" : undefined} className={tab === "appDiagnostics" ? "active" : ""} onClick={() => switchTab("appDiagnostics")} type="button">
+          <span>앱 진단</span>
         </button>
         <button
           aria-current={tab === "comments" ? "page" : undefined}
@@ -2532,6 +2541,7 @@ export function tabTitle(tab: TabKey) {
   if (tab === "notifications") return "푸시 발송";
   if (tab === "comments") return "댓글 관리";
   if (tab === "productReports") return "상품 정보 신고";
+  if (tab === "appDiagnostics") return "앱 진단";
   if (tab === "cdnRefresh") return "CDN 갱신";
   return "대시보드";
 }

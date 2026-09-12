@@ -269,6 +269,9 @@ export const adminApi = {
   listProductReports(params: { page: number; limit: number; status: string }) {
     return requestAdmin<ListResponse<ProductInformationReport>>("/admin/product-reports", "GET", { params });
   },
+  getAppDiagnostics(days: number) {
+    return requestAdmin<{ items: Array<{ eventName: string; screen: string; platform: string; appVersion: string; releaseId: string; errorKind: string | null; httpStatus: number | null; value: string | null; count: number; sessions: number }>; days: number }>("/admin/app-diagnostics", "GET", { params: { days } });
+  },
 
   reviewProductReport(id: string, body: { status: "RESOLVED" | "DISMISSED"; reviewNote: string }) {
     return requestAdmin<ProductInformationReport>(`/admin/product-reports/${id}`, "PATCH", { body });

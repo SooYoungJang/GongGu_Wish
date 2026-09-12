@@ -6,6 +6,7 @@ import { publicGroupBuySchema } from "@gonggu/shared/schemas/group-buy";
 
 import { fetchAccountBookmarks, setAccountBookmark, syncBookmark } from "../api";
 import { canRecordBehaviorSignals } from "../audience/behaviorSignalsPolicy";
+import { telemetry } from "../telemetry/telemetry";
 import type { GroupBuy } from "../types";
 import type { BookmarkStoreDependencies } from "./bookmarkStore";
 import type { StoredGroupBuy } from "./useLocalDeals";
@@ -130,6 +131,7 @@ export function createAccountBookmarkStore(userId: string, deps: BookmarkStoreDe
     void persist().then(() => {
       if (expected !== generation || !canRecordBehaviorSignals()) return;
       // Popularity is an independent signal; it does not restore personal state.
+      telemetry.record("bookmark_set", selected ? "on" : "off");
       void syncBookmark(id, selected).catch(() => undefined);
       return refresh();
     }).catch(() => {

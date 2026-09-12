@@ -1,0 +1,7 @@
+.app-diagnostics { min-width: 0; }
+.diagnostic-list { list-style: none; padding: 0; display: grid; gap: 12px; }
+.diagnostic-card { border: 1px solid var(--border, #d9dee7); border-radius: 12px; padding: 16px; min-width: 0; }
+.diagnostic-card > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.diagnostic-card dl { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 12px; margin: 12px 0 0; }
+.diagnostic-card dt { color: var(--text-muted, #64748b); }
+.diagnostic-card dd { margin: 0; overflow-wrap: anywhere; }

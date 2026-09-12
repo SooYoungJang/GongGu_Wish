@@ -9,6 +9,7 @@ import {
 import { Platform, type AppStateStatus } from "react-native";
 
 import { ApiError } from "./api-types";
+import { safeErrorFields, telemetry } from "../telemetry/telemetry";
 
 const QUERY_CACHE_GC_TIME_MS = 5 * 60 * 1000;
 const MAX_TRANSIENT_RETRIES = 1;
@@ -29,13 +30,10 @@ export function shouldRetryMobileQuery(
   return status === 0 || status === 408 || status === 429 || status >= 500;
 }
 
-export function reportQueryError(error: unknown, queryKey: QueryKey): void {
-  console.error("[Query] request failed", {
-    message: error instanceof Error ? error.message : String(error),
-    name: error instanceof Error ? error.name : typeof error,
-    queryKey,
-    status: apiStatus(error),
-  });
+export function reportQueryError(error: unknown, _queryKey: QueryKey): void {
+  if (error instanceof Error && error.name === "AbortError") return;
+  console.error("[Query] request failed", safeErrorFields(error));
+  telemetry.record("query_error", null, error);
 }
 
 export function createMobileQueryClient(): QueryClient {

@@ -85,6 +85,7 @@ import {
   useRecentViews,
 } from "../hooks/useLocalDeals";
 import { SText } from "../components/ui/SText";
+import { telemetry } from "../telemetry/telemetry";
 import { borderRadius, spacing } from "../design/tokens";
 import {
   BOTTOM_SHEET_ANIMATION_MS,
@@ -1941,7 +1942,10 @@ function ProductReelPageComponent({
     }
 
     try {
-      void Linking.openURL(openUrl).catch(() => {
+      void Linking.openURL(openUrl).then(() => {
+        telemetry.record("purchase_link_open", "success");
+      }, () => {
+        telemetry.record("purchase_link_open", "failed");
         Alert.alert("오류", "구매 링크를 열 수 없습니다.");
       });
     } catch {

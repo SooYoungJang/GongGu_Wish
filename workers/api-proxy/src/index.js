@@ -40,6 +40,7 @@ const REST_RULES = new Map([
 ]);
 
 const FUNCTION_RULES = new Map([
+  ["app-telemetry", new Set(["POST"])],
   ["seller-rankings", new Set(["POST"])],
   ["hiker-lookup", new Set(["POST"])],
   ["refresh-instagram-media", new Set(["POST"])],
@@ -169,6 +170,12 @@ function forwardedHeaders(request, requestId) {
     if (value !== null) headers.set(name, value);
   }
   headers.set("X-Request-ID", requestId);
+  if (new URL(request.url).pathname === "/functions/v1/app-telemetry") {
+    // Use Cloudflare's connecting address, never a caller-supplied forwarding chain.
+    // https://developers.cloudflare.com/fundamentals/reference/http-headers/
+    const address = request.headers.get("CF-Connecting-IP");
+    if (address) headers.set("X-Forwarded-For", address);
+  }
   return headers;
 }
 
