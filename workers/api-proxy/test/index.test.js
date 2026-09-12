@@ -35,12 +35,13 @@ describe("gonggu API proxy", () => {
   it("forwards anonymous telemetry POST without opening private diagnostic RPCs", async () => {
     let forwarded;
     globalThis.fetch = async (input) => {
-      forwarded = { url: input.url, method: input.method, body: await input.text() };
+      forwarded = { url: input.url, method: input.method, body: await input.text(), address: input.headers.get("x-forwarded-for") };
       return new Response('{"accepted":1}', { headers: { "Content-Type": "application/json" } });
     };
-    const response = await request("/functions/v1/app-telemetry", { method: "POST", headers: { apikey: "test-anon-key", "Content-Type": "application/json" }, body: '{"sessionId":"test","events":[]}' });
+    const response = await request("/functions/v1/app-telemetry", { method: "POST", headers: { apikey: "test-anon-key", "Content-Type": "application/json", "CF-Connecting-IP": "192.0.2.1", "X-Forwarded-For": "forged" }, body: '{"sessionId":"test","events":[]}' });
     assert.equal(response.status, 200);
     assert.equal(forwarded.method, "POST");
+    assert.equal(forwarded.address, "192.0.2.1");
     assert.equal(forwarded.body, '{"sessionId":"test","events":[]}');
     assert.match(forwarded.url, /\/functions\/v1\/app-telemetry$/);
     assert.equal((await request("/rest/v1/rpc/ingest_app_telemetry", { method: "POST" })).status, 404);
