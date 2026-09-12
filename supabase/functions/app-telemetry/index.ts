@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import { parseTelemetryBatch } from "./contract.ts";
+import { safeStorageFailure } from "./storageFailure.ts";
 
 const headers = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS", "Cache-Control": "no-store" };
 async function readBody(request: Request) {
@@ -27,6 +28,7 @@ export async function handler(request: Request) {
   const requestId = crypto.randomUUID(), started = performance.now();
   let status = 400, count = 0;
   let failureStage = "validation", storageCode: string | null = null;
+  let storageStatus: number | null = null;
   const respond = (body: unknown) => new Response(JSON.stringify({ ...body as Record<string, unknown>, requestId }), { status, headers: { ...headers, "X-Request-Id": requestId } });
   try {
     if (request.method !== "POST") { status = 405; return respond({ error: "Method not allowed" }); }
@@ -44,19 +46,19 @@ export async function handler(request: Request) {
     const sourceHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
     failureStage = "storage";
     const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data, error } = await client.rpc("ingest_app_telemetry", { p_source_hash: sourceHash, p_session_id: batch.sessionId, p_events: batch.events });
+    const { data, error, status: rpcStatus } = await client.rpc("ingest_app_telemetry", { p_source_hash: sourceHash, p_session_id: batch.sessionId, p_events: batch.events });
     if (error?.code === "PT429") { status = 429; return respond({ error: "Rate limited" }); }
     if (error) {
       // Only protocol identifiers, never SQL details, payloads or credentials.
-      storageCode = ["42501", "42P01", "42883", "22023", "23502", "23514", "PGRST202", "PGRST301", "PGRST302"].includes(error.code) ? error.code : "OTHER";
+      ({ storageCode, storageStatus } = safeStorageFailure(error, rpcStatus));
       throw new Error("Storage failed");
     }
     status = 200; count = typeof data === "number" ? data : 0;
     return respond({ accepted: count });
   } catch {
-    status = 503; return respond({ error: "Telemetry unavailable", failureStage, storageCode });
+    status = 503; return respond({ error: "Telemetry unavailable", failureStage, storageCode, storageStatus });
   } finally {
-    console.log(JSON.stringify({ event: "app_telemetry_ingest", entryPoint: "app_telemetry_http", requestId, status, count, ...(status === 503 ? { failureStage, storageCode } : {}), durationMs: Math.round(performance.now() - started) }));
+    console.log(JSON.stringify({ event: "app_telemetry_ingest", entryPoint: "app_telemetry_http", requestId, status, count, ...(status === 503 ? { failureStage, storageCode, storageStatus } : {}), durationMs: Math.round(performance.now() - started) }));
   }
 }
 if (import.meta.main) serve(handler);
