@@ -36,6 +36,7 @@ BEGIN
     RAISE EXCEPTION 'Invalid bookmark' USING ERRCODE = '22023';
   END IF;
   IF NOT p_selected THEN
+    -- production-migration-policy: allow-runtime-delete
     DELETE FROM public.account_bookmarks WHERE user_id = v_user_id AND group_buy_id = p_group_buy_id;
     RETURN;
   END IF;

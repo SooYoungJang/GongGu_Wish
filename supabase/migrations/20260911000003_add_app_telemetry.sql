@@ -76,6 +76,8 @@ GRANT EXECUTE ON FUNCTION public.get_app_telemetry_summary(integer) TO service_r
 
 -- This retention job only owns the newly introduced diagnostic tables.
 SELECT cron.schedule('expire-app-telemetry','17 * * * *', $retention$
+  -- production-migration-policy: allow-runtime-delete
   DELETE FROM public.app_telemetry_events WHERE created_at < now() - interval '14 days';
+  -- production-migration-policy: allow-runtime-delete
   DELETE FROM public.app_telemetry_rate_limits WHERE window_start < now() - interval '2 days';
 $retention$);
