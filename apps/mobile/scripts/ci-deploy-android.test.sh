@@ -59,6 +59,11 @@ case "$command_name" in
     export EXPO_PUBLIC_SUPABASE_ANON_KEY="test-anon-key"
     export EXPO_PUBLIC_SUPABASE_URL="https://supabase.example.test"
     export GOOGLE_SERVICES_JSON="${GOOGLE_SERVICES_JSON:-$MOCK_GOOGLE_SERVICES_JSON}"
+    if [[ "${MOCK_EAS_ENV_INTERNAL_OVERRIDES:-false}" == "true" ]]; then
+      export GONGGU_OTA_RUNTIME_VERSION="stale-eas-runtime"
+      export GONGGU_OTA_ADMOB_MODE="off"
+      export GONGGU_OTA_AD_REQUESTS_ENABLED="false"
+    fi
     bash -c "$command_string"
     ;;
   fingerprint:generate)
@@ -797,6 +802,7 @@ mkdir -p "$wrapped_directory/runner"
     GITHUB_STEP_SUMMARY="$wrapped_directory/summary" \
     RUNNER_TEMP="$wrapped_directory/runner" \
     MOCK_GOOGLE_SERVICES_JSON="$preview_google_services" \
+    MOCK_EAS_ENV_INTERNAL_OVERRIDES="true" \
     MOCK_GITHUB_BASELINE="trusted" \
     MOCK_COMPATIBLE_BUILD="false" \
     MOCK_EAS_LOG="$wrapped_directory/eas.log" \
@@ -806,7 +812,8 @@ mkdir -p "$wrapped_directory/runner"
 grep -Fxq "mode=ota" "$wrapped_directory/output"
 grep -Fq "env:get preview --variable-name GOOGLE_SERVICES_JSON --format short" \
   "$wrapped_directory/eas.log"
-grep -Fq "env:exec preview bash scripts/ci-deploy-android.sh" "$wrapped_directory/eas.log"
+grep -Fq "env:exec preview env -u GONGGU_OTA_RUNTIME_VERSION -u GONGGU_OTA_ADMOB_MODE -u GONGGU_OTA_AD_REQUESTS_ENABLED bash scripts/ci-deploy-android.sh" \
+  "$wrapped_directory/eas.log"
 
 wrapped_production_directory="$test_directory/wrapped-production"
 mkdir -p "$wrapped_production_directory/runner"
@@ -819,6 +826,7 @@ mkdir -p "$wrapped_production_directory/runner"
     GITHUB_STEP_SUMMARY="$wrapped_production_directory/summary" \
     RUNNER_TEMP="$wrapped_production_directory/runner" \
     MOCK_GOOGLE_SERVICES_JSON="$production_google_services" \
+    MOCK_EAS_ENV_INTERNAL_OVERRIDES="true" \
     MOCK_COMPATIBLE_BUILD="true" \
     MOCK_EAS_LOG="$wrapped_production_directory/eas.log" \
     "$bash_command" scripts/ci-deploy-android.sh
@@ -827,7 +835,7 @@ grep -Fxq "mode=ota" "$wrapped_production_directory/output"
 grep -Fxq "environment=production" "$wrapped_production_directory/output"
 grep -Fq "env:get production --variable-name GOOGLE_SERVICES_JSON --format short" \
   "$wrapped_production_directory/eas.log"
-grep -Fq "env:exec production bash scripts/ci-deploy-android.sh" \
+grep -Fq "env:exec production env -u GONGGU_OTA_RUNTIME_VERSION -u GONGGU_OTA_ADMOB_MODE -u GONGGU_OTA_AD_REQUESTS_ENABLED bash scripts/ci-deploy-android.sh" \
   "$wrapped_production_directory/eas.log"
 
 invalid_ref_directory="$test_directory/invalid-ref"
