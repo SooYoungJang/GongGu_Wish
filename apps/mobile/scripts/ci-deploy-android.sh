@@ -79,7 +79,7 @@ NODE
     FORCE_PREVIEW_APK="$force_preview_apk" \
     GOOGLE_SERVICES_JSON="$google_services_path" \
     eas env:exec "$environment" \
-    'bash scripts/ci-deploy-android.sh' \
+    'env -u GONGGU_OTA_RUNTIME_VERSION -u GONGGU_OTA_ADMOB_MODE -u GONGGU_OTA_AD_REQUESTS_ENABLED bash scripts/ci-deploy-android.sh' \
     --non-interactive
   exit 0
 fi
