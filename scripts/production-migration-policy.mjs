@@ -15,13 +15,43 @@ const DESTRUCTIVE_PATTERNS = [
   },
 ];
 
+const ALLOWED_RUNTIME_DELETE =
+  /(^|\n)[ \t]*--[ \t]*production-migration-policy:[ \t]*allow-runtime-delete[ \t]*\r?\n[ \t]*DELETE[ \t]+FROM\b[^\r\n;]*\bWHERE\b[^\r\n;]*;/gi;
+const DOLLAR_QUOTE = /\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/g;
+
+function isRuntimeSqlBlock(source, offset) {
+  let openQuote = null;
+  for (const match of source.slice(0, offset).matchAll(DOLLAR_QUOTE)) {
+    if (openQuote === null) {
+      openQuote = { delimiter: match[0], offset: match.index };
+    } else if (match[0] === openQuote.delimiter) {
+      openQuote = null;
+    }
+  }
+  if (openQuote === null) return false;
+
+  const header = source.slice(Math.max(0, openQuote.offset - 4000), openQuote.offset);
+  return (
+    /\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\b[\s\S]*\bAS\s*$/i.test(header) ||
+    /\bSELECT\s+cron\.schedule\s*\([^;]*,\s*$/i.test(header)
+  );
+}
+
+function stripAllowedRuntimeDeletes(source) {
+  return source.replace(
+    ALLOWED_RUNTIME_DELETE,
+    (match, lineStart, offset) =>
+      isRuntimeSqlBlock(source, offset + lineStart.length) ? lineStart : match,
+  );
+}
+
 export function findDestructiveMigrations(
   files,
   { readFile = (path) => readFileSync(path, "utf8") } = {},
 ) {
   const findings = [];
   for (const file of files) {
-    const source = readFile(file);
+    const source = stripAllowedRuntimeDeletes(readFile(file));
     for (const { code, pattern } of DESTRUCTIVE_PATTERNS) {
       if (pattern.test(source)) {
         findings.push({ file, code });
