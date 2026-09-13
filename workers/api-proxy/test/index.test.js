@@ -32,6 +32,22 @@ function request(
 }
 
 describe("gonggu API proxy", () => {
+  it("forwards anonymous telemetry POST without opening private diagnostic RPCs", async () => {
+    let forwarded;
+    globalThis.fetch = async (input) => {
+      forwarded = { url: input.url, method: input.method, body: await input.text(), address: input.headers.get("x-forwarded-for") };
+      return new Response('{"accepted":1}', { headers: { "Content-Type": "application/json" } });
+    };
+    const response = await request("/functions/v1/app-telemetry", { method: "POST", headers: { apikey: "test-anon-key", "Content-Type": "application/json", "CF-Connecting-IP": "192.0.2.1", "X-Forwarded-For": "forged" }, body: '{"sessionId":"test","events":[]}' });
+    assert.equal(response.status, 200);
+    assert.equal(forwarded.method, "POST");
+    assert.equal(forwarded.address, "192.0.2.1");
+    assert.equal(forwarded.body, '{"sessionId":"test","events":[]}');
+    assert.match(forwarded.url, /\/functions\/v1\/app-telemetry$/);
+    assert.equal((await request("/rest/v1/rpc/ingest_app_telemetry", { method: "POST" })).status, 404);
+    assert.equal((await request("/rest/v1/rpc/get_app_telemetry_summary", { method: "POST" })).status, 404);
+    assert.equal((await request("/functions/v1/app-telemetry")).status, 405);
+  });
   it("serves the Preview Android App Link association", async () => {
     const response = await request(
       "/.well-known/assetlinks.json",
@@ -243,8 +259,33 @@ describe("gonggu API proxy", () => {
     assert.deepEqual(await upstreamRequest.json(), { p_limit_count: 3 });
   });
 
+  it("forwards public search query and cursor only for GET", async () => {
+    let upstreamRequest;
+    let calls = 0;
+    globalThis.fetch = async (input) => {
+      calls += 1;
+      upstreamRequest = input;
+      return Response.json([]);
+    };
+    const path = "/rest/v1/rpc/search_public_group_buys?p_query=100%25_&p_limit=21&p_before_id=text-id";
+    const response = await request(path, { headers: { apikey: "public-key" } });
+    assert.equal(response.status, 200);
+    assert.equal(new URL(upstreamRequest.url).search, new URL(`https://example.test${path}`).search);
+    assert.equal(upstreamRequest.method, "GET");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const rejected = await request(path, { method: "POST" });
+    assert.equal(rejected.status, 405);
+    assert.equal(calls, 1);
+  });
+
   it("forwards product comment, moderation, and consent RPCs", async () => {
     const rpcBodies = {
+      list_my_bookmarks: { p_expected_user_id: "user-a", p_after_id: null, p_limit: 100 },
+      set_my_bookmark: { p_expected_user_id: "user-a", p_group_buy_id: "deal-1", p_selected: true },
+      submit_product_report: { p_expected_user_id: "user-a", p_group_buy_id: "deal-1", p_reason: "PRICE" },
+      list_my_group_buy_requests: { p_expected_user_id: "user-a", p_after_requested_at: null, p_after_id: null, p_limit: 21 },
+      list_my_group_buy_requests_v2: { p_expected_user_id: "user-a", p_after_requested_at: null, p_after_id: null, p_limit: 21 },
+      set_my_request_notification: { p_expected_user_id: "user-a", p_request_id: "request", p_enabled: true },
       list_comment_roots: { p_group_buy_id: "deal-1", p_limit: 20 },
       list_comment_children: { p_group_buy_id: "deal-1", p_limit: 20 },
       create_comment: {

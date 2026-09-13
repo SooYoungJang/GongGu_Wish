@@ -1390,6 +1390,37 @@ jobs:
             ' "$response_file" > /dev/null
           fi
 
+      - name: Verify Preview telemetry storage and idempotency
+        if: ${{ needs.change-plan.outputs.supabase == 'true' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { randomUUID } from 'node:crypto';
+          // Synthetic, anonymous Preview-only event; normal retention removes it.
+          const endpoint = 'https://xwblovggtvbpiusjfokq.supabase.co/functions/v1/app-telemetry';
+          const batch = { sessionId: randomUUID(), events: [{
+            id: randomUUID(), eventName: 'query_error', screen: 'SearchScreen',
+            appVersion: '0.0.0-preview-smoke', releaseId: 'native', platform: 'web',
+            errorKind: 'ApiError', httpStatus: 503, value: null,
+          }] };
+          async function post(payload) {
+            const response = await fetch(endpoint, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload), signal: AbortSignal.timeout(15000),
+            });
+            return { status: response.status, body: await response.json() };
+          }
+          const first = await post(batch);
+          assert.equal(first.status, 200, 'Preview telemetry must accept an event');
+          assert.equal(first.body.accepted, 1);
+          const retry = await post(batch);
+          assert.equal(retry.status, 200);
+          assert.equal(retry.body.accepted, 0, 'Retry must not duplicate an event');
+          const invalid = await post({ ...batch, events: [{ ...batch.events[0], message: 'synthetic-disallowed-field' }] });
+          assert.equal(invalid.status, 400, 'Unapproved fields must be rejected');
+          console.log('Preview telemetry: stored, deduplicated, rejected unapproved fields');
+          NODE
+
       - name: Create affected-components Preview release manifest
         env:
           RELEASE_MANIFEST: ${{ runner.temp }}/preview-release.json

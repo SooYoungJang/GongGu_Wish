@@ -53,6 +53,7 @@ import { ApiError, type ApiValidationError } from "./lib/api-types";
 import { normalizePriceKrw } from "./utils/price";
 import {
   filterActiveGroupBuys,
+  formatDateKey,
   isGroupBuyExpired,
 } from "./utils/groupBuyDates";
 import { isSameProduct, normalizeProductPart } from "./utils/productHistory";
@@ -157,6 +158,81 @@ export async function fetchGroupBuys(): Promise<GroupBuy[]> {
     );
     throw error;
   }
+}
+
+export type GroupBuySearchCursor = { createdAt: string; id: string };
+export type GroupBuySearchPage = {
+  items: GroupBuy[];
+  nextCursor: GroupBuySearchCursor | null;
+};
+const SEARCH_PAGE_SIZE = 20;
+
+/** Personal state is separate from the anonymous popularity bookmark signal. */
+export async function fetchAccountBookmarks(userId: string): Promise<GroupBuy[]> {
+  const items: GroupBuy[] = [];
+  const cursors = new Set<string>();
+  let afterId: string | null = null;
+  for (;;) {
+    const { data }: { data: Array<{ group_buy_id: string; snapshot: unknown }> } = await postgrestFetch(
+      "rpc/list_my_bookmarks",
+      { method: "POST", body: { p_expected_user_id: userId, p_after_id: afterId, p_limit: 100 } },
+    );
+    if (!Array.isArray(data) || data.some(row => !row || typeof row.group_buy_id !== "string" || !row.group_buy_id)) {
+      throw new ApiError(502, "Invalid account bookmark response");
+    }
+    const page = mapGroupBuyRows(data.map(row => row.snapshot));
+    if (page.length !== data.length || page.some((item, index) => item.id !== data[index].group_buy_id)) {
+      throw new ApiError(502, "Invalid account bookmark identity");
+    }
+    items.push(...page);
+    if (data.length < 100) return items;
+    afterId = data[data.length - 1].group_buy_id;
+    if (cursors.has(afterId)) throw new ApiError(502, "Invalid account bookmark cursor");
+    cursors.add(afterId);
+  }
+}
+
+export async function setAccountBookmark(userId: string, groupBuyId: string, selected: boolean): Promise<void> {
+  await postgrestPost("rpc/set_my_bookmark", {
+    p_expected_user_id: userId,
+    p_group_buy_id: groupBuyId,
+    p_selected: selected,
+  });
+}
+
+export async function searchGroupBuys(
+  query: string,
+  cursor: GroupBuySearchCursor | null = null,
+  signal?: AbortSignal,
+): Promise<GroupBuySearchPage> {
+  const term = query.trim().slice(0, 200);
+  if (!term) return { items: [], nextCursor: null };
+
+  const params = new URLSearchParams({
+    p_query: term,
+    p_limit: String(SEARCH_PAGE_SIZE + 1),
+    p_today: formatDateKey(new Date()),
+  });
+  if (cursor) {
+    params.set("p_before_created_at", cursor.createdAt);
+    params.set("p_before_id", cursor.id);
+  }
+  const { data } = await postgrestGetPublicGroupBuys<any[]>(
+    `rpc/search_public_group_buys?select=${PUBLIC_GROUP_BUY_SELECT}&${params}`,
+    { signal },
+  );
+  const rows = data ?? [];
+  const items = mapGroupBuyRows(rows.slice(0, SEARCH_PAGE_SIZE));
+  const last = items[items.length - 1];
+  if (rows.length > SEARCH_PAGE_SIZE && !last?.createdAt) {
+    throw new ApiError(502, "Invalid group buy search cursor");
+  }
+  return {
+    items,
+    nextCursor: rows.length > SEARCH_PAGE_SIZE && last?.createdAt
+      ? { createdAt: last.createdAt, id: last.id }
+      : null,
+  };
 }
 
 /**

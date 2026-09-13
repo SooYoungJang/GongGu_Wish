@@ -1,0 +1,17 @@
+.request-fulfillment-dialog {
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 16px;
+  padding: 20px;
+  margin: auto;
+}
+.request-fulfillment-dialog::backdrop { background: #0008; }
+.request-fulfillment-search { display: flex; gap: 8px; align-items: end; margin: 16px 0; }
+.request-fulfillment-search label { flex: 1; min-width: 0; }
+.request-fulfillment-search input { display: block; width: 100%; min-width: 0; }
+.request-fulfillment-option { display: flex; align-items: start; gap: 10px; padding: 12px 0; overflow-wrap: anywhere; }
+.request-fulfillment-option input { flex: 0 0 auto; margin-top: 4px; }
+.request-fulfillment-option small { display: block; color: #666; }
+.request-fulfillment-dialog fieldset { min-width: 0; margin-bottom: 16px; }

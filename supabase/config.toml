@@ -225,6 +225,9 @@ web3 = 30
 # secret = ""
 
 [functions.admin-api]
+[functions.app-telemetry]
+# Anonymous, allowlisted diagnostics; bounded and rate limited by the handler.
+verify_jwt = false
 [functions.instagram-public-collector]
 # The function authenticates the private worker with X-Collector-Token.
 verify_jwt = false

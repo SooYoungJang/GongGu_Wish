@@ -23,6 +23,13 @@ const REST_RULES = new Map([
   ["rpc/get_popular_search_terms", new Set(["POST"])],
   ["rpc/get_popular_group_buys", new Set(["POST"])],
   ["rpc/get_group_buy_request_rankings", new Set(["POST"])],
+  ["rpc/search_public_group_buys", new Set(["GET"])],
+  ["rpc/list_my_bookmarks", new Set(["POST"])],
+  ["rpc/set_my_bookmark", new Set(["POST"])],
+  ["rpc/submit_product_report", new Set(["POST"])],
+  ["rpc/list_my_group_buy_requests", new Set(["POST"])],
+  ["rpc/list_my_group_buy_requests_v2", new Set(["POST"])],
+  ["rpc/set_my_request_notification", new Set(["POST"])],
   ["rpc/list_comment_roots", new Set(["POST"])],
   ["rpc/list_comment_children", new Set(["POST"])],
   ["rpc/create_comment", new Set(["POST"])],
@@ -33,6 +40,7 @@ const REST_RULES = new Map([
 ]);
 
 const FUNCTION_RULES = new Map([
+  ["app-telemetry", new Set(["POST"])],
   ["seller-rankings", new Set(["POST"])],
   ["hiker-lookup", new Set(["POST"])],
   ["refresh-instagram-media", new Set(["POST"])],
@@ -162,6 +170,12 @@ function forwardedHeaders(request, requestId) {
     if (value !== null) headers.set(name, value);
   }
   headers.set("X-Request-ID", requestId);
+  if (new URL(request.url).pathname === "/functions/v1/app-telemetry") {
+    // Use Cloudflare's connecting address, never a caller-supplied forwarding chain.
+    // https://developers.cloudflare.com/fundamentals/reference/http-headers/
+    const address = request.headers.get("CF-Connecting-IP");
+    if (address) headers.set("X-Forwarded-For", address);
+  }
   return headers;
 }
 

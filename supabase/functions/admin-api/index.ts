@@ -740,6 +740,46 @@ async function listGroupBuys(
   };
 }
 
+function mapProductReport(row: Record<string, unknown>) {
+  const product = row.group_buys as { product_name?: string } | null;
+  return {
+    id: row.id, groupBuyId: row.group_buy_id, productName: product?.product_name ?? null,
+    reason: row.reason, status: row.status, createdAt: row.created_at,
+    reviewedAt: row.reviewed_at, reviewNote: row.review_note,
+  };
+}
+
+async function listProductReports(supabase: AdminClient, params: AdminRequest["params"]) {
+  const page = Math.max(1, Math.min(Math.floor(listParam(params, "page", 1)), 1_000_000));
+  const limit = Math.max(1, Math.min(Math.floor(listParam(params, "limit", 25)), 100));
+  const status = str(params?.status) ?? "OPEN";
+  if (!["ALL", "OPEN", "RESOLVED", "DISMISSED"].includes(status)) {
+    throw new AdminRequestError("신고 상태가 올바르지 않습니다.", 422, "INVALID_REPORT_STATUS");
+  }
+  let query = supabase.from("product_information_reports")
+    .select("id,group_buy_id,reason,status,created_at,reviewed_at,review_note,group_buys(product_name)", { count: "exact" })
+    .order("created_at", { ascending: false }).order("id", { ascending: false });
+  if (status !== "ALL") query = query.eq("status", status);
+  const { data, error, count } = await query.range((page - 1) * limit, page * limit - 1);
+  if (error) throw new Error("상품 정보 신고를 불러오지 못했습니다.");
+  return { items: (data ?? []).map(row => mapProductReport(row as unknown as Record<string, unknown>)), total: count ?? 0 };
+}
+
+async function reviewProductReport(supabase: AdminClient, id: string, body: Record<string, unknown>, adminId: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
+      (body.status !== "RESOLVED" && body.status !== "DISMISSED") ||
+      (body.reviewNote !== undefined && (typeof body.reviewNote !== "string" || body.reviewNote.length > 500))) {
+    throw new AdminRequestError("신고 처리 내용을 확인해주세요.", 422, "INVALID_REPORT_REVIEW");
+  }
+  const { data, error } = await supabase.from("product_information_reports")
+    .update({ status: body.status, review_note: str(body.reviewNote), reviewed_by: adminId, reviewed_at: new Date().toISOString() })
+    .eq("id", id).eq("status", "OPEN")
+    .select("id,group_buy_id,reason,status,created_at,reviewed_at,review_note,group_buys(product_name)").maybeSingle();
+  if (error) throw new Error("신고 처리를 저장하지 못했습니다.");
+  if (!data) throw new AdminRequestError("이미 처리되었거나 찾을 수 없는 신고입니다. 목록을 새로고침해주세요.", 409, "REPORT_ALREADY_REVIEWED");
+  return mapProductReport(data as unknown as Record<string, unknown>);
+}
+
 async function listGroupBuyRequests(
   supabase: AdminClient,
   params: AdminRequest["params"],
@@ -773,6 +813,18 @@ function adminGroupBuyRequestStatus(
     return value;
   }
   throw new Error("공구 요청 상태가 올바르지 않습니다.");
+}
+
+async function fulfillGroupBuyRequest(supabase: AdminClient, id: string, body: AdminRequest["body"]) {
+  const groupBuyId = str(body?.groupBuyId);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) || !groupBuyId || groupBuyId.length > 200) {
+    throw new AdminRequestError("요청과 연결할 공구를 선택해주세요.", 422, "INVALID_REQUEST_FULFILLMENT");
+  }
+  const { data, error } = await supabase.rpc("fulfill_group_buy_request", { p_request_id: id, p_group_buy_id: groupBuyId });
+  if (error?.code === "PT409") throw new AdminRequestError("이미 처리된 요청입니다. 목록을 새로고침해주세요.", 409, "REQUEST_ALREADY_CLOSED");
+  if (error?.code === "22023") throw new AdminRequestError("승인된 공구만 연결할 수 있습니다.", 422, "APPROVED_PRODUCT_REQUIRED");
+  if (error) throw new AdminRequestError("요청에 공구를 연결하지 못했습니다.", 400, "REQUEST_FULFILLMENT_FAILED");
+  return data;
 }
 
 async function rejectGroupBuyRequest(supabase: AdminClient, id: string) {
@@ -2009,6 +2061,9 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   if (path === "/admin/group-buy-requests" && method === "GET") {
     return listGroupBuyRequests(supabase, params);
   }
+  if (/^\/admin\/group-buy-requests\/[^/]+\/fulfill$/.test(path) && method === "POST") {
+    return fulfillGroupBuyRequest(supabase, path.split("/")[3], body);
+  }
   if (
     path.startsWith("/admin/group-buy-requests/") &&
     path.endsWith("/reject") &&
@@ -2024,6 +2079,19 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   }
   if (path === "/admin/comments" && method === "GET") {
     return listComments(supabase, params);
+  }
+  if (path === "/admin/product-reports" && method === "GET") {
+    return listProductReports(supabase, params);
+  }
+  if (path === "/admin/app-diagnostics" && method === "GET") {
+    const days = Number(params?.days ?? 7);
+    if (![1, 7, 14].includes(days)) throw new AdminRequestError("조회 기간을 확인해 주세요.", 400, "INVALID_PERIOD");
+    const { data, error } = await supabase.rpc("get_app_telemetry_summary", { p_days: days });
+    if (error) throw new AdminRequestError("앱 진단을 불러오지 못했습니다.", 503, "TELEMETRY_UNAVAILABLE");
+    return { items: data ?? [], days };
+  }
+  if (path.startsWith("/admin/product-reports/") && method === "PATCH") {
+    return reviewProductReport(supabase, path.replace("/admin/product-reports/", ""), body, adminId);
   }
   if (path.startsWith("/admin/comments/") && method === "PATCH") {
     return updateCommentModeration(

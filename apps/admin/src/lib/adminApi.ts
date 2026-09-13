@@ -4,6 +4,7 @@ import type {
   CdnRefreshResult,
   CdnRefreshStatusResponse,
   CommentModerationItem,
+  ProductInformationReport,
   DashboardResponse,
   GongguSubmission,
   SubmissionApprovalDeliverySummary,
@@ -248,6 +249,10 @@ export const adminApi = {
     }).then(normalizeGroupBuyListResponse);
   },
 
+  fulfillGroupBuyRequest(id: string, groupBuyId: string) {
+    return requestAdmin<{ requestId: string; groupBuyId: string; status: "FULFILLED"; queued: number }>(`/admin/group-buy-requests/${id}/fulfill`, "POST", { body: { groupBuyId } });
+  },
+
   listGroupBuyRequests(params: {
     page?: number;
     limit?: number;
@@ -259,6 +264,17 @@ export const adminApi = {
       "GET",
       { params },
     );
+  },
+
+  listProductReports(params: { page: number; limit: number; status: string }) {
+    return requestAdmin<ListResponse<ProductInformationReport>>("/admin/product-reports", "GET", { params });
+  },
+  getAppDiagnostics(days: number) {
+    return requestAdmin<{ items: Array<{ eventName: string; screen: string; platform: string; appVersion: string; releaseId: string; errorKind: string | null; httpStatus: number | null; value: string | null; count: number; sessions: number }>; days: number }>("/admin/app-diagnostics", "GET", { params: { days } });
+  },
+
+  reviewProductReport(id: string, body: { status: "RESOLVED" | "DISMISSED"; reviewNote: string }) {
+    return requestAdmin<ProductInformationReport>(`/admin/product-reports/${id}`, "PATCH", { body });
   },
 
   rejectGroupBuyRequest(id: string) {

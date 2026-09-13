@@ -319,3 +319,13 @@ export type CdnRefreshResult = {
   error?: string;
   results?: CdnRefreshResult[];
 };
+export type ProductInformationReport = {
+  id: string;
+  groupBuyId: string;
+  productName: string | null;
+  reason: "PRICE" | "SOLD_OUT" | "ENDED" | "LINK";
+  status: "OPEN" | "RESOLVED" | "DISMISSED";
+  createdAt: string;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+};

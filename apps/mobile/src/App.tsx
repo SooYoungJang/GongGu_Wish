@@ -17,6 +17,9 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import Constants from "expo-constants";
+import * as Updates from "expo-updates";
+import { AppErrorBoundary } from "./telemetry/AppErrorBoundary";
+import { telemetry } from "./telemetry/telemetry";
 import * as SystemUI from "expo-system-ui";
 import {
   createNavigationContainerRef,
@@ -110,6 +113,19 @@ const dataApiUrl = resolveDataApiUrl(
   { requireLocal: automatedE2E },
 );
 configurePostgrest(anonKey, dataApiUrl);
+telemetry.configure({
+  appVersion: Constants.expoConfig?.version ?? "0",
+  releaseId: Updates.updateId ?? "native",
+  platform: Platform.OS,
+}, async (batch, signal) => {
+  // Do not attach the user's session token to anonymous diagnostics.
+  const response = await fetch(`${dataApiUrl}/functions/v1/app-telemetry`, {
+    method: "POST", signal,
+    headers: { "Content-Type": "application/json", apikey: anonKey },
+    body: JSON.stringify(batch),
+  });
+  if (!response.ok) throw new Error("Telemetry unavailable");
+});
 // Initialize Supabase Auth client
 configureSupabase(anonKey, supabaseUrl);
 
@@ -118,6 +134,7 @@ import { AuthScreen } from "./screens/AuthScreen";
 import { CalendarScreen } from "./screens/CalendarScreen";
 import { FeedDetailScreen } from "./screens/FeedDetailScreen";
 import { GroupBuyRequestRankingsScreen } from "./screens/GroupBuyRequestRankingsScreen";
+import { MyGroupBuyRequestsScreen } from "./screens/MyGroupBuyRequestsScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { InfluencerGroupBuysScreen } from "./screens/InfluencerGroupBuysScreen";
 import { DetailScreen } from "./screens/DetailScreen";
@@ -489,6 +506,15 @@ function ThemedNavigationContainer({
   const userId = user?.id;
   const accessToken = session?.access_token;
   const bg = colors.bg;
+  const lastDiagnosticRoute = useRef<string | null>(null);
+  const reportDiagnosticRoute = useCallback(() => {
+    const route = rootNavigationRef.getCurrentRoute();
+    telemetry.setScreen(route?.name);
+    if (route?.key && route.key !== lastDiagnosticRoute.current) {
+      lastDiagnosticRoute.current = route.key;
+      if (route.name === "Detail" || route.name === "FeedDetail") telemetry.record("detail_open");
+    }
+  }, []);
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(bg);
@@ -555,6 +581,8 @@ function ThemedNavigationContainer({
         <NavigationContainer
           linking={notificationLinking}
           ref={rootNavigationRef}
+          onReady={reportDiagnosticRoute}
+          onStateChange={reportDiagnosticRoute}
           theme={navTheme}
         >
           {children}
@@ -603,6 +631,7 @@ function ThemedStackNavigator() {
         component={GroupBuyRequestRankingsScreen}
       />
       <Stack.Screen name="Admin" component={AdminScreen} />
+      <Stack.Screen name="MyGroupBuyRequests" component={MyGroupBuyRequestsScreen} />
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}
@@ -652,8 +681,13 @@ function AudienceApplication() {
 }
 
 export default function App() {
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", () => { void telemetry.flush(); });
+    return () => { subscription.remove(); };
+  }, []);
   return (
     <GestureHandlerRootView style={styles.appRoot}>
+      <AppErrorBoundary>
       <KeyboardProvider>
         <SafeAreaProvider>
           <AudienceProvider
@@ -665,6 +699,7 @@ export default function App() {
           </AudienceProvider>
         </SafeAreaProvider>
       </KeyboardProvider>
+      </AppErrorBoundary>
     </GestureHandlerRootView>
   );
 }

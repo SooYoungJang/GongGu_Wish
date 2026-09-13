@@ -16,6 +16,7 @@ export type RootStackParamList = {
   };
   SearchScreen: { initialQuery?: string } | undefined;
   GroupBuyRequestRankings: undefined;
+  MyGroupBuyRequests: undefined;
   Admin: undefined;
   Login: undefined;
   Submit: undefined;

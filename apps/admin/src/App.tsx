@@ -11,6 +11,9 @@ import { ProfileLinkCandidates } from "@/components/ProfileLinkCandidates";
 import { ProfileImagePreview } from "@/components/ProfileImagePreview";
 import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import { CommentsPanel } from "@/components/CommentsPanel";
+import { ProductReportsPanel } from "@/components/ProductReportsPanel";
+import { AppDiagnosticsPanel } from "@/components/AppDiagnosticsPanel";
+import { RequestFulfillmentDialog } from "@/components/RequestFulfillmentDialog";
 import {
   inferHikerSuggestions,
   resolveHikerSummary,
@@ -71,6 +74,8 @@ type TabKey =
   | "users"
   | "notifications"
   | "comments"
+  | "productReports"
+  | "appDiagnostics"
   | "cdnRefresh";
 
 type SubmissionForm = {
@@ -1903,6 +1908,15 @@ function AdminShell({ session }: { session: Session }) {
             <strong>푸시 발송</strong>
           </button>
           <button
+            aria-current={tab === "productReports" ? "page" : undefined}
+            className={tab === "productReports" ? "active" : ""}
+            onClick={() => switchTab("productReports")} type="button">
+            <span>상품 정보</span><strong>정보 신고</strong>
+          </button>
+          <button aria-current={tab === "appDiagnostics" ? "page" : undefined} className={tab === "appDiagnostics" ? "active" : ""} onClick={() => switchTab("appDiagnostics")} type="button">
+            <span>운영</span><strong>앱 진단</strong>
+          </button>
+          <button
             aria-current={tab === "comments" ? "page" : undefined}
             className={tab === "comments" ? "active" : ""}
             onClick={() => switchTab("comments")}
@@ -2121,6 +2135,7 @@ function AdminShell({ session }: { session: Session }) {
                   setGroupBuyRequestPage(1);
                 }}
                 onReject={(item) => void rejectGroupBuyRequest(item)}
+                onFulfilled={() => { setNotice({ tone: "success", message: "요청에 공구를 연결했습니다." }); void loadGroupBuyRequests(); }}
                 page={groupBuyRequestPage}
                 query={groupBuyRequestQuery}
                 status={groupBuyRequestStatus}
@@ -2157,6 +2172,8 @@ function AdminShell({ session }: { session: Session }) {
               />
             ) : null}
             {tab === "comments" ? <CommentsPanel /> : null}
+            {tab === "productReports" ? <ProductReportsPanel /> : null}
+            {tab === "appDiagnostics" ? <AppDiagnosticsPanel /> : null}
             {tab === "cdnRefresh" ? (
               <CdnRefreshPanel
                 loading={cdnLoading}
@@ -2330,6 +2347,15 @@ function AdminShell({ session }: { session: Session }) {
             />
           </svg>
           <span>푸시</span>
+        </button>
+        <button
+          aria-current={tab === "productReports" ? "page" : undefined}
+          className={tab === "productReports" ? "active" : ""}
+          onClick={() => switchTab("productReports")} type="button">
+          <span>정보 신고</span>
+        </button>
+        <button aria-current={tab === "appDiagnostics" ? "page" : undefined} className={tab === "appDiagnostics" ? "active" : ""} onClick={() => switchTab("appDiagnostics")} type="button">
+          <span>앱 진단</span>
         </button>
         <button
           aria-current={tab === "comments" ? "page" : undefined}
@@ -2514,6 +2540,8 @@ export function tabTitle(tab: TabKey) {
   if (tab === "users") return "가입자 관리";
   if (tab === "notifications") return "푸시 발송";
   if (tab === "comments") return "댓글 관리";
+  if (tab === "productReports") return "상품 정보 신고";
+  if (tab === "appDiagnostics") return "앱 진단";
   if (tab === "cdnRefresh") return "CDN 갱신";
   return "대시보드";
 }
@@ -3632,6 +3660,7 @@ function GroupBuyRequestPanel(props: {
   onPageChange: (page: number) => void;
   onQueryChange: (value: string) => void;
   onReject: (item: GroupBuyRequest) => void;
+  onFulfilled: () => void;
   onStatusChange: (value: "ALL" | GroupBuyRequestStatus) => void;
   page: number;
   query: string;
@@ -3640,6 +3669,7 @@ function GroupBuyRequestPanel(props: {
   totalPages: number;
 }) {
   const isFiltered = props.query.trim().length > 0 || props.status !== "ALL";
+  const [fulfilling, setFulfilling] = useState<GroupBuyRequest | null>(null);
   const resetFilters = () => {
     props.onQueryChange("");
     props.onStatusChange("ALL");
@@ -3647,6 +3677,7 @@ function GroupBuyRequestPanel(props: {
 
   return (
     <section className="panel">
+      {fulfilling ? <RequestFulfillmentDialog key={fulfilling.id} request={fulfilling} onClose={() => setFulfilling(null)} onComplete={() => { setFulfilling(null); props.onFulfilled(); }} /> : null}
       <div className="section-header">
         <div>
           <p className="eyebrow">Request demand</p>
@@ -3697,6 +3728,7 @@ function GroupBuyRequestPanel(props: {
                   <td>{formatDateTime(item.latestRequestedAt)}</td>
                   <td>{formatDateTime(item.createdAt)}</td>
                   <td>
+                    {item.status === "OPEN" ? <button className="button" type="button" disabled={props.actionLoading !== null} onClick={() => setFulfilling(item)} aria-label={`${item.productName} 공구 연결`}>공구 연결</button> : null}
                     {item.status === "OPEN" ? (
                       <button
                         aria-label={`${item.productName} 공구 요청 반려`}
@@ -3732,6 +3764,7 @@ function GroupBuyRequestPanel(props: {
               <strong className="group-buy-request-product-name">
                 {item.productName}
               </strong>
+              {item.status === "OPEN" ? <button className="button" type="button" disabled={props.actionLoading !== null} onClick={() => setFulfilling(item)} aria-label={`${item.productName} 공구 연결`}>공구 연결</button> : null}
               <div className="mobile-record-meta">
                 <span>요청 수</span>
                 <strong>{item.requestCount.toLocaleString()}건</strong>

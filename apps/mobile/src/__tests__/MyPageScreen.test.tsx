@@ -215,6 +215,7 @@ vi.mock('react-native', () => {
     AccessibilityInfo: {
       announceForAccessibility: vi.fn(),
     },
+    AppState: { addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
     View: passthrough('View'),
     Text: ({ children, ...props }: { children?: React.ReactNode }) =>
       ReactMock.createElement('Text', props, children),
