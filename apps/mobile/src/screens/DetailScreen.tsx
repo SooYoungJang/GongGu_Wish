@@ -3700,6 +3700,7 @@ export function makeStyles(
     metaRow: {
       flexDirection: "row",
       flexWrap: "wrap",
+      alignItems: "center",
       gap: spacing.xs,
       marginBottom: 0,
     },
