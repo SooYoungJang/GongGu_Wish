@@ -110,6 +110,8 @@ import {
   isPlaybackEligible,
 } from "./playbackEligibility";
 
+// Temporarily hide the report entry while keeping the reporting flow available for restoration.
+const SHOW_PRODUCT_REPORT_BUTTON = false;
 const MAX_VISIBLE_DOTS = 5;
 const VIDEO_EXTENSIONS = [
   ".mp4",
@@ -2353,7 +2355,7 @@ function ProductReelPageComponent({
                 </SText>
               </View>
             ) : null}
-            {isActive ? <ProductReportButton groupBuyId={groupBuy.id} productName={groupBuy.productName ?? "공구 상품"} onOpenChange={setReportVisible} /> : null}
+            {SHOW_PRODUCT_REPORT_BUTTON && isActive ? <ProductReportButton groupBuyId={groupBuy.id} productName={groupBuy.productName ?? "공구 상품"} onOpenChange={setReportVisible} /> : null}
           </View>
         </Reanimated.View>
       </>
@@ -3700,6 +3702,7 @@ export function makeStyles(
     metaRow: {
       flexDirection: "row",
       flexWrap: "wrap",
+      alignItems: "center",
       gap: spacing.xs,
       marginBottom: 0,
     },

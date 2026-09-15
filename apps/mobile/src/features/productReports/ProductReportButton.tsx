@@ -46,7 +46,7 @@ export function ProductReportButton({ groupBuyId, productName, onOpenChange }: {
   }
 
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel="상품 정보가 달라요" style={styles.entry} onPress={() => {
+    <Pressable accessibilityRole="button" accessibilityLabel="상품 정보가 달라요" hitSlop={8} style={({ pressed }) => [styles.entry, pressed && styles.pressed]} onPress={() => {
       if (requireAuth()) { setVisible(true); setSent(false); setError(null); }
     }}>
       <SText variant="caption" style={styles.entryText}>정보가 달라요</SText>
@@ -81,8 +81,9 @@ export function ProductReportButton({ groupBuyId, productName, onOpenChange }: {
 
 function makeStyles({ colors, spacing, radius }: ReturnType<typeof useCommerceTheme>) {
   return StyleSheet.create({
-    entry: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, alignSelf: "flex-start", backgroundColor: colors.surface, borderRadius: radius.full },
-    entryText: { color: colors.text },
+    entry: { paddingVertical: 5, paddingHorizontal: spacing.sm, alignSelf: "center", backgroundColor: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.22)", borderWidth: 1, borderRadius: radius.full },
+    entryText: { color: "#FFFFFF", fontSize: 11, fontWeight: "600" },
+    pressed: { opacity: 0.7 },
     overlay: { flex: 1, justifyContent: "center", padding: spacing.xl, backgroundColor: colors.overlay },
     dialog: { backgroundColor: colors.surface, borderRadius: radius.lg, maxHeight: "90%", width: "100%", maxWidth: 480, alignSelf: "center" },
     content: { padding: spacing.xl, gap: spacing.md },
