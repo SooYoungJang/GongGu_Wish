@@ -44,7 +44,7 @@
           "android": {
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "extraProguardRules": "# Expo Records use Kotlin reflection to map JS properties to native fields.\n-keep class kotlin.Metadata { *; }\n-keepattributes Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations\n-keep @interface expo.modules.kotlin.records.** { *; }\n-keep interface expo.modules.kotlin.records.Record\n-keep class * implements expo.modules.kotlin.records.Record { *; }"
+            "extraProguardRules": "# Expo Records use Kotlin reflection to map JS properties to native fields.\n-keep class kotlin.Metadata { *; }\n-keepattributes Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations\n-keep @interface expo.modules.kotlin.records.** { *; }\n-keep interface expo.modules.kotlin.records.Record\n-keep class * implements expo.modules.kotlin.records.Record { *; }\n# expo-notifications 55.0.24 ships this rule without registering consumerProguardFiles.\n# Preserve its Java serialization hooks for scheduled notifications (expo/expo#45292).\n-keep class expo.modules.notifications.** { *; }"
           }
         }
       ],
