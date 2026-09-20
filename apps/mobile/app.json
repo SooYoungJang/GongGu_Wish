@@ -37,6 +37,16 @@
       "typedRoutes": false
     },
     "plugins": [
+      "./plugins/withAndroidOptimizedProguard",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {
