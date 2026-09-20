@@ -80,6 +80,7 @@ if [[ "$gon264_status" -eq 0 ]]; then
 fi
 
 adb logcat -d > artifacts/android/logcat.txt || true
+adb exec-out screencap -p > artifacts/android/final-screen.png || true
 test "$critical_status" -eq 0
 test "$reels_status" -eq 0
 test "$gon264_status" -eq 0

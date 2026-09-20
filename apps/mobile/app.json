@@ -43,7 +43,8 @@
         {
           "android": {
             "enableMinifyInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# Expo Records use Kotlin reflection to map JS properties to native fields.\n-keep class kotlin.Metadata { *; }\n-keepattributes Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations\n-keep @interface expo.modules.kotlin.records.** { *; }\n-keep interface expo.modules.kotlin.records.Record\n-keep class * implements expo.modules.kotlin.records.Record { *; }"
           }
         }
       ],
