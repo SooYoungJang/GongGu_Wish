@@ -40,11 +40,11 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
     mobilePackage.dependencies["react-native-google-mobile-ads"],
     "16.3.4",
   );
-  assert.equal(mobilePackage.dependencies["expo-build-properties"], undefined);
+  // Build properties may enable R8, but must not override Expo's Kotlin toolchain.
   assert.equal(
     baseAppConfig.expo.plugins.find(
       (plugin) => Array.isArray(plugin) && plugin[0] === "expo-build-properties",
-    ),
+    )?.[1]?.android?.kotlinVersion,
     undefined,
   );
   assert.equal(

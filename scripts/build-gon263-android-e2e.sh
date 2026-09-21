@@ -51,4 +51,11 @@ pushd apps/mobile/android >/dev/null
 popd >/dev/null
 
 test -s apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+# Preserve the exact R8 configuration and mapping for native regression diagnosis.
+mapping_dir="apps/mobile/android/app/build/outputs/mapping/release"
+test -s "$mapping_dir/mapping.txt"
+mkdir -p artifacts/android/r8
+cp "$mapping_dir"/*.txt artifacts/android/r8/
+find apps/mobile/android/app/build/outputs -name 'r8.json' \
+  -exec cp {} artifacts/android/r8/ \;
 df -h "$repo_root" > artifacts/android/disk-after-build.txt
