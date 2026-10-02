@@ -79,9 +79,9 @@ def restore_production_cooldown(repository: str, run_id: str) -> datetime | None
                 raise ValueError("Cooldown artifact is too large")
             return parse_cooldown(zipped.read(info).decode("utf-8"))
 
-    # Bootstrap from the last run before this version first saved an artifact.
+    # Only manual runs can collect; invalid workflow push runs may have no logs.
     runs = json.loads(gh(
-        "api", f"repos/{repository}/actions/workflows/instagram-public-collector.yml/runs?branch=main&status=completed&per_page=20",
+        "api", f"repos/{repository}/actions/workflows/instagram-public-collector.yml/runs?branch=main&event=workflow_dispatch&status=completed&per_page=20",
     ))["workflow_runs"]
     prior = [run for run in runs if str(run["id"]) != run_id]
     if not prior:
