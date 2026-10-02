@@ -59,6 +59,18 @@ test("storageState validation accepts a UTF-8 BOM from Secret Manager", () => {
   );
 });
 
+test("cooldown path is configured on the runner before the guard, not in job env", () => {
+  const jobConfiguration = workflow.slice(0, workflow.indexOf("\n    steps:"));
+  assert.doesNotMatch(jobConfiguration, /\$\{\{[^}]*\brunner\./);
+
+  const configure = workflow.indexOf("- name: Configure Production collector cooldown path");
+  const guard = workflow.indexOf("- name: Restore and check Production collector cooldown");
+  assert.ok(configure > 0 && configure < guard);
+  const step = workflow.slice(configure, guard);
+  assert.match(step, /INSTAGRAM_PUBLIC_COOLDOWN_FILE=\$RUNNER_TEMP\/instagram-public-cooldown\.json/);
+  assert.match(step, />> "\$GITHUB_ENV"/);
+});
+
 test("Production collector restores cooldown before installing dependencies or collecting", () => {
   const guard = workflow.indexOf("- name: Restore and check Production collector cooldown");
   assert.ok(guard > 0);
