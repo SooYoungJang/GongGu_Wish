@@ -56,6 +56,32 @@ def cooldown_from_logs(logs: str) -> datetime | None:
     return max(retry_times) if retry_times else None
 
 
+def cooldown_from_job_logs(logs: str, step: dict) -> datetime | None:
+    start = datetime.fromisoformat(step["started_at"].replace("Z", "+00:00"))
+    end = datetime.fromisoformat(step["completed_at"].replace("Z", "+00:00"))
+    if start.tzinfo is None or end.tzinfo is None or end < start:
+        raise ValueError("Invalid collection step timestamps")
+    # API step times use whole seconds; keep the final second's fractional logs.
+    end += timedelta(seconds=1)
+    collecting = False
+    selected = []
+    for line in logs.splitlines():
+        line = line.lstrip("\ufeff")
+        match = re.match(r"^(\d{4}-\d\d-\d\dT\S+Z) (.*)$", line)
+        if not match:
+            continue
+        stamp = datetime.fromisoformat(match[1].replace("Z", "+00:00"))
+        if not start <= stamp < end:
+            continue
+        if match[2] == "##[group]Run python public_main.py":
+            collecting = True
+        if collecting:
+            selected.append("Job\tCollect into Production\t" + line)
+    if not collecting:
+        raise ValueError("Cannot identify collection step log boundary")
+    return cooldown_from_logs("\n".join(selected))
+
+
 def restore_production_cooldown(repository: str, run_id: str) -> datetime | None:
     def gh(*args: str) -> bytes:
         result = subprocess.run(["gh", *args], check=True, capture_output=True, timeout=60)
@@ -77,7 +103,9 @@ def restore_production_cooldown(repository: str, run_id: str) -> datetime | None
             info = zipped.getinfo("instagram-public-cooldown.json")
             if info.file_size > 4096:
                 raise ValueError("Cooldown artifact is too large")
-            return parse_cooldown(zipped.read(info).decode("utf-8"))
+            until = parse_cooldown(zipped.read(info).decode("utf-8"))
+            if until is not None:
+                return until
 
     # Only manual runs can collect; invalid workflow push runs may have no logs.
     runs = json.loads(gh(
@@ -86,11 +114,21 @@ def restore_production_cooldown(repository: str, run_id: str) -> datetime | None
     prior = [run for run in runs if str(run["id"]) != run_id]
     if not prior:
         return None
+    retry_times = []
     for run in sorted(prior, key=lambda run: run["created_at"], reverse=True):
-        logs = gh("run", "view", str(run["id"]), "--repo", repository, "--log").decode("utf-8")
-        if "\tCollect into Production\t" in logs:
-            return cooldown_from_logs(logs)
-    return None
+        jobs = json.loads(gh("api", f"repos/{repository}/actions/runs/{run['id']}/jobs?per_page=100"))["jobs"]
+        for job in jobs:
+            for step in job.get("steps", []):
+                if step["name"] != "Collect into Production" or step.get("conclusion") == "skipped":
+                    continue
+                if step.get("conclusion") == "cancelled" and not step.get("started_at"):
+                    continue
+                # Capture raw bytes for parsing only; never render job escape sequences.
+                logs = gh("api", f"repos/{repository}/actions/jobs/{job['id']}/logs", "--allow-escape-sequences").decode("utf-8-sig")
+                until = cooldown_from_job_logs(logs, step)
+                if until is not None:
+                    retry_times.append(until)
+    return max(retry_times) if retry_times else None
 
 
 def main() -> None:
