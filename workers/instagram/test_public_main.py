@@ -265,6 +265,26 @@ class FakeSession:
 
 
 class PublicMainTest(unittest.TestCase):
+    def setUp(self):
+        from public_pacing import RequestPacer
+
+        # Virtual time keeps parser/discovery tests fast while retaining pacing.
+        self.virtual_seconds = 0.0
+
+        def sleep(seconds):
+            self.virtual_seconds += seconds
+
+        self.pacer_patch = patch(
+            "public_main.RequestPacer",
+            side_effect=lambda **kwargs: RequestPacer(
+                monotonic=lambda: self.virtual_seconds,
+                sleep=sleep,
+                rng=random.Random(1),
+            ),
+        )
+        self.pacer_patch.start()
+        self.addCleanup(self.pacer_patch.stop)
+
     def discovery_config(self, **overrides):
         values = {
             "enabled": True,

@@ -59,6 +59,38 @@ test("storageState validation accepts a UTF-8 BOM from Secret Manager", () => {
   );
 });
 
+test("Production collector restores cooldown before installing dependencies or collecting", () => {
+  const guard = workflow.indexOf("- name: Restore and check Production collector cooldown");
+  assert.ok(guard > 0);
+  assert.ok(guard < workflow.indexOf("- name: Install collector dependencies"));
+  assert.match(workflow, /actions: read/);
+  for (const name of [
+    "Install collector dependencies",
+    "Validate required Production secrets",
+    "Run collector unit tests and compile check",
+    "Collect into Production",
+  ]) {
+    const step = workflow.slice(workflow.indexOf(`- name: ${name}`)).split(/\n\s+- name:/)[0];
+    assert.match(step, /steps\.cooldown\.outputs\.allowed == 'true'/);
+  }
+  assert.match(workflow, /name: instagram-production-cooldown/);
+  assert.match(workflow, /path: \$\{\{ env\.INSTAGRAM_PUBLIC_COOLDOWN_FILE \}\}/);
+  assert.doesNotMatch(workflow, /echo ".*`\$(GITHUB_SHA|COLLECTION_MODE|COLLECT_OUTCOME)`/);
+});
+
+test("collector checks block affected Preview and Production release gates", () => {
+  const collectorJob = ciWorkflow.slice(ciWorkflow.indexOf("  instagram-tests:\n"), ciWorkflow.indexOf("  worker-tests:\n"));
+  assert.match(collectorJob, /outputs\.instagram_tests == 'true'/);
+  assert.match(collectorJob, /python -m unittest discover/);
+  assert.doesNotMatch(collectorJob, /environment:|secrets\./);
+  for (const jobName of ["production-green", "preview-release-gate"]) {
+    const body = ciWorkflow.slice(ciWorkflow.indexOf(`  ${jobName}:\n`)).split(/\n  # /)[0];
+    assert.match(body, /instagram-tests,/);
+    assert.match(body, /INSTAGRAM_REQUIRED: \$\{\{ needs\.change-plan\.outputs\.instagram_tests \}\}/);
+    assert.match(body, /require_result "\$INSTAGRAM_REQUIRED" "Instagram collector tests" "\$INSTAGRAM_RESULT"/);
+  }
+});
+
 test("secret setup sends values through stdin instead of process arguments", () => {
   assert.match(secretSetup, /RedirectStandardInput = \$true/);
   assert.match(secretSetup, /StandardInput\.BaseStream\.Write/);

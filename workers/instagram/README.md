@@ -51,6 +51,9 @@ INSTAGRAM_PUBLIC_JITTER_SECONDS=300
 INSTAGRAM_PUBLIC_POST_LIMIT=3
 INSTAGRAM_PLAYWRIGHT_HEADLESS=true
 INSTAGRAM_PUBLIC_WATCHLIST_ENABLED=true
+INSTAGRAM_PUBLIC_WATCHLIST_MAX_ACCOUNTS=15
+# 로컬 프로세스를 재시작해도 대기 시간을 유지하려면 설정
+INSTAGRAM_PUBLIC_COOLDOWN_FILE=<환경별로 분리한 JSON 파일 경로>
 INSTAGRAM_RANDOM_DISCOVERY_ENABLED=false
 INSTAGRAM_PUBLIC_RUN_ONCE=false
 INSTAGRAM_DISCOVERY_TARGET_GROUP_BUYS=3
@@ -61,8 +64,22 @@ INSTAGRAM_DISCOVERY_HASHTAGS=공구,공동구매,공구오픈,공구마감,마�
 INSTAGRAM_DISCOVERY_EMERGENCY_MAX_ACCOUNTS=0
 ```
 
-`900 ± 300초` 지터는 계정 요청을 한 시각에 몰리지 않게 하는 운영용 분산값입니다.
-접근 제한을 피하기 위한 우회 수단으로 사용하지 않습니다.
+`900 ± 300초`는 다음 수집 주기의 간격입니다. 실제 브라우저 페이지 이동과 스크롤은
+같은 세션 전체에서 10~20초 간격으로 진행하고, 12회마다 60~120초 더 쉽니다.
+관심 계정은 API가 반환한 오래된 수집 예정 순서대로 한 주기 최대 15개를 확인합니다.
+`INSTAGRAM_DISCOVERY_TIME_BUDGET_SECONDS`는 관심 계정과 랜덤 탐색을 합친 전체
+브라우저 수집 시간에도 적용됩니다. 대기 중 시간이 끝나면 추가 페이지를 열지 않습니다.
+
+429, 로그인 또는 challenge가 감지되면 나머지 관심 계정과 랜덤 탐색을 모두 중단합니다.
+기본 쿨다운은 6시간이며, 429의 `Retry-After`가 더 길면 그 시간을 따릅니다.
+백그라운드 Instagram 응답의 429도 감지합니다. 이 값들은 보수적인 운영 정책이며,
+Instagram이 공개한 허용량이 아니므로 429가 발생하지 않는다는 보장은 없습니다.
+
+`INSTAGRAM_PUBLIC_COOLDOWN_FILE`에는 `cooldownUntil` 시각만 저장하며 세션이나
+쿠키는 저장하지 않습니다. Production workflow는 이 파일을 별도 artifact로 보관하고
+다음 실행 전에 복원합니다. 쿨다운 중에는 수집을 건너뛰고, 기록 조회나 파싱에 실패하면
+수집을 시작하지 않습니다. 파일 경로를 지정하지 않은 로컬 실행은 현재 프로세스에서만
+쿨다운을 기억합니다. Preview와 Production의 파일 및 artifact를 공유하지 않습니다.
 
 ### 실행
 
@@ -108,7 +125,16 @@ Instagram HTTPS 해시태그·게시물·프로필 allowlist 안에서만 생성
 
 ```bash
 python workers/instagram/e2e_random_discovery.py --mock `
+  --timeout-seconds 300 `
   --evidence-dir .\test-results\instagram-random-discovery
+```
+
+백그라운드 429가 대기 중인 다음 페이지 이동을 중단하는지도 네트워크 fixture로
+확인할 수 있습니다. 실제 Instagram 요청이나 DB 저장 없이 브라우저에서 검증합니다.
+
+```bash
+python workers/instagram/e2e_public_pacing.py `
+  --evidence-dir .\test-results\instagram-public-pacing
 ```
 
 실제 Instagram 로그인 세션을 확인할 때는 `storageState` 경로를 전달합니다. 이 명령은
