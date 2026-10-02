@@ -123,7 +123,8 @@ def restore_production_cooldown(repository: str, run_id: str) -> datetime | None
                     continue
                 if step.get("conclusion") == "cancelled" and not step.get("started_at"):
                     continue
-                logs = gh("api", f"repos/{repository}/actions/jobs/{job['id']}/logs").decode("utf-8-sig")
+                # Capture raw bytes for parsing only; never render job escape sequences.
+                logs = gh("api", f"repos/{repository}/actions/jobs/{job['id']}/logs", "--allow-escape-sequences").decode("utf-8-sig")
                 until = cooldown_from_job_logs(logs, step)
                 if until is not None:
                     retry_times.append(until)

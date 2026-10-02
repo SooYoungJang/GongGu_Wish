@@ -46,7 +46,10 @@ def history_gh(records, artifact_zip=None):
                  "completed_at": record.get("end", "2026-10-02T15:45:19Z")},
             ]}]}
         elif "/jobs/" in endpoint and endpoint.endswith("/logs"):
-            return SimpleNamespace(stdout=by_id[endpoint.split("/jobs/")[1].split("/")[0]]["logs"].encode())
+            logs = by_id[endpoint.split("/jobs/")[1].split("/")[0]]["logs"]
+            if "\x1b" in logs and "--allow-escape-sequences" not in args:
+                raise subprocess.CalledProcessError(1, args, stderr=b"the response contains terminal escape sequences")
+            return SimpleNamespace(stdout=logs.encode())
         else:
             raise AssertionError(f"Unexpected gh request: {args}")
         return SimpleNamespace(stdout=json.dumps(payload).encode())
@@ -55,6 +58,13 @@ def history_gh(records, artifact_zip=None):
 
 
 class PublicCooldownTest(unittest.TestCase):
+    def test_restores_cooldown_when_other_job_steps_contain_terminal_colors(self):
+        records = [{"id": 1, "created_at": "2026-10-02T15:22:00Z", "logs":
+                    "2026-10-02T15:20:00Z \x1b[32mDependency installation\x1b[0m\n" + RAW_BLOCKED}]
+        with patch("public_cooldown.subprocess.run", side_effect=history_gh(records)):
+            until = restore_production_cooldown("owner/repo", "100")
+        self.assertEqual(until, datetime(2026, 10, 2, 21, 45, 19, 427303, tzinfo=timezone.utc))
+
     def test_restores_raw_job_logs_when_cli_step_names_are_unknown(self):
         records = [{"id": 1, "created_at": "2026-10-02T15:22:00Z", "logs": RAW_BLOCKED}]
         with patch("public_cooldown.subprocess.run", side_effect=history_gh(records)):
