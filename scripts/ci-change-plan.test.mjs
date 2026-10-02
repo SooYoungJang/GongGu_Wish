@@ -43,6 +43,24 @@ function expectOnly(plan, enabled) {
   }
 }
 
+test("Instagram collector changes run collector checks without deploying app components", () => {
+  for (const file of [
+    "workers/instagram/public_main.py",
+    "workers/instagram/public_pacing.py",
+    ".github/workflows/instagram-public-collector.yml",
+  ]) {
+    const plan = classifyChangedFiles([file]);
+    assert.equal(plan.instagramTests, true, file);
+    assert.equal(plan.quality, false);
+    assert.equal(plan.workerTests, false);
+    assert.equal(plan.api, false);
+    assert.equal(plan.mobileE2e, false);
+    expectOnly(plan, []);
+  }
+  assert.equal(classifyChangedFiles(["docs/collector.md"]).instagramTests, false);
+  assert.equal(classifyChangedFiles(["unknown/file"]).instagramTests, true);
+});
+
 test("Markdown-only changes skip every build and deployment", () => {
   const plan = classifyChangedFiles(["AGENTS.md", "docs/branch-strategy.md"]);
 

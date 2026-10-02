@@ -22,6 +22,7 @@ function createPlan() {
     edgeTests: false,
     localSupabase: false,
     workerTests: false,
+    instagramTests: false,
     dependencyReview: false,
     supabase: false,
     database: false,
@@ -102,6 +103,7 @@ export function classifyChangedFiles(
     plan.edgeTests = true;
     plan.localSupabase = true;
     plan.workerTests = true;
+    plan.instagramTests = true;
     plan.dependencyReview = true;
     plan.supabase = true;
     plan.database = true;
@@ -121,6 +123,14 @@ export function classifyChangedFiles(
       if (isDocumentation(path)) continue;
       if (isDependencyFile(path)) plan.dependencyReview = true;
       if (isMobileE2eFile(path)) plan.mobileE2e = true;
+
+      if (
+        path.startsWith("workers/instagram/") ||
+        path === ".github/workflows/instagram-public-collector.yml"
+      ) {
+        plan.instagramTests = true;
+        continue;
+      }
 
       if (
         path.startsWith(".github/") ||
@@ -240,6 +250,7 @@ function toOutputs(plan) {
     edge_tests: plan.edgeTests,
     local_supabase: plan.localSupabase,
     worker_tests: plan.workerTests,
+    instagram_tests: plan.instagramTests,
     dependency_review: plan.dependencyReview,
     supabase: plan.supabase,
     database: plan.database,
