@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import subprocess
 
 from public_cooldown import cooldown_from_logs, restore_production_cooldown
@@ -18,7 +19,14 @@ logs = gh("run", "view", run_id, "--repo", repository, "--log")
 lines = logs.splitlines()
 collect = [line for line in lines if "\tCollect into Production\t" in line]
 until = cooldown_from_logs(logs)
-restored = restore_production_cooldown(repository, os.environ["GITHUB_RUN_ID"])
+try:
+    restored = restore_production_cooldown(repository, os.environ["GITHUB_RUN_ID"])
+except subprocess.CalledProcessError as error:
+    message = (error.stderr or b"").decode("utf-8", errors="replace")
+    message = re.sub(r"https?://\S+", "[URL omitted]", message)
+    message = re.sub(r"(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]+", "[token omitted]", message)
+    print(json.dumps({"failedEndpoint": error.cmd[2], "returnCode": error.returncode, "stderr": message[:1000]}), flush=True)
+    raise
 print(json.dumps({
     "ghVersion": gh("--version").splitlines()[0],
     "runId": run_id,
