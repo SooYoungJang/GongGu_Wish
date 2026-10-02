@@ -222,6 +222,7 @@ jobs:
       edge_tests: ${{ steps.plan.outputs.edge_tests }}
       local_supabase: ${{ steps.plan.outputs.local_supabase }}
       worker_tests: ${{ steps.plan.outputs.worker_tests }}
+      instagram_tests: ${{ steps.plan.outputs.instagram_tests }}
       dependency_review: ${{ steps.plan.outputs.dependency_review }}
       supabase: ${{ steps.plan.outputs.supabase }}
       database: ${{ steps.plan.outputs.database }}
@@ -726,6 +727,29 @@ jobs:
           done < <(find supabase/functions -mindepth 2 -maxdepth 2 -type f -name index.ts | sort)
 
   # ── Cloudflare Worker Checks ─────────────────────────────────────────────
+  instagram-tests:
+    name: Instagram Collector Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [change-plan]
+    if: ${{ needs.change-plan.outputs.instagram_tests == 'true' }}
+    defaults:
+      run:
+        working-directory: ./workers/instagram
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Install collector dependencies
+        run: python -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
+      - name: Test collector contracts and pacing
+        run: |
+          python -m unittest discover -p 'test_*.py'
+          python -m compileall -q .
+
   worker-tests:
     name: Cloudflare Worker Tests
     runs-on: ubuntu-latest
@@ -965,6 +989,7 @@ jobs:
         edge-tests,
         local-supabase-contracts,
         supabase-production,
+        instagram-tests,
         worker-tests,
         deploy-worker,
         deploy-mobile,
@@ -986,6 +1011,8 @@ jobs:
           SUPABASE_REQUIRED: ${{ needs.change-plan.outputs.supabase }}
           WORKER_REQUIRED: ${{ needs.change-plan.outputs.worker }}
           MOBILE_REQUIRED: ${{ needs.change-plan.outputs.mobile }}
+          INSTAGRAM_REQUIRED: ${{ needs.change-plan.outputs.instagram_tests }}
+          INSTAGRAM_RESULT: ${{ needs.instagram-tests.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           TEST_RESULT: ${{ needs.test.result }}
@@ -1020,6 +1047,7 @@ jobs:
           }
           require_result "$QUALITY_REQUIRED" "Quality gates" "$LINT_RESULT" "$BUILD_RESULT"
           require_result "$TEST_REQUIRED" "Tests" "$TEST_RESULT"
+          require_result "$INSTAGRAM_REQUIRED" "Instagram collector tests" "$INSTAGRAM_RESULT"
           require_result "$API_REQUIRED" "API tests" "$API_RESULT"
           require_result "$EDGE_REQUIRED" "Edge tests" "$EDGE_RESULT"
           require_result "$LOCAL_SUPABASE_REQUIRED" "Local Supabase contracts" "$LOCAL_SUPABASE_RESULT"
@@ -1102,6 +1130,7 @@ jobs:
         edge-tests,
         local-supabase-contracts,
         supabase-preview,
+        instagram-tests,
         worker-tests,
         deploy-worker,
         deploy-mobile,
@@ -1160,6 +1189,8 @@ jobs:
           SUPABASE_REQUIRED: ${{ needs.change-plan.outputs.supabase }}
           WORKER_REQUIRED: ${{ needs.change-plan.outputs.worker }}
           MOBILE_REQUIRED: ${{ needs.change-plan.outputs.mobile }}
+          INSTAGRAM_REQUIRED: ${{ needs.change-plan.outputs.instagram_tests }}
+          INSTAGRAM_RESULT: ${{ needs.instagram-tests.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           TEST_RESULT: ${{ needs.test.result }}
@@ -1205,6 +1236,7 @@ jobs:
           require_result "$QUALITY_REQUIRED" "Workspace quality" \
             "$LINT_RESULT" "$BUILD_RESULT"
           require_result "$TEST_REQUIRED" "Workspace tests" "$TEST_RESULT"
+          require_result "$INSTAGRAM_REQUIRED" "Instagram collector tests" "$INSTAGRAM_RESULT"
           require_result "$API_REQUIRED" "API tests" "$API_TEST_RESULT"
           require_result "$EDGE_REQUIRED" "Edge Function tests" "$EDGE_RESULT"
           require_result "$LOCAL_SUPABASE_REQUIRED" "Local Supabase contracts" \
