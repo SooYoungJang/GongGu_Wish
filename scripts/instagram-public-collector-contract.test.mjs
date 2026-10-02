@@ -90,6 +90,12 @@ test("Production collector restores cooldown before installing dependencies or c
   assert.doesNotMatch(workflow, /echo ".*`\$(GITHUB_SHA|COLLECTION_MODE|COLLECT_OUTCOME)`/);
 });
 
+test("Production unit tests cannot use the runtime cooldown file", () => {
+  const start = workflow.indexOf("- name: Run collector unit tests and compile check");
+  const end = workflow.indexOf("- name: Collect into Production", start);
+  assert.match(workflow.slice(start, end), /env:\r?\n\s+INSTAGRAM_PUBLIC_COOLDOWN_FILE: ""/);
+});
+
 test("collector checks block affected Preview and Production release gates", () => {
   const collectorJob = ciWorkflow.slice(ciWorkflow.indexOf("  instagram-tests:\n"), ciWorkflow.indexOf("  worker-tests:\n"));
   assert.match(collectorJob, /outputs\.instagram_tests == 'true'/);
