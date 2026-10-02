@@ -731,6 +731,9 @@ jobs:
     name: Instagram Collector Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
     needs: [change-plan]
     if: ${{ needs.change-plan.outputs.instagram_tests == 'true' }}
     defaults:
@@ -745,6 +748,10 @@ jobs:
           python-version: "3.12"
       - name: Install collector dependencies
         run: python -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
+      - name: Diagnose archived collector log format
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python diagnose_public_cooldown.py
       - name: Test collector contracts and pacing
         run: |
           python -m unittest discover -p 'test_*.py'
