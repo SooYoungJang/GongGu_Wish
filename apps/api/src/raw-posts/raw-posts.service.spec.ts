@@ -1,3 +1,4 @@
+import { BadRequestException } from "@nestjs/common";
 import {
   GroupBuyStatus,
   ParsingStatus,
@@ -174,6 +175,18 @@ describe("RawPostsService", () => {
       groupBuyId: null,
       reviewCandidateCreated: false,
     });
+  });
+
+  it("rejects manual discovery on the collector API path", async () => {
+    const { service, prisma } = createService();
+
+    await expect(
+      service.collect({
+        ...baseDto,
+        collectionSource: RawPostCollectionSource.MANUAL_DISCOVERY,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it("returns duplicates without creating another raw post", async () => {

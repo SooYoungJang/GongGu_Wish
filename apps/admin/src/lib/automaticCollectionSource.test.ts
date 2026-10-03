@@ -3,7 +3,19 @@ import { describe, expect, it } from "vitest";
 import {
   automaticCollectionProfileLinkCandidates,
   automaticCollectionProfilePurchaseFallback,
+  automaticCollectionSourceLabel,
 } from "./automaticCollectionSource";
+
+describe("automatic collection source labels", () => {
+  it("distinguishes manual discoveries from Playwright collection", () => {
+    expect(automaticCollectionSourceLabel("MANUAL_DISCOVERY")).toBe(
+      "수동 발견",
+    );
+    expect(automaticCollectionSourceLabel("PLAYWRIGHT_PUBLIC")).toBe(
+      "Playwright 자동 수집",
+    );
+  });
+});
 
 describe("automatic collection profile links", () => {
   it("returns only safe, normalized profile link candidates", () => {

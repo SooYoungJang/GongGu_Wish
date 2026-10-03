@@ -1,3 +1,5 @@
+export * from "./automatic-collection";
+
 export const API_PATHS = {
   influencers: "/admin/influencers",
   submissions: "/admin/submissions",
