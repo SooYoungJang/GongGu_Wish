@@ -52,6 +52,14 @@ test("remote collector requires masked Production secrets and existing write gua
   assert.match(workflow, /playwright install --with-deps chromium/);
 });
 
+test("Production collector fixes the registered source and navigation budget", () => {
+  const collect = workflow.slice(workflow.indexOf("- name: Collect into Production"));
+  assert.match(collect, /INSTAGRAM_DISCOVERY_SOURCE: registered/);
+  assert.match(collect, /INSTAGRAM_PUBLIC_MAX_NAVIGATIONS: "12"/);
+  assert.match(collect, /INSTAGRAM_PUBLIC_WATCHLIST_MAX_ACCOUNTS: "3"/);
+  assert.match(workflow, /등록 계정에서 찾을 신규 공구 후보 수/);
+});
+
 test("storageState validation accepts a UTF-8 BOM from Secret Manager", () => {
   assert.match(
     workflow,

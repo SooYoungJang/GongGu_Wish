@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       collection_mode:
-        description: "수집 범위"
+        description: "등록 계정 수집 범위 (random도 등록 계정에서 후보 탐색)"
         required: true
         type: choice
         options:
@@ -13,12 +13,12 @@ on:
           - random
         default: both
       target_group_buys:
-        description: "랜덤 발견에서 찾을 신규 공구 후보 수"
+        description: "등록 계정에서 찾을 신규 공구 후보 수 (요청 한도 내)"
         required: true
         type: string
         default: "3"
       time_budget_seconds:
-        description: "관심 계정과 랜덤 발견을 합친 최대 수집 시간(초)"
+        description: "등록 계정 수집의 최대 시간(초), 최대 12페이지"
         required: true
         type: string
         default: "900"
@@ -181,6 +181,9 @@ jobs:
           INSTAGRAM_PRODUCTION_PREFLIGHT_PASSED: "true"
           INSTAGRAM_PUBLIC_RUN_ONCE: "true"
           INSTAGRAM_PUBLIC_POST_LIMIT: "3"
+          INSTAGRAM_DISCOVERY_SOURCE: registered
+          INSTAGRAM_PUBLIC_MAX_NAVIGATIONS: "12"
+          INSTAGRAM_PUBLIC_WATCHLIST_MAX_ACCOUNTS: "3"
           INSTAGRAM_PLAYWRIGHT_HEADLESS: "true"
         run: python public_main.py
 

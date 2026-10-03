@@ -342,6 +342,8 @@ class PublicMainTest(unittest.TestCase):
         collector = PublicInstagramCollector(
             FakeBrowserContext(collection_page),
             limit=3,
+            # Ownership/date selection is tested independently of the run quota.
+            max_navigations=50,
         )
         discovery_page = StaticPage(
             """

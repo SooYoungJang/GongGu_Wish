@@ -194,7 +194,9 @@ class PublicPacingTest(unittest.TestCase):
 
         with patch("public_main.RequestPacer", side_effect=virtual_pacer):
             collector = PublicInstagramCollector(context)
-        collector.collect_account("first")
+        # Rendering waits now dispatch responses, so the first profile stops sooner.
+        with self.assertRaises(PublicCollectionBlocked):
+            collector.collect_account("first")
         with self.assertRaises(PublicCollectionBlocked):
             collector.collect_account("second")
         self.assertEqual(len(context.navigations), 1)
