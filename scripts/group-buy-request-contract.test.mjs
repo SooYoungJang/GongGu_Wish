@@ -228,7 +228,7 @@ test("admin group-buy request listings expose aggregate fields only", () => {
   assert.match(adminApi, /path === "\/admin\/group-buy-requests"/);
   assert.match(
     adminApi,
-    /Math\.min\(\s*Math\.floor\(listParam\(params, "page", 1\)\),\s*1_000_000,\s*\)/,
+    /Math\.min\(\s*Math\.floor\(listParam\(params, "page", 1\)\),\s*1_000_000,?\s*\)/,
   );
 });
 
