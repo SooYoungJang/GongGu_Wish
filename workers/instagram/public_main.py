@@ -71,6 +71,8 @@ DEFAULT_DISCOVERY_HASHTAGS = (
 )
 DISCOVERY_RENDER_POLL_INTERVAL_MS = 500
 DISCOVERY_RENDER_TIMEOUT_MS = 5_000
+PROFILE_RENDER_TIMEOUT_MS = 10_000
+MAX_NAVIGATIONS_PER_RUN = 12
 MAX_VERIFIED_POST_CANDIDATES_PER_ACCOUNT = MAX_POSTS_PER_ACCOUNT * 3
 MAX_POST_NAVIGATIONS_PER_ACCOUNT = MAX_VERIFIED_POST_CANDIDATES_PER_ACCOUNT * 2
 
@@ -88,8 +90,8 @@ class PublicCollectionBlocked(PublicCollectionError):
 
 
 class PublicCollectionBudgetExceeded(PublicCollectionError):
-    def __init__(self) -> None:
-        super().__init__("TIME_BUDGET", "Instagram 수집 실행 시간이 끝났습니다.")
+    def __init__(self, code: str = "TIME_BUDGET") -> None:
+        super().__init__(code, "Instagram 수집 실행 한도에 도달했습니다.")
 
 
 @dataclass(frozen=True)
@@ -100,6 +102,7 @@ class RandomDiscoveryConfig:
     scroll_passes: int = 3
     time_budget_seconds: int = 900
     emergency_max_accounts: int | None = None
+    source: str = "hashtags"
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -118,6 +121,13 @@ def env_int(name: str, default: int, minimum: int, maximum: int) -> int:
 
 
 def load_random_discovery_config() -> RandomDiscoveryConfig:
+    production = os.getenv("INSTAGRAM_COLLECTION_TARGET", "").strip().lower() == "production"
+    source = os.getenv("INSTAGRAM_DISCOVERY_SOURCE", "registered" if production else "hashtags").strip().lower()
+    if source not in {"registered", "hashtags"} or (production and source != "registered"):
+        raise PublicCollectionError(
+            "INVALID_DISCOVERY_SOURCE",
+            "Production Instagram 탐색은 등록 계정 목록을 사용해야 합니다.",
+        )
     raw_hashtags = os.getenv(
         "INSTAGRAM_DISCOVERY_HASHTAGS",
         ",".join(DEFAULT_DISCOVERY_HASHTAGS),
@@ -135,7 +145,7 @@ def load_random_discovery_config() -> RandomDiscoveryConfig:
                 "Instagram 탐색 해시태그 설정이 올바르지 않습니다.",
             ) from error
         hashtags.append(hashtag)
-    if not hashtags:
+    if not hashtags and source == "hashtags":
         raise PublicCollectionError(
             "MISSING_DISCOVERY_HASHTAG",
             "Instagram 탐색 해시태그가 하나 이상 필요합니다.",
@@ -164,6 +174,7 @@ def load_random_discovery_config() -> RandomDiscoveryConfig:
             3_600,
         ),
         emergency_max_accounts=emergency_max_accounts or None,
+        source=source,
     )
 
 
@@ -373,12 +384,16 @@ class PublicInstagramCollector:
         limit: int = MAX_POSTS_PER_ACCOUNT,
         *,
         pacer: RequestPacer | None = None,
+        max_navigations: int = MAX_NAVIGATIONS_PER_RUN,
     ) -> None:
         self.context = context
         self.limit = max(1, min(int(limit), MAX_POSTS_PER_ACCOUNT))
         self.pacer = pacer or RequestPacer(sleep=self._browser_sleep)
         self._active_page: Page | None = None
         self.budget_exhausted = False
+        self.budget_stop_reason: str | None = None
+        self.max_navigations = max(1, int(max_navigations))
+        self.navigation_count = 0
         self._blocked_response: PublicCollectionBlocked | None = None
         self._pending_discovery: tuple[str, list[ProfilePostLink]] | None = None
         listen = getattr(context, "on", None)
@@ -388,12 +403,17 @@ class PublicInstagramCollector:
     def start_run(self, time_budget_seconds: int) -> None:
         self.pacer.deadline = self.pacer.monotonic() + time_budget_seconds
         self.budget_exhausted = False
+        self.budget_stop_reason = None
+        self.navigation_count = 0
         self._blocked_response = None
 
     def _on_response(self, response: Any) -> None:
-        hostname = urlparse(getattr(response, "url", "")).hostname or ""
+        parsed_url = urlparse(getattr(response, "url", ""))
+        hostname = parsed_url.hostname or ""
         if response.status == 429 and (hostname == "instagram.com" or hostname.endswith(".instagram.com")):
-            self._blocked_response = self._blocked_error("HTTP_429", response)
+            if self._blocked_response is None:
+                self._blocked_response = self._blocked_error("HTTP_429", response)
+                logger.warning("Instagram HTTP 429: endpoint=%s%s", hostname, parsed_url.path)
 
     def _blocked_error(self, reason: str, response: Any) -> PublicCollectionBlocked:
         try:
@@ -420,14 +440,39 @@ class PublicInstagramCollector:
 
         if not self.pacer.wait(ready):
             self.budget_exhausted = True
+            self.budget_stop_reason = "TIME_BUDGET"
             raise PublicCollectionBudgetExceeded()
 
     def _navigate(self, page: Page, url: str, should_continue: Callable[[], bool] = lambda: True) -> Any:
+        if self._blocked_response is not None:
+            raise self._blocked_response
+        if self.navigation_count >= self.max_navigations:
+            self.budget_exhausted = True
+            self.budget_stop_reason = "REQUEST_BUDGET"
+            raise PublicCollectionBudgetExceeded("REQUEST_BUDGET")
         self._wait(page, should_continue)
+        self.navigation_count += 1
         response = page.goto(url, wait_until="domcontentloaded", timeout=30_000)
         self.pacer.completed()
         self._check_page(page, response)
         return response
+
+    def _profile_html(self, page: Page, response: Any, profile_url: str) -> str:
+        # DOMContentLoaded precedes Instagram's asynchronously rendered post grid.
+        for elapsed_ms in range(0, PROFILE_RENDER_TIMEOUT_MS + 1, DISCOVERY_RENDER_POLL_INTERVAL_MS):
+            self._check_page(page, response)
+            if self.pacer.deadline is not None and self.pacer.monotonic() >= self.pacer.deadline:
+                self.budget_exhausted = True
+                self.budget_stop_reason = "TIME_BUDGET"
+                raise PublicCollectionBudgetExceeded()
+            html = page.content()
+            if extract_profile_posts(html, profile_url, limit=None):
+                return html
+            wait = getattr(page, "wait_for_timeout", None)
+            if elapsed_ms >= PROFILE_RENDER_TIMEOUT_MS or not callable(wait):
+                return html
+            wait(DISCOVERY_RENDER_POLL_INTERVAL_MS)
+        return html
 
     def _take_pending_discovery_links(self, username: str) -> list[ProfilePostLink]:
         pending = self._pending_discovery
@@ -572,8 +617,8 @@ class PublicInstagramCollector:
         page = self.context.new_page()
         try:
             profile_url = f"https://www.instagram.com/{normalized_username}/"
-            self._navigate(page, profile_url)
-            profile_html = page.content()
+            response = self._navigate(page, profile_url)
+            profile_html = self._profile_html(page, response, profile_url)
             profile_links = extract_profile_posts(
                 profile_html,
                 profile_url,
@@ -594,7 +639,13 @@ class PublicInstagramCollector:
                         break
                     seen_post_ids.add(link.post_id)
                     navigation_count += 1
-                    self._navigate(page, link.post_url)
+                    try:
+                        self._navigate(page, link.post_url)
+                    except PublicCollectionBudgetExceeded:
+                        # Submit verified posts from this account before stopping the run.
+                        if not posts:
+                            raise
+                        break
                     html = page.content()
                     if extract_post_username(html) != normalized_username:
                         continue
@@ -613,7 +664,8 @@ class PublicInstagramCollector:
                     if len(posts) >= MAX_VERIFIED_POST_CANDIDATES_PER_ACCOUNT:
                         break
                 if (
-                    navigation_count >= MAX_POST_NAVIGATIONS_PER_ACCOUNT
+                    self.budget_exhausted
+                    or navigation_count >= MAX_POST_NAVIGATIONS_PER_ACCOUNT
                     or len(posts) >= MAX_VERIFIED_POST_CANDIDATES_PER_ACCOUNT
                 ):
                     break
@@ -643,8 +695,9 @@ class PublicInstagramWorker:
     monotonic: Callable[[], float] = time.monotonic
     cooldown_seconds: int = 6 * 60 * 60
     cooldown_until: datetime | None = field(default=None, init=False)
-    watchlist_max_accounts: int = 15
+    watchlist_max_accounts: int = 3
     cooldown_file: Path | None = None
+    min_run_interval_seconds: int = 3_600
 
     def _start_cooldown(self, error: PublicCollectionBlocked) -> datetime:
         delay = max(self.cooldown_seconds, error.retry_after_seconds or 0)
@@ -731,8 +784,8 @@ class PublicInstagramWorker:
                     self._start_cooldown(error)
                     logger.warning("랜덤 계정 탐색 중 Instagram 차단 감지: %s", error.code)
                     break
-                except PublicCollectionBudgetExceeded:
-                    stop_reason = "TIME_BUDGET"
+                except PublicCollectionBudgetExceeded as error:
+                    stop_reason = error.code
                     break
                 except PublicCollectionError as error:
                     logger.error("랜덤 계정 @%s 수집 실패: %s", username, error.code)
@@ -749,7 +802,7 @@ class PublicInstagramWorker:
                 close()
 
         if (time_budget_exhausted or getattr(self.collector, "budget_exhausted", False)) and stop_reason == "SOURCE_EXHAUSTED":
-            stop_reason = "TIME_BUDGET"
+            stop_reason = getattr(self.collector, "budget_stop_reason", None) or "TIME_BUDGET"
 
         logger.info(
             "Instagram 랜덤 탐색 완료: accounts=%d posts=%d newCandidates=%d stop=%s",
@@ -777,26 +830,58 @@ class PublicInstagramWorker:
         start_run = getattr(self.collector, "start_run", None)
         if callable(start_run):
             start_run(self.discovery.time_budget_seconds)
-        accounts = self.api.watchlist() if self.watchlist_enabled else []
+        try:
+            return self._collect_run()
+        finally:
+            if getattr(self.collector, "navigation_count", 0) > 0:
+                retry_at = self.clock() + timedelta(seconds=max(3_600, self.min_run_interval_seconds))
+                self.cooldown_until = max(self.cooldown_until or retry_at, retry_at)
+                if self.cooldown_file is not None:
+                    save_cooldown(self.cooldown_file, self.cooldown_until)
+                logger.info("Instagram 다음 실행 대기: cooldownUntil=%s", isoformat(self.cooldown_until))
+
+    def _collect_run(self) -> int:
+        registered_discovery = self.discovery.enabled and self.discovery.source == "registered"
+        accounts = self.api.watchlist() if self.watchlist_enabled or registered_discovery else []
         watchlist_usernames = {
             str(account.get("instagramUsername", "")).strip().lower()
             for account in accounts
             if str(account.get("instagramUsername", "")).strip()
         }
         collected_count = 0
-        for account in accounts[:max(1, self.watchlist_max_accounts)]:
+        new_candidates = 0
+        seen_usernames: set[str] = set()
+        account_limit = max(1, self.watchlist_max_accounts)
+        if registered_discovery:
+            account_limit = self.discovery.emergency_max_accounts or len(accounts)
+        logger.info("Instagram 수집 소스: %s", "registered" if registered_discovery else "watchlist")
+        for account in accounts[:account_limit]:
             influencer_id = str(account.get("id", ""))
             username = str(account.get("instagramUsername", ""))
             if not influencer_id or not username:
                 logger.warning("watchlist 항목에 식별자가 없어 건너뜁니다.")
                 continue
+            try:
+                normalized_username = normalize_username(username)
+            except ValueError:
+                logger.warning("watchlist 계정명이 올바르지 않아 건너뜁니다.")
+                continue
+            if normalized_username in seen_usernames:
+                continue
+            seen_usernames.add(normalized_username)
 
             attempt_at = self.clock()
             failure_count = int(account.get("playwrightFailureCount") or 0)
             try:
                 posts = self.collector.collect_account(username)
+                submitted_count = 0
                 for post in posts:
-                    self.api.collect_post(post)
+                    result = self.api.collect_post(post)
+                    submitted_count += 1
+                    if registered_discovery and result.get("reviewCandidateCreated") is True:
+                        new_candidates += 1
+                    if registered_discovery and new_candidates >= self.discovery.target_group_buys:
+                        break
                 next_run_at = bounded_next_run(
                     self.poll_interval_seconds,
                     self.jitter_seconds,
@@ -809,8 +894,16 @@ class PublicInstagramWorker:
                     attempt_at=attempt_at,
                     next_run_at=next_run_at,
                 )
-                collected_count += len(posts)
-                logger.info("@%s 공개 게시물 %d개 처리", username, len(posts))
+                collected_count += submitted_count
+                logger.info("@%s 공개 게시물 %d개 처리", username, submitted_count)
+                if getattr(self.collector, "budget_exhausted", False):
+                    logger.info("Instagram 전체 수집 완료: stop=%s posts=%d",
+                                getattr(self.collector, "budget_stop_reason", None) or "TIME_BUDGET", collected_count)
+                    return collected_count
+                if registered_discovery and new_candidates >= self.discovery.target_group_buys:
+                    logger.info("Instagram 등록 계정 탐색 완료: posts=%d newCandidates=%d stop=TARGET_REACHED",
+                                collected_count, new_candidates)
+                    return collected_count
             except PublicCollectionBlocked as error:
                 next_run_at = self._start_cooldown(error)
                 self.api.update_status(
@@ -823,8 +916,8 @@ class PublicInstagramWorker:
                 )
                 logger.warning("@%s 공개 수집 중단: %s", username, error.code)
                 return collected_count
-            except PublicCollectionBudgetExceeded:
-                logger.info("Instagram 전체 수집 완료: stop=TIME_BUDGET posts=%d", collected_count)
+            except PublicCollectionBudgetExceeded as error:
+                logger.info("Instagram 전체 수집 완료: stop=%s posts=%d", error.code, collected_count)
                 return collected_count
             except PublicCollectionError as error:
                 next_run_at = bounded_next_run(
@@ -860,6 +953,10 @@ class PublicInstagramWorker:
                     error_message="예상하지 못한 수집 오류가 발생했습니다.",
                 )
                 logger.exception("@%s 공개 수집 중 예기치 않은 오류", username)
+        if registered_discovery:
+            logger.info("Instagram 등록 계정 탐색 완료: posts=%d newCandidates=%d stop=SOURCE_EXHAUSTED",
+                        collected_count, new_candidates)
+            return collected_count
         return collected_count + self._run_random_discovery(watchlist_usernames)
 
 
@@ -909,7 +1006,10 @@ def main() -> None:
             timezone_id="Asia/Seoul",
             viewport={"width": 1280, "height": 900},
         )
-        collector = PublicInstagramCollector(context, limit=limit)
+        collector = PublicInstagramCollector(
+            context, limit=limit,
+            max_navigations=env_int("INSTAGRAM_PUBLIC_MAX_NAVIGATIONS", MAX_NAVIGATIONS_PER_RUN, 1, MAX_NAVIGATIONS_PER_RUN),
+        )
         worker = PublicInstagramWorker(
             api,
             collector,
@@ -917,7 +1017,7 @@ def main() -> None:
             jitter_seconds=jitter_seconds,
             watchlist_enabled=watchlist_enabled,
             discovery=discovery,
-            watchlist_max_accounts=env_int("INSTAGRAM_PUBLIC_WATCHLIST_MAX_ACCOUNTS", 15, 1, 50),
+            watchlist_max_accounts=env_int("INSTAGRAM_PUBLIC_WATCHLIST_MAX_ACCOUNTS", 3, 1, 3),
             cooldown_file=Path(os.environ["INSTAGRAM_PUBLIC_COOLDOWN_FILE"]) if os.getenv("INSTAGRAM_PUBLIC_COOLDOWN_FILE") else None,
         )
         try:
