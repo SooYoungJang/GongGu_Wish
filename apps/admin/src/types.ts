@@ -13,6 +13,20 @@ export type GroupBuyStatus =
 
 export type CollectionReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 
+export type ManualDiscoveryInput = {
+  postUrl: string;
+  instagramUsername: string;
+  caption: string;
+  takenAt: string;
+  imageUrl?: string;
+};
+
+export type ManualDiscoveryCreationResult = {
+  rawPostId: string;
+  groupBuyId: string;
+  duplicate: boolean;
+};
+
 export type CollectionProfileLinkCandidate = {
   url: string;
   label: string | null;

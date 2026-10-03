@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import {
   GroupBuyStatus,
   ParsingStatus,
@@ -48,6 +48,12 @@ export class RawPostsService {
   }
 
   async collect(dto: CollectRawPostDto) {
+    if (dto.collectionSource === RawPostCollectionSource.MANUAL_DISCOVERY) {
+      throw new BadRequestException(
+        "수동 발견 게시물은 관리자 API로만 등록할 수 있습니다.",
+      );
+    }
+
     const contentHash = createContentHash({
       instagramPostId: dto.instagramPostId,
       caption: dto.caption,

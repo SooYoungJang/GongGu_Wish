@@ -14,7 +14,11 @@ describe("QUERY_KEYS", () => {
     expect(QUERY_KEYS.adminGroupBuys).toEqual(["admin", "group-buys"]);
     expect(QUERY_KEYS.influencers).toEqual(["admin", "influencers"]);
     expect(QUERY_KEYS.submissions).toEqual(["admin", "submissions"]);
-    expect(QUERY_KEYS.submission("test-id")).toEqual(["admin", "submissions", "test-id"]);
+    expect(QUERY_KEYS.submission("test-id")).toEqual([
+      "admin",
+      "submissions",
+      "test-id",
+    ]);
   });
 });
 
@@ -23,6 +27,7 @@ describe("shared hooks module exports", () => {
     const hooksModule = await import("./queries");
     expect(typeof hooksModule.useGroupBuys).toBe("function");
     expect(typeof hooksModule.useAdminGroupBuys).toBe("function");
+    expect(typeof hooksModule.useAutomaticCollectionGroupBuys).toBe("function");
     expect(typeof hooksModule.useInfluencers).toBe("function");
     expect(typeof hooksModule.useSubmissions).toBe("function");
   });

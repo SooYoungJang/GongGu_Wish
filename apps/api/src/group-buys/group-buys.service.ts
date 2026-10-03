@@ -37,6 +37,17 @@ function serializeHomeBannerDates<
   };
 }
 
+const AUTOMATIC_COLLECTION_SOURCE_TYPES = new Set([
+  "PLAYWRIGHT_PUBLIC",
+  "MANUAL_DISCOVERY",
+]);
+
+function isAutomaticCollectionSource(sourceType: string | null | undefined) {
+  return (
+    sourceType != null && AUTOMATIC_COLLECTION_SOURCE_TYPES.has(sourceType)
+  );
+}
+
 const AUTOMATIC_REVIEW_INCLUDE = {
   rawPost: { include: { influencer: true } },
   influencer: true,
@@ -137,7 +148,11 @@ export class GroupBuysService {
       ];
     }
 
-    if (query.sourceType) {
+    if (query.sourceType === "AUTOMATIC_COLLECTION") {
+      where.sourceType = {
+        in: ["PLAYWRIGHT_PUBLIC", "MANUAL_DISCOVERY"],
+      };
+    } else if (query.sourceType) {
       where.sourceType = query.sourceType;
     }
 
@@ -249,7 +264,7 @@ export class GroupBuysService {
     }
 
     if (
-      groupBuy.sourceType === "PLAYWRIGHT_PUBLIC" &&
+      isAutomaticCollectionSource(groupBuy.sourceType) &&
       (!groupBuy.productName?.trim() ||
         !groupBuy.category?.trim() ||
         !groupBuy.purchaseUrl?.trim())
@@ -259,7 +274,7 @@ export class GroupBuysService {
       );
     }
 
-    if (groupBuy.sourceType === "PLAYWRIGHT_PUBLIC") {
+    if (isAutomaticCollectionSource(groupBuy.sourceType)) {
       if (groupBuy.collectionReviewStatus === CollectionReviewStatus.APPROVED) {
         return serializeHomeBannerDates(groupBuy);
       }
@@ -330,7 +345,7 @@ export class GroupBuysService {
     });
     if (!groupBuy) throw new NotFoundException("Group buy not found");
 
-    if (groupBuy.sourceType === "PLAYWRIGHT_PUBLIC") {
+    if (isAutomaticCollectionSource(groupBuy.sourceType)) {
       if (groupBuy.collectionReviewStatus === CollectionReviewStatus.REJECTED) {
         return serializeHomeBannerDates(groupBuy);
       }

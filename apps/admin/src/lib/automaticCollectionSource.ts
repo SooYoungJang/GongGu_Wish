@@ -23,6 +23,12 @@ export function automaticCollectionOriginalPostUrl(item: {
   );
 }
 
+export function automaticCollectionSourceLabel(sourceType: string | null) {
+  if (sourceType === "MANUAL_DISCOVERY") return "수동 발견";
+  if (sourceType === "PLAYWRIGHT_PUBLIC") return "Playwright 자동 수집";
+  return "자동 수집";
+}
+
 export function automaticCollectionProfileLinkCandidates(
   item: AutomaticCollectionSourceItem,
 ): CollectionProfileLinkCandidate[] {

@@ -66,6 +66,27 @@ describe("GroupBuysService", () => {
       );
     });
 
+    it("filters the automatic review queue to both supported sources", async () => {
+      prisma.groupBuy.findMany.mockResolvedValue([]);
+
+      await service.list({
+        status: GroupBuyStatus.REVIEW_REQUIRED,
+        sourceType: "AUTOMATIC_COLLECTION",
+        limit: 50,
+      } as any);
+
+      expect(prisma.groupBuy.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: GroupBuyStatus.REVIEW_REQUIRED,
+            sourceType: {
+              in: ["PLAYWRIGHT_PUBLIC", "MANUAL_DISCOVERY"],
+            },
+          },
+        }),
+      );
+    });
+
     it("applies search query filter", async () => {
       prisma.groupBuy.findMany.mockResolvedValue([]);
 

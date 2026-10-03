@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { adminApi } from "@/lib/adminApi";
 import { StatCard } from "@/components/StatCard";
@@ -35,6 +41,7 @@ import {
 } from "@/lib/groupBuyVisibility";
 import {
   automaticCollectionOriginalPostUrl,
+  automaticCollectionSourceLabel,
   automaticCollectionProfileLinkCandidates,
   automaticCollectionProfilePurchaseFallback,
 } from "@/lib/automaticCollectionSource";
@@ -56,6 +63,8 @@ import type {
   GroupBuyStatus,
   HikerLookupResult,
   MediaAsset,
+  ManualDiscoveryCreationResult,
+  ManualDiscoveryInput,
   AppUser,
   SubmissionStatus,
   SubmissionApprovalDeliverySummary,
@@ -1034,7 +1043,7 @@ function AdminShell({ session }: { session: Session }) {
           status: tab === "autoCollection" ? undefined : groupBuyStatus,
           q: requestQuery,
           sourceType:
-            tab === "autoCollection" ? "PLAYWRIGHT_PUBLIC" : undefined,
+            tab === "autoCollection" ? "AUTOMATIC_COLLECTION" : undefined,
           collectionReviewStatus:
             tab === "autoCollection" ? collectionReviewStatus : undefined,
         });
@@ -1569,6 +1578,33 @@ function AdminShell({ session }: { session: Session }) {
     }
   }
 
+  async function createManualDiscovery(input: ManualDiscoveryInput) {
+    setGroupBuyActionLoading(true);
+    try {
+      const result = await adminApi.createManualDiscovery(input);
+      setNotice({
+        tone: "success",
+        message: result.duplicate
+          ? "이미 등록된 게시물입니다. 기존 검수 항목을 유지했습니다."
+          : "수동 발견 게시물을 검수 대기 목록에 등록했습니다.",
+      });
+      await loadGroupBuys();
+      await loadDashboard();
+      return result;
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "수동 발견 등록에 실패했습니다.",
+      });
+      throw error;
+    } finally {
+      setGroupBuyActionLoading(false);
+    }
+  }
+
   async function approveAutomaticGroupBuy() {
     if (!selectedGroupBuy || !groupBuyForm) return;
     setGroupBuyActionLoading(true);
@@ -1910,11 +1946,20 @@ function AdminShell({ session }: { session: Session }) {
           <button
             aria-current={tab === "productReports" ? "page" : undefined}
             className={tab === "productReports" ? "active" : ""}
-            onClick={() => switchTab("productReports")} type="button">
-            <span>상품 정보</span><strong>정보 신고</strong>
+            onClick={() => switchTab("productReports")}
+            type="button"
+          >
+            <span>상품 정보</span>
+            <strong>정보 신고</strong>
           </button>
-          <button aria-current={tab === "appDiagnostics" ? "page" : undefined} className={tab === "appDiagnostics" ? "active" : ""} onClick={() => switchTab("appDiagnostics")} type="button">
-            <span>운영</span><strong>앱 진단</strong>
+          <button
+            aria-current={tab === "appDiagnostics" ? "page" : undefined}
+            className={tab === "appDiagnostics" ? "active" : ""}
+            onClick={() => switchTab("appDiagnostics")}
+            type="button"
+          >
+            <span>운영</span>
+            <strong>앱 진단</strong>
           </button>
           <button
             aria-current={tab === "comments" ? "page" : undefined}
@@ -2090,6 +2135,7 @@ function AdminShell({ session }: { session: Session }) {
                 items={groupBuys}
                 loading={groupBuysLoading}
                 onApprove={() => void approveAutomaticGroupBuy()}
+                onCreateManualDiscovery={createManualDiscovery}
                 onFormChange={setGroupBuyForm}
                 onLookupHiker={() => void lookupAutomaticGroupBuyHiker()}
                 onPageChange={setGroupBuyPage}
@@ -2135,7 +2181,13 @@ function AdminShell({ session }: { session: Session }) {
                   setGroupBuyRequestPage(1);
                 }}
                 onReject={(item) => void rejectGroupBuyRequest(item)}
-                onFulfilled={() => { setNotice({ tone: "success", message: "요청에 공구를 연결했습니다." }); void loadGroupBuyRequests(); }}
+                onFulfilled={() => {
+                  setNotice({
+                    tone: "success",
+                    message: "요청에 공구를 연결했습니다.",
+                  });
+                  void loadGroupBuyRequests();
+                }}
                 page={groupBuyRequestPage}
                 query={groupBuyRequestQuery}
                 status={groupBuyRequestStatus}
@@ -2351,10 +2403,17 @@ function AdminShell({ session }: { session: Session }) {
         <button
           aria-current={tab === "productReports" ? "page" : undefined}
           className={tab === "productReports" ? "active" : ""}
-          onClick={() => switchTab("productReports")} type="button">
+          onClick={() => switchTab("productReports")}
+          type="button"
+        >
           <span>정보 신고</span>
         </button>
-        <button aria-current={tab === "appDiagnostics" ? "page" : undefined} className={tab === "appDiagnostics" ? "active" : ""} onClick={() => switchTab("appDiagnostics")} type="button">
+        <button
+          aria-current={tab === "appDiagnostics" ? "page" : undefined}
+          className={tab === "appDiagnostics" ? "active" : ""}
+          onClick={() => switchTab("appDiagnostics")}
+          type="button"
+        >
           <span>앱 진단</span>
         </button>
         <button
@@ -3452,6 +3511,26 @@ function SubmissionEditor(props: {
   );
 }
 
+type ManualDiscoveryDraft = {
+  postUrl: string;
+  instagramUsername: string;
+  caption: string;
+  takenAt: string;
+  imageUrl: string;
+};
+
+function newManualDiscoveryDraft(): ManualDiscoveryDraft {
+  const now = new Date();
+  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return {
+    postUrl: "",
+    instagramUsername: "",
+    caption: "",
+    takenAt: localNow.toISOString().slice(0, 16),
+    imageUrl: "",
+  };
+}
+
 function GroupBuyPanel(props: {
   actionLoading: boolean;
   automaticCollection: boolean;
@@ -3460,6 +3539,9 @@ function GroupBuyPanel(props: {
   items: GroupBuy[];
   loading: boolean;
   onApprove: () => void;
+  onCreateManualDiscovery: (
+    input: ManualDiscoveryInput,
+  ) => Promise<ManualDiscoveryCreationResult>;
   onFormChange: (form: GroupBuyForm | null) => void;
   onLookupHiker: () => void;
   onPageChange: (page: number) => void;
@@ -3480,6 +3562,10 @@ function GroupBuyPanel(props: {
   total: number;
   totalPages: number;
 }) {
+  const [manualDiscoveryOpen, setManualDiscoveryOpen] = useState(false);
+  const [manualDiscoveryDraft, setManualDiscoveryDraft] =
+    useState<ManualDiscoveryDraft>(newManualDiscoveryDraft);
+  const [manualDiscoveryError, setManualDiscoveryError] = useState("");
   const isFiltered =
     props.query.trim().length > 0 ||
     (props.automaticCollection
@@ -3493,19 +3579,50 @@ function GroupBuyPanel(props: {
       props.onStatusChange("APPROVED");
     }
   };
+  const submitManualDiscovery = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setManualDiscoveryError("");
+    const takenAt = new Date(manualDiscoveryDraft.takenAt);
+    if (Number.isNaN(takenAt.getTime())) {
+      setManualDiscoveryError("게시 시각을 확인해주세요.");
+      return;
+    }
+    try {
+      await props.onCreateManualDiscovery({
+        postUrl: manualDiscoveryDraft.postUrl,
+        instagramUsername: manualDiscoveryDraft.instagramUsername,
+        caption: manualDiscoveryDraft.caption,
+        takenAt: takenAt.toISOString(),
+        ...(manualDiscoveryDraft.imageUrl.trim()
+          ? { imageUrl: manualDiscoveryDraft.imageUrl.trim() }
+          : {}),
+      });
+      setManualDiscoveryDraft(newManualDiscoveryDraft());
+      setManualDiscoveryOpen(false);
+    } catch (error) {
+      setManualDiscoveryError(
+        error instanceof Error
+          ? error.message
+          : "수동 발견 게시물 등록에 실패했습니다.",
+      );
+    }
+  };
 
   return (
     <section className="panel">
       <div className="section-header">
         <div>
           <p className="eyebrow">
-            {props.automaticCollection ? "Playwright collection" : "Group Buys"}
+            {props.automaticCollection ? "Instagram discovery" : "Group Buys"}
           </p>
           <h2>
             {props.automaticCollection ? "자동 수집 검수" : "공구 노출 관리"}
           </h2>
           {props.automaticCollection ? (
-            <p>사용자 제보가 아닌 Playwright 공개 자동 수집 후보입니다.</p>
+            <p>
+              Playwright 공개 수집과 관리자가 직접 발견한 게시물입니다. 등록된
+              후보는 별도 승인 전까지 앱에 공개되지 않습니다.
+            </p>
           ) : null}
         </div>
         {props.automaticCollection ? (
@@ -3532,6 +3649,120 @@ function GroupBuyPanel(props: {
           />
         )}
       </div>
+
+      {props.automaticCollection ? (
+        <div className="manual-discovery-intake">
+          <div className="manual-discovery-intake__toolbar">
+            <p>
+              공개 Instagram 게시물을 직접 확인한 뒤 등록하세요. 등록은 검수
+              대기 항목만 만들며 자동 승인하지 않습니다.
+            </p>
+            <button
+              className="button button--secondary"
+              disabled={props.actionLoading}
+              onClick={() => {
+                setManualDiscoveryOpen((open) => !open);
+                setManualDiscoveryError("");
+              }}
+              type="button"
+            >
+              {manualDiscoveryOpen ? "입력 닫기" : "수동 발견 등록"}
+            </button>
+          </div>
+          {manualDiscoveryOpen ? (
+            <form
+              className="manual-discovery-form"
+              onSubmit={(event) => void submitManualDiscovery(event)}
+            >
+              <div className="form-grid">
+                <TextField
+                  label="Instagram 게시물 URL"
+                  onChange={(value) =>
+                    setManualDiscoveryDraft((draft) => ({
+                      ...draft,
+                      postUrl: value,
+                    }))
+                  }
+                  required
+                  type="url"
+                  value={manualDiscoveryDraft.postUrl}
+                />
+                <TextField
+                  label="Instagram 계정명"
+                  onChange={(value) =>
+                    setManualDiscoveryDraft((draft) => ({
+                      ...draft,
+                      instagramUsername: value,
+                    }))
+                  }
+                  required
+                  value={manualDiscoveryDraft.instagramUsername}
+                />
+                <TextField
+                  label="게시 시각"
+                  onChange={(value) =>
+                    setManualDiscoveryDraft((draft) => ({
+                      ...draft,
+                      takenAt: value,
+                    }))
+                  }
+                  required
+                  type="datetime-local"
+                  value={manualDiscoveryDraft.takenAt}
+                />
+                <TextField
+                  label="게시물 이미지 URL (선택)"
+                  onChange={(value) =>
+                    setManualDiscoveryDraft((draft) => ({
+                      ...draft,
+                      imageUrl: value,
+                    }))
+                  }
+                  type="url"
+                  value={manualDiscoveryDraft.imageUrl}
+                />
+              </div>
+              <label className="field field--stack">
+                <span>게시물 캡션 *</span>
+                <textarea
+                  maxLength={20_000}
+                  onChange={(event) =>
+                    setManualDiscoveryDraft((draft) => ({
+                      ...draft,
+                      caption: event.target.value,
+                    }))
+                  }
+                  required
+                  rows={5}
+                  value={manualDiscoveryDraft.caption}
+                />
+              </label>
+              {manualDiscoveryError ? (
+                <p className="manual-discovery-form__error" role="alert">
+                  {manualDiscoveryError}
+                </p>
+              ) : null}
+              <div className="action-row">
+                <button
+                  className="button button--secondary"
+                  disabled={props.actionLoading}
+                  onClick={() => setManualDiscoveryOpen(false)}
+                  type="button"
+                >
+                  취소
+                </button>
+                <button
+                  className="button button--primary"
+                  disabled={props.actionLoading}
+                  type="submit"
+                >
+                  {props.actionLoading ? "등록 중..." : "검수 대기 목록에 등록"}
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="split-view">
         <div className="table-panel">
@@ -3560,7 +3791,14 @@ function GroupBuyPanel(props: {
                     key={item.id}
                     onClick={() => props.onSelect(item)}
                   >
-                    <td>{item.productName}</td>
+                    <td>
+                      <div>{item.productName}</div>
+                      {props.automaticCollection ? (
+                        <small className="automatic-source-label">
+                          {automaticCollectionSourceLabel(item.sourceType)}
+                        </small>
+                      ) : null}
+                    </td>
                     <td>{item.category ?? "-"}</td>
                     <td>{item.endDate ? dateInput(item.endDate) : "-"}</td>
                     <td>
@@ -3677,7 +3915,17 @@ function GroupBuyRequestPanel(props: {
 
   return (
     <section className="panel">
-      {fulfilling ? <RequestFulfillmentDialog key={fulfilling.id} request={fulfilling} onClose={() => setFulfilling(null)} onComplete={() => { setFulfilling(null); props.onFulfilled(); }} /> : null}
+      {fulfilling ? (
+        <RequestFulfillmentDialog
+          key={fulfilling.id}
+          request={fulfilling}
+          onClose={() => setFulfilling(null)}
+          onComplete={() => {
+            setFulfilling(null);
+            props.onFulfilled();
+          }}
+        />
+      ) : null}
       <div className="section-header">
         <div>
           <p className="eyebrow">Request demand</p>
@@ -3728,7 +3976,17 @@ function GroupBuyRequestPanel(props: {
                   <td>{formatDateTime(item.latestRequestedAt)}</td>
                   <td>{formatDateTime(item.createdAt)}</td>
                   <td>
-                    {item.status === "OPEN" ? <button className="button" type="button" disabled={props.actionLoading !== null} onClick={() => setFulfilling(item)} aria-label={`${item.productName} 공구 연결`}>공구 연결</button> : null}
+                    {item.status === "OPEN" ? (
+                      <button
+                        className="button"
+                        type="button"
+                        disabled={props.actionLoading !== null}
+                        onClick={() => setFulfilling(item)}
+                        aria-label={`${item.productName} 공구 연결`}
+                      >
+                        공구 연결
+                      </button>
+                    ) : null}
                     {item.status === "OPEN" ? (
                       <button
                         aria-label={`${item.productName} 공구 요청 반려`}
@@ -3764,7 +4022,17 @@ function GroupBuyRequestPanel(props: {
               <strong className="group-buy-request-product-name">
                 {item.productName}
               </strong>
-              {item.status === "OPEN" ? <button className="button" type="button" disabled={props.actionLoading !== null} onClick={() => setFulfilling(item)} aria-label={`${item.productName} 공구 연결`}>공구 연결</button> : null}
+              {item.status === "OPEN" ? (
+                <button
+                  className="button"
+                  type="button"
+                  disabled={props.actionLoading !== null}
+                  onClick={() => setFulfilling(item)}
+                  aria-label={`${item.productName} 공구 연결`}
+                >
+                  공구 연결
+                </button>
+              ) : null}
               <div className="mobile-record-meta">
                 <span>요청 수</span>
                 <strong>{item.requestCount.toLocaleString()}건</strong>
@@ -3854,6 +4122,11 @@ function MobileGroupBuyCards({
             />
           </div>
           <strong>{item.productName || "상품명 없음"}</strong>
+          {automaticCollection ? (
+            <small className="automatic-source-label">
+              {automaticCollectionSourceLabel(item.sourceType)}
+            </small>
+          ) : null}
           <p>{item.brandName || "브랜드 미지정"}</p>
           <div className="mobile-record-meta">
             <span>마감</span>
@@ -4164,7 +4437,9 @@ export function GroupBuyEditor(props: {
         <div className="audit-card">
           <div>
             <span>수집 경로</span>
-            <strong>Playwright 공개 자동 수집</strong>
+            <strong>
+              {automaticCollectionSourceLabel(props.selected.sourceType)}
+            </strong>
           </div>
           <div>
             <span>검수 결과</span>
@@ -4871,13 +5146,7 @@ function CheckboxField({
   );
 }
 
-function StatusBadge({
-  label,
-  status,
-}: {
-  label?: string;
-  status: string;
-}) {
+function StatusBadge({ label, status }: { label?: string; status: string }) {
   return (
     <span className={`status-badge status-badge--${status.toLowerCase()}`}>
       {label ?? statusLabel(status)}

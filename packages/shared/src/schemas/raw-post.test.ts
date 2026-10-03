@@ -9,7 +9,14 @@ import {
 describe("raw-post schemas", () => {
   describe("parsingStatusSchema", () => {
     it("validates all parsing status values", () => {
-      const validStatuses = ["NEW", "PENDING", "EXPORTED", "PARSED", "NOT_GROUP_BUY", "FAILED"] as const;
+      const validStatuses = [
+        "NEW",
+        "PENDING",
+        "EXPORTED",
+        "PARSED",
+        "NOT_GROUP_BUY",
+        "FAILED",
+      ] as const;
       validStatuses.forEach((status) => {
         const result = parsingStatusSchema.safeParse(status);
         expect(result.success).toBe(true);
@@ -60,6 +67,13 @@ describe("raw-post schemas", () => {
       expect(result.success).toBe(true);
     });
 
+    it("accepts manual discovery as a collection source", () => {
+      const result = rawPostSchema.safeParse(
+        createValidRawPost({ collectionSource: "MANUAL_DISCOVERY" }),
+      );
+      expect(result.success).toBe(true);
+    });
+
     it("validates with nullable fields as null", () => {
       const rp = createValidRawPost({
         imageUrl: null,
@@ -97,7 +111,14 @@ describe("raw-post schemas", () => {
     });
 
     it("validates each parsing status", () => {
-      const statuses: ParsingStatus[] = ["NEW", "PENDING", "EXPORTED", "PARSED", "NOT_GROUP_BUY", "FAILED"];
+      const statuses: ParsingStatus[] = [
+        "NEW",
+        "PENDING",
+        "EXPORTED",
+        "PARSED",
+        "NOT_GROUP_BUY",
+        "FAILED",
+      ];
       statuses.forEach((status) => {
         const rp = createValidRawPost({ parsingStatus: status });
         const result = rawPostSchema.safeParse(rp);

@@ -20,6 +20,7 @@ enum ParsingStatus {
 enum RawPostCollectionSource {
   LEGACY_INSTAGRAPI
   PLAYWRIGHT_PUBLIC
+  MANUAL_DISCOVERY
 }
 
 enum GroupBuyStatus {
@@ -92,7 +93,7 @@ model RawPost {
 
   @@index([influencerId])
   @@index([isCandidate, parsingStatus])
-  @@index([collectionSource, isCandidate, isKoreaCandidate])
+  @@index([collectionSource, isCandidate, isKoreaCandidate], map: "raw_posts_collection_source_candidate_idx")
   @@map("raw_posts")
 }
 

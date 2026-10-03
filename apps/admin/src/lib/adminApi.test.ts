@@ -167,7 +167,7 @@ describe("adminApi", () => {
       page: 1,
       limit: 25,
       status: "REVIEW_REQUIRED",
-      sourceType: "PLAYWRIGHT_PUBLIC",
+      sourceType: "AUTOMATIC_COLLECTION",
     });
 
     const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
@@ -177,7 +177,46 @@ describe("adminApi", () => {
       page: 1,
       limit: 25,
       status: "REVIEW_REQUIRED",
-      sourceType: "PLAYWRIGHT_PUBLIC",
+      sourceType: "AUTOMATIC_COLLECTION",
+    });
+  });
+
+  it("creates a manual discovery candidate without sending approval metadata", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          rawPostId: "raw-post-1",
+          groupBuyId: "group-buy-1",
+          duplicate: false,
+        },
+      }),
+    } as Response);
+
+    const input = {
+      postUrl: "https://www.instagram.com/p/manual-1/",
+      instagramUsername: "@sample.shop",
+      caption: "공동구매 진행합니다",
+      takenAt: "2026-09-20T02:30:00.000Z",
+      imageUrl: "https://cdn.example.com/manual-1.jpg",
+    };
+    const result = await adminApi.createManualDiscovery(input);
+
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
+      path: string;
+      method: string;
+      body: Record<string, unknown>;
+    };
+    expect(request.path).toBe("/admin/automatic-collection/manual-discoveries");
+    expect(request.method).toBe("POST");
+    expect(request.body).toEqual(input);
+    expect(request.body.status).toBeUndefined();
+    expect(request.body.sourceType).toBeUndefined();
+    expect(result).toEqual({
+      rawPostId: "raw-post-1",
+      groupBuyId: "group-buy-1",
+      duplicate: false,
     });
   });
 
