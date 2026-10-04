@@ -180,6 +180,66 @@ describe("GroupBuysService automatic collection decisions", () => {
     });
   });
 
+  it("approves manual discoveries through the audited review flow", async () => {
+    const manualCandidate = {
+      ...automaticCandidate,
+      sourceType: "MANUAL_DISCOVERY",
+    };
+    const approved = {
+      ...manualCandidate,
+      status: GroupBuyStatus.APPROVED,
+      collectionReviewStatus: CollectionReviewStatus.APPROVED,
+    };
+    findUnique
+      .mockResolvedValueOnce(manualCandidate)
+      .mockResolvedValueOnce(approved);
+    updateMany.mockResolvedValue({ count: 1 });
+
+    await service.approve(manualCandidate.id, "admin-1");
+
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: manualCandidate.id }),
+        data: expect.objectContaining({
+          status: GroupBuyStatus.APPROVED,
+          collectionReviewStatus: CollectionReviewStatus.APPROVED,
+          collectionReviewedSnapshot: expect.objectContaining({
+            productName: manualCandidate.productName,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("rejects manual discoveries through the audited review flow", async () => {
+    const manualCandidate = {
+      ...automaticCandidate,
+      sourceType: "MANUAL_DISCOVERY",
+    };
+    const rejected = {
+      ...manualCandidate,
+      status: GroupBuyStatus.REJECTED,
+      collectionReviewStatus: CollectionReviewStatus.REJECTED,
+    };
+    findUnique
+      .mockResolvedValueOnce(manualCandidate)
+      .mockResolvedValueOnce(rejected);
+    updateMany.mockResolvedValue({ count: 1 });
+
+    await service.reject(manualCandidate.id, "상품이 공구가 아님", "admin-1");
+
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: manualCandidate.id }),
+        data: expect.objectContaining({
+          status: GroupBuyStatus.REJECTED,
+          collectionReviewStatus: CollectionReviewStatus.REJECTED,
+          rejectionReason: "상품이 공구가 아님",
+        }),
+      }),
+    );
+  });
+
   it("returns an already approved decision without writing it twice", async () => {
     findUnique.mockResolvedValue({
       ...automaticCandidate,

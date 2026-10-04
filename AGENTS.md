@@ -8,20 +8,13 @@
 
 [$agent-skills:using-agent-skills](C:\Users\장수영.codex\plugins\cache\agent-skills\agent-skills\1.0.0\skills\using-agent-skills\SKILL.md)
 
-## e2e 테스트 증거 및 앱 중요사항 기록 (필수)
+## 검증 기록 및 위키 정책
 
-e2e 테스트를 실행하면 반드시 증거를 남긴다. 증거는 아래 폴더에 저장한다.
+사용자가 별도로 요청하지 않는 한 작업별 검증 리포트, JSON 기록, 스크린샷, 동영상 등 별도 증거 파일을 생성하거나 보관하지 않는다.
 
-C:\Users\장수영\Documents\my_llm_wiki
+위키 기록은 사용자가 별도로 요청할 때만 작성한다. 위키 폴더나 `@wiki` 스킬이 없어도 작업을 계속 진행한다.
 
-증거뿐만 아니라 앱과 관련된 중요 사항(회귀 포인트, 플랫폼별 차이, 알려진 이슈, 검증 결과 등)이 있으면 같이 폴더에 기록한다.
-위키 리포트에서는 PNG/JPG/WebP 증거를 `![설명](상대경로)`로 인라인 표시하고, MP4/WebM 증거를 `<video controls preload="metadata" src="상대경로"></video>`와 원본 링크로 함께 제공한다. 링크 목록만으로 증거를 남기지 않는다.
-
-## 문서 작성 규칙 (필수)
-
-문서를 작성할 때는 항상 `@wiki` 문서 작성 스킬을 사용한다. 위키에 기록하는 모든 산출물은 `@wiki` 스킬의 규칙과 구조를 따른다.
-
-[@wiki](plugin://wiki@llm-wiki)
+필요한 검증은 테스트·린트·타입 검사 실행과 PR·CI 결과 확인으로 수행한다.
 
 ## Windows Application Control 대응 규칙 (필수)
 
@@ -113,12 +106,11 @@ powershell -ExecutionPolicy Bypass -File scripts/git-network.ps1 push codex/<tas
 사용자가 커밋이나 배포 흐름을 명시적으로 중단하지 않는 한, 개발 작업 완료 후 아래 절차를 자동으로 수행한다.
 
 1. 변경 범위에 맞는 테스트, 린트, 타입 검사를 실행한다.
-2. 앱의 중요 변경사항과 E2E 증거를 위키에 반영한다.
-3. `codex/` 브랜치에서 의도한 파일만 커밋하고 원격에 푸시한다.
-4. `develop` 대상 PR을 생성하고 필수 CI를 끝까지 확인한다.
-5. CI 실패가 있으면 원인을 수정하고 다시 검증한다.
-6. 필수 CI가 모두 통과하면 PR을 머지한다.
-7. 로컬 `develop`을 `origin/develop`과 fast-forward 방식으로 최신화한다.
+2. `codex/` 브랜치에서 의도한 파일만 커밋하고 원격에 푸시한다.
+3. `develop` 대상 PR을 생성하고 필수 CI를 끝까지 확인한다.
+4. CI 실패가 있으면 원인을 수정하고 다시 검증한다.
+5. 필수 CI가 모두 통과하면 PR을 머지한다.
+6. 로컬 `develop`을 `origin/develop`과 fast-forward 방식으로 최신화한다.
 
 위 절차는 기본 개발 작업의 `develop` 반영과 Preview 검증까지를 의미한다. `main` 대상 PR 생성·병합과 Production 배포는 위 `Production 승격` 규칙에 따른 명시적 요청이 있을 때만 수행한다.
 

@@ -14,7 +14,10 @@ export class ListGroupBuysDto {
   @IsString()
   q?: string;
 
-  @ApiPropertyOptional({ description: "예: PLAYWRIGHT_PUBLIC" })
+  @ApiPropertyOptional({
+    description:
+      "예: PLAYWRIGHT_PUBLIC, MANUAL_DISCOVERY 또는 두 출처를 함께 보는 AUTOMATIC_COLLECTION",
+  })
   @IsOptional()
   @IsString()
   sourceType?: string;

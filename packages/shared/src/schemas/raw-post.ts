@@ -24,7 +24,7 @@ export const rawPostSchema = z.object({
   isCandidate: z.boolean(),
   isKoreaCandidate: z.boolean().optional(),
   collectionSource: z
-    .enum(["LEGACY_INSTAGRAPI", "PLAYWRIGHT_PUBLIC"])
+    .enum(["LEGACY_INSTAGRAPI", "PLAYWRIGHT_PUBLIC", "MANUAL_DISCOVERY"])
     .optional(),
   parsingStatus: parsingStatusSchema,
   exportedAt: z.string().datetime().nullable(),

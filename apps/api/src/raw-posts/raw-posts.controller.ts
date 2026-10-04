@@ -13,7 +13,7 @@ export class RawPostsController {
 
   @Get()
   list(@Query() query: ListRawPostsDto) {
-    return this.rawPostsService.list(query);
+    return this.rawPostsService.listPublic(query);
   }
 
   @Post("collect")

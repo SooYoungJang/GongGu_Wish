@@ -4,6 +4,7 @@ import {
   automaticInstagramPostUrl,
   collectionReviewFilter,
   normalizeRejectionReason,
+  isAutomaticCollectionSource,
   protectPendingAutomaticCatalogPatch,
   reviewedData,
   validateApprovalData,
@@ -53,9 +54,9 @@ describe("automatic collection admin API contract", () => {
     expect(data.reviewedBy).toBeUndefined();
     expect(data.sourceType).toBeUndefined();
     expect(() => validateApprovalData(data)).not.toThrow();
-    expect(() =>
-      validateApprovalData({ ...data, purchaseUrl: "" }),
-    ).toThrow("구매 URL");
+    expect(() => validateApprovalData({ ...data, purchaseUrl: "" })).toThrow(
+      "구매 URL",
+    );
     expect(() =>
       validateApprovalData({ ...data, endDate: "2026-99-99" }),
     ).toThrow("종료일");
@@ -75,12 +76,18 @@ describe("automatic collection admin API contract", () => {
     expect(() => normalizeRejectionReason({ reason: " " })).toThrow(
       "반려 사유",
     );
-    expect(
-      normalizeRejectionReason({ reason: "가".repeat(700) }).length,
-    ).toBe(500);
+    expect(normalizeRejectionReason({ reason: "가".repeat(700) }).length).toBe(
+      500,
+    );
   });
 
   it("prevents a generic save from bypassing the pending review decision", () => {
+    expect(isAutomaticCollectionSource("MANUAL_DISCOVERY")).toBe(true);
+    const manualPendingPatch = protectPendingAutomaticCatalogPatch(
+      "MANUAL_DISCOVERY",
+      "PENDING",
+      { status: "APPROVED", product_name: "수동 후보" },
+    );
     const pendingPatch = protectPendingAutomaticCatalogPatch(
       "PLAYWRIGHT_PUBLIC",
       "PENDING",
@@ -92,6 +99,7 @@ describe("automatic collection admin API contract", () => {
       { status: "EXPIRED" },
     );
 
+    expect(manualPendingPatch).toEqual({ product_name: "수동 후보" });
     expect(pendingPatch).toEqual({ product_name: "수정" });
     expect(processedPatch).toEqual({ status: "EXPIRED" });
   });

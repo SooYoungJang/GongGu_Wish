@@ -43,6 +43,12 @@ export class CollectorAuthGuard implements CanActivate {
         ? request.body.collectionSource
         : undefined;
 
+    if (source === "MANUAL_DISCOVERY") {
+      throw new UnauthorizedException(
+        "수동 발견 게시물은 인증된 관리자 API로만 등록할 수 있습니다.",
+      );
+    }
+
     // The legacy instagrapi path remains compatible before a collector token
     // is configured. Playwright ingestion and all internal endpoints still
     // require an explicit token.
@@ -64,6 +70,18 @@ export class StrictCollectorAuthGuard extends CollectorAuthGuard {
 
   override canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<CollectorRequest>();
+    const source =
+      request.body &&
+      typeof request.body === "object" &&
+      "collectionSource" in request.body
+        ? request.body.collectionSource
+        : undefined;
+    if (source === "MANUAL_DISCOVERY") {
+      throw new UnauthorizedException(
+        "수동 발견 게시물은 인증된 관리자 API로만 등록할 수 있습니다.",
+      );
+    }
+
     const configuredToken = this.configService.get<string>(
       "INSTAGRAM_COLLECTOR_TOKEN",
     );

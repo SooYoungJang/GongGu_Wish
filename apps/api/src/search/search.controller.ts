@@ -11,6 +11,6 @@ export class SearchController {
 
   @Get()
   search(@Query() query: ListGroupBuysDto) {
-    return this.groupBuysService.list(query);
+    return this.groupBuysService.listPublic(query);
   }
 }

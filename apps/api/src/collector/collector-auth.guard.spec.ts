@@ -30,6 +30,17 @@ describe("collector auth guards", () => {
     ).toThrow(UnauthorizedException);
   });
 
+  it("rejects manual discovery source spoofing through collector ingestion", () => {
+    const guard = new CollectorAuthGuard({
+      get: jest.fn().mockReturnValue(undefined),
+    } as never);
+    expect(() =>
+      guard.canActivate(
+        contextFor({ body: { collectionSource: "MANUAL_DISCOVERY" } }),
+      ),
+    ).toThrow(UnauthorizedException);
+  });
+
   it("requires the exact token for internal endpoints", () => {
     const config = { get: jest.fn().mockReturnValue("collector-secret") };
     const guard = new StrictCollectorAuthGuard(config as never);

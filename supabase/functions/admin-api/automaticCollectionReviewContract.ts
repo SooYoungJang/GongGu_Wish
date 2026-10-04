@@ -1,4 +1,10 @@
 import type { CollectionReviewStatus } from "../_shared/automaticCollectionReview.ts";
+import {
+  AUTOMATIC_COLLECTION_SOURCE_TYPES,
+  isAutomaticCollectionSource,
+} from "../../../packages/shared/src/constants/automatic-collection.ts";
+
+export { AUTOMATIC_COLLECTION_SOURCE_TYPES, isAutomaticCollectionSource };
 
 const INSTAGRAM_POST_HOSTS = new Set([
   "instagram.com",
@@ -69,7 +75,12 @@ export function automaticInstagramPostUrl(value: unknown) {
 export function collectionReviewFilter(
   value: unknown,
 ): CollectionReviewStatus | null {
-  if (value === undefined || value === null || value === "" || value === "ALL") {
+  if (
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    value === "ALL"
+  ) {
     return null;
   }
   if (value === "PENDING" || value === "APPROVED" || value === "REJECTED") {
@@ -87,7 +98,7 @@ export function reviewedData(body: Record<string, unknown>) {
   }
   return Object.fromEntries(
     REVIEWED_DATA_FIELDS.filter((field) =>
-      Object.prototype.hasOwnProperty.call(input, field)
+      Object.prototype.hasOwnProperty.call(input, field),
     ).map((field) => [field, input[field]]),
   );
 }
@@ -97,7 +108,7 @@ export function protectPendingAutomaticCatalogPatch(
   reviewStatus: CollectionReviewStatus,
   patch: Record<string, unknown>,
 ) {
-  if (sourceType !== "PLAYWRIGHT_PUBLIC" || reviewStatus !== "PENDING") {
+  if (!isAutomaticCollectionSource(sourceType) || reviewStatus !== "PENDING") {
     return patch;
   }
   const protectedPatch = { ...patch };
@@ -116,7 +127,8 @@ export function validateApprovalData(data: Record<string, unknown>) {
   const purchaseUrl = requiredText(data.purchaseUrl, "구매 URL");
   try {
     const url = new URL(purchaseUrl);
-    if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error();
+    if (url.protocol !== "https:" && url.protocol !== "http:")
+      throw new Error();
   } catch {
     throw new CollectionReviewContractError("구매 URL이 올바르지 않습니다.");
   }
@@ -138,14 +150,18 @@ function optionalDate(value: unknown, label: string) {
   const normalized = typeof value === "string" ? value.trim() : "";
   if (!normalized) return "";
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(normalized)) {
-    throw new CollectionReviewContractError(`${label}이(가) 올바르지 않습니다.`);
+    throw new CollectionReviewContractError(
+      `${label}이(가) 올바르지 않습니다.`,
+    );
   }
   const date = new Date(`${normalized}T00:00:00.000Z`);
   if (
     Number.isNaN(date.getTime()) ||
     date.toISOString().slice(0, 10) !== normalized
   ) {
-    throw new CollectionReviewContractError(`${label}이(가) 올바르지 않습니다.`);
+    throw new CollectionReviewContractError(
+      `${label}이(가) 올바르지 않습니다.`,
+    );
   }
   return normalized;
 }

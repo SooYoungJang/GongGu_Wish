@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { CollectionReviewStatus, GroupBuyStatus, Prisma } from "@prisma/client";
+import {
+  CollectionReviewStatus,
+  GroupBuyStatus,
+  Prisma,
+  RawPostCollectionSource,
+} from "@prisma/client";
 
 import { profileLinkCandidatesFromSnapshot } from "../common/profile-link-candidates";
 import { PrismaService } from "../prisma/prisma.service";
@@ -34,6 +39,66 @@ function serializeHomeBannerDates<
             .slice(0, 10),
         }
       : {}),
+  };
+}
+
+const AUTOMATIC_COLLECTION_SOURCE_TYPES = new Set([
+  "PLAYWRIGHT_PUBLIC",
+  "MANUAL_DISCOVERY",
+]);
+
+function isAutomaticCollectionSource(sourceType: string | null | undefined) {
+  return (
+    sourceType != null && AUTOMATIC_COLLECTION_SOURCE_TYPES.has(sourceType)
+  );
+}
+
+function publicManualDiscoveryVisibilityFilter(): Prisma.GroupBuyWhereInput {
+  const nonManualRawPost: Prisma.GroupBuyWhereInput = {
+    OR: [
+      { rawPost: { is: null } },
+      {
+        rawPost: {
+          is: {
+            collectionSource: {
+              not: RawPostCollectionSource.MANUAL_DISCOVERY,
+            },
+          },
+        },
+      },
+    ],
+  };
+
+  return {
+    OR: [
+      {
+        AND: [{ sourceType: null }, nonManualRawPost],
+      },
+      {
+        AND: [
+          { sourceType: { not: "MANUAL_DISCOVERY" } },
+          nonManualRawPost,
+        ],
+      },
+      {
+        AND: [
+          { sourceType: "MANUAL_DISCOVERY" },
+          { collectionReviewStatus: CollectionReviewStatus.APPROVED },
+          {
+            status: {
+              in: [GroupBuyStatus.APPROVED, GroupBuyStatus.EXPIRED],
+            },
+          },
+          {
+            rawPost: {
+              is: {
+                collectionSource: RawPostCollectionSource.MANUAL_DISCOVERY,
+              },
+            },
+          },
+        ],
+      },
+    ],
   };
 }
 
@@ -125,8 +190,23 @@ export class GroupBuysService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: ListGroupBuysDto) {
+    return this.listWithVisibility(query);
+  }
+
+  async listPublic(query: ListGroupBuysDto) {
+    return this.listWithVisibility(
+      query,
+      publicManualDiscoveryVisibilityFilter(),
+    );
+  }
+
+  private async listWithVisibility(
+    query: ListGroupBuysDto,
+    visibility?: Prisma.GroupBuyWhereInput,
+  ) {
     const where: Prisma.GroupBuyWhereInput = {
       status: query.status ?? GroupBuyStatus.APPROVED,
+      ...(visibility ? { AND: [visibility] } : {}),
     };
 
     if (query.q) {
@@ -137,7 +217,11 @@ export class GroupBuysService {
       ];
     }
 
-    if (query.sourceType) {
+    if (query.sourceType === "AUTOMATIC_COLLECTION") {
+      where.sourceType = {
+        in: ["PLAYWRIGHT_PUBLIC", "MANUAL_DISCOVERY"],
+      };
+    } else if (query.sourceType) {
       where.sourceType = query.sourceType;
     }
 
@@ -164,6 +248,7 @@ export class GroupBuysService {
       where: {
         status: GroupBuyStatus.APPROVED,
         AND: [
+          publicManualDiscoveryVisibilityFilter(),
           { endDate: { gte: monthStart } },
           { startDate: { lte: monthEnd } },
         ],
@@ -212,6 +297,22 @@ export class GroupBuysService {
     return serializeHomeBannerDates(groupBuy);
   }
 
+  async getPublic(id: string) {
+    const groupBuy = await this.prisma.groupBuy.findFirst({
+      where: {
+        id,
+        AND: [publicManualDiscoveryVisibilityFilter()],
+      },
+      include: { rawPost: { include: { influencer: true } } },
+    });
+
+    if (!groupBuy) {
+      throw new NotFoundException("Group buy not found");
+    }
+
+    return serializeHomeBannerDates(groupBuy);
+  }
+
   async updateAdmin(id: string, dto: UpdateGroupBuyDto) {
     const updated = await this.prisma.groupBuy.update({
       where: { id },
@@ -249,7 +350,7 @@ export class GroupBuysService {
     }
 
     if (
-      groupBuy.sourceType === "PLAYWRIGHT_PUBLIC" &&
+      isAutomaticCollectionSource(groupBuy.sourceType) &&
       (!groupBuy.productName?.trim() ||
         !groupBuy.category?.trim() ||
         !groupBuy.purchaseUrl?.trim())
@@ -259,7 +360,7 @@ export class GroupBuysService {
       );
     }
 
-    if (groupBuy.sourceType === "PLAYWRIGHT_PUBLIC") {
+    if (isAutomaticCollectionSource(groupBuy.sourceType)) {
       if (groupBuy.collectionReviewStatus === CollectionReviewStatus.APPROVED) {
         return serializeHomeBannerDates(groupBuy);
       }
@@ -330,7 +431,7 @@ export class GroupBuysService {
     });
     if (!groupBuy) throw new NotFoundException("Group buy not found");
 
-    if (groupBuy.sourceType === "PLAYWRIGHT_PUBLIC") {
+    if (isAutomaticCollectionSource(groupBuy.sourceType)) {
       if (groupBuy.collectionReviewStatus === CollectionReviewStatus.REJECTED) {
         return serializeHomeBannerDates(groupBuy);
       }

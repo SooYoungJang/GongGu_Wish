@@ -102,13 +102,19 @@ export function useAdminGroupBuys(
   return useAdminGroupBuysWithParams({}, options);
 }
 
-export function usePlaywrightGroupBuys(
+export function useAutomaticCollectionGroupBuys(
   options?: Partial<UseQueryOptions<GroupBuyAdmin[], Error>>,
 ) {
   return useAdminGroupBuysWithParams(
-    { status: "REVIEW_REQUIRED", sourceType: "PLAYWRIGHT_PUBLIC" },
+    { status: "REVIEW_REQUIRED", sourceType: "AUTOMATIC_COLLECTION" },
     options,
   );
+}
+
+export function usePlaywrightGroupBuys(
+  options?: Partial<UseQueryOptions<GroupBuyAdmin[], Error>>,
+) {
+  return useAutomaticCollectionGroupBuys(options);
 }
 
 export function useInfluencers(

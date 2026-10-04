@@ -1,11 +1,16 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import { GroupBuyStatus } from "@prisma/client";
+import {
+  CollectionReviewStatus,
+  GroupBuyStatus,
+  RawPostCollectionSource,
+} from "@prisma/client";
 
 import { GroupBuysService } from "./group-buys.service";
 
 type PrismaMock = {
   groupBuy: {
     findMany: jest.Mock;
+    findFirst: jest.Mock;
     findUnique: jest.Mock;
     update: jest.Mock;
   };
@@ -16,6 +21,7 @@ describe("GroupBuysService", () => {
     return {
       groupBuy: {
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
       },
@@ -62,6 +68,27 @@ describe("GroupBuysService", () => {
       expect(prisma.groupBuy.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { status: GroupBuyStatus.REVIEW_REQUIRED },
+        }),
+      );
+    });
+
+    it("filters the automatic review queue to both supported sources", async () => {
+      prisma.groupBuy.findMany.mockResolvedValue([]);
+
+      await service.list({
+        status: GroupBuyStatus.REVIEW_REQUIRED,
+        sourceType: "AUTOMATIC_COLLECTION",
+        limit: 50,
+      } as any);
+
+      expect(prisma.groupBuy.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: GroupBuyStatus.REVIEW_REQUIRED,
+            sourceType: {
+              in: ["PLAYWRIGHT_PUBLIC", "MANUAL_DISCOVERY"],
+            },
+          },
         }),
       );
     });
@@ -131,13 +158,13 @@ describe("GroupBuysService", () => {
 
       expect(prisma.groupBuy.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {
+          where: expect.objectContaining({
             status: GroupBuyStatus.APPROVED,
-            AND: [
+            AND: expect.arrayContaining([
               { endDate: { gte: new Date("2026-06-01T00:00:00.000Z") } },
               { startDate: { lte: new Date("2026-06-30T23:59:59.999Z") } },
-            ],
-          },
+            ]),
+          }),
           include: { rawPost: { include: { influencer: true } } },
           orderBy: [
             { startDate: "asc" },
@@ -230,6 +257,128 @@ describe("GroupBuysService", () => {
     });
   });
 
+  describe("public reads", () => {
+    const nonManualRawPost = {
+      OR: [
+        { rawPost: { is: null } },
+        {
+          rawPost: {
+            is: {
+              collectionSource: {
+                not: RawPostCollectionSource.MANUAL_DISCOVERY,
+              },
+            },
+          },
+        },
+      ],
+    };
+    const manualVisibility = {
+      OR: [
+        { AND: [{ sourceType: null }, nonManualRawPost] },
+        {
+          AND: [
+            { sourceType: { not: "MANUAL_DISCOVERY" } },
+            nonManualRawPost,
+          ],
+        },
+        {
+          AND: [
+            { sourceType: "MANUAL_DISCOVERY" },
+            { collectionReviewStatus: CollectionReviewStatus.APPROVED },
+            {
+              status: {
+                in: [GroupBuyStatus.APPROVED, GroupBuyStatus.EXPIRED],
+              },
+            },
+            {
+              rawPost: {
+                is: {
+                  collectionSource: RawPostCollectionSource.MANUAL_DISCOVERY,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    it("allows only approved manual discoveries in public lists, search, and calendar", async () => {
+      prisma.groupBuy.findMany.mockResolvedValue([]);
+
+      await service.listPublic({ limit: 50 } as any);
+      await service.listPublic({ status: GroupBuyStatus.EXPIRED, limit: 50 } as any);
+      await service.listPublic({
+        status: GroupBuyStatus.REVIEW_REQUIRED,
+        q: "공개 검색",
+        limit: 50,
+      } as any);
+      await service.getCalendarView({ year: 2026, month: 10 } as any);
+
+      expect(prisma.groupBuy.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: { status: GroupBuyStatus.APPROVED, AND: [manualVisibility] },
+        }),
+      );
+      expect(prisma.groupBuy.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: { status: GroupBuyStatus.EXPIRED, AND: [manualVisibility] },
+        }),
+      );
+      expect(prisma.groupBuy.findMany).toHaveBeenNthCalledWith(
+        3,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: GroupBuyStatus.REVIEW_REQUIRED,
+            AND: [manualVisibility],
+            OR: expect.any(Array),
+          }),
+        }),
+      );
+      expect(prisma.groupBuy.findMany).toHaveBeenNthCalledWith(
+        4,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: GroupBuyStatus.APPROVED,
+            AND: expect.arrayContaining([manualVisibility]),
+          }),
+        }),
+      );
+    });
+
+    it("does not disclose a pending manual discovery by public detail lookup", async () => {
+      prisma.groupBuy.findFirst.mockResolvedValue(null);
+
+      await expect(service.getPublic("pending-manual")).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+
+      expect(prisma.groupBuy.findFirst).toHaveBeenCalledWith({
+        where: { id: "pending-manual", AND: [manualVisibility] },
+        include: { rawPost: { include: { influencer: true } } },
+      });
+    });
+
+    it("keeps the generic admin list unrestricted", async () => {
+      prisma.groupBuy.findMany.mockResolvedValue([]);
+
+      await service.list({
+        status: GroupBuyStatus.REVIEW_REQUIRED,
+        sourceType: "MANUAL_DISCOVERY",
+        limit: 50,
+      } as any);
+
+      expect(prisma.groupBuy.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: GroupBuyStatus.REVIEW_REQUIRED,
+            sourceType: "MANUAL_DISCOVERY",
+          },
+        }),
+      );
+    });
+  });
   describe("approve", () => {
     it("approves group buy with startDate", async () => {
       const mockGroupBuy = {

@@ -7,6 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
+import { parseSubmissionCaption } from "../../../packages/shared/src/utils/captionParser.ts";
 import {
   buildReviewedCollectionSnapshot,
   legacyCollectionReviewStatus,
@@ -18,12 +19,23 @@ import { isInstagramCdnUrl } from "../_shared/hiker-instagram-audio.ts";
 import {
   automaticInstagramPostUrl,
   collectionReviewFilter,
+  isAutomaticCollectionSource,
   CollectionReviewContractError,
   normalizeRejectionReason,
   protectPendingAutomaticCatalogPatch,
   reviewedData,
   validateApprovalData,
 } from "./automaticCollectionReviewContract.ts";
+import {
+  ManualDiscoveryContractError,
+  manualDiscoveryExistingOutcome,
+  manualDiscoveryPostUrlCandidates,
+  normalizeManualDiscoveryInput,
+} from "./manualDiscoveryContract.ts";
+import {
+  buildManualDiscoveryInfluencerRow,
+  buildManualDiscoveryRows,
+} from "./manualDiscoveryRows.ts";
 import {
   normalizeCommercePatch,
   normalizePersistedPriceKrw,
@@ -642,6 +654,298 @@ function mapGroupBuy(row: Record<string, unknown>) {
   };
 }
 
+async function manualDiscoveryContentHash(input: string) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(input),
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function findManualRawPost(
+  supabase: AdminClient,
+  instagramPostId: string,
+  postUrl: string,
+  contentHash: string,
+) {
+  const select =
+    "id,instagram_post_id,influencer_id,caption,post_url,image_url,taken_at,content_hash,collection_source";
+  const byInstagramId = await supabase
+    .from("raw_posts")
+    .select(select)
+    .eq("instagram_post_id", instagramPostId)
+    .maybeSingle();
+  if (byInstagramId.error) throw new Error(byInstagramId.error.message);
+  if (byInstagramId.data) {
+    return byInstagramId.data as Record<string, unknown>;
+  }
+
+  const byPostUrl = await supabase
+    .from("raw_posts")
+    .select(select)
+    .in("post_url", manualDiscoveryPostUrlCandidates(postUrl))
+    .limit(1)
+    .maybeSingle();
+  if (byPostUrl.error) throw new Error(byPostUrl.error.message);
+  if (byPostUrl.data) {
+    return byPostUrl.data as Record<string, unknown>;
+  }
+
+  const byContentHash = await supabase
+    .from("raw_posts")
+    .select(select)
+    .eq("content_hash", contentHash)
+    .maybeSingle();
+  if (byContentHash.error) throw new Error(byContentHash.error.message);
+  return byContentHash.data as Record<string, unknown> | null;
+}
+
+async function findManualGroupBuy(supabase: AdminClient, rawPostId: string) {
+  const { data, error } = await supabase
+    .from("group_buys")
+    .select("id")
+    .eq("raw_post_id", rawPostId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as { id: string } | null;
+}
+
+async function ensureManualDiscoveryInfluencer(
+  supabase: AdminClient,
+  instagramUsername: string,
+) {
+  const find = () =>
+    supabase
+      .from("influencers")
+      .select("id")
+      .eq("instagram_username", instagramUsername)
+      .maybeSingle();
+  const existing = await find();
+  if (existing.error) throw new Error(existing.error.message);
+  if (existing.data?.id) return String(existing.data.id);
+
+  const created = await supabase
+    .from("influencers")
+    .insert(
+      buildManualDiscoveryInfluencerRow({
+        id: crypto.randomUUID(),
+        instagramUsername,
+        updatedAt: new Date().toISOString(),
+      }),
+    )
+    .select("id")
+    .single();
+  if (created.error?.code === "23505") {
+    const raced = await find();
+    if (raced.error) throw new Error(raced.error.message);
+    if (raced.data?.id) return String(raced.data.id);
+  }
+  if (created.error) throw new Error(created.error.message);
+  return String(created.data.id);
+}
+
+function parseManualDiscoveryCaption(caption: string, takenAt: string) {
+  try {
+    return {
+      parsed: parseSubmissionCaption(caption, {
+        referenceDate: new Date(takenAt),
+      }),
+      parseError: null,
+    };
+  } catch (error) {
+    return {
+      parsed: {},
+      parseError:
+        error instanceof Error
+          ? error.message.slice(0, 500)
+          : "caption parse failed",
+    };
+  }
+}
+
+async function insertManualDiscoveryCandidate(
+  supabase: AdminClient,
+  discovery: ReturnType<typeof normalizeManualDiscoveryInput>,
+  rawPostId: string,
+  influencerId: string,
+  contentHash: string,
+  insertRawPost: boolean,
+) {
+  const now = new Date().toISOString();
+  const { parsed, parseError } = parseManualDiscoveryCaption(
+    discovery.caption,
+    discovery.takenAt,
+  );
+  const rows = buildManualDiscoveryRows({
+    discovery,
+    parsed,
+    parseError,
+    contentHash,
+    rawPostId,
+    groupBuyId: crypto.randomUUID(),
+    influencerId,
+    now,
+  });
+
+  if (insertRawPost) {
+    const { error } = await supabase.from("raw_posts").insert(rows.rawPost);
+    if (error) throw error;
+  }
+
+  const { data, error } = await supabase
+    .from("group_buys")
+    .insert(rows.groupBuy)
+    .select("id")
+    .single();
+  if (error?.code === "23505") {
+    const duplicate = await findManualGroupBuy(supabase, rawPostId);
+    if (duplicate?.id) {
+      return {
+        rawPostId,
+        groupBuyId: String(duplicate.id),
+        duplicate: true,
+      };
+    }
+  }
+  if (error) throw new Error(error.message);
+  return {
+    rawPostId,
+    groupBuyId: String(data.id),
+    duplicate: false,
+  };
+}
+
+async function resumeManualDiscoveryCandidate(
+  supabase: AdminClient,
+  rawPost: Record<string, unknown>,
+  contentHash: string,
+) {
+  const rawPostId = String(rawPost.id);
+  const existingCandidate = await findManualGroupBuy(supabase, rawPostId);
+  const existingOutcome = manualDiscoveryExistingOutcome(
+    rawPost.collection_source,
+    rawPostId,
+    existingCandidate?.id ? String(existingCandidate.id) : null,
+  );
+  if (existingOutcome.kind === "conflict") {
+    throw new AdminRequestError(
+      "이미 다른 출처로 등록된 Instagram 게시물입니다.",
+      409,
+      "POST_ALREADY_COLLECTED",
+    );
+  }
+  if (existingOutcome.kind === "duplicate") {
+    return {
+      rawPostId: existingOutcome.rawPostId,
+      groupBuyId: existingOutcome.groupBuyId,
+      duplicate: true,
+    };
+  }
+
+  const influencerId = String(rawPost.influencer_id);
+  const influencer = await supabase
+    .from("influencers")
+    .select("instagram_username")
+    .eq("id", influencerId)
+    .maybeSingle();
+  if (influencer.error) throw new Error(influencer.error.message);
+  if (!influencer.data?.instagram_username) {
+    throw new Error("수동 발견 게시물의 Instagram 계정을 찾을 수 없습니다.");
+  }
+  const discovery = {
+    instagramPostId: String(rawPost.instagram_post_id),
+    postUrl: String(rawPost.post_url),
+    instagramUsername: String(influencer.data.instagram_username),
+    caption: String(rawPost.caption),
+    takenAt: new Date(String(rawPost.taken_at)).toISOString(),
+    imageUrl: typeof rawPost.image_url === "string" ? rawPost.image_url : null,
+  };
+  return insertManualDiscoveryCandidate(
+    supabase,
+    discovery,
+    rawPostId,
+    influencerId,
+    contentHash,
+    false,
+  );
+}
+
+async function createManualDiscoveryCandidate(
+  supabase: AdminClient,
+  body: Record<string, unknown>,
+) {
+  let discovery: ReturnType<typeof normalizeManualDiscoveryInput>;
+  try {
+    discovery = normalizeManualDiscoveryInput(body);
+  } catch (error) {
+    if (error instanceof ManualDiscoveryContractError) {
+      throw new AdminRequestError(
+        error.message,
+        422,
+        "INVALID_MANUAL_DISCOVERY",
+      );
+    }
+    throw error;
+  }
+
+  const contentHash = await manualDiscoveryContentHash(
+    `${discovery.instagramPostId}\n${discovery.caption}\n${discovery.postUrl}`,
+  );
+  const existingRawPost = await findManualRawPost(
+    supabase,
+    discovery.instagramPostId,
+    discovery.postUrl,
+    contentHash,
+  );
+  if (existingRawPost) {
+    return resumeManualDiscoveryCandidate(
+      supabase,
+      existingRawPost,
+      String(existingRawPost.content_hash ?? contentHash),
+    );
+  }
+
+  const influencerId = await ensureManualDiscoveryInfluencer(
+    supabase,
+    discovery.instagramUsername,
+  );
+  const rawPostId = crypto.randomUUID();
+  try {
+    return await insertManualDiscoveryCandidate(
+      supabase,
+      discovery,
+      rawPostId,
+      influencerId,
+      contentHash,
+      true,
+    );
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "23505"
+    ) {
+      const racedRawPost = await findManualRawPost(
+        supabase,
+        discovery.instagramPostId,
+        discovery.postUrl,
+        contentHash,
+      );
+      if (racedRawPost) {
+        return resumeManualDiscoveryCandidate(
+          supabase,
+          racedRawPost,
+          String(racedRawPost.content_hash ?? contentHash),
+        );
+      }
+    }
+    throw error;
+  }
+}
+
 async function listSubmissions(
   supabase: AdminClient,
   params: AdminRequest["params"],
@@ -724,7 +1028,11 @@ async function listGroupBuys(
   } else if (statusFilter.kind === "status") {
     query = query.eq("status", statusFilter.value);
   }
-  if (sourceType) query = query.eq("source_type", sourceType);
+  if (sourceType === "AUTOMATIC_COLLECTION") {
+    query = query.in("source_type", ["PLAYWRIGHT_PUBLIC", "MANUAL_DISCOVERY"]);
+  } else if (sourceType) {
+    query = query.eq("source_type", sourceType);
+  }
   if (reviewStatus) {
     query = query.eq("collection_review_status", reviewStatus);
   }
@@ -743,40 +1051,100 @@ async function listGroupBuys(
 function mapProductReport(row: Record<string, unknown>) {
   const product = row.group_buys as { product_name?: string } | null;
   return {
-    id: row.id, groupBuyId: row.group_buy_id, productName: product?.product_name ?? null,
-    reason: row.reason, status: row.status, createdAt: row.created_at,
-    reviewedAt: row.reviewed_at, reviewNote: row.review_note,
+    id: row.id,
+    groupBuyId: row.group_buy_id,
+    productName: product?.product_name ?? null,
+    reason: row.reason,
+    status: row.status,
+    createdAt: row.created_at,
+    reviewedAt: row.reviewed_at,
+    reviewNote: row.review_note,
   };
 }
 
-async function listProductReports(supabase: AdminClient, params: AdminRequest["params"]) {
-  const page = Math.max(1, Math.min(Math.floor(listParam(params, "page", 1)), 1_000_000));
-  const limit = Math.max(1, Math.min(Math.floor(listParam(params, "limit", 25)), 100));
+async function listProductReports(
+  supabase: AdminClient,
+  params: AdminRequest["params"],
+) {
+  const page = Math.max(
+    1,
+    Math.min(Math.floor(listParam(params, "page", 1)), 1_000_000),
+  );
+  const limit = Math.max(
+    1,
+    Math.min(Math.floor(listParam(params, "limit", 25)), 100),
+  );
   const status = str(params?.status) ?? "OPEN";
   if (!["ALL", "OPEN", "RESOLVED", "DISMISSED"].includes(status)) {
-    throw new AdminRequestError("신고 상태가 올바르지 않습니다.", 422, "INVALID_REPORT_STATUS");
+    throw new AdminRequestError(
+      "신고 상태가 올바르지 않습니다.",
+      422,
+      "INVALID_REPORT_STATUS",
+    );
   }
-  let query = supabase.from("product_information_reports")
-    .select("id,group_buy_id,reason,status,created_at,reviewed_at,review_note,group_buys(product_name)", { count: "exact" })
-    .order("created_at", { ascending: false }).order("id", { ascending: false });
+  let query = supabase
+    .from("product_information_reports")
+    .select(
+      "id,group_buy_id,reason,status,created_at,reviewed_at,review_note,group_buys(product_name)",
+      { count: "exact" },
+    )
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
   if (status !== "ALL") query = query.eq("status", status);
-  const { data, error, count } = await query.range((page - 1) * limit, page * limit - 1);
+  const { data, error, count } = await query.range(
+    (page - 1) * limit,
+    page * limit - 1,
+  );
   if (error) throw new Error("상품 정보 신고를 불러오지 못했습니다.");
-  return { items: (data ?? []).map(row => mapProductReport(row as unknown as Record<string, unknown>)), total: count ?? 0 };
+  return {
+    items: (data ?? []).map((row) =>
+      mapProductReport(row as unknown as Record<string, unknown>),
+    ),
+    total: count ?? 0,
+  };
 }
 
-async function reviewProductReport(supabase: AdminClient, id: string, body: Record<string, unknown>, adminId: string) {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
-      (body.status !== "RESOLVED" && body.status !== "DISMISSED") ||
-      (body.reviewNote !== undefined && (typeof body.reviewNote !== "string" || body.reviewNote.length > 500))) {
-    throw new AdminRequestError("신고 처리 내용을 확인해주세요.", 422, "INVALID_REPORT_REVIEW");
+async function reviewProductReport(
+  supabase: AdminClient,
+  id: string,
+  body: Record<string, unknown>,
+  adminId: string,
+) {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      id,
+    ) ||
+    (body.status !== "RESOLVED" && body.status !== "DISMISSED") ||
+    (body.reviewNote !== undefined &&
+      (typeof body.reviewNote !== "string" || body.reviewNote.length > 500))
+  ) {
+    throw new AdminRequestError(
+      "신고 처리 내용을 확인해주세요.",
+      422,
+      "INVALID_REPORT_REVIEW",
+    );
   }
-  const { data, error } = await supabase.from("product_information_reports")
-    .update({ status: body.status, review_note: str(body.reviewNote), reviewed_by: adminId, reviewed_at: new Date().toISOString() })
-    .eq("id", id).eq("status", "OPEN")
-    .select("id,group_buy_id,reason,status,created_at,reviewed_at,review_note,group_buys(product_name)").maybeSingle();
+  const { data, error } = await supabase
+    .from("product_information_reports")
+    .update({
+      status: body.status,
+      review_note: str(body.reviewNote),
+      reviewed_by: adminId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("status", "OPEN")
+    .select(
+      "id,group_buy_id,reason,status,created_at,reviewed_at,review_note,group_buys(product_name)",
+    )
+    .maybeSingle();
   if (error) throw new Error("신고 처리를 저장하지 못했습니다.");
-  if (!data) throw new AdminRequestError("이미 처리되었거나 찾을 수 없는 신고입니다. 목록을 새로고침해주세요.", 409, "REPORT_ALREADY_REVIEWED");
+  if (!data)
+    throw new AdminRequestError(
+      "이미 처리되었거나 찾을 수 없는 신고입니다. 목록을 새로고침해주세요.",
+      409,
+      "REPORT_ALREADY_REVIEWED",
+    );
   return mapProductReport(data as unknown as Record<string, unknown>);
 }
 
@@ -784,10 +1152,7 @@ async function listGroupBuyRequests(
   supabase: AdminClient,
   params: AdminRequest["params"],
 ) {
-  const page = Math.min(
-    Math.floor(listParam(params, "page", 1)),
-    1_000_000,
-  );
+  const page = Math.min(Math.floor(listParam(params, "page", 1)), 1_000_000);
   const limit = Math.min(Math.floor(listParam(params, "limit", 30)), 100);
   const status = str(params?.status);
   const q = sanitizeSearch(str(params?.q));
@@ -815,15 +1180,47 @@ function adminGroupBuyRequestStatus(
   throw new Error("공구 요청 상태가 올바르지 않습니다.");
 }
 
-async function fulfillGroupBuyRequest(supabase: AdminClient, id: string, body: AdminRequest["body"]) {
+async function fulfillGroupBuyRequest(
+  supabase: AdminClient,
+  id: string,
+  body: AdminRequest["body"],
+) {
   const groupBuyId = str(body?.groupBuyId);
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) || !groupBuyId || groupBuyId.length > 200) {
-    throw new AdminRequestError("요청과 연결할 공구를 선택해주세요.", 422, "INVALID_REQUEST_FULFILLMENT");
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      id,
+    ) ||
+    !groupBuyId ||
+    groupBuyId.length > 200
+  ) {
+    throw new AdminRequestError(
+      "요청과 연결할 공구를 선택해주세요.",
+      422,
+      "INVALID_REQUEST_FULFILLMENT",
+    );
   }
-  const { data, error } = await supabase.rpc("fulfill_group_buy_request", { p_request_id: id, p_group_buy_id: groupBuyId });
-  if (error?.code === "PT409") throw new AdminRequestError("이미 처리된 요청입니다. 목록을 새로고침해주세요.", 409, "REQUEST_ALREADY_CLOSED");
-  if (error?.code === "22023") throw new AdminRequestError("승인된 공구만 연결할 수 있습니다.", 422, "APPROVED_PRODUCT_REQUIRED");
-  if (error) throw new AdminRequestError("요청에 공구를 연결하지 못했습니다.", 400, "REQUEST_FULFILLMENT_FAILED");
+  const { data, error } = await supabase.rpc("fulfill_group_buy_request", {
+    p_request_id: id,
+    p_group_buy_id: groupBuyId,
+  });
+  if (error?.code === "PT409")
+    throw new AdminRequestError(
+      "이미 처리된 요청입니다. 목록을 새로고침해주세요.",
+      409,
+      "REQUEST_ALREADY_CLOSED",
+    );
+  if (error?.code === "22023")
+    throw new AdminRequestError(
+      "승인된 공구만 연결할 수 있습니다.",
+      422,
+      "APPROVED_PRODUCT_REQUIRED",
+    );
+  if (error)
+    throw new AdminRequestError(
+      "요청에 공구를 연결하지 못했습니다.",
+      400,
+      "REQUEST_FULFILLMENT_FAILED",
+    );
   return data;
 }
 
@@ -1341,21 +1738,16 @@ function relatedCommentRecord(value: unknown) {
 
 function mapCommentModeration(row: Record<string, unknown>) {
   const product = relatedCommentRecord(row.group_buys);
-  const reports = Array.isArray(row.comment_reports)
-    ? row.comment_reports
-    : [];
+  const reports = Array.isArray(row.comment_reports) ? row.comment_reports : [];
   const reportCount = reports.reduce((total, item) => {
     if (!item || typeof item !== "object") return total;
     const count = num((item as Record<string, unknown>).count, 0) ?? 0;
     return total + count;
   }, 0);
   const rawState = str(row.state);
-  const state = [
-    "VISIBLE",
-    "HIDDEN",
-    "DELETED",
-    "ACCOUNT_ANONYMIZED",
-  ].includes(rawState ?? "")
+  const state = ["VISIBLE", "HIDDEN", "DELETED", "ACCOUNT_ANONYMIZED"].includes(
+    rawState ?? "",
+  )
     ? rawState
     : "HIDDEN";
 
@@ -1510,7 +1902,10 @@ async function setGroupBuyCommentsEnabled(
   }
   const { data, error } = await supabase
     .from("group_buys")
-    .update({ comments_enabled: body.enabled, updated_at: new Date().toISOString() })
+    .update({
+      comments_enabled: body.enabled,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id)
     .select("id,comments_enabled")
     .maybeSingle();
@@ -1693,9 +2088,9 @@ async function automaticCollectionCandidate(supabase: AdminClient, id: string) {
       "AUTO_COLLECTION_NOT_FOUND",
     );
   }
-  if (data.source_type !== "PLAYWRIGHT_PUBLIC") {
+  if (!isAutomaticCollectionSource(data.source_type)) {
     throw new AdminRequestError(
-      "Playwright 자동수집 항목만 처리할 수 있습니다.",
+      "자동수집 검수 항목만 처리할 수 있습니다.",
       422,
       "NOT_AUTO_COLLECTION",
     );
@@ -2024,6 +2419,12 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
       body,
     );
   }
+  if (
+    path === "/admin/automatic-collection/manual-discoveries" &&
+    method === "POST"
+  ) {
+    return createManualDiscoveryCandidate(supabase, body);
+  }
   if (path === "/admin/group-buys" && method === "GET") {
     return listGroupBuys(supabase, params);
   }
@@ -2061,7 +2462,10 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   if (path === "/admin/group-buy-requests" && method === "GET") {
     return listGroupBuyRequests(supabase, params);
   }
-  if (/^\/admin\/group-buy-requests\/[^/]+\/fulfill$/.test(path) && method === "POST") {
+  if (
+    /^\/admin\/group-buy-requests\/[^/]+\/fulfill$/.test(path) &&
+    method === "POST"
+  ) {
     return fulfillGroupBuyRequest(supabase, path.split("/")[3], body);
   }
   if (
@@ -2085,13 +2489,30 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
   }
   if (path === "/admin/app-diagnostics" && method === "GET") {
     const days = Number(params?.days ?? 7);
-    if (![1, 7, 14].includes(days)) throw new AdminRequestError("조회 기간을 확인해 주세요.", 400, "INVALID_PERIOD");
-    const { data, error } = await supabase.rpc("get_app_telemetry_summary", { p_days: days });
-    if (error) throw new AdminRequestError("앱 진단을 불러오지 못했습니다.", 503, "TELEMETRY_UNAVAILABLE");
+    if (![1, 7, 14].includes(days))
+      throw new AdminRequestError(
+        "조회 기간을 확인해 주세요.",
+        400,
+        "INVALID_PERIOD",
+      );
+    const { data, error } = await supabase.rpc("get_app_telemetry_summary", {
+      p_days: days,
+    });
+    if (error)
+      throw new AdminRequestError(
+        "앱 진단을 불러오지 못했습니다.",
+        503,
+        "TELEMETRY_UNAVAILABLE",
+      );
     return { items: data ?? [], days };
   }
   if (path.startsWith("/admin/product-reports/") && method === "PATCH") {
-    return reviewProductReport(supabase, path.replace("/admin/product-reports/", ""), body, adminId);
+    return reviewProductReport(
+      supabase,
+      path.replace("/admin/product-reports/", ""),
+      body,
+      adminId,
+    );
   }
   if (path.startsWith("/admin/comments/") && method === "PATCH") {
     return updateCommentModeration(
@@ -2109,11 +2530,7 @@ async function handleAdminRequest(req: AdminRequest, adminId: string) {
     path.endsWith("/comments") &&
     method === "PATCH"
   ) {
-    return setGroupBuyCommentsEnabled(
-      supabase,
-      path.split("/")[3],
-      body,
-    );
+    return setGroupBuyCommentsEnabled(supabase, path.split("/")[3], body);
   }
   if (path.startsWith("/admin/group-buys/") && method === "PATCH") {
     const id = path.replace("/admin/group-buys/", "");

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AdminRoleGuard } from '../auth/admin-role.guard';
 import { AuthModule } from '../auth/auth.module';
 import { GroupBuysModule } from '../group-buys/group-buys.module';
 import { InfluencersModule } from '../influencers/influencers.module';
@@ -19,6 +20,6 @@ import { AdminService } from './admin.service';
     SubmissionsModule,
   ],
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, AdminRoleGuard],
 })
 export class AdminModule {}
