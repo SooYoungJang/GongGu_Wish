@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { CollectionReviewStatus, GroupBuyStatus, Prisma } from "@prisma/client";
+import {
+  CollectionReviewStatus,
+  GroupBuyStatus,
+  Prisma,
+  RawPostCollectionSource,
+} from "@prisma/client";
 
 import { profileLinkCandidatesFromSnapshot } from "../common/profile-link-candidates";
 import { PrismaService } from "../prisma/prisma.service";
@@ -46,6 +51,55 @@ function isAutomaticCollectionSource(sourceType: string | null | undefined) {
   return (
     sourceType != null && AUTOMATIC_COLLECTION_SOURCE_TYPES.has(sourceType)
   );
+}
+
+function publicManualDiscoveryVisibilityFilter(): Prisma.GroupBuyWhereInput {
+  const nonManualRawPost: Prisma.GroupBuyWhereInput = {
+    OR: [
+      { rawPost: { is: null } },
+      {
+        rawPost: {
+          is: {
+            collectionSource: {
+              not: RawPostCollectionSource.MANUAL_DISCOVERY,
+            },
+          },
+        },
+      },
+    ],
+  };
+
+  return {
+    OR: [
+      {
+        AND: [{ sourceType: null }, nonManualRawPost],
+      },
+      {
+        AND: [
+          { sourceType: { not: "MANUAL_DISCOVERY" } },
+          nonManualRawPost,
+        ],
+      },
+      {
+        AND: [
+          { sourceType: "MANUAL_DISCOVERY" },
+          { collectionReviewStatus: CollectionReviewStatus.APPROVED },
+          {
+            status: {
+              in: [GroupBuyStatus.APPROVED, GroupBuyStatus.EXPIRED],
+            },
+          },
+          {
+            rawPost: {
+              is: {
+                collectionSource: RawPostCollectionSource.MANUAL_DISCOVERY,
+              },
+            },
+          },
+        ],
+      },
+    ],
+  };
 }
 
 const AUTOMATIC_REVIEW_INCLUDE = {
@@ -136,8 +190,23 @@ export class GroupBuysService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: ListGroupBuysDto) {
+    return this.listWithVisibility(query);
+  }
+
+  async listPublic(query: ListGroupBuysDto) {
+    return this.listWithVisibility(
+      query,
+      publicManualDiscoveryVisibilityFilter(),
+    );
+  }
+
+  private async listWithVisibility(
+    query: ListGroupBuysDto,
+    visibility?: Prisma.GroupBuyWhereInput,
+  ) {
     const where: Prisma.GroupBuyWhereInput = {
       status: query.status ?? GroupBuyStatus.APPROVED,
+      ...(visibility ? { AND: [visibility] } : {}),
     };
 
     if (query.q) {
@@ -179,6 +248,7 @@ export class GroupBuysService {
       where: {
         status: GroupBuyStatus.APPROVED,
         AND: [
+          publicManualDiscoveryVisibilityFilter(),
           { endDate: { gte: monthStart } },
           { startDate: { lte: monthEnd } },
         ],
@@ -217,6 +287,22 @@ export class GroupBuysService {
   async get(id: string) {
     const groupBuy = await this.prisma.groupBuy.findUnique({
       where: { id },
+      include: { rawPost: { include: { influencer: true } } },
+    });
+
+    if (!groupBuy) {
+      throw new NotFoundException("Group buy not found");
+    }
+
+    return serializeHomeBannerDates(groupBuy);
+  }
+
+  async getPublic(id: string) {
+    const groupBuy = await this.prisma.groupBuy.findFirst({
+      where: {
+        id,
+        AND: [publicManualDiscoveryVisibilityFilter()],
+      },
       include: { rawPost: { include: { influencer: true } } },
     });
 

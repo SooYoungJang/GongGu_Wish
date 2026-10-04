@@ -12,7 +12,7 @@ export class GroupBuysController {
 
   @Get()
   list(@Query() query: ListGroupBuysDto) {
-    return this.groupBuysService.list(query);
+    return this.groupBuysService.listPublic(query);
   }
 
   @Get('calendar')
@@ -23,6 +23,6 @@ export class GroupBuysController {
 
   @Get(':id')
   get(@Param('id') id: string) {
-    return this.groupBuysService.get(id);
+    return this.groupBuysService.getPublic(id);
   }
 }
