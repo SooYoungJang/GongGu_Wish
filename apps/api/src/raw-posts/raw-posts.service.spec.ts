@@ -1,5 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
 import {
+  CollectionReviewStatus,
   GroupBuyStatus,
   ParsingStatus,
   RawPostCollectionSource,
@@ -56,6 +57,72 @@ describe("RawPostsService", () => {
     return { service: new RawPostsService(prisma as never), prisma, tx };
   }
 
+  describe("public reads", () => {
+    it("allows linked raw posts only for approved manual discoveries", async () => {
+      const { service, prisma } = createService();
+      prisma.rawPost.findMany.mockResolvedValue([]);
+
+      await service.listPublic({ limit: 50 } as any);
+
+      expect(prisma.rawPost.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [
+              {
+                OR: [
+                  {
+                    AND: [
+                      {
+                        collectionSource: {
+                          not: RawPostCollectionSource.MANUAL_DISCOVERY,
+                        },
+                      },
+                      {
+                        OR: [
+                          { groupBuy: { is: null } },
+                          { groupBuy: { is: { sourceType: null } } },
+                          {
+                            groupBuy: {
+                              is: {
+                                sourceType: { not: "MANUAL_DISCOVERY" },
+                              },
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  {
+                    groupBuy: {
+                      is: {
+                        sourceType: "MANUAL_DISCOVERY",
+                        collectionReviewStatus: CollectionReviewStatus.APPROVED,
+                        status: {
+                          in: [GroupBuyStatus.APPROVED, GroupBuyStatus.EXPIRED],
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          include: { influencer: true, groupBuy: true },
+        }),
+      );
+    });
+
+    it("keeps the generic admin list unrestricted", async () => {
+      const { service, prisma } = createService();
+      prisma.rawPost.findMany.mockResolvedValue([]);
+
+      await service.list({ limit: 50 } as any);
+
+      expect(prisma.rawPost.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+    });
+  });
   it("creates a parsed review candidate for a Korean Playwright post", async () => {
     const { service, tx } = createService();
 

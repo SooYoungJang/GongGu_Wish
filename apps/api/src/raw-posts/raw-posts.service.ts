@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import {
+  CollectionReviewStatus,
   GroupBuyStatus,
   ParsingStatus,
   Prisma,
@@ -16,12 +17,68 @@ import { ListRawPostsDto } from "./dto/list-raw-posts.dto";
 import { createContentHash } from "./hash";
 import { classifyKoreaCaption } from "./korea-rules";
 
+function publicManualDiscoveryVisibilityFilter(): Prisma.RawPostWhereInput {
+  return {
+    OR: [
+      {
+        AND: [
+          {
+            collectionSource: {
+              not: RawPostCollectionSource.MANUAL_DISCOVERY,
+            },
+          },
+          {
+            OR: [
+              { groupBuy: { is: null } },
+              { groupBuy: { is: { sourceType: null } } },
+              {
+                groupBuy: {
+                  is: {
+                    sourceType: { not: "MANUAL_DISCOVERY" },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      {
+        groupBuy: {
+          is: {
+            sourceType: "MANUAL_DISCOVERY",
+            collectionReviewStatus: CollectionReviewStatus.APPROVED,
+            status: {
+              in: [GroupBuyStatus.APPROVED, GroupBuyStatus.EXPIRED],
+            },
+          },
+        },
+      },
+    ],
+  };
+}
+
 @Injectable()
 export class RawPostsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: ListRawPostsDto) {
-    const where: Prisma.RawPostWhereInput = {};
+    return this.listWithVisibility(query);
+  }
+
+  async listPublic(query: ListRawPostsDto) {
+    return this.listWithVisibility(
+      query,
+      publicManualDiscoveryVisibilityFilter(),
+    );
+  }
+
+  private listWithVisibility(
+    query: ListRawPostsDto,
+    visibility?: Prisma.RawPostWhereInput,
+  ) {
+    const where: Prisma.RawPostWhereInput = {
+      ...(visibility ? { AND: [visibility] } : {}),
+    };
 
     if (query.parsingStatus) {
       where.parsingStatus = query.parsingStatus;

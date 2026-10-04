@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 import { ApiTags, ApiBearerAuth } from "@nestjs/swagger";
 
+import { AdminRoleGuard } from "../auth/admin-role.guard";
 import { GroupBuysService } from "../group-buys/group-buys.service";
 import { RejectGroupBuyDto } from "../group-buys/dto/reject-group-buy.dto";
 import { UpdateGroupBuyDto } from "../group-buys/dto/update-group-buy.dto";
@@ -30,7 +31,7 @@ type AuthenticatedAdminRequest = {
 
 @ApiTags("admin")
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AdminRoleGuard)
 @Controller("admin")
 export class AdminController {
   constructor(
