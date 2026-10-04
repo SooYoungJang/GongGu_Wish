@@ -9,9 +9,26 @@ const migrationSql = readdirSync(migrationsDir)
   .sort()
   .map((name) => readFileSync(path.join(migrationsDir, name), "utf8"))
   .join("\n");
+const pendingReadsMigration = readFileSync(
+  path.join(
+    migrationsDir,
+    "20261004000001_restrict_pending_manual_discovery_reads.sql",
+  ),
+  "utf8",
+);
+
+test("manual-discovery visibility updates existing policies without dropping them", () => {
+  for (const policy of ["group_buys_public_read", "raw_posts_public_read"]) {
+    assert.match(
+      pendingReadsMigration,
+      new RegExp(`ALTER POLICY\\s+"${policy}"[\\s\\S]*?TO anon, authenticated[\\s\\S]*?USING`, "i"),
+    );
+  }
+  assert.doesNotMatch(pendingReadsMigration, /DROP POLICY/i);
+});
 
 function latestPolicy(name) {
-  const starts = [...migrationSql.matchAll(new RegExp(`CREATE POLICY\\s+"${name}"`, "gi"))];
+  const starts = [...migrationSql.matchAll(new RegExp(`(?:CREATE|ALTER) POLICY\\s+"${name}"`, "gi"))];
   assert.ok(starts.length > 0, `missing ${name} policy`);
   const start = starts.at(-1).index;
   const end = migrationSql.indexOf(";", start);

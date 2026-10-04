@@ -162,9 +162,8 @@ GRANT EXECUTE ON FUNCTION private.is_manual_discovery_raw_post_public(
   text
 ) TO anon, authenticated;
 
-DROP POLICY IF EXISTS "group_buys_public_read" ON public.group_buys;
-CREATE POLICY "group_buys_public_read"
-  ON public.group_buys FOR SELECT TO anon, authenticated
+ALTER POLICY "group_buys_public_read"
+  ON public.group_buys TO anon, authenticated
   USING (
     source_type IS DISTINCT FROM 'MANUAL_DISCOVERY'
     OR (
@@ -173,9 +172,8 @@ CREATE POLICY "group_buys_public_read"
     )
   );
 
-DROP POLICY IF EXISTS "raw_posts_public_read" ON public.raw_posts;
-CREATE POLICY "raw_posts_public_read"
-  ON public.raw_posts FOR SELECT TO anon, authenticated
+ALTER POLICY "raw_posts_public_read"
+  ON public.raw_posts TO anon, authenticated
   USING (
     private.is_manual_discovery_raw_post_public(
       raw_posts.id,
