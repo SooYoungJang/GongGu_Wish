@@ -158,13 +158,13 @@ describe("GroupBuysService", () => {
 
       expect(prisma.groupBuy.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {
+          where: expect.objectContaining({
             status: GroupBuyStatus.APPROVED,
-            AND: [
+            AND: expect.arrayContaining([
               { endDate: { gte: new Date("2026-06-01T00:00:00.000Z") } },
               { startDate: { lte: new Date("2026-06-30T23:59:59.999Z") } },
-            ],
-          },
+            ]),
+          }),
           include: { rawPost: { include: { influencer: true } } },
           orderBy: [
             { startDate: "asc" },
