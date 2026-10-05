@@ -388,7 +388,7 @@ describe("RankingTopThree", () => {
       expect.objectContaining({ groupBuyId: "group-1" }),
     );
     expect(detailAction.props.accessibilityLabel).not.toContain("인기지수");
-    expect(detailAction.props.accessibilityLabel).toContain("가격 정보 없음");
+    expect(detailAction.props.accessibilityLabel).not.toContain("가격 정보 없음");
     expect(detailAction.props.accessibilityLabel).toContain("마감일 미정");
   });
 
