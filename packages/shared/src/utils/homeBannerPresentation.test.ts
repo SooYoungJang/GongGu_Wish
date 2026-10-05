@@ -51,7 +51,7 @@ describe("getHomeBannerStatusCopy", () => {
     ).toBe(179000);
   });
 
-  it("shows 가격 미정 when no price is available", () => {
+  it("shows only the active status when no price is available", () => {
     expect(
       getHomeBannerStatusCopy(
         {
@@ -62,14 +62,14 @@ describe("getHomeBannerStatusCopy", () => {
         },
         new Date("2026-07-15T12:00:00"),
       ),
-    ).toMatchObject({
+    ).toEqual({
       accentLabel: "공구 진행 중",
-      detailLabel: "가격 미정",
+      accessibilityLabel: "공구 진행 중",
       priceKrw: null,
     });
   });
 
-  it("shows 가격 미정 when discount percent exists but no price", () => {
+  it("shows only the discount when no price is available", () => {
     expect(
       getHomeBannerStatusCopy(
         {
@@ -80,9 +80,9 @@ describe("getHomeBannerStatusCopy", () => {
         },
         new Date("2026-07-15T12:00:00"),
       ),
-    ).toMatchObject({
+    ).toEqual({
       accentLabel: "22%",
-      detailLabel: "가격 미정",
+      accessibilityLabel: "22% 할인",
       priceKrw: null,
     });
   });
