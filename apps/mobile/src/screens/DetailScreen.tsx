@@ -2659,13 +2659,13 @@ function DetailScreenContent({
     () => getInitialReelIndex(groupBuy, reelItems),
     [groupBuy.id, reelItems],
   );
+  const reelItemIndexes = useMemo(
+    () => new Map(reelItems.map((item, index) => [item.id, index] as const)),
+    [reelItems],
+  );
   const [activeProductId, setActiveProductId] = useState(groupBuy.id);
-  const activeProductIndex = useMemo(() => {
-    const currentIndex = reelItems.findIndex(
-      (item) => item.id === activeProductId,
-    );
-    return currentIndex >= 0 ? currentIndex : initialReelIndex;
-  }, [activeProductId, initialReelIndex, reelItems]);
+  const activeProductIndex =
+    reelItemIndexes.get(activeProductId) ?? initialReelIndex;
   // Interleave native-ad pages into the detail pager (same pattern as Reels).
   // When ads are disabled, insertReelsAdSlots returns a 1:1 content-only feed.
   const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
@@ -3048,7 +3048,9 @@ function DetailScreenContent({
             return;
           }
           setIsOnAdPage(false);
-          const nextIndex = entry ? reelItems.indexOf(entry.content) : -1;
+          const nextIndex = entry
+            ? (reelItemIndexes.get(entry.content.id) ?? -1)
+            : -1;
           if (
             nextIndex !== activeProductIndex &&
             nextIndex >= 0 &&
@@ -3104,7 +3106,7 @@ function DetailScreenContent({
             );
           }
           const item = entry.content;
-          const organicIndex = reelItems.indexOf(item);
+          const organicIndex = reelItemIndexes.get(item.id) ?? -1;
           return (
             <View
               key={entry.key}
@@ -3116,7 +3118,12 @@ function DetailScreenContent({
                 },
               ]}
             >
-              {renderReelItem({ item, index: organicIndex })}
+              {/* PagerView retains native pages, but React still mounts every
+                  child. Keep page positions stable and mount expensive product
+                  content only inside the existing media preload window. */}
+              {Math.abs(organicIndex - activeProductIndex) <= 1
+                ? renderReelItem({ item, index: organicIndex })
+                : null}
             </View>
           );
         })}
