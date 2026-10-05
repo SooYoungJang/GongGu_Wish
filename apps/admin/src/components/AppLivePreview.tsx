@@ -46,7 +46,9 @@ const wonFormatter = new Intl.NumberFormat("ko-KR");
 let previewInstanceCount = 0;
 
 function formatPrice(priceKrw: number | null) {
-  return typeof priceKrw === "number"
+  return typeof priceKrw === "number" &&
+    Number.isSafeInteger(priceKrw) &&
+    priceKrw >= 0
     ? `${wonFormatter.format(priceKrw)}원`
     : null;
 }
@@ -70,6 +72,8 @@ function PreviewPriceText({
   priceKrw: number | null;
 }) {
   const formatted = formatPrice(priceKrw);
+  if (formatted === null) return null;
+
   const semanticClassName = className.endsWith("-content")
     ? className.slice(0, -"-content".length)
     : className;
@@ -77,11 +81,7 @@ function PreviewPriceText({
   return (
     <span className={className}>
       <span className={`${semanticClassName}-label`}>가격</span>{" "}
-      {formatted ? (
-        <strong className={`${semanticClassName}-value`}>{formatted}</strong>
-      ) : (
-        <span className={`${semanticClassName}-value`}>미정</span>
-      )}
+      <strong className={`${semanticClassName}-value`}>{formatted}</strong>
     </span>
   );
 }
@@ -190,7 +190,7 @@ export class AppLivePreview extends Component<
       : "홈 배너 미노출";
     const bannerPeriodStatus = getBannerPeriodStatus(deal);
     const homeBannerCopy = getHomeBannerStatusCopy(deal);
-    const priceText = formatPrice(homeBannerCopy.priceKrw) ?? "가격 공개 예정";
+    const priceText = formatPrice(homeBannerCopy.priceKrw);
     const activeTabLabel =
       previewTabs.find((tab) => tab.id === activeTab)?.label ?? "홈 배너";
 
@@ -302,7 +302,7 @@ function HomeBannerPreview({
   copy,
 }: {
   deal: AppLivePreviewDeal;
-  priceText: string;
+  priceText: string | null;
   bannerExposure: string;
   bannerPeriodStatus: string;
   copy: HomeBannerStatusCopy;
@@ -363,7 +363,9 @@ function HomeBannerPreview({
           </p>
         ) : null}
         <span className="app-live-preview__sr-only">
-          {bannerExposure} · {bannerPeriodStatus} · {priceText}
+          {[bannerExposure, bannerPeriodStatus, priceText]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       </div>
     </article>
@@ -413,12 +415,14 @@ function DealCardPreview({ deal }: { deal: AppLivePreviewDeal }) {
         <h3 className="app-live-preview__deal-card-title">
           {deal.productName}
         </h3>
-        <p className="app-live-preview__deal-card-price">
-          <PreviewPriceText
-            className="app-live-preview__deal-card-price-content"
-            priceKrw={deal.priceKrw}
-          />
-        </p>
+        {formatPrice(deal.priceKrw) !== null ? (
+          <p className="app-live-preview__deal-card-price">
+            <PreviewPriceText
+              className="app-live-preview__deal-card-price-content"
+              priceKrw={deal.priceKrw}
+            />
+          </p>
+        ) : null}
       </div>
     </article>
   );
@@ -461,12 +465,14 @@ function DetailScreenPreview({
           <span>미디어 {deal.mediaCount}개</span>
         </div>
         <h3 className="app-live-preview__detail-title">{deal.productName}</h3>
-        <p className="app-live-preview__detail-price">
-          <PreviewPriceText
-            className="app-live-preview__detail-price-content"
-            priceKrw={deal.priceKrw}
-          />
-        </p>
+        {formatPrice(deal.priceKrw) !== null ? (
+          <p className="app-live-preview__detail-price">
+            <PreviewPriceText
+              className="app-live-preview__detail-price-content"
+              priceKrw={deal.priceKrw}
+            />
+          </p>
+        ) : null}
         <p className="app-live-preview__detail-summary">{deal.summary}</p>
         <div className="app-live-preview__detail-schedule">
           <span>시작 {deal.startDate}</span>

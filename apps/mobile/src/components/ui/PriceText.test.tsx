@@ -51,13 +51,13 @@ describe("PriceText", () => {
     );
   });
 
-  it("renders an explicit unavailable state for invalid or missing values", () => {
+  it("hides the price row for invalid or missing values", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
       renderer = TestRenderer.create(<PriceText priceKrw="25900" />);
     });
 
-    expect(flattenText(renderer!.toJSON())).toBe("가격 미정");
+    expect(renderer!.toJSON()).toBeNull();
   });
 });

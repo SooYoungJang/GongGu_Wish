@@ -64,7 +64,7 @@ export function buildDealCardAccessibilityLabel(
   item: GroupBuy,
 ) {
   const productName = item.productName?.trim() || "공동구매 상품";
-  const price = formatPriceKrw(item.priceKrw) ?? "미정";
+  const price = formatPriceKrw(item.priceKrw);
   const instagramHandle = formatInstagramHandle(
     item.rawPost.influencer.instagramUsername,
   );
@@ -73,7 +73,7 @@ export function buildDealCardAccessibilityLabel(
   return [
     productName,
     item.discountInfo?.trim() || null,
-    `가격 ${price}`,
+    price !== null ? `가격 ${price}` : null,
     `판매자 ${seller}`,
     formatDeadline(item.startDate, item.endDate),
     "상세 보기",

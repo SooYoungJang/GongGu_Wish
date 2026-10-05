@@ -18,8 +18,7 @@ export type PriceTextProps = {
  * Consistent price presentation for the mobile app.
  *
  * The label stays in the active surface text color while only the formatted
- * amount is emphasized. Invalid API values deliberately render as "가격 미정"
- * instead of leaking raw data into the UI.
+ * amount is emphasized. Missing or invalid prices do not render a price row.
  */
 export function PriceText({
   color,
@@ -34,6 +33,8 @@ export function PriceText({
   const textColor = color ?? colors.textPrimary;
   const formattedPrice = formatPriceKrw(priceKrw);
 
+  if (formattedPrice === null) return null;
+
   return (
     <SText
       numberOfLines={numberOfLines}
@@ -45,12 +46,12 @@ export function PriceText({
       <SText
         style={[
           style,
-          { color: textColor, fontWeight: formattedPrice ? "900" : "500" },
+          { color: textColor, fontWeight: "900" },
           valueStyle,
         ]}
         variant={variant}
       >
-        {formattedPrice ?? "미정"}
+        {formattedPrice}
       </SText>
     </SText>
   );

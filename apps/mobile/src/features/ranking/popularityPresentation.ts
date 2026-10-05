@@ -99,7 +99,8 @@ export function getRankingItemAccessibilityLabel({
   popularity?: PopularityPresentation;
   metrics?: GroupBuyRankingMetrics;
 }): string {
-  const price = formatPriceKrw(priceKrw) ?? "가격 정보 없음";
+  const price = formatPriceKrw(priceKrw);
+  const priceLabel = price !== null ? `, ${price}` : "";
   const metricLabel = metrics
     ? `, 조회 ${formatCompactCount(metrics.deepViews)}, 저장 ${formatCompactCount(metrics.bookmarks)}, 알림 ${formatCompactCount(metrics.notifications)}`
     : "";
@@ -108,5 +109,5 @@ export function getRankingItemAccessibilityLabel({
     ? `, 인기지수 ${popularity.index}, ${popularity.reason}`
     : "";
 
-  return `${rank}위 ${name}, ${price}, ${deadline}${popularityLabel}${metricLabel}, 상세 보기`;
+  return `${rank}위 ${name}${priceLabel}, ${deadline}${popularityLabel}${metricLabel}, 상세 보기`;
 }
