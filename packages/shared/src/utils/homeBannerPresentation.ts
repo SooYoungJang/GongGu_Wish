@@ -134,7 +134,7 @@ export function getHomeBannerStatusCopy(
     typeof item.priceKrw === "number" ? item.priceKrw : null;
   const priceKrw = directPriceKrw ?? getPromoPriceKrw(item.discountInfo);
   const price = formatPriceKrw(priceKrw);
-  const priceDescription = price ? `가격 ${price}` : "가격 공개 예정";
+  const priceDescription = price !== null ? `가격 ${price}` : null;
   const discountPercent = getPromoDiscountPercent(item.discountInfo);
 
   if (startDate && startDate.getTime() > now.getTime()) {
@@ -155,11 +155,13 @@ export function getHomeBannerStatusCopy(
 
     return {
       accentLabel: timingLabel,
-      accessibilityLabel: `${spokenTiming}, ${dateLabel}, ${priceDescription}`,
+      accessibilityLabel: [spokenTiming, dateLabel, priceDescription]
+        .filter(Boolean)
+        .join(", "),
       detailLabel: dateLabel,
-      secondaryLabel: price ?? "가격 공개 예정",
+      secondaryLabel: price ?? undefined,
       priceKrw,
-      pricePlacement: priceKrw != null ? "secondary" : undefined,
+      pricePlacement: price !== null ? "secondary" : undefined,
     };
   }
 
@@ -176,8 +178,7 @@ export function getHomeBannerStatusCopy(
   if (discountPercent) {
     return {
       accentLabel: `${discountPercent}%`,
-      accessibilityLabel: `${discountPercent}% 할인, 가격 미정`,
-      detailLabel: "가격 미정",
+      accessibilityLabel: `${discountPercent}% 할인`,
       priceKrw,
     };
   }
@@ -194,8 +195,7 @@ export function getHomeBannerStatusCopy(
 
   return {
     accentLabel: "공구 진행 중",
-    accessibilityLabel: "공구 진행 중, 가격 미정",
-    detailLabel: "가격 미정",
+    accessibilityLabel: "공구 진행 중",
     priceKrw,
   };
 }

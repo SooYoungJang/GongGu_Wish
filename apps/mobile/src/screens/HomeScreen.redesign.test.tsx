@@ -999,7 +999,7 @@ describe('HomeScreenContent redesign', () => {
     expect(shadeStyle.backgroundColor).toBe('rgba(0, 0, 0, 0.18)');
   });
 
-  it('shows the start timing and price-release fallback for an upcoming deal', () => {
+  it('shows the start timing without a price placeholder for an upcoming deal', () => {
     const startDate = isoFromNow(4);
     const renderer = renderHomeContent({
       groupBuys: [
@@ -1015,11 +1015,11 @@ describe('HomeScreenContent redesign', () => {
     const text = flattenText(renderer.toJSON());
     expect(text).toContain('D+4');
     expect(text).toContain(`${shortDate(startDate)} 시작`);
-    expect(text).toContain('가격 공개 예정');
+    expect(text).not.toContain('가격 공개 예정');
 
     const banner = findPromoBanner(renderer, '비건 선크림 공구');
     expect(banner!.props.accessibilityLabel).toContain('4일 후 시작');
-    expect(banner!.props.accessibilityLabel).toContain('가격 공개 예정');
+    expect(banner!.props.accessibilityLabel).not.toContain('가격 공개 예정');
   });
 
   it('shows a parsed DB price for an upcoming deal when it is available', () => {
@@ -1130,7 +1130,7 @@ describe('HomeScreenContent redesign', () => {
       .join(' ');
     expect(bannerText).not.toContain('30%');
     expect(bannerText).toContain('공구 진행 중');
-    expect(bannerText).toContain('가격 미정');
+    expect(bannerText).not.toContain('가격 미정');
   });
 
   it('does not mistake a leading natural-content percentage for a discount', () => {
@@ -1194,7 +1194,7 @@ describe('HomeScreenContent redesign', () => {
       .flatMap((node) => node.props.children ?? [])
       .join(' ');
     expect(bannerText).toContain('30%');
-    expect(bannerText).toContain('가격 미정');
+    expect(bannerText).not.toContain('가격 미정');
     expect(bannerText).not.toContain('30원');
   });
 
@@ -1314,7 +1314,7 @@ describe('HomeScreenContent redesign', () => {
       .join(' ');
     expect(bannerText).toContain('이미지 준비 중');
     expect(bannerText).toContain('공구 진행 중');
-    expect(bannerText).toContain('가격 미정');
+    expect(bannerText).not.toContain('가격 미정');
     expect(bannerText).not.toMatch(/(^|\s)@(\s|$)/);
     expect(bannerText).not.toContain('혜택 확인');
   });
@@ -1398,7 +1398,7 @@ describe('HomeScreenContent redesign', () => {
 
     const text = flattenText(renderer.toJSON());
     expect(text).toContain('30%');
-    expect(text).toContain('가격 미정');
+    expect(text).not.toContain('가격 미정');
     expect(text).not.toContain('시작일');
     expect(text).not.toContain('마감일');
 
@@ -1480,7 +1480,7 @@ describe('HomeScreenContent redesign', () => {
     ).toBe(30);
   });
 
-  it('uses an honest active-price fallback when DB discount data is missing', () => {
+  it('shows the active status without a price placeholder when DB discount data is missing', () => {
     const renderer = renderHomeContent({
       groupBuys: [
         {
@@ -1492,7 +1492,7 @@ describe('HomeScreenContent redesign', () => {
 
     const text = flattenText(renderer.toJSON());
     expect(text).toContain('공구 진행 중');
-    expect(text).toContain('가격 미정');
+    expect(text).not.toContain('가격 미정');
     expect(text).not.toContain('시작일');
     expect(text).not.toContain('마감일');
     expect(
