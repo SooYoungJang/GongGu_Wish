@@ -424,10 +424,10 @@ vi.mock("react-native", () => {
       inOut: vi.fn((fn: any) => fn),
       sin: vi.fn(),
     },
-    Image: ({ source, style, resizeMode, children }: any) =>
+    Image: ({ source, style, resizeMode, resizeMethod, children }: any) =>
       ReactMock.createElement(
         "Image",
-        { source, style, resizeMode },
+        { source, style, resizeMode, resizeMethod },
         children as ReactNode,
       ),
     Linking: { openURL: vi.fn() },
@@ -1209,6 +1209,7 @@ describe("DetailScreen", () => {
 
     expect(mediaScroll?.props.pagingEnabled).toBe(true);
     expect(images).toHaveLength(3);
+    expect(images.every((image) => image.props.resizeMethod === "resize")).toBe(true);
     expect(text).toContain("릴스");
     expect(text).toContain("구매");
     expect(text).not.toContain("팔로우");

@@ -900,6 +900,7 @@ describe('HomeScreenContent redesign', () => {
     });
 
     const image = renderer.root.findByProps({ testID: 'promo-image-gb-1' });
+    expect(image.props.resizeMethod).toBe('resize');
     expect(image.props.source).toEqual({
       uri: 'https://example.com/video-poster.jpg',
     });
