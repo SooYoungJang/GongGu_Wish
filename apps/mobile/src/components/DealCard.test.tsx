@@ -308,6 +308,7 @@ describe("DealCard", () => {
     expect(image.props.source.uri).toBe(
       "https://example.com/image-without-thumbnail.jpg",
     );
+    expect(image.props.resizeMethod).toBe("resize");
 
     act(() => image.props.onError());
     expect(

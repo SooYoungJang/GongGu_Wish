@@ -584,6 +584,7 @@ const VideoSlide = memo(function VideoSlide({
         <Image
           source={{ uri: thumbnailUrl }}
           style={s.videoPoster}
+          resizeMethod="resize"
           resizeMode="contain"
         />
       ) : null}
@@ -904,6 +905,7 @@ function DetailSearchSheet({
                           accessible={false}
                           source={{ uri: thumb }}
                           style={s.detailSearchThumbImage}
+                          resizeMethod="resize"
                           resizeMode="cover"
                         />
                       </View>
@@ -2020,6 +2022,7 @@ function ProductReelPageComponent({
               <Image
                 source={{ uri: thumbnailUrl }}
                 style={s.mediaFill}
+                resizeMethod="resize"
                 resizeMode="contain"
               />
             ) : (
@@ -2033,6 +2036,7 @@ function ProductReelPageComponent({
             <Image
               source={{ uri: item.url }}
               style={s.mediaFill}
+              resizeMethod="resize"
               resizeMode="contain"
             />
           )}

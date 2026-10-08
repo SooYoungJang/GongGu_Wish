@@ -125,6 +125,7 @@ export function DealCard({
           <Image
             accessible={false}
             onError={handleImageError}
+            resizeMethod="resize"
             source={{ uri: visibleImageUrl }}
             style={s.image}
           />

@@ -231,6 +231,7 @@ function PromoArtwork({
           accessible={false}
           onError={() => setIsLoaded(false)}
           onLoad={() => setIsLoaded(true)}
+          resizeMethod="resize"
           resizeMode="cover"
           source={{ uri }}
           style={[s.promoImage, !isLoaded && s.promoImagePending]}
