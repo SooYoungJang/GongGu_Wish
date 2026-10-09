@@ -58,12 +58,12 @@ import Reanimated, {
 
 import {
   fetchGroupBuyById,
-  fetchGroupBuys,
   fetchPreviousProductGroupBuys,
   getPreviousProductHistoryQueryKey,
   logDeepView,
   refreshGroupBuyMedia,
 } from "../api";
+import { getGroupBuysQueryOptions } from "../bootstrap/appBootstrap";
 import { Ionicons } from "@expo/vector-icons";
 import { CenteredBackHeader } from "../components/CenteredBackHeader";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
@@ -1002,6 +1002,7 @@ export type ProductReelPageProps = {
     translateY: SharedValue<number>;
   } | null;
   shouldPreloadVideo?: boolean;
+  shouldPreloadAdjacentMedia?: boolean;
   bottomChromeOffset?: number;
   pageHeight: number;
   mediaWidth: number;
@@ -1031,6 +1032,7 @@ function ProductReelPageComponent({
   isSearchSheetVisible = false,
   searchSheetMetrics = null,
   shouldPreloadVideo = false,
+  shouldPreloadAdjacentMedia = true,
   bottomChromeOffset = 0,
   pageHeight,
   mediaWidth,
@@ -1967,6 +1969,7 @@ function ProductReelPageComponent({
       replayKey,
       shouldPlayMedia,
       shouldPreloadVideo,
+      shouldPreloadAdjacentMedia,
       shouldPrioritizePostAudio,
     }),
     [
@@ -1977,6 +1980,7 @@ function ProductReelPageComponent({
       replayKey,
       shouldPlayMedia,
       shouldPreloadVideo,
+      shouldPreloadAdjacentMedia,
       shouldPrioritizePostAudio,
     ],
   );
@@ -1991,7 +1995,9 @@ function ProductReelPageComponent({
       const shouldMountVideo =
         isSelectedMedia ||
         (shouldPreloadVideo && index === activeMediaIndex) ||
-        (isActive && Math.abs(index - activeMediaIndex) <= 1);
+        (shouldPreloadAdjacentMedia &&
+          isActive &&
+          Math.abs(index - activeMediaIndex) <= 1);
       const thumbnailUrl = item.thumbnailUrl ?? groupBuy.thumbnailUrl ?? null;
 
       return (
@@ -2057,6 +2063,7 @@ function ProductReelPageComponent({
       s,
       shouldPlayMedia,
       shouldPreloadVideo,
+      shouldPreloadAdjacentMedia,
       shouldPrioritizePostAudio,
       replayKey,
     ],
@@ -2068,35 +2075,45 @@ function ProductReelPageComponent({
         <Reanimated.View style={[s.mediaStageContent, mediaStageContentStyle]}>
           {mediaItems.length > 0 ? (
             <View style={s.mediaViewport}>
-              <FlashList
-                data={mediaItems}
-                extraData={mediaListExtraData}
-                horizontal
-                pagingEnabled
-                snapToAlignment="start"
-                snapToInterval={mediaWidth}
-                keyExtractor={(item, index) => `${item.url}-${index}`}
-                renderItem={renderMediaItem}
-                showsHorizontalScrollIndicator={false}
-                style={s.mediaScroller}
-                decelerationRate="fast"
-                disableIntervalMomentum
-                drawDistance={mediaWidth}
-                maxItemsInRecyclePool={2}
-                maintainVisibleContentPosition={{ disabled: true }}
-                onMomentumScrollEnd={(event) => {
-                  const nextIndex = Math.round(
-                    event.nativeEvent.contentOffset.x / mediaWidth,
-                  );
-                  if (
-                    nextIndex !== activeMediaIndex &&
-                    nextIndex >= 0 &&
-                    nextIndex < mediaItems.length
-                  ) {
-                    setActiveMediaIndex(nextIndex);
+              {!isActive && !shouldPreloadAdjacentMedia ? (
+                renderMediaItem({
+                  item: mediaItems[activeMediaIndex] ?? mediaItems[0],
+                  index: activeMediaIndex,
+                })
+              ) : (
+                <FlashList
+                  data={mediaItems}
+                  extraData={mediaListExtraData}
+                  initialScrollIndex={
+                    activeMediaIndex < mediaItems.length ? activeMediaIndex : 0
                   }
-                }}
-              />
+                  horizontal
+                  pagingEnabled
+                  snapToAlignment="start"
+                  snapToInterval={mediaWidth}
+                  keyExtractor={(item, index) => `${item.url}-${index}`}
+                  renderItem={renderMediaItem}
+                  showsHorizontalScrollIndicator={false}
+                  style={s.mediaScroller}
+                  decelerationRate="fast"
+                  disableIntervalMomentum
+                  drawDistance={mediaWidth}
+                  maxItemsInRecyclePool={2}
+                  maintainVisibleContentPosition={{ disabled: true }}
+                  onMomentumScrollEnd={(event) => {
+                    const nextIndex = Math.round(
+                      event.nativeEvent.contentOffset.x / mediaWidth,
+                    );
+                    if (
+                      nextIndex !== activeMediaIndex &&
+                      nextIndex >= 0 &&
+                      nextIndex < mediaItems.length
+                    ) {
+                      setActiveMediaIndex(nextIndex);
+                    }
+                  }}
+                />
+              )}
             </View>
           ) : (
             <View style={s.emptyMedia}>
@@ -2651,8 +2668,9 @@ function DetailScreenContent({
   );
 
   const { data: groupBuys } = useQuery({
-    queryKey: ["group-buys"],
-    queryFn: fetchGroupBuys,
+    ...getGroupBuysQueryOptions(),
+    // A Home tap reuses fresh data; deep links still refresh an older feed.
+    refetchOnMount: true,
   });
 
   const reelItems = useMemo(
@@ -2992,8 +3010,9 @@ function DetailScreenContent({
         isSearchSheetVisible={isSearchSheetVisible}
         searchSheetMetrics={searchSheetMetrics}
         onCommentsSheetStateChange={handleCommentsSheetStateChange}
-        shouldPreloadAudio={Math.abs(index - activeProductIndex) <= 1}
-        shouldPreloadVideo={Math.abs(index - activeProductIndex) <= 1}
+        // Opening detail must not initialize codecs for unseen products or
+        // gallery slides. Their posters stay visible until selected.
+        shouldPreloadAdjacentMedia={false}
         bottomChromeOffset={DETAIL_SEARCH_CHROME_OFFSET}
         pageHeight={screenHeight}
         mediaWidth={screenWidth}
@@ -3082,30 +3101,32 @@ function DetailScreenContent({
                 collapsable={false}
                 style={[s.verticalPagerPage, { height: screenHeight }]}
               >
-                <View style={s.reelAdPage}>
-                  <View
-                    accessibilityLiveRegion="polite"
-                    style={s.reelAdLoading}
-                  >
-                    <SText variant="caption" style={s.reelAdLoadingLabel}>
-                      광고
-                    </SText>
-                    <SText variant="body" style={s.reelAdLoadingText}>
-                      광고를 불러오는 중이에요
-                    </SText>
+                {Math.abs(index - activePagerIndex) <= 1 ? (
+                  <View style={s.reelAdPage}>
+                    <View
+                      accessibilityLiveRegion="polite"
+                      style={s.reelAdLoading}
+                    >
+                      <SText variant="caption" style={s.reelAdLoadingLabel}>
+                        광고
+                      </SText>
+                      <SText variant="body" style={s.reelAdLoadingText}>
+                        광고를 불러오는 중이에요
+                      </SText>
+                    </View>
+                    <NativeAdCard
+                      loadEnabled
+                      onLoadStateChange={handleDetailAdLoadStateChange}
+                      placement="detail"
+                      reelBottomInset={
+                        insets.bottom + DETAIL_SEARCH_CHROME_OFFSET
+                      }
+                      testID={`detail-native-ad-${entry.sequence}`}
+                      variant="reel"
+                      visible={index === activePagerIndex}
+                    />
                   </View>
-                  <NativeAdCard
-                    loadEnabled={Math.abs(index - activePagerIndex) <= 1}
-                    onLoadStateChange={handleDetailAdLoadStateChange}
-                    placement="detail"
-                    reelBottomInset={
-                      insets.bottom + DETAIL_SEARCH_CHROME_OFFSET
-                    }
-                    testID={`detail-native-ad-${entry.sequence}`}
-                    variant="reel"
-                    visible={index === activePagerIndex}
-                  />
-                </View>
+                ) : null}
               </View>
             );
           }
