@@ -20,7 +20,7 @@ function getServerSnapshot() {
   return false;
 }
 
-function setMuted(nextMuted: boolean) {
+export function setMediaMuted(nextMuted: boolean) {
   if (muted === nextMuted) return;
   muted = nextMuted;
   listeners.forEach((listener) => listener());
@@ -32,5 +32,5 @@ export function useMediaMutePreference() {
     getSnapshot,
     getServerSnapshot,
   );
-  return { muted: isMuted, setMuted };
+  return { muted: isMuted, setMuted: setMediaMuted };
 }
