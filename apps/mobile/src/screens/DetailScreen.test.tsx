@@ -148,6 +148,7 @@ vi.mock("expo-video", () => ({
         audioMixingMode: "auto",
         allowsExternalPlayback: true,
         currentTime: 12,
+        release: vi.fn(),
         playing: false,
         addListener: vi.fn((event: string, listener: (payload: any) => void) => {
           const eventListeners = listeners.get(event) ?? new Set();
@@ -176,6 +177,7 @@ vi.mock("expo-video", () => ({
     } else {
       playerRef.current.source = source;
     }
+    ReactMock.useEffect(() => () => playerRef.current?.release(), []);
     return playerRef.current;
   },
 }));
@@ -232,7 +234,7 @@ vi.mock("expo-audio", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: (options: { queryKey?: unknown[] }) =>
+  useQuery: vi.fn((options: { queryKey?: unknown[] }) =>
     options.queryKey?.[0] === "previous-product-history"
       ? {
           data: queryMock.previousProductHistory,
@@ -256,6 +258,7 @@ vi.mock("@tanstack/react-query", () => ({
           isFetching: false,
           refetch: vi.fn(),
         },
+  ),
 }));
 
 vi.mock("../api", () => ({
@@ -326,6 +329,7 @@ import { Alert, Animated, Linking, Share } from "react-native";
 import { withTiming } from "react-native-reanimated";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   DetailScreen,
@@ -758,6 +762,27 @@ beforeEach(() => {
 });
 
 describe("DetailScreen", () => {
+  it("reuses the fresh home feed cache while allowing stale deep-link data to refresh", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    vi.mocked(useQuery).mockClear();
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ params: { groupBuy: baseGroupBuy } } as any}
+          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
+        />,
+      );
+    });
+    expect(useQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ["group-buys"],
+        refetchOnMount: true,
+        staleTime: 30_000,
+      }),
+    );
+    act(() => renderer!.unmount());
+  });
+
   it("memoizes product pages to avoid parent bookkeeping rerenders", () => {
     expect((ProductReelPage as any).$$typeof).toBe(Symbol.for("react.memo"));
   });
@@ -1261,9 +1286,8 @@ describe("DetailScreen", () => {
       .find((node) => node.props.horizontal);
     expect(
       renderer!.root.findAll((node) => String(node.type) === "VideoView"),
-    ).toHaveLength(1);
-    expect(videoMock.players[0]?.pause).toHaveBeenCalled();
-    expect(videoMock.players[0]?.play).not.toHaveBeenCalled();
+    ).toHaveLength(0);
+    expect(videoMock.players).toHaveLength(0);
 
     act(() => {
       horizontalList?.props.onMomentumScrollEnd({
@@ -1543,7 +1567,18 @@ describe("DetailScreen", () => {
       );
     });
 
+    expect(
+      renderer!.root.findAllByProps({ testID: "detail-native-ad-1" }),
+    ).toHaveLength(0);
+    const pageCount = findVerticalPager(renderer!).children.length;
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 1 },
+      });
+    });
     const ad = renderer!.root.findByProps({ testID: "detail-native-ad-1" });
+    expect(findVerticalPager(renderer!).children).toHaveLength(pageCount);
+    expect(ad.props.loadEnabled).toBe(true);
     expect(ad.props.reelBottomInset).toBe(34 + 72);
     expect(ad.props.variant).toBe("reel");
     expect(ad.props.visible).toBe(false);
@@ -2669,7 +2704,7 @@ describe("DetailScreen", () => {
     ).toHaveLength(1);
   });
 
-  it("preloads adjacent product page videos without playing them", () => {
+  it("keeps adjacent videos as posters until their product is selected", () => {
     const nextVideoGroupBuy: GroupBuy = {
       ...baseGroupBuy,
       id: "group-buy-video-next",
@@ -2708,22 +2743,42 @@ describe("DetailScreen", () => {
     );
 
     expect(verticalPager).toBeDefined();
-    expect(videoViews).toHaveLength(1);
-    expect(nextVideoPlayers.length).toBeGreaterThanOrEqual(1);
-    expect(nextVideoPlayers[0]?.source).toEqual({
+    expect(videoViews).toHaveLength(0);
+    expect(nextVideoPlayers).toHaveLength(0);
+    expect(renderer!.root.findAll((node) =>
+      String(node.type) === "FlashList" && node.props.horizontal,
+    )).toHaveLength(1);
+    const initialGallery = renderer!.root.find((node) =>
+      String(node.type) === "FlashList" && node.props.horizontal,
+    );
+    act(() => initialGallery.props.onMomentumScrollEnd({
+      nativeEvent: { contentOffset: { x: 390 } },
+    }));
+    expect(renderer!.root.findAll((node) =>
+      String(node.type) === "Image" &&
+      node.props.source?.uri === nextVideoGroupBuy.thumbnailUrl,
+    ).length).toBeGreaterThan(0);
+
+    act(() => verticalPager.props.onPageSelected({
+      nativeEvent: { position: 1 },
+    }));
+    const selectedPlayer = renderer!.root.find(
+      (node) => String(node.type) === "VideoView",
+    ).props.player;
+    expect(selectedPlayer.source).toEqual({
       uri: "https://example.com/next-video.mp4",
       contentType: "auto",
       useCaching: true,
     });
-    expect(
-      nextVideoPlayers.some((player) => player.pause.mock.calls.length > 0),
-    ).toBe(true);
-    expect(
-      nextVideoPlayers.every((player) => player.play.mock.calls.length === 0),
-    ).toBe(true);
-    expect(nextVideoPlayers.every((player) => player.currentTime === 0)).toBe(
-      true,
-    );
+    expect(selectedPlayer.play).toHaveBeenCalled();
+    act(() => verticalPager.props.onPageSelected({
+      nativeEvent: { position: 0 },
+    }));
+    expect(renderer!.root.find((node) =>
+      String(node.type) === "FlashList" && node.props.horizontal,
+    ).props.initialScrollIndex).toBe(1);
+    expect(selectedPlayer.release).toHaveBeenCalledOnce();
+    act(() => renderer!.unmount());
   });
 
   it("preloads the second-next video without mounting another visible video or changing quality", async () => {
@@ -3097,7 +3152,7 @@ describe("DetailScreen video playback", () => {
     act(() => renderer!.unmount());
   });
 
-  it("resets the previous video when swiping to another reel", () => {
+  it("releases the previous video and creates it afresh when returning to a reel", () => {
     videoMock.stableAcrossRenders = true;
     const firstVideoUrl = "https://example.com/reel-first.mp4";
     const secondVideoUrl = "https://example.com/reel-second.mp4";
@@ -3146,8 +3201,19 @@ describe("DetailScreen video playback", () => {
       });
     });
 
-    expect(firstPlayer.pause).toHaveBeenCalled();
-    expect(firstPlayer.currentTime).toBe(0);
+    expect(firstPlayer.release).toHaveBeenCalledOnce();
+    expect(renderer!.root.find(
+      (node) => String(node.type) === "VideoView",
+    ).props.player.source.uri).toBe(secondVideoUrl);
+    act(() => findVerticalPager(renderer!).props.onPageSelected({
+      nativeEvent: { position: 0 },
+    }));
+    const returnedPlayer = renderer!.root.find(
+      (node) => String(node.type) === "VideoView",
+    ).props.player;
+    expect(returnedPlayer).not.toBe(firstPlayer);
+    expect(returnedPlayer.source.uri).toBe(firstVideoUrl);
+    expect(returnedPlayer.play).toHaveBeenCalled();
 
     act(() => renderer!.unmount());
   });
@@ -3368,7 +3434,7 @@ describe("DetailScreen video playback", () => {
     expect(audioPlayer.play).toHaveBeenCalled();
   });
 
-  it("prepares post music only for the active and adjacent detail pages", async () => {
+  it("prepares post music only for the selected detail product", async () => {
     const activeAudioUrl =
       "https://scontent-test.cdninstagram.com/audio/active-track.m4a";
     const adjacentAudioUrl =
@@ -3396,8 +3462,9 @@ describe("DetailScreen video playback", () => {
       distantGroupBuy,
     ];
 
+    let renderer: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      TestRenderer.create(
+      renderer = TestRenderer.create(
         <DetailScreen
           route={
             {
@@ -3415,11 +3482,18 @@ describe("DetailScreen video playback", () => {
     const preparedAudioSources = audioMock.players
       .map((player) => player.source)
       .filter(Boolean);
-    expect(preparedAudioSources).toHaveLength(2);
-    expect(preparedAudioSources).toEqual(
-      expect.arrayContaining([activeAudioUrl, adjacentAudioUrl]),
-    );
+    expect(preparedAudioSources).toEqual([activeAudioUrl]);
+    expect(preparedAudioSources).not.toContain(adjacentAudioUrl);
     expect(preparedAudioSources).not.toContain(distantAudioUrl);
+    await act(async () => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 1 },
+      });
+      await Promise.resolve();
+    });
+    expect(audioMock.players.map(player => player.source).filter(Boolean))
+      .toEqual([adjacentAudioUrl]);
+    act(() => renderer!.unmount());
   });
 
   it("keeps post music position while background playback is paused", async () => {
