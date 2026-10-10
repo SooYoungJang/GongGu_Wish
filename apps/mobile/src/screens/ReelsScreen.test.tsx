@@ -3,6 +3,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReelsScreen } from "./ReelsScreen";
+import { setMediaMuted } from "../hooks/useMediaMutePreference";
 import {
   REEL_PAGE_WINDOW_EDGE,
   REEL_PAGE_WINDOW_SIZE,
@@ -192,6 +193,7 @@ vi.mock("./DetailScreen", () => {
 
 describe("ReelsScreen player lifecycle", () => {
   beforeEach(() => {
+    act(() => setMediaMuted(false));
     appStateMock.currentState = "active";
     appStateMock.listener = null;
     focusMock.blur = null;
