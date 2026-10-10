@@ -94,6 +94,7 @@ import {
 import { useTheme } from "../context/ThemeContext";
 import { useGroupBuyReminderPicker } from "../context/GroupBuyReminderPickerContext";
 import { usePostAudioPlayer } from "../hooks/usePostAudioPlayer";
+import { useMediaMutePreference } from "../hooks/useMediaMutePreference";
 import type { ColorPalette } from "../context/ThemeContext";
 import type { DetailScreenProps, GroupBuy } from "../types";
 import { formatDateRange, getDaysRemaining } from "../utils";
@@ -2627,6 +2628,8 @@ function DetailScreenContent({
     usePlaybackLifecycle();
   const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
   const [isSearchSheetVisible, setSearchSheetVisible] = useState(false);
+  const { muted: isMediaMuted, setMuted: setMediaMuted } =
+    useMediaMutePreference();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   useEffect(() => {
@@ -3021,6 +3024,8 @@ function DetailScreenContent({
         onBack={handleBack}
         showDetailAd
         onCloseSearchSheet={closeSearchSheet}
+        muted={isMediaMuted}
+        onMutedChange={setMediaMuted}
         onPlaybackStateChange={handlePlaybackStateChange}
         onSummarySheetStateChange={handleSummarySheetStateChange}
         s={s}
@@ -3038,6 +3043,7 @@ function DetailScreenContent({
       insets.top,
       isOnAdPage,
       isPlaybackActive,
+      isMediaMuted,
       isScreenFocused,
       isSearchSheetVisible,
       navigation,
@@ -3045,6 +3051,7 @@ function DetailScreenContent({
       searchSheetMetrics,
       screenHeight,
       screenWidth,
+      setMediaMuted,
     ],
   );
 
