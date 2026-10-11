@@ -28,6 +28,7 @@ import { logDeepView } from "../api";
 import { useAds } from "../ads/AdsContext";
 import { useRecentViews } from "../hooks/useLocalDeals";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
+import { useMediaMutePreference } from "../hooks/useMediaMutePreference";
 import { useTabReselect } from "../hooks/useTabReselect";
 import { useTheme } from "../context/ThemeContext";
 import type { GroupBuy, MainTabParamList } from "../types";
@@ -147,7 +148,8 @@ export function ReelsScreen({
     isPlaybackActive,
   } = usePlaybackLifecycle();
   const [isActivePlayerPlaying, setActivePlayerPlaying] = useState(false);
-  const [isReelsMuted, setReelsMuted] = useState(false);
+  const { muted: isReelsMuted, setMuted: setReelsMuted } =
+    useMediaMutePreference();
   const { recordView } = useRecentViews();
 
   useEffect(() => {
@@ -360,6 +362,7 @@ export function ReelsScreen({
       s,
       screenHeight,
       screenWidth,
+      setReelsMuted,
     ],
   );
   const organicReelItems = useMemo(

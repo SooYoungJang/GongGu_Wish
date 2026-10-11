@@ -338,6 +338,7 @@ import {
   hasPlayableVideoMedia,
 } from "./DetailScreen";
 import { spacing } from "../design/tokens";
+import { setMediaMuted } from "../hooks/useMediaMutePreference";
 import { REELS_SUMMARY_SHEET_ANIMATION_MS } from "../design/bottomSheetMotion";
 import type { GroupBuy } from "../types";
 
@@ -713,6 +714,7 @@ const baseGroupBuy: GroupBuy = {
 };
 
 beforeEach(() => {
+  act(() => setMediaMuted(false));
   (globalThis as any).__mockKeyboardHeight = 0;
   appStateMock.currentState = "active";
   appStateMock.listener = null;
