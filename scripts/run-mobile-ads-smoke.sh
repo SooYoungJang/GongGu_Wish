@@ -130,8 +130,13 @@ for attempt in $(seq 1 120); do
     && has_event "native_ad_media_layout" "reels"; then
     sleep 2
     adb shell pidof "$package_name" >/dev/null
-    write_result
     capture_evidence
+    if grep -F 'Not all asset views lie inside the native ad view' \
+        "$artifact_dir/ads-logcat.txt" >/dev/null; then
+      echo "Native ad assets exceeded their owning ad view" >&2
+      exit 1
+    fi
+    write_result
     test -s "$artifact_dir/ads-runtime-smoke.png"
     test -s "$artifact_dir/ads-runtime-smoke.xml"
     test -s "$artifact_dir/ads-runtime-result.json"
