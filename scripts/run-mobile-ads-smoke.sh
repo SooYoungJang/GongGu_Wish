@@ -125,7 +125,9 @@ for attempt in $(seq 1 120); do
     && has_event "native_ad_request_started" "home" \
     && has_event "native_ad_request_started" "reels" \
     && has_event "native_ad_loaded" "home" \
-    && has_event "native_ad_loaded" "reels"; then
+    && has_event "native_ad_loaded" "reels" \
+    && has_event "native_ad_media_layout" "home" \
+    && has_event "native_ad_media_layout" "reels"; then
     sleep 2
     adb shell pidof "$package_name" >/dev/null
     write_result
@@ -138,5 +140,5 @@ for attempt in $(seq 1 120); do
   sleep 1
 done
 
-echo "Timed out waiting for both official Google test ads to load" >&2
+echo "Timed out waiting for official Google test ads to load and lay out media" >&2
 exit 1
