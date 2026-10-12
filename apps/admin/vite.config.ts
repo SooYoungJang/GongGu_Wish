@@ -58,6 +58,10 @@ export default defineConfig(({ mode }) => {
         supabaseProjectRef: runtimeConfig.projectRef,
         supabaseOrigin: runtimeConfig.supabaseUrl,
         adminApiOrigin: runtimeConfig.adminApiOrigin,
+        deploymentUrl:
+          isVercel && env.VERCEL_URL ? `https://${env.VERCEL_URL}` : "",
+        deploymentId: isVercel ? env.VERCEL_DEPLOYMENT_ID || "" : "",
+        vercelProjectId: isVercel ? env.VERCEL_PROJECT_ID || "" : "",
       }),
     ],
     resolve: {
