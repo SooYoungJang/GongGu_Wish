@@ -131,6 +131,36 @@ for attempt in $(seq 1 120); do
     sleep 2
     adb shell pidof "$package_name" >/dev/null
     capture_evidence
+    python3 - "$artifact_dir/ads-runtime-smoke.xml" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+tree = ET.parse(sys.argv[1]).getroot()
+
+def bounds(node):
+    values = [int(value) for value in re.findall(r"\d+", node.get("bounds", ""))]
+    if len(values) != 4:
+        raise SystemExit("Native ad bounds were malformed")
+    return values
+
+for placement in ("home", "reels"):
+    expected_id = f"ads-runtime-smoke-{placement}-ad"
+    ad = next((node for node in tree.iter("node")
+               if node.get("resource-id", "").endswith(expected_id)), None)
+    if ad is None:
+        raise SystemExit(f"{placement} native ad was not visible")
+    left, top, right, bottom = bounds(ad)
+    buttons = [node for node in ad.iter("node")
+               if node.get("class") == "android.widget.Button"]
+    if not buttons:
+        raise SystemExit(f"{placement} native ad CTA was not visible")
+    for button in buttons:
+        x1, y1, x2, y2 = bounds(button)
+        if not (left <= x1 < x2 <= right and top <= y1 < y2 <= bottom):
+            raise SystemExit(f"{placement} native ad CTA exceeded its ad view")
+print("Home and reels CTAs are visible inside their native ad views")
+PY
     if grep -F 'Not all asset views lie inside the native ad view' \
         "$artifact_dir/ads-logcat.txt" >/dev/null; then
       echo "Native ad assets exceeded their owning ad view" >&2
