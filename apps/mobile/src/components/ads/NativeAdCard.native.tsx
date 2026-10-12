@@ -1,5 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Image, Text, View, type LayoutChangeEvent } from "react-native";
+import {
+  Image,
+  Text,
+  View,
+  useWindowDimensions,
+  type LayoutChangeEvent,
+} from "react-native";
 
 import { useAds } from "../../ads/AdsContext.native";
 import { emitAdsDiagnostic, getAdsErrorCode } from "../../ads/adsDiagnostics";
@@ -65,6 +71,7 @@ export const NativeAdCard = memo(function NativeAdCard({
   const unitId = nativeUnitIds[placement];
   const theme = useCommerceTheme();
   const styles = useMemo(() => makeNativeAdStyles(theme), [theme]);
+  const windowDimensions = useWindowDimensions();
   const isReel = variant === "reel";
   const [loadedNativeAd, setLoadedNativeAd] = useState<LoadedNativeAd | null>(
     null,
@@ -75,12 +82,29 @@ export const NativeAdCard = memo(function NativeAdCard({
   });
   const handleReelLayout = useCallback((event: LayoutChangeEvent) => {
     const { height, width } = event.nativeEvent.layout;
+    if (height <= 0 || width <= 0) return;
     setReelLayout((current) =>
       current.height === height && current.width === width
         ? current
         : { height, width },
     );
   }, []);
+  const handleMediaLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const { height, width } = event.nativeEvent.layout;
+      if (!loadedNativeAd || height <= 0 || width <= 0) return;
+      emitAdsDiagnostic({
+        event: "native_ad_media_layout",
+        placement,
+        variant,
+        height,
+        width,
+        hasVideoContent:
+          loadedNativeAd.nativeAd.mediaContent?.hasVideoContent ?? false,
+      });
+    },
+    [loadedNativeAd, placement, variant],
+  );
 
   useEffect(() => {
     setLoadedNativeAd(null);
@@ -177,6 +201,7 @@ export const NativeAdCard = memo(function NativeAdCard({
     isSettled,
     loadEnabled,
     onLoadStateChange,
+    placement,
     unitId,
     variant,
   ]);
@@ -224,15 +249,19 @@ export const NativeAdCard = memo(function NativeAdCard({
     Number.isFinite(reelBottomInset) && reelBottomInset > 0
       ? reelBottomInset
       : 0;
+  // Register the MediaView with the first native ad render. Waiting for the
+  // custom native container's onLayout can bind a video ad without its media.
+  const reelFrameHeight = reelLayout.height || windowDimensions.height;
+  const reelFrameWidth = reelLayout.width || windowDimensions.width;
   const resolvedReelBottomInset = isReel
-    ? reelLayout.height > 0
-      ? Math.min(requestedReelBottomInset, reelLayout.height - 1)
+    ? reelFrameHeight > 0
+      ? Math.min(requestedReelBottomInset, reelFrameHeight - 1)
       : requestedReelBottomInset
     : 0;
   const reelMediaSize = isReel
     ? getContainedMediaSize(
-        reelLayout.width,
-        reelLayout.height - resolvedReelBottomInset,
+        reelFrameWidth,
+        reelFrameHeight - resolvedReelBottomInset,
         nativeAd.mediaContent?.aspectRatio,
       )
     : null;
@@ -269,6 +298,7 @@ export const NativeAdCard = memo(function NativeAdCard({
           }
         >
           <NativeMediaView
+            onLayout={handleMediaLayout}
             resizeMode="contain"
             style={isReel ? [mediaStyle, reelMediaSize] : mediaStyle}
           />

@@ -379,7 +379,7 @@ describe("NativeAdCard", () => {
       renderer!.root.findAllByType(
         "NativeMediaView" as unknown as React.ElementType,
       ),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
     expect(
       renderer!.root
         .findAllByType("View" as unknown as React.ElementType)
@@ -390,7 +390,17 @@ describe("NativeAdCard", () => {
               style ? style.bottom === 64 : false,
             ),
         ),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
+
+    const initialMedia = renderer!.root.findByType(
+      "NativeMediaView" as unknown as React.ElementType,
+    );
+    const initialSize = initialMedia.props.style.find(
+      (style: { height?: number; width?: number }) =>
+        typeof style?.height === "number" && typeof style?.width === "number",
+    );
+    expect(initialSize.height).toBeGreaterThan(0);
+    expect(initialSize.width).toBeGreaterThan(0);
 
     act(() => {
       nativeAdView.props.onLayout({
@@ -419,6 +429,56 @@ describe("NativeAdCard", () => {
       ]),
     );
     expect(chromeAwareViews).toHaveLength(2);
+
+    act(() => {
+      nativeAdView.props.onLayout({
+        nativeEvent: {
+          layout: { height: 0, width: 0, x: 0, y: 0 },
+        },
+      });
+    });
+    expect(nativeMediaView.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ height: 202.5, width: 360 }),
+      ]),
+    );
+  });
+
+  it("loads offscreen and reuses the owned ad when its page becomes visible", async () => {
+    const destroy = vi.fn();
+    const ad = {
+      destroy,
+      headline: "미리 준비한 광고",
+      mediaContent: { aspectRatio: 16 / 9, hasVideoContent: true },
+    } as unknown as Awaited<ReturnType<typeof NativeAd.createForAdRequest>>;
+    vi.mocked(NativeAd.createForAdRequest).mockResolvedValue(ad);
+    const onLoadStateChange = vi.fn();
+    const renderAd = (visible: boolean) => (
+      <AdsContext.Provider value={enabledAds}>
+        <NativeAdCard
+          onLoadStateChange={onLoadStateChange}
+          placement="reels"
+          variant="reel"
+          visible={visible}
+        />
+      </AdsContext.Provider>
+    );
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(renderAd(false));
+      await Promise.resolve();
+    });
+    expect(renderer!.toJSON()).toBeNull();
+    expect(onLoadStateChange).toHaveBeenLastCalledWith("loaded");
+    act(() => renderer!.update(renderAd(true)));
+    expect(
+      renderer!.root.findAllByType(
+        "NativeMediaView" as unknown as React.ElementType,
+      ),
+    ).toHaveLength(1);
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
+    act(() => renderer!.unmount());
+    expect(destroy).toHaveBeenCalledOnce();
   });
 
   it("omits optional icon, media, body, advertiser, and empty CTA assets", async () => {
