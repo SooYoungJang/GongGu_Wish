@@ -1312,7 +1312,8 @@ jobs:
                         .environment == "Preview – gong-gu-wish-admin" and
                         .state == "success" and
                         ((.environment_url // "") |
-                          test("^https://gong-gu-wish-admin-[a-z0-9]+-jsy10835\\.vercel\\.app/?$"))
+                          test("^https://gong-gu-wish-admin-[a-z0-9-]+-jsy10835\\.vercel\\.app/?$")) and
+                        ((.environment_url // "") | contains("-git-") | not)
                       )
                     ] |
                     sort_by(.created_at) |
