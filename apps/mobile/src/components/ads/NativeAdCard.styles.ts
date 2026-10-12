@@ -103,6 +103,9 @@ export function makeNativeAdStyles(theme: ReturnType<typeof useCommerceTheme>) {
       backgroundColor: "#000000",
     },
     compactMedia: {
+      // The SDK supplies the creative's aspect ratio by default. Compact
+      // frames own both dimensions; retain contain scaling inside that frame.
+      aspectRatio: undefined,
       flex: 1,
       width: "100%",
     },
