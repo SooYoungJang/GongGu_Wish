@@ -103,6 +103,9 @@ export function makeNativeAdStyles(theme: ReturnType<typeof useCommerceTheme>) {
       backgroundColor: "#000000",
     },
     compactMedia: {
+      // The SDK supplies the creative's aspect ratio by default. Compact
+      // frames own both dimensions; retain contain scaling inside that frame.
+      aspectRatio: undefined,
       flex: 1,
       width: "100%",
     },
@@ -122,7 +125,9 @@ export function makeNativeAdStyles(theme: ReturnType<typeof useCommerceTheme>) {
       right: 0,
     },
     tileContent: {
-      flex: 1,
+      // Preserve the assets' intrinsic height so the owning ad grows with them.
+      flexGrow: 1,
+      flexShrink: 0,
       gap: spacing.xs,
       minWidth: 0,
       paddingTop: spacing.sm,
