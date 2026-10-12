@@ -9,6 +9,12 @@ import type { Session, User } from "@supabase/supabase-js";
 import { adminApi } from "@/lib/adminApi";
 import { StatCard } from "@/components/StatCard";
 import {
+  AdminNavigation,
+  type AdminTabKey,
+} from "@/components/AdminNavigation";
+import { EditorSections } from "@/components/EditorSections";
+import { ProductSourcePanel } from "@/components/ProductSourcePanel";
+import {
   AppLivePreview,
   type AppLivePreviewDeal,
 } from "@/components/AppLivePreview";
@@ -71,21 +77,11 @@ import type {
   SubmissionNotificationDelivery,
 } from "@/types";
 import "./App.css";
+import "./AdminWorkspace.css";
 
 type Notice = { tone: "success" | "error" | "info"; message: string } | null;
 
-type TabKey =
-  | "dashboard"
-  | "submissions"
-  | "autoCollection"
-  | "groupBuys"
-  | "groupBuyRequests"
-  | "users"
-  | "notifications"
-  | "comments"
-  | "productReports"
-  | "appDiagnostics"
-  | "cdnRefresh";
+type TabKey = AdminTabKey;
 
 type SubmissionForm = {
   productName: string;
@@ -1864,123 +1860,36 @@ function AdminShell({ session }: { session: Session }) {
 
   return (
     <div className="admin-shell">
-      <aside className="sidebar">
+      <header className="admin-chrome">
         <div className="brand-block">
-          <span className="brand-mark">G</span>
+          <span className="brand-mark">w</span>
           <div>
-            <strong>GongGu</strong>
-            <span>Operations Console</span>
+            <strong>공구위시</strong>
+            <span>앱 편집 데스크</span>
           </div>
         </div>
-        <div className="sidebar-summary">
-          <span className="summary-dot" />
-          <div>
-            <strong>{dashboard?.totals.pending.toLocaleString() ?? "-"}</strong>
-            <span>검수 대기</span>
-          </div>
+        <div className="topbar-actions">
+          <span className="operator">
+            {session.user.email ?? session.user.id}
+          </span>
+          <button
+            className="button button--secondary"
+            disabled={isRefreshing}
+            onClick={() => void refreshActive()}
+            type="button"
+          >
+            {isRefreshing ? "새로고침 중..." : "새로고침"}
+          </button>
+          <button
+            className="button button--ghost"
+            onClick={() => void supabase.auth.signOut()}
+            type="button"
+          >
+            로그아웃
+          </button>
         </div>
-        <nav className="nav-tabs" aria-label="관리자 메뉴">
-          <button
-            aria-current={tab === "dashboard" ? "page" : undefined}
-            className={tab === "dashboard" ? "active" : ""}
-            onClick={() => switchTab("dashboard")}
-            type="button"
-          >
-            <span>Overview</span>
-            <strong>대시보드</strong>
-          </button>
-          <button
-            aria-current={tab === "submissions" ? "page" : undefined}
-            className={tab === "submissions" ? "active" : ""}
-            onClick={() => switchTab("submissions")}
-            type="button"
-          >
-            <span>Review queue</span>
-            <strong>위시 검수</strong>
-          </button>
-          <button
-            aria-current={tab === "autoCollection" ? "page" : undefined}
-            className={tab === "autoCollection" ? "active" : ""}
-            onClick={() => switchTab("autoCollection")}
-            type="button"
-          >
-            <span>Playwright collection</span>
-            <strong>자동 수집 검수</strong>
-          </button>
-          <button
-            aria-current={tab === "groupBuys" ? "page" : undefined}
-            className={tab === "groupBuys" ? "active" : ""}
-            onClick={() => switchTab("groupBuys")}
-            type="button"
-          >
-            <span>Catalog</span>
-            <strong>공구 관리</strong>
-          </button>
-          <button
-            aria-current={tab === "groupBuyRequests" ? "page" : undefined}
-            className={tab === "groupBuyRequests" ? "active" : ""}
-            onClick={() => switchTab("groupBuyRequests")}
-            type="button"
-          >
-            <span>Demand</span>
-            <strong>공구 요청</strong>
-          </button>
-          <button
-            aria-current={tab === "users" ? "page" : undefined}
-            className={tab === "users" ? "active" : ""}
-            onClick={() => switchTab("users")}
-            type="button"
-          >
-            <span>Audience</span>
-            <strong>가입자 관리</strong>
-          </button>
-          <button
-            aria-current={tab === "notifications" ? "page" : undefined}
-            className={tab === "notifications" ? "active" : ""}
-            onClick={() => switchTab("notifications")}
-            type="button"
-          >
-            <span>Messaging</span>
-            <strong>푸시 발송</strong>
-          </button>
-          <button
-            aria-current={tab === "productReports" ? "page" : undefined}
-            className={tab === "productReports" ? "active" : ""}
-            onClick={() => switchTab("productReports")}
-            type="button"
-          >
-            <span>상품 정보</span>
-            <strong>정보 신고</strong>
-          </button>
-          <button
-            aria-current={tab === "appDiagnostics" ? "page" : undefined}
-            className={tab === "appDiagnostics" ? "active" : ""}
-            onClick={() => switchTab("appDiagnostics")}
-            type="button"
-          >
-            <span>운영</span>
-            <strong>앱 진단</strong>
-          </button>
-          <button
-            aria-current={tab === "comments" ? "page" : undefined}
-            className={tab === "comments" ? "active" : ""}
-            onClick={() => switchTab("comments")}
-            type="button"
-          >
-            <span>Community safety</span>
-            <strong>댓글 관리</strong>
-          </button>
-          <button
-            aria-current={tab === "cdnRefresh" ? "page" : undefined}
-            className={tab === "cdnRefresh" ? "active" : ""}
-            onClick={() => switchTab("cdnRefresh")}
-            type="button"
-          >
-            <span>Media cache</span>
-            <strong>CDN 갱신</strong>
-          </button>
-        </nav>
-      </aside>
+      </header>
+      <AdminNavigation activeTab={tab} onSelect={switchTab} />
 
       <main className="workspace">
         <header className="topbar">
@@ -1988,30 +1897,16 @@ function AdminShell({ session }: { session: Session }) {
             <p className="eyebrow">
               {formatDateTime(new Date().toISOString())}
             </p>
-            <h1>{tabTitle(tab)}</h1>
+            <h1>
+              {showSubmissionDetail || showGroupBuyDetail
+                ? "앱 화면 편집"
+                : tabTitle(tab)}
+            </h1>
             <p className="topbar-copy">
-              오늘의 운영 상태와 처리 우선순위를 확인합니다.
+              {showSubmissionDetail || showGroupBuyDetail
+                ? "원본을 확인하고, 앱 화면을 보면서 상품 정보를 편집하세요."
+                : `${tabTitle(tab)}에서 필요한 운영 항목을 확인하세요.`}
             </p>
-          </div>
-          <div className="topbar-actions">
-            <span className="operator">
-              {session.user.email ?? session.user.id}
-            </span>
-            <button
-              className="button button--secondary"
-              disabled={isRefreshing}
-              onClick={() => void refreshActive()}
-              type="button"
-            >
-              {isRefreshing ? "새로고침 중..." : "새로고침"}
-            </button>
-            <button
-              className="button button--ghost"
-              onClick={() => void supabase.auth.signOut()}
-              type="button"
-            >
-              로그아웃
-            </button>
           </div>
         </header>
 
@@ -3242,8 +3137,9 @@ function SubmissionEditor(props: {
       (props.selected.notificationDelivery.failedCount > 0 ||
         props.selected.notificationDelivery.retryingCount > 0),
     );
+  const previewDeal = formToPreviewDeal(form);
   return (
-    <aside className="detail-panel">
+    <aside className="detail-panel app-editor">
       {props.hikerLookupLoading ? (
         <div
           aria-busy="true"
@@ -3258,259 +3154,317 @@ function SubmissionEditor(props: {
           </div>
         </div>
       ) : null}
-      <div className="detail-back-bar">
-        <button className="detail-back" onClick={props.onClose} type="button">
-          ← 목록으로
-        </button>
-      </div>
-      <div className="detail-title">
-        <div>
-          <p className="eyebrow">Review</p>
-          <h3>{form.productName || "검수 대기 위시템"}</h3>
-          <p>
-            접수 {formatDateTime(props.selected.createdAt)} · 수정{" "}
-            {formatDateTime(props.selected.updatedAt)}
-          </p>
+      <div className="app-editor-header">
+        <div className="detail-back-bar">
+          <button className="detail-back" onClick={props.onClose} type="button">
+            ← 목록으로
+          </button>
         </div>
-        <StatusBadge status={props.selected.status} />
-      </div>
+        <div className="detail-title">
+          <div>
+            <p className="eyebrow">위시 검수</p>
+            <h3>{form.productName || "검수 대기 위시템"}</h3>
+            <p>
+              접수 {formatDateTime(props.selected.createdAt)} · 수정{" "}
+              {formatDateTime(props.selected.updatedAt)}
+            </p>
+          </div>
+          <div className="app-editor__heading-actions">
+            <StatusBadge status={props.selected.status} />
 
-      <div className="review-preview">
-        {form.thumbnailUrl ? (
-          <img alt="" src={form.thumbnailUrl} />
-        ) : (
-          <div className="preview-empty">No image</div>
-        )}
-        <div>
-          <strong>{form.brandName || "브랜드 미지정"}</strong>
-          <span>{form.category || "카테고리 미지정"}</span>
-          <p>
-            {form.summary ||
-              "요약이 없습니다. Hiker 조회 또는 수동 입력으로 승인 품질을 높여주세요."}
-          </p>
+            <div className="action-row action-row--end">
+              {canRetryNotification ? (
+                <button
+                  className="button button--secondary"
+                  disabled={props.actionLoading}
+                  onClick={props.onRetryNotification}
+                  type="button"
+                >
+                  승인 알림 재시도
+                </button>
+              ) : null}
+              <button
+                className="button button--secondary"
+                disabled={props.actionLoading}
+                onClick={props.onSave}
+                type="button"
+              >
+                저장
+              </button>
+              <button
+                className="button button--danger"
+                disabled={isReviewRejectDisabled(
+                  props.actionLoading,
+                  canApprove,
+                )}
+                onClick={props.onReject}
+                type="button"
+              >
+                반려
+              </button>
+              <button
+                className="button button--primary"
+                disabled={props.actionLoading || !canApprove}
+                onClick={props.onApprove}
+                type="button"
+              >
+                공구 등록
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-
-      <div className="action-row">
-        <a
-          className="button button--ghost"
-          href={form.instagramUrl}
-          rel="noreferrer"
-          target="_blank"
-        >
-          원본 열기
-        </a>
-        <button
-          className="button button--secondary"
-          disabled={props.actionLoading}
-          onClick={props.onLookupHiker}
-          type="button"
-        >
-          Hiker 조회
-        </button>
-      </div>
-
-      <AppLivePreview deal={formToPreviewDeal(form)} />
-
-      <div className="form-grid">
-        <TextField
-          label="제품명"
-          value={form.productName}
-          onChange={(value) => setField("productName", value)}
-          required
-        />
-        <SelectField
-          label="카테고리"
-          value={form.category}
-          options={CATEGORY_OPTIONS}
-          onChange={(value) => setField("category", value)}
-        />
-        <TextField
-          label="브랜드명"
-          value={form.brandName}
-          onChange={(value) => setField("brandName", value)}
-        />
-        <TextField
-          label="인스타 계정"
-          value={form.instagramUsername}
-          onChange={(value) =>
-            props.onChange(applyInstagramUsernameChange(form, value))
-          }
-        />
-        <ProfileImageFormField
+      <div className="app-editor-grid">
+        <ProductSourcePanel
+          productName={form.productName}
+          imageUrl={form.thumbnailUrl}
           instagramUsername={form.instagramUsername}
           profileImageUrl={form.profileImageUrl}
-          onChange={(value) =>
-            props.onChange(applyProfileImageUrlChange(form, value))
+          summary={props.selected.summary}
+          mediaCount={previewDeal.mediaCount}
+          mediaType={mediaTypeLabel(
+            inferFormMediaType(form.mediaItems, splitLines(form.mediaUrlsText)),
+          )}
+          origin={"위시"}
+          hikerStatus={
+            props.hikerLookupLoading
+              ? "조회 중"
+              : "원본 게시물 정보를 조회할 수 있습니다."
+          }
+          actions={
+            <>
+              <button
+                className="button button--secondary button--hiker"
+                disabled={props.actionLoading}
+                onClick={props.onLookupHiker}
+                type="button"
+              >
+                Hiker 조회
+              </button>
+              {validOriginalPostUrl(form.instagramUrl) ? (
+                <a
+                  className="button button--ghost"
+                  href={validOriginalPostUrl(form.instagramUrl) ?? undefined}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  원본 열기
+                </a>
+              ) : null}
+            </>
           }
         />
-        <TextField
-          label="구매 URL"
-          value={form.purchaseUrl}
-          onChange={(value) => setField("purchaseUrl", value)}
-        />
-        <DatePickerField
-          label="시작일"
-          value={form.startDate}
-          onChange={(value) => setField("startDate", value)}
-          max={form.endDate || undefined}
-        />
-        <DatePickerField
-          label="마감일"
-          value={form.endDate}
-          onChange={(value) => setField("endDate", value)}
-          min={form.startDate || undefined}
-        />
-        <TextField
-          label="할인 정보"
-          value={form.discountInfo}
-          onChange={(value) => setField("discountInfo", value)}
-        />
-        <TextField
-          label="가격 (원)"
-          value={form.priceKrw}
-          onChange={(value) => setField("priceKrw", value)}
-          type="number"
-          min={0}
-          max={MAX_PRICE_KRW}
-          step={1}
-        />
-        <TextField
-          label="썸네일 URL"
-          value={form.thumbnailUrl}
-          onChange={(value) => setField("thumbnailUrl", value)}
-        />
-        <div className="auto-field">
-          <span>미디어 타입</span>
-          <strong>
-            {mediaTypeLabel(
-              inferFormMediaType(
-                form.mediaItems,
-                splitLines(form.mediaUrlsText),
-              ),
-            )}
-          </strong>
-          <small>Hiker 미디어를 기준으로 자동 감지됩니다.</small>
-        </div>
-      </div>
+        <AppLivePreview deal={previewDeal} initialTab="detail" />
+        <section className="editor-properties" aria-label="상품 정보 편집">
+          <div className="editor-column-heading">
+            <span className="editor-column-step">03</span>
+            <h2>상품 편집</h2>
+            <span className="editor-column-meta">저장 전 미리보기</span>
+          </div>
 
-      <CheckboxField
-        label="홈 배너에 노출"
-        checked={form.isHomeBanner}
-        onChange={(value) => setField("isHomeBanner", value)}
-      />
-      {form.isHomeBanner ? (
-        <div className="form-grid banner-schedule-fields">
-          <DatePickerField
-            label="배너 노출 시작일"
-            value={form.homeBannerStartDate}
-            onChange={(value) => setField("homeBannerStartDate", value)}
-            max={form.homeBannerEndDate || undefined}
+          <EditorSections
+            key={props.selected.id}
+            info={
+              <>
+                <div className="form-grid editor-info-grid">
+                  <TextField
+                    label="제품명"
+                    value={form.productName}
+                    onChange={(value) => setField("productName", value)}
+                    required
+                  />
+                  <SelectField
+                    label="카테고리"
+                    value={form.category}
+                    options={CATEGORY_OPTIONS}
+                    onChange={(value) => setField("category", value)}
+                  />
+                  <TextField
+                    label="브랜드명"
+                    value={form.brandName}
+                    onChange={(value) => setField("brandName", value)}
+                  />
+                  <TextField
+                    label="인스타 계정"
+                    value={form.instagramUsername}
+                    onChange={(value) =>
+                      props.onChange(applyInstagramUsernameChange(form, value))
+                    }
+                  />
+                  <div className="editor-wide">
+                    <TextField
+                      label="구매 URL"
+                      value={form.purchaseUrl}
+                      onChange={(value) => setField("purchaseUrl", value)}
+                    />
+                  </div>
+
+                  <TextField
+                    label="할인 정보"
+                    value={form.discountInfo}
+                    onChange={(value) => setField("discountInfo", value)}
+                  />
+                  <TextField
+                    label="가격 (원)"
+                    value={form.priceKrw}
+                    onChange={(value) => setField("priceKrw", value)}
+                    type="number"
+                    min={0}
+                    max={MAX_PRICE_KRW}
+                    step={1}
+                  />
+                </div>
+                <p className="editor-price-hint">
+                  가격을 입력하지 않으면 앱에서 가격 영역이 숨겨집니다.
+                </p>
+                <details className="editor-disclosure">
+                  <summary>앱 요약 · 관리 메모</summary>
+                  <TextareaField
+                    label="요약"
+                    value={form.summary}
+                    onChange={(value) => setField("summary", value)}
+                    rows={5}
+                  />
+                  <TextareaField
+                    label="관리 메모"
+                    value={form.adminMemo}
+                    onChange={(value) => setField("adminMemo", value)}
+                    rows={3}
+                  />
+                </details>
+              </>
+            }
+            media={
+              <>
+                <div className="form-grid">
+                  <div className="editor-wide">
+                    <TextField
+                      label="썸네일 URL"
+                      value={form.thumbnailUrl}
+                      onChange={(value) => setField("thumbnailUrl", value)}
+                    />
+                  </div>
+                  <div className="editor-wide">
+                    <div className="auto-field">
+                      <span>미디어 타입</span>
+                      <strong>
+                        {mediaTypeLabel(
+                          inferFormMediaType(
+                            form.mediaItems,
+                            splitLines(form.mediaUrlsText),
+                          ),
+                        )}
+                      </strong>
+                      <small>Hiker 미디어를 기준으로 자동 감지됩니다.</small>
+                    </div>
+                  </div>
+                </div>
+                <TextareaField
+                  label="미디어 URL 목록"
+                  value={form.mediaUrlsText}
+                  onChange={(value) => setField("mediaUrlsText", value)}
+                  rows={4}
+                />
+                <ProfileImageFormField
+                  instagramUsername={form.instagramUsername}
+                  profileImageUrl={form.profileImageUrl}
+                  onChange={(value) =>
+                    props.onChange(applyProfileImageUrlChange(form, value))
+                  }
+                />
+              </>
+            }
+            visibility={
+              <>
+                <div className="form-grid">
+                  <DatePickerField
+                    label="시작일"
+                    value={form.startDate}
+                    onChange={(value) => setField("startDate", value)}
+                    max={form.endDate || undefined}
+                  />
+                  <DatePickerField
+                    label="마감일"
+                    value={form.endDate}
+                    onChange={(value) => setField("endDate", value)}
+                    min={form.startDate || undefined}
+                  />
+                </div>
+                <p className="editor-price-hint">
+                  공구 기간과 홈 배너 노출 기간은 별도로 관리됩니다.
+                </p>
+                <CheckboxField
+                  label="홈 배너에 노출"
+                  checked={form.isHomeBanner}
+                  onChange={(value) => setField("isHomeBanner", value)}
+                />
+                {form.isHomeBanner ? (
+                  <div className="form-grid banner-schedule-fields">
+                    <DatePickerField
+                      label="배너 노출 시작일"
+                      value={form.homeBannerStartDate}
+                      onChange={(value) =>
+                        setField("homeBannerStartDate", value)
+                      }
+                      max={form.homeBannerEndDate || undefined}
+                    />
+                    <DatePickerField
+                      label="배너 노출 종료일"
+                      value={form.homeBannerEndDate}
+                      onChange={(value) => setField("homeBannerEndDate", value)}
+                      min={form.homeBannerStartDate || undefined}
+                    />
+                  </div>
+                ) : null}
+                <TextareaField
+                  label="반려 사유 (선택)"
+                  value={props.rejectReason}
+                  onChange={props.onRejectReasonChange}
+                  rows={3}
+                />
+              </>
+            }
           />
-          <DatePickerField
-            label="배너 노출 종료일"
-            value={form.homeBannerEndDate}
-            onChange={(value) => setField("homeBannerEndDate", value)}
-            min={form.homeBannerStartDate || undefined}
-          />
-        </div>
-      ) : null}
-      <TextareaField
-        label="요약"
-        value={form.summary}
-        onChange={(value) => setField("summary", value)}
-        rows={5}
-      />
-      <TextareaField
-        label="미디어 URL 목록"
-        value={form.mediaUrlsText}
-        onChange={(value) => setField("mediaUrlsText", value)}
-        rows={4}
-      />
-      <TextareaField
-        label="관리 메모"
-        value={form.adminMemo}
-        onChange={(value) => setField("adminMemo", value)}
-        rows={3}
-      />
-      <TextareaField
-        label="반려 사유 (선택)"
-        value={props.rejectReason}
-        onChange={props.onRejectReasonChange}
-        rows={3}
-      />
-
-      <div className="audit-card">
-        <div>
-          <span>검수자</span>
-          <strong>{props.selected.reviewedBy || "아직 없음"}</strong>
-        </div>
-        <div>
-          <span>검수 시각</span>
-          <strong>{formatDateTime(props.selected.reviewedAt)}</strong>
-        </div>
-        <div>
-          <span>연결 공구</span>
-          <strong>{props.selected.groupBuyId || "-"}</strong>
-        </div>
-        <div>
-          <span>연결 로그인 제보자</span>
-          <strong>
-            {props.selected.notificationDelivery?.linkedSubmitterCount ?? 0}명
-          </strong>
-        </div>
-        <div>
-          <span>승인 알림</span>
-          <strong>
-            {submissionDeliveryLabel(props.selected.notificationDelivery)}
-          </strong>
-        </div>
-        <div>
-          <span>콘텐츠 해시</span>
-          <strong>{props.selected.contentHash || "-"}</strong>
-        </div>
-      </div>
-
-      <div className="action-row action-row--end">
-        {canRetryNotification ? (
-          <button
-            className="button button--secondary"
-            disabled={props.actionLoading}
-            onClick={props.onRetryNotification}
-            type="button"
-          >
-            승인 알림 재시도
-          </button>
-        ) : null}
-        <button
-          className="button button--secondary"
-          disabled={props.actionLoading}
-          onClick={props.onSave}
-          type="button"
-        >
-          저장
-        </button>
-        <button
-          className="button button--danger"
-          disabled={isReviewRejectDisabled(props.actionLoading, canApprove)}
-          onClick={props.onReject}
-          type="button"
-        >
-          반려
-        </button>
-        <button
-          className="button button--primary"
-          disabled={props.actionLoading || !canApprove}
-          onClick={props.onApprove}
-          type="button"
-        >
-          공구 등록
-        </button>
+          <details className="editor-disclosure">
+            <summary>검수 이력 · 운영 기록</summary>
+            <div className="audit-card">
+              <div>
+                <span>검수자</span>
+                <strong>{props.selected.reviewedBy || "아직 없음"}</strong>
+              </div>
+              <div>
+                <span>검수 시각</span>
+                <strong>{formatDateTime(props.selected.reviewedAt)}</strong>
+              </div>
+              <div>
+                <span>연결 공구</span>
+                <strong>{props.selected.groupBuyId || "-"}</strong>
+              </div>
+              <div>
+                <span>연결 로그인 제보자</span>
+                <strong>
+                  {props.selected.notificationDelivery?.linkedSubmitterCount ??
+                    0}
+                  명
+                </strong>
+              </div>
+              <div>
+                <span>승인 알림</span>
+                <strong>
+                  {submissionDeliveryLabel(props.selected.notificationDelivery)}
+                </strong>
+              </div>
+              <div>
+                <span>콘텐츠 해시</span>
+                <strong>{props.selected.contentHash || "-"}</strong>
+              </div>
+            </div>
+          </details>
+        </section>
       </div>
     </aside>
   );
 }
-
 type ManualDiscoveryDraft = {
   postUrl: string;
   instagramUsername: string;
@@ -3620,8 +3574,8 @@ function GroupBuyPanel(props: {
           </h2>
           {props.automaticCollection ? (
             <p>
-              Playwright 공개 수집과 관리자가 직접 발견한 게시물입니다. 등록된
-              후보는 별도 승인 전까지 앱에 공개되지 않습니다.
+              수집하거나 직접 발견한 개별 공구 게시물입니다. 등록된 후보는 별도
+              승인 전까지 앱에 공개되지 않습니다.
             </p>
           ) : null}
         </div>
@@ -4208,8 +4162,9 @@ export function GroupBuyEditor(props: {
     props.selected,
   );
 
+  const previewDeal = formToPreviewDeal(form);
   return (
-    <aside className="detail-panel">
+    <aside className="detail-panel app-editor">
       {props.hikerLookupLoading ? (
         <div
           aria-busy="true"
@@ -4224,306 +4179,386 @@ export function GroupBuyEditor(props: {
           </div>
         </div>
       ) : null}
-      <div className="detail-back-bar">
-        <button className="detail-back" onClick={props.onClose} type="button">
-          ← 목록으로
-        </button>
-      </div>
-      <div className="detail-title">
-        <div>
-          <p className="eyebrow">{props.selected.sourceType ?? "GROUP_BUY"}</p>
-          <h3>{form.productName || "상품명 없음"}</h3>
-        </div>
-        <StatusBadge
-          status={props.automaticCollection ? reviewStatus : form.status}
-        />
-      </div>
-      {props.automaticCollection ? (
-        <div className="action-row">
-          {validOriginalPostUrl(sourceOriginalPostUrl) ? (
-            <a
-              className="button button--ghost"
-              href={validOriginalPostUrl(sourceOriginalPostUrl) ?? undefined}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              Instagram 원본
-            </a>
-          ) : null}
-          <button
-            className="button button--secondary"
-            disabled={props.actionLoading || !reviewPending}
-            onClick={props.onLookupHiker}
-            type="button"
-          >
-            Hiker 조회
+      <div className="app-editor-header">
+        <div className="detail-back-bar">
+          <button className="detail-back" onClick={props.onClose} type="button">
+            ← 목록으로
           </button>
         </div>
-      ) : null}
-      {!props.automaticCollection ? (
-        <div className="visibility-toggle">
-          <button
-            className="button button--danger"
-            disabled={props.actionLoading || !visibility.canHide}
-            onClick={() => props.onToggleVisibility(true)}
-            type="button"
-          >
-            노출 중지
-          </button>
-          <button
-            className="button button--primary"
-            disabled={props.actionLoading || !visibility.canShow}
-            onClick={() => props.onToggleVisibility(false)}
-            type="button"
-          >
-            다시 노출
-          </button>
-        </div>
-      ) : null}
-
-      <AppLivePreview deal={formToPreviewDeal(form)} />
-
-      {reviewReadOnly ? (
-        <p className="review-read-only-note">
-          처리 완료 당시 데이터입니다. 이후 수정은 공구 관리 탭에서 진행하세요.
-        </p>
-      ) : null}
-
-      <fieldset className="review-fieldset" disabled={reviewReadOnly}>
-        <div className="form-grid">
-          <TextField
-            label="제품명"
-            value={form.productName}
-            onChange={(value) => setField("productName", value)}
-            required
-          />
-          <SelectField
-            label="카테고리"
-            value={form.category}
-            options={CATEGORY_OPTIONS}
-            onChange={(value) => setField("category", value)}
-          />
-          <TextField
-            label="브랜드명"
-            value={form.brandName}
-            onChange={(value) => setField("brandName", value)}
-          />
-          <TextField
-            label="인스타 계정"
-            value={form.instagramUsername}
-            onChange={(value) =>
-              props.onChange(applyInstagramUsernameChange(form, value))
-            }
-          />
-          <ProfileImageFormField
-            instagramUsername={form.instagramUsername}
-            profileImageUrl={form.profileImageUrl}
-            onChange={(value) =>
-              props.onChange(applyProfileImageUrlChange(form, value))
-            }
-          />
-          <TextField
-            label="구매 URL"
-            value={form.purchaseUrl}
-            onChange={(value) => setField("purchaseUrl", value)}
-          />
-          {props.automaticCollection ? (
-            <ProfileLinkCandidates
-              candidates={profileLinkCandidates}
-              disabled={props.actionLoading || reviewReadOnly}
-              onSelect={(url) => setField("purchaseUrl", url)}
-              purchaseUrl={form.purchaseUrl}
+        <div className="detail-title">
+          <div>
+            <p className="eyebrow">
+              {props.automaticCollection
+                ? automaticCollectionSourceLabel(props.selected.sourceType)
+                : "공구 관리"}
+            </p>
+            <h3>{form.productName || "상품명 없음"}</h3>
+          </div>
+          <div className="app-editor__heading-actions">
+            <StatusBadge
+              status={props.automaticCollection ? reviewStatus : form.status}
             />
-          ) : null}
-          <DatePickerField
-            label="시작일"
-            value={form.startDate}
-            onChange={(value) => setField("startDate", value)}
-            max={form.endDate || undefined}
-          />
-          <DatePickerField
-            label="마감일"
-            value={form.endDate}
-            onChange={(value) => setField("endDate", value)}
-            min={form.startDate || undefined}
-          />
-          <TextField
-            label="할인 정보"
-            value={form.discountInfo}
-            onChange={(value) => setField("discountInfo", value)}
-          />
-          <TextField
-            label="가격 (원)"
-            value={form.priceKrw}
-            onChange={(value) => setField("priceKrw", value)}
-            type="number"
-            min={0}
-            max={MAX_PRICE_KRW}
-            step={1}
-          />
-          <TextField
-            label="썸네일 URL"
-            value={form.thumbnailUrl}
-            onChange={(value) => setField("thumbnailUrl", value)}
-          />
-          <div className="auto-field">
-            <span>미디어 타입</span>
-            <strong>
-              {mediaTypeLabel(
-                inferFormMediaType(
-                  form.mediaItems,
-                  splitLines(form.mediaUrlsText),
-                ),
+            {!props.automaticCollection ? (
+              <div className="visibility-toggle">
+                <button
+                  className="button button--danger"
+                  disabled={props.actionLoading || !visibility.canHide}
+                  onClick={() => props.onToggleVisibility(true)}
+                  type="button"
+                >
+                  노출 중지
+                </button>
+                <button
+                  className="button button--primary"
+                  disabled={props.actionLoading || !visibility.canShow}
+                  onClick={() => props.onToggleVisibility(false)}
+                  type="button"
+                >
+                  다시 노출
+                </button>
+              </div>
+            ) : null}
+            <div className="action-row action-row--end">
+              {props.automaticCollection ? (
+                reviewPending ? (
+                  <>
+                    <button
+                      className="button button--secondary"
+                      disabled={props.actionLoading}
+                      onClick={props.onSave}
+                      type="button"
+                    >
+                      저장
+                    </button>
+                    <button
+                      className="button button--danger"
+                      disabled={isReviewRejectDisabled(
+                        props.actionLoading,
+                        reviewPending,
+                      )}
+                      onClick={props.onReject}
+                      type="button"
+                    >
+                      반려
+                    </button>
+                    <button
+                      className="button button--primary"
+                      disabled={props.actionLoading}
+                      onClick={props.onApprove}
+                      type="button"
+                    >
+                      공구 등록
+                    </button>
+                  </>
+                ) : null
+              ) : (
+                <button
+                  className="button button--primary"
+                  disabled={props.actionLoading}
+                  onClick={props.onSave}
+                  type="button"
+                >
+                  저장
+                </button>
               )}
-            </strong>
-            <small>등록된 미디어를 기준으로 자동 감지됩니다.</small>
-          </div>
-          {!props.automaticCollection ? (
-            <SelectField
-              label="상태"
-              value={form.status}
-              options={GROUP_BUY_STATUS_OPTIONS.filter(
-                (item) => item.value !== "ALL",
-              )}
-              onChange={(value) => setField("status", value as GroupBuyStatus)}
-            />
-          ) : null}
-        </div>
-
-        <CheckboxField
-          label="홈 배너에 노출"
-          checked={form.isHomeBanner}
-          onChange={(value) => setField("isHomeBanner", value)}
-        />
-        {form.isHomeBanner ? (
-          <div className="form-grid banner-schedule-fields">
-            <DatePickerField
-              label="배너 노출 시작일"
-              value={form.homeBannerStartDate}
-              onChange={(value) => setField("homeBannerStartDate", value)}
-              max={form.homeBannerEndDate || undefined}
-            />
-            <DatePickerField
-              label="배너 노출 종료일"
-              value={form.homeBannerEndDate}
-              onChange={(value) => setField("homeBannerEndDate", value)}
-              min={form.homeBannerStartDate || undefined}
-            />
-          </div>
-        ) : null}
-        <TextareaField
-          label="요약"
-          value={form.summary}
-          onChange={(value) => setField("summary", value)}
-          rows={5}
-        />
-        <TextareaField
-          label="미디어 URL 목록"
-          value={form.mediaUrlsText}
-          onChange={(value) => setField("mediaUrlsText", value)}
-          rows={4}
-        />
-        {reviewPending ? (
-          <TextareaField
-            label="반려 사유 (선택)"
-            value={props.rejectReason}
-            onChange={props.onRejectReasonChange}
-            rows={3}
-          />
-        ) : null}
-      </fieldset>
-
-      {props.automaticCollection ? (
-        <div className="audit-card">
-          <div>
-            <span>수집 경로</span>
-            <strong>
-              {automaticCollectionSourceLabel(props.selected.sourceType)}
-            </strong>
-          </div>
-          <div>
-            <span>검수 결과</span>
-            <strong>{statusLabel(reviewStatus)}</strong>
-          </div>
-          <div>
-            <span>Hiker 사용</span>
-            <strong>
-              {props.selected.collectionHikerUsed
-                ? `사용 · ${formatDateTime(props.selected.collectionHikerLookupAt)}`
-                : "미사용"}
-            </strong>
-          </div>
-          <div>
-            <span>검수자</span>
-            <strong>{props.selected.reviewedBy || "아직 없음"}</strong>
-          </div>
-          <div>
-            <span>검수 시각</span>
-            <strong>{formatDateTime(props.selected.reviewedAt)}</strong>
-          </div>
-          <div>
-            <span>수집 규칙</span>
-            <strong>
-              {props.selected.collectionRulesetVersion || "기록 없음"}
-            </strong>
-          </div>
-          {props.selected.rejectionReason ? (
-            <div>
-              <span>반려 사유</span>
-              <strong>{props.selected.rejectionReason}</strong>
             </div>
-          ) : null}
+          </div>
         </div>
-      ) : null}
-
-      <div className="action-row action-row--end">
-        {props.automaticCollection ? (
-          reviewPending ? (
+      </div>
+      <div className="app-editor-grid">
+        <ProductSourcePanel
+          productName={form.productName}
+          imageUrl={form.thumbnailUrl}
+          instagramUsername={form.instagramUsername}
+          profileImageUrl={form.profileImageUrl}
+          summary={props.selected.summary}
+          mediaCount={previewDeal.mediaCount}
+          mediaType={mediaTypeLabel(
+            inferFormMediaType(form.mediaItems, splitLines(form.mediaUrlsText)),
+          )}
+          origin={
+            props.automaticCollection
+              ? automaticCollectionSourceLabel(props.selected.sourceType)
+              : "등록 공구"
+          }
+          hikerStatus={
+            props.automaticCollection
+              ? props.hikerLookupLoading
+                ? "조회 중"
+                : props.selected.collectionHikerUsed
+                  ? `조회 완료 · ${formatDateTime(props.selected.collectionHikerLookupAt)}`
+                  : "아직 조회하지 않았습니다."
+              : undefined
+          }
+          actions={
             <>
-              <button
-                className="button button--secondary"
-                disabled={props.actionLoading}
-                onClick={props.onSave}
-                type="button"
-              >
-                저장
-              </button>
-              <button
-                className="button button--danger"
-                disabled={isReviewRejectDisabled(
-                  props.actionLoading,
-                  reviewPending,
-                )}
-                onClick={props.onReject}
-                type="button"
-              >
-                반려
-              </button>
-              <button
-                className="button button--primary"
-                disabled={props.actionLoading}
-                onClick={props.onApprove}
-                type="button"
-              >
-                공구 등록
-              </button>
+              {props.automaticCollection ? (
+                <button
+                  className="button button--secondary button--hiker"
+                  disabled={props.actionLoading || !reviewPending}
+                  onClick={props.onLookupHiker}
+                  type="button"
+                >
+                  Hiker 조회
+                </button>
+              ) : null}
+              {validOriginalPostUrl(sourceOriginalPostUrl) ? (
+                <a
+                  className="button button--ghost"
+                  href={
+                    validOriginalPostUrl(sourceOriginalPostUrl) ?? undefined
+                  }
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  Instagram 원본
+                </a>
+              ) : null}
             </>
-          ) : null
-        ) : (
-          <button
-            className="button button--primary"
-            disabled={props.actionLoading}
-            onClick={props.onSave}
-            type="button"
-          >
-            저장
-          </button>
-        )}
+          }
+        />
+        <AppLivePreview deal={previewDeal} initialTab="detail" />
+        <section className="editor-properties" aria-label="상품 정보 편집">
+          <div className="editor-column-heading">
+            <span className="editor-column-step">03</span>
+            <h2>상품 편집</h2>
+            <span className="editor-column-meta">저장 전 미리보기</span>
+          </div>
+          {reviewReadOnly ? (
+            <p className="review-read-only-note">
+              처리 완료 당시 데이터입니다. 이후 수정은 공구 관리 탭에서
+              진행하세요.
+            </p>
+          ) : null}
+          <EditorSections
+            key={props.selected.id}
+            readOnly={reviewReadOnly}
+            info={
+              <>
+                <div className="form-grid editor-info-grid">
+                  <TextField
+                    label="제품명"
+                    value={form.productName}
+                    onChange={(value) => setField("productName", value)}
+                    required
+                  />
+                  <SelectField
+                    label="카테고리"
+                    value={form.category}
+                    options={CATEGORY_OPTIONS}
+                    onChange={(value) => setField("category", value)}
+                  />
+                  <TextField
+                    label="브랜드명"
+                    value={form.brandName}
+                    onChange={(value) => setField("brandName", value)}
+                  />
+                  <TextField
+                    label="인스타 계정"
+                    value={form.instagramUsername}
+                    onChange={(value) =>
+                      props.onChange(applyInstagramUsernameChange(form, value))
+                    }
+                  />
+                  <div className="editor-wide">
+                    <TextField
+                      label="구매 URL"
+                      value={form.purchaseUrl}
+                      onChange={(value) => setField("purchaseUrl", value)}
+                    />
+                  </div>
+                  {props.automaticCollection ? (
+                    <ProfileLinkCandidates
+                      candidates={profileLinkCandidates}
+                      disabled={props.actionLoading || reviewReadOnly}
+                      onSelect={(url) => setField("purchaseUrl", url)}
+                      purchaseUrl={form.purchaseUrl}
+                    />
+                  ) : null}
+                  <TextField
+                    label="할인 정보"
+                    value={form.discountInfo}
+                    onChange={(value) => setField("discountInfo", value)}
+                  />
+                  <TextField
+                    label="가격 (원)"
+                    value={form.priceKrw}
+                    onChange={(value) => setField("priceKrw", value)}
+                    type="number"
+                    min={0}
+                    max={MAX_PRICE_KRW}
+                    step={1}
+                  />
+                </div>
+                <p className="editor-price-hint">
+                  가격을 입력하지 않으면 앱에서 가격 영역이 숨겨집니다.
+                </p>
+                <details className="editor-disclosure">
+                  <summary>앱에 표시할 요약</summary>
+                  <TextareaField
+                    label="요약"
+                    value={form.summary}
+                    onChange={(value) => setField("summary", value)}
+                    rows={5}
+                  />
+                </details>
+              </>
+            }
+            media={
+              <>
+                <div className="form-grid">
+                  <div className="editor-wide">
+                    <TextField
+                      label="썸네일 URL"
+                      value={form.thumbnailUrl}
+                      onChange={(value) => setField("thumbnailUrl", value)}
+                    />
+                  </div>
+                  <div className="editor-wide">
+                    <div className="auto-field">
+                      <span>미디어 타입</span>
+                      <strong>
+                        {mediaTypeLabel(
+                          inferFormMediaType(
+                            form.mediaItems,
+                            splitLines(form.mediaUrlsText),
+                          ),
+                        )}
+                      </strong>
+                      <small>등록된 미디어를 기준으로 자동 감지됩니다.</small>
+                    </div>
+                  </div>
+                </div>
+                <TextareaField
+                  label="미디어 URL 목록"
+                  value={form.mediaUrlsText}
+                  onChange={(value) => setField("mediaUrlsText", value)}
+                  rows={4}
+                />
+                <ProfileImageFormField
+                  instagramUsername={form.instagramUsername}
+                  profileImageUrl={form.profileImageUrl}
+                  onChange={(value) =>
+                    props.onChange(applyProfileImageUrlChange(form, value))
+                  }
+                />
+              </>
+            }
+            visibility={
+              <>
+                {!props.automaticCollection ? (
+                  <SelectField
+                    label="상태"
+                    value={form.status}
+                    options={GROUP_BUY_STATUS_OPTIONS.filter(
+                      (item) => item.value !== "ALL",
+                    )}
+                    onChange={(value) =>
+                      setField("status", value as GroupBuyStatus)
+                    }
+                  />
+                ) : null}
+                <div className="form-grid">
+                  <DatePickerField
+                    label="시작일"
+                    value={form.startDate}
+                    onChange={(value) => setField("startDate", value)}
+                    max={form.endDate || undefined}
+                  />
+                  <DatePickerField
+                    label="마감일"
+                    value={form.endDate}
+                    onChange={(value) => setField("endDate", value)}
+                    min={form.startDate || undefined}
+                  />
+                </div>
+                <p className="editor-price-hint">
+                  공구 기간과 홈 배너 노출 기간은 별도로 관리됩니다.
+                </p>
+                <CheckboxField
+                  label="홈 배너에 노출"
+                  checked={form.isHomeBanner}
+                  onChange={(value) => setField("isHomeBanner", value)}
+                />
+                {form.isHomeBanner ? (
+                  <div className="form-grid banner-schedule-fields">
+                    <DatePickerField
+                      label="배너 노출 시작일"
+                      value={form.homeBannerStartDate}
+                      onChange={(value) =>
+                        setField("homeBannerStartDate", value)
+                      }
+                      max={form.homeBannerEndDate || undefined}
+                    />
+                    <DatePickerField
+                      label="배너 노출 종료일"
+                      value={form.homeBannerEndDate}
+                      onChange={(value) => setField("homeBannerEndDate", value)}
+                      min={form.homeBannerStartDate || undefined}
+                    />
+                  </div>
+                ) : null}
+                {reviewPending ? (
+                  <TextareaField
+                    label="반려 사유 (선택)"
+                    value={props.rejectReason}
+                    onChange={props.onRejectReasonChange}
+                    rows={3}
+                  />
+                ) : null}
+              </>
+            }
+          />
+          <details className="editor-disclosure">
+            <summary>검수 이력 · 운영 기록</summary>
+            {props.automaticCollection ? (
+              <div className="audit-card">
+                <div>
+                  <span>수집 경로</span>
+                  <strong>
+                    {automaticCollectionSourceLabel(props.selected.sourceType)}
+                  </strong>
+                </div>
+                <div>
+                  <span>검수 결과</span>
+                  <strong>{statusLabel(reviewStatus)}</strong>
+                </div>
+                <div>
+                  <span>Hiker 사용</span>
+                  <strong>
+                    {props.selected.collectionHikerUsed
+                      ? `사용 · ${formatDateTime(props.selected.collectionHikerLookupAt)}`
+                      : "미사용"}
+                  </strong>
+                </div>
+                <div>
+                  <span>검수자</span>
+                  <strong>{props.selected.reviewedBy || "아직 없음"}</strong>
+                </div>
+                <div>
+                  <span>검수 시각</span>
+                  <strong>{formatDateTime(props.selected.reviewedAt)}</strong>
+                </div>
+                <div>
+                  <span>수집 규칙</span>
+                  <strong>
+                    {props.selected.collectionRulesetVersion || "기록 없음"}
+                  </strong>
+                </div>
+                {props.selected.rejectionReason ? (
+                  <div>
+                    <span>반려 사유</span>
+                    <strong>{props.selected.rejectionReason}</strong>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </details>
+        </section>
       </div>
     </aside>
   );
 }
-
 function UserPanel(props: {
   actionLoading: boolean;
   form: UserForm | null;
