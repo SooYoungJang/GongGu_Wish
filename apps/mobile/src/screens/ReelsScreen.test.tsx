@@ -4,10 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReelsScreen } from "./ReelsScreen";
 import { setMediaMuted } from "../hooks/useMediaMutePreference";
-import {
-  REEL_PAGE_WINDOW_EDGE,
-  REEL_PAGE_WINDOW_SIZE,
-} from "./reelWindow";
+import { REEL_PAGE_WINDOW_EDGE, REEL_PAGE_WINDOW_SIZE } from "./reelWindow";
 
 const appStateMock = vi.hoisted(() => ({
   currentState: "active",
@@ -272,7 +269,7 @@ describe("ReelsScreen player lifecycle", () => {
     act(() => renderer!.unmount());
   });
 
-  it("keeps later ad slots when one ad request is unavailable", () => {
+  it("skips an unavailable ad without remounting the pager or losing later ads", () => {
     queryResultMock.data = manyGroupBuys;
     adsMock.enabled = true;
     adsMock.isReady = true;
@@ -301,25 +298,143 @@ describe("ReelsScreen player lifecycle", () => {
       firstAd.props.onLoadStateChange("unavailable");
     });
     expect(pagerViewMock.mounts).toBe(1);
+    expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenLastCalledWith(3);
     expect(
-      renderer!.root.findByProps({
-        testID: "reels-native-ad-unavailable-1",
-      }),
-    ).toBeTruthy();
+      renderer!.root.findAll(
+        (node) =>
+          String(node.type) === "ProductReelPage" && node.props.isActive,
+      ),
+    ).toHaveLength(1);
     expect(
-      renderer!.root.findByProps({
+      renderer!.root.findAllByProps({
         children: "이번 광고를 불러오지 못했어요",
       }),
-    ).toBeTruthy();
+    ).toHaveLength(0);
 
     act(() => {
       findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
     });
     expect(
-      renderer!.root.findByProps({ testID: "reels-native-ad-2" }).props
-        .visible,
+      renderer!.root.findByProps({ testID: "reels-native-ad-2" }).props.visible,
     ).toBe(true);
 
+    act(() => renderer!.unmount());
+  });
+
+  it("preloads the next ad before it enters the product render window", () => {
+    queryResultMock.data = manyGroupBuys;
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+    randomSpy.mockRestore();
+
+    const ad = renderer!.root.findByProps({ testID: "reels-native-ad-1" });
+    expect(ad.props.visible).toBe(false);
+    expect(ad.props.loadEnabled).toBe(true);
+    expect(
+      renderer!.root.findAll((node) => String(node.type) === "NativeAdCard"),
+    ).toHaveLength(1);
+
+    act(() => ad.props.onLoadStateChange("loaded"));
+    act(() => {
+      renderer!.root
+        .find((node) => String(node.type) === "PagerView")
+        .props.onPageSelected({ nativeEvent: { position: 6 } });
+    });
+    expect(
+      renderer!.root.findByProps({ testID: "reels-native-ad-1" }).props.visible,
+    ).toBe(true);
+    expect(
+      renderer!.root.findAllByProps({ children: "광고를 불러오는 중이에요" }),
+    ).toHaveLength(0);
+    act(() => renderer!.unmount());
+  });
+
+  it("waits until a failed preloaded ad is selected before skipping it", () => {
+    queryResultMock.data = manyGroupBuys;
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+    randomSpy.mockRestore();
+
+    const ad = renderer!.root.findByProps({ testID: "reels-native-ad-1" });
+    act(() => ad.props.onLoadStateChange("unavailable"));
+    expect(pagerViewMock.setPageWithoutAnimation).not.toHaveBeenCalled();
+    act(() => {
+      renderer!.root
+        .find((node) => String(node.type) === "PagerView")
+        .props.onPageSelected({ nativeEvent: { position: 2 } });
+    });
+    expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenLastCalledWith(3);
+    expect(pagerViewMock.mounts).toBe(1);
+    act(() => renderer!.unmount());
+  });
+
+  it("skips a failed ad in the direction of a backward swipe", () => {
+    queryResultMock.data = manyGroupBuys;
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+    randomSpy.mockRestore();
+    const selectPage = (position: number) => {
+      renderer!.root
+        .find((node) => String(node.type) === "PagerView")
+        .props.onPageSelected({ nativeEvent: { position } });
+    };
+    act(() => selectPage(3));
+    act(() => selectPage(2));
+    act(() => {
+      renderer!.root
+        .findByProps({ testID: "reels-native-ad-1" })
+        .props.onLoadStateChange("unavailable");
+    });
+    // Index 1 recenters the bounded window; the selected organic page is 8.
+    expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenLastCalledWith(8);
+    expect(pagerViewMock.mounts).toBe(1);
+    expect(
+      renderer!.root.findAll(
+        (node) =>
+          String(node.type) === "ProductReelPage" && node.props.isActive,
+      ),
+    ).toHaveLength(1);
+    act(() => renderer!.unmount());
+  });
+
+  it("does not request or show Reels ads after leaving the tab", () => {
+    queryResultMock.data = manyGroupBuys;
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+    randomSpy.mockRestore();
+    playbackLifecycleMock.isScreenFocused = false;
+    act(() => renderer!.update(<ReelsScreen />));
+    const ads = renderer!.root.findAll(
+      (node) => String(node.type) === "NativeAdCard",
+    );
+    expect(ads.length).toBeGreaterThan(0);
+    expect(ads.every((ad) => !ad.props.loadEnabled && !ad.props.visible)).toBe(
+      true,
+    );
     act(() => renderer!.unmount());
   });
 
@@ -558,9 +673,7 @@ describe("ReelsScreen player lifecycle", () => {
       const children = findPager().props.children as unknown[];
       expect(children).toHaveLength(REEL_PAGE_WINDOW_SIZE);
       expect(findPager().props.initialPage).toBeGreaterThanOrEqual(0);
-      expect(findPager().props.initialPage).toBeLessThan(
-        REEL_PAGE_WINDOW_SIZE,
-      );
+      expect(findPager().props.initialPage).toBeLessThan(REEL_PAGE_WINDOW_SIZE);
     }
 
     act(() => {

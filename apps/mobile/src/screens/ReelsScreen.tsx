@@ -26,6 +26,7 @@ import { NativeAdCard } from "../components/ads/NativeAdCard";
 import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
 import { logDeepView } from "../api";
 import { useAds } from "../ads/AdsContext";
+import { emitAdsDiagnostic } from "../ads/adsDiagnostics";
 import { useRecentViews } from "../hooks/useLocalDeals";
 import { usePlaybackLifecycle } from "../hooks/usePlaybackLifecycle";
 import { useMediaMutePreference } from "../hooks/useMediaMutePreference";
@@ -74,39 +75,35 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 function ReelsNativeAdPage({
+  loadEnabled,
+  onUnavailable,
   reelBottomInset,
   sequence,
+  sourceIndex,
   visible,
 }: {
+  loadEnabled: boolean;
+  onUnavailable: (sourceIndex: number) => void;
   reelBottomInset: number;
   sequence: number;
+  sourceIndex: number;
   visible: boolean;
 }) {
-  const [loadStatus, setLoadStatus] =
-    useState<NativeAdLoadStatus>("loading");
-  const isUnavailable = loadStatus === "unavailable";
+  const [loadStatus, setLoadStatus] = useState<NativeAdLoadStatus>("loading");
+  useEffect(() => {
+    if (visible && loadStatus === "unavailable") onUnavailable(sourceIndex);
+  }, [loadStatus, onUnavailable, sourceIndex, visible]);
 
   return (
     <View style={styles.adPage}>
-      {loadStatus !== "loaded" ? (
-        <View
-          accessibilityLiveRegion="polite"
-          style={styles.adLoading}
-          testID={
-            isUnavailable
-              ? `reels-native-ad-unavailable-${sequence}`
-              : undefined
-          }
-        >
+      {visible && loadStatus === "loading" ? (
+        <View accessibilityLiveRegion="polite" style={styles.adLoading}>
           <Text style={styles.adLoadingLabel}>광고</Text>
-          <Text style={styles.adLoadingText}>
-            {isUnavailable
-              ? "이번 광고를 불러오지 못했어요"
-              : "광고를 불러오는 중이에요"}
-          </Text>
+          <Text style={styles.adLoadingText}>광고를 불러오는 중이에요</Text>
         </View>
       ) : null}
       <NativeAdCard
+        loadEnabled={loadEnabled}
         onLoadStateChange={setLoadStatus}
         placement="reels"
         reelBottomInset={reelBottomInset}
@@ -136,6 +133,10 @@ export function ReelsScreen({
     ReelWindow<ReelsFeedItem<GroupBuy>>
   >(() => createReelWindow([]));
   const { activeIndex, items: reelItems } = reelWindow;
+  const reelWindowRef = useRef(reelWindow);
+  const reelDirectionRef = useRef(reelDirection);
+  reelWindowRef.current = reelWindow;
+  reelDirectionRef.current = reelDirection;
   const [summarySheetGate, setSummarySheetGate] = useState({
     isOpen: false,
     canSwipeReel: true,
@@ -229,6 +230,41 @@ export function ReelsScreen({
   }, [activeIndex, baseBatch, reelItems.length, reelWindow]);
 
   useTabReselect(navigation, handleReelsTabReselect);
+
+  const handleUnavailableAd = useCallback(
+    (sourceIndex: number) => {
+      const current = reelWindowRef.current;
+      if (current.sourceStart + current.activeIndex !== sourceIndex) return;
+      const direction = reelDirectionRef.current;
+      const findContent = (step: number) => {
+        for (
+          let index = current.activeIndex + step;
+          index >= 0 && index < current.items.length;
+          index += step
+        ) {
+          if (isReelsContentItem(current.items[index])) return index;
+        }
+        return -1;
+      };
+      const preferredIndex = findContent(direction);
+      const nextIndex =
+        preferredIndex >= 0 ? preferredIndex : findContent(-direction);
+      if (nextIndex < 0) return;
+
+      const nextWindow = moveReelWindow(current, baseBatch, nextIndex);
+      setReelWindow(nextWindow);
+      if (nextWindow.sourceStart === current.sourceStart) {
+        pagerRef.current?.setPageWithoutAnimation?.(nextWindow.activeIndex);
+      }
+      emitAdsDiagnostic({ event: "native_ad_skipped", placement: "reels" });
+    },
+    [baseBatch],
+  );
+  // Own only the next upcoming ad in addition to nearby pages. It can finish
+  // loading while products play, without rendering hidden impressions.
+  const nextAdIndex = reelItems.findIndex(
+    (item, index) => index > activeIndex && !isReelsContentItem(item),
+  );
 
   const activeFeedItem = reelItems[activeIndex];
   const activeReelItem =
@@ -456,18 +492,19 @@ export function ReelsScreen({
               collapsable={false}
               style={[s.verticalPagerPage, { height: screenHeight }]}
             >
-              {shouldRenderPage ? (
-                isReelsContentItem(item) ? (
+              {isReelsContentItem(item) ? (
+                shouldRenderPage ? (
                   renderReelItem(item.content, index)
-                ) : (
-                  <ReelsNativeAdPage
-                    reelBottomInset={
-                      insets.bottom + REELS_TAB_BAR_OVERLAY_OFFSET
-                    }
-                    sequence={item.sequence}
-                    visible={index === activeIndex}
-                  />
-                )
+                ) : null
+              ) : shouldRenderPage || index === nextAdIndex ? (
+                <ReelsNativeAdPage
+                  loadEnabled={isPlaybackActive}
+                  onUnavailable={handleUnavailableAd}
+                  reelBottomInset={insets.bottom + REELS_TAB_BAR_OVERLAY_OFFSET}
+                  sequence={item.sequence}
+                  sourceIndex={reelWindow.sourceStart + index}
+                  visible={isPlaybackActive && index === activeIndex}
+                />
               ) : null}
             </View>
           );

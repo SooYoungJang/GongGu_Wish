@@ -28,9 +28,9 @@ export function AdsRuntimeSmokeProbe() {
         />
         <NativeAdCard
           placement="reels"
-          style={styles.ad}
+          style={styles.reelAd}
           testID="ads-runtime-smoke-reels-ad"
-          variant="row"
+          variant="reel"
         />
       </View>
     </View>
@@ -40,6 +40,11 @@ export function AdsRuntimeSmokeProbe() {
 const styles = StyleSheet.create({
   ad: {
     alignSelf: "stretch",
+  },
+  reelAd: {
+    alignSelf: "stretch",
+    flex: 0,
+    height: 360,
   },
   ads: {
     alignSelf: "stretch",
