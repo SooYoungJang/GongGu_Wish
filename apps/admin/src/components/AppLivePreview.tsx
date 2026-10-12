@@ -8,7 +8,7 @@ import {
 } from "@gonggu/shared/utils/homeBannerPresentation";
 import { ProfileImagePreview } from "./ProfileImagePreview";
 
-type PreviewTab = "home" | "card" | "detail";
+type PreviewTab = "home" | "card" | "detail" | "reels";
 
 export interface AppLivePreviewDeal {
   productName: string;
@@ -30,6 +30,7 @@ export interface AppLivePreviewDeal {
 
 interface AppLivePreviewProps {
   deal: AppLivePreviewDeal;
+  initialTab?: PreviewTab;
 }
 
 interface AppLivePreviewState {
@@ -40,6 +41,7 @@ const previewTabs: Array<{ id: PreviewTab; label: string }> = [
   { id: "home", label: "홈 배너" },
   { id: "card", label: "공구 카드" },
   { id: "detail", label: "상세 화면" },
+  { id: "reels", label: "릴스" },
 ];
 
 const wonFormatter = new Intl.NumberFormat("ko-KR");
@@ -146,7 +148,7 @@ export class AppLivePreview extends Component<
   private readonly baseId = `app-live-preview-${++previewInstanceCount}`;
 
   state: AppLivePreviewState = {
-    activeTab: "home",
+    activeTab: this.props.initialTab ?? "home",
   };
 
   private selectTab = (activeTab: PreviewTab) => {
@@ -198,7 +200,7 @@ export class AppLivePreview extends Component<
       <section className="app-live-preview" aria-label="앱 라이브 프리뷰">
         <div className="app-live-preview__header">
           <div>
-            <p className="app-live-preview__eyebrow">실시간 앱 화면</p>
+            <p className="app-live-preview__eyebrow">02 · 실시간 앱 화면</p>
             <h2 className="app-live-preview__title">앱 라이브 프리뷰</h2>
           </div>
           <div
@@ -248,6 +250,15 @@ export class AppLivePreview extends Component<
           role="tabpanel"
           aria-labelledby={`${this.baseId}-${activeTab}-tab`}
         >
+          {activeTab === "home" || activeTab === "card" ? (
+            <div className="app-live-preview__screen-header" aria-hidden="true">
+              <span>상품을 검색해보세요</span>
+              <strong>{activeTab === "home" ? "쇼핑 홈" : "공구"}</strong>
+              {activeTab === "home" ? (
+                <p>전체　식품　생활　뷰티　패션</p>
+              ) : null}
+            </div>
+          ) : null}
           {activeTab === "home" ? (
             homeBannerEligible ? (
               <HomeBannerPreview
@@ -265,10 +276,27 @@ export class AppLivePreview extends Component<
             )
           ) : null}
           {activeTab === "card" ? <DealCardPreview deal={deal} /> : null}
-          {activeTab === "detail" ? (
+          {activeTab === "detail" || activeTab === "reels" ? (
             <DetailScreenPreview deal={deal} activeTabLabel={activeTabLabel} />
           ) : null}
+          {activeTab !== "detail" ? (
+            <div
+              className="app-live-preview__screen-navigation"
+              aria-hidden="true"
+            >
+              <span>랭킹</span>
+              <span className={activeTab === "reels" ? "active" : ""}>
+                릴스
+              </span>
+              <span className={activeTab === "home" ? "active" : ""}>홈</span>
+              <span>검색</span>
+              <span>마이</span>
+            </div>
+          ) : null}
         </div>
+        <p className="app-live-preview__note">
+          저장 전 변경사항을 미리 보여줍니다.
+        </p>
       </section>
     );
   }
