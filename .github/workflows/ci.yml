@@ -1278,7 +1278,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          for attempt in {1..20}; do
+          stable_identity="$(mktemp)"
+          immutable_identity="$(mktemp)"
+          trap 'rm -f "$stable_identity" "$immutable_identity"' EXIT
+          for attempt in {1..40}; do
             mapfile -t deployment_ids < <(
               gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$GITHUB_SHA&per_page=100" |
                 jq -r --arg sha "$GITHUB_SHA" '
@@ -1309,7 +1312,8 @@ jobs:
                         .environment == "Preview – gong-gu-wish-admin" and
                         .state == "success" and
                         ((.environment_url // "") |
-                          test("^https://gong-gu-wish-admin-[a-z0-9-]+-jsy10835\\.vercel\\.app/?$"))
+                          test("^https://gong-gu-wish-admin-[a-z0-9-]+-jsy10835\\.vercel\\.app/?$")) and
+                        ((.environment_url // "") | contains("-git-") | not)
                       )
                     ] |
                     sort_by(.created_at) |
@@ -1322,12 +1326,41 @@ jobs:
               fi
             done
 
+            # Deploy Hooks can publish a build without a GitHub Deployment record.
+            # Discover its immutable URL, then verify that deployment independently.
+            if [[ -z "$deployment_url" ]] &&
+              curl --fail --silent --show-error --max-time 15 \
+                --output "$stable_identity" \
+                "https://gong-gu-wish-admin-git-develop-jsy10835.vercel.app/release-identity.json" &&
+              jq -e --arg sha "$GITHUB_SHA" '
+                .environment == "preview" and
+                .commitSha == $sha and
+                .gitRef == "develop" and
+                .supabaseProjectRef == "xwblovggtvbpiusjfokq" and
+                .supabaseOrigin == "https://xwblovggtvbpiusjfokq.supabase.co" and
+                .adminApiOrigin == "https://xwblovggtvbpiusjfokq.supabase.co/functions/v1/admin-api" and
+                .vercelProjectId == "prj_w8Jh6jcev9yQxWGeYvHMbEoRrro3" and
+                (.deploymentId | type == "string" and test("^dpl_[A-Za-z0-9]+$")) and
+                (.deploymentUrl | type == "string" and
+                  test("^https://gong-gu-wish-admin-[a-z0-9]+-jsy10835\\.vercel\\.app$"))
+              ' "$stable_identity" > /dev/null; then
+              candidate_url="$(jq -r '.deploymentUrl' "$stable_identity")"
+              if curl --fail --silent --show-error --max-time 15 \
+                --output "$immutable_identity" \
+                "$candidate_url/release-identity.json" &&
+                jq -e --slurpfile stable "$stable_identity" '
+                  . == $stable[0]
+                ' "$immutable_identity" > /dev/null; then
+                deployment_url="$candidate_url"
+              fi
+            fi
+
             if [[ -n "$deployment_url" ]]; then
               echo "VERCEL_PREVIEW_URL=$deployment_url" >> "$GITHUB_ENV"
               break
             fi
 
-            if [[ "$attempt" == "20" ]]; then
+            if [[ "$attempt" == "40" ]]; then
               echo "::error::No successful Vercel Preview deployment found for $GITHUB_SHA."
               exit 1
             fi
