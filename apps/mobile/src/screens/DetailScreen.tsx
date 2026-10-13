@@ -354,9 +354,7 @@ const VideoSlide = memo(function VideoSlide({
   const [localMuted, setLocalMuted] = useState(muted ?? false);
   const isMuted = muted ?? localMuted;
   const effectiveMuted = isMuted || suppressEmbeddedAudio;
-  const audioMixingMode = suppressEmbeddedAudio
-    ? "mixWithOthers"
-    : "doNotMix";
+  const audioMixingMode = suppressEmbeddedAudio ? "mixWithOthers" : "doNotMix";
   const [areControlsVisible, setControlsVisible] = useState(false);
   const [hasFirstFrame, setHasFirstFrame] = useState(false);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -888,17 +886,15 @@ function DetailSearchSheet({
                 );
                 const brandName = item.brandName?.trim() || null;
                 return (
-                  <View
-                    style={s.detailSearchResult}
-                  >
+                  <View style={s.detailSearchResult}>
                     <Pressable
-                    accessibilityLabel={`${item.productName ?? "상품"} 보기`}
-                    accessibilityRole="button"
-                    onPress={() => onSelect(item)}
-                    style={({ pressed }) => [
-                      s.detailSearchResultAction,
-                      pressed ? s.detailSearchResultPressed : null,
-                    ]}
+                      accessibilityLabel={`${item.productName ?? "상품"} 보기`}
+                      accessibilityRole="button"
+                      onPress={() => onSelect(item)}
+                      style={({ pressed }) => [
+                        s.detailSearchResultAction,
+                        pressed ? s.detailSearchResultPressed : null,
+                      ]}
                     />
                     {thumb ? (
                       <View pointerEvents="none" style={s.detailSearchThumb}>
@@ -911,7 +907,10 @@ function DetailSearchSheet({
                         />
                       </View>
                     ) : (
-                      <View pointerEvents="none" style={s.detailSearchThumbFallback}>
+                      <View
+                        pointerEvents="none"
+                        style={s.detailSearchThumbFallback}
+                      >
                         <Ionicons
                           name="cube-outline"
                           size={20}
@@ -919,7 +918,10 @@ function DetailSearchSheet({
                         />
                       </View>
                     )}
-                    <View pointerEvents="box-none" style={s.detailSearchResultBody}>
+                    <View
+                      pointerEvents="box-none"
+                      style={s.detailSearchResultBody}
+                    >
                       <SText
                         pointerEvents="none"
                         variant="cardTitle"
@@ -928,7 +930,10 @@ function DetailSearchSheet({
                       >
                         {item.productName ?? "제품명 미확인"}
                       </SText>
-                      <View pointerEvents="box-none" style={s.detailSearchResultMetaRow}>
+                      <View
+                        pointerEvents="box-none"
+                        style={s.detailSearchResultMetaRow}
+                      >
                         {brandName ? (
                           <SText
                             pointerEvents="none"
@@ -942,7 +947,9 @@ function DetailSearchSheet({
                         {sellerName ? (
                           <InstagramIdentity
                             avatarTestID={`detail-search-instagram-avatar-${item.id}`}
-                            profileImageUrl={item.rawPost.influencer.profileImageUrl}
+                            profileImageUrl={
+                              item.rawPost.influencer.profileImageUrl
+                            }
                             style={s.detailSearchInstagram}
                             textStyle={s.detailSearchInstagramText}
                             tone="inverse"
@@ -1081,10 +1088,7 @@ function ProductReelPageComponent({
     // entry. The active page and its adjacent pages are warmed for a fast
     // swipe, while distant pages prepare audio only when they enter that
     // window.
-    url:
-      isActive || shouldPreloadAudio
-        ? resolvedPostAudio.url
-        : null,
+    url: isActive || shouldPreloadAudio ? resolvedPostAudio.url : null,
     startTimeMs: resolvedPostAudio.startTimeMs,
     durationMs: resolvedPostAudio.durationMs,
     isActive,
@@ -1694,11 +1698,7 @@ function ProductReelPageComponent({
     setPreviousProductHistoryVisible(false);
     resetSummarySheetState();
     onSummarySheetStateChange(false, true);
-  }, [
-    groupBuy.id,
-    onSummarySheetStateChange,
-    resetSummarySheetState,
-  ]);
+  }, [groupBuy.id, onSummarySheetStateChange, resetSummarySheetState]);
 
   const canSwipeReelFromSummaryOffset = useCallback(
     (
@@ -1949,12 +1949,15 @@ function ProductReelPageComponent({
     }
 
     try {
-      void Linking.openURL(openUrl).then(() => {
-        telemetry.record("purchase_link_open", "success");
-      }, () => {
-        telemetry.record("purchase_link_open", "failed");
-        Alert.alert("오류", "구매 링크를 열 수 없습니다.");
-      });
+      void Linking.openURL(openUrl).then(
+        () => {
+          telemetry.record("purchase_link_open", "success");
+        },
+        () => {
+          telemetry.record("purchase_link_open", "failed");
+          Alert.alert("오류", "구매 링크를 열 수 없습니다.");
+        },
+      );
     } catch {
       Alert.alert("오류", "구매 링크를 열 수 없습니다.");
     }
@@ -2076,7 +2079,8 @@ function ProductReelPageComponent({
         <Reanimated.View style={[s.mediaStageContent, mediaStageContentStyle]}>
           {mediaItems.length > 0 ? (
             <View style={s.mediaViewport}>
-              {!isActive && !shouldPreloadAdjacentMedia ? (
+              {mediaItems.length === 1 ||
+              (!isActive && !shouldPreloadAdjacentMedia) ? (
                 renderMediaItem({
                   item: mediaItems[activeMediaIndex] ?? mediaItems[0],
                   index: activeMediaIndex,
@@ -2196,9 +2200,7 @@ function ProductReelPageComponent({
           {resolvedPostAudio.url ? (
             <ReelAction
               accessibilityLabel={
-                isMuted
-                  ? "게시물 음악 음소거 해제"
-                  : "게시물 음악 음소거"
+                isMuted ? "게시물 음악 음소거 해제" : "게시물 음악 음소거"
               }
               icon={
                 <Ionicons
@@ -2278,13 +2280,7 @@ function ProductReelPageComponent({
           {hasPreviousProductHistory ? (
             <ReelAction
               accessibilityLabel="이전 댓글"
-              icon={
-                <Ionicons
-                  color="#FFFFFF"
-                  name="time-outline"
-                  size={26}
-                />
-              }
+              icon={<Ionicons color="#FFFFFF" name="time-outline" size={26} />}
               label="이전 댓글"
               onPress={handlePreviousProductHistoryPress}
               s={s}
@@ -2377,7 +2373,13 @@ function ProductReelPageComponent({
                 </SText>
               </View>
             ) : null}
-            {SHOW_PRODUCT_REPORT_BUTTON && isActive ? <ProductReportButton groupBuyId={groupBuy.id} productName={groupBuy.productName ?? "공구 상품"} onOpenChange={setReportVisible} /> : null}
+            {SHOW_PRODUCT_REPORT_BUTTON && isActive ? (
+              <ProductReportButton
+                groupBuyId={groupBuy.id}
+                productName={groupBuy.productName ?? "공구 상품"}
+                onOpenChange={setReportVisible}
+              />
+            ) : null}
           </View>
         </Reanimated.View>
       </>
@@ -2426,7 +2428,9 @@ function ProductReelPageComponent({
                     {sellerHandle ? (
                       <InstagramProfileAvatar
                         imageTestID={`detail-summary-profile-image-${groupBuy.id}`}
-                        profileImageUrl={groupBuy.rawPost.influencer.profileImageUrl}
+                        profileImageUrl={
+                          groupBuy.rawPost.influencer.profileImageUrl
+                        }
                         size={48}
                         style={s.summarySheetAvatar}
                         testID={`detail-summary-profile-avatar-${groupBuy.id}`}
@@ -2437,7 +2441,9 @@ function ProductReelPageComponent({
                     <View style={s.summarySheetTitleBlock}>
                       {sellerHandle ? (
                         <InstagramIdentity
-                          profileImageUrl={groupBuy.rawPost.influencer.profileImageUrl}
+                          profileImageUrl={
+                            groupBuy.rawPost.influencer.profileImageUrl
+                          }
                           showAvatar={false}
                           size="body"
                           textStyle={s.summarySheetSellerName}
@@ -3002,7 +3008,9 @@ function DetailScreenContent({
         key={item.id}
         groupBuy={item}
         hasPreviousProductHistory={
-          index === activeProductIndex && !isOnAdPage && hasPreviousProductHistory
+          index === activeProductIndex &&
+          !isOnAdPage &&
+          hasPreviousProductHistory
         }
         isActive={
           isScreenFocused && index === activeProductIndex && !isOnAdPage
