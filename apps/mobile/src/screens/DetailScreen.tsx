@@ -2094,6 +2094,7 @@ function ProductReelPageComponent({
                   }
                   horizontal
                   pagingEnabled
+                  disableScrollViewPanResponder={Platform.OS === "android"}
                   snapToAlignment="start"
                   snapToInterval={mediaWidth}
                   keyExtractor={(item, index) => `${item.url}-${index}`}
