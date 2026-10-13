@@ -150,14 +150,16 @@ vi.mock("expo-video", () => ({
         currentTime: 12,
         release: vi.fn(),
         playing: false,
-        addListener: vi.fn((event: string, listener: (payload: any) => void) => {
-          const eventListeners = listeners.get(event) ?? new Set();
-          eventListeners.add(listener);
-          listeners.set(event, eventListeners);
-          return {
-            remove: () => eventListeners.delete(listener),
-          };
-        }),
+        addListener: vi.fn(
+          (event: string, listener: (payload: any) => void) => {
+            const eventListeners = listeners.get(event) ?? new Set();
+            eventListeners.add(listener);
+            listeners.set(event, eventListeners);
+            return {
+              remove: () => eventListeners.delete(listener),
+            };
+          },
+        ),
         emit: (event: string, payload: any) => {
           listeners.get(event)?.forEach((listener) => listener(payload));
         },
@@ -197,9 +199,7 @@ vi.mock("expo-audio", () => ({
         play: vi.fn(),
         pause: vi.fn(),
         seekTo: vi.fn((time: number) =>
-          audioMock.seekToImpl
-            ? audioMock.seekToImpl(time)
-            : Promise.resolve(),
+          audioMock.seekToImpl ? audioMock.seekToImpl(time) : Promise.resolve(),
         ),
         currentStatus: {
           id: `audio-${audioMock.players.length + 1}`,
@@ -244,20 +244,20 @@ vi.mock("@tanstack/react-query", () => ({
           refetch: vi.fn(),
         }
       : options.queryKey?.[0] === "group-buy"
-      ? {
-          data: queryMock.linkedGroupBuy,
-          isLoading: !queryMock.linkedGroupBuy && !queryMock.linkedIsError,
-          isError: queryMock.linkedIsError,
-          isFetching: queryMock.linkedIsFetching,
-          refetch: queryMock.linkedRefetch,
-        }
-      : {
-          data: queryMock.groupBuys,
-          isLoading: false,
-          isError: false,
-          isFetching: false,
-          refetch: vi.fn(),
-        },
+        ? {
+            data: queryMock.linkedGroupBuy,
+            isLoading: !queryMock.linkedGroupBuy && !queryMock.linkedIsError,
+            isError: queryMock.linkedIsError,
+            isFetching: queryMock.linkedIsFetching,
+            refetch: queryMock.linkedRefetch,
+          }
+        : {
+            data: queryMock.groupBuys,
+            isLoading: false,
+            isError: false,
+            isFetching: false,
+            refetch: vi.fn(),
+          },
   ),
 }));
 
@@ -764,6 +764,57 @@ beforeEach(() => {
 });
 
 describe("DetailScreen", () => {
+  it.each(["IMAGE", "VIDEO"] as const)(
+    "leaves vertical reel gestures to the pager for a single %s",
+    (mediaType) => {
+      platformMock.os = "android";
+      const mediaUrl = `https://example.com/single.${mediaType === "VIDEO" ? "mp4" : "jpg"}`;
+      const single: GroupBuy = {
+        ...baseGroupBuy,
+        id: "single-media-reel",
+        mediaType,
+        mediaUrls: [mediaUrl],
+        videoUrl: mediaType === "VIDEO" ? mediaUrl : null,
+      };
+      queryMock.groupBuys = [single, baseGroupBuy];
+      let renderer: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          <DetailScreen
+            route={{ params: { groupBuy: single } } as any}
+            navigation={
+              { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+            }
+          />,
+        );
+      });
+      const page = findProductReelPages(renderer!).find(
+        (node) => node.props.groupBuy.id === single.id && node.props.isActive,
+      )!;
+      expect(findVerticalPager(renderer!).props.scrollEnabled).toBe(true);
+      expect(
+        page.findAll(
+          (node) => String(node.type) === "FlashList" && node.props.horizontal,
+        ),
+      ).toHaveLength(0);
+      if (mediaType === "VIDEO") {
+        const player = page.find((node) => String(node.type) === "VideoView")
+          .props.player;
+        expect(player.source.uri).toBe(mediaUrl);
+        expect(player.play).toHaveBeenCalled();
+      } else {
+        expect(
+          page.findAll(
+            (node) =>
+              String(node.type) === "Image" &&
+              node.props.source?.uri === mediaUrl,
+          ).length,
+        ).toBeGreaterThan(0);
+      }
+      act(() => renderer!.unmount());
+    },
+  );
+
   it("reuses the fresh home feed cache while allowing stale deep-link data to refresh", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     vi.mocked(useQuery).mockClear();
@@ -771,7 +822,9 @@ describe("DetailScreen", () => {
       renderer = TestRenderer.create(
         <DetailScreen
           route={{ params: { groupBuy: baseGroupBuy } } as any}
-          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
+          navigation={
+            { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+          }
         />,
       );
     });
@@ -901,7 +954,9 @@ describe("DetailScreen", () => {
         })
         .some((node) => node.props.accessibilityRole === "image"),
     ).toBe(true);
-    expect(renderer!.root.findAllByProps({ name: "logo-instagram" })).toHaveLength(0);
+    expect(
+      renderer!.root.findAllByProps({ name: "logo-instagram" }),
+    ).toHaveLength(0);
     expect(text).toContain("뷰티");
     expect(text).not.toContain("beauty");
   });
@@ -1236,7 +1291,9 @@ describe("DetailScreen", () => {
 
     expect(mediaScroll?.props.pagingEnabled).toBe(true);
     expect(images).toHaveLength(3);
-    expect(images.every((image) => image.props.resizeMethod === "resize")).toBe(true);
+    expect(images.every((image) => image.props.resizeMethod === "resize")).toBe(
+      true,
+    );
     expect(text).toContain("릴스");
     expect(text).toContain("구매");
     expect(text).not.toContain("팔로우");
@@ -2195,12 +2252,16 @@ describe("DetailScreen", () => {
     act(() => {
       renderer = TestRenderer.create(
         <DetailScreen
-          route={{
-            key: "Detail",
-            name: "Detail",
-            params: { groupBuy: baseGroupBuy },
-          } as any}
-          navigation={{ goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any}
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={
+            { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+          }
         />,
       );
     });
@@ -2747,23 +2808,32 @@ describe("DetailScreen", () => {
     expect(verticalPager).toBeDefined();
     expect(videoViews).toHaveLength(0);
     expect(nextVideoPlayers).toHaveLength(0);
-    expect(renderer!.root.findAll((node) =>
-      String(node.type) === "FlashList" && node.props.horizontal,
-    )).toHaveLength(1);
-    const initialGallery = renderer!.root.find((node) =>
-      String(node.type) === "FlashList" && node.props.horizontal,
+    expect(
+      renderer!.root.findAll(
+        (node) => String(node.type) === "FlashList" && node.props.horizontal,
+      ),
+    ).toHaveLength(1);
+    const initialGallery = renderer!.root.find(
+      (node) => String(node.type) === "FlashList" && node.props.horizontal,
     );
-    act(() => initialGallery.props.onMomentumScrollEnd({
-      nativeEvent: { contentOffset: { x: 390 } },
-    }));
-    expect(renderer!.root.findAll((node) =>
-      String(node.type) === "Image" &&
-      node.props.source?.uri === nextVideoGroupBuy.thumbnailUrl,
-    ).length).toBeGreaterThan(0);
+    act(() =>
+      initialGallery.props.onMomentumScrollEnd({
+        nativeEvent: { contentOffset: { x: 390 } },
+      }),
+    );
+    expect(
+      renderer!.root.findAll(
+        (node) =>
+          String(node.type) === "Image" &&
+          node.props.source?.uri === nextVideoGroupBuy.thumbnailUrl,
+      ).length,
+    ).toBeGreaterThan(0);
 
-    act(() => verticalPager.props.onPageSelected({
-      nativeEvent: { position: 1 },
-    }));
+    act(() =>
+      verticalPager.props.onPageSelected({
+        nativeEvent: { position: 1 },
+      }),
+    );
     const selectedPlayer = renderer!.root.find(
       (node) => String(node.type) === "VideoView",
     ).props.player;
@@ -2773,12 +2843,16 @@ describe("DetailScreen", () => {
       useCaching: true,
     });
     expect(selectedPlayer.play).toHaveBeenCalled();
-    act(() => verticalPager.props.onPageSelected({
-      nativeEvent: { position: 0 },
-    }));
-    expect(renderer!.root.find((node) =>
-      String(node.type) === "FlashList" && node.props.horizontal,
-    ).props.initialScrollIndex).toBe(1);
+    act(() =>
+      verticalPager.props.onPageSelected({
+        nativeEvent: { position: 0 },
+      }),
+    );
+    expect(
+      renderer!.root.find(
+        (node) => String(node.type) === "FlashList" && node.props.horizontal,
+      ).props.initialScrollIndex,
+    ).toBe(1);
     expect(selectedPlayer.release).toHaveBeenCalledOnce();
     act(() => renderer!.unmount());
   });
@@ -2994,9 +3068,7 @@ describe("DetailScreen video playback", () => {
 
     const videoSlides = findProductReelPages(renderer!)
       .find((node) => node.props.isActive)!
-      .findAll(
-        (node) => node.props.shouldPlay !== undefined,
-      );
+      .findAll((node) => node.props.shouldPlay !== undefined);
     expect(videoSlides).toHaveLength(1);
     expect(videoSlides[0]?.props.shouldPlay).toBe(true);
     expect(player!.pause).not.toHaveBeenCalled();
@@ -3204,12 +3276,15 @@ describe("DetailScreen video playback", () => {
     });
 
     expect(firstPlayer.release).toHaveBeenCalledOnce();
-    expect(renderer!.root.find(
-      (node) => String(node.type) === "VideoView",
-    ).props.player.source.uri).toBe(secondVideoUrl);
-    act(() => findVerticalPager(renderer!).props.onPageSelected({
-      nativeEvent: { position: 0 },
-    }));
+    expect(
+      renderer!.root.find((node) => String(node.type) === "VideoView").props
+        .player.source.uri,
+    ).toBe(secondVideoUrl);
+    act(() =>
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 0 },
+      }),
+    );
     const returnedPlayer = renderer!.root.find(
       (node) => String(node.type) === "VideoView",
     ).props.player;
@@ -3410,27 +3485,33 @@ describe("DetailScreen video playback", () => {
     audioPlayer.play.mockClear();
 
     act(() => {
-      renderer!.root.find(
-        (node) =>
-          String(node.type) === "Pressable" &&
-          node.props.accessibilityLabel === "동영상 컨트롤 표시",
-      ).props.onPress();
+      renderer!.root
+        .find(
+          (node) =>
+            String(node.type) === "Pressable" &&
+            node.props.accessibilityLabel === "동영상 컨트롤 표시",
+        )
+        .props.onPress();
     });
     act(() => {
-      renderer!.root.find(
-        (node) =>
-          String(node.type) === "Pressable" &&
-          node.props.accessibilityLabel === "동영상 일시정지",
-      ).props.onPress();
+      renderer!.root
+        .find(
+          (node) =>
+            String(node.type) === "Pressable" &&
+            node.props.accessibilityLabel === "동영상 일시정지",
+        )
+        .props.onPress();
     });
     expect(audioPlayer.pause).toHaveBeenCalled();
 
     await act(async () => {
-      renderer!.root.find(
-        (node) =>
-          String(node.type) === "Pressable" &&
-          node.props.accessibilityLabel === "동영상 재생",
-      ).props.onPress();
+      renderer!.root
+        .find(
+          (node) =>
+            String(node.type) === "Pressable" &&
+            node.props.accessibilityLabel === "동영상 재생",
+        )
+        .props.onPress();
       await Promise.resolve();
     });
     expect(audioPlayer.play).toHaveBeenCalled();
@@ -3458,11 +3539,7 @@ describe("DetailScreen video playback", () => {
       id: "detail-distant",
       postAudioUrl: distantAudioUrl,
     };
-    queryMock.groupBuys = [
-      activeGroupBuy,
-      adjacentGroupBuy,
-      distantGroupBuy,
-    ];
+    queryMock.groupBuys = [activeGroupBuy, adjacentGroupBuy, distantGroupBuy];
 
     let renderer: TestRenderer.ReactTestRenderer;
     await act(async () => {
@@ -3493,8 +3570,9 @@ describe("DetailScreen video playback", () => {
       });
       await Promise.resolve();
     });
-    expect(audioMock.players.map(player => player.source).filter(Boolean))
-      .toEqual([adjacentAudioUrl]);
+    expect(
+      audioMock.players.map((player) => player.source).filter(Boolean),
+    ).toEqual([adjacentAudioUrl]);
     act(() => renderer!.unmount());
   });
 
