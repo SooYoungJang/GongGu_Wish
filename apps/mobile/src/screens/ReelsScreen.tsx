@@ -135,6 +135,11 @@ export function ReelsScreen({
   const { activeIndex, items: reelItems } = reelWindow;
   const reelWindowRef = useRef(reelWindow);
   const reelDirectionRef = useRef(reelDirection);
+  const pagerScrollStateRef = useRef<"idle" | "dragging" | "settling">("idle");
+  const pendingUnavailableAdRef = useRef<number | null>(null);
+  const pendingPagerPositionRef = useRef<number | null>(null);
+  const gestureStartSourceIndexRef = useRef<number | null>(null);
+  const pendingRecenterRef = useRef(false);
   reelWindowRef.current = reelWindow;
   reelDirectionRef.current = reelDirection;
   const [summarySheetGate, setSummarySheetGate] = useState({
@@ -183,6 +188,11 @@ export function ReelsScreen({
 
   useEffect(() => {
     if (baseBatch.length === 0) return;
+    pagerScrollStateRef.current = "idle";
+    pendingUnavailableAdRef.current = null;
+    pendingPagerPositionRef.current = null;
+    gestureStartSourceIndexRef.current = null;
+    pendingRecenterRef.current = false;
     setReelWindow((current) => {
       const activeItem = current.items[current.activeIndex];
       const nearbyContent = activeItem
@@ -204,6 +214,21 @@ export function ReelsScreen({
     setReelDirection(1);
   }, [baseBatch]);
 
+  const applyReelWindow = useCallback(
+    (nextWindow: ReelWindow<ReelsFeedItem<GroupBuy>>, fromPager = false) => {
+      const current = reelWindowRef.current;
+      reelWindowRef.current = nextWindow;
+      setReelWindow(nextWindow);
+      if (nextWindow.sourceStart !== current.sourceStart) {
+        pendingPagerPositionRef.current = nextWindow.activeIndex;
+      } else if (!fromPager) {
+        pendingPagerPositionRef.current = nextWindow.activeIndex;
+        pagerRef.current?.setPageWithoutAnimation?.(nextWindow.activeIndex);
+      }
+    },
+    [],
+  );
+
   const handleReelsTabReselect = useCallback(() => {
     if (reelItems.length === 0) return;
 
@@ -222,12 +247,9 @@ export function ReelsScreen({
     const nextIndex = contentIndexes[nextContentPosition];
     setReelDirection(nextIndex >= activeIndex ? 1 : -1);
     const nextWindow = moveReelWindow(reelWindow, baseBatch, nextIndex);
-    setReelWindow(nextWindow);
+    applyReelWindow(nextWindow);
     setReplayKey((key) => key + 1);
-    if (nextWindow.sourceStart === reelWindow.sourceStart) {
-      pagerRef.current?.setPageWithoutAnimation?.(nextWindow.activeIndex);
-    }
-  }, [activeIndex, baseBatch, reelItems.length, reelWindow]);
+  }, [activeIndex, applyReelWindow, baseBatch, reelItems.length, reelWindow]);
 
   useTabReselect(navigation, handleReelsTabReselect);
 
@@ -235,6 +257,11 @@ export function ReelsScreen({
     (sourceIndex: number) => {
       const current = reelWindowRef.current;
       if (current.sourceStart + current.activeIndex !== sourceIndex) return;
+      if (pagerScrollStateRef.current !== "idle") {
+        pendingUnavailableAdRef.current = sourceIndex;
+        return;
+      }
+      pendingUnavailableAdRef.current = null;
       const direction = reelDirectionRef.current;
       const findContent = (step: number) => {
         for (
@@ -252,13 +279,10 @@ export function ReelsScreen({
       if (nextIndex < 0) return;
 
       const nextWindow = moveReelWindow(current, baseBatch, nextIndex);
-      setReelWindow(nextWindow);
-      if (nextWindow.sourceStart === current.sourceStart) {
-        pagerRef.current?.setPageWithoutAnimation?.(nextWindow.activeIndex);
-      }
+      applyReelWindow(nextWindow);
       emitAdsDiagnostic({ event: "native_ad_skipped", placement: "reels" });
     },
-    [baseBatch],
+    [applyReelWindow, baseBatch],
   );
   // Own only the next upcoming ad in addition to nearby pages. It can finish
   // loading while products play, without rendering hidden impressions.
@@ -466,11 +490,63 @@ export function ReelsScreen({
         offscreenPageLimit={1}
         onPageSelected={(event) => {
           const next = event.nativeEvent.position;
-          if (next !== activeIndex) {
-            setReelDirection(next > activeIndex ? 1 : -1);
-            setReelWindow((current) =>
-              moveReelWindow(current, baseBatch, next),
+          const current = reelWindowRef.current;
+          if (pendingPagerPositionRef.current !== null) {
+            if (next !== pendingPagerPositionRef.current) return;
+            pendingPagerPositionRef.current = null;
+          }
+          if (next !== current.activeIndex) {
+            const direction = next > current.activeIndex ? 1 : -1;
+            reelDirectionRef.current = direction;
+            setReelDirection(direction);
+            if (pagerScrollStateRef.current !== "idle") {
+              pendingRecenterRef.current =
+                current.sourceStart + next !==
+                gestureStartSourceIndexRef.current;
+            }
+            // Native selection can arrive before the swipe becomes idle.
+            // Keep the page identities fixed until that transition finishes.
+            applyReelWindow(
+              pagerScrollStateRef.current === "idle"
+                ? moveReelWindow(current, baseBatch, next)
+                : { ...current, activeIndex: next },
+              true,
             );
+          }
+        }}
+        onPageScrollStateChanged={(event) => {
+          const state = event.nativeEvent.pageScrollState;
+          pagerScrollStateRef.current = state;
+          if (state === "dragging") {
+            pendingPagerPositionRef.current = null;
+            const current = reelWindowRef.current;
+            gestureStartSourceIndexRef.current =
+              current.sourceStart + current.activeIndex;
+            pendingRecenterRef.current = false;
+          }
+          if (state !== "idle") return;
+
+          const current = reelWindowRef.current;
+          const shouldRecenter = pendingRecenterRef.current;
+          pendingRecenterRef.current = false;
+          gestureStartSourceIndexRef.current = null;
+          const unavailableSourceIndex = pendingUnavailableAdRef.current;
+          pendingUnavailableAdRef.current = null;
+          if (
+            unavailableSourceIndex !== null &&
+            unavailableSourceIndex === current.sourceStart + current.activeIndex
+          ) {
+            handleUnavailableAd(unavailableSourceIndex);
+            return;
+          }
+          if (!shouldRecenter) return;
+          const nextWindow = moveReelWindow(
+            current,
+            baseBatch,
+            current.activeIndex,
+          );
+          if (nextWindow.sourceStart !== current.sourceStart) {
+            applyReelWindow(nextWindow, true);
           }
         }}
         orientation="vertical"
