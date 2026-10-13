@@ -212,6 +212,81 @@ describe("ReelsScreen player lifecycle", () => {
     adsMock.nativeUnitIds.reels = null;
   });
 
+  const renderAdSwipe = (initialPosition: number, adPosition = 5) => {
+    queryResultMock.data = manyGroupBuys;
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    let renderer: TestRenderer.ReactTestRenderer;
+    try {
+      act(() => {
+        renderer = TestRenderer.create(<ReelsScreen />);
+      });
+    } finally {
+      randomSpy.mockRestore();
+    }
+
+    const findPager = () =>
+      renderer!.root.find((node) => String(node.type) === "PagerView");
+    const selectPage = (position: number) => {
+      act(() => {
+        findPager().props.onPageSelected({ nativeEvent: { position } });
+      });
+    };
+    const contentAt = (position: number): string | undefined => {
+      const page = findPager().children[
+        position
+      ] as TestRenderer.ReactTestInstance;
+      return page.findAll((node) => String(node.type) === "ProductReelPage")[0]
+        ?.props.groupBuy.id;
+    };
+    // Capture the adjacent products with an idle, still-loading ad selected.
+    // The actual gesture may defer playback/render selection until it settles.
+    selectPage(adPosition);
+    const adjacentContent = new Map([
+      [adPosition - 1, contentAt(adPosition - 1)],
+      [adPosition + 1, contentAt(adPosition + 1)],
+    ]);
+    selectPage(initialPosition);
+    pagerViewMock.setPageWithoutAnimation.mockClear();
+
+    return {
+      selectPage,
+      scrollState: (pageScrollState: "dragging" | "settling" | "idle") => {
+        act(() => {
+          findPager().props.onPageScrollStateChanged?.({
+            nativeEvent: { pageScrollState },
+          });
+        });
+      },
+      scrollPage: (position: number, offset: number) => {
+        act(() => {
+          findPager().props.onPageScroll?.({
+            nativeEvent: { position, offset },
+          });
+        });
+      },
+      failAd: (sequence = 2) => {
+        act(() => {
+          renderer!.root
+            .findByProps({ testID: `reels-native-ad-${sequence}` })
+            .props.onLoadStateChange("unavailable");
+        });
+      },
+      contentAt,
+      adjacentContentAt: (position: number) => adjacentContent.get(position),
+      activeContent: (): string[] =>
+        renderer!.root
+          .findAll(
+            (node) =>
+              String(node.type) === "ProductReelPage" && node.props.isActive,
+          )
+          .map((node) => node.props.groupBuy.id),
+      unmount: () => act(() => renderer!.unmount()),
+    };
+  };
+
   it("keeps a native ad above the Reels tab bar chrome", () => {
     adsMock.enabled = true;
     adsMock.isReady = true;
@@ -312,7 +387,25 @@ describe("ReelsScreen player lifecycle", () => {
     ).toHaveLength(0);
 
     act(() => {
+      findPager().props.onPageSelected({ nativeEvent: { position: 3 } });
+    });
+    act(() => {
+      findPager().props.onPageScrollStateChanged({
+        nativeEvent: { pageScrollState: "dragging" },
+      });
+    });
+    act(() => {
+      findPager().props.onPageScrollStateChanged({
+        nativeEvent: { pageScrollState: "settling" },
+      });
+    });
+    act(() => {
       findPager().props.onPageSelected({ nativeEvent: { position: 5 } });
+    });
+    act(() => {
+      findPager().props.onPageScrollStateChanged({
+        nativeEvent: { pageScrollState: "idle" },
+      });
     });
     expect(
       renderer!.root.findByProps({ testID: "reels-native-ad-2" }).props.visible,
@@ -413,6 +506,196 @@ describe("ReelsScreen player lifecycle", () => {
       ),
     ).toHaveLength(1);
     act(() => renderer!.unmount());
+  });
+
+  it.each([
+    {
+      direction: "forward",
+      initialPosition: 4,
+      destination: 6,
+      state: "dragging",
+    },
+    {
+      direction: "forward",
+      initialPosition: 4,
+      destination: 6,
+      state: "settling",
+    },
+    {
+      direction: "backward",
+      initialPosition: 6,
+      destination: 4,
+      state: "dragging",
+    },
+    {
+      direction: "backward",
+      initialPosition: 6,
+      destination: 4,
+      state: "settling",
+    },
+  ] as const)(
+    "finishes a $direction swipe before skipping an ad that fails while $state",
+    ({ initialPosition, destination, state }) => {
+      const swipe = renderAdSwipe(initialPosition);
+      try {
+        swipe.scrollState("dragging");
+        if (state === "settling") swipe.scrollState("settling");
+        swipe.selectPage(5);
+        const expectedContent = swipe.adjacentContentAt(destination);
+        expect(expectedContent).toBeDefined();
+
+        swipe.failAd();
+        expect(pagerViewMock.setPageWithoutAnimation).not.toHaveBeenCalled();
+        swipe.scrollState("settling");
+        expect(pagerViewMock.setPageWithoutAnimation).not.toHaveBeenCalled();
+
+        swipe.scrollState("idle");
+        expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenLastCalledWith(
+          destination,
+        );
+        expect(swipe.activeContent()).toEqual([expectedContent]);
+        swipe.selectPage(destination);
+        expect(swipe.activeContent()).toEqual([expectedContent]);
+        expect(pagerViewMock.mounts).toBe(1);
+      } finally {
+        swipe.unmount();
+      }
+    },
+  );
+
+  it.each([
+    {
+      direction: "forward",
+      initialPosition: 4,
+      adPosition: 5,
+      destination: 6,
+      sequence: 2,
+    },
+    {
+      direction: "backward",
+      initialPosition: 6,
+      adPosition: 5,
+      destination: 4,
+      sequence: 2,
+    },
+    {
+      direction: "backward across the window edge",
+      initialPosition: 3,
+      adPosition: 2,
+      destination: 1,
+      sequence: 1,
+    },
+  ])(
+    "keeps the $direction destination when old ad selections arrive before the skip acknowledgement",
+    ({ initialPosition, adPosition, destination, sequence }) => {
+      const swipe = renderAdSwipe(initialPosition, adPosition);
+      try {
+        swipe.scrollState("dragging");
+        swipe.scrollState("settling");
+        swipe.selectPage(adPosition);
+        const expectedContent = swipe.adjacentContentAt(destination);
+        expect(expectedContent).toBeDefined();
+        swipe.failAd(sequence);
+        swipe.scrollState("idle");
+
+        const commands = pagerViewMock.setPageWithoutAnimation.mock.calls;
+        const targetPosition = commands[commands.length - 1]?.[0] as number;
+        expect(targetPosition).toBeTypeOf("number");
+        expect(swipe.contentAt(targetPosition)).toBe(expectedContent);
+        expect(swipe.activeContent()).toEqual([expectedContent]);
+        const commandCount = commands.length;
+
+        // Android can deliver queued selections from the swipe after JS has
+        // issued setPageWithoutAnimation, before it acknowledges the new page.
+        for (let index = 0; index < 2; index += 1) {
+          swipe.selectPage(adPosition);
+          expect(swipe.activeContent()).toEqual([expectedContent]);
+          expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledTimes(
+            commandCount,
+          );
+        }
+        swipe.selectPage(targetPosition);
+        expect(swipe.activeContent()).toEqual([expectedContent]);
+        expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledTimes(
+          commandCount,
+        );
+        expect(pagerViewMock.mounts).toBe(1);
+      } finally {
+        swipe.unmount();
+      }
+    },
+  );
+
+  it.each([4, 6])(
+    "keeps product page %i when a failed-ad swipe reverses before becoming idle",
+    (initialPosition) => {
+      const swipe = renderAdSwipe(initialPosition);
+      try {
+        const originalContent = swipe.contentAt(initialPosition);
+        expect(originalContent).toBeDefined();
+        swipe.scrollState("dragging");
+        swipe.selectPage(5);
+        swipe.failAd();
+
+        // The finger returns to its starting page before native scrolling
+        // finishes. A pending ad skip must follow the final selection.
+        swipe.selectPage(initialPosition);
+        swipe.scrollState("settling");
+        swipe.scrollState("idle");
+        expect(swipe.activeContent()).toEqual([originalContent]);
+        expect(pagerViewMock.setPageWithoutAnimation).not.toHaveBeenCalled();
+        expect(pagerViewMock.mounts).toBe(1);
+      } finally {
+        swipe.unmount();
+      }
+    },
+  );
+
+  it("keeps the current product when a swipe toward a failed preloaded ad is cancelled", () => {
+    const swipe = renderAdSwipe(4);
+    try {
+      const originalContent = swipe.contentAt(4);
+      expect(originalContent).toBeDefined();
+      swipe.failAd();
+      swipe.scrollState("dragging");
+      swipe.scrollPage(4, 0.8);
+      swipe.scrollPage(4, 0);
+      swipe.scrollState("settling");
+      swipe.selectPage(4);
+      swipe.scrollState("idle");
+
+      expect(swipe.activeContent()).toEqual([originalContent]);
+      expect(pagerViewMock.setPageWithoutAnimation).not.toHaveBeenCalled();
+      expect(pagerViewMock.mounts).toBe(1);
+    } finally {
+      swipe.unmount();
+    }
+  });
+
+  it("accepts a new product swipe before the previous ad skip is acknowledged", () => {
+    const swipe = renderAdSwipe(4);
+    try {
+      swipe.scrollState("dragging");
+      swipe.scrollState("settling");
+      swipe.selectPage(5);
+      swipe.failAd();
+      swipe.scrollState("idle");
+      expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenLastCalledWith(6);
+      const expectedContent = swipe.contentAt(7);
+      expect(expectedContent).toBeDefined();
+
+      // No onPageSelected(6) acknowledgement: a real new gesture must still
+      // advance rather than being swallowed by the old programmatic guard.
+      swipe.scrollState("dragging");
+      swipe.scrollState("settling");
+      swipe.selectPage(7);
+      swipe.scrollState("idle");
+      expect(swipe.activeContent()).toEqual([expectedContent]);
+      expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledTimes(1);
+      expect(pagerViewMock.mounts).toBe(1);
+    } finally {
+      swipe.unmount();
+    }
   });
 
   it("does not request or show Reels ads after leaving the tab", () => {
@@ -662,6 +945,19 @@ describe("ReelsScreen player lifecycle", () => {
       renderer!.root.find((node) => String(node.type) === "PagerView");
 
     for (let index = 0; index < 100; index += 1) {
+      const previousPages = findPager().props.children.map(
+        (page: React.ReactElement) => page.key,
+      );
+      act(() => {
+        findPager().props.onPageScrollStateChanged({
+          nativeEvent: { pageScrollState: "dragging" },
+        });
+      });
+      act(() => {
+        findPager().props.onPageScrollStateChanged({
+          nativeEvent: { pageScrollState: "settling" },
+        });
+      });
       act(() => {
         findPager().props.onPageSelected({
           nativeEvent: {
@@ -669,6 +965,28 @@ describe("ReelsScreen player lifecycle", () => {
           },
         });
       });
+      expect(
+        findPager().props.children.map((page: React.ReactElement) => page.key),
+      ).toEqual(previousPages);
+      expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledTimes(index);
+      const selectedContent = renderer!.root.find(
+        (node) => String(node.type) === "ProductReelPage" && node.props.isActive,
+      ).props.groupBuy.id;
+      act(() => {
+        findPager().props.onPageScrollStateChanged({
+          nativeEvent: { pageScrollState: "idle" },
+        });
+      });
+      expect(
+        renderer!.root.find(
+          (node) => String(node.type) === "ProductReelPage" && node.props.isActive,
+        ).props.groupBuy.id,
+      ).toBe(selectedContent);
+      expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledTimes(
+        index + 1,
+      );
+      // The next real dragging event must recover if native acknowledgement
+      // of this recenter is delayed or omitted.
 
       const children = findPager().props.children as unknown[];
       expect(children).toHaveLength(REEL_PAGE_WINDOW_SIZE);
