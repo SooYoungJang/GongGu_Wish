@@ -28,6 +28,8 @@ export type {
 const NATIVE_AD_REQUEST_TIMEOUT_MS = 65_000;
 const NATIVE_AD_MAX_ATTEMPTS = 2;
 const NATIVE_AD_RETRY_DELAYS_MS = [750] as const;
+// The SDK's video HTML can round a few pixels beyond its registered MediaView.
+const REEL_MEDIA_EDGE_INSET = 2;
 type NativeAdInstance = Awaited<
   ReturnType<GoogleMobileAdsModule["NativeAd"]["createForAdRequest"]>
 >;
@@ -260,8 +262,8 @@ export const NativeAdCard = memo(function NativeAdCard({
     : 0;
   const reelMediaSize = isReel
     ? getContainedMediaSize(
-        reelFrameWidth,
-        reelFrameHeight - resolvedReelBottomInset,
+        reelFrameWidth - REEL_MEDIA_EDGE_INSET * 2,
+        reelFrameHeight - resolvedReelBottomInset - REEL_MEDIA_EDGE_INSET * 2,
         nativeAd.mediaContent?.aspectRatio,
       )
     : null;

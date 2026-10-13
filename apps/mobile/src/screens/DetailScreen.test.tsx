@@ -764,6 +764,37 @@ beforeEach(() => {
 });
 
 describe("DetailScreen", () => {
+  it("delegates Android snapped gallery touch handling while preserving media paging", () => {
+    platformMock.os = "android";
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={{ params: { groupBuy: baseGroupBuy } } as any}
+          navigation={
+            { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+          }
+        />,
+      );
+    });
+    const gallery = renderer!.root.find(
+      (node) => String(node.type) === "FlashList" && node.props.horizontal,
+    );
+    expect(gallery.props.disableScrollViewPanResponder).toBe(true);
+    expect(gallery.props.snapToInterval).toBeGreaterThan(0);
+    act(() => {
+      gallery.props.onMomentumScrollEnd({
+        nativeEvent: { contentOffset: { x: gallery.props.snapToInterval } },
+      });
+    });
+    expect(
+      renderer!.root.find(
+        (node) => String(node.type) === "FlashList" && node.props.horizontal,
+      ).props.initialScrollIndex,
+    ).toBe(1);
+    act(() => renderer!.unmount());
+  });
+
   it.each(["IMAGE", "VIDEO"] as const)(
     "leaves vertical reel gestures to the pager for a single %s",
     (mediaType) => {
