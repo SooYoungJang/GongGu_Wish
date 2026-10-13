@@ -138,6 +138,8 @@ export function ReelsScreen({
   const pagerScrollStateRef = useRef<"idle" | "dragging" | "settling">("idle");
   const pendingUnavailableAdRef = useRef<number | null>(null);
   const pendingPagerPositionRef = useRef<number | null>(null);
+  const gestureStartSourceIndexRef = useRef<number | null>(null);
+  const pendingRecenterRef = useRef(false);
   reelWindowRef.current = reelWindow;
   reelDirectionRef.current = reelDirection;
   const [summarySheetGate, setSummarySheetGate] = useState({
@@ -189,6 +191,8 @@ export function ReelsScreen({
     pagerScrollStateRef.current = "idle";
     pendingUnavailableAdRef.current = null;
     pendingPagerPositionRef.current = null;
+    gestureStartSourceIndexRef.current = null;
+    pendingRecenterRef.current = false;
     setReelWindow((current) => {
       const activeItem = current.items[current.activeIndex];
       const nearbyContent = activeItem
@@ -495,6 +499,11 @@ export function ReelsScreen({
             const direction = next > current.activeIndex ? 1 : -1;
             reelDirectionRef.current = direction;
             setReelDirection(direction);
+            if (pagerScrollStateRef.current !== "idle") {
+              pendingRecenterRef.current =
+                current.sourceStart + next !==
+                gestureStartSourceIndexRef.current;
+            }
             // Native selection can arrive before the swipe becomes idle.
             // Keep the page identities fixed until that transition finishes.
             applyReelWindow(
@@ -510,10 +519,17 @@ export function ReelsScreen({
           pagerScrollStateRef.current = state;
           if (state === "dragging") {
             pendingPagerPositionRef.current = null;
+            const current = reelWindowRef.current;
+            gestureStartSourceIndexRef.current =
+              current.sourceStart + current.activeIndex;
+            pendingRecenterRef.current = false;
           }
           if (state !== "idle") return;
 
           const current = reelWindowRef.current;
+          const shouldRecenter = pendingRecenterRef.current;
+          pendingRecenterRef.current = false;
+          gestureStartSourceIndexRef.current = null;
           const unavailableSourceIndex = pendingUnavailableAdRef.current;
           pendingUnavailableAdRef.current = null;
           if (
@@ -523,6 +539,7 @@ export function ReelsScreen({
             handleUnavailableAd(unavailableSourceIndex);
             return;
           }
+          if (!shouldRecenter) return;
           const nextWindow = moveReelWindow(
             current,
             baseBatch,
