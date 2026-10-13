@@ -140,6 +140,7 @@ export function ReelsScreen({
   const pendingPagerPositionRef = useRef<number | null>(null);
   const gestureStartSourceIndexRef = useRef<number | null>(null);
   const pendingRecenterRef = useRef(false);
+  const pendingRecenterAtGestureStartRef = useRef(false);
   reelWindowRef.current = reelWindow;
   reelDirectionRef.current = reelDirection;
   const [summarySheetGate, setSummarySheetGate] = useState({
@@ -193,6 +194,7 @@ export function ReelsScreen({
     pendingPagerPositionRef.current = null;
     gestureStartSourceIndexRef.current = null;
     pendingRecenterRef.current = false;
+    pendingRecenterAtGestureStartRef.current = false;
     setReelWindow((current) => {
       const activeItem = current.items[current.activeIndex];
       const nearbyContent = activeItem
@@ -263,13 +265,20 @@ export function ReelsScreen({
       }
       pendingUnavailableAdRef.current = null;
       const direction = reelDirectionRef.current;
+      // An interrupted swipe can reach the physical end before becoming idle.
+      // Center it locally so skipping still finds content in the swipe direction.
+      const settledWindow = moveReelWindow(
+        current,
+        baseBatch,
+        current.activeIndex,
+      );
       const findContent = (step: number) => {
         for (
-          let index = current.activeIndex + step;
-          index >= 0 && index < current.items.length;
+          let index = settledWindow.activeIndex + step;
+          index >= 0 && index < settledWindow.items.length;
           index += step
         ) {
-          if (isReelsContentItem(current.items[index])) return index;
+          if (isReelsContentItem(settledWindow.items[index])) return index;
         }
         return -1;
       };
@@ -278,7 +287,7 @@ export function ReelsScreen({
         preferredIndex >= 0 ? preferredIndex : findContent(-direction);
       if (nextIndex < 0) return;
 
-      const nextWindow = moveReelWindow(current, baseBatch, nextIndex);
+      const nextWindow = moveReelWindow(settledWindow, baseBatch, nextIndex);
       applyReelWindow(nextWindow);
       emitAdsDiagnostic({ event: "native_ad_skipped", placement: "reels" });
     },
@@ -501,8 +510,9 @@ export function ReelsScreen({
             setReelDirection(direction);
             if (pagerScrollStateRef.current !== "idle") {
               pendingRecenterRef.current =
+                pendingRecenterAtGestureStartRef.current ||
                 current.sourceStart + next !==
-                gestureStartSourceIndexRef.current;
+                  gestureStartSourceIndexRef.current;
             }
             // Native selection can arrive before the swipe becomes idle.
             // Keep the page identities fixed until that transition finishes.
@@ -522,7 +532,9 @@ export function ReelsScreen({
             const current = reelWindowRef.current;
             gestureStartSourceIndexRef.current =
               current.sourceStart + current.activeIndex;
-            pendingRecenterRef.current = false;
+            // A new drag may interrupt settling before its idle callback.
+            pendingRecenterAtGestureStartRef.current =
+              pendingRecenterRef.current;
           }
           if (state !== "idle") return;
 
@@ -530,6 +542,7 @@ export function ReelsScreen({
           const shouldRecenter = pendingRecenterRef.current;
           pendingRecenterRef.current = false;
           gestureStartSourceIndexRef.current = null;
+          pendingRecenterAtGestureStartRef.current = false;
           const unavailableSourceIndex = pendingUnavailableAdRef.current;
           pendingUnavailableAdRef.current = null;
           if (
