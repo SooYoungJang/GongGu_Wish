@@ -65,10 +65,23 @@ if [[ "$app_started" != "true" ]]; then
 fi
 
 age_selection_completed=false
+system_ui_recovered=false
 for selection_attempt in $(seq 1 30); do
   adb shell uiautomator dump /sdcard/ads-age-selection.xml >/dev/null || true
   adb pull /sdcard/ads-age-selection.xml \
     "$artifact_dir/ads-age-selection.xml" >/dev/null || true
+  if [[ -s "$artifact_dir/ads-age-selection.xml" ]]; then
+    recovery_coordinates="$(node scripts/mobile-system-ui-dialog.mjs \
+      "$artifact_dir/ads-age-selection.xml" "$system_ui_recovered")"
+    if [[ -n "$recovery_coordinates" ]]; then
+      read -r recovery_x recovery_y <<< "$recovery_coordinates"
+      adb shell input tap "$recovery_x" "$recovery_y"
+      system_ui_recovered=true
+      echo "Recovered emulator System UI; waiting for the Preview age screen"
+      sleep 1
+      continue
+    fi
+  fi
   if [[ -s "$artifact_dir/ads-age-selection.xml" ]] \
     && grep -F 'content-desc="만 14세 이상입니다"' \
       "$artifact_dir/ads-age-selection.xml" >/dev/null; then

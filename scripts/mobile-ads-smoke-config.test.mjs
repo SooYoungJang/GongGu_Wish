@@ -1,8 +1,62 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { getSystemUiRecoveryTap } from "./mobile-system-ui-dialog.mjs";
 
 const read = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+
+const systemUiDialog = (title = "System UI isn't responding", wait = {}) =>
+  `<hierarchy><node package="android" resource-id="android:id/alertTitle" text="${title}" />
+  <node package="${wait.package ?? "android"}" resource-id="android:id/aerr_wait"
+    text="Wait" enabled="${wait.enabled ?? "true"}" clickable="true"
+    bounds="${wait.bounds ?? "[70,1300][1010,1426]"}" /></hierarchy>`;
+
+test("recovers the exact System UI ANR captured by the ads runner", () => {
+  assert.deepEqual(getSystemUiRecoveryTap(systemUiDialog()), [540, 1363]);
+});
+
+test("fails when System UI remains unresponsive after one recovery", () => {
+  assert.throws(
+    () => getSystemUiRecoveryTap(systemUiDialog(), true),
+    /System UI remained unresponsive after recovery/,
+  );
+});
+
+test("does not recover an application ANR or a normal age screen", () => {
+  assert.equal(
+    getSystemUiRecoveryTap(systemUiDialog("GongGu Wish isn't responding")),
+    null,
+  );
+  assert.equal(
+    getSystemUiRecoveryTap('<node content-desc="만 14세 이상입니다" />'),
+    null,
+  );
+});
+
+test("does not treat application text as a System UI dialog", () => {
+  assert.equal(
+    getSystemUiRecoveryTap(
+      systemUiDialog().replace(
+        'package="android"',
+        'package="com.gonggu.wish.preview"',
+      ),
+    ),
+    null,
+  );
+});
+
+test("fails when the System UI Wait control is unavailable or unsafe", () => {
+  for (const wait of [
+    { enabled: "false" },
+    { package: "com.gonggu.wish.preview" },
+    { bounds: "[70,1300][70,1426]" },
+    { bounds: "invalid" },
+  ]) {
+    assert.throws(() =>
+      getSystemUiRecoveryTap(systemUiDialog(undefined, wait)),
+    );
+  }
+});
 
 test("Android ads smoke requires visible Preview test ads to load", () => {
   const app = read("apps/mobile/src/App.tsx");
@@ -43,7 +97,8 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   // Build properties may enable R8, but must not override Expo's Kotlin toolchain.
   assert.equal(
     baseAppConfig.expo.plugins.find(
-      (plugin) => Array.isArray(plugin) && plugin[0] === "expo-build-properties",
+      (plugin) =>
+        Array.isArray(plugin) && plugin[0] === "expo-build-properties",
     )?.[1]?.android?.kotlinVersion,
     undefined,
   );
@@ -78,6 +133,7 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   assert.match(runner, /gms-state-before-warmup\.txt/);
   assert.match(runner, /gms-state-after-warmup\.txt/);
   assert.match(runner, /for launch_attempt in \$\(seq 1 30\)/);
+  assert.match(runner, /node scripts\/mobile-system-ui-dialog\.mjs/);
   assert.match(runner, /만 14세 이상입니다/);
   assert.match(runner, /input tap/);
   assert.ok(
