@@ -934,6 +934,119 @@ describe("ReelsScreen player lifecycle", () => {
     });
   });
 
+  it.each(["initial idle", "cancelled swipe"])(
+    "keeps the original edge page unchanged after %s without a new selection",
+    (scenario) => {
+      let renderer: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(<ReelsScreen />);
+      });
+      const findPager = () =>
+        renderer!.root.find((node) => String(node.type) === "PagerView");
+      const findActivePage = () =>
+        renderer!.root.find(
+          (node) => String(node.type) === "ProductReelPage" && node.props.isActive,
+        );
+      const pageKeys = () =>
+        findPager().props.children.map((page: React.ReactElement) => page.key);
+      const originalPages = pageKeys();
+      const originalContent = findActivePage().props.groupBuy.id;
+
+      try {
+        if (scenario === "cancelled swipe") {
+          act(() => {
+            findPager().props.onPageScrollStateChanged({
+              nativeEvent: { pageScrollState: "dragging" },
+            });
+          });
+          act(() => {
+            findPager().props.onPageScroll?.({
+              nativeEvent: { position: 0, offset: 0.4 },
+            });
+          });
+          act(() => {
+            findPager().props.onPageScrollStateChanged({
+              nativeEvent: { pageScrollState: "settling" },
+            });
+          });
+        }
+        act(() => {
+          findPager().props.onPageScrollStateChanged({
+            nativeEvent: { pageScrollState: "idle" },
+          });
+        });
+
+        expect(pagerViewMock.setPageWithoutAnimation).not.toHaveBeenCalled();
+        expect(pageKeys()).toEqual(originalPages);
+        expect(findActivePage().props.groupBuy.id).toBe(originalContent);
+        expect(pagerViewMock.mounts).toBe(1);
+      } finally {
+        act(() => renderer!.unmount());
+      }
+    },
+  );
+
+  it("waits for a late final selection before recentering an edge swipe that is already idle", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+    const findPager = () =>
+      renderer!.root.find((node) => String(node.type) === "PagerView");
+    const findActivePage = () =>
+      renderer!.root.find(
+        (node) => String(node.type) === "ProductReelPage" && node.props.isActive,
+      );
+    const originalPages = findPager().props.children.map(
+      (page: React.ReactElement) => page.key,
+    );
+    const originalContent = findActivePage().props.groupBuy.id;
+    const nextPage = findPager().children[1] as TestRenderer.ReactTestInstance;
+    const expectedContent = nextPage.find(
+      (node) => String(node.type) === "ProductReelPage",
+    ).props.groupBuy.id;
+
+    try {
+      for (const pageScrollState of ["dragging", "settling", "idle"]) {
+        act(() => {
+          findPager().props.onPageScrollStateChanged({
+            nativeEvent: { pageScrollState },
+          });
+        });
+      }
+      expect(pagerViewMock.setPageWithoutAnimation).not.toHaveBeenCalled();
+      expect(
+        findPager().props.children.map((page: React.ReactElement) => page.key),
+      ).toEqual(originalPages);
+      expect(findActivePage().props.groupBuy.id).toBe(originalContent);
+
+      act(() => {
+        findPager().props.onPageSelected({ nativeEvent: { position: 1 } });
+      });
+      expect(findActivePage().props.groupBuy.id).toBe(expectedContent);
+      expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledTimes(1);
+      const commands = pagerViewMock.setPageWithoutAnimation.mock.calls;
+      const targetPosition = commands[0]?.[0] as number;
+      const targetPage = findPager().children[
+        targetPosition
+      ] as TestRenderer.ReactTestInstance;
+      expect(
+        targetPage.find((node) => String(node.type) === "ProductReelPage").props
+          .groupBuy.id,
+      ).toBe(expectedContent);
+      act(() => {
+        findPager().props.onPageSelected({
+          nativeEvent: { position: targetPosition },
+        });
+      });
+      expect(findActivePage().props.groupBuy.id).toBe(expectedContent);
+      expect(pagerViewMock.setPageWithoutAnimation).toHaveBeenCalledTimes(1);
+      expect(pagerViewMock.mounts).toBe(1);
+    } finally {
+      act(() => renderer!.unmount());
+    }
+  });
+
   it("keeps the pager page window bounded after repeated forward swipes", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
