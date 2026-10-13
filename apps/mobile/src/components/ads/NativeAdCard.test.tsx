@@ -425,10 +425,20 @@ describe("NativeAdCard", () => {
 
     expect(nativeMediaView.props.style).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ height: 202.5, width: 360 }),
+        expect.objectContaining({ height: 200.25, width: 356 }),
       ]),
     );
     expect(chromeAwareViews).toHaveLength(2);
+
+    const videoSize = nativeMediaView.props.style.find(
+      (style: { height?: number; width?: number }) =>
+        typeof style?.height === "number" && typeof style?.width === "number",
+    );
+    // CI captured a Google video WebView extending 3 physical pixels beyond
+    // its MediaView at density 2.625. Keep those SDK pixels inside the owner.
+    const sdkRightEdge =
+      (360 - videoSize.width) / 2 + videoSize.width + 3 / 2.625;
+    expect(sdkRightEdge).toBeLessThanOrEqual(360);
 
     act(() => {
       nativeAdView.props.onLayout({
@@ -439,7 +449,7 @@ describe("NativeAdCard", () => {
     });
     expect(nativeMediaView.props.style).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ height: 202.5, width: 360 }),
+        expect.objectContaining({ height: 200.25, width: 356 }),
       ]),
     );
   });
