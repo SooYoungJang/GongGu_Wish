@@ -78,6 +78,7 @@ export const NativeAdCard = memo(function NativeAdCard({
   const [loadedNativeAd, setLoadedNativeAd] = useState<LoadedNativeAd | null>(
     null,
   );
+  const [requestUnavailable, setRequestUnavailable] = useState(false);
   const [reelLayout, setReelLayout] = useState<ReelLayout>({
     height: 0,
     width: 0,
@@ -110,6 +111,7 @@ export const NativeAdCard = memo(function NativeAdCard({
 
   useEffect(() => {
     setLoadedNativeAd(null);
+    setRequestUnavailable(false);
     if (!loadEnabled) return;
     if (!enabled || !unitId || (isSettled && !isReady)) {
       onLoadStateChange?.("unavailable");
@@ -188,6 +190,7 @@ export const NativeAdCard = memo(function NativeAdCard({
       .catch(() => {
         if (!active) return;
         setLoadedNativeAd(null);
+        setRequestUnavailable(true);
         onLoadStateChange?.("unavailable");
       });
 
@@ -208,8 +211,23 @@ export const NativeAdCard = memo(function NativeAdCard({
     variant,
   ]);
 
-  if (!enabled || !isReady || !unitId || !loadedNativeAd || !visible) {
+  if (!enabled || !isReady || !unitId || !visible) {
     return null;
+  }
+
+  if (!loadedNativeAd) {
+    if (variant !== "row" || !loadEnabled || requestUnavailable) return null;
+    // Virtualized feeds need a measurable row while the SDK request is pending.
+    return (
+      <View
+        accessibilityRole="progressbar"
+        accessibilityLabel="광고를 불러오는 중"
+        style={[styles.row, style]}
+        testID={testID ? `${testID}-loading` : undefined}
+      >
+        <Text style={styles.loadingLabel}>광고를 불러오는 중</Text>
+      </View>
+    );
   }
 
   const { module, nativeAd } = loadedNativeAd;
