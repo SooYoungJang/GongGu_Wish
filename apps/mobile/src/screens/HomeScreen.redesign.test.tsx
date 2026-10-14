@@ -1781,6 +1781,35 @@ describe('HomeScreenContent complete product feed', () => {
 });
 
 describe('HomeScreenContent redesign v2', () => {
+  it('shows the first full-width ad within the first four products', () => {
+    for (let batch = 0; batch < 4; batch += 1) {
+      const groupBuys = Array.from({ length: 24 }, (_, index) => ({
+        ...sampleGroupBuys[0], id: `visibility-${batch}-${index}`, isHomeBanner: false,
+      }));
+      const renderer = renderHomeContent({ groupBuys });
+      const firstAdIndex = recommendationSequence(renderer).indexOf('ad');
+      expect(firstAdIndex).toBeGreaterThanOrEqual(2);
+      expect(firstAdIndex).toBeLessThanOrEqual(4);
+      expect(renderer.root.findAllByType('NativeAdCard' as React.ElementType)[0].props.variant).toBe('row');
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('retries unavailable ads on pull-to-refresh without losing products', () => {
+    nativeAdMock.status = 'unavailable';
+    const groupBuys = sampleGroupBuys.slice(0, 3);
+    const onRefresh = vi.fn();
+    const renderer = renderHomeContent({ groupBuys, onRefresh });
+    const initialMountCount = nativeAdMock.mountCount;
+    expect(initialMountCount).toBeGreaterThan(0);
+    const list = renderer.root.findByType('FlashList' as React.ElementType);
+    act(() => list.props.refreshControl.props.onRefresh());
+    expect(onRefresh).toHaveBeenCalledOnce();
+    expect(nativeAdMock.mountCount).toBe(initialMountCount * 2);
+    expect(recommendationCards(renderer).map((card) => card.props.item.id))
+      .toEqual(groupBuys.map((item) => item.id));
+  });
+
   it('does not reserve a native ad slot before the minimum gap of two products', () => {
     const renderer = renderHomeContent({
       groupBuys: sampleGroupBuys.slice(0, 1),
@@ -1799,7 +1828,7 @@ describe('HomeScreenContent redesign v2', () => {
     expect(countHomeNativeAds(renderer)).toBe(1);
     expect(
       renderer.root.findByProps({ testID: 'home-native-ad' }).props.variant,
-    ).toBe('tile');
+    ).toBe('row');
   });
 
   it('fits the first random gap so a short three-product home feed still shows an ad', () => {

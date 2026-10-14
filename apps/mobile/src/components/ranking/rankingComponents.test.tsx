@@ -964,7 +964,27 @@ describe("ranking components", () => {
     expect(text).not.toContain("4위부터도 같은 기준으로 집계해요");
   });
 
-  it("keeps later ranking ad slots when one request is unavailable", () => {
+  it("shows the first ranking ad immediately after the top three", () => {
+    rankingAdsMock.enabled = true;
+    rankingAdsMock.isReady = true;
+    rankingAdsMock.nativeUnitIds.home = "home-native-unit";
+    const rankings = Array.from({ length: 24 }, (_, index) =>
+      sampleRanking({ groupBuyId: `visible-ranking-${index + 1}`, rank: index + 1 }),
+    );
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(withTheme(
+        <SellerRankingList state={{ status: "ready", data: rankings }} />,
+      ));
+    });
+    const list = renderer!.root.findByType("FlatList" as React.ElementType);
+    const firstRow = list.children[1] as TestRenderer.ReactTestInstance;
+    expect(firstRow.findByProps({ testID: "ranking-native-ad-1" })).toBeDefined();
+    expect(renderer!.root.findByProps({ testID: "ranking-row-4" })).toBeDefined();
+    act(() => renderer!.unmount());
+  });
+
+  it("keeps later ranking ad slots and retries a failed slot on refresh", () => {
     const rankings = Array.from({ length: 30 }, (_, index) =>
       sampleRanking({
         groupBuyId: `ranking-ad-group-${index + 1}`,
@@ -975,11 +995,12 @@ describe("ranking components", () => {
     rankingAdsMock.isReady = true;
     rankingAdsMock.nativeUnitIds.home = "home-native-unit";
     let renderer: TestRenderer.ReactTestRenderer;
+    const onRefresh = vi.fn();
 
     act(() => {
       renderer = TestRenderer.create(
         withTheme(
-          <SellerRankingList state={{ status: "ready", data: rankings }} />,
+          <SellerRankingList state={{ status: "ready", data: rankings }} onRefresh={onRefresh} />,
         ),
       );
     });
@@ -996,6 +1017,10 @@ describe("ranking components", () => {
     );
     expect(adsAfterFailure).toHaveLength(adsBeforeFailure.length - 1);
     expect(adsAfterFailure.length).toBeGreaterThan(0);
+    act(() => renderer!.root.findByType("FlatList" as React.ElementType).props.onRefresh());
+    expect(onRefresh).toHaveBeenCalledOnce();
+    expect(renderer!.root.findAll((node) => String(node.type) === "NativeAdCard"))
+      .toHaveLength(adsBeforeFailure.length);
   });
 
   it("uses the same editorial divider treatment for every ranking row", () => {
