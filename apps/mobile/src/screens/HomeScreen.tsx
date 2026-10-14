@@ -5,8 +5,6 @@ import {
   useRef,
   useState,
   type Dispatch,
-  type ReactNode,
-  type SetStateAction,
 } from "react";
 import {
   ActivityIndicator,
@@ -29,6 +27,11 @@ import {
 } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
+import {
+  FlashList,
+  type FlashListRef,
+  type ListRenderItemInfo,
+} from "@shopify/flash-list";
 
 import { SText } from "../components/ui/SText";
 import { InstagramIdentity } from "../components/ui/InstagramIdentity";
@@ -46,8 +49,6 @@ import {
   getHomeBannerQueryOptions,
   HOME_DATA_STALE_TIME_MS,
 } from "../bootstrap/appBootstrap";
-import { KeyboardFormScreen } from "../components/keyboard/KeyboardFormScreen";
-import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { getHomeBannerStatusCopy } from "@gonggu/shared/utils/homeBannerPresentation";
 import { getHomeBannerDateKey } from "@gonggu/shared/utils/homeBanner";
 import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
@@ -95,6 +96,7 @@ const HOME_SIDE_PADDING = 16;
 const PROMO_CARD_GAP = 12;
 const PROMO_AUTO_PLAY_MS = 3000;
 const PROMO_WRAP_SETTLE_MS = 450;
+const HOME_LIST_POSITION_CONFIG = { disabled: true } as const;
 function getPromoVisual(item: GroupBuy) {
   const firstMedia = item.mediaItems?.[0];
   const firstMediaVisual =
@@ -272,7 +274,7 @@ function HomeCategoryFilter({
   accessibilityElementsHidden?: boolean;
   importantForAccessibility?: ViewProps["importantForAccessibility"];
   value: HomeCategory;
-  onChange: Dispatch<SetStateAction<HomeCategory>>;
+  onChange: Dispatch<HomeCategory>;
   onLayout?: ViewProps["onLayout"];
   s: ReturnType<typeof makeStyles>;
   testID?: string;
@@ -806,61 +808,49 @@ function buildHomeAdInsertionPoints(ids: string[]): Set<number> {
   return points;
 }
 
-function RecommendedProducts({
-  groupBuys,
-  onPressDeal,
-  s,
-}: {
-  groupBuys: GroupBuy[];
-  onPressDeal: DealAction;
-  s: ReturnType<typeof makeStyles>;
-}) {
-  const products = groupBuys.slice(0, 8);
-  const productIds = products.map((item) => item.id);
-  const adInsertionPoints = useMemo(
-    () => buildHomeAdInsertionPoints(productIds),
-    [productIds],
-  );
+type HomeFeedRow =
+  | {
+      type: "products";
+      key: string;
+      products: Array<{ item: GroupBuy; index: number }>;
+    }
+  | { type: "ad"; key: string };
 
-  // Insert a product-sized native ad at each seeded random break. Ad slots
-  // render null while loading/unavailable, so products always stay visible
-  // and no blank space is reserved.
-  const gridChildren: ReactNode[] = [];
-  products.forEach((item, index) => {
-    gridChildren.push(
-      <DealCard
-        category={categoryForGroupBuy(item, index)}
-        item={item}
-        key={item.id}
-        onPress={() => onPressDeal(item)}
-      />,
-    );
+function buildHomeFeedRows(groupBuys: GroupBuy[]): HomeFeedRow[] {
+  const adInsertionPoints = buildHomeAdInsertionPoints(
+    groupBuys.map((item) => item.id),
+  );
+  const rows: HomeFeedRow[] = [];
+  let products: Array<{ item: GroupBuy; index: number }> = [];
+
+  groupBuys.forEach((item, index) => {
+    products.push({ item, index });
+    // Flush partial rows before a full-width ad without changing product order.
+    if (
+      products.length === 2 ||
+      adInsertionPoints.has(index) ||
+      index === groupBuys.length - 1
+    ) {
+      rows.push({
+        type: "products",
+        key: `products-${products[0].item.id}`,
+        products,
+      });
+      products = [];
+    }
     if (adInsertionPoints.has(index)) {
-      gridChildren.push(
-        <NativeAdCard
-          key={`home-recommendation-ad-after-${index}`}
-          testID="home-native-ad"
-          variant="tile"
-        />,
-      );
+      rows.push({ type: "ad", key: `ad-after-${item.id}` });
     }
   });
+  return rows;
+}
 
-  return (
-    <View style={s.recommendSection}>
-      {products.length > 0 ? (
-        <View style={s.productGrid} testID="home-recommendation-grid">
-          {gridChildren}
-        </View>
-      ) : (
-        <View style={s.productEmpty}>
-          <SText variant="body" style={s.productEmptyText}>
-            선택한 카테고리에 공구가 없습니다
-          </SText>
-        </View>
-      )}
-    </View>
-  );
+function homeFeedKey(row: HomeFeedRow) {
+  return row.key;
+}
+
+function homeFeedItemType(row: HomeFeedRow) {
+  return row.type;
 }
 
 export function HomeScreenContent({
@@ -883,7 +873,7 @@ export function HomeScreenContent({
   const [selectedCategory, setSelectedCategory] = useState<HomeCategory>("all");
   const categoryFilterTopRef = useRef<number | null>(null);
   const scrollOffsetRef = useRef(0);
-  const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
+  const scrollRef = useRef<FlashListRef<HomeFeedRow>>(null);
   const [isCategoryFilterSticky, setIsCategoryFilterSticky] = useState(false);
   const displayGroupBuys = groupBuys;
   const promoGroupBuys = homeBannerGroupBuys ?? groupBuys;
@@ -893,6 +883,10 @@ export function HomeScreenContent({
       (item) => normalizeHomeCategory(item.category) === selectedCategory,
     );
   }, [displayGroupBuys, selectedCategory]);
+  const feedRows = useMemo(
+    () => buildHomeFeedRows(filteredGroupBuys),
+    [filteredGroupBuys],
+  );
   const promoCardWidth = Math.max(
     0,
     Math.min(width - HOME_SIDE_PADDING * 2, Math.max(260, width - 88)),
@@ -906,8 +900,50 @@ export function HomeScreenContent({
 
   useEffect(() => {
     if (scrollToTopRequest == null) return;
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    scrollRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, [scrollToTopRequest]);
+
+  const handleCategoryChange = useCallback((category: HomeCategory) => {
+    setSelectedCategory(category);
+    const filterTop = categoryFilterTopRef.current;
+    if (filterTop != null && scrollOffsetRef.current > filterTop) {
+      scrollRef.current?.scrollToOffset({ offset: filterTop, animated: false });
+    }
+  }, []);
+
+  const renderFeedRow = useCallback(
+    ({ item: row }: ListRenderItemInfo<HomeFeedRow>) => {
+      if (row.type === "ad") {
+        // Returning null from NativeAdCard leaves no reserved row while unavailable.
+        return (
+          <NativeAdCard
+            key={row.key}
+            style={s.productAd}
+            testID="home-native-ad"
+            variant="tile"
+          />
+        );
+      }
+      return (
+        <View
+          style={[s.recommendSection, s.productRow]}
+          testID="home-product-row"
+        >
+          <View style={s.productGrid}>
+            {row.products.map(({ item, index }) => (
+              <DealCard
+                category={categoryForGroupBuy(item, index)}
+                item={item}
+                key={item.id}
+                onPress={() => onPressDeal(item)}
+              />
+            ))}
+          </View>
+        </View>
+      );
+    },
+    [onPressDeal, s],
+  );
 
   const handleCategoryFilterLayout = useCallback((event: LayoutChangeEvent) => {
     const nextTop = event.nativeEvent.layout.y;
@@ -933,10 +969,16 @@ export function HomeScreenContent({
     <SafeAreaView edges={["top", "bottom"]} style={s.safeArea}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <View style={s.container}>
-        <KeyboardFormScreen
+        <FlashList
+          ref={scrollRef}
+          data={feedRows}
+          renderItem={renderFeedRow}
+          keyExtractor={homeFeedKey}
+          getItemType={homeFeedItemType}
+          maintainVisibleContentPosition={HOME_LIST_POSITION_CONFIG}
+          testID="home-product-list"
           keyboardShouldPersistTaps="always"
           onScroll={handleHomeScroll}
-          scrollRef={scrollRef}
           scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
@@ -946,74 +988,79 @@ export function HomeScreenContent({
             />
           }
           contentContainerStyle={s.listContent}
-        >
-          <View style={s.content} testID="home-top-content">
-            <HomeTopBar colors={colors} onOpenSearch={onOpenSearch} s={s} />
-            <ShoppingHomeHeading s={s} />
-            <PromoBanner
-              cardWidth={promoCardWidth}
-              groupBuys={promoGroupBuys}
-              onPressDeal={onPressDeal}
-              s={s}
-              sidePadding={promoSidePadding}
-            />
-          </View>
-          <View style={s.content} testID="home-weekly-content">
-            <WeeklyGroupBuysSection
-              groupBuys={displayGroupBuys}
-              onPressDeal={onPressDeal}
-              onOpenCalendar={onOpenCalendar}
-              s={s}
-            />
-            {isLoading && groupBuys.length === 0 ? (
-              <ActivityIndicator color={colors.accent} />
-            ) : isError ? (
-              <AsyncStateNotice
-                compact
-                isRetrying={isFetching}
-                message={
-                  groupBuys.length > 0
-                    ? "네트워크 연결 상태를 확인해주세요. 저장된 공구 정보를 계속 표시하고 있어요."
-                    : "네트워크 연결 상태를 확인해주세요. 잠시 후 다시 시도해주세요."
+          ListHeaderComponent={
+            <>
+              <View style={s.content} testID="home-top-content">
+                <HomeTopBar colors={colors} onOpenSearch={onOpenSearch} s={s} />
+                <ShoppingHomeHeading s={s} />
+                <PromoBanner
+                  cardWidth={promoCardWidth}
+                  groupBuys={promoGroupBuys}
+                  onPressDeal={onPressDeal}
+                  s={s}
+                  sidePadding={promoSidePadding}
+                />
+              </View>
+              <View style={s.content} testID="home-weekly-content">
+                <WeeklyGroupBuysSection
+                  groupBuys={displayGroupBuys}
+                  onPressDeal={onPressDeal}
+                  onOpenCalendar={onOpenCalendar}
+                  s={s}
+                />
+                {isLoading && groupBuys.length === 0 ? (
+                  <ActivityIndicator color={colors.accent} />
+                ) : isError ? (
+                  <AsyncStateNotice
+                    compact
+                    isRetrying={isFetching}
+                    message={
+                      groupBuys.length > 0
+                        ? "네트워크 연결 상태를 확인해주세요. 저장된 공구 정보를 계속 표시하고 있어요."
+                        : "네트워크 연결 상태를 확인해주세요. 잠시 후 다시 시도해주세요."
+                    }
+                    onRetry={onRefresh}
+                    style={s.queryState}
+                    testID="home-query-state"
+                    title={
+                      groupBuys.length > 0
+                        ? "최신 공구 정보를 확인하지 못했어요"
+                        : "공구 정보를 불러오지 못했어요"
+                    }
+                    variant={groupBuys.length > 0 ? "stale" : "error"}
+                  />
+                ) : groupBuys.length === 0 ? (
+                  <AsyncStateNotice
+                    compact
+                    style={s.queryState}
+                    testID="home-query-state"
+                    title="현재 표시할 공구가 없어요"
+                    variant="empty"
+                  />
+                ) : null}
+              </View>
+              <HomeCategoryFilter
+                accessibilityElementsHidden={isCategoryFilterSticky}
+                importantForAccessibility={
+                  isCategoryFilterSticky ? "no-hide-descendants" : "auto"
                 }
-                onRetry={onRefresh}
-                style={s.queryState}
-                testID="home-query-state"
-                title={
-                  groupBuys.length > 0
-                    ? "최신 공구 정보를 확인하지 못했어요"
-                    : "공구 정보를 불러오지 못했어요"
-                }
-                variant={groupBuys.length > 0 ? "stale" : "error"}
+                onChange={handleCategoryChange}
+                onLayout={handleCategoryFilterLayout}
+                s={s}
+                value={selectedCategory}
               />
-            ) : groupBuys.length === 0 ? (
-              <AsyncStateNotice
-                compact
-                style={s.queryState}
-                testID="home-query-state"
-                title="현재 표시할 공구가 없어요"
-                variant="empty"
-              />
-            ) : null}
-          </View>
-          <HomeCategoryFilter
-            accessibilityElementsHidden={isCategoryFilterSticky}
-            importantForAccessibility={
-              isCategoryFilterSticky ? "no-hide-descendants" : "auto"
-            }
-            onChange={setSelectedCategory}
-            onLayout={handleCategoryFilterLayout}
-            s={s}
-            value={selectedCategory}
-          />
-          <View style={s.content} testID="home-deal-grid-content">
-            <RecommendedProducts
-              groupBuys={filteredGroupBuys}
-              onPressDeal={onPressDeal}
-              s={s}
-            />
-          </View>
-        </KeyboardFormScreen>
+            </>
+          }
+          ListEmptyComponent={
+            <View style={s.recommendSection}>
+              <View style={s.productEmpty}>
+                <SText variant="body" style={s.productEmptyText}>
+                  선택한 카테고리에 공구가 없습니다
+                </SText>
+              </View>
+            </View>
+          }
+        />
         {isCategoryFilterSticky ? (
           <View
             pointerEvents="box-none"
@@ -1021,7 +1068,7 @@ export function HomeScreenContent({
             testID="home-category-filter-sticky-layer"
           >
             <HomeCategoryFilter
-              onChange={setSelectedCategory}
+              onChange={handleCategoryChange}
               s={s}
               testID="home-category-filter-sticky"
               value={selectedCategory}
@@ -1622,6 +1669,14 @@ function makeStyles(colors: CommerceColorPalette) {
     },
     recommendSection: {
       paddingHorizontal: HOME_SIDE_PADDING,
+    },
+    productRow: {
+      paddingBottom: spacing.lg + spacing.xxs,
+    },
+    productAd: {
+      marginHorizontal: HOME_SIDE_PADDING,
+      marginBottom: spacing.lg + spacing.xxs,
+      width: "auto",
     },
     productGrid: {
       columnGap: spacing.md,
