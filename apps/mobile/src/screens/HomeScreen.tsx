@@ -759,15 +759,14 @@ function WeeklyGroupBuysSection({
   );
 }
 
-// Insert a native ad every HOME_NATIVE_AD_INTERVAL recommended products so the
-// home grid surfaces ads more often than the previous single post-6 placement.
-// Ads land on natural-feeling, unpredictable breaks: every gap is drawn
-// uniformly from [HOME_AD_GAP_MIN, HOME_AD_GAP_MAX] = [2, 10] products. The
+// Show the first ad within four products, then draw subsequent gaps from
+// [HOME_AD_GAP_MIN, HOME_AD_GAP_MAX] = [2, 10] products. The
 // gap sequence is seeded from the recommended product ids so the same batch
 // always shows ads at the same indices (no layout jump on re-render), while a
 // refreshed batch surfaces fresh ad positions.
 const HOME_AD_GAP_MIN = 2;
 const HOME_AD_GAP_MAX = 10;
+const HOME_FIRST_AD_GAP_MAX = 4;
 
 function seedRandomFromIds(ids: string[]): () => number {
   let h = 1779033703 ^ ids.length;
@@ -793,7 +792,7 @@ function seedRandomFromIds(ids: string[]): () => number {
  */
 function buildHomeAdInsertionPoints(ids: string[]): Set<number> {
   const points = new Set<number>();
-  const largestFirstGap = Math.min(HOME_AD_GAP_MAX, ids.length);
+  const largestFirstGap = Math.min(HOME_FIRST_AD_GAP_MAX, ids.length);
   if (largestFirstGap < HOME_AD_GAP_MIN) return points;
   const random = seedRandomFromIds(ids);
   const randomGap = (max = HOME_AD_GAP_MAX) =>
@@ -871,6 +870,11 @@ export function HomeScreenContent({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [selectedCategory, setSelectedCategory] = useState<HomeCategory>("all");
+  const [adRefreshKey, setAdRefreshKey] = useState(0);
+  const handleRefresh = useCallback(() => {
+    setAdRefreshKey((key) => key + 1);
+    onRefresh();
+  }, [onRefresh]);
   const categoryFilterTopRef = useRef<number | null>(null);
   const scrollOffsetRef = useRef(0);
   const scrollRef = useRef<FlashListRef<HomeFeedRow>>(null);
@@ -914,13 +918,12 @@ export function HomeScreenContent({
   const renderFeedRow = useCallback(
     ({ item: row }: ListRenderItemInfo<HomeFeedRow>) => {
       if (row.type === "ad") {
-        // Returning null from NativeAdCard leaves no reserved row while unavailable.
         return (
           <NativeAdCard
-            key={row.key}
+            key={`${row.key}-${adRefreshKey}`}
             style={s.productAd}
             testID="home-native-ad"
-            variant="tile"
+            variant="row"
           />
         );
       }
@@ -942,7 +945,7 @@ export function HomeScreenContent({
         </View>
       );
     },
-    [onPressDeal, s],
+    [adRefreshKey, onPressDeal, s],
   );
 
   const handleCategoryFilterLayout = useCallback((event: LayoutChangeEvent) => {
@@ -983,7 +986,7 @@ export function HomeScreenContent({
           refreshControl={
             <RefreshControl
               refreshing={isFetching}
-              onRefresh={onRefresh}
+              onRefresh={handleRefresh}
               tintColor={colors.accent}
             />
           }

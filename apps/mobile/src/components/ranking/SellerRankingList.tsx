@@ -19,7 +19,6 @@ import { useAds } from "../../ads/AdsContext";
 import {
   insertReelsAdSlots,
   isReelsContentItem,
-  REELS_AD_GAP_MAX,
   REELS_AD_GAP_MIN,
   seedAdRandomFromIds,
   type ReelsFeedItem,
@@ -100,6 +99,11 @@ export function SellerRankingList({
   const theme = useCommerceTheme();
   const { colors, spacing } = theme;
   const s = useMemo(() => makeStyles(theme), [theme]);
+  const [adRefreshKey, setAdRefreshKey] = useState(0);
+  const handleRefresh = useCallback(() => {
+    setAdRefreshKey((key) => key + 1);
+    onRefresh?.();
+  }, [onRefresh]);
   const resolvedTopInset = topInset ?? spacing.sm;
   const contentContainerStyle = useMemo(
     () => [s.content, { paddingTop: resolvedTopInset }],
@@ -126,13 +130,7 @@ export function SellerRankingList({
   const feedItems = useMemo<RankingFeedItem[]>(() => {
     const rankingIds = readyData.map((item) => item.groupBuyId);
     const random = seedAdRandomFromIds(rankingIds);
-    const smallestFirstGap = Math.max(REELS_AD_GAP_MIN, topThree.length);
-    const largestFirstGap = Math.min(REELS_AD_GAP_MAX, readyData.length);
-    const firstAdAfter =
-      largestFirstGap >= smallestFirstGap
-        ? Math.floor(random() * (largestFirstGap - smallestFirstGap + 1)) +
-          smallestFirstGap
-        : undefined;
+    const firstAdAfter = Math.max(REELS_AD_GAP_MIN, topThree.length);
     const topThreeIds = new Set(topThree.map((item) => item.groupBuyId));
     return insertReelsAdSlots(wrapForAdInsertion(readyData.slice()), {
       enabled: canShowRankingAds,
@@ -156,7 +154,11 @@ export function SellerRankingList({
     ({ item }) => {
       if (!isReelsContentItem(item)) {
         return (
-          <RankingNativeAdSlot sequence={item.sequence} style={s.adCard} />
+          <RankingNativeAdSlot
+            key={`${item.sequence}-${adRefreshKey}`}
+            sequence={item.sequence}
+            style={s.adCard}
+          />
         );
       }
       return (
@@ -168,7 +170,7 @@ export function SellerRankingList({
         />
       );
     },
-    [onPressItem, onPressSeller, onToggleAlert, s.adCard],
+    [adRefreshKey, onPressItem, onPressSeller, onToggleAlert, s.adCard],
   );
   if (state.status === "loading") {
     return (
@@ -250,7 +252,7 @@ export function SellerRankingList({
       ListFooterComponent={<View style={footerStyle} />}
       ref={listRef}
       onScroll={onScroll}
-      onRefresh={onRefresh}
+      onRefresh={onRefresh ? handleRefresh : undefined}
       progressViewOffset={resolvedTopInset + spacing.lg}
       refreshing={"refreshing" in state ? !!state.refreshing : false}
       renderItem={renderItem}

@@ -49,7 +49,40 @@ beforeEach(() => {
 });
 
 describe("NativeAdCard", () => {
-  it("does not request an ad when the integration is disabled", () => {
+  it("reserves a full-width feed row until the ad arrives", async () => {
+    const resolveAd = vi.fn();
+    vi.mocked(NativeAd.createForAdRequest).mockImplementation(
+      () => new Promise((resolve) => { resolveAd.mockImplementation(resolve); }),
+    );
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <AdsContext.Provider value={enabledAds}>
+          <NativeAdCard variant="row" testID="feed-ad" />
+        </AdsContext.Provider>,
+      );
+    });
+
+    const loading = renderer!.root.findByProps({ testID: "feed-ad-loading" });
+    expect(Object.assign({}, ...loading.props.style)).toMatchObject({
+      minHeight: 124,
+      width: "100%",
+    });
+    expect(flattenText(renderer!.toJSON())).toContain("광고를 불러오는 중");
+    expect(renderer!.root.findAllByType("NativeAdView" as React.ElementType)).toHaveLength(0);
+
+    const destroy = vi.fn();
+    await act(async () => {
+      resolveAd({ headline: "준비된 광고", destroy } as unknown as Awaited<ReturnType<typeof NativeAd.createForAdRequest>>);
+    });
+    expect(renderer!.root.findAllByProps({ testID: "feed-ad-loading" })).toHaveLength(0);
+    expect(flattenText(renderer!.toJSON())).toContain("준비된 광고");
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
+    act(() => renderer!.unmount());
+    expect(destroy).toHaveBeenCalledOnce();
+  });
+
+  it.each(["card", "row"] as const)("does not request a %s ad when the integration is disabled", (variant) => {
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
       renderer = TestRenderer.create(
@@ -63,7 +96,7 @@ describe("NativeAdCard", () => {
             showPrivacyOptions: vi.fn(async () => false),
           }}
         >
-          <NativeAdCard />
+          <NativeAdCard variant={variant} />
         </AdsContext.Provider>,
       );
     });
@@ -79,7 +112,7 @@ describe("NativeAdCard", () => {
         <AdsContext.Provider
           value={{ ...enabledAds, isReady: false, isSettled: false }}
         >
-          <NativeAdCard onLoadStateChange={onLoadStateChange} />
+          <NativeAdCard variant="row" onLoadStateChange={onLoadStateChange} />
         </AdsContext.Provider>,
       );
     });
@@ -140,7 +173,7 @@ describe("NativeAdCard", () => {
     expect(destroy).toHaveBeenCalledOnce();
   });
 
-  it("leaves no blank card when loading fails", async () => {
+  it.each(["card", "row"] as const)("leaves no blank %s when loading fails", async (variant) => {
     vi.useFakeTimers();
     const onLoadStateChange = vi.fn();
     vi.mocked(NativeAd.createForAdRequest).mockRejectedValue(
@@ -151,7 +184,7 @@ describe("NativeAdCard", () => {
     await act(async () => {
       renderer = TestRenderer.create(
         <AdsContext.Provider value={enabledAds}>
-          <NativeAdCard onLoadStateChange={onLoadStateChange} />
+          <NativeAdCard variant={variant} onLoadStateChange={onLoadStateChange} />
         </AdsContext.Provider>,
       );
       await Promise.resolve();
