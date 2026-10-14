@@ -17,13 +17,6 @@
   "version_metadata": {
     "binding": "CF_VERSION_METADATA",
   },
-  // Confirm namespace IDs are unused in this Cloudflare account before release.
-  "ratelimits": [{
-    "name": "TODAY_CALENDAR_RATE_LIMITER",
-    "namespace_id": "2026101501",
-    "simple": { "limit": 300, "period": 60 },
-  }],
-  // TODAY_CALENDAR_ANON_KEY is a Worker secret, never a source-controlled var.
   "vars": {
     "APP_ENV": "production",
     "SUPABASE_ORIGIN": "https://iosdoheblabfimkjnvfj.supabase.co",
