@@ -1,3 +1,5 @@
+import { useId, useRef, useState } from "react";
+
 export type AdminTabKey =
   | "dashboard"
   | "submissions"
@@ -36,20 +38,58 @@ export function AdminNavigation({
   activeTab: AdminTabKey;
   onSelect: (tab: AdminTabKey) => void;
 }) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const activeLabel = navigation.find((item) => item.key === activeTab)?.label;
+
   return (
-    <nav className="nav-tabs admin-navigation" aria-label="관리자 메뉴">
-      {navigation.map((item) => (
-        <button
-          aria-current={activeTab === item.key ? "page" : undefined}
-          className={activeTab === item.key ? "active" : ""}
-          data-nav-group={item.group}
-          key={item.key}
-          onClick={() => onSelect(item.key)}
-          type="button"
-        >
-          <strong>{item.label}</strong>
-        </button>
-      ))}
-    </nav>
+    <div
+      className="admin-navigation-container"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open) {
+          setOpen(false);
+          toggle.current?.focus();
+        }
+      }}
+    >
+      <button
+        aria-controls={id}
+        aria-expanded={open}
+        className="admin-navigation-toggle"
+        onClick={() => setOpen((value) => !value)}
+        ref={toggle}
+        type="button"
+      >
+        <strong>{activeLabel}</strong>
+        <span>
+          {open ? "메뉴 닫기" : "전체 메뉴"}{" "}
+          <span aria-hidden="true">{open ? "−" : "+"}</span>
+        </span>
+      </button>
+      <nav
+        className={`nav-tabs admin-navigation${open ? " admin-navigation--open" : ""}`}
+        aria-label="관리자 메뉴"
+        id={id}
+      >
+        {navigation.map((item) => (
+          <button
+            aria-current={activeTab === item.key ? "page" : undefined}
+            className={activeTab === item.key ? "active" : ""}
+            data-nav-group={item.group}
+            key={item.key}
+            onClick={() => {
+              onSelect(item.key);
+              setOpen(false);
+              if (toggle.current?.getClientRects().length)
+                toggle.current.focus();
+            }}
+            type="button"
+          >
+            <strong>{item.label}</strong>
+          </button>
+        ))}
+      </nav>
+    </div>
   );
 }
