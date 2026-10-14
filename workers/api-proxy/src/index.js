@@ -1,3 +1,5 @@
+import { todayCalendar } from './today-calendar.js';
+
 const MAX_BODY_BYTES = 1024 * 1024;
 const PREVIEW_APP_LINK_HOST = "api-preview.gongguwish.com";
 const PREVIEW_ANDROID_APP_LINKS = [
@@ -441,9 +443,14 @@ async function proxyRequest(request, env, url, requestId) {
   );
 }
 
-export async function handleRequest(request, env) {
+export async function handleRequest(request, env, ctx) {
   const url = new URL(request.url);
   const requestId = request.headers.get("CF-Ray") ?? crypto.randomUUID();
+  const calendarResponse = await todayCalendar(request, env, requestId, {
+    errorResponse, configuredOrigins, resolveDeploymentIdentity,
+    applyCors, securityHeaders, withRequestId,
+  }, ctx);
+  if (calendarResponse) return calendarResponse;
   const appLinkResponse = previewAppLinkResponse(request, env, url, requestId);
   if (appLinkResponse) return appLinkResponse;
   if (url.pathname === "/health")
