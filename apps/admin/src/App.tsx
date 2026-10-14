@@ -13,6 +13,7 @@ import {
   type AdminTabKey,
 } from "@/components/AdminNavigation";
 import { EditorSections } from "@/components/EditorSections";
+import { EditorWorkspace } from "@/components/EditorWorkspace";
 import { ProductSourcePanel } from "@/components/ProductSourcePanel";
 import {
   AppLivePreview,
@@ -2136,235 +2137,6 @@ function AdminShell({ session }: { session: Session }) {
           </>
         )}
       </main>
-      <nav className="bottom-tab-bar" aria-label="모바일 하단 탭">
-        <button
-          aria-current={tab === "dashboard" ? "page" : undefined}
-          className={tab === "dashboard" ? "active" : ""}
-          onClick={() => switchTab("dashboard")}
-          type="button"
-        >
-          <svg
-            fill="none"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M3 12L12 3l9 9v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9z"
-              fill="currentColor"
-            />
-          </svg>
-          <span>대시보드</span>
-        </button>
-        <button
-          aria-current={tab === "submissions" ? "page" : undefined}
-          className={tab === "submissions" ? "active" : ""}
-          onClick={() => switchTab("submissions")}
-          type="button"
-        >
-          <svg
-            fill="none"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0 2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9l2 2 4-4"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-            />
-          </svg>
-          <span>검수</span>
-        </button>
-        <button
-          aria-current={tab === "autoCollection" ? "page" : undefined}
-          className={tab === "autoCollection" ? "active" : ""}
-          onClick={() => switchTab("autoCollection")}
-          type="button"
-        >
-          <svg
-            fill="none"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M4 7h16M4 12h16M4 17h10"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-            />
-          </svg>
-          <span>자동 수집</span>
-        </button>
-        <button
-          aria-current={tab === "groupBuys" ? "page" : undefined}
-          className={tab === "groupBuys" ? "active" : ""}
-          onClick={() => switchTab("groupBuys")}
-          type="button"
-        >
-          <svg
-            fill="none"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-14L4 7m8 4v10M4 7v10l8 4"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-            />
-          </svg>
-          <span>공구</span>
-        </button>
-        <button
-          aria-current={tab === "groupBuyRequests" ? "page" : undefined}
-          className={tab === "groupBuyRequests" ? "active" : ""}
-          onClick={() => switchTab("groupBuyRequests")}
-          type="button"
-        >
-          <svg
-            fill="none"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M12 20V10m0 0 4 4m-4-4-4 4M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-            />
-          </svg>
-          <span>요청</span>
-        </button>
-        <button
-          aria-current={tab === "users" ? "page" : undefined}
-          className={tab === "users" ? "active" : ""}
-          onClick={() => switchTab("users")}
-          type="button"
-        >
-          <svg
-            fill="none"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-1.13a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm6 0a4 4 0 0 0 0-8"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-            />
-          </svg>
-          <span>사용자</span>
-        </button>
-        <button
-          aria-current={tab === "notifications" ? "page" : undefined}
-          className={tab === "notifications" ? "active" : ""}
-          onClick={() => switchTab("notifications")}
-          type="button"
-        >
-          <svg
-            fill="none"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-            />
-          </svg>
-          <span>푸시</span>
-        </button>
-        <button
-          aria-current={tab === "productReports" ? "page" : undefined}
-          className={tab === "productReports" ? "active" : ""}
-          onClick={() => switchTab("productReports")}
-          type="button"
-        >
-          <span>정보 신고</span>
-        </button>
-        <button
-          aria-current={tab === "appDiagnostics" ? "page" : undefined}
-          className={tab === "appDiagnostics" ? "active" : ""}
-          onClick={() => switchTab("appDiagnostics")}
-          type="button"
-        >
-          <span>앱 진단</span>
-        </button>
-        <button
-          aria-current={tab === "comments" ? "page" : undefined}
-          className={tab === "comments" ? "active" : ""}
-          onClick={() => switchTab("comments")}
-          type="button"
-        >
-          <svg
-            fill="none"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6l-4 4v-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-            />
-          </svg>
-          <span>댓글</span>
-        </button>
-        <button
-          aria-current={tab === "cdnRefresh" ? "page" : undefined}
-          className={tab === "cdnRefresh" ? "active" : ""}
-          onClick={() => switchTab("cdnRefresh")}
-          type="button"
-        >
-          <svg
-            fill="none"
-            height="24"
-            viewBox="0 0 24 24"
-            width="24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-            />
-            <path
-              d="M21 3v5h-5"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-            />
-          </svg>
-          <span>CDN</span>
-        </button>
-      </nav>
     </div>
   );
 }
@@ -3159,11 +2931,19 @@ function SubmissionEditor(props: {
           <button className="detail-back" onClick={props.onClose} type="button">
             ← 목록으로
           </button>
+          <button
+            className="button button--secondary button--hiker"
+            disabled={props.actionLoading}
+            onClick={props.onLookupHiker}
+            type="button"
+          >
+            Hiker 조회
+          </button>
         </div>
         <div className="detail-title">
           <div>
             <p className="eyebrow">위시 검수</p>
-            <h3>{form.productName || "검수 대기 위시템"}</h3>
+            <h2>{form.productName || "검수 대기 위시템"}</h2>
             <p>
               접수 {formatDateTime(props.selected.createdAt)} · 수정{" "}
               {formatDateTime(props.selected.updatedAt)}
@@ -3214,47 +2994,46 @@ function SubmissionEditor(props: {
           </div>
         </div>
       </div>
-      <div className="app-editor-grid">
-        <ProductSourcePanel
-          productName={form.productName}
-          imageUrl={form.thumbnailUrl}
-          instagramUsername={form.instagramUsername}
-          profileImageUrl={form.profileImageUrl}
-          summary={props.selected.summary}
-          mediaCount={previewDeal.mediaCount}
-          mediaType={mediaTypeLabel(
-            inferFormMediaType(form.mediaItems, splitLines(form.mediaUrlsText)),
-          )}
-          origin={"위시"}
-          hikerStatus={
-            props.hikerLookupLoading
-              ? "조회 중"
-              : "원본 게시물 정보를 조회할 수 있습니다."
-          }
-          actions={
-            <>
-              <button
-                className="button button--secondary button--hiker"
-                disabled={props.actionLoading}
-                onClick={props.onLookupHiker}
-                type="button"
-              >
-                Hiker 조회
-              </button>
-              {validOriginalPostUrl(form.instagramUrl) ? (
-                <a
-                  className="button button--ghost"
-                  href={validOriginalPostUrl(form.instagramUrl) ?? undefined}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  원본 열기
-                </a>
-              ) : null}
-            </>
-          }
-        />
-        <AppLivePreview deal={previewDeal} initialTab="detail" />
+      <EditorWorkspace
+        key={props.selected.id}
+        source={
+          <ProductSourcePanel
+            productName={form.productName}
+            imageUrl={form.thumbnailUrl}
+            instagramUsername={form.instagramUsername}
+            profileImageUrl={form.profileImageUrl}
+            summary={props.selected.summary}
+            mediaCount={previewDeal.mediaCount}
+            mediaType={mediaTypeLabel(
+              inferFormMediaType(
+                form.mediaItems,
+                splitLines(form.mediaUrlsText),
+              ),
+            )}
+            origin={"위시"}
+            hikerStatus={
+              props.hikerLookupLoading
+                ? "조회 중"
+                : "원본 게시물 정보를 조회할 수 있습니다."
+            }
+            actions={
+              <>
+                {validOriginalPostUrl(form.instagramUrl) ? (
+                  <a
+                    className="button button--ghost"
+                    href={validOriginalPostUrl(form.instagramUrl) ?? undefined}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    원본 열기
+                  </a>
+                ) : null}
+              </>
+            }
+          />
+        }
+        preview={<AppLivePreview deal={previewDeal} initialTab="detail" />}
+      >
         <section className="editor-properties" aria-label="상품 정보 편집">
           <div className="editor-column-heading">
             <span className="editor-column-step">03</span>
@@ -3461,7 +3240,7 @@ function SubmissionEditor(props: {
             </div>
           </details>
         </section>
-      </div>
+      </EditorWorkspace>
     </aside>
   );
 }
@@ -4184,6 +3963,16 @@ export function GroupBuyEditor(props: {
           <button className="detail-back" onClick={props.onClose} type="button">
             ← 목록으로
           </button>
+          {props.automaticCollection ? (
+            <button
+              className="button button--secondary button--hiker"
+              disabled={props.actionLoading || !reviewPending}
+              onClick={props.onLookupHiker}
+              type="button"
+            >
+              Hiker 조회
+            </button>
+          ) : null}
         </div>
         <div className="detail-title">
           <div>
@@ -4192,7 +3981,7 @@ export function GroupBuyEditor(props: {
                 ? automaticCollectionSourceLabel(props.selected.sourceType)
                 : "공구 관리"}
             </p>
-            <h3>{form.productName || "상품명 없음"}</h3>
+            <h2>{form.productName || "상품명 없음"}</h2>
           </div>
           <div className="app-editor__heading-actions">
             <StatusBadge
@@ -4265,59 +4054,56 @@ export function GroupBuyEditor(props: {
           </div>
         </div>
       </div>
-      <div className="app-editor-grid">
-        <ProductSourcePanel
-          productName={form.productName}
-          imageUrl={form.thumbnailUrl}
-          instagramUsername={form.instagramUsername}
-          profileImageUrl={form.profileImageUrl}
-          summary={props.selected.summary}
-          mediaCount={previewDeal.mediaCount}
-          mediaType={mediaTypeLabel(
-            inferFormMediaType(form.mediaItems, splitLines(form.mediaUrlsText)),
-          )}
-          origin={
-            props.automaticCollection
-              ? automaticCollectionSourceLabel(props.selected.sourceType)
-              : "등록 공구"
-          }
-          hikerStatus={
-            props.automaticCollection
-              ? props.hikerLookupLoading
-                ? "조회 중"
-                : props.selected.collectionHikerUsed
-                  ? `조회 완료 · ${formatDateTime(props.selected.collectionHikerLookupAt)}`
-                  : "아직 조회하지 않았습니다."
-              : undefined
-          }
-          actions={
-            <>
-              {props.automaticCollection ? (
-                <button
-                  className="button button--secondary button--hiker"
-                  disabled={props.actionLoading || !reviewPending}
-                  onClick={props.onLookupHiker}
-                  type="button"
-                >
-                  Hiker 조회
-                </button>
-              ) : null}
-              {validOriginalPostUrl(sourceOriginalPostUrl) ? (
-                <a
-                  className="button button--ghost"
-                  href={
-                    validOriginalPostUrl(sourceOriginalPostUrl) ?? undefined
-                  }
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  Instagram 원본
-                </a>
-              ) : null}
-            </>
-          }
-        />
-        <AppLivePreview deal={previewDeal} initialTab="detail" />
+      <EditorWorkspace
+        key={props.selected.id}
+        source={
+          <ProductSourcePanel
+            productName={form.productName}
+            imageUrl={form.thumbnailUrl}
+            instagramUsername={form.instagramUsername}
+            profileImageUrl={form.profileImageUrl}
+            summary={props.selected.summary}
+            mediaCount={previewDeal.mediaCount}
+            mediaType={mediaTypeLabel(
+              inferFormMediaType(
+                form.mediaItems,
+                splitLines(form.mediaUrlsText),
+              ),
+            )}
+            origin={
+              props.automaticCollection
+                ? automaticCollectionSourceLabel(props.selected.sourceType)
+                : "등록 공구"
+            }
+            hikerStatus={
+              props.automaticCollection
+                ? props.hikerLookupLoading
+                  ? "조회 중"
+                  : props.selected.collectionHikerUsed
+                    ? `조회 완료 · ${formatDateTime(props.selected.collectionHikerLookupAt)}`
+                    : "아직 조회하지 않았습니다."
+                : undefined
+            }
+            actions={
+              <>
+                {validOriginalPostUrl(sourceOriginalPostUrl) ? (
+                  <a
+                    className="button button--ghost"
+                    href={
+                      validOriginalPostUrl(sourceOriginalPostUrl) ?? undefined
+                    }
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    Instagram 원본
+                  </a>
+                ) : null}
+              </>
+            }
+          />
+        }
+        preview={<AppLivePreview deal={previewDeal} initialTab="detail" />}
+      >
         <section className="editor-properties" aria-label="상품 정보 편집">
           <div className="editor-column-heading">
             <span className="editor-column-step">03</span>
@@ -4555,7 +4341,7 @@ export function GroupBuyEditor(props: {
             ) : null}
           </details>
         </section>
-      </div>
+      </EditorWorkspace>
     </aside>
   );
 }
