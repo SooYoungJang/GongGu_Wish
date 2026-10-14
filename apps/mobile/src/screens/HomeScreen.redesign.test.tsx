@@ -9,6 +9,38 @@ import type { GroupBuy } from '../types';
 
 const mockWindowDimensions = vi.hoisted(() => ({ width: 393, fontScale: 1 }));
 const animatedTiming = vi.hoisted(() => vi.fn());
+const scrollToOffsetMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@shopify/flash-list', () => {
+  const ReactMock = require('react');
+  return {
+    FlashList: ReactMock.forwardRef(({
+      data,
+      renderItem,
+      ListHeaderComponent,
+      ListEmptyComponent,
+      keyExtractor,
+      ...props
+    }: any, ref: unknown) => {
+      ReactMock.useImperativeHandle(ref, () => ({
+        scrollToOffset: scrollToOffsetMock,
+      }));
+      return ReactMock.createElement(
+        'FlashList',
+        { ...props, data },
+        ListHeaderComponent,
+        ...(data ?? []).map((item: unknown, index: number) =>
+          ReactMock.createElement(
+            ReactMock.Fragment,
+            { key: keyExtractor(item, index) },
+            renderItem({ item, index, target: 'Cell' }),
+          ),
+        ),
+        data?.length ? null : ListEmptyComponent,
+      );
+    }),
+  };
+});
 vi.mock('../context/GroupBuyReminderPickerContext', () => ({
   useGroupBuyReminderPicker: () => ({
     getReminderState: () => ({ status: 'idle' }),
@@ -362,6 +394,7 @@ function findPromoCard(
 }
 
 beforeEach(() => {
+  scrollToOffsetMock.mockClear();
   mockWindowDimensions.width = 393;
   mockWindowDimensions.fontScale = 1;
   nativeAdMock.mountCount = 0;
@@ -411,7 +444,7 @@ describe('HomeScreenContent redesign', () => {
   it('wires home scrolling for the custom sticky category layer', () => {
     const renderer = renderHomeContent();
     const scroll = renderer.root.findAll(
-      (node) => String(node.type) === 'KeyboardAwareScrollView',
+      (node) => String(node.type) === 'FlashList',
     )[0];
 
     expect(scroll.props.stickyHeaderIndices).toBeUndefined();
@@ -453,7 +486,7 @@ describe('HomeScreenContent redesign', () => {
     });
 
     const scroll = renderer.root.findAll(
-      (node) => String(node.type) === 'KeyboardAwareScrollView',
+      (node) => String(node.type) === 'FlashList',
     )[0];
 
     act(() => {
@@ -506,7 +539,7 @@ describe('HomeScreenContent redesign', () => {
       testID: 'home-category-filter',
     });
     const scroll = renderer.root.findAll(
-      (node) => String(node.type) === 'KeyboardAwareScrollView',
+      (node) => String(node.type) === 'FlashList',
     )[0];
 
     act(() => {
@@ -530,7 +563,7 @@ describe('HomeScreenContent redesign', () => {
       testID: 'home-category-filter',
     });
     const scroll = renderer.root.findAll(
-      (node) => String(node.type) === 'KeyboardAwareScrollView',
+      (node) => String(node.type) === 'FlashList',
     )[0];
 
     expect(filter.props.accessibilityElementsHidden).toBe(false);
@@ -553,7 +586,7 @@ describe('HomeScreenContent redesign', () => {
   it('places the category filter between weekly deals and the deal grid', () => {
     const renderer = renderHomeContent();
     const scroll = renderer.root.findAll(
-      (node) => String(node.type) === 'KeyboardAwareScrollView',
+      (node) => String(node.type) === 'FlashList',
     )[0];
     const directChildIds = scroll.children
       .map((child) => {
@@ -566,11 +599,11 @@ describe('HomeScreenContent redesign', () => {
       })
       .filter(Boolean);
 
-    expect(directChildIds).toEqual([
+    expect(directChildIds.slice(0, 4)).toEqual([
       'home-top-content',
       'home-weekly-content',
       'home-category-filter',
-      'home-deal-grid-content',
+      'home-product-row',
     ]);
   });
 
@@ -1648,14 +1681,104 @@ describe('HomeScreenContent redesign', () => {
 });
 
 function countHomeNativeAds(renderer: TestRenderer.ReactTestRenderer) {
-  const grid = renderer.root
-    .findAllByProps({ testID: 'home-recommendation-grid' })
-    .find((node) => String(node.type) === 'View')!;
-  return grid.children.filter(
-    (child) =>
-      typeof child !== 'string' && child.props.testID === 'home-native-ad',
-  ).length;
+  return renderer.root.findAllByType('NativeAdCard' as React.ElementType).length;
 }
+
+function recommendationCards(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.findAllByType(DealCard).filter((card) => {
+    for (let parent = card.parent; parent; parent = parent.parent) {
+      if (parent.props.testID === 'home-weekly-content') return false;
+    }
+    return true;
+  });
+}
+
+function recommendationSequence(renderer: TestRenderer.ReactTestRenderer) {
+  const cards = new Set(recommendationCards(renderer));
+  return renderer.root.findAll((node) => cards.has(node) || String(node.type) === 'NativeAdCard')
+    .map((node) => cards.has(node) ? node.props.item.id : 'ad');
+}
+
+describe('HomeScreenContent complete product feed', () => {
+  const groupBuys: GroupBuy[] = Array.from({ length: 48 }, (_, index) => ({
+    ...sampleGroupBuys[0],
+    id: `complete-${index + 1}`,
+    productName: `전체 상품 ${index + 1}`,
+    category: index % 2 === 0 ? 'beauty' : 'food',
+    isHomeBanner: false,
+  }));
+
+  it('keeps every product after the first eight reachable in order', () => {
+    const onPressDeal = vi.fn();
+    const renderer = renderHomeContent({ groupBuys, onPressDeal });
+    const cards = recommendationCards(renderer);
+
+    expect(cards.map((card) => card.props.item.id)).toEqual(
+      groupBuys.map((item) => item.id),
+    );
+    act(() => cards[cards.length - 1].props.onPress());
+    expect(onPressDeal).toHaveBeenCalledWith(groupBuys[47]);
+  });
+
+  it('keeps more than eight matches in each category and restores the full feed', () => {
+    const renderer = renderHomeContent({ groupBuys });
+    for (const [label, category] of [['뷰티', 'beauty'], ['식품', 'food']]) {
+      act(() => renderer.root.findByProps({
+        accessibilityLabel: `${label} 카테고리`,
+      }).props.onPress());
+      expect(recommendationCards(renderer).map((card) => card.props.item.id))
+        .toEqual(groupBuys.filter((item) => item.category === category).map((item) => item.id));
+    }
+    act(() => renderer.root.findByProps({ accessibilityLabel: '전체 카테고리' }).props.onPress());
+    expect(recommendationCards(renderer)).toHaveLength(48);
+  });
+
+  it('uses one virtualized vertical list while keeping the header and horizontal rails', () => {
+    const renderer = renderHomeContent({ groupBuys });
+    const lists = renderer.root.findAllByType('FlashList' as React.ElementType);
+
+    expect(lists).toHaveLength(1);
+    expect(lists[0].props.getItemType).toEqual(expect.any(Function));
+    expect(lists[0].props.maintainVisibleContentPosition).toEqual({ disabled: true });
+    const rows = renderer.root.findAllByProps({ testID: 'home-product-row' });
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const count = row.findAllByType(DealCard).length;
+      expect(count).toBeGreaterThan(0);
+      expect(count).toBeLessThanOrEqual(2);
+    }
+    expect(renderer.root.findAllByType('KeyboardAwareScrollView' as React.ElementType)).toHaveLength(0);
+    expect(renderer.root.findByProps({ testID: 'home-top-content' })).toBeDefined();
+    expect(renderer.root.findByProps({ testID: 'home-category-filter-scroll' }).props.horizontal).toBe(true);
+  });
+
+  it('returns to the first category products after switching far down the feed', () => {
+    const renderer = renderHomeContent({ groupBuys });
+    const list = renderer.root.findByType('FlashList' as React.ElementType);
+    act(() => {
+      renderer.root.findByProps({ testID: 'home-category-filter' }).props.onLayout({
+        nativeEvent: { layout: { y: 600 } },
+      });
+      list.props.onScroll({ nativeEvent: { contentOffset: { y: 5000 } } });
+    });
+    act(() => renderer.root.findByProps({ testID: 'home-category-filter-sticky' })
+      .findByProps({ accessibilityLabel: '식품 카테고리' }).props.onPress());
+
+    expect(scrollToOffsetMock).toHaveBeenCalledWith({ offset: 600, animated: false });
+    expect(recommendationCards(renderer).map((card) => card.props.item.id))
+      .toEqual(groupBuys.filter((item) => item.category === 'food').map((item) => item.id));
+  });
+
+  it('scrolls to the top on home-tab reselect and keeps pull-to-refresh wired', () => {
+    const onRefresh = vi.fn();
+    const renderer = renderHomeContent({ groupBuys, onRefresh });
+    act(() => renderer.update(createHomeContent({ groupBuys, onRefresh, scrollToTopRequest: 1 })));
+    expect(scrollToOffsetMock).toHaveBeenCalledWith({ offset: 0, animated: true });
+    const list = renderer.root.findByType('FlashList' as React.ElementType);
+    act(() => list.props.refreshControl.props.onRefresh());
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('HomeScreenContent redesign v2', () => {
   it('does not reserve a native ad slot before the minimum gap of two products', () => {
@@ -1697,20 +1820,10 @@ describe('HomeScreenContent redesign v2', () => {
       isHomeBanner: false,
     }));
     const renderer = renderHomeContent({ groupBuys });
-    const grid = renderer.root
-      .findAllByProps({ testID: 'home-recommendation-grid' })
-      .find((node) => String(node.type) === 'View')!;
-    const adCount = grid.children.filter(
-      (child) =>
-        typeof child !== 'string' && child.props.testID === 'home-native-ad',
-    ).length;
+    const adCount = countHomeNativeAds(renderer);
 
     // Every product stays visible regardless of where the seeded ad breaks land.
-    const productIds = grid.children
-      .map((child) =>
-        typeof child === 'string' ? child : child.props.item?.id,
-      )
-      .filter(Boolean);
+    const productIds = recommendationCards(renderer).map((card) => card.props.item.id);
     expect(productIds).toHaveLength(8);
     expect(adCount).toBeGreaterThanOrEqual(1);
   });
@@ -1723,17 +1836,7 @@ describe('HomeScreenContent redesign v2', () => {
       isHomeBanner: false,
     }));
     const renderer = renderHomeContent({ groupBuys });
-    const grid = renderer.root
-      .findAllByProps({ testID: 'home-recommendation-grid' })
-      .find((node) => String(node.type) === 'View')!;
-
-    expect(
-      grid.children
-        .map((child) =>
-          typeof child === 'string' ? child : child.props.item?.id,
-        )
-        .filter(Boolean),
-    ).toEqual([
+    expect(recommendationCards(renderer).map((card) => card.props.item.id)).toEqual([
       'pending-1',
       'pending-2',
       'pending-3',
@@ -1753,17 +1856,8 @@ describe('HomeScreenContent redesign v2', () => {
       isHomeBanner: false,
     }));
     const renderer = renderHomeContent({ groupBuys });
-    const grid = renderer.root
-      .findAllByProps({ testID: 'home-recommendation-grid' })
-      .find((node) => String(node.type) === 'View')!;
-
-    expect(
-      grid.children
-        .map((child) =>
-          typeof child === 'string' ? child : child.props.item?.id,
-        )
-        .filter(Boolean),
-    ).toEqual(groupBuys.map((item) => item.id));
+    expect(recommendationCards(renderer).map((card) => card.props.item.id))
+      .toEqual(groupBuys.map((item) => item.id));
     expect(
       renderer.root.findAllByType(
         'NativeAdCard' as unknown as React.ElementType,
@@ -1778,31 +1872,13 @@ describe('HomeScreenContent redesign v2', () => {
       isHomeBanner: false,
     }));
     const renderer = renderHomeContent({ groupBuys: first });
-    const gridBefore = renderer.root
-      .findAllByProps({ testID: 'home-recommendation-grid' })
-      .find((node) => String(node.type) === 'View')!;
-    const adsBefore = gridBefore.children
-      .map((child, index) =>
-        typeof child !== 'string' && child.props.testID === 'home-native-ad'
-          ? index
-          : null,
-      )
-      .filter((value): value is number => value !== null);
+    const adsBefore = recommendationSequence(renderer);
 
     act(() => {
       renderer.update(createHomeContent({ groupBuys: first }));
     });
 
-    const gridAfter = renderer.root
-      .findAllByProps({ testID: 'home-recommendation-grid' })
-      .find((node) => String(node.type) === 'View')!;
-    const adsAfter = gridAfter.children
-      .map((child, index) =>
-        typeof child !== 'string' && child.props.testID === 'home-native-ad'
-          ? index
-          : null,
-      )
-      .filter((value): value is number => value !== null);
+    const adsAfter = recommendationSequence(renderer);
 
     // The same product ids produce the same seeded ad break positions.
     expect(adsAfter).toEqual(adsBefore);
