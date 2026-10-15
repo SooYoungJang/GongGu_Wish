@@ -80,9 +80,91 @@ export function selectOngoing(rows, now) {
       sellerName: r.instagram_username,
       startDate: kstDate(start),
       endDate: kstDate(end),
+      thumbnailUrl: validThumbnailUrl(r.thumbnail_url) ? r.thumbnail_url : null,
     });
   }
   return { date, items };
+}
+export const validThumbnailUrl = (value) => {
+  try {
+    const u = new URL(value);
+    return (
+      u.protocol === "https:" &&
+      !u.username &&
+      !u.password &&
+      (!u.port || u.port === "443") &&
+      ["cdninstagram.com", "fbcdn.net"].some((h) =>
+        u.hostname.endsWith("." + h),
+      ) &&
+      u.pathname.startsWith("/v/") &&
+      u.href.length <= 4096
+    );
+  } catch {
+    return false;
+  }
+};
+export async function fetchThumbnail(url, fetcher = fetch) {
+  if (!validThumbnailUrl(url)) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  let reader;
+  try {
+    const r = await fetcher(url, {
+      signal: controller.signal,
+      redirect: "error",
+      headers: { Accept: "image/jpeg,image/png,image/webp" },
+    });
+    if (
+      !r.ok ||
+      !/^image\/(jpeg|png|webp)(;|$)/i.test(
+        r.headers.get("content-type") ?? "",
+      ) ||
+      Number(r.headers.get("content-length")) > 2000000
+    )
+      return null;
+    if (!r.body) return null;
+    reader = r.body.getReader();
+    const chunks = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 2000000) {
+        controller.abort();
+        return null;
+      }
+      chunks.push(value);
+    }
+    const { default: sharp } = await import("sharp");
+    const source = Buffer.concat(chunks);
+    // Decode a bounded static raster, strip metadata, and embed only normalized pixels.
+    const image = sharp(source, {
+      limitInputPixels: 16000000,
+      animated: false,
+      failOn: "warning",
+    });
+    const meta = await image.metadata();
+    if (
+      !["jpeg", "png", "webp"].includes(meta.format) ||
+      !meta.width ||
+      !meta.height ||
+      (meta.pages ?? 1) > 1
+    )
+      return null;
+    return await image
+      .rotate()
+      .resize(224, 224, { fit: "contain", background: "#ffffff" })
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+    if (reader) await reader.cancel().catch(() => {});
+  }
 }
 export async function renderOngoing(data) {
   const [{ Resvg }, { default: sharp }] = await Promise.all([
@@ -99,25 +181,48 @@ export async function renderOngoing(data) {
           .join("") + "…"
       : s;
   const md = (s) => s.slice(5).replace("-", ".");
+  const photos = await Promise.all(
+    data.items.map((v) =>
+      v.photoPixels !== undefined
+        ? v.photoPixels
+        : fetchThumbnail(v.thumbnailUrl),
+    ),
+  );
   const rows = data.items
     .map((v, i) => {
-      const y = 556 + i * 183;
+      const y = 470 + i * 218;
+      const photo = photos[i];
+      const split = (s, n) => {
+        const chars = Array.from(s);
+        return chars.length > n
+          ? [chars.slice(0, n).join(""), short(chars.slice(n).join(""), n)]
+          : [s];
+      };
+      const name = split(v.productName, 19);
       return (
-        `<rect x="72" y="${y}" width="936" height="157" rx="24" fill="white"/>` +
-        text(104, y + 64, short(v.productName, 22), 38, true, "#442145") +
-        text(104, y + 123, "@" + v.sellerName, 29, false, "#74516F") +
+        `<rect x="72" y="${y}" width="936" height="198" rx="24" fill="white"/>` +
+        (photo
+          ? `<image x="92" y="${y + 15}" width="168" height="168" href="data:image/jpeg;base64,${photo.toString("base64")}"/>`
+          : `<rect x="92" y="${y + 15}" width="168" height="168" rx="12" fill="#f4efec"/>` +
+            text(105, y + 108, "사진 없음", 27, false, "#74516F")) +
+        name
+          .map((line, j) =>
+            text(286, y + 51 + j * 42, line, 32, true, "#442145"),
+          )
+          .join("") +
+        text(286, y + 137, "@" + v.sellerName, 27, false, "#74516F") +
         text(
-          746,
-          y + 123,
+          286,
+          y + 176,
           `${md(v.startDate)} - ${md(v.endDate)}`,
-          27,
+          26,
           true,
           "#74516F",
         )
       );
     })
     .join("");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#ff8524"/><stop offset=".52" stop-color="#ff2d66"/><stop offset="1" stop-color="#6f21ce"/></linearGradient></defs><rect width="1080" height="1350" fill="url(#g)"/><image x="72" y="68" width="120" height="120" href="data:image/png;base64,${icon}"/>${text(218, 126, "공구위시", 42, true)}${text(218, 169, data.date.replaceAll("-", ".") + " · 앱 등록 일정 기준", 24)}${text(72, 320, "지금 진행 중인", 67, true)}${text(72, 418, "공구 모아보기", 67, true)}${text(76, 493, "오늘 오픈이 아닌, 진행 중인 공구예요", 31)}${rows}${text(76, 1161, "일정은 변경될 수 있어요. 구매 전 판매자 공지를 확인하세요.", 25)}<path d="M72 1210H1008" stroke="white" stroke-width="2"/>${text(72, 1280, "공구위시 · Google Play에서 만나요", 32, true)}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#ff8524"/><stop offset=".52" stop-color="#ff2d66"/><stop offset="1" stop-color="#6f21ce"/></linearGradient></defs><rect width="1080" height="1350" fill="url(#g)"/><image x="72" y="68" width="120" height="120" href="data:image/png;base64,${icon}"/>${text(218, 126, "공구위시", 42, true)}${text(218, 169, data.date.replaceAll("-", ".") + " · 앱 등록 일정 기준", 24)}${text(72, 302, "지금 진행 중인", 62, true)}${text(72, 385, "공구 모아보기", 62, true)}${text(76, 440, "오늘 오픈이 아닌, 진행 중인 공구예요", 31)}${rows}${text(76, 1161, "일정은 변경될 수 있어요. 구매 전 판매자 공지를 확인하세요.", 25)}<path d="M72 1210H1008" stroke="white" stroke-width="2"/>${text(72, 1280, "공구위시 · Google Play에서 만나요", 32, true)}</svg>`;
   const png = new Resvg(svg, {
     font: {
       fontFiles: [
@@ -190,7 +295,7 @@ export async function handleInstagramCard(request, env, deps = {}) {
             .replace("Z", "");
           const q = new URLSearchParams({
             select:
-              "product_name,instagram_username,start_date,end_date,status,source_type,collection_review_status",
+              "product_name,instagram_username,start_date,end_date,status,source_type,collection_review_status,thumbnail_url",
             status: "eq.APPROVED",
             or: "(source_type.neq.MANUAL_DISCOVERY,source_type.is.null,collection_review_status.eq.APPROVED)",
             start_date: `lte.${new Date(clock).toISOString().replace("Z", "")}`,
@@ -213,13 +318,27 @@ export async function handleInstagramCard(request, env, deps = {}) {
             throw { status: 502, code: "INVALID_LISTINGS" };
           if (!data.items.length)
             throw { status: 404, code: "NO_ONGOING_LISTINGS" };
-          const image = await (deps.render ?? renderOngoing)(data);
+          const photos = await Promise.all(
+            data.items.map((v) =>
+              fetchThumbnail(v.thumbnailUrl, deps.thumbnailFetch ?? fetch),
+            ),
+          );
+          const prepared = {
+            ...data,
+            items: data.items.map((v, i) => ({ ...v, photoPixels: photos[i] })),
+          };
+          const image = await (deps.render ?? renderOngoing)(prepared);
           if (postingCycle(now()) !== date)
             throw { status: 502, code: "DATE_CHANGED" };
           if (image.length >= 8000000)
             throw { status: 502, code: "IMAGE_TOO_LARGE" };
           const expires = cycleExpiry(date);
-          const result = { image, expires };
+          const result = {
+            image,
+            expires,
+            photoCount: photos.filter(Boolean).length,
+            itemCount: data.items.length,
+          };
           storage.clear();
           storage.set(key, result);
           return result;
@@ -237,6 +356,8 @@ export async function handleInstagramCard(request, env, deps = {}) {
   // Successful posting-cycle-keyed snapshot lasts only until next21:00 KST.
   // Owner accepts intraday snapshot staleness. Errors/empty results stay no-store.
   // No stale-while-revalidate or stale-if-error; old date paths fail closed.
+  headers["X-Instagram-Photo-Count"] = String(saved.photoCount);
+  headers["X-Instagram-Item-Count"] = String(saved.itemCount);
   const ttl = Math.max(0, Math.floor((saved.expires - now()) / 1000));
   return new Response(request.method === "HEAD" ? null : saved.image, {
     headers: {

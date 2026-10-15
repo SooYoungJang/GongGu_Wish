@@ -8,6 +8,8 @@ import {
   postingCycle,
   cycleExpiry,
   renderOngoing,
+  validThumbnailUrl,
+  fetchThumbnail,
 } from "./instagram-cards.mjs";
 const now = Date.parse("2026-10-15T12:00:00Z");
 const env = {
@@ -145,7 +147,7 @@ test("fixed field projection/filter/limit, timeout and no privileged authorizati
   );
   assert.equal(
     called.u.searchParams.get("select"),
-    "product_name,instagram_username,start_date,end_date,status,source_type,collection_review_status",
+    "product_name,instagram_username,start_date,end_date,status,source_type,collection_review_status,thumbnail_url",
   );
   assert.ok(called.o.signal);
   assert.equal(called.o.redirect, "error");
@@ -305,4 +307,123 @@ test("posting cycle rolls at21:00 KST, not midnight; successful snapshot survive
   assert.equal(r.status, 200);
   assert.equal(calls, 1);
   assert.match(r.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=75600,/);
+});
+
+test("photo URL allowlist rejects credentials, ports, redirects and non-raster bodies", async () => {
+  for (const u of [
+    "http://scontent.cdninstagram.com/v/a.jpg",
+    "https://cdninstagram.com.evil.test/v/x",
+    "https://localhost/v/x",
+    "https://127.0.0.1/v/x",
+    "https://a.fbcdn.net:444/v/a",
+    "https://user:pass@a.fbcdn.net/v/a",
+    "https://a.fbcdn.net/nope",
+  ])
+    assert.equal(validThumbnailUrl(u), false);
+  assert.equal(
+    validThumbnailUrl("https://scontent.cdninstagram.com/v/a.jpg"),
+    true,
+  );
+  let called = 0;
+  assert.equal(
+    await fetchThumbnail("https://evil.test/v/x", async () => {
+      called++;
+    }),
+    null,
+  );
+  assert.equal(called, 0);
+  const url = "https://a.fbcdn.net/v/a";
+  assert.equal(
+    await fetchThumbnail(url, async (_, o) => {
+      assert.equal(o.redirect, "error");
+      return new Response("x", {
+        headers: { "content-type": "image/svg+xml" },
+      });
+    }),
+    null,
+  );
+  assert.equal(
+    await fetchThumbnail(
+      url,
+      async () =>
+        new Response("x", {
+          headers: {
+            "content-type": "image/jpeg",
+            "content-length": "2000001",
+          },
+        }),
+    ),
+    null,
+  );
+  assert.equal(
+    await fetchThumbnail(
+      url,
+      async () =>
+        new Response(new Uint8Array(2000001), {
+          headers: { "content-type": "image/jpeg" },
+        }),
+    ),
+    null,
+  );
+  assert.equal(
+    await fetchThumbnail(url, async () => {
+      throw Error("failure");
+    }),
+    null,
+  );
+  assert.equal(
+    await fetchThumbnail(
+      url,
+      async () =>
+        new Response("invalid", { headers: { "content-type": "image/jpeg" } }),
+    ),
+    null,
+  );
+});
+test("photo fetch decodes safe raster to embedded normalized JPEG", async () => {
+  const png = await sharp({
+    create: { width: 20, height: 40, channels: 3, background: "red" },
+  })
+    .png()
+    .toBuffer();
+  const result = await fetchThumbnail(
+    "https://a.fbcdn.net/v/x",
+    async () => new Response(png, { headers: { "content-type": "image/png" } }),
+  );
+  const meta = await sharp(result).metadata();
+  assert.equal(meta.format, "jpeg");
+  assert.equal(meta.width, 224);
+  assert.equal(meta.height, 224);
+});
+
+test("live handler exposes actual photo count and never breaks items on fetch failure", async () => {
+  const image = await sharp({
+    create: { width: 32, height: 32, channels: 3, background: "blue" },
+  })
+    .jpeg()
+    .toBuffer();
+  let rendered;
+  const good = { ...row, thumbnail_url: "https://a.fbcdn.net/v/photo.jpg" };
+  const response = await handleInstagramCard(req(), env, {
+    ...deps([good]),
+    thumbnailFetch: async () =>
+      new Response(image, { headers: { "content-type": "image/jpeg" } }),
+    render: async (data) => {
+      rendered = data;
+      return image;
+    },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("X-Instagram-Photo-Count"), "1");
+  assert.equal(response.headers.get("X-Instagram-Item-Count"), "1");
+  assert.ok(Buffer.isBuffer(rendered.items[0].photoPixels));
+  const failed = await handleInstagramCard(req(), env, {
+    ...deps([good]),
+    thumbnailFetch: async () => {
+      throw Error("unavailable");
+    },
+  });
+  assert.equal(failed.status, 200);
+  assert.equal(failed.headers.get("X-Instagram-Photo-Count"), "0");
+  assert.equal(failed.headers.get("X-Instagram-Item-Count"), "1");
 });
