@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { supportedGlyphs } from "./instagram-glyphs.mjs";
 import { kstDate, publicKey } from "./today-calendar.mjs";
 const assets = (name) => new URL(`./instagram-assets/${name}`, import.meta.url);
 const projects = {
@@ -7,6 +8,7 @@ const projects = {
   preview: "https://xwblovggtvbpiusjfokq.supabase.co",
 };
 const cache = new Map();
+const pending = new Map();
 const escape = (s) =>
   String(s).replace(
     /[&<>"']/g,
@@ -66,6 +68,10 @@ export function selectOngoing(rows, now) {
       kstDate(end) <= date
     )
       return null;
+    if (
+      ![...r.product_name].every((c) => supportedGlyphs.has(c.codePointAt(0)))
+    )
+      continue;
     items.push({
       productName: r.product_name.trim(),
       sellerName: r.instagram_username,
@@ -82,7 +88,7 @@ export async function renderOngoing(data) {
   ]);
   const icon = (await readFile(assets("icon.png"))).toString("base64");
   const text = (x, y, s, size = 36, bold = false, color = "white") =>
-    `<text x="${x}" y="${y}" font-family="Noto Sans CJK KR" font-size="${size}" font-weight="${bold ? 700 : 400}" fill="${color}">${escape(s)}</text>`;
+    `<text x="${x}" y="${y}" font-family="Gonggu Korean" font-size="${size}" font-weight="${bold ? 700 : 400}" fill="${color}">${escape(s)}</text>`;
   const short = (s, n) =>
     Array.from(s).length > n
       ? Array.from(s)
@@ -112,11 +118,11 @@ export async function renderOngoing(data) {
   const png = new Resvg(svg, {
     font: {
       fontFiles: [
-        fileURLToPath(assets("NotoSansKR-Regular.otf")),
-        fileURLToPath(assets("NotoSansKR-Bold.otf")),
+        fileURLToPath(assets("GongguKorean-Regular.otf")),
+        fileURLToPath(assets("GongguKorean-Bold.otf")),
       ],
       loadSystemFonts: false,
-      defaultFontFamily: "Noto Sans CJK KR",
+      defaultFontFamily: "Gonggu Korean",
     },
   })
     .render()
@@ -140,79 +146,105 @@ export async function handleInstagramCard(request, env, deps = {}) {
   if (!["GET", "HEAD"].includes(request.method))
     return error(405, "METHOD_NOT_ALLOWED");
   if (
-    url.search ||
     request.headers.has("authorization") ||
-    request.headers.has("apikey")
+    request.headers.has("apikey") ||
+    [...url.searchParams.keys()].some((k) => k !== "date") ||
+    url.searchParams.getAll("date").length > 1
   )
     return error(400, "INVALID_REQUEST");
-  const kind =
-    deps.kind ??
-    (url.pathname.endsWith("/intro.jpg")
-      ? "intro"
-      : url.pathname.endsWith("/ongoing.jpg")
-        ? "ongoing"
-        : null);
-  if (!kind) return error(404, "NOT_FOUND");
-  let image;
-  if (kind === "intro") image = await readFile(assets("intro.jpg"));
-  else {
-    const config = cardConfiguration(env);
-    if (!config) return error(503, "CARDS_DISABLED");
-    const now = deps.now ?? Date.now,
-      clock = now(),
-      date = kstDate(clock);
-    const storage = deps.cache ?? cache,
-      key = `${config.mode}:${date}`;
-    const saved = storage.get(key);
-    if (saved && saved.expires > clock) image = saved.image;
-    else
-      try {
-        // Persisted timestamps are UTC-naive. Exclude same-KST-day endings because
-        // the seller's exact cutoff is unknown. Null dates/handles are omitted.
-        const tomorrow = new Date(
-          Date.parse(`${date}T00:00:00+09:00`) + 86400000,
-        )
-          .toISOString()
-          .replace("Z", "");
-        const q = new URLSearchParams({
-          select:
-            "product_name,instagram_username,start_date,end_date,status,source_type,collection_review_status",
-          status: "eq.APPROVED",
-          or: "(source_type.neq.MANUAL_DISCOVERY,source_type.is.null,collection_review_status.eq.APPROVED)",
-          start_date: `lte.${new Date(clock).toISOString().replace("Z", "")}`,
-          end_date: `gte.${tomorrow}`,
-          instagram_username: "not.is.null",
-          order: "end_date.asc,product_name.asc,id.asc",
-          limit: "3",
-        });
-        const response = await (deps.fetch ?? fetch)(
-          `${config.origin}/rest/v1/group_buys?${q}`,
-          {
-            headers: { apikey: config.key, Accept: "application/json" },
-            signal: AbortSignal.timeout(5000),
-            redirect: "error",
-          },
-        );
-        if (!response.ok) return error(502, "UPSTREAM_UNAVAILABLE");
-        const data = selectOngoing(await response.json(), clock);
-        if (!data || kstDate(now()) !== date)
-          return error(502, "INVALID_LISTINGS");
-        if (!data.items.length) return error(404, "NO_ONGOING_LISTINGS");
-        image = await (deps.render ?? renderOngoing)(data);
-        if (kstDate(now()) !== date) return error(502, "DATE_CHANGED");
-        const midnight = Date.parse(`${date}T00:00:00+09:00`) + 86400000;
-        storage.clear();
-        storage.set(key, { image, expires: Math.min(now() + 60000, midnight) });
-      } catch {
-        return error(502, "UPSTREAM_UNAVAILABLE");
+  const config = cardConfiguration(env);
+  if (!config) return error(503, "CARDS_DISABLED");
+  const now = deps.now ?? Date.now,
+    clock = now(),
+    date = kstDate(clock);
+  const pathDate = /\/ongoing\/(\d{4}-\d{2}-\d{2})\.jpg$/.exec(
+    url.pathname,
+  )?.[1];
+  const requestedDate = url.searchParams.get("date") ?? pathDate;
+  if (!requestedDate && url.pathname.endsWith("/ongoing.jpg"))
+    return new Response(null, {
+      status: 307,
+      headers: {
+        ...headers,
+        Location: `/public/v1/instagram/ongoing/${date}.jpg`,
+      },
+    });
+  if (requestedDate !== date || (pathDate && pathDate !== requestedDate))
+    return error(404, "DATE_NOT_CURRENT");
+  const storage = deps.cache ?? cache,
+    inflight = deps.pending ?? pending,
+    key = `${config.mode}:${date}`;
+  let saved = storage.get(key);
+  if (!saved || saved.expires <= clock) {
+    try {
+      if (!inflight.has(key)) {
+        const job = (async () => {
+          // UTC-naive persisted timestamps, known future KST endings only.
+          const tomorrow = new Date(
+            Date.parse(`${date}T00:00:00+09:00`) + 86400000,
+          )
+            .toISOString()
+            .replace("Z", "");
+          const q = new URLSearchParams({
+            select:
+              "product_name,instagram_username,start_date,end_date,status,source_type,collection_review_status",
+            status: "eq.APPROVED",
+            or: "(source_type.neq.MANUAL_DISCOVERY,source_type.is.null,collection_review_status.eq.APPROVED)",
+            start_date: `lte.${new Date(clock).toISOString().replace("Z", "")}`,
+            end_date: `gte.${tomorrow}`,
+            instagram_username: "not.is.null",
+            order: "end_date.asc,product_name.asc,id.asc",
+            limit: "3",
+          });
+          const response = await (deps.fetch ?? fetch)(
+            `${config.origin}/rest/v1/group_buys?${q}`,
+            {
+              headers: { apikey: config.key, Accept: "application/json" },
+              signal: AbortSignal.timeout(5000),
+              redirect: "error",
+            },
+          );
+          if (!response.ok) throw { status: 502, code: "UPSTREAM_UNAVAILABLE" };
+          const data = selectOngoing(await response.json(), clock);
+          if (!data || kstDate(now()) !== date)
+            throw { status: 502, code: "INVALID_LISTINGS" };
+          if (!data.items.length)
+            throw { status: 404, code: "NO_ONGOING_LISTINGS" };
+          const image = await (deps.render ?? renderOngoing)(data);
+          if (kstDate(now()) !== date)
+            throw { status: 502, code: "DATE_CHANGED" };
+          if (image.length >= 8000000)
+            throw { status: 502, code: "IMAGE_TOO_LARGE" };
+          const midnight = Date.parse(`${date}T00:00:00+09:00`) + 86400000;
+          const result = { image, expires: Math.min(now() + 60000, midnight) };
+          storage.clear();
+          storage.set(key, result);
+          return result;
+        })();
+        inflight.set(key, job);
       }
+      saved = await inflight.get(key);
+    } catch (e) {
+      return error(e?.status ?? 502, e?.code ?? "UPSTREAM_UNAVAILABLE");
+    } finally {
+      inflight.delete(key);
+    }
   }
-  if (image.length >= 8000000) return error(502, "IMAGE_TOO_LARGE");
-  return new Response(request.method === "HEAD" ? null : image, {
+  if (kstDate(now()) !== date) return error(502, "DATE_CHANGED");
+  // Downstream cache lifetime is the REMAINING cache lifetime, not another60s.
+  // No stale-while-revalidate or stale-if-error; old date paths fail closed.
+  const ttl = Math.max(
+    0,
+    Math.min(60, Math.floor((saved.expires - now()) / 1000)),
+  );
+  return new Response(request.method === "HEAD" ? null : saved.image, {
     headers: {
       ...headers,
+      "Cache-Control": "public, max-age=0, must-revalidate",
+      "CDN-Cache-Control": `public, s-maxage=${ttl}, must-revalidate`,
+      "Vercel-CDN-Cache-Control": `public, s-maxage=${ttl}, must-revalidate`,
       "Content-Type": "image/jpeg",
-      "Content-Length": String(image.length),
+      "Content-Length": String(saved.image.length),
     },
   });
 }

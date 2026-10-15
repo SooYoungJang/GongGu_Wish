@@ -23,11 +23,12 @@ const row = {
   source_type: "MANUAL_DISCOVERY",
   collection_review_status: "APPROVED",
 };
-const req = (path = "ongoing", init) =>
+const req = (path = "ongoing/2026-10-15", init) =>
   new Request(`https://example.test/public/v1/instagram/${path}.jpg`, init);
 const deps = (rows = [row]) => ({
   now: () => now,
   cache: new Map(),
+  pending: new Map(),
   fetch: async () => Response.json(rows),
   render: async () => Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
 });
@@ -63,7 +64,13 @@ test("only approved real ongoing records and future KST endings", () => {
 test("disabled/errors never render placeholders; parameter and credential rejection", async () => {
   assert.equal((await handleInstagramCard(req(), {}, deps())).status, 503);
   assert.equal(
-    (await handleInstagramCard(req("ongoing?date=x"), env, deps())).status,
+    (
+      await handleInstagramCard(
+        new Request("https://example.test/api/instagram-ongoing?unexpected=x"),
+        env,
+        deps(),
+      )
+    ).status,
     400,
   );
   assert.equal(
@@ -124,7 +131,10 @@ test("fixed field projection/filter/limit, timeout and no privileged authorizati
   });
   assert.equal(r.status, 200);
   assert.equal(r.headers.get("Content-Type"), "image/jpeg");
-  assert.equal(r.headers.get("Cache-Control"), "no-store");
+  assert.equal(
+    r.headers.get("Cache-Control"),
+    "public, max-age=0, must-revalidate",
+  );
   assert.equal(called.u.searchParams.get("limit"), "3");
   assert.equal(called.u.searchParams.get("status"), "eq.APPROVED");
   assert.equal(
@@ -158,17 +168,6 @@ test("bounded60s per-instance cache coalesces sequential reads and refuses date 
   });
   assert.equal(r.status, 502);
 });
-test("static intro is exact1080x1350 sRGB JPEG without config and supports HEAD", async () => {
-  const r = await handleInstagramCard(req("intro"), {}, {});
-  assert.equal(r.status, 200);
-  const meta = await sharp(Buffer.from(await r.arrayBuffer())).metadata();
-  assert.equal(meta.format, "jpeg");
-  assert.equal(meta.width, 1080);
-  assert.equal(meta.height, 1350);
-  assert.equal(meta.space, "srgb");
-  const h = await handleInstagramCard(req("intro", { method: "HEAD" }), {}, {});
-  assert.equal(await h.text(), "");
-});
 test("native bundled-font render emits Meta-compatible JPEG and escapes source text", async () => {
   const b = await renderOngoing(
     selectOngoing(
@@ -188,4 +187,73 @@ test("native bundled-font render emits Meta-compatible JPEG and escapes source t
   assert.equal(meta.height, 1350);
   assert.equal(meta.space, "srgb");
   assert.ok(b.length < 8000000);
+});
+test("date-keyed cache, redirect, no yesterday, no extra TTL, disabled gate on warm cache", async () => {
+  const d = deps();
+  const redirect = await handleInstagramCard(req("ongoing"), env, d);
+  assert.equal(redirect.status, 307);
+  assert.equal(
+    redirect.headers.get("Location"),
+    "/public/v1/instagram/ongoing/2026-10-15.jpg",
+  );
+  assert.equal(
+    (await handleInstagramCard(req("ongoing/2026-10-14"), env, d)).status,
+    404,
+  );
+  const r = await handleInstagramCard(req(), env, d);
+  assert.match(r.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=60/);
+  const older = await handleInstagramCard(req(), env, {
+    ...d,
+    now: () => now + 59000,
+  });
+  assert.match(older.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=1,/);
+  assert.equal((await handleInstagramCard(req(), {}, d)).status, 503);
+});
+test("parallel requests share one DB fetch and render within an instance", async () => {
+  let calls = 0,
+    renders = 0;
+  const d = {
+    ...deps(),
+    fetch: async () => {
+      calls++;
+      return Response.json([row]);
+    },
+    render: async () => {
+      renders++;
+      return Buffer.from([255, 216, 255, 217]);
+    },
+  };
+  const results = await Promise.all(
+    Array.from({ length: 8 }, () => handleInstagramCard(req(), env, d)),
+  );
+  assert.equal(calls, 1);
+  assert.equal(renders, 1);
+  assert.ok(results.every((r) => r.status === 200));
+});
+test("subset font unsupported glyphs are omitted instead of published as tofu", () => {
+  assert.deepEqual(
+    selectOngoing([{ ...row, product_name: "공구🧸" }], now).items,
+    [],
+  );
+});
+test("static intro has no function and immutable versioned JPEG is Meta-compatible", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const b = await readFile(
+    new URL("../public/instagram/intro-v1.jpg", import.meta.url),
+  );
+  const m = await sharp(b).metadata();
+  assert.equal(m.format, "jpeg");
+  assert.equal(m.width, 1080);
+  assert.equal(m.height, 1350);
+  assert.equal(m.space, "srgb");
+  assert.ok(b.length < 8000000);
+  const config = JSON.parse(
+    await readFile(new URL("../vercel.json", import.meta.url), "utf8"),
+  );
+  assert.equal(config.rewrites[0].destination, "/instagram/intro-v1.jpg");
+  assert.ok(
+    config.headers.some((r) =>
+      r.headers.some((h) => h.value.includes("immutable")),
+    ),
+  );
 });

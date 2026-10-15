@@ -6,7 +6,11 @@
   "rewrites": [
     {
       "source": "/public/v1/instagram/intro.jpg",
-      "destination": "/api/instagram-intro"
+      "destination": "/instagram/intro-v1.jpg"
+    },
+    {
+      "source": "/public/v1/instagram/ongoing/:date.jpg",
+      "destination": "/api/instagram-ongoing?date=:date"
     },
     {
       "source": "/public/v1/instagram/ongoing.jpg",
@@ -26,5 +30,41 @@
       "includeFiles": "server/instagram-assets/**",
       "maxDuration": 10
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/instagram/intro-v1.jpg",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Type",
+          "value": "image/jpeg"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/public/v1/instagram/intro.jpg",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Type",
+          "value": "image/jpeg"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    }
+  ]
 }
