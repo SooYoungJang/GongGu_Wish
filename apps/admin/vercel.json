@@ -5,6 +5,14 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/public/v1/instagram/intro.jpg",
+      "destination": "/api/instagram-intro"
+    },
+    {
+      "source": "/public/v1/instagram/ongoing.jpg",
+      "destination": "/api/instagram-ongoing"
+    },
+    {
       "source": "/public/v1/group-buys/today",
       "destination": "/api/today-calendar"
     },
@@ -12,5 +20,11 @@
       "source": "/((?!api/|public/v1/).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/instagram-*.mjs": {
+      "includeFiles": "server/instagram-assets/**",
+      "maxDuration": 10
+    }
+  }
 }
