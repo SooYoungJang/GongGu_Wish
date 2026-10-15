@@ -32,6 +32,11 @@ export function makeNativeAdStyles(theme: ReturnType<typeof useCommerceTheme>) {
       overflow: "hidden",
       width: "100%",
     },
+    loadingLabel: {
+      alignSelf: "center",
+      color: colors.muted,
+      padding: spacing.md,
+    },
     reel: {
       backgroundColor: "#000000",
       flex: 1,

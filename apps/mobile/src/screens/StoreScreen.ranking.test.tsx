@@ -616,7 +616,7 @@ describe("StoreScreen ranking redesign", () => {
     );
   });
 
-  it("refreshes the ranking when its active GNB tab is pressed again", () => {
+  it("refreshes the ranking on pull-to-refresh and active GNB tab reselect", () => {
     const navigation = createNavigation();
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -634,11 +634,12 @@ describe("StoreScreen ranking redesign", () => {
     const flatList = renderer!.root.findByType(
       "FlatList" as unknown as React.ElementType,
     );
-    expect(flatList.props.onRefresh).toBe(refreshRanking);
+    act(() => flatList.props.onRefresh());
+    expect(refreshRanking).toHaveBeenCalledTimes(1);
 
     act(() => navigation.emitTabPress());
 
-    expect(refreshRanking).toHaveBeenCalledTimes(1);
+    expect(refreshRanking).toHaveBeenCalledTimes(2);
   });
 
   it("opens the ranked group-buy detail using the canonical groupBuyId", () => {

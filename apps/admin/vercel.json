@@ -5,7 +5,11 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/public/v1/group-buys/today",
+      "destination": "/api/today-calendar"
+    },
+    {
+      "source": "/((?!api/|public/v1/).*)",
       "destination": "/index.html"
     }
   ]
