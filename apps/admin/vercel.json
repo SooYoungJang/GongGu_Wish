@@ -5,12 +5,66 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/public/v1/instagram/intro.jpg",
+      "destination": "/instagram/intro-v1.jpg"
+    },
+    {
+      "source": "/public/v1/instagram/ongoing/:date.jpg",
+      "destination": "/api/instagram-ongoing?date=:date"
+    },
+    {
+      "source": "/public/v1/instagram/ongoing.jpg",
+      "destination": "/api/instagram-ongoing"
+    },
+    {
       "source": "/public/v1/group-buys/today",
       "destination": "/api/today-calendar"
     },
     {
       "source": "/((?!api/|public/v1/).*)",
       "destination": "/index.html"
+    }
+  ],
+  "functions": {
+    "api/instagram-*.mjs": {
+      "includeFiles": "server/instagram-assets/**",
+      "maxDuration": 10
+    }
+  },
+  "headers": [
+    {
+      "source": "/instagram/intro-v1.jpg",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Type",
+          "value": "image/jpeg"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/public/v1/instagram/intro.jpg",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Type",
+          "value": "image/jpeg"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
     }
   ]
 }

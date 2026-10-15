@@ -4,6 +4,38 @@ import { describe, expect, it, vi } from "vitest";
 import { loadNativeAdWithRetry } from "./loadNativeAd";
 
 describe("loadNativeAdWithRetry", () => {
+  it.each(["invalid-request", "googleMobileAds/invalid-request", "app-id-missing"])("does not retry permanent configuration error %s", async (code) => {
+    const error = { code };
+    const load = vi.fn().mockRejectedValue(error);
+    const waitForRetry = vi.fn(async () => undefined);
+    await expect(loadNativeAdWithRetry({ load, waitForRetry })).rejects.toBe(error);
+    expect(load).toHaveBeenCalledOnce();
+    expect(waitForRetry).not.toHaveBeenCalled();
+  });
+
+  it.each(["no-fill", "googleMobileAds/error-code-no-fill"])("backs off between bounded %s requests", async (code) => {
+    const error = { code };
+    const load = vi.fn().mockRejectedValue(error);
+    const waitForRetry = vi.fn(async () => undefined);
+    const onAttemptFailure = vi.fn();
+    await expect(loadNativeAdWithRetry({ load, waitForRetry, onAttemptFailure })).rejects.toBe(error);
+    expect(waitForRetry.mock.calls).toEqual([[30_000], [60_000]]);
+    expect(onAttemptFailure).toHaveBeenLastCalledWith(expect.objectContaining({
+      attempt: 3, willRetry: false, retryDelayMs: null,
+    }));
+  });
+
+  it("lets a restored connection recover after two network failures", async () => {
+    const nativeAd = { headline: "Recovered after reconnect" };
+    const load = vi.fn()
+      .mockRejectedValueOnce({ code: "network-error" })
+      .mockRejectedValueOnce({ code: "network-error" })
+      .mockResolvedValueOnce(nativeAd);
+    const waitForRetry = vi.fn(async () => undefined);
+    await expect(loadNativeAdWithRetry({ load, waitForRetry })).resolves.toBe(nativeAd);
+    expect(waitForRetry.mock.calls).toEqual([[1_000], [3_000]]);
+  });
+
   it("recovers from a transient native ad request failure", async () => {
     const nativeAd = { headline: "Test ad" };
     const load = vi
@@ -18,7 +50,7 @@ describe("loadNativeAdWithRetry", () => {
     ).resolves.toBe(nativeAd);
 
     expect(load).toHaveBeenCalledTimes(2);
-    expect(waitForRetry).toHaveBeenCalledWith(1);
+    expect(waitForRetry).toHaveBeenCalledWith(1_000);
     expect(onAttemptFailure).toHaveBeenCalledWith(
       expect.objectContaining({ attempt: 1, willRetry: true }),
     );
