@@ -26,8 +26,7 @@ export type {
 // Keep the app watchdog beyond the Android SDK's 60s HTTP timeout so the
 // bridge can reject with the real Mobile Ads error code before we give up.
 const NATIVE_AD_REQUEST_TIMEOUT_MS = 65_000;
-const NATIVE_AD_MAX_ATTEMPTS = 2;
-const NATIVE_AD_RETRY_DELAYS_MS = [750] as const;
+const NATIVE_AD_MAX_ATTEMPTS = 3;
 // The SDK's video HTML can round a few pixels beyond its registered MediaView.
 const REEL_MEDIA_EDGE_INSET = 2;
 type NativeAdInstance = Awaited<
@@ -125,6 +124,7 @@ export const NativeAdCard = memo(function NativeAdCard({
     let active = true;
     let loadedAd: NativeAdInstance | null = null;
     let requestAttempt = 0;
+    let cancelRetryWait: (() => void) | undefined;
     onLoadStateChange?.("loading");
 
     void loadNativeAdWithRetry({
@@ -149,16 +149,25 @@ export const NativeAdCard = memo(function NativeAdCard({
       onLateSuccess: ({ nativeAd }) => nativeAd.destroy(),
       shouldRetry: () => active,
       timeoutMs: NATIVE_AD_REQUEST_TIMEOUT_MS,
-      waitForRetry: (attempt) =>
+      waitForRetry: (delayMs) =>
         new Promise((resolve) => {
-          setTimeout(
-            resolve,
-            NATIVE_AD_RETRY_DELAYS_MS[
-              Math.min(attempt - 1, NATIVE_AD_RETRY_DELAYS_MS.length - 1)
-            ],
-          );
+          const timer = setTimeout(() => {
+            cancelRetryWait = undefined;
+            resolve();
+          }, delayMs);
+          cancelRetryWait = () => {
+            clearTimeout(timer);
+            resolve();
+          };
         }),
-      onAttemptFailure: ({ attempt, error, maxAttempts, willRetry }) => {
+      onAttemptFailure: ({
+        attempt,
+        error,
+        maxAttempts,
+        retryDelayMs,
+        willRetry,
+      }) => {
+        if (!active) return;
         emitAdsDiagnostic(
           {
             event: willRetry ? "native_ad_retry" : "native_ad_failed",
@@ -167,6 +176,7 @@ export const NativeAdCard = memo(function NativeAdCard({
             attempt,
             maxAttempts,
             errorCode: getAdsErrorCode(error),
+            retryDelayMs,
           },
           (payload) => console.warn(payload),
         );
@@ -196,6 +206,7 @@ export const NativeAdCard = memo(function NativeAdCard({
 
     return () => {
       active = false;
+      cancelRetryWait?.();
       // NativeAd owns native media resources and must be explicitly released.
       // https://docs.page/invertase/react-native-google-mobile-ads/native-ads#destroying-ads
       loadedAd?.destroy();

@@ -49,6 +49,76 @@ beforeEach(() => {
 });
 
 describe("NativeAdCard", () => {
+  it("recovers a feed ad after repeated no-fill responses without removing its slot", async () => {
+    vi.useFakeTimers();
+    const onLoadStateChange = vi.fn();
+    const destroy = vi.fn();
+    const noFill = Object.assign(new Error("No ad available"), { code: "no-fill" });
+    vi.mocked(NativeAd.createForAdRequest)
+      .mockRejectedValueOnce(noFill)
+      .mockRejectedValueOnce(noFill)
+      .mockResolvedValueOnce({ headline: "Recovered ad", destroy } as unknown as Awaited<ReturnType<typeof NativeAd.createForAdRequest>>);
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <AdsContext.Provider value={enabledAds}>
+          <NativeAdCard variant="row" onLoadStateChange={onLoadStateChange} />
+        </AdsContext.Provider>,
+      );
+    });
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(29_999); });
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
+    expect(onLoadStateChange).not.toHaveBeenCalledWith("unavailable");
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);
+    expect(flattenText(renderer!.toJSON())).toContain("광고를 불러오는 중");
+    await act(async () => { await vi.advanceTimersByTimeAsync(59_999); });
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(flattenText(renderer!.toJSON())).toContain("Recovered ad");
+    expect(onLoadStateChange).toHaveBeenLastCalledWith("loaded");
+    expect(onLoadStateChange).not.toHaveBeenCalledWith("unavailable");
+    act(() => renderer!.unmount());
+    expect(destroy).toHaveBeenCalledOnce();
+  });
+
+  it("stops bounded no-fill retries instead of requesting indefinitely", async () => {
+    vi.useFakeTimers();
+    vi.mocked(NativeAd.createForAdRequest).mockRejectedValue({ code: "no-fill" });
+    const onLoadStateChange = vi.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <AdsContext.Provider value={enabledAds}>
+          <NativeAdCard variant="row" onLoadStateChange={onLoadStateChange} />
+        </AdsContext.Provider>,
+      );
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(180_000); });
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledTimes(3);
+    expect(onLoadStateChange).toHaveBeenLastCalledWith("unavailable");
+    expect(renderer!.toJSON()).toBeNull();
+    act(() => renderer!.unmount());
+  });
+
+  it("cancels a pending recovery when the ad slot unmounts", async () => {
+    vi.useFakeTimers();
+    vi.mocked(NativeAd.createForAdRequest).mockRejectedValue({ code: "no-fill" });
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <AdsContext.Provider value={enabledAds}>
+          <NativeAdCard variant="row" />
+        </AdsContext.Provider>,
+      );
+    });
+    act(() => renderer!.unmount());
+    expect(vi.getTimerCount()).toBe(0);
+    await act(async () => { await vi.advanceTimersByTimeAsync(180_000); });
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
+  });
+
   it("reserves a full-width feed row until the ad arrives", async () => {
     const resolveAd = vi.fn();
     vi.mocked(NativeAd.createForAdRequest).mockImplementation(
@@ -191,12 +261,12 @@ describe("NativeAdCard", () => {
     });
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(750);
+      await vi.advanceTimersByTimeAsync(4_000);
     });
 
     expect(renderer!.toJSON()).toBeNull();
     expect(onLoadStateChange).toHaveBeenLastCalledWith("unavailable");
-    expect(NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledTimes(3);
   });
 
   it("requests the unit assigned to the requested placement", async () => {
@@ -255,7 +325,7 @@ describe("NativeAdCard", () => {
         placement: "reels",
         variant: "reel",
         attempt: 1,
-        maxAttempts: 2,
+        maxAttempts: 3,
       }),
     );
     info.mockRestore();
