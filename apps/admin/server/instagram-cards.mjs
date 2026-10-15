@@ -216,7 +216,7 @@ export async function handleInstagramCard(request, env, deps = {}) {
           if (image.length >= 8000000)
             throw { status: 502, code: "IMAGE_TOO_LARGE" };
           const midnight = Date.parse(`${date}T00:00:00+09:00`) + 86400000;
-          const result = { image, expires: Math.min(now() + 60000, midnight) };
+          const result = { image, expires: midnight };
           storage.clear();
           storage.set(key, result);
           return result;
@@ -231,12 +231,10 @@ export async function handleInstagramCard(request, env, deps = {}) {
     }
   }
   if (kstDate(now()) !== date) return error(502, "DATE_CHANGED");
-  // Downstream cache lifetime is the REMAINING cache lifetime, not another60s.
+  // Successful date-keyed snapshot lasts only until KST midnight.
+  // Owner accepts intraday snapshot staleness. Errors/empty results stay no-store.
   // No stale-while-revalidate or stale-if-error; old date paths fail closed.
-  const ttl = Math.max(
-    0,
-    Math.min(60, Math.floor((saved.expires - now()) / 1000)),
-  );
+  const ttl = Math.max(0, Math.floor((saved.expires - now()) / 1000));
   return new Response(request.method === "HEAD" ? null : saved.image, {
     headers: {
       ...headers,

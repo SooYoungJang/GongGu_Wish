@@ -149,7 +149,7 @@ test("fixed field projection/filter/limit, timeout and no privileged authorizati
   assert.equal(called.o.redirect, "error");
   assert.equal(called.o.headers.Authorization, undefined);
 });
-test("bounded60s per-instance cache coalesces sequential reads and refuses date rollover", async () => {
+test("until-midnight per-instance cache coalesces sequential reads and refuses date rollover", async () => {
   let calls = 0;
   const d = {
     ...deps(),
@@ -201,12 +201,15 @@ test("date-keyed cache, redirect, no yesterday, no extra TTL, disabled gate on w
     404,
   );
   const r = await handleInstagramCard(req(), env, d);
-  assert.match(r.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=60/);
+  assert.match(r.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=10800,/);
   const older = await handleInstagramCard(req(), env, {
     ...d,
     now: () => now + 59000,
   });
-  assert.match(older.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=1,/);
+  assert.match(
+    older.headers.get("Vercel-CDN-Cache-Control"),
+    /s-maxage=10741,/,
+  );
   assert.equal((await handleInstagramCard(req(), {}, d)).status, 503);
 });
 test("parallel requests share one DB fetch and render within an instance", async () => {
@@ -256,4 +259,26 @@ test("static intro has no function and immutable versioned JPEG is Meta-compatib
       r.headers.some((h) => h.value.includes("immutable")),
     ),
   );
+});
+test("empty/error not cached; daily success expires exactly at KST midnight", async () => {
+  const d = deps([]);
+  let calls = 0;
+  d.fetch = async () => {
+    calls++;
+    return Response.json([]);
+  };
+  await handleInstagramCard(req(), env, d);
+  await handleInstagramCard(req(), env, d);
+  assert.equal(calls, 2);
+  assert.equal(d.cache.size, 0);
+  const ok = deps();
+  await handleInstagramCard(req(), env, ok);
+  assert.equal(
+    [...ok.cache.values()][0].expires,
+    Date.parse("2026-10-15T15:00:00Z"),
+  );
+  const near = deps();
+  near.now = () => Date.parse("2026-10-15T14:59:59Z");
+  const r = await handleInstagramCard(req(), env, near);
+  assert.match(r.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=1,/);
 });
