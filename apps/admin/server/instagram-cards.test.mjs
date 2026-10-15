@@ -5,6 +5,8 @@ import {
   cardConfiguration,
   handleInstagramCard,
   selectOngoing,
+  postingCycle,
+  cycleExpiry,
   renderOngoing,
 } from "./instagram-cards.mjs";
 const now = Date.parse("2026-10-15T12:00:00Z");
@@ -149,7 +151,7 @@ test("fixed field projection/filter/limit, timeout and no privileged authorizati
   assert.equal(called.o.redirect, "error");
   assert.equal(called.o.headers.Authorization, undefined);
 });
-test("until-midnight per-instance cache coalesces sequential reads and refuses date rollover", async () => {
+test("21:00-cycle per-instance cache coalesces sequential reads and refuses date rollover", async () => {
   let calls = 0;
   const d = {
     ...deps(),
@@ -201,14 +203,14 @@ test("date-keyed cache, redirect, no yesterday, no extra TTL, disabled gate on w
     404,
   );
   const r = await handleInstagramCard(req(), env, d);
-  assert.match(r.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=10800,/);
+  assert.match(r.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=86400,/);
   const older = await handleInstagramCard(req(), env, {
     ...d,
     now: () => now + 59000,
   });
   assert.match(
     older.headers.get("Vercel-CDN-Cache-Control"),
-    /s-maxage=10741,/,
+    /s-maxage=86341,/,
   );
   assert.equal((await handleInstagramCard(req(), {}, d)).status, 503);
 });
@@ -260,7 +262,7 @@ test("static intro has no function and immutable versioned JPEG is Meta-compatib
     ),
   );
 });
-test("empty/error not cached; daily success expires exactly at KST midnight", async () => {
+test("empty/error not cached; daily success expires exactly at next21:00 KST", async () => {
   const d = deps([]);
   let calls = 0;
   d.fetch = async () => {
@@ -275,10 +277,32 @@ test("empty/error not cached; daily success expires exactly at KST midnight", as
   await handleInstagramCard(req(), env, ok);
   assert.equal(
     [...ok.cache.values()][0].expires,
-    Date.parse("2026-10-15T15:00:00Z"),
+    Date.parse("2026-10-16T12:00:00Z"),
   );
   const near = deps();
-  near.now = () => Date.parse("2026-10-15T14:59:59Z");
+  near.now = () => Date.parse("2026-10-16T11:59:59Z");
   const r = await handleInstagramCard(req(), env, near);
   assert.match(r.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=1,/);
+});
+test("posting cycle rolls at21:00 KST, not midnight; successful snapshot survives midnight", async () => {
+  assert.equal(postingCycle(Date.parse("2026-10-16T11:59:59Z")), "2026-10-15");
+  assert.equal(postingCycle(Date.parse("2026-10-16T12:00:00Z")), "2026-10-16");
+  assert.equal(postingCycle(Date.parse("2026-10-15T15:00:00Z")), "2026-10-15");
+  assert.equal(cycleExpiry("2026-10-15"), Date.parse("2026-10-16T12:00:00Z"));
+  let calls = 0;
+  const d = {
+    ...deps(),
+    fetch: async () => {
+      calls++;
+      return Response.json([row]);
+    },
+  };
+  await handleInstagramCard(req(), env, d);
+  const r = await handleInstagramCard(req(), env, {
+    ...d,
+    now: () => Date.parse("2026-10-16T00:00:00+09:00"),
+  });
+  assert.equal(r.status, 200);
+  assert.equal(calls, 1);
+  assert.match(r.headers.get("Vercel-CDN-Cache-Control"), /s-maxage=75600,/);
 });

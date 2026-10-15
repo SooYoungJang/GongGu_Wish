@@ -26,6 +26,9 @@ const clean = (v, max) =>
   v.trim() &&
   v.length <= max &&
   !/[\u0000-\u001f\u007f]/.test(v);
+export const postingCycle = (now) => kstDate(now - 21 * 3600000);
+export const cycleExpiry = (cycle) =>
+  Date.parse(`${cycle}T21:00:00+09:00`) + 86400000;
 export function cardConfiguration(env) {
   const mode = env.VERCEL_ENV;
   const origin = env.VITE_SUPABASE_URL?.replace(/\/$/, "");
@@ -156,7 +159,7 @@ export async function handleInstagramCard(request, env, deps = {}) {
   if (!config) return error(503, "CARDS_DISABLED");
   const now = deps.now ?? Date.now,
     clock = now(),
-    date = kstDate(clock);
+    date = postingCycle(clock);
   const pathDate = /\/ongoing\/(\d{4}-\d{2}-\d{2})\.jpg$/.exec(
     url.pathname,
   )?.[1];
@@ -181,7 +184,7 @@ export async function handleInstagramCard(request, env, deps = {}) {
         const job = (async () => {
           // UTC-naive persisted timestamps, known future KST endings only.
           const tomorrow = new Date(
-            Date.parse(`${date}T00:00:00+09:00`) + 86400000,
+            Date.parse(`${kstDate(clock)}T00:00:00+09:00`) + 86400000,
           )
             .toISOString()
             .replace("Z", "");
@@ -206,17 +209,17 @@ export async function handleInstagramCard(request, env, deps = {}) {
           );
           if (!response.ok) throw { status: 502, code: "UPSTREAM_UNAVAILABLE" };
           const data = selectOngoing(await response.json(), clock);
-          if (!data || kstDate(now()) !== date)
+          if (!data || postingCycle(now()) !== date)
             throw { status: 502, code: "INVALID_LISTINGS" };
           if (!data.items.length)
             throw { status: 404, code: "NO_ONGOING_LISTINGS" };
           const image = await (deps.render ?? renderOngoing)(data);
-          if (kstDate(now()) !== date)
+          if (postingCycle(now()) !== date)
             throw { status: 502, code: "DATE_CHANGED" };
           if (image.length >= 8000000)
             throw { status: 502, code: "IMAGE_TOO_LARGE" };
-          const midnight = Date.parse(`${date}T00:00:00+09:00`) + 86400000;
-          const result = { image, expires: midnight };
+          const expires = cycleExpiry(date);
+          const result = { image, expires };
           storage.clear();
           storage.set(key, result);
           return result;
@@ -230,8 +233,8 @@ export async function handleInstagramCard(request, env, deps = {}) {
       inflight.delete(key);
     }
   }
-  if (kstDate(now()) !== date) return error(502, "DATE_CHANGED");
-  // Successful date-keyed snapshot lasts only until KST midnight.
+  if (postingCycle(now()) !== date) return error(502, "DATE_CHANGED");
+  // Successful posting-cycle-keyed snapshot lasts only until next21:00 KST.
   // Owner accepts intraday snapshot staleness. Errors/empty results stay no-store.
   // No stale-while-revalidate or stale-if-error; old date paths fail closed.
   const ttl = Math.max(0, Math.floor((saved.expires - now()) / 1000));

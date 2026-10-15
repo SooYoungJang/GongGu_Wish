@@ -1,7 +1,7 @@
 # Instagram image endpoints (review only)
 
 - `GET|HEAD /public/v1/instagram/intro.jpg`: rewrite to immutable static `/instagram/intro-v1.jpg` (no function/DB/native font load), approved1080x1350 sRGB JPEG.
-- `GET|HEAD /public/v1/instagram/ongoing/YYYY-MM-DD.jpg` (current KST date only; undated alias redirects): up to3 currently approved listings from the environment's public RLS-protected PostgREST table, rendered into a1080x1350 sRGB JPEG, no seller/product photos. Manual-discovery rows must also have collection review APPROVED. Only records with nonempty own Instagram handle and known start/end dates are eligible. Null handle/date rows are deliberately omitted rather than guessed via joins. Same-KST-day endings are excluded since precise seller cutoff is unknown. Empty result returns404, never a placeholder.
+- `GET|HEAD /public/v1/instagram/ongoing/YYYY-MM-DD.jpg` (current posting-cycle key only (rolls21:00 KST); undated alias redirects): up to3 currently approved listings from the environment's public RLS-protected PostgREST table, rendered into a1080x1350 sRGB JPEG, no seller/product photos. Manual-discovery rows must also have collection review APPROVED. Only records with nonempty own Instagram handle and known start/end dates are eligible. Null handle/date rows are deliberately omitted rather than guessed via joins. Same-KST-day endings are excluded since precise seller cutoff is unknown. Empty result returns404, never a placeholder.
 
 ## Scope and activation
 
@@ -15,7 +15,7 @@ Bundled OFL-subset fonts renamed Gonggu Korean Regular/Bold and original app ico
 
 ## Cache and costs
 
-Versioned intro has1-year immutable static caching. Ongoing uses date-keyed CDN cache for the REMAINING instance cache lifetime (until KST midnight), max-age0/must-revalidate to browsers, no stale-while-revalidate/stale-if-error. Errors/gate/date rejects stay no-store. In-instance promise coalescing shares one DB fetch/render across parallel misses; cross-instance/regions still can fetch separately. Owner explicitly chose one daily snapshot through KST midnight. Approvals/records can change during the day, so the image is an app-listed dated snapshot, not live stock. Empty/error/gate responses are not long-cached. Per-region CDN+instance cache and coalescing reduce repeats; a guaranteed one global daily render across regions still requires durable storage, not added here. Native rendering and under0.2MB image egress consume function CPU/bandwidth; exact bill depends on existing Vercel plan and traffic, not verified. This is NOT a distributed rate limiter. Configure platform limits separately before opt-in. Static intro reads no DB and invokes no function. No new paid provider or purchase is included.
+Versioned intro has1-year immutable static caching. Ongoing uses 21:00-cycle-keyed CDN cache for the REMAINING instance cache lifetime (until next21:00 KST), max-age0/must-revalidate to browsers, no stale-while-revalidate/stale-if-error. Errors/gate/date rejects stay no-store. In-instance promise coalescing shares one DB fetch/render across parallel misses; cross-instance/regions still can fetch separately. Owner explicitly chose one daily snapshot through next21:00 KST. Approvals/records can change during the day, so the image is an app-listed dated snapshot, not live stock. Empty/error/gate responses are not long-cached. Per-region CDN+instance cache and coalescing reduce repeats; a guaranteed one global daily render across regions still requires durable storage, not added here. Native rendering and under0.2MB image egress consume function CPU/bandwidth; exact bill depends on existing Vercel plan and traffic, not verified. This is NOT a distributed rate limiter. Configure platform limits separately before opt-in. Static intro reads no DB and invokes no function. No new paid provider or purchase is included.
 
 ## Verification before publishing to Meta
 
@@ -25,3 +25,6 @@ Versioned intro has1-year immutable static caching. Ongoing uses date-keyed CDN 
 4. Instagram publication is outside this PR. Fresh account+daily duplicate check, reviewed caption<=5tags, one intro only, then daily ongoing cards only. No unsupported inventory/discount claims. Token exact expiry remains unverified; keep token in secure storage only.
 
 Local checks: `node --test apps/admin/server/instagram-cards.test.mjs apps/admin/server/today-calendar.test.mjs`.
+
+## Posting cycle
+Owner selected21:00 KST to next21:00 KST. Key is KST date(now minus21h), expires at key date+1day21:00 KST. Midnight does not expire the snapshot. Before21:00, alias points to previous cycle. On a cold fill, eligibility and visible as-of date use actual current KST day/time, NOT blindly previous cycle date. This is a dated snapshot, can be stale during the accepted window, and is not a globally durable once-daily render. Errors/empty remain no-store.
