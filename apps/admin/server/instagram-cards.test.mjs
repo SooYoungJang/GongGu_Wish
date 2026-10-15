@@ -395,3 +395,35 @@ test("photo fetch decodes safe raster to embedded normalized JPEG", async () => 
   assert.equal(meta.width, 224);
   assert.equal(meta.height, 224);
 });
+
+test("live handler exposes actual photo count and never breaks items on fetch failure", async () => {
+  const image = await sharp({
+    create: { width: 32, height: 32, channels: 3, background: "blue" },
+  })
+    .jpeg()
+    .toBuffer();
+  let rendered;
+  const good = { ...row, thumbnail_url: "https://a.fbcdn.net/v/photo.jpg" };
+  const response = await handleInstagramCard(req(), env, {
+    ...deps([good]),
+    thumbnailFetch: async () =>
+      new Response(image, { headers: { "content-type": "image/jpeg" } }),
+    render: async (data) => {
+      rendered = data;
+      return image;
+    },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("X-Instagram-Photo-Count"), "1");
+  assert.equal(response.headers.get("X-Instagram-Item-Count"), "1");
+  assert.ok(Buffer.isBuffer(rendered.items[0].photoPixels));
+  const failed = await handleInstagramCard(req(), env, {
+    ...deps([good]),
+    thumbnailFetch: async () => {
+      throw Error("unavailable");
+    },
+  });
+  assert.equal(failed.status, 200);
+  assert.equal(failed.headers.get("X-Instagram-Photo-Count"), "0");
+  assert.equal(failed.headers.get("X-Instagram-Item-Count"), "1");
+});

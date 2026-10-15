@@ -162,6 +162,7 @@ export async function fetchThumbnail(url, fetcher = fetch) {
     return null;
   } finally {
     clearTimeout(timer);
+    controller.abort();
     if (reader) await reader.cancel().catch(() => {});
   }
 }
