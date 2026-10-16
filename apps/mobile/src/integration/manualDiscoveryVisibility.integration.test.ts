@@ -58,6 +58,7 @@ describeLocal("local Supabase manual-discovery public visibility", () => {
     { name: "rejected", status: "REJECTED", review: "REJECTED", source: "MANUAL_DISCOVERY", visible: false },
     { name: "approved", status: "APPROVED", review: "APPROVED", source: "MANUAL_DISCOVERY", visible: true },
     { name: "expired", status: "EXPIRED", review: "APPROVED", source: "MANUAL_DISCOVERY", visible: true },
+    { name: "hidden", status: "REJECTED", review: "APPROVED", source: "MANUAL_DISCOVERY", visible: false },
     { name: "non-manual", status: "REVIEW_REQUIRED", review: "PENDING", source: "PLAYWRIGHT_PUBLIC", visible: true },
   ] as const;
   const rawPostIds = states.map(({ name }) => `${suffix}-raw-${name}`);
@@ -293,7 +294,7 @@ describeLocal("local Supabase manual-discovery public visibility", () => {
 
   it("rejects a raw-post source change that would mismatch its linked manual state", async () => {
     await expect(
-      request(config, `/rest/v1/raw_posts?id=eq.${encodeURIComponent(rawPostIds[4])}`, {
+      request(config, `/rest/v1/raw_posts?id=eq.${encodeURIComponent(rawPostIds[5])}`, {
         method: "PATCH",
         key: config.serviceRoleKey,
         prefer: "return=minimal",
@@ -328,9 +329,10 @@ describeLocal("local Supabase manual-discovery public visibility", () => {
 
     expect(publicIds).toContain(groupBuyIds[2]);
     expect(publicIds).toContain(groupBuyIds[3]);
-    expect(publicIds).toContain(groupBuyIds[4]);
+    expect(publicIds).toContain(groupBuyIds[5]);
     expect(publicIds).not.toContain(groupBuyIds[0]);
     expect(publicIds).not.toContain(groupBuyIds[1]);
+    expect(publicIds).not.toContain(groupBuyIds[4]);
   });
 
   it("hides pending and rejected manual rows from anon and authenticated non-admin PostgREST reads", async () => {
