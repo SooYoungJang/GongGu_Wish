@@ -1,3 +1,4 @@
 {
+  "installCommand": "npm ci --prefix=../..",
   "ignoreCommand": "node ../../scripts/ci-change-plan.mjs --vercel-web"
 }
