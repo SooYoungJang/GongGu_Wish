@@ -100,50 +100,48 @@ test("API-only changes reserve PostgreSQL for the API test job", () => {
   expectOnly(plan, []);
 });
 
-test("Production releases update the app release number even for backend-only changes", () => {
+test("Admin and backend-only changes never select mobile deployment", () => {
   for (const file of [
     "apps/api/src/app.service.ts",
     "apps/admin/src/App.tsx",
     "workers/api-proxy/src/index.ts",
     "supabase/functions/example/index.ts",
   ]) {
-    const plan = classifyChangedFiles([file], { productionRelease: true });
-    assert.equal(plan.mobile, true, file);
-    assert.equal(plan.quality, true, file);
-    assert.equal(plan.build, true, file);
-    assert.equal(plan.test, true, file);
-    assert.match(plan.workspaceFilters, /--filter=@gonggu\/mobile/);
+    const plan = classifyChangedFiles([file]);
+    assert.equal(plan.mobile, false, file);
+    assert.doesNotMatch(plan.workspaceFilters, /--filter=@gonggu\/mobile/);
   }
 });
 
 test("Production release numbering preserves documentation-only no-op deployments", () => {
-  const plan = classifyChangedFiles(["docs/example.md"], {
-    productionRelease: true,
-  });
+  const plan = classifyChangedFiles(["docs/example.md"]);
   assert.equal(plan.docsOnly, true);
   assert.equal(plan.mobile, false);
   assert.equal(plan.quality, false);
 });
 
-test("Production release detection covers main pushes and promotion pull requests", () => {
+test("Main pushes and promotion PRs deploy mobile only for RN changes", () => {
   const directory = mkdtempSync(join(tmpdir(), "gonggu-release-plan-"));
   try {
     const filesPath = join(directory, "changes.txt");
-    writeFileSync(filesPath, "apps/admin/src/App.tsx\n");
     for (const context of [
       { GITHUB_REF: "refs/heads/main", GITHUB_BASE_REF: "" },
       { GITHUB_REF: "refs/pull/123/merge", GITHUB_BASE_REF: "main" },
     ]) {
-      const result = spawnSync(
-        process.execPath,
-        [changePlanCli, "--files", filesPath],
-        {
-          encoding: "utf8",
-          env: { ...process.env, ...context },
-        },
-      );
-      assert.equal(result.status, 0, result.stderr);
-      assert.equal(JSON.parse(result.stdout).mobile, true);
+      for (const [file, mobile] of [
+        ["apps/admin/src/App.tsx", false],
+        ["apps/api/src/app.service.ts", false],
+        ["apps/mobile/src/App.tsx", true],
+      ]) {
+        writeFileSync(filesPath, `${file}\n`);
+        const result = spawnSync(
+          process.execPath,
+          [changePlanCli, "--files", filesPath],
+          { encoding: "utf8", env: { ...process.env, ...context } },
+        );
+        assert.equal(result.status, 0, result.stderr);
+        assert.equal(JSON.parse(result.stdout).mobile, mobile, file);
+      }
     }
   } finally {
     rmSync(directory, { recursive: true, force: true });

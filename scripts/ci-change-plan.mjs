@@ -84,7 +84,7 @@ function isMobileLocalSupabaseFile(path) {
 
 export function classifyChangedFiles(
   inputFiles,
-  { productionRecovery = false, productionRelease = false } = {},
+  { productionRecovery = false } = {},
 ) {
   const files = inputFiles
     .map((file) => file.trim().replaceAll("\\", "/"))
@@ -223,12 +223,6 @@ export function classifyChangedFiles(
 
       selectEveryComponent();
     }
-  }
-
-  // Every code release changes the mobile release metadata, including API-only releases.
-  if (productionRelease && !plan.docsOnly) {
-    addWorkspace("@gonggu/mobile");
-    plan.mobile = true;
   }
 
   const selectedWorkspaces = WORKSPACES.filter((name) => workspaces.has(name));
@@ -373,14 +367,7 @@ function runCli() {
     : readFileSync(args[filesIndex + 1], "utf8").split(/\r?\n/);
   if (!files) return;
 
-  const productionRelease =
-    !vercelProject &&
-    (process.env.GITHUB_REF === "refs/heads/main" ||
-      process.env.GITHUB_BASE_REF === "main");
-  const plan = classifyChangedFiles(files, {
-    productionRecovery,
-    productionRelease,
-  });
+  const plan = classifyChangedFiles(files, { productionRecovery });
   const outputs = toOutputs(plan);
 
   if (outputIndex !== -1 && args[outputIndex + 1]) {
