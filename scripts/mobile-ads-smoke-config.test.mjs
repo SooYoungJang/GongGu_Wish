@@ -150,6 +150,11 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   assert.match(runner, /"event":"initialization_ready"/);
   assert.match(runner, /native_ad_request_started/);
   assert.match(runner, /native_ad_loaded/);
+  assert.match(runner, /for attempt in \$\(seq 1 300\)/);
+  assert.match(
+    runner,
+    /"event":"native_ad_failed"[\s\S]*?exhausted its bounded recovery attempts[\s\S]*?exit 1/,
+  );
   assert.doesNotMatch(runner, /has_terminal_event/);
   assert.doesNotMatch(runner, /has_no_fill_failure/);
   assert.doesNotMatch(runner, /external_no_fill/);
