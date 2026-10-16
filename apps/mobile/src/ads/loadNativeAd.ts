@@ -1,4 +1,4 @@
-import { getAdsErrorCode } from "./adsDiagnostics";
+import { getAdsErrorCode, getAdsErrorReason } from "./adsDiagnostics";
 
 export type NativeAdLoadAttemptFailure = {
   attempt: number;
@@ -14,9 +14,12 @@ function getRetryDelayMs(attempt: number, error: unknown): number | null {
     .pop()
     ?.replace(/^error-code-/, "");
   if (code === "invalid-request" || code === "app-id-missing") return null;
-  // A no-fill response needs time for inventory to change. An immediate
-  // retry usually repeats the same response and exhausts the recovery budget.
-  const delays = code === "no-fill" ? [30_000, 60_000] : [1_000, 3_000];
+  // Inventory changes and the SDK's JavaScript engine cold start can take
+  // tens of seconds. Preserve the bounded retry budget until they can recover.
+  const needsLongBackoff =
+    code === "no-fill" ||
+    getAdsErrorReason(error) === "javascript-engine-unavailable";
+  const delays = needsLongBackoff ? [30_000, 60_000] : [1_000, 3_000];
   return delays[Math.min(attempt - 1, delays.length - 1)];
 }
 

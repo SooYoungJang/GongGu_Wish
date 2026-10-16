@@ -36,6 +36,41 @@ describe("loadNativeAdWithRetry", () => {
     expect(waitForRetry.mock.calls).toEqual([[1_000], [3_000]]);
   });
 
+  it("preserves a retry until the SDK JavaScript engine becomes ready", async () => {
+    vi.useFakeTimers();
+    const startedAt = Date.now();
+    const nativeAd = { headline: "SDK ready" };
+    const load = vi.fn(async () => {
+      if (Date.now() - startedAt < 60_000) {
+        throw {
+          code: "googleMobileAds/internal-error",
+          message: "Unable to obtain a JavascriptEngine.",
+        };
+      }
+      return nativeAd;
+    });
+    const waitForRetry = vi.fn(
+      (delayMs: number) =>
+        new Promise<void>((resolve) => setTimeout(resolve, delayMs)),
+    );
+    const outcome = loadNativeAdWithRetry({ load, waitForRetry }).then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error }),
+    );
+
+    try {
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(load).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(30_000);
+      await expect(outcome).resolves.toEqual({ value: nativeAd });
+      expect(load).toHaveBeenCalledTimes(3);
+      expect(waitForRetry.mock.calls).toEqual([[30_000], [60_000]]);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it("recovers from a transient native ad request failure", async () => {
     const nativeAd = { headline: "Test ad" };
     const load = vi

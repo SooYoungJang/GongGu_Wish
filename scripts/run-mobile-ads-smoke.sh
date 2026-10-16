@@ -124,12 +124,20 @@ write_result() {
     > "$artifact_dir/ads-runtime-result.json"
 }
 
-for attempt in $(seq 1 120); do
+# Three SDK requests can take 65s each, plus two 30s/60s recovery waits.
+# Observe that bounded lifecycle without ending before its last attempt.
+for attempt in $(seq 1 300); do
   adb logcat -d -s ReactNativeJS:V Ads:V UserMessagingPlatform:V '*:S' \
     > "$artifact_dir/ads-logcat-current.txt"
 
   if ! adb shell pidof "$package_name" >/dev/null; then
     echo "Preview app process exited before the ad request lifecycle settled" >&2
+    exit 1
+  fi
+
+  if grep -F '"event":"native_ad_failed"' \
+      "$artifact_dir/ads-logcat-current.txt" >/dev/null; then
+    echo "An official test ad exhausted its bounded recovery attempts" >&2
     exit 1
   fi
 
