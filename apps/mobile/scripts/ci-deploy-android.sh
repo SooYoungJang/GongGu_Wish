@@ -196,6 +196,18 @@ NODE
 
 node "$script_directory/validate-supabase-public-config.mjs"
 
+if [[ "$environment" == "production" ]]; then
+  # Cloud store builds need the same release metadata as local builds and OTA.
+  # Keep eas.json stable so adding a per-release profile cannot change runtime.
+  eas env:set production \
+    --name GONGGU_RELEASE_NUMBER \
+    --value "$GONGGU_RELEASE_NUMBER" \
+    --type string \
+    --visibility plaintext \
+    --scope project \
+    --non-interactive
+fi
+
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   echo "::add-mask::$EXPO_PUBLIC_SUPABASE_ANON_KEY"
 fi
