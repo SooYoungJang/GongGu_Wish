@@ -12,6 +12,7 @@ import {
   emitAdsDiagnostic,
   getAdsErrorCode,
   getAdsErrorReason,
+  getAdsNativeErrorMetadata,
 } from "../../ads/adsDiagnostics";
 import { loadNativeAdWithRetry } from "../../ads/loadNativeAd";
 import {
@@ -181,6 +182,7 @@ export const NativeAdCard = memo(function NativeAdCard({
             maxAttempts,
             errorCode: getAdsErrorCode(error),
             errorReason: getAdsErrorReason(error),
+            ...getAdsNativeErrorMetadata(error),
             retryDelayMs,
           },
           (payload) => console.warn(payload),

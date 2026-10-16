@@ -64,7 +64,7 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   const baseAppConfig = JSON.parse(read("apps/mobile/app.json"));
   const mobilePackage = JSON.parse(read("apps/mobile/package.json"));
   const mobileAdsPatch = read(
-    "apps/mobile/patches/react-native-google-mobile-ads+16.3.4.patch",
+    "apps/mobile/patches/react-native-google-mobile-ads+16.5.0.patch",
   );
   const builder = read("scripts/build-mobile-ads-smoke.sh");
   const gradleBootstrap = read("scripts/use-verified-gradle-distribution.sh");
@@ -88,12 +88,15 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   );
   assert.match(workflow, /api-level: 36/);
   assert.match(workflow, /target: google_apis_playstore/);
-  // 16.4.x bundles Ads SDK 25.4.x, whose Kotlin 2.3 metadata is newer than
-  // the Kotlin 2.1 toolchain used by Expo SDK 55 native modules.
+  // The 16.5.0 bridge contains Android view lifecycle fixes. Override its
+  // bundled GMA 25.4.0 with 25.2.0: the last AAR with Kotlin 2.2 metadata
+  // readable by Expo 55's Kotlin 2.1 compiler. GMA 25.3+ needs Kotlin 2.3.
   assert.equal(
     mobilePackage.dependencies["react-native-google-mobile-ads"],
-    "16.3.4",
+    "16.5.0",
   );
+  assert.match(mobileAdsPatch, /def googleMobileAdsVersion = "25\.2\.0"/);
+  assert.doesNotMatch(mobileAdsPatch, /skip-metadata-version-check/);
   // Build properties may enable R8, but must not override Expo's Kotlin toolchain.
   assert.equal(
     baseAppConfig.expo.plugins.find(
@@ -104,7 +107,7 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   );
   assert.equal(
     mobilePackage.scripts.postinstall,
-    "patch-package --patch-dir patches",
+    "node scripts/apply-native-patches.mjs",
   );
   assert.match(mobileAdsPatch, /override fun onAdFailedToLoad/);
   assert.match(mobileAdsPatch, /promise\.reject/);
