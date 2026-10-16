@@ -57,7 +57,10 @@ test("Instagram collector changes run collector checks without deploying app com
     assert.equal(plan.mobileE2e, false);
     expectOnly(plan, []);
   }
-  assert.equal(classifyChangedFiles(["docs/collector.md"]).instagramTests, false);
+  assert.equal(
+    classifyChangedFiles(["docs/collector.md"]).instagramTests,
+    false,
+  );
   assert.equal(classifyChangedFiles(["unknown/file"]).instagramTests, true);
 });
 
@@ -95,6 +98,56 @@ test("API-only changes reserve PostgreSQL for the API test job", () => {
   assert.equal(plan.test, false);
   assert.equal(plan.workspaceFilters, "--filter=@gonggu/api");
   expectOnly(plan, []);
+});
+
+test("Production releases update the app release number even for backend-only changes", () => {
+  for (const file of [
+    "apps/api/src/app.service.ts",
+    "apps/admin/src/App.tsx",
+    "workers/api-proxy/src/index.ts",
+    "supabase/functions/example/index.ts",
+  ]) {
+    const plan = classifyChangedFiles([file], { productionRelease: true });
+    assert.equal(plan.mobile, true, file);
+    assert.equal(plan.quality, true, file);
+    assert.equal(plan.build, true, file);
+    assert.equal(plan.test, true, file);
+    assert.match(plan.workspaceFilters, /--filter=@gonggu\/mobile/);
+  }
+});
+
+test("Production release numbering preserves documentation-only no-op deployments", () => {
+  const plan = classifyChangedFiles(["docs/example.md"], {
+    productionRelease: true,
+  });
+  assert.equal(plan.docsOnly, true);
+  assert.equal(plan.mobile, false);
+  assert.equal(plan.quality, false);
+});
+
+test("Production release detection covers main pushes and promotion pull requests", () => {
+  const directory = mkdtempSync(join(tmpdir(), "gonggu-release-plan-"));
+  try {
+    const filesPath = join(directory, "changes.txt");
+    writeFileSync(filesPath, "apps/admin/src/App.tsx\n");
+    for (const context of [
+      { GITHUB_REF: "refs/heads/main", GITHUB_BASE_REF: "" },
+      { GITHUB_REF: "refs/pull/123/merge", GITHUB_BASE_REF: "main" },
+    ]) {
+      const result = spawnSync(
+        process.execPath,
+        [changePlanCli, "--files", filesPath],
+        {
+          encoding: "utf8",
+          env: { ...process.env, ...context },
+        },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(JSON.parse(result.stdout).mobile, true);
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("Mobile changes run only affected workspace checks and mobile deployment", () => {
@@ -315,7 +368,14 @@ test("tree-identical merge commits force exact-SHA Vercel builds", () => {
     git(repository, "checkout", "-b", "metadata-merge");
     git(repository, "commit", "--allow-empty", "-m", "metadata only");
     git(repository, "checkout", "main");
-    git(repository, "merge", "--no-ff", "metadata-merge", "-m", "merge metadata");
+    git(
+      repository,
+      "merge",
+      "--no-ff",
+      "metadata-merge",
+      "-m",
+      "merge metadata",
+    );
     const mergeSha = git(repository, "rev-parse", "HEAD");
 
     git(repository, "checkout", "-b", "changed-merge");
@@ -326,7 +386,14 @@ test("tree-identical merge commits force exact-SHA Vercel builds", () => {
     git(repository, "add", "scripts/merge-policy.mjs");
     git(repository, "commit", "-m", "merge-only CI change");
     git(repository, "checkout", "main");
-    git(repository, "merge", "--no-ff", "changed-merge", "-m", "merge CI change");
+    git(
+      repository,
+      "merge",
+      "--no-ff",
+      "changed-merge",
+      "-m",
+      "merge CI change",
+    );
     const changedMergeSha = git(repository, "rev-parse", "HEAD");
 
     for (const projectFlag of ["--vercel-admin", "--vercel-web"]) {
@@ -339,7 +406,11 @@ test("tree-identical merge commits force exact-SHA Vercel builds", () => {
           VERCEL_GIT_COMMIT_SHA: nonMergeSha,
         },
       });
-      assert.equal(normal.status, 0, `${projectFlag} should skip a CI-only commit`);
+      assert.equal(
+        normal.status,
+        0,
+        `${projectFlag} should skip a CI-only commit`,
+      );
 
       const merge = spawnSync(process.execPath, [changePlanCli, projectFlag], {
         cwd: repository,

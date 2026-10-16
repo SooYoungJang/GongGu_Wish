@@ -84,7 +84,7 @@ function isMobileLocalSupabaseFile(path) {
 
 export function classifyChangedFiles(
   inputFiles,
-  { productionRecovery = false } = {},
+  { productionRecovery = false, productionRelease = false } = {},
 ) {
   const files = inputFiles
     .map((file) => file.trim().replaceAll("\\", "/"))
@@ -225,6 +225,12 @@ export function classifyChangedFiles(
     }
   }
 
+  // Every code release changes the mobile release metadata, including API-only releases.
+  if (productionRelease && !plan.docsOnly) {
+    addWorkspace("@gonggu/mobile");
+    plan.mobile = true;
+  }
+
   const selectedWorkspaces = WORKSPACES.filter((name) => workspaces.has(name));
   plan.build = plan.quality;
   plan.workspaceTestFilters = selectedWorkspaces
@@ -296,7 +302,10 @@ function isTreeIdenticalMerge(currentSha) {
   )
     .trim()
     .split(/\r?\n/);
-  if (trees.length !== 2 || trees.some((tree) => !/^[0-9a-f]{40}$/i.test(tree))) {
+  if (
+    trees.length !== 2 ||
+    trees.some((tree) => !/^[0-9a-f]{40}$/i.test(tree))
+  ) {
     throw new Error("Unable to resolve the Vercel merge trees.");
   }
 
@@ -364,7 +373,14 @@ function runCli() {
     : readFileSync(args[filesIndex + 1], "utf8").split(/\r?\n/);
   if (!files) return;
 
-  const plan = classifyChangedFiles(files, { productionRecovery });
+  const productionRelease =
+    !vercelProject &&
+    (process.env.GITHUB_REF === "refs/heads/main" ||
+      process.env.GITHUB_BASE_REF === "main");
+  const plan = classifyChangedFiles(files, {
+    productionRecovery,
+    productionRelease,
+  });
   const outputs = toOutputs(plan);
 
   if (outputIndex !== -1 && args[outputIndex + 1]) {
