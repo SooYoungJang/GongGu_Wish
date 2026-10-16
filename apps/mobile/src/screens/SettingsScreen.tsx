@@ -30,6 +30,7 @@ import {
   resolveAppInfo,
 } from "../lib/app-info";
 import { isAutomatedE2E } from "../lib/automatedE2E";
+import { publicBuildConfig } from "../lib/public-build-config";
 import { getSupabase } from "../lib/supabase";
 import {
   getNotificationPermissionStatus,
@@ -49,6 +50,7 @@ import bundledAppConfig from "../../app.json";
 const APP_INFO = resolveAppInfo({
   nativeApplicationVersion: Application.nativeApplicationVersion,
   nativeBuildVersion: Application.nativeBuildVersion,
+  releaseNumber: publicBuildConfig.releaseNumber,
   configuredVersion: Constants.expoConfig?.version,
   fallbackVersion: bundledAppConfig.expo.version,
   privacyPolicyUrl:
