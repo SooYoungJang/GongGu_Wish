@@ -64,7 +64,7 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   const baseAppConfig = JSON.parse(read("apps/mobile/app.json"));
   const mobilePackage = JSON.parse(read("apps/mobile/package.json"));
   const mobileAdsPatch = read(
-    "apps/mobile/patches/react-native-google-mobile-ads+16.5.0.patch",
+    "apps/mobile/patches/react-native-google-mobile-ads+16.3.4.patch",
   );
   const builder = read("scripts/build-mobile-ads-smoke.sh");
   const gradleBootstrap = read("scripts/use-verified-gradle-distribution.sh");
@@ -88,12 +88,12 @@ test("Android ads smoke requires visible Preview test ads to load", () => {
   );
   assert.match(workflow, /api-level: 36/);
   assert.match(workflow, /target: google_apis_playstore/);
-  // The 16.5.0 bridge contains Android view lifecycle fixes. Override its
-  // bundled GMA 25.4.0 with 25.2.0: the last AAR with Kotlin 2.2 metadata
+  // Keep the existing bridge and update only Android GMA to 25.2.0:
+  // the last AAR with Kotlin 2.2 metadata
   // readable by Expo 55's Kotlin 2.1 compiler. GMA 25.3+ needs Kotlin 2.3.
   assert.equal(
     mobilePackage.dependencies["react-native-google-mobile-ads"],
-    "16.5.0",
+    "16.3.4",
   );
   assert.match(mobileAdsPatch, /def googleMobileAdsVersion = "25\.2\.0"/);
   assert.doesNotMatch(mobileAdsPatch, /skip-metadata-version-check/);
