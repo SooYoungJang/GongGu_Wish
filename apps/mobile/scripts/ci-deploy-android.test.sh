@@ -9,6 +9,7 @@ mkdir -p "$fake_bin"
 trap 'rm -rf "$test_directory"' EXIT
 
 public_build_config_path="$script_directory/../src/lib/public-build-config.ts"
+export MOCK_PUBLIC_BUILD_CONFIG_PATH="$public_build_config_path"
 public_build_config_original="$test_directory/public-build-config.original.ts"
 cp "$public_build_config_path" "$public_build_config_original"
 
@@ -48,7 +49,7 @@ if [[ "$command_name" == "update" || "$command_name" == "build" ]]; then
   "$REAL_NODE" --input-type=module <<'NODE'
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const source = readFileSync("src/lib/public-build-config.ts", "utf8");
+const source = readFileSync(process.env.MOCK_PUBLIC_BUILD_CONFIG_PATH, "utf8");
 const { publicBuildConfig } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
 assert.equal(publicBuildConfig.releaseNumber,
   process.env.APP_VARIANT === "production" ? (process.env.MOCK_RELEASE_NUMBER ?? "18") : null);
