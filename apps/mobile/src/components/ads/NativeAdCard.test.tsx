@@ -83,6 +83,40 @@ describe("NativeAdCard", () => {
     expect(destroy).toHaveBeenCalledOnce();
   });
 
+  it("records only the classified SDK hint when a native request fails", async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(NativeAd.createForAdRequest).mockRejectedValue({
+      code: "internal-error",
+      message: "No ad config. https://private.example.test/?token=private-value",
+    });
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(
+          <AdsContext.Provider value={enabledAds}>
+            <NativeAdCard variant="row" />
+          </AdsContext.Provider>,
+        );
+      });
+      await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+      const events = warn.mock.calls.flatMap(([value]) =>
+        typeof value === "string" && value.startsWith('{"scope":"mobile_ads"')
+          ? [JSON.parse(value)]
+          : [],
+      );
+      expect(events).toContainEqual(expect.objectContaining({
+        event: "native_ad_failed",
+        errorCode: "internal-error",
+        errorReason: "no-ad-config",
+      }));
+      expect(JSON.stringify(events)).not.toContain("private");
+    } finally {
+      if (renderer) act(() => renderer!.unmount());
+      warn.mockRestore();
+    }
+  });
+
   it("stops bounded no-fill retries instead of requesting indefinitely", async () => {
     vi.useFakeTimers();
     vi.mocked(NativeAd.createForAdRequest).mockRejectedValue({ code: "no-fill" });
