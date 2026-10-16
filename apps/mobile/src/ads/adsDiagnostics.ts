@@ -25,6 +25,24 @@ export function getAdsErrorCode(error: unknown): string {
   return normalized || "unknown";
 }
 
+export function getAdsErrorReason(error: unknown): string | undefined {
+  if (!error || typeof error !== "object" || !("message" in error)) return;
+  const message = (error as { message?: unknown }).message;
+  if (typeof message !== "string") return;
+  // Classify stock SDK hints only. Never log arbitrary messages, request URLs,
+  // ad-unit/device identifiers, credentials, or response payloads.
+  const hint = message.slice(0, 1_000).toLowerCase();
+  if (hint.includes("no ad config")) return "no-ad-config";
+  if (hint.includes("unable to obtain a javascriptengine")) {
+    return "javascript-engine-unavailable";
+  }
+  if (hint.includes("error building request url")) return "request-url-error";
+  if (hint.includes("failed to instantiate ad adapter")) {
+    return "adapter-instantiation-failed";
+  }
+  return undefined;
+}
+
 export function emitAdsDiagnostic(
   event: AdsDiagnosticEvent,
   write: AdsDiagnosticWriter = console.info,
