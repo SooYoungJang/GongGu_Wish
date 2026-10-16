@@ -88,7 +88,14 @@ describe("NativeAdCard", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.mocked(NativeAd.createForAdRequest).mockRejectedValue({
       code: "internal-error",
-      message: "No ad config. https://private.example.test/?token=private-value",
+      message:
+        "Retrieve required value in native ad response failed. " +
+        "https://private.example.test/?token=private-value",
+      userInfo: {
+        nativeErrorCode: 0,
+        googleMobileAdsVersion: "25.2.0",
+        responseInfo: "private-response-payload",
+      },
     });
     let renderer: TestRenderer.ReactTestRenderer | undefined;
     try {
@@ -108,7 +115,9 @@ describe("NativeAdCard", () => {
       expect(events).toContainEqual(expect.objectContaining({
         event: "native_ad_failed",
         errorCode: "internal-error",
-        errorReason: "no-ad-config",
+        errorReason: "native-response-invalid",
+        nativeErrorCode: 0,
+        nativeSdkVersion: "25.2.0",
       }));
       expect(JSON.stringify(events)).not.toContain("private");
     } finally {
