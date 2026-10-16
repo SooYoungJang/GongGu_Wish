@@ -99,7 +99,7 @@ test("manual discoveries cannot enter approved-only definer ranking in an incons
   assert.match(constraint, /source_type IS DISTINCT FROM 'MANUAL_DISCOVERY'/i);
   assert.match(constraint, /collection_review_status IS NOT NULL/i);
   assert.match(constraint, /collection_review_status = 'PENDING'[\s\S]*status = 'REVIEW_REQUIRED'/i);
-  assert.match(constraint, /collection_review_status = 'APPROVED'[\s\S]*status IN \('APPROVED', 'EXPIRED'\)/i);
+  assert.match(constraint, /collection_review_status = 'APPROVED'[\s\S]*status IN \('APPROVED', 'EXPIRED', 'REJECTED'\)/i);
   assert.match(constraint, /collection_review_status = 'REJECTED'[\s\S]*status = 'REJECTED'/i);
 });
 

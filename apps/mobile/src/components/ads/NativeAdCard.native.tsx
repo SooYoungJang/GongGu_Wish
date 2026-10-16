@@ -8,7 +8,11 @@ import {
 } from "react-native";
 
 import { useAds } from "../../ads/AdsContext.native";
-import { emitAdsDiagnostic, getAdsErrorCode } from "../../ads/adsDiagnostics";
+import {
+  emitAdsDiagnostic,
+  getAdsErrorCode,
+  getAdsErrorReason,
+} from "../../ads/adsDiagnostics";
 import { loadNativeAdWithRetry } from "../../ads/loadNativeAd";
 import {
   getGoogleMobileAdsModule,
@@ -176,6 +180,7 @@ export const NativeAdCard = memo(function NativeAdCard({
             attempt,
             maxAttempts,
             errorCode: getAdsErrorCode(error),
+            errorReason: getAdsErrorReason(error),
             retryDelayMs,
           },
           (payload) => console.warn(payload),

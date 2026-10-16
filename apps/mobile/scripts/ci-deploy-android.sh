@@ -231,23 +231,24 @@ fingerprint_hash="$(
 publish_ota() {
   local compatibility_label="$1"
   local compatibility_id="$2"
+  local runtime_version="${3:-$fingerprint_hash}"
 
   local runtime_config_json
   runtime_config_json="$(
     EXPO_NO_DOTENV=1 \
-      GONGGU_OTA_RUNTIME_VERSION="$fingerprint_hash" \
+      GONGGU_OTA_RUNTIME_VERSION="$runtime_version" \
       GONGGU_OTA_ADMOB_MODE="${profile_ads_values[0]}" \
       GONGGU_OTA_AD_REQUESTS_ENABLED="${profile_ads_values[1]}" \
       npx expo config --type public --json
   )"
   printf '%s' "$runtime_config_json" | \
     node "$script_directory/validate-ota-runtime.mjs" \
-      config "$fingerprint_hash" \
+      config "$runtime_version" \
       "${profile_ads_values[0]}" "${profile_ads_values[1]}"
 
   local update_json
   update_json="$(
-    GONGGU_OTA_RUNTIME_VERSION="$fingerprint_hash" \
+    GONGGU_OTA_RUNTIME_VERSION="$runtime_version" \
       GONGGU_OTA_ADMOB_MODE="${profile_ads_values[0]}" \
       GONGGU_OTA_AD_REQUESTS_ENABLED="${profile_ads_values[1]}" \
       eas update \
@@ -261,7 +262,7 @@ publish_ota() {
 
   printf '%s' "$update_json" | \
     node "$script_directory/validate-ota-runtime.mjs" \
-      update "$fingerprint_hash"
+      update "$runtime_version"
 
   {
     echo "mode=ota"
@@ -275,9 +276,8 @@ publish_ota() {
     echo "- Environment: \`$environment\`"
     echo "- $compatibility_label: \`$compatibility_id\`"
     echo "- Fingerprint: \`$fingerprint_hash\`"
-    echo "- Runtime version: \`$fingerprint_hash\`"
+    echo "- Runtime version: \`$runtime_version\`"
   } >>"$GITHUB_STEP_SUMMARY"
-  exit 0
 }
 
 is_eas_local_build_quota_error() {
@@ -315,6 +315,7 @@ if [[ "$environment" == "preview" ]]; then
 
     if [[ -n "$preview_baseline_artifact_id" ]]; then
       publish_ota "GitHub baseline artifact" "$preview_baseline_artifact_id"
+      exit 0
     fi
   fi
 else
@@ -343,7 +344,34 @@ else
   )"
 
   if [[ -n "$compatible_build_id" ]]; then
+    # Validate the exact reviewed Play baseline before publishing either target.
+    # A changed computed fingerprint never inherits this EOL-only equivalence.
+    legacy_runtime="$(
+      node "$script_directory/production-runtime-compatibility.mjs" \
+        runtime "$environment" "$fingerprint_hash"
+    )"
+    legacy_build_id=""
+    if [[ -n "$legacy_runtime" ]]; then
+      legacy_builds_json="$(
+        eas build:list \
+          --platform android \
+          --status finished \
+          --fingerprint-hash "$legacy_runtime" \
+          --limit 10 \
+          --json \
+          --non-interactive
+      )"
+      legacy_build_id="$(
+        printf '%s' "$legacy_builds_json" | \
+          node "$script_directory/production-runtime-compatibility.mjs" \
+            build "$environment" "$fingerprint_hash"
+      )"
+    fi
     publish_ota "Compatible EAS build" "$compatible_build_id"
+    if [[ -n "$legacy_build_id" ]]; then
+      publish_ota "Verified EOL-equivalent Play build" "$legacy_build_id" "$legacy_runtime"
+    fi
+    exit 0
   fi
 fi
 

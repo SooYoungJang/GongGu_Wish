@@ -27,7 +27,8 @@ export REAL_NODE="$real_node"
 "$real_node" --test \
   "$script_directory/validate-supabase-public-config.test.mjs" \
   "$script_directory/materialize-public-build-config.test.mjs" \
-  "$script_directory/validate-ota-runtime.test.mjs"
+  "$script_directory/validate-ota-runtime.test.mjs" \
+  "$script_directory/production-runtime-compatibility.test.mjs"
 if ! command -v bash >/dev/null 2>&1; then
   cp "$bash_command" "$fake_bin/bash.exe"
   bash_command="$fake_bin/bash.exe"
@@ -76,10 +77,17 @@ case "$command_name" in
         exit 1
       fi
     done
-    printf '{"hash":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}\n'
+    printf '{"hash":"%s"}\n' \
+      "${MOCK_FINGERPRINT_HASH:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
     ;;
   build:list)
-    if [[ "$MOCK_COMPATIBLE_BUILD" == "true" ]]; then
+    if [[ " $* " == *" --fingerprint-hash 03cb2d49ed9bcaa616a8d38f969acfb7511c6101 "* ]]; then
+      if [[ "${MOCK_LEGACY_BUILD:-missing}" == "valid" ]]; then
+        printf '%s\n' '[{"id":"0efa1ce7-b2bc-4f40-852b-365302f1d38a","status":"FINISHED","platform":"ANDROID","runtimeVersion":"03cb2d49ed9bcaa616a8d38f969acfb7511c6101","fingerprint":{"hash":"03cb2d49ed9bcaa616a8d38f969acfb7511c6101"},"channel":"production","buildProfile":"production","appBuildVersion":"17","gitCommitHash":"6d2d6b067a208f2de2c7ffe90ad0fea16a046f9a","project":{"id":"7425b02f-80fe-4ccf-b7fa-c6052282fe35"}}]'
+      else
+        printf '[]\n'
+      fi
+    elif [[ "$MOCK_COMPATIBLE_BUILD" == "true" ]]; then
       if [[ " $* " == *" --app-identifier "* ]]; then
         printf '[]\n'
       else
@@ -90,8 +98,12 @@ case "$command_name" in
     fi
     ;;
   update)
-    if [[ "${GONGGU_OTA_RUNTIME_VERSION:-}" != "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" ]]; then
-      echo "OTA update must reuse the verified compatible build fingerprint" >&2
+    expected_fingerprint="${MOCK_FINGERPRINT_HASH:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
+    if [[ "${GONGGU_OTA_RUNTIME_VERSION:-}" != "$expected_fingerprint" && ! ( \
+      "${APP_VARIANT:-}" == "production" && \
+      "$expected_fingerprint" == "0b37911db44a8039b54b904a2a76843a46733511" && \
+      "${GONGGU_OTA_RUNTIME_VERSION:-}" == "03cb2d49ed9bcaa616a8d38f969acfb7511c6101" ) ]]; then
+      echo "OTA update must reuse a verified compatible build runtime" >&2
       exit 1
     fi
     case "${APP_VARIANT:-}" in
@@ -211,8 +223,12 @@ if [[ "$*" != "expo config --type public --json" ]]; then
   exit 1
 fi
 runtime="${GONGGU_OTA_RUNTIME_VERSION:-}"
-if [[ "$runtime" != "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" ]]; then
-  echo "Expo config preflight must use the compatible build fingerprint" >&2
+expected_fingerprint="${MOCK_FINGERPRINT_HASH:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
+if [[ "$runtime" != "$expected_fingerprint" && ! ( \
+  "${APP_VARIANT:-}" == "production" && \
+  "$expected_fingerprint" == "0b37911db44a8039b54b904a2a76843a46733511" && \
+  "$runtime" == "03cb2d49ed9bcaa616a8d38f969acfb7511c6101" ) ]]; then
+  echo "Expo config preflight must use a verified compatible build runtime" >&2
   exit 1
 fi
 if [[ "${EXPO_NO_DOTENV:-}" != "1" ]]; then
@@ -923,6 +939,26 @@ fi
 
 if ! cmp -s "$public_build_config_original" "$public_build_config_path"; then
   echo "Deployment tests did not restore the public build configuration template" >&2
+  exit 1
+fi
+
+MOCK_FINGERPRINT_HASH="0b37911db44a8039b54b904a2a76843a46733511" \
+  MOCK_LEGACY_BUILD="valid" \
+  run_deployment "production-play-ota" "refs/heads/main" "none" "true"
+assert_eas_commands "production-play-ota" "fingerprint:generate build:list build:list update update"
+grep -Fq 'Runtime version: `0b37911db44a8039b54b904a2a76843a46733511`' \
+  "$test_directory/production-play-ota/summary"
+grep -Fq 'Runtime version: `03cb2d49ed9bcaa616a8d38f969acfb7511c6101`' \
+  "$test_directory/production-play-ota/summary"
+
+if MOCK_FINGERPRINT_HASH="0b37911db44a8039b54b904a2a76843a46733511" \
+  MOCK_LEGACY_BUILD="missing" \
+  run_deployment "production-play-missing" "refs/heads/main" "none" "true"; then
+  echo "Missing Play build evidence unexpectedly allowed an OTA" >&2
+  exit 1
+fi
+if grep -q '^update ' "$test_directory/production-play-missing/eas.log"; then
+  echo "An OTA was published before Play compatibility validation" >&2
   exit 1
 fi
 
