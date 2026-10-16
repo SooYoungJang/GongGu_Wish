@@ -3,6 +3,34 @@ import { describe, expect, it } from "vitest";
 import { resolveAppInfo } from "./app-info";
 
 describe("resolveAppInfo", () => {
+  it("shows the applied release number after an OTA on the same native build", () => {
+    const installedApp = {
+      nativeApplicationVersion: "0.1.0",
+      nativeBuildVersion: "17",
+      configuredVersion: "0.1.0",
+    };
+
+    expect(
+      resolveAppInfo({ ...installedApp, releaseNumber: "18" }).version,
+    ).toBe("0.1.0 (18)");
+    expect(
+      resolveAppInfo({ ...installedApp, releaseNumber: "19" }).version,
+    ).toBe("0.1.0 (19)");
+  });
+
+  it.each([null, "", "0", "-1", "1.5", "Infinity", "9007199254740992"])(
+    "keeps the native build number for invalid release metadata %s",
+    (releaseNumber) => {
+      expect(
+        resolveAppInfo({
+          nativeApplicationVersion: "0.1.0",
+          nativeBuildVersion: "17",
+          releaseNumber,
+        }).version,
+      ).toBe("0.1.0 (17)");
+    },
+  );
+
   it("uses the native app and build versions with validated HTTPS legal URLs", () => {
     expect(
       resolveAppInfo({

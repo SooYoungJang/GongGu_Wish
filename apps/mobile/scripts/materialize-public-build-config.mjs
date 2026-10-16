@@ -10,6 +10,8 @@ export function renderPublicBuildConfig({
   apiProxyUrl,
   supabaseAnonKey,
   supabaseUrl,
+  appVariant,
+  releaseNumber,
 }) {
   const values = {
     apiProxyUrl: apiProxyUrl?.trim(),
@@ -21,10 +23,20 @@ export function renderPublicBuildConfig({
     throw new Error("The public build configuration is incomplete.");
   }
 
+  const appliedReleaseNumber =
+    appVariant === "production" ? releaseNumber?.trim() : null;
+  if (
+    appVariant === "production" &&
+    (!/^[1-9]\d*$/.test(appliedReleaseNumber ?? "") ||
+      !Number.isSafeInteger(Number(appliedReleaseNumber)))
+  ) {
+    throw new Error("A positive Production release number is required.");
+  }
+
   return [
     "// Generated from the validated EAS environment for this deployment.",
     "// The deployment script restores the environment-backed template on exit.",
-    `export const publicBuildConfig = Object.freeze(${JSON.stringify(values, null, 2)});`,
+    `export const publicBuildConfig = Object.freeze(${JSON.stringify({ ...values, releaseNumber: appliedReleaseNumber }, null, 2)});`,
     "",
   ].join("\n");
 }
@@ -35,6 +47,8 @@ async function main() {
     apiProxyUrl: process.env.EXPO_PUBLIC_API_PROXY_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    appVariant: process.env.APP_VARIANT,
+    releaseNumber: process.env.GONGGU_RELEASE_NUMBER,
   });
 
   await writeFile(outputPath, source, { encoding: "utf8", mode: 0o600 });

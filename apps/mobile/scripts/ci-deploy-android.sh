@@ -104,6 +104,14 @@ if [[ "$APP_VARIANT" != "$environment" ]]; then
   exit 1
 fi
 
+if [[ "$environment" == "production" ]]; then
+  GONGGU_RELEASE_NUMBER="$(node "$script_directory/production-release-number.mjs")"
+  export GONGGU_RELEASE_NUMBER
+  echo "Production release number: $GONGGU_RELEASE_NUMBER"
+else
+  unset GONGGU_RELEASE_NUMBER
+fi
+
 profile_ads_environment="$(
   PROFILE="$profile" EAS_JSON_PATH="$script_directory/../eas.json" node <<'NODE'
 const fs = require("node:fs");
@@ -277,6 +285,9 @@ publish_ota() {
     echo "- $compatibility_label: \`$compatibility_id\`"
     echo "- Fingerprint: \`$fingerprint_hash\`"
     echo "- Runtime version: \`$runtime_version\`"
+    if [[ "$environment" == "production" ]]; then
+      echo "- App release number: \`$GONGGU_RELEASE_NUMBER\`"
+    fi
   } >>"$GITHUB_STEP_SUMMARY"
 }
 

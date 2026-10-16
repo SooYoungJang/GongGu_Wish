@@ -12,6 +12,7 @@ export const DEFAULT_TERMS_OF_SERVICE_URL =
 type ResolveAppInfoInput = {
   nativeApplicationVersion?: unknown;
   nativeBuildVersion?: unknown;
+  releaseNumber?: unknown;
   configuredVersion?: unknown;
   fallbackVersion?: unknown;
   privacyPolicyUrl?: unknown;
@@ -48,15 +49,29 @@ function nativeVersionLabel(version: unknown, build: unknown): string | null {
 export function resolveAppInfo({
   nativeApplicationVersion,
   nativeBuildVersion,
+  releaseNumber,
   configuredVersion,
   fallbackVersion,
   privacyPolicyUrl,
   termsOfServiceUrl,
 }: ResolveAppInfoInput): AppInfo {
+  const appliedRelease = nonBlankString(releaseNumber);
+  const releaseVersion =
+    appliedRelease &&
+    /^[1-9]\d*$/.test(appliedRelease) &&
+    Number.isSafeInteger(Number(appliedRelease))
+      ? nativeVersionLabel(
+          nonBlankString(nativeApplicationVersion) ??
+            nonBlankString(configuredVersion) ??
+            nonBlankString(fallbackVersion),
+          appliedRelease,
+        )
+      : null;
   return {
     privacyPolicyUrl: optionalHttpsUrl(privacyPolicyUrl),
     termsOfServiceUrl: optionalHttpsUrl(termsOfServiceUrl),
     version:
+      releaseVersion ??
       nativeVersionLabel(nativeApplicationVersion, nativeBuildVersion) ??
       nonBlankString(configuredVersion) ??
       nonBlankString(fallbackVersion) ??
