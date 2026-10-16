@@ -106,6 +106,8 @@ export function makeNativeAdStyles(theme: ReturnType<typeof useCommerceTheme>) {
     },
     reelMedia: {
       backgroundColor: "#000000",
+      maxHeight: "100%",
+      maxWidth: "100%",
     },
     compactMedia: {
       // The SDK supplies the creative's aspect ratio by default. Compact
