@@ -296,7 +296,10 @@ function isTreeIdenticalMerge(currentSha) {
   )
     .trim()
     .split(/\r?\n/);
-  if (trees.length !== 2 || trees.some((tree) => !/^[0-9a-f]{40}$/i.test(tree))) {
+  if (
+    trees.length !== 2 ||
+    trees.some((tree) => !/^[0-9a-f]{40}$/i.test(tree))
+  ) {
     throw new Error("Unable to resolve the Vercel merge trees.");
   }
 

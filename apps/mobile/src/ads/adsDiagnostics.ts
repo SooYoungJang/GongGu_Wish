@@ -40,7 +40,37 @@ export function getAdsErrorReason(error: unknown): string | undefined {
   if (hint.includes("failed to instantiate ad adapter")) {
     return "adapter-instantiation-failed";
   }
+  if (hint.includes("retrieve required value in native ad response failed")) {
+    return "native-response-invalid";
+  }
   return undefined;
+}
+
+export function getAdsNativeErrorMetadata(error: unknown): {
+  nativeErrorCode?: number;
+  nativeSdkVersion?: string;
+} {
+  if (!error || typeof error !== "object" || !("userInfo" in error)) return {};
+  const userInfo = (error as { userInfo?: unknown }).userInfo;
+  if (!userInfo || typeof userInfo !== "object") return {};
+  const { nativeErrorCode, googleMobileAdsVersion } = userInfo as {
+    nativeErrorCode?: unknown;
+    googleMobileAdsVersion?: unknown;
+  };
+
+  return {
+    ...(typeof nativeErrorCode === "number" &&
+    Number.isInteger(nativeErrorCode) &&
+    nativeErrorCode >= 0 &&
+    nativeErrorCode <= 1_000
+      ? { nativeErrorCode }
+      : {}),
+    ...(typeof googleMobileAdsVersion === "string" &&
+    /^\d{1,2}\.\d{1,2}\.\d{1,3}$/.test(googleMobileAdsVersion) &&
+    googleMobileAdsVersion.trim() === googleMobileAdsVersion
+      ? { nativeSdkVersion: googleMobileAdsVersion }
+      : {}),
+  };
 }
 
 export function emitAdsDiagnostic(

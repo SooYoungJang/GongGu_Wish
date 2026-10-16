@@ -88,7 +88,14 @@ describe("NativeAdCard", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.mocked(NativeAd.createForAdRequest).mockRejectedValue({
       code: "internal-error",
-      message: "No ad config. https://private.example.test/?token=private-value",
+      message:
+        "Retrieve required value in native ad response failed. " +
+        "https://private.example.test/?token=private-value",
+      userInfo: {
+        nativeErrorCode: 0,
+        googleMobileAdsVersion: "25.2.0",
+        responseInfo: "private-response-payload",
+      },
     });
     let renderer: TestRenderer.ReactTestRenderer | undefined;
     try {
@@ -108,7 +115,9 @@ describe("NativeAdCard", () => {
       expect(events).toContainEqual(expect.objectContaining({
         event: "native_ad_failed",
         errorCode: "internal-error",
-        errorReason: "no-ad-config",
+        errorReason: "native-response-invalid",
+        nativeErrorCode: 0,
+        nativeSdkVersion: "25.2.0",
       }));
       expect(JSON.stringify(events)).not.toContain("private");
     } finally {
@@ -483,7 +492,7 @@ describe("NativeAdCard", () => {
     expect(NativeAd.createForAdRequest).not.toHaveBeenCalled();
   });
 
-  it("contains reel video inside the GNB-aware media viewport", async () => {
+  it("binds reel video with its measured parent size from the first render", async () => {
     const ad = {
       advertiser: "공구 파트너",
       body: "가로형 영상 광고",
@@ -503,44 +512,45 @@ describe("NativeAdCard", () => {
     await act(async () => {
       renderer = TestRenderer.create(
         <AdsContext.Provider value={enabledAds}>
-          <NativeAdCard placement="reels" reelBottomInset={64} variant="reel" />
+          <NativeAdCard
+            placement="reels"
+            reelBottomInset={64}
+            testID="reels-native-ad"
+            variant="reel"
+          />
         </AdsContext.Provider>,
       );
       await Promise.resolve();
     });
 
-    const nativeAdView = renderer!.root.findByType(
-      "NativeAdView" as unknown as React.ElementType,
-    );
     expect(
       renderer!.root.findAllByType(
-        "NativeMediaView" as unknown as React.ElementType,
+        "NativeAdView" as unknown as React.ElementType,
       ),
-    ).toHaveLength(1);
-    expect(
-      renderer!.root
-        .findAllByType("View" as unknown as React.ElementType)
-        .filter(
-          (node) =>
-            Array.isArray(node.props.style) &&
-            node.props.style.some((style: Record<string, unknown>) =>
-              style ? style.bottom === 64 : false,
-            ),
+    ).toHaveLength(0);
+    const frame = renderer!.root.find(
+      (node) =>
+        node.props.testID === "reels-native-ad-frame" &&
+        typeof node.props.onLayout === "function",
+    );
+    for (const size of [
+      { height: 0, width: 0 },
+      { height: 720, width: NaN },
+    ]) {
+      act(() => {
+        frame.props.onLayout({
+          nativeEvent: { layout: { ...size, x: 0, y: 0 } },
+        });
+      });
+      expect(
+        renderer!.root.findAllByType(
+          "NativeAdView" as unknown as React.ElementType,
         ),
-    ).toHaveLength(2);
-
-    const initialMedia = renderer!.root.findByType(
-      "NativeMediaView" as unknown as React.ElementType,
-    );
-    const initialSize = initialMedia.props.style.find(
-      (style: { height?: number; width?: number }) =>
-        typeof style?.height === "number" && typeof style?.width === "number",
-    );
-    expect(initialSize.height).toBeGreaterThan(0);
-    expect(initialSize.width).toBeGreaterThan(0);
+      ).toHaveLength(0);
+    }
 
     act(() => {
-      nativeAdView.props.onLayout({
+      frame.props.onLayout({
         nativeEvent: {
           layout: { height: 720, width: 360, x: 0, y: 0 },
         },
@@ -550,6 +560,15 @@ describe("NativeAdCard", () => {
     const nativeMediaView = renderer!.root.findByType(
       "NativeMediaView" as unknown as React.ElementType,
     );
+    const nativeAdView = renderer!.root.findByType(
+      "NativeAdView" as unknown as React.ElementType,
+    );
+    expect(nativeAdView.props.nativeAd).toBe(ad);
+    expect(
+      nativeAdView.findAllByType(
+        "NativeMediaView" as unknown as React.ElementType,
+      ),
+    ).toHaveLength(1);
     const chromeAwareViews = renderer!.root
       .findAllByType("View" as unknown as React.ElementType)
       .filter(
@@ -562,6 +581,7 @@ describe("NativeAdCard", () => {
 
     expect(nativeMediaView.props.style).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ maxHeight: "100%", maxWidth: "100%" }),
         expect.objectContaining({ height: 200.25, width: 356 }),
       ]),
     );
@@ -578,7 +598,7 @@ describe("NativeAdCard", () => {
     expect(sdkRightEdge).toBeLessThanOrEqual(360);
 
     act(() => {
-      nativeAdView.props.onLayout({
+      frame.props.onLayout({
         nativeEvent: {
           layout: { height: 0, width: 0, x: 0, y: 0 },
         },
@@ -589,6 +609,19 @@ describe("NativeAdCard", () => {
         expect.objectContaining({ height: 200.25, width: 356 }),
       ]),
     );
+
+    act(() => {
+      frame.props.onLayout({
+        nativeEvent: { layout: { height: 640, width: 300, x: 0, y: 0 } },
+      });
+    });
+    expect(nativeMediaView.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ height: 166.5, width: 296 }),
+      ]),
+    );
+    expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
+    act(() => renderer!.unmount());
   });
 
   it("loads offscreen and reuses the owned ad when its page becomes visible", async () => {
@@ -605,6 +638,7 @@ describe("NativeAdCard", () => {
         <NativeAdCard
           onLoadStateChange={onLoadStateChange}
           placement="reels"
+          testID="reels-native-ad"
           variant="reel"
           visible={visible}
         />
@@ -618,11 +652,40 @@ describe("NativeAdCard", () => {
     expect(renderer!.toJSON()).toBeNull();
     expect(onLoadStateChange).toHaveBeenLastCalledWith("loaded");
     act(() => renderer!.update(renderAd(true)));
+    const measure = (width: number) => {
+      act(() => {
+        renderer!.root
+          .find(
+            (node) =>
+              node.props.testID === "reels-native-ad-frame" &&
+              typeof node.props.onLayout === "function",
+          )
+          .props.onLayout({
+            nativeEvent: { layout: { height: 720, width, x: 0, y: 0 } },
+          });
+      });
+    };
+    measure(360);
     expect(
       renderer!.root.findAllByType(
         "NativeMediaView" as unknown as React.ElementType,
       ),
     ).toHaveLength(1);
+    act(() => renderer!.update(renderAd(false)));
+    act(() => renderer!.update(renderAd(true)));
+    expect(
+      renderer!.root.findAllByType(
+        "NativeAdView" as unknown as React.ElementType,
+      ),
+    ).toHaveLength(0);
+    measure(300);
+    expect(
+      renderer!.root.findByType(
+        "NativeMediaView" as unknown as React.ElementType,
+      ).props.style,
+    ).toEqual(
+      expect.arrayContaining([expect.objectContaining({ width: 296 })]),
+    );
     expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
     act(() => renderer!.unmount());
     expect(destroy).toHaveBeenCalledOnce();

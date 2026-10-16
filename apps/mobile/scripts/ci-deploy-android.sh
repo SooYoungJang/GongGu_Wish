@@ -104,6 +104,14 @@ if [[ "$APP_VARIANT" != "$environment" ]]; then
   exit 1
 fi
 
+if [[ "$environment" == "production" ]]; then
+  GONGGU_RELEASE_NUMBER="$(node "$script_directory/production-release-number.mjs")"
+  export GONGGU_RELEASE_NUMBER
+  echo "Production release number: $GONGGU_RELEASE_NUMBER"
+else
+  unset GONGGU_RELEASE_NUMBER
+fi
+
 profile_ads_environment="$(
   PROFILE="$profile" EAS_JSON_PATH="$script_directory/../eas.json" node <<'NODE'
 const fs = require("node:fs");
@@ -187,6 +195,18 @@ if (!packageNames.includes(expectedPackage)) {
 NODE
 
 node "$script_directory/validate-supabase-public-config.mjs"
+
+if [[ "$environment" == "production" ]]; then
+  # Cloud store builds need the same release metadata as local builds and OTA.
+  # Keep eas.json stable so adding a per-release profile cannot change runtime.
+  eas env:set production \
+    --name GONGGU_RELEASE_NUMBER \
+    --value "$GONGGU_RELEASE_NUMBER" \
+    --type string \
+    --visibility plaintext \
+    --scope project \
+    --non-interactive
+fi
 
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   echo "::add-mask::$EXPO_PUBLIC_SUPABASE_ANON_KEY"
@@ -277,6 +297,9 @@ publish_ota() {
     echo "- $compatibility_label: \`$compatibility_id\`"
     echo "- Fingerprint: \`$fingerprint_hash\`"
     echo "- Runtime version: \`$runtime_version\`"
+    if [[ "$environment" == "production" ]]; then
+      echo "- App release number: \`$GONGGU_RELEASE_NUMBER\`"
+    fi
   } >>"$GITHUB_STEP_SUMMARY"
 }
 

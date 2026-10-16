@@ -1,17 +1,19 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Image,
-  Text,
-  View,
-  useWindowDimensions,
-  type LayoutChangeEvent,
-} from "react-native";
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { Image, Text, View, type LayoutChangeEvent } from "react-native";
 
 import { useAds } from "../../ads/AdsContext.native";
 import {
   emitAdsDiagnostic,
   getAdsErrorCode,
   getAdsErrorReason,
+  getAdsNativeErrorMetadata,
 } from "../../ads/adsDiagnostics";
 import { loadNativeAdWithRetry } from "../../ads/loadNativeAd";
 import {
@@ -62,6 +64,39 @@ function getContainedMediaSize(
     : { height: frameWidth / validAspectRatio, width: frameWidth };
 }
 
+function MeasuredReelFrame({
+  children,
+  style,
+  testID,
+}: {
+  children: (layout: ReelLayout) => ReactNode;
+  style: NativeAdCardProps["style"];
+  testID?: string;
+}) {
+  const [layout, setLayout] = useState<ReelLayout | null>(null);
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height, width } = event.nativeEvent.layout;
+    if (
+      !Number.isFinite(height) ||
+      !Number.isFinite(width) ||
+      height <= 0 ||
+      width <= 0
+    )
+      return;
+    setLayout((current) =>
+      current?.height === height && current.width === width
+        ? current
+        : { height, width },
+    );
+  }, []);
+
+  return (
+    <View onLayout={handleLayout} style={style} testID={testID}>
+      {layout ? children(layout) : null}
+    </View>
+  );
+}
+
 export const NativeAdCard = memo(function NativeAdCard({
   loadEnabled = true,
   onLoadStateChange,
@@ -76,25 +111,11 @@ export const NativeAdCard = memo(function NativeAdCard({
   const unitId = nativeUnitIds[placement];
   const theme = useCommerceTheme();
   const styles = useMemo(() => makeNativeAdStyles(theme), [theme]);
-  const windowDimensions = useWindowDimensions();
   const isReel = variant === "reel";
   const [loadedNativeAd, setLoadedNativeAd] = useState<LoadedNativeAd | null>(
     null,
   );
   const [requestUnavailable, setRequestUnavailable] = useState(false);
-  const [reelLayout, setReelLayout] = useState<ReelLayout>({
-    height: 0,
-    width: 0,
-  });
-  const handleReelLayout = useCallback((event: LayoutChangeEvent) => {
-    const { height, width } = event.nativeEvent.layout;
-    if (height <= 0 || width <= 0) return;
-    setReelLayout((current) =>
-      current.height === height && current.width === width
-        ? current
-        : { height, width },
-    );
-  }, []);
   const handleMediaLayout = useCallback(
     (event: LayoutChangeEvent) => {
       const { height, width } = event.nativeEvent.layout;
@@ -181,6 +202,7 @@ export const NativeAdCard = memo(function NativeAdCard({
             maxAttempts,
             errorCode: getAdsErrorCode(error),
             errorReason: getAdsErrorReason(error),
+            ...getAdsNativeErrorMetadata(error),
             retryDelayMs,
           },
           (payload) => console.warn(payload),
@@ -281,160 +303,177 @@ export const NativeAdCard = memo(function NativeAdCard({
       : isTile
         ? styles.tileContent
         : styles.cardContent;
-  const requestedReelBottomInset =
-    Number.isFinite(reelBottomInset) && reelBottomInset > 0
-      ? reelBottomInset
+  const renderAd = (reelLayout: ReelLayout | null) => {
+    const requestedReelBottomInset =
+      Number.isFinite(reelBottomInset) && reelBottomInset > 0
+        ? reelBottomInset
+        : 0;
+    const reelFrameHeight = reelLayout?.height ?? 0;
+    const reelFrameWidth = reelLayout?.width ?? 0;
+    const resolvedReelBottomInset = isReel
+      ? reelFrameHeight > 0
+        ? Math.min(requestedReelBottomInset, reelFrameHeight - 1)
+        : requestedReelBottomInset
       : 0;
-  // Register the MediaView with the first native ad render. Waiting for the
-  // custom native container's onLayout can bind a video ad without its media.
-  const reelFrameHeight = reelLayout.height || windowDimensions.height;
-  const reelFrameWidth = reelLayout.width || windowDimensions.width;
-  const resolvedReelBottomInset = isReel
-    ? reelFrameHeight > 0
-      ? Math.min(requestedReelBottomInset, reelFrameHeight - 1)
-      : requestedReelBottomInset
-    : 0;
-  const reelMediaSize = isReel
-    ? getContainedMediaSize(
-        reelFrameWidth - REEL_MEDIA_EDGE_INSET * 2,
-        reelFrameHeight - resolvedReelBottomInset - REEL_MEDIA_EDGE_INSET * 2,
-        nativeAd.mediaContent?.aspectRatio,
-      )
-    : null;
-  const shouldRenderMedia = hasMedia && (!isReel || reelMediaSize !== null);
+    const reelMediaSize = isReel
+      ? getContainedMediaSize(
+          reelFrameWidth - REEL_MEDIA_EDGE_INSET * 2,
+          reelFrameHeight - resolvedReelBottomInset - REEL_MEDIA_EDGE_INSET * 2,
+          nativeAd.mediaContent?.aspectRatio,
+        )
+      : null;
+    const shouldRenderMedia = hasMedia && (!isReel || reelMediaSize !== null);
+    if (isReel && hasMedia && !reelMediaSize) return null;
 
-  return (
-    <NativeAdView
-      accessibilityLabel={`광고, ${nativeAd.headline}`}
-      nativeAd={nativeAd}
-      onLayout={isReel ? handleReelLayout : undefined}
-      style={[containerStyle, style]}
-      testID={testID}
-    >
-      {isCompact && hasMedia ? (
-        <View style={styles.compactMediaLabelRow}>
-          <Text accessibilityLabel="광고" style={styles.adLabel}>
-            광고
-          </Text>
-        </View>
-      ) : !isCompact ? (
-        <View style={isReel ? styles.reelLabelRow : styles.cardLabelRow}>
-          <Text accessibilityLabel="광고" style={styles.adLabel}>
-            광고
-          </Text>
-        </View>
-      ) : null}
-
-      {shouldRenderMedia ? (
-        <View
-          style={
-            isReel
-              ? [mediaFrameStyle, { bottom: resolvedReelBottomInset }]
-              : mediaFrameStyle
-          }
-        >
-          <NativeMediaView
-            onLayout={handleMediaLayout}
-            resizeMode="contain"
-            style={isReel ? [mediaStyle, reelMediaSize] : mediaStyle}
-          />
-        </View>
-      ) : null}
-
-      <View
-        style={
-          isReel
-            ? [contentStyle, { bottom: resolvedReelBottomInset }]
-            : contentStyle
-        }
+    return (
+      <NativeAdView
+        accessibilityLabel={`광고, ${nativeAd.headline}`}
+        nativeAd={nativeAd}
+        style={isReel ? containerStyle : [containerStyle, style]}
+        testID={testID}
       >
-        {isCompact && !hasMedia ? (
-          <View style={styles.compactLabelRow}>
+        {isCompact && hasMedia ? (
+          <View style={styles.compactMediaLabelRow}>
+            <Text accessibilityLabel="광고" style={styles.adLabel}>
+              광고
+            </Text>
+          </View>
+        ) : !isCompact ? (
+          <View style={isReel ? styles.reelLabelRow : styles.cardLabelRow}>
             <Text accessibilityLabel="광고" style={styles.adLabel}>
               광고
             </Text>
           </View>
         ) : null}
-        <View style={isCompact ? styles.compactTitleRow : styles.titleRow}>
-          {nativeAd.icon?.url ? (
-            <NativeAsset assetType={NativeAssetType.ICON}>
-              <Image
-                accessibilityIgnoresInvertColors
-                source={{ uri: nativeAd.icon.url }}
-                style={isCompact ? styles.compactIcon : styles.icon}
-              />
-            </NativeAsset>
-          ) : null}
-          <View style={isCompact ? styles.compactTitleCopy : styles.titleCopy}>
-            <NativeAsset assetType={NativeAssetType.HEADLINE}>
-              <Text
-                numberOfLines={isCompact ? 2 : undefined}
-                style={
-                  isReel
-                    ? styles.reelHeadline
-                    : isCompact
-                      ? styles.compactHeadline
-                      : styles.cardHeadline
-                }
-              >
-                {nativeAd.headline}
-              </Text>
-            </NativeAsset>
-            {body ? (
-              <NativeAsset assetType={NativeAssetType.BODY}>
-                <Text
-                  numberOfLines={isCompact ? 1 : undefined}
-                  style={
-                    isReel
-                      ? styles.reelBody
-                      : isCompact
-                        ? styles.compactBody
-                        : styles.cardBody
-                  }
-                >
-                  {body}
-                </Text>
-              </NativeAsset>
-            ) : null}
-          </View>
-        </View>
 
-        {nativeAd.advertiser || callToAction ? (
-          <View style={isCompact ? styles.compactFooter : styles.footer}>
-            {nativeAd.advertiser ? (
-              <NativeAsset assetType={NativeAssetType.ADVERTISER}>
-                <Text
-                  numberOfLines={1}
-                  style={
-                    isReel
-                      ? styles.reelAdvertiser
-                      : isCompact
-                        ? styles.compactAdvertiser
-                        : styles.cardAdvertiser
-                  }
-                >
-                  {nativeAd.advertiser}
-                </Text>
-              </NativeAsset>
-            ) : (
-              <View />
-            )}
-            {callToAction ? (
-              <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
-                <Text
-                  accessibilityRole="button"
-                  numberOfLines={1}
-                  style={
-                    isCompact ? styles.compactCallToAction : styles.callToAction
-                  }
-                >
-                  {callToAction}
-                </Text>
-              </NativeAsset>
-            ) : null}
+        {shouldRenderMedia ? (
+          <View
+            style={
+              isReel
+                ? [mediaFrameStyle, { bottom: resolvedReelBottomInset }]
+                : mediaFrameStyle
+            }
+          >
+            <NativeMediaView
+              onLayout={handleMediaLayout}
+              resizeMode="contain"
+              style={isReel ? [mediaStyle, reelMediaSize] : mediaStyle}
+            />
           </View>
         ) : null}
-      </View>
-    </NativeAdView>
+
+        <View
+          style={
+            isReel
+              ? [contentStyle, { bottom: resolvedReelBottomInset }]
+              : contentStyle
+          }
+        >
+          {isCompact && !hasMedia ? (
+            <View style={styles.compactLabelRow}>
+              <Text accessibilityLabel="광고" style={styles.adLabel}>
+                광고
+              </Text>
+            </View>
+          ) : null}
+          <View style={isCompact ? styles.compactTitleRow : styles.titleRow}>
+            {nativeAd.icon?.url ? (
+              <NativeAsset assetType={NativeAssetType.ICON}>
+                <Image
+                  accessibilityIgnoresInvertColors
+                  source={{ uri: nativeAd.icon.url }}
+                  style={isCompact ? styles.compactIcon : styles.icon}
+                />
+              </NativeAsset>
+            ) : null}
+            <View
+              style={isCompact ? styles.compactTitleCopy : styles.titleCopy}
+            >
+              <NativeAsset assetType={NativeAssetType.HEADLINE}>
+                <Text
+                  numberOfLines={isCompact ? 2 : undefined}
+                  style={
+                    isReel
+                      ? styles.reelHeadline
+                      : isCompact
+                        ? styles.compactHeadline
+                        : styles.cardHeadline
+                  }
+                >
+                  {nativeAd.headline}
+                </Text>
+              </NativeAsset>
+              {body ? (
+                <NativeAsset assetType={NativeAssetType.BODY}>
+                  <Text
+                    numberOfLines={isCompact ? 1 : undefined}
+                    style={
+                      isReel
+                        ? styles.reelBody
+                        : isCompact
+                          ? styles.compactBody
+                          : styles.cardBody
+                    }
+                  >
+                    {body}
+                  </Text>
+                </NativeAsset>
+              ) : null}
+            </View>
+          </View>
+
+          {nativeAd.advertiser || callToAction ? (
+            <View style={isCompact ? styles.compactFooter : styles.footer}>
+              {nativeAd.advertiser ? (
+                <NativeAsset assetType={NativeAssetType.ADVERTISER}>
+                  <Text
+                    numberOfLines={1}
+                    style={
+                      isReel
+                        ? styles.reelAdvertiser
+                        : isCompact
+                          ? styles.compactAdvertiser
+                          : styles.cardAdvertiser
+                    }
+                  >
+                    {nativeAd.advertiser}
+                  </Text>
+                </NativeAsset>
+              ) : (
+                <View />
+              )}
+              {callToAction ? (
+                <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
+                  <Text
+                    accessibilityRole="button"
+                    numberOfLines={1}
+                    style={
+                      isCompact
+                        ? styles.compactCallToAction
+                        : styles.callToAction
+                    }
+                  >
+                    {callToAction}
+                  </Text>
+                </NativeAsset>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      </NativeAdView>
+    );
+  };
+
+  // Measure a plain View first so the SDK receives all assets, including
+  // MediaView, together at the real parent size on its first ad binding.
+  return isReel ? (
+    <MeasuredReelFrame
+      style={[styles.reel, style]}
+      testID={testID ? `${testID}-frame` : undefined}
+    >
+      {renderAd}
+    </MeasuredReelFrame>
+  ) : (
+    renderAd(null)
   );
 });

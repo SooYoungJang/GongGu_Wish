@@ -2,24 +2,32 @@ diff --git a/node_modules/react-native-google-mobile-ads/android/src/main/java/i
 index 6e70fdd..31371a3 100644
 --- a/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsNativeModule.kt
 +++ b/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsNativeModule.kt
-@@ -25,6 +25,7 @@ import com.facebook.react.bridge.ReadableMap
+@@ -25,6 +25,8 @@ import com.facebook.react.bridge.ReadableMap
  import com.facebook.react.module.annotations.ReactModule
  import com.google.android.gms.ads.AdListener
  import com.google.android.gms.ads.AdLoader
 +import com.google.android.gms.ads.LoadAdError
++import com.google.android.gms.ads.MobileAds
  import com.google.android.gms.ads.MediaAspectRatio
  import com.google.android.gms.ads.VideoController.VideoLifecycleCallbacks
  import com.google.android.gms.ads.VideoOptions
-@@ -41,7 +42,7 @@ class ReactNativeGoogleMobileAdsNativeModule(
+@@ -41,8 +43,13 @@ class ReactNativeGoogleMobileAdsNativeModule(
  
    @ReactMethod
    override fun load(adUnitId: String, requestOptions: ReadableMap, promise: Promise) {
 -    val holder = NativeAdHolder(adUnitId, requestOptions)
 +    val holder = NativeAdHolder(adUnitId, requestOptions, promise)
      holder.loadAd { nativeAd ->
-       val responseId = nativeAd.responseInfo?.responseId ?: return@loadAd
+-      val responseId = nativeAd.responseInfo?.responseId ?: return@loadAd
++      val responseId = nativeAd.responseInfo?.responseId
++      if (responseId.isNullOrBlank()) {
++        nativeAd.destroy()
++        promise.reject("invalid-response", "Native ad response ID is missing")
++        return@loadAd
++      }
        adHolders[responseId] = holder
-@@ -97,7 +98,11 @@ class ReactNativeGoogleMobileAdsNativeModule(
+ 
+@@ -97,7 +104,11 @@ class ReactNativeGoogleMobileAdsNativeModule(
      return adHolders[responseId]?.nativeAd
    }
  
@@ -32,7 +40,7 @@ index 6e70fdd..31371a3 100644
      var nativeAd: NativeAd? = null
        private set
  
-@@ -117,6 +122,12 @@ class ReactNativeGoogleMobileAdsNativeModule(
+@@ -117,6 +128,15 @@ class ReactNativeGoogleMobileAdsNativeModule(
        override fun onAdClosed() {
          emitAdEvent("closed")
        }
@@ -40,8 +48,24 @@ index 6e70fdd..31371a3 100644
 +      override fun onAdFailedToLoad(loadAdError: LoadAdError) {
 +        val codeAndMessage =
 +          ReactNativeGoogleMobileAdsCommon.getCodeAndMessageFromAdError(loadAdError)
-+        promise.reject(codeAndMessage[0], codeAndMessage[1])
++        val details = Arguments.createMap()
++        details.putInt("nativeErrorCode", loadAdError.code)
++        details.putString("googleMobileAdsVersion", MobileAds.getVersion().toString())
++        promise.reject(codeAndMessage[0], codeAndMessage[1], details)
 +      }
      }
  
      private val videoLifecycleCallbacks: VideoLifecycleCallbacks = object : VideoLifecycleCallbacks() {
+diff --git a/node_modules/react-native-google-mobile-ads/android/build.gradle b/node_modules/react-native-google-mobile-ads/android/build.gradle
+--- a/node_modules/react-native-google-mobile-ads/android/build.gradle
++++ b/node_modules/react-native-google-mobile-ads/android/build.gradle
+@@ -44,6 +44,8 @@ apply plugin: 'kotlin-android'
+ 
+ def packageJson = PackageJson.getForProject(project)
+-def googleMobileAdsVersion = packageJson['sdkVersions']['android']['googleMobileAds']
++// GMA 25.2.0 is the last release with Expo 55-compatible Kotlin 2.2 metadata.
++// https://developers.google.com/admob/android/rel-notes
++def googleMobileAdsVersion = "25.2.0"
+ def googleUmpVersion = packageJson['sdkVersions']['android']['googleUmp']
+ def jsonMinSdk = packageJson['sdkVersions']['android']['minSdk']
+ def jsonTargetSdk = packageJson['sdkVersions']['android']['targetSdk']

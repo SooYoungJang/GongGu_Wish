@@ -9,6 +9,7 @@ mkdir -p "$fake_bin"
 trap 'rm -rf "$test_directory"' EXIT
 
 public_build_config_path="$script_directory/../src/lib/public-build-config.ts"
+export MOCK_PUBLIC_BUILD_CONFIG_PATH="$public_build_config_path"
 public_build_config_original="$test_directory/public-build-config.original.ts"
 cp "$public_build_config_path" "$public_build_config_original"
 
@@ -29,6 +30,7 @@ export REAL_NODE="$real_node"
   "$script_directory/materialize-public-build-config.test.mjs" \
   "$script_directory/validate-ota-runtime.test.mjs" \
   "$script_directory/production-runtime-compatibility.test.mjs"
+"$real_node" --test "$script_directory/production-release-number.test.mjs"
 if ! command -v bash >/dev/null 2>&1; then
   cp "$bash_command" "$fake_bin/bash.exe"
   bash_command="$fake_bin/bash.exe"
@@ -43,7 +45,24 @@ printf '%s\n' "$*" >>"$MOCK_EAS_LOG"
 command_name="${1:?command is required}"
 shift
 
+if [[ "$command_name" == "update" || "$command_name" == "build" ]]; then
+  "$REAL_NODE" --input-type=module <<'NODE'
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const source = readFileSync(process.env.MOCK_PUBLIC_BUILD_CONFIG_PATH, "utf8");
+const { publicBuildConfig } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+assert.equal(publicBuildConfig.releaseNumber,
+  process.env.APP_VARIANT === "production" ? (process.env.MOCK_RELEASE_NUMBER ?? "18") : null);
+NODE
+fi
+
 case "$command_name" in
+  env:set)
+    if [[ "$*" != "production --name GONGGU_RELEASE_NUMBER --value ${MOCK_RELEASE_NUMBER:-18} --type string --visibility plaintext --scope project --non-interactive" || "$APP_VARIANT" != "production" ]]; then
+      echo "Only the computed Production release number may be synchronized" >&2
+      exit 96
+    fi
+    ;;
   env:get)
     printf 'GOOGLE_SERVICES_JSON='
     cat "$MOCK_GOOGLE_SERVICES_JSON"
@@ -380,6 +399,11 @@ cat >"$fake_bin/node" <<'FAKE_NODE'
 
 set -euo pipefail
 
+if [[ "${1:-}" == *"production-release-number.mjs" ]]; then
+  printf '%s\n' "${MOCK_RELEASE_NUMBER:-18}"
+  exit 0
+fi
+
 if [[ "${1:-}" == *"validate-supabase-public-config.mjs" ]]; then
   if [[ -n "${MOCK_SUPABASE_VALIDATION_LOG:-}" ]]; then
     printf '%s\n' "$*" >>"$MOCK_SUPABASE_VALIDATION_LOG"
@@ -694,12 +718,14 @@ if run_deployment \
   exit 1
 fi
 
-run_deployment "production-build" "refs/heads/main" "missing" "false"
+MOCK_RELEASE_NUMBER="19" \
+  run_deployment "production-build" "refs/heads/main" "missing" "false"
 grep -Fxq "mode=build" "$test_directory/production-build/output"
 grep -Fxq "environment=production" "$test_directory/production-build/output"
 grep -Fxq "artifact-name=gonggu-wish-production-abc123" \
   "$test_directory/production-build/output"
 grep -Fq "build --platform android --profile production-apk --local" "$test_directory/production-build/eas.log"
+grep -Fq "env:set production --name GONGGU_RELEASE_NUMBER --value 19 --type string --visibility plaintext --scope project --non-interactive" "$test_directory/production-build/eas.log"
 grep -Fq "upload --platform android" "$test_directory/production-build/eas.log"
 grep -Fq "expo-url=https://expo.dev/artifacts/test.apk" "$test_directory/production-build/output"
 
@@ -795,7 +821,7 @@ run_deployment \
   "quota"
 assert_eas_commands \
   "production-build-upload-quota-repeat" \
-  "fingerprint:generate build:list build upload"
+  "env:set fingerprint:generate build:list build upload"
 if grep -Fq "update --channel production" \
   "$test_directory/production-build-upload-quota-repeat/eas.log"; then
   echo "A quota-deferred APK was incorrectly treated as an EAS OTA baseline" >&2
@@ -945,7 +971,7 @@ fi
 MOCK_FINGERPRINT_HASH="0b37911db44a8039b54b904a2a76843a46733511" \
   MOCK_LEGACY_BUILD="valid" \
   run_deployment "production-play-ota" "refs/heads/main" "none" "true"
-assert_eas_commands "production-play-ota" "fingerprint:generate build:list build:list update update"
+assert_eas_commands "production-play-ota" "env:set fingerprint:generate build:list build:list update update"
 grep -Fq 'Runtime version: `0b37911db44a8039b54b904a2a76843a46733511`' \
   "$test_directory/production-play-ota/summary"
 grep -Fq 'Runtime version: `03cb2d49ed9bcaa616a8d38f969acfb7511c6101`' \

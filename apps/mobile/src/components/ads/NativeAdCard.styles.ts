@@ -24,12 +24,15 @@ export function makeNativeAdStyles(theme: ReturnType<typeof useCommerceTheme>) {
       maxWidth: "47%",
       minHeight: 206,
       minWidth: 0,
+      // Keep SDK asset bounds inside the owner after fractional pixel rounding.
+      padding: spacing.xxs,
     },
     row: {
       ...borderedSurface,
       flexDirection: "row",
       minHeight: 124,
       overflow: "hidden",
+      padding: spacing.xxs,
       width: "100%",
     },
     loadingLabel: {
@@ -106,6 +109,8 @@ export function makeNativeAdStyles(theme: ReturnType<typeof useCommerceTheme>) {
     },
     reelMedia: {
       backgroundColor: "#000000",
+      maxHeight: "100%",
+      maxWidth: "100%",
     },
     compactMedia: {
       // The SDK supplies the creative's aspect ratio by default. Compact

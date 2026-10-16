@@ -42,3 +42,52 @@ test("rejects an incomplete public build configuration", () => {
     /public build configuration is incomplete/,
   );
 });
+
+test("bakes each Production release number into the exported app configuration", () => {
+  const values = {
+    apiProxyUrl: "https://api.example.test",
+    supabaseAnonKey: "sb_publishable_key",
+    supabaseUrl: "https://preview-project.supabase.co",
+    appVariant: "production",
+  };
+
+  for (const releaseNumber of ["18", "19"]) {
+    const source = renderPublicBuildConfig({ ...values, releaseNumber });
+    assert.ok(source.includes(`"releaseNumber": "${releaseNumber}"`));
+    assert.doesNotMatch(source, /process\.env/);
+  }
+});
+
+test("rejects missing or invalid Production release numbers", () => {
+  for (const releaseNumber of [
+    undefined,
+    "",
+    "0",
+    "-1",
+    "1.5",
+    "9007199254740992",
+  ]) {
+    assert.throws(
+      () =>
+        renderPublicBuildConfig({
+          apiProxyUrl: "https://api.example.test",
+          supabaseAnonKey: "sb_publishable_key",
+          supabaseUrl: "https://preview-project.supabase.co",
+          appVariant: "production",
+          releaseNumber,
+        }),
+      /Production release number/,
+    );
+  }
+});
+
+test("Preview does not inherit a Production release number", () => {
+  const source = renderPublicBuildConfig({
+    apiProxyUrl: "https://api.example.test",
+    supabaseAnonKey: "sb_publishable_key",
+    supabaseUrl: "https://preview-project.supabase.co",
+    appVariant: "preview",
+    releaseNumber: "19",
+  });
+  assert.ok(source.includes('"releaseNumber": null'));
+});

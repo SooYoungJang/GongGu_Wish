@@ -16,7 +16,7 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
-    "postinstall": "patch-package --patch-dir patches",
+    "postinstall": "node scripts/apply-native-patches.mjs",
     "eas-build-post-install": "node scripts/validate-supabase-public-config.mjs && node scripts/materialize-public-build-config.mjs",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
