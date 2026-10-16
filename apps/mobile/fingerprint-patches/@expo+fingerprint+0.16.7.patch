@@ -1,0 +1,24 @@
+diff --git a/node_modules/@expo/fingerprint/build/ExpoConfigLoader.js b/node_modules/@expo/fingerprint/build/ExpoConfigLoader.js
+--- a/node_modules/@expo/fingerprint/build/ExpoConfigLoader.js
++++ b/node_modules/@expo/fingerprint/build/ExpoConfigLoader.js
+@@ -28,7 +28,7 @@ async function runAsync(cliPath, args) {
+     const config = await getConfig(projectRoot, { skipSDKVersionRequirement: true });
+     const loadedModules = Object.keys(module_1.default._cache)
+         .filter((modulePath) => !loadedModulesBefore.has(modulePath))
+-        .map((modulePath) => path_1.default.relative(projectRoot, modulePath));
++        .map((modulePath) => (0, Path_1.toPosixPath)(path_1.default.relative(projectRoot, modulePath)));
+     const ignoredPaths = [
+         ...DEFAULT_CONFIG_LOADING_IGNORE_PATHS,
+         ...(await loadIgnoredPathsAsync(ignoredFile)),
+diff --git a/node_modules/@expo/fingerprint/build/ProjectWorkflow.js b/node_modules/@expo/fingerprint/build/ProjectWorkflow.js
+--- a/node_modules/@expo/fingerprint/build/ProjectWorkflow.js
++++ b/node_modules/@expo/fingerprint/build/ProjectWorkflow.js
+@@ -39,7 +39,7 @@ async function resolveProjectWorkflowAsync(projectRoot, platform, fingerprintIgnor
+     const vcsClient = await getVCSClientAsync(projectRoot);
+     const vcsRoot = path_1.default.normalize(await vcsClient.getRootPathAsync());
+     for (const marker of platformWorkflowMarkers) {
+-        const relativeMarker = path_1.default.relative(vcsRoot, marker);
++        const relativeMarker = (0, Path_1.toPosixPath)(path_1.default.relative(vcsRoot, marker));
+         if ((await (0, Path_1.pathExistsAsync)(marker)) &&
+             !(0, Path_1.isIgnoredPathWithMatchObjects)(relativeMarker, fingerprintIgnorePaths) &&
+             !(await vcsClient.isFileIgnoredAsync(relativeMarker))) {
