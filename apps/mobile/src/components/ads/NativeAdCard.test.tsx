@@ -1,6 +1,7 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Platform } from "react-native";
 import { NativeAd } from "react-native-google-mobile-ads";
 
 import { AdsContext } from "../../ads/AdsContext.android";
@@ -49,6 +50,56 @@ beforeEach(() => {
 });
 
 describe("NativeAdCard", () => {
+  it.each([
+    ["android", "row", "image_app_install"],
+    ["android", "reel", "video_app_install"],
+    ["ios", "row", undefined],
+    ["ios", "reel", undefined],
+  ] as const)("recovers a malformed %s %s response on the same unit", async (os, variant, creative) => {
+    vi.useFakeTimers();
+    const originalOS = Platform.OS;
+    Object.assign(Platform, { OS: os });
+    const destroy = vi.fn();
+    const onLoadStateChange = vi.fn();
+    vi.mocked(NativeAd.createForAdRequest)
+      .mockRejectedValueOnce({
+        code: "internal-error",
+        message: "Retrieve required value in native ad response failed.",
+      })
+      .mockResolvedValueOnce({ headline: "Recovered native ad", destroy } as unknown as Awaited<ReturnType<typeof NativeAd.createForAdRequest>>);
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(
+          <AdsContext.Provider value={enabledAds}>
+            <NativeAdCard
+              variant={variant}
+              placement={variant === "reel" ? "reels" : "home"}
+              onLoadStateChange={onLoadStateChange}
+            />
+          </AdsContext.Provider>,
+        );
+      });
+      const firstRequest = vi.mocked(NativeAd.createForAdRequest).mock.calls[0];
+      expect(firstRequest[1]).not.toHaveProperty("networkExtras");
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+      expect(NativeAd.createForAdRequest).toHaveBeenCalledTimes(2);
+      const retry = vi.mocked(NativeAd.createForAdRequest).mock.calls[1];
+      expect(retry[0]).toBe(firstRequest[0]);
+      if (creative) {
+        expect(retry[1]).toMatchObject({ networkExtras: { ft_ctype: creative } });
+      } else {
+        expect(retry[1]).not.toHaveProperty("networkExtras");
+      }
+      expect(onLoadStateChange).toHaveBeenLastCalledWith("loaded");
+      expect(onLoadStateChange).not.toHaveBeenCalledWith("unavailable");
+    } finally {
+      if (renderer) act(() => renderer!.unmount());
+      Object.assign(Platform, { OS: originalOS });
+    }
+    expect(destroy).toHaveBeenCalledOnce();
+  });
+
   it("recovers a feed ad after repeated no-fill responses without removing its slot", async () => {
     vi.useFakeTimers();
     const onLoadStateChange = vi.fn();

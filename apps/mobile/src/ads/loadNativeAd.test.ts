@@ -1,7 +1,80 @@
 import type { Dispatch } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { loadNativeAdWithRetry } from "./loadNativeAd";
+import {
+  getNativeAdRecoveryTestCreative,
+  loadNativeAdWithRetry,
+} from "./loadNativeAd";
+
+describe("native test creative recovery", () => {
+  it.each([
+    [true, "video_app_install"],
+    [false, "image_app_install"],
+  ] as const)("recovers a rejected native response for reel=%s", async (isReel, creative) => {
+    const error = {
+      code: "googleMobileAds/internal-error",
+      message: "Retrieve required value in native ad response failed.",
+    };
+    const ad = { headline: "Valid native test ad" };
+    let testCreative: string | undefined;
+    const load = vi.fn(async () => {
+      if (testCreative !== creative) throw error;
+      return ad;
+    });
+
+    await expect(
+      loadNativeAdWithRetry({
+        load,
+        onAttemptFailure: ({ error: failure }) => {
+          testCreative ??= getNativeAdRecoveryTestCreative(failure, isReel);
+        },
+        waitForRetry: async () => undefined,
+      }),
+    ).resolves.toBe(ad);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["no-fill", "googleMobileAds/error-code-no-fill"])("handles an outer %s when the adapter rejected a test response", (code) => {
+    expect(getNativeAdRecoveryTestCreative({ code }, false)).toBe(
+      "image_app_install",
+    );
+    expect(getNativeAdRecoveryTestCreative({ code }, true)).toBe(
+      "video_app_install",
+    );
+  });
+
+  it.each([
+    { code: "network-error" },
+    { code: "invalid-request" },
+    { code: "request-timeout" },
+    { code: "internal-error", message: "Unable to obtain a JavascriptEngine." },
+  ])("does not select a creative for an unrelated error %j", (error) => {
+    expect(getNativeAdRecoveryTestCreative(error, true)).toBeUndefined();
+  });
+
+  it("still rejects after the retry budget when the alternate response fails", async () => {
+    const error = {
+      code: "internal-error",
+      message: "Retrieve required value in native ad response failed.",
+    };
+    let testCreative: string | undefined;
+    const load = vi.fn(async () => {
+      throw error;
+    });
+    await expect(
+      loadNativeAdWithRetry({
+        load,
+        maxAttempts: 2,
+        onAttemptFailure: ({ error: failure }) => {
+          testCreative ??= getNativeAdRecoveryTestCreative(failure, true);
+        },
+        waitForRetry: async () => undefined,
+      }),
+    ).rejects.toBe(error);
+    expect(testCreative).toBe("video_app_install");
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("loadNativeAdWithRetry", () => {
   it.each(["invalid-request", "googleMobileAds/invalid-request", "app-id-missing"])("does not retry permanent configuration error %s", async (code) => {

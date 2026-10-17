@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Image, Text, View, type LayoutChangeEvent } from "react-native";
+import { Image, Platform, Text, View, type LayoutChangeEvent } from "react-native";
 
 import { useAds } from "../../ads/AdsContext.native";
 import {
@@ -15,7 +15,11 @@ import {
   getAdsErrorReason,
   getAdsNativeErrorMetadata,
 } from "../../ads/adsDiagnostics";
-import { loadNativeAdWithRetry } from "../../ads/loadNativeAd";
+import {
+  getNativeAdRecoveryTestCreative,
+  loadNativeAdWithRetry,
+  type NativeAdTestCreative,
+} from "../../ads/loadNativeAd";
 import {
   getGoogleMobileAdsModule,
   type GoogleMobileAdsModule,
@@ -149,6 +153,7 @@ export const NativeAdCard = memo(function NativeAdCard({
     let active = true;
     let loadedAd: NativeAdInstance | null = null;
     let requestAttempt = 0;
+    let recoveryTestCreative: NativeAdTestCreative | undefined;
     let cancelRetryWait: (() => void) | undefined;
     onLoadStateChange?.("loading");
 
@@ -167,6 +172,9 @@ export const NativeAdCard = memo(function NativeAdCard({
         const nativeAd = await module.NativeAd.createForAdRequest(unitId, {
           adChoicesPlacement: module.NativeAdChoicesPlacement.TOP_RIGHT,
           startVideoMuted: true,
+          ...(recoveryTestCreative
+            ? { networkExtras: { ft_ctype: recoveryTestCreative } }
+            : {}),
         });
         return { module, nativeAd };
       },
@@ -193,6 +201,9 @@ export const NativeAdCard = memo(function NativeAdCard({
         willRetry,
       }) => {
         if (!active) return;
+        if (Platform.OS === "android" && willRetry) {
+          recoveryTestCreative ??= getNativeAdRecoveryTestCreative(error, isReel);
+        }
         emitAdsDiagnostic(
           {
             event: willRetry ? "native_ad_retry" : "native_ad_failed",
