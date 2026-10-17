@@ -1,0 +1,68 @@
+diff --git a/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsModule.kt b/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsModule.kt
+--- a/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsModule.kt
++++ b/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsModule.kt
+@@ -99,7 +99,9 @@ class ReactNativeGoogleMobileAdsModule(
+       // it is not clear if that will cause problems even if it happens, but users that have widely deployed this
+       // with the use of currentActivity have not seen problems
+       // reference if it needs attention: https://github.com/invertase/react-native-google-mobile-ads/pull/664
+-      reactApplicationContext.currentActivity ?: reactApplicationContext,
++      ReactNativeGoogleMobileAdsRequestContext.create(
++        reactApplicationContext.currentActivity ?: reactApplicationContext
++      ),
+       OnInitializationCompleteListener { initializationStatus ->
+         val result = Arguments.createArray()
+         for ((key, value) in initializationStatus.adapterStatusMap) {
+diff --git a/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsNativeModule.kt b/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsNativeModule.kt
+--- a/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsNativeModule.kt
++++ b/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsNativeModule.kt
+@@ -198,7 +198,10 @@ class ReactNativeGoogleMobileAdsNativeModule(
+         .setAdChoicesPlacement(adChoicesPlacement)
+         .setVideoOptions(videoOptions)
+         .build()
+-      val adLoader = AdLoader.Builder(reactApplicationContext, adUnitId)
++      val adLoader = AdLoader.Builder(
++        ReactNativeGoogleMobileAdsRequestContext.create(reactApplicationContext),
++        adUnitId
++      )
+         .withNativeAdOptions(nativeAdOptions)
+         .withAdListener(adListener)
+         .forNativeAd { nativeAd ->
+diff --git a/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsRequestContext.java b/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsRequestContext.java
+new file mode 100644
+--- /dev/null
++++ b/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsRequestContext.java
+@@ -0,0 +1,34 @@
++package io.invertase.googlemobileads;
++
++import android.content.Context;
++import android.content.ContextWrapper;
++import android.content.res.Configuration;
++import android.util.DisplayMetrics;
++
++/** Keeps the missing 4x AdChoices asset out of Google Ads requests at high density. */
++public final class ReactNativeGoogleMobileAdsRequestContext {
++  private ReactNativeGoogleMobileAdsRequestContext() {}
++
++  public static Context create(Context context) {
++    Context applicationContext = context.getApplicationContext();
++    if (applicationContext == null
++        || applicationContext.getResources().getDisplayMetrics().densityDpi
++            < DisplayMetrics.DENSITY_XXXHIGH) {
++      return context;
++    }
++
++    // https://github.com/googleads/googleads-mobile-android-examples/issues/1055
++    // A resource override is local to this SDK context; app and device settings stay intact.
++    Configuration override = new Configuration();
++    override.densityDpi = DisplayMetrics.DENSITY_XXXHIGH - 1;
++    Context densityContext = applicationContext.createConfigurationContext(override);
++    return new ContextWrapper(densityContext) {
++      @Override
++      public Context getApplicationContext() {
++        // GMA normalizes and caches the application context during initialize().
++        // Preserve the override through that normalization and subsequent native requests.
++        return this;
++      }
++    };
++  }
++}
