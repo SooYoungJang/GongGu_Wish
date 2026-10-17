@@ -8,6 +8,28 @@ export type NativeAdLoadAttemptFailure = {
   willRetry: boolean;
 };
 
+export type NativeAdTestCreative = "image_app_install" | "video_app_install";
+
+export function getNativeAdRecoveryTestCreative(
+  error: unknown,
+  isReel: boolean,
+): NativeAdTestCreative | undefined {
+  const code = getAdsErrorCode(error)
+    .split("/")
+    .pop()
+    ?.replace(/^error-code-/, "");
+  if (
+    code !== "no-fill" &&
+    getAdsErrorReason(error) !== "native-response-invalid"
+  )
+    return undefined;
+
+  // ft_ctype only selects creatives for test requests; it does not enable test
+  // mode or restrict paid inventory. Both values support native ads.
+  // https://developers.google.com/admob/android/test-creative-types
+  return isReel ? "video_app_install" : "image_app_install";
+}
+
 function getRetryDelayMs(attempt: number, error: unknown): number | null {
   const code = getAdsErrorCode(error)
     .split("/")
