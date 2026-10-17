@@ -25,6 +25,7 @@ function installFixture(
   patchExitCode = 0,
   fingerprintHoisted = hoisted,
   fingerprintPatchExitCode = 0,
+  densityPatchExitCode = 0,
 ) {
   const root = mkdtempSync(join(tmpdir(), "gonggu-native-patches-"));
   fixtures.push(root);
@@ -33,6 +34,7 @@ function installFixture(
   const modules = join(installRoot, "node_modules");
   mkdirSync(join(mobile, "scripts"), { recursive: true });
   mkdirSync(join(mobile, "patches"));
+  mkdirSync(join(mobile, "density-patches"));
   mkdirSync(join(mobile, "fingerprint-patches"));
   const fingerprintRoot = join(
     fingerprintHoisted ? root : mobile,
@@ -53,6 +55,10 @@ function installFixture(
   );
   writeFileSync(join(mobile, "patches", "expected.patch"), "native-sdk-update");
   writeFileSync(
+    join(mobile, "density-patches", "expected.patch"),
+    "native-density-compatibility",
+  );
+  writeFileSync(
     join(mobile, "fingerprint-patches", "expected.patch"),
     "fingerprint-normalization",
   );
@@ -65,11 +71,12 @@ const patchDir = args[args.indexOf("--patch-dir") + 1];
 if (!args.includes("--error-on-fail")) process.exit(99);
 const patch = fs.readFileSync(path.resolve(patchDir, "expected.patch"), "utf8");
 const fingerprint = patch === "fingerprint-normalization";
-if (!fingerprint && patch !== "native-sdk-update") process.exit(98);
+const density = patch === "native-density-compatibility";
+if (!fingerprint && !density && patch !== "native-sdk-update") process.exit(98);
 const target = fingerprint ? "@expo/fingerprint" : "react-native-google-mobile-ads";
 if (!fs.existsSync(path.resolve("node_modules", target, "package.json"))) process.exit(97);
-console.log(fingerprint ? "fingerprint patches found" : "native patches found");
-process.exit(fingerprint ? ${fingerprintPatchExitCode} : ${patchExitCode});
+console.log(fingerprint ? "fingerprint patches found" : density ? "density patches found" : "native patches found");
+process.exit(fingerprint ? ${fingerprintPatchExitCode} : density ? ${densityPatchExitCode} : ${patchExitCode});
 `,
   );
 
@@ -101,7 +108,11 @@ describe("native patch installation", () => {
       expect(result.error).toBeUndefined();
       expect(result.status, result.stderr).toBe(0);
       expect(result.stdout).toContain("native patches found");
+      expect(result.stdout).toContain("density patches found");
       expect(result.stdout).toContain("fingerprint patches found");
+      expect(result.stdout.indexOf("native patches found")).toBeLessThan(
+        result.stdout.indexOf("density patches found"),
+      );
     },
   );
 
@@ -113,5 +124,11 @@ describe("native patch installation", () => {
   it("fails the install when fingerprint normalization cannot be applied", () => {
     const result = installFixture(true, 0, false, 18);
     expect(result.status).toBe(18);
+  });
+
+  it("stops the install when density compatibility cannot be applied", () => {
+    const result = installFixture(true, 0, false, 0, 19);
+    expect(result.status).toBe(19);
+    expect(result.stdout).not.toContain("fingerprint patches found");
   });
 });

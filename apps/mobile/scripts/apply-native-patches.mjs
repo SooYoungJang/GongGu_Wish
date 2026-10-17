@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url);
 const mobileRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const patches = [
   { packageName: "react-native-google-mobile-ads", directory: "patches" },
+  { packageName: "react-native-google-mobile-ads", directory: "density-patches" },
   // Backport Expo's Windows path normalization without changing native inputs.
   // https://github.com/expo/expo/pull/46816 (and its ExpoConfigLoader fix #47666)
   { packageName: "@expo/fingerprint", directory: "fingerprint-patches" },
