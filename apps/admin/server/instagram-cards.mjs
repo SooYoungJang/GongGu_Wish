@@ -45,7 +45,7 @@ export function cardConfiguration(env) {
   return { mode, origin, key };
 }
 export function selectOngoing(rows, now) {
-  if (!Array.isArray(rows) || rows.length > 3) return null;
+  if (!Array.isArray(rows) || rows.length > 12) return null;
   const date = kstDate(now);
   const items = [];
   for (const r of rows) {
@@ -302,7 +302,7 @@ export async function handleInstagramCard(request, env, deps = {}) {
             end_date: `gte.${tomorrow}`,
             instagram_username: "not.is.null",
             order: "end_date.asc,product_name.asc,id.asc",
-            limit: "3",
+            limit: "12",
           });
           const response = await (deps.fetch ?? fetch)(
             `${config.origin}/rest/v1/group_buys?${q}`,
@@ -323,10 +323,13 @@ export async function handleInstagramCard(request, env, deps = {}) {
               fetchThumbnail(v.thumbnailUrl, deps.thumbnailFetch ?? fetch),
             ),
           );
-          const prepared = {
-            ...data,
-            items: data.items.map((v, i) => ({ ...v, photoPixels: photos[i] })),
-          };
+          const withPhotos = data.items
+            .map((v, i) => ({ ...v, photoPixels: photos[i] }))
+            .filter((v) => v.photoPixels)
+            .slice(0, 3);
+          if (withPhotos.length < 2)
+            throw { status: 404, code: "INSUFFICIENT_PHOTO_LISTINGS" };
+          const prepared = { ...data, items: withPhotos };
           const image = await (deps.render ?? renderOngoing)(prepared);
           if (postingCycle(now()) !== date)
             throw { status: 502, code: "DATE_CHANGED" };
@@ -336,8 +339,8 @@ export async function handleInstagramCard(request, env, deps = {}) {
           const result = {
             image,
             expires,
-            photoCount: photos.filter(Boolean).length,
-            itemCount: data.items.length,
+            photoCount: withPhotos.length,
+            itemCount: withPhotos.length,
           };
           storage.clear();
           storage.set(key, result);
