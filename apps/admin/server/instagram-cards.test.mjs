@@ -26,11 +26,20 @@ const row = {
   status: "APPROVED",
   source_type: "MANUAL_DISCOVERY",
   collection_review_status: "APPROVED",
+  thumbnail_url: "https://a.fbcdn.net/v/photo.jpg",
 };
+const testJpeg = await sharp({
+  create: { width: 32, height: 32, channels: 3, background: "blue" },
+})
+  .jpeg()
+  .toBuffer();
+const okThumb = async () =>
+  new Response(testJpeg, { headers: { "content-type": "image/jpeg" } });
 const req = (path = "ongoing/2026-10-15", init) =>
   new Request(`https://example.test/public/v1/instagram/${path}.jpg`, init);
-const deps = (rows = [row]) => ({
+const deps = (rows = [row, row]) => ({
   now: () => now,
+  thumbnailFetch: okThumb,
   cache: new Map(),
   pending: new Map(),
   fetch: async () => Response.json(rows),
@@ -63,7 +72,7 @@ test("only approved real ongoing records and future KST endings", () => {
     { product_name: "bad\nname" },
   ])
     assert.equal(selectOngoing([{ ...row, ...change }], now), null);
-  assert.equal(selectOngoing([row, row, row, row], now), null);
+  assert.equal(selectOngoing(Array(13).fill(row), now), null);
 });
 test("disabled/errors never render placeholders; parameter and credential rejection", async () => {
   assert.equal((await handleInstagramCard(req(), {}, deps())).status, 503);
@@ -130,7 +139,7 @@ test("fixed field projection/filter/limit, timeout and no privileged authorizati
     ...deps(),
     fetch: async (u, o) => {
       called = { u: new URL(u), o };
-      return Response.json([row]);
+      return Response.json([row, row]);
     },
   });
   assert.equal(r.status, 200);
@@ -139,7 +148,7 @@ test("fixed field projection/filter/limit, timeout and no privileged authorizati
     r.headers.get("Cache-Control"),
     "public, max-age=0, must-revalidate",
   );
-  assert.equal(called.u.searchParams.get("limit"), "3");
+  assert.equal(called.u.searchParams.get("limit"), "12");
   assert.equal(called.u.searchParams.get("status"), "eq.APPROVED");
   assert.equal(
     called.u.searchParams.get("end_date"),
@@ -159,7 +168,7 @@ test("21:00-cycle per-instance cache coalesces sequential reads and refuses date
     ...deps(),
     fetch: async () => {
       calls++;
-      return Response.json([row]);
+      return Response.json([row, row]);
     },
   };
   await handleInstagramCard(req(), env, d);
@@ -223,7 +232,7 @@ test("parallel requests share one DB fetch and render within an instance", async
     ...deps(),
     fetch: async () => {
       calls++;
-      return Response.json([row]);
+      return Response.json([row, row]);
     },
     render: async () => {
       renders++;
@@ -296,7 +305,7 @@ test("posting cycle rolls at21:00 KST, not midnight; successful snapshot survive
     ...deps(),
     fetch: async () => {
       calls++;
-      return Response.json([row]);
+      return Response.json([row, row]);
     },
   };
   await handleInstagramCard(req(), env, d);
@@ -396,34 +405,45 @@ test("photo fetch decodes safe raster to embedded normalized JPEG", async () => 
   assert.equal(meta.height, 224);
 });
 
-test("live handler exposes actual photo count and never breaks items on fetch failure", async () => {
-  const image = await sharp({
-    create: { width: 32, height: 32, channels: 3, background: "blue" },
-  })
-    .jpeg()
-    .toBuffer();
-  let rendered;
-  const good = { ...row, thumbnail_url: "https://a.fbcdn.net/v/photo.jpg" };
-  const response = await handleInstagramCard(req(), env, {
-    ...deps([good]),
-    thumbnailFetch: async () =>
-      new Response(image, { headers: { "content-type": "image/jpeg" } }),
-    render: async (data) => {
-      rendered = data;
-      return image;
-    },
+test("photo-less listings are skipped; fewer than 2 photo listings fail closed", async () => {
+  const mk = (n, thumb = true) => ({
+    ...row,
+    product_name: "공구" + n,
+    thumbnail_url: thumb ? `https://a.fbcdn.net/v/p${n}.jpg` : null,
   });
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get("X-Instagram-Photo-Count"), "1");
-  assert.equal(response.headers.get("X-Instagram-Item-Count"), "1");
-  assert.ok(Buffer.isBuffer(rendered.items[0].photoPixels));
+  let rendered;
+  const render = async (data) => {
+    rendered = data;
+    return testJpeg;
+  };
+  const ok = await handleInstagramCard(req(), env, {
+    ...deps([mk(1), mk(2, false), mk(3), mk(4)]),
+    render,
+  });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(
+    rendered.items.map((v) => v.productName),
+    ["공구1", "공구3", "공구4"],
+  );
+  assert.ok(rendered.items.every((v) => Buffer.isBuffer(v.photoPixels)));
+  assert.equal(ok.headers.get("X-Instagram-Photo-Count"), "3");
+  assert.equal(ok.headers.get("X-Instagram-Item-Count"), "3");
+  const two = await handleInstagramCard(req(), env, {
+    ...deps([mk(1), mk(2, false), mk(3)]),
+    render,
+  });
+  assert.equal(two.status, 200);
+  assert.equal(two.headers.get("X-Instagram-Item-Count"), "2");
+  assert.equal(rendered.items.length, 2);
+  for (const rows of [[mk(1)], [mk(1), mk(2, false)], [mk(1, false)]]) {
+    const r = await handleInstagramCard(req(), env, { ...deps(rows), render });
+    assert.equal(r.status, 404);
+  }
   const failed = await handleInstagramCard(req(), env, {
-    ...deps([good]),
+    ...deps([mk(1), mk(2)]),
     thumbnailFetch: async () => {
       throw Error("unavailable");
     },
   });
-  assert.equal(failed.status, 200);
-  assert.equal(failed.headers.get("X-Instagram-Photo-Count"), "0");
-  assert.equal(failed.headers.get("X-Instagram-Item-Count"), "1");
+  assert.equal(failed.status, 404);
 });
