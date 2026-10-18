@@ -588,7 +588,9 @@ export function ReelsScreen({
                 ) : null
               ) : shouldRenderPage || index === nextAdIndex ? (
                 <ReelsNativeAdPage
-                  loadEnabled={isPlaybackActive}
+                  // A store activity pauses playback but does not end this
+                  // page's ad ownership. Keep its request alive on return.
+                  loadEnabled={isTabFocused}
                   onUnavailable={handleUnavailableAd}
                   reelBottomInset={insets.bottom + REELS_TAB_BAR_OVERLAY_OFFSET}
                   sequence={item.sequence}
