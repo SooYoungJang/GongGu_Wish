@@ -7,6 +7,11 @@ import { NativeAd } from "react-native-google-mobile-ads";
 import { AdsContext } from "../../ads/AdsContext.android";
 import { NativeAdCard } from "./NativeAdCard.android";
 
+const safeArea = vi.hoisted(() => ({ top: 0, right: 0, bottom: 0, left: 0 }));
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => safeArea,
+}));
+
 vi.mock("../../context/ThemeContext", () => ({
   useTheme: () => ({
     isDark: false,
@@ -45,11 +50,63 @@ function flattenText(
 }
 
 beforeEach(() => {
+  safeArea.top = 0;
   vi.mocked(NativeAd.createForAdRequest).mockReset();
   vi.useRealTimers();
 });
 
 describe("NativeAdCard", () => {
+  it.each([0, 24, 40, 64])(
+    "keeps reel attribution and media below the %sdip system inset",
+    async (top) => {
+      safeArea.top = top;
+      vi.mocked(NativeAd.createForAdRequest).mockResolvedValue({
+        headline: "Video ad",
+        destroy: vi.fn(),
+        mediaContent: { aspectRatio: 9 / 16, hasVideoContent: true },
+      } as unknown as Awaited<ReturnType<typeof NativeAd.createForAdRequest>>);
+      let renderer: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        renderer = TestRenderer.create(
+          <AdsContext.Provider value={enabledAds}>
+            <NativeAdCard
+              variant="reel"
+              reelBottomInset={64}
+              testID="safe-reel"
+            />
+          </AdsContext.Provider>,
+        );
+      });
+      act(() =>
+        renderer!.root
+          .find(
+            (node) =>
+              node.props.testID === "safe-reel-frame" &&
+              typeof node.props.onLayout === "function",
+          )
+          .props.onLayout({
+            nativeEvent: { layout: { width: 360, height: 640, x: 0, y: 0 } },
+          }),
+      );
+      const adView = renderer!.root.findByType(
+        "NativeAdView" as unknown as React.ElementType,
+      );
+      const media = renderer!.root.findByType(
+        "NativeMediaView" as unknown as React.ElementType,
+      );
+      expect(adView.props.style).toEqual(
+        expect.arrayContaining([expect.objectContaining({ marginTop: top })]),
+      );
+      expect(media.props.style).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ height: 640 - top - 64 - 4 }),
+        ]),
+      );
+      expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
+      act(() => renderer!.unmount());
+    },
+  );
+
   it.each([
     ["android", "row", "image_app_install"],
     ["android", "reel", "video_app_install"],

@@ -178,6 +178,7 @@ export function ReelsScreen({
   const baseBatch = useMemo(
     () =>
       insertReelsAdSlots(shuffledGroupBuys, {
+        boundFirstGapToFeed: true,
         enabled: canShowReelsAds,
       }),
     [canShowReelsAds, shuffledGroupBuys],
