@@ -3,19 +3,33 @@ import { describe, expect, it } from "vitest";
 import { resolveAppInfo } from "./app-info";
 
 describe("resolveAppInfo", () => {
-  it("shows the applied release number after an OTA on the same native build", () => {
-    const installedApp = {
-      nativeApplicationVersion: "0.1.0",
-      nativeBuildVersion: "17",
-      configuredVersion: "0.1.0",
-    };
+  it.each(["17", "24", "27"])(
+    "distinguishes installed build %s from an applied OTA release",
+    (nativeBuildVersion) => {
+      const installedApp = {
+        nativeApplicationVersion: "0.1.0",
+        nativeBuildVersion,
+        configuredVersion: "0.1.0",
+      };
 
+      expect(
+        resolveAppInfo({ ...installedApp, releaseNumber: "18" }).version,
+      ).toBe(`0.1.0 (${nativeBuildVersion}) · 업데이트 18`);
+      expect(
+        resolveAppInfo({ ...installedApp, releaseNumber: "20" }).version,
+      ).toBe(`0.1.0 (${nativeBuildVersion}) · 업데이트 20`);
+    },
+  );
+
+  it("does not present an OTA release as an unknown native build", () => {
     expect(
-      resolveAppInfo({ ...installedApp, releaseNumber: "18" }).version,
-    ).toBe("0.1.0 (18)");
-    expect(
-      resolveAppInfo({ ...installedApp, releaseNumber: "19" }).version,
-    ).toBe("0.1.0 (19)");
+      resolveAppInfo({
+        nativeApplicationVersion: null,
+        nativeBuildVersion: null,
+        configuredVersion: "0.1.0",
+        releaseNumber: " 20 ",
+      }).version,
+    ).toBe("0.1.0 · 업데이트 20");
   });
 
   it.each([null, "", "0", "-1", "1.5", "Infinity", "9007199254740992"])(

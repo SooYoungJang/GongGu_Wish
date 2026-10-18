@@ -722,6 +722,39 @@ describe("ReelsScreen player lifecycle", () => {
     }
   });
 
+  it("keeps the selected ad request alive across the store activity", () => {
+    queryResultMock.data = manyGroupBuys;
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<ReelsScreen />);
+    });
+    randomSpy.mockRestore();
+    act(() => {
+      renderer!.root
+        .find((node) => String(node.type) === "PagerView")
+        .props.onPageSelected({ nativeEvent: { position: 2 } });
+    });
+    const findAd = () =>
+      renderer!.root.findByProps({ testID: "reels-native-ad-1" });
+    const selectedAd = findAd();
+    act(() => selectedAd.props.onLoadStateChange("loaded"));
+
+    for (const isAppActive of [false, true]) {
+      playbackLifecycleMock.isAppActive = isAppActive;
+      playbackLifecycleMock.isAppFocused = isAppActive;
+      act(() => renderer!.update(<ReelsScreen />));
+      expect(findAd()).toBe(selectedAd);
+      expect(findAd().props.loadEnabled).toBe(true);
+      expect(findAd().props.visible).toBe(isAppActive);
+    }
+    expect(pagerViewMock.mounts).toBe(1);
+    act(() => renderer!.unmount());
+  });
+
   it("does not request or show Reels ads after leaving the tab", () => {
     queryResultMock.data = manyGroupBuys;
     adsMock.enabled = true;
