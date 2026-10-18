@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { Image, Platform, Text, View, type LayoutChangeEvent } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAds } from "../../ads/AdsContext.native";
 import {
@@ -111,6 +112,7 @@ export const NativeAdCard = memo(function NativeAdCard({
   variant = "card",
   visible = true,
 }: NativeAdCardProps) {
+  const insets = useSafeAreaInsets();
   const { enabled, isReady, isSettled, nativeUnitIds } = useAds();
   const unitId = nativeUnitIds[placement];
   const theme = useCommerceTheme();
@@ -319,7 +321,10 @@ export const NativeAdCard = memo(function NativeAdCard({
       Number.isFinite(reelBottomInset) && reelBottomInset > 0
         ? reelBottomInset
         : 0;
-    const reelFrameHeight = reelLayout?.height ?? 0;
+    // Move the SDK-owned view itself below system chrome so its AdChoices
+    // overlay and our attribution are both visible in edge-to-edge feeds.
+    const reelTopInset = isReel ? Math.max(0, insets.top) : 0;
+    const reelFrameHeight = Math.max(0, (reelLayout?.height ?? 0) - reelTopInset);
     const reelFrameWidth = reelLayout?.width ?? 0;
     const resolvedReelBottomInset = isReel
       ? reelFrameHeight > 0
@@ -340,7 +345,11 @@ export const NativeAdCard = memo(function NativeAdCard({
       <NativeAdView
         accessibilityLabel={`광고, ${nativeAd.headline}`}
         nativeAd={nativeAd}
-        style={isReel ? containerStyle : [containerStyle, style]}
+        style={
+          isReel
+            ? [containerStyle, { marginTop: reelTopInset }]
+            : [containerStyle, style]
+        }
         testID={testID}
       >
         {isCompact && hasMedia ? (

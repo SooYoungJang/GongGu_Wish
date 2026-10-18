@@ -313,6 +313,30 @@ describe("ReelsScreen player lifecycle", () => {
     });
   });
 
+  it("includes an ad in a short feed even when the random first gap is maximal", () => {
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.999999);
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    try {
+      act(() => {
+        renderer = TestRenderer.create(<ReelsScreen />);
+      });
+      act(() =>
+        renderer!.root
+          .find((node) => String(node.type) === "PagerView")
+          .props.onPageSelected({ nativeEvent: { position: 1 } }),
+      );
+      expect(
+        renderer!.root.findAllByProps({ testID: "reels-native-ad-1" }).length,
+      ).toBeGreaterThan(0);
+    } finally {
+      if (renderer) act(() => renderer!.unmount());
+      randomSpy.mockRestore();
+    }
+  });
+
   it("keeps the pager stable while the native ad SDK becomes ready", () => {
     adsMock.enabled = true;
     adsMock.isReady = false;
