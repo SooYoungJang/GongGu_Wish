@@ -1736,6 +1736,59 @@ describe("DetailScreen", () => {
     ).toHaveLength(selectedAdNodeCount);
   });
 
+  it("preserves the selected detail ad through store activity and feed metadata refresh", () => {
+    queryMock.groupBuys = [
+      baseGroupBuy,
+      { ...baseGroupBuy, id: "group-buy-2" },
+      { ...baseGroupBuy, id: "candidate-3" },
+    ];
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.detail = "detail-native-unit";
+    const navigation = { addListener: vi.fn(() => () => {}) } as any;
+    const renderScreen = () => (
+      <DetailScreen
+        route={
+          {
+            key: "Detail",
+            name: "Detail",
+            params: { groupBuy: baseGroupBuy },
+          } as any
+        }
+        navigation={navigation}
+      />
+    );
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderScreen());
+    });
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 2 },
+      });
+    });
+    const findAd = () =>
+      renderer!.root.findByProps({ testID: "detail-native-ad-1" });
+    const selectedAd = findAd();
+    const loadStateCallback = selectedAd.props.onLoadStateChange;
+    expect(selectedAd.props.visible).toBe(true);
+
+    for (const isAppActive of [false, true]) {
+      playbackLifecycleMock.isAppActive = isAppActive;
+      playbackLifecycleMock.isAppFocused = isAppActive;
+      queryMock.groupBuys = queryMock.groupBuys.map((item: GroupBuy) => ({
+        ...item,
+        productName: `${item.productName} updated`,
+      }));
+      act(() => renderer!.update(renderScreen()));
+      expect(findAd()).toBe(selectedAd);
+      expect(findAd().props.loadEnabled).toBe(true);
+      expect(findAd().props.visible).toBe(true);
+      expect(findAd().props.onLoadStateChange).toBe(loadStateCallback);
+    }
+    act(() => renderer!.unmount());
+  });
+
   it("keeps the playback callback stable across detail page changes", () => {
     const nextGroupBuy: GroupBuy = {
       ...baseGroupBuy,

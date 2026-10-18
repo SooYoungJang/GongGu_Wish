@@ -732,7 +732,7 @@ describe("NativeAdCard", () => {
     act(() => renderer!.unmount());
   });
 
-  it("loads offscreen and reuses the owned ad when its page becomes visible", async () => {
+  it.each(["reels", "detail"] as const)("loads %s offscreen and reuses the owned ad when its page becomes visible", async (placement) => {
     const destroy = vi.fn();
     const ad = {
       destroy,
@@ -745,7 +745,7 @@ describe("NativeAdCard", () => {
       <AdsContext.Provider value={enabledAds}>
         <NativeAdCard
           onLoadStateChange={onLoadStateChange}
-          placement="reels"
+          placement={placement}
           testID="reels-native-ad"
           variant="reel"
           visible={visible}
@@ -795,6 +795,7 @@ describe("NativeAdCard", () => {
       expect.arrayContaining([expect.objectContaining({ width: 296 })]),
     );
     expect(NativeAd.createForAdRequest).toHaveBeenCalledOnce();
+    expect(destroy).not.toHaveBeenCalled();
     act(() => renderer!.unmount());
     expect(destroy).toHaveBeenCalledOnce();
   });
