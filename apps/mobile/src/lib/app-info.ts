@@ -55,26 +55,21 @@ export function resolveAppInfo({
   privacyPolicyUrl,
   termsOfServiceUrl,
 }: ResolveAppInfoInput): AppInfo {
+  const installedVersion =
+    nativeVersionLabel(nativeApplicationVersion, nativeBuildVersion) ??
+    nonBlankString(configuredVersion) ??
+    nonBlankString(fallbackVersion) ??
+    "알 수 없음";
   const appliedRelease = nonBlankString(releaseNumber);
-  const releaseVersion =
+  const hasAppliedRelease =
     appliedRelease &&
     /^[1-9]\d*$/.test(appliedRelease) &&
-    Number.isSafeInteger(Number(appliedRelease))
-      ? nativeVersionLabel(
-          nonBlankString(nativeApplicationVersion) ??
-            nonBlankString(configuredVersion) ??
-            nonBlankString(fallbackVersion),
-          appliedRelease,
-        )
-      : null;
+    Number.isSafeInteger(Number(appliedRelease));
   return {
     privacyPolicyUrl: optionalHttpsUrl(privacyPolicyUrl),
     termsOfServiceUrl: optionalHttpsUrl(termsOfServiceUrl),
-    version:
-      releaseVersion ??
-      nativeVersionLabel(nativeApplicationVersion, nativeBuildVersion) ??
-      nonBlankString(configuredVersion) ??
-      nonBlankString(fallbackVersion) ??
-      "알 수 없음",
+    version: hasAppliedRelease
+      ? `${installedVersion} · 업데이트 ${appliedRelease}`
+      : installedVersion,
   };
 }
