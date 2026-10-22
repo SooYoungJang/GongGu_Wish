@@ -36,14 +36,23 @@ describe('formatDateRange', () => {
     expect(formatDateRange(null, undefined)).toBe('기간 미정');
   });
 
-  it('한쪽 날짜만 있으면 기간 미정으로 표시한다', () => {
+  it('종료일만 있으면 종료일을 표시한다', () => {
     expect(formatDateRange(null, '2026-07-04T12:00:00+09:00')).toBe(
+      '~ 7월 4일',
+    );
+  });
+
+  it('시작일만 있으면 기간 미정으로 표시한다', () => {
+    expect(formatDateRange('2026-06-28T12:00:00+09:00', null)).toBe(
       '기간 미정',
     );
   });
 
   it('잘못된 날짜 형식도 안전한 기간 라벨을 반환한다', () => {
     expect(formatDateRange('invalid-date', '2026-07-04T12:00:00+09:00')).toBe(
+      '~ 7월 4일',
+    );
+    expect(formatDateRange('2026-06-28T12:00:00+09:00', 'invalid-date')).toBe(
       '기간 미정',
     );
   });
