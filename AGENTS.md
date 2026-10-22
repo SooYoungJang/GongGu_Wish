@@ -97,6 +97,7 @@ powershell -ExecutionPolicy Bypass -File scripts/git-network.ps1 push codex/<tas
 - `apps/admin`, `apps/mobile`, `apps/api`, `apps/web`, `packages/*` 변경은 해당 workspace와 의존 workspace만 lint, typecheck, build, test한다.
 - PostgreSQL service와 Prisma test setup은 API가 영향받을 때의 전용 API test job에서만 실행한다.
 - `supabase/migrations`, `supabase/functions`, `workers/api-proxy`, Admin, Mobile은 각각 관련된 계약 검사와 배포 job만 실행한다.
+- `public`에 새 테이블을 만드는 migration은 같은 파일에서 RLS를 켜고 `anon`·`authenticated`·`service_role` 중 필요한 role에 `GRANT`를 명시한다. 2026-10-30부터 Supabase가 새 테이블을 Data API role에 자동 grant하지 않으며(`db reset`, Preview branch 포함), `scripts/production-migration-policy.mjs`와 그 테스트가 이를 검사한다.
 - root dependency 또는 공유 패키지 변경은 영향받을 수 있는 모든 consumer를 보수적으로 검사한다.
 - 분류되지 않은 새 경로나 빈 diff는 누락 방지를 위해 전체 영향으로 처리한다.
 - `develop → main` PR에서도 `main` base와 최신 `develop` head의 전체 diff를 다시 계산하므로 여러 작업을 모아 승격해도 필요한 Production 단계가 빠지지 않는다.

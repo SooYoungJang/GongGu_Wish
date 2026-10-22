@@ -14,7 +14,7 @@ function formatMonthDay(dateString: string | null | undefined): string | null {
 
 /**
  * Format a group-buy period as a calendar range.
- * Examples: "6월 28일 ~ 7월 4일", "기간 미정"
+ * Examples: "6월 28일 ~ 7월 4일", "~ 7월 4일", "기간 미정"
  */
 export function formatDateRange(
   startDate: string | null | undefined,
@@ -23,7 +23,8 @@ export function formatDateRange(
   const startLabel = formatMonthDay(startDate);
   const endLabel = formatMonthDay(endDate);
 
-  if (!startLabel || !endLabel) return '기간 미정';
+  if (!endLabel) return '기간 미정';
+  if (!startLabel) return `~ ${endLabel}`;
   return `${startLabel} ~ ${endLabel}`;
 }
 

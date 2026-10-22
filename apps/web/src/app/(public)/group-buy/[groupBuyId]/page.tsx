@@ -37,7 +37,8 @@ function formatDate(value: string | null) {
 function formatDateRange(groupBuy: GroupBuy) {
   const startDate = formatDate(groupBuy.startDate);
   const endDate = formatDate(groupBuy.endDate);
-  if (!startDate || !endDate) return "기간 미정";
+  if (!endDate) return "기간 미정";
+  if (!startDate) return `~ ${endDate}`;
   return `${startDate} ~ ${endDate}`;
 }
 
