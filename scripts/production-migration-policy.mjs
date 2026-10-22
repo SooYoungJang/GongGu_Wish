@@ -61,6 +61,29 @@ export function findDestructiveMigrations(
   return findings;
 }
 
+const CREATE_PUBLIC_TABLE =
+  /\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?public\."?([A-Za-z0-9_]+)"?/gi;
+
+// Supabase stops auto-granting new public tables to the Data API roles on
+// 2026-10-30, so every new table needs its GRANT in the migration that creates it.
+export function findTablesMissingGrants(
+  files,
+  { readFile = (path) => readFileSync(path, "utf8") } = {},
+) {
+  const findings = [];
+  for (const file of files) {
+    const source = readFile(file);
+    for (const [, table] of source.matchAll(CREATE_PUBLIC_TABLE)) {
+      const grant = new RegExp(
+        `\\bGRANT\\b[^;]*\\bON\\b[^;]*\\bpublic\\."?${table}"?(?![A-Za-z0-9_])[^;]*\\bTO\\b`,
+        "i",
+      );
+      if (!grant.test(source)) findings.push({ file, table });
+    }
+  }
+  return findings;
+}
+
 function readOption(args, name) {
   const index = args.indexOf(name);
   return index === -1 ? null : (args[index + 1] ?? null);
@@ -76,8 +99,17 @@ function main() {
     .split(/\r?\n/)
     .map((file) => file.trim())
     .filter(Boolean);
+  const missingGrants = findTablesMissingGrants(files);
+  for (const { file, table } of missingGrants) {
+    process.stderr.write(
+      `New public table needs an explicit GRANT in the same migration: ${file} (public.${table})\n`,
+    );
+  }
+  if (missingGrants.length > 0) process.exitCode = 1;
+
   const findings = findDestructiveMigrations(files);
   if (findings.length === 0) {
+    if (missingGrants.length > 0) return;
     process.stdout.write("Production migration policy passed.\n");
     return;
   }
