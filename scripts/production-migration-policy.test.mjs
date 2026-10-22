@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { findDestructiveMigrations } from "./production-migration-policy.mjs";
+import {
+  findDestructiveMigrations,
+  findTablesMissingGrants,
+} from "./production-migration-policy.mjs";
 
 function fixture(contents) {
   const root = mkdtempSync(join(tmpdir(), "gonggu-migration-policy-"));
@@ -98,4 +101,34 @@ test("flags data deletion and type changes", () => {
     findings.map(({ code }) => code),
     ["DELETE", "ALTER_TYPE"],
   );
+});
+
+test("requires a same-migration GRANT for every new public table", () => {
+  const granted = fixture(`
+CREATE TABLE IF NOT EXISTS public."wish_notes" (id uuid PRIMARY KEY);
+ALTER TABLE public.wish_notes ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON TABLE public.wish_notes TO anon, authenticated;
+GRANT ALL ON public.wish_notes TO service_role;
+`);
+  const ungranted = fixture(`
+CREATE TABLE public.wish_drafts (id uuid PRIMARY KEY);
+CREATE TABLE public.wish (id uuid PRIMARY KEY);
+GRANT ALL ON public.wish_drafts_archive TO service_role;
+`);
+
+  assert.deepEqual(findTablesMissingGrants([granted]), []);
+  assert.deepEqual(
+    findTablesMissingGrants([ungranted]).map(({ table }) => table),
+    ["wish_drafts", "wish"],
+  );
+});
+
+// Supabase no longer auto-grants new public tables from 2026-10-30, including
+// db reset and preview branches, so new migrations must carry their own GRANTs.
+test("migrations added from 2026-10-22 grant every public table they create", () => {
+  const dir = "supabase/migrations";
+  const files = readdirSync(dir)
+    .filter((name) => name.endsWith(".sql") && name >= "20261022")
+    .map((name) => join(dir, name));
+  assert.deepEqual(findTablesMissingGrants(files), []);
 });
