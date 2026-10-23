@@ -189,7 +189,6 @@ export function ReelsScreen({
   );
 
   useEffect(() => {
-    if (baseBatch.length === 0) return;
     pagerScrollStateRef.current = "idle";
     pendingUnavailableAdRef.current = null;
     pendingPagerPositionRef.current = null;

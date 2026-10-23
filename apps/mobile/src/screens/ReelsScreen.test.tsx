@@ -821,6 +821,70 @@ describe("ReelsScreen player lifecycle", () => {
     ).toBeTruthy();
   });
 
+  it("removes stale products and ad slots when a refreshed feed becomes empty", () => {
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+
+    try {
+      act(() => {
+        renderer = TestRenderer.create(<ReelsScreen />);
+      });
+      act(() => {
+        renderer!.root
+          .find((node) => String(node.type) === "PagerView")
+          .props.onPageSelected({ nativeEvent: { position: 1 } });
+      });
+      expect(
+        renderer!.root.findAll(
+          (node) => String(node.type) === "ProductReelPage",
+        ).length,
+      ).toBeGreaterThan(0);
+      expect(
+        renderer!.root.findAll((node) => String(node.type) === "NativeAdCard")
+          .length,
+      ).toBeGreaterThan(0);
+
+      act(() => {
+        queryResultMock.data = [];
+        renderer!.update(<ReelsScreen />);
+      });
+
+      expect(
+        renderer!.root.findAll(
+          (node) =>
+            String(node.type) === "ProductReelPage" ||
+            String(node.type) === "NativeAdCard" ||
+            String(node.type) === "ReelVideoPreloader" ||
+            String(node.type) === "PagerView",
+        ),
+      ).toHaveLength(0);
+      expect(
+        renderer!.root.findAllByProps({
+          children: "표시할 릴스 영상이 없어요",
+        }).length,
+      ).toBeGreaterThan(0);
+
+      act(() => {
+        queryResultMock.data = [
+          { ...groupBuys[0], id: "new-reel", productName: "새 공구" },
+        ];
+        renderer!.update(<ReelsScreen />);
+      });
+      expect(
+        renderer!.root
+          .findAll((node) => String(node.type) === "ProductReelPage")
+          .filter((node) => node.props.isActive)
+          .map((node) => node.props.groupBuy.id),
+      ).toEqual(["new-reel"]);
+    } finally {
+      if (renderer) act(() => renderer!.unmount());
+      randomSpy.mockRestore();
+    }
+  });
+
   it("keeps playing for Android blur, pauses for background, and releases the preloader after leaving Reels", () => {
     let renderer: TestRenderer.ReactTestRenderer;
     const renderScreen = () => <ReelsScreen />;
