@@ -2,9 +2,9 @@ import type { NotificationTriggerInput } from "expo-notifications";
 import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
 
-import { callEdgeFunction } from "../lib/postgrest-client";
 import { isAutomatedE2E } from "../lib/automatedE2E";
 import { isExpoPushToken } from "./pushToken";
+import { capturePushRegistrationGuard, registerPushDeviceToken } from "./pushDeviceSession";
 import {
   buildGroupBuyOpeningReminderDates,
   buildGroupBuyReminderDates,
@@ -273,7 +273,7 @@ export async function registerForPushNotifications(
     onRegistrationCancelled?: () => Promise<unknown>;
   } = {},
 ): Promise<PushRegistrationResult> {
-  const shouldContinue = options.shouldContinue ?? (() => true);
+  const shouldContinue = capturePushRegistrationGuard(options.shouldContinue ?? (() => true));
   const cancelled = (): PushRegistrationResult => ({
     status: "cancelled",
     reason: "audience-restricted",
@@ -332,11 +332,7 @@ export async function registerForPushNotifications(
   let registrationError: unknown;
   try {
     if (!shouldContinue()) return cancelled();
-    await callEdgeFunction(
-      "register-push-token",
-      { token, provider: "expo" },
-      { authToken },
-    );
+    if (!await registerPushDeviceToken(token, authToken, shouldContinue)) return cancelled();
     if (!shouldContinue()) {
       await cleanupCancelledRegistration();
       return cancelled();
@@ -352,11 +348,7 @@ export async function registerForPushNotifications(
       const refreshedAuthToken = await options.refreshAuthToken();
       if (refreshedAuthToken) {
         if (!shouldContinue()) return cancelled();
-        await callEdgeFunction(
-          "register-push-token",
-          { token, provider: "expo" },
-          { authToken: refreshedAuthToken },
-        );
+        if (!await registerPushDeviceToken(token, refreshedAuthToken, shouldContinue)) return cancelled();
         if (!shouldContinue()) {
           await cleanupCancelledRegistration();
           return cancelled();

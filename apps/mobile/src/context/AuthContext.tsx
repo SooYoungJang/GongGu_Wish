@@ -17,6 +17,7 @@ import { AUTH_REDIRECT_URL } from "../lib/auth-config";
 import { getSupabase } from "../lib/supabase";
 import { setAuthToken, clearAuthToken } from "../utils/auth";
 import type { SocialAuthProvider } from "../utils/authHelpers";
+import { signOutPushDevice } from "../services/pushDeviceSession";
 
 export const EMAIL_CODE_TTL_SECONDS = 5 * 60;
 const OAUTH_ATTEMPT_STORAGE_KEY = "gonggu.oauth-attempt.v1";
@@ -80,7 +81,7 @@ export interface AuthContextValue {
   /** Cancel a pending auth intent when age confirmation cannot be persisted. */
   cancelAudienceAuthIntent: () => void;
   /** Log out the current user */
-  signOut: () => Promise<void>;
+  signOut: (options?: { accountDeleted?: boolean }) => Promise<void>;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -324,10 +325,12 @@ export function AuthProvider({
       return;
 
     const supabase = getSupabase();
-    await Promise.allSettled([
-      supabase.auth.signOut({ scope: "local" }),
-      clearAuthToken(),
-    ]);
+    const { data } = await supabase.auth.getSession();
+    await signOutPushDevice(data.session?.access_token, async () => {
+      const result = await supabase.auth.signOut({ scope: "local" });
+      if (result?.error) throw result.error;
+      await clearAuthToken();
+    });
     applySession(null);
     audienceAuthIntentPreparedRef.current = true;
   }, [applySession]);
@@ -740,13 +743,19 @@ export function AuthProvider({
     ],
   );
 
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(async (options?: { accountDeleted?: boolean }) => {
     cancelAudienceAuthIntent();
     await clearOAuthAttempt();
     const supabase = getSupabase();
-    await supabase.auth.signOut();
-    await clearAuthToken();
-  }, [cancelAudienceAuthIntent, clearOAuthAttempt]);
+    const accessToken = options?.accountDeleted ? undefined
+      : (await supabase.auth.getSession()).data.session?.access_token ?? session?.access_token;
+    await signOutPushDevice(accessToken, async () => {
+      const result = await supabase.auth.signOut();
+      if (result?.error) throw result.error;
+      await clearAuthToken();
+      applySession(null);
+    });
+  }, [applySession, cancelAudienceAuthIntent, clearOAuthAttempt, session?.access_token]);
 
   const signInWithOAuth = useCallback(
     async (provider: SocialAuthProvider): Promise<AuthError | null> => {

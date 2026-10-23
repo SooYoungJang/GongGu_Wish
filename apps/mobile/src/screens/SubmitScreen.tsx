@@ -98,6 +98,8 @@ function getMonthTitle(date: Date): string {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+type AutofillField = 'productName' | 'startDate' | 'endDate' | 'purchaseUrl' | 'discountInfo' | 'summary';
+
 export function SubmitScreen({ navigation }: SubmitScreenProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -130,6 +132,12 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
   const { guard, reset } = useSubmissionGuard();
   const urlInputRef = useRef<TextInput>(null);
   const parsedCaptionKeyRef = useRef('');
+  const autofillUrlRef = useRef('');
+  const manualFieldsRef = useRef(new Set<AutofillField>());
+  const setManualValue = useCallback((field: AutofillField, setter: typeof setProductName, value: string) => {
+    manualFieldsRef.current.add(field);
+    setter(value);
+  }, []);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => {
@@ -156,6 +164,19 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
   }, []);
 
   useEffect(() => {
+    const url = instagramUrl.trim();
+    const manual = manualFieldsRef.current;
+    if (autofillUrlRef.current !== url) {
+      autofillUrlRef.current = url;
+      parsedCaptionKeyRef.current = '';
+      if (!manual.has('productName')) setProductName('');
+      if (!manual.has('startDate')) setStartDate('');
+      if (!manual.has('endDate')) setEndDate('');
+      if (!manual.has('purchaseUrl')) setPurchaseUrl('');
+      if (!manual.has('discountInfo')) setDiscountInfo('');
+      if (!manual.has('summary')) setSummary('');
+      setFeedback(null);
+    }
     if (hikerStatus !== 'success' || !hikerData?.caption) return;
 
     const key = `${instagramUrl.trim()}::${hikerData.caption}`;
@@ -167,18 +188,18 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
       fallbackBrandName: hikerData.authorUsername ?? hikerData.authorName,
     });
 
-    const shouldFillProductName = !productName.trim() && parsed.productName;
-    const shouldFillStartDate = !startDate.trim() && parsed.startDate;
-    const shouldFillEndDate = !endDate.trim() && parsed.endDate;
-    const shouldFillPurchaseUrl = !purchaseUrl.trim() && parsed.purchaseUrl;
-    const shouldFillDiscountInfo = !discountInfo.trim() && parsed.discountInfo;
+    const shouldFillProductName = !manual.has('productName') && parsed.productName;
+    const shouldFillStartDate = !manual.has('startDate') && parsed.startDate;
+    const shouldFillEndDate = !manual.has('endDate') && parsed.endDate;
+    const shouldFillPurchaseUrl = !manual.has('purchaseUrl') && parsed.purchaseUrl;
+    const shouldFillDiscountInfo = !manual.has('discountInfo') && parsed.discountInfo;
 
-    if (shouldFillProductName && parsed.productName) setProductName(parsed.productName);
-    if (shouldFillStartDate && parsed.startDate) setStartDate(parsed.startDate);
-    if (shouldFillEndDate && parsed.endDate) setEndDate(parsed.endDate);
-    if (shouldFillPurchaseUrl && parsed.purchaseUrl) setPurchaseUrl(parsed.purchaseUrl);
-    if (shouldFillDiscountInfo && parsed.discountInfo) setDiscountInfo(parsed.discountInfo);
-    if (!summary.trim() && hikerData.caption) setSummary(hikerData.caption);
+    if (!manual.has('productName')) setProductName(parsed.productName ?? '');
+    if (!manual.has('startDate')) setStartDate(parsed.startDate ?? '');
+    if (!manual.has('endDate')) setEndDate(parsed.endDate ?? '');
+    if (!manual.has('purchaseUrl')) setPurchaseUrl(parsed.purchaseUrl ?? '');
+    if (!manual.has('discountInfo')) setDiscountInfo(parsed.discountInfo ?? '');
+    if (!manual.has('summary')) setSummary(hikerData.caption);
 
     if (
       shouldFillProductName ||
@@ -186,23 +207,17 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
       shouldFillEndDate ||
       shouldFillPurchaseUrl ||
       shouldFillDiscountInfo ||
-      !summary.trim()
+      !manual.has('summary')
     ) {
       setFeedback({ message: '캡션에서 공구 정보를 자동으로 채웠어요. 필요한 부분만 수정해 주세요.', kind: 'info' });
     }
   }, [
-    discountInfo,
-    endDate,
     hikerData?.authorName,
     hikerData?.authorUsername,
     hikerData?.caption,
     hikerData?.postedAt,
     hikerStatus,
     instagramUrl,
-    productName,
-    purchaseUrl,
-    summary,
-    startDate,
   ]);
 
   // ─── Validation ─────────────────────────────────────────────────────────
@@ -326,9 +341,9 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
 
     const formatted = formatDateValue(date);
     if (datePickerField === 'startDate') {
-      setStartDate(formatted);
+      setManualValue('startDate', setStartDate, formatted);
     } else if (datePickerField === 'endDate') {
-      setEndDate(formatted);
+      setManualValue('endDate', setEndDate, formatted);
     }
     setFieldErrors({});
     setDatePickerField(null);
@@ -351,9 +366,9 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
 
   function clearSelectedDate() {
     if (datePickerField === 'startDate') {
-      setStartDate('');
+      setManualValue('startDate', setStartDate, '');
     } else if (datePickerField === 'endDate') {
-      setEndDate('');
+      setManualValue('endDate', setEndDate, '');
     }
     setFieldErrors({});
     setDatePickerField(null);
@@ -637,7 +652,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
             <FormInput
               label="제품명 *"
               value={productName}
-              onChangeText={setProductName}
+              onChangeText={(value) => setManualValue('productName', setProductName, value)}
               onBlur={() => handleInputBlur('productName')}
               onFocus={() => handleInputFocus('productName')}
               placeholder="예: 비건 선크림"
@@ -748,7 +763,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
             <FormInput
               label="구매 링크"
               value={purchaseUrl}
-              onChangeText={setPurchaseUrl}
+              onChangeText={(value) => setManualValue('purchaseUrl', setPurchaseUrl, value)}
               onBlur={() => handleInputBlur('purchaseUrl')}
               onFocus={() => handleInputFocus('purchaseUrl')}
               placeholder="https://..."
@@ -760,7 +775,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
             <FormInput
               label="할인 정보"
               value={discountInfo}
-              onChangeText={setDiscountInfo}
+              onChangeText={(value) => setManualValue('discountInfo', setDiscountInfo, value)}
               onBlur={() => handleInputBlur('discountInfo')}
               onFocus={() => handleInputFocus('discountInfo')}
               placeholder="예: 정가 229,000원 → 29% 163,560원"
@@ -769,7 +784,7 @@ export function SubmitScreen({ navigation }: SubmitScreenProps) {
             <FormInput
               label="요약"
               value={summary}
-              onChangeText={setSummary}
+              onChangeText={(value) => setManualValue('summary', setSummary, value)}
               onBlur={() => handleInputBlur('summary')}
               onFocus={() => handleInputFocus('summary')}
               placeholder="공구 제품 정보를 입력해주세요"

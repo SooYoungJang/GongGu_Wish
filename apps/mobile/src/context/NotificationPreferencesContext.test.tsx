@@ -19,6 +19,7 @@ import {
   useNotificationPreferences,
   type NotificationPreferencesContextValue,
 } from "./NotificationPreferencesContext";
+import { DEFAULT_NOTIFICATION_PREFERENCES } from "../services/notificationPreferences";
 
 describe("NotificationPreferencesProvider", () => {
   let current: NotificationPreferencesContextValue | null = null;
@@ -26,6 +27,26 @@ describe("NotificationPreferencesProvider", () => {
   function Probe() {
     current = useNotificationPreferences();
     return null;
+  }
+
+  async function settle() {
+    for (let index = 0; index < 20; index += 1) await Promise.resolve();
+  }
+
+  function persistStorageInMemory() {
+    const values = new Map<string, string>();
+    storage.getItem.mockImplementation((key: string) =>
+      Promise.resolve(values.get(key) ?? null),
+    );
+    storage.setItem.mockImplementation((key: string, value: string) => {
+      values.set(key, value);
+      return Promise.resolve();
+    });
+    storage.removeItem.mockImplementation((key: string) => {
+      values.delete(key);
+      return Promise.resolve();
+    });
+    return values;
   }
 
   beforeEach(() => {
@@ -258,5 +279,259 @@ describe("NotificationPreferencesProvider", () => {
         reminderDays: [3],
       }),
     });
+  });
+
+  it("keeps the latest opt-out when an earlier save finishes after token rotation", async () => {
+    const stored = persistStorageInMemory();
+    const storageKey = "@gonggu/notification-preferences/v1/user%3Arotating";
+    let server = {
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      pushEnabled: true,
+    };
+    let finishEarlierSave!: () => void;
+    const earlierSave = new Promise<void>((resolve) => {
+      finishEarlierSave = resolve;
+    });
+    callEdgeFunction.mockImplementation(
+      async (
+        _name: string,
+        body: { action?: string; preferences?: typeof server },
+        options: { authToken: string },
+      ) => {
+        if (body.action === "read") {
+          return { data: { preferences: { ...server } } };
+        }
+        if (options.authToken === "token-A") await earlierSave;
+        server = { ...body.preferences! };
+        return { data: { preferencesSynced: true, registered: false } };
+      },
+    );
+
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <NotificationPreferencesProvider
+          authToken="token-A"
+          namespace="user:rotating"
+        >
+          <Probe />
+        </NotificationPreferencesProvider>,
+      );
+      await settle();
+    });
+    expect(current?.preferences.pushEnabled).toBe(true);
+
+    let firstUpdate!: Promise<unknown>;
+    await act(async () => {
+      firstUpdate = current!.updatePreferences({ marketingPushEnabled: true });
+      await settle();
+    });
+    expect(JSON.parse(stored.get(`${storageKey}/pending`)!).pushEnabled).toBe(
+      true,
+    );
+
+    await act(async () => {
+      renderer.update(
+        <NotificationPreferencesProvider
+          authToken="token-B"
+          namespace="user:rotating"
+        >
+          <Probe />
+        </NotificationPreferencesProvider>,
+      );
+      await settle();
+    });
+    let latestUpdate!: Promise<unknown>;
+    await act(async () => {
+      latestUpdate = current!.updatePreferences({ pushEnabled: false });
+      await settle();
+    });
+    expect(current?.preferences.pushEnabled).toBe(false);
+
+    await act(async () => {
+      finishEarlierSave();
+      await Promise.all([firstUpdate, latestUpdate]);
+      await settle();
+    });
+
+    expect(server.pushEnabled).toBe(false);
+    expect(server.marketingPushEnabled).toBe(true);
+    expect(current?.preferences.pushEnabled).toBe(false);
+    expect(JSON.parse(stored.get(storageKey)!).pushEnabled).toBe(false);
+    expect(stored.has(`${storageKey}/pending`)).toBe(false);
+    renderer.unmount();
+  });
+
+  it("retains a failed latest opt-out after older token saves and retries finish", async () => {
+    const stored = persistStorageInMemory();
+    const storageKey = "@gonggu/notification-preferences/v1/user%3Aretry";
+    let server = {
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      pushEnabled: true,
+    };
+    let finishEarlierSaves!: () => void;
+    const earlierSaves = new Promise<void>((resolve) => {
+      finishEarlierSaves = resolve;
+    });
+    callEdgeFunction.mockImplementation(
+      async (
+        _name: string,
+        body: { action?: string; preferences?: typeof server },
+      ) => {
+        if (body.action === "read") {
+          return { data: { preferences: { ...server } } };
+        }
+        if (body.preferences!.pushEnabled) {
+          await earlierSaves;
+          server = { ...body.preferences! };
+          return { data: { preferencesSynced: true, registered: false } };
+        }
+        throw new Error("offline while saving the opt-out");
+      },
+    );
+
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <NotificationPreferencesProvider
+          authToken="token-A"
+          namespace="user:retry"
+        >
+          <Probe />
+        </NotificationPreferencesProvider>,
+      );
+      await settle();
+    });
+    let firstUpdate!: Promise<unknown>;
+    await act(async () => {
+      firstUpdate = current!.updatePreferences({ marketingPushEnabled: true });
+      await settle();
+    });
+    await act(async () => {
+      renderer.update(
+        <NotificationPreferencesProvider
+          authToken="token-B"
+          namespace="user:retry"
+        >
+          <Probe />
+        </NotificationPreferencesProvider>,
+      );
+      await settle();
+    });
+    let latestUpdate!: Promise<unknown>;
+    await act(async () => {
+      latestUpdate = current!.updatePreferences({ pushEnabled: false });
+      await settle();
+    });
+
+    await act(async () => {
+      finishEarlierSaves();
+      await Promise.all([firstUpdate, latestUpdate]);
+      await settle();
+    });
+
+    expect(current?.preferences.pushEnabled).toBe(false);
+    expect(JSON.parse(stored.get(storageKey)!).pushEnabled).toBe(false);
+    const pending = stored.get(`${storageKey}/pending`);
+    expect(pending).toBeDefined();
+    expect(JSON.parse(pending!).pushEnabled).toBe(false);
+    renderer.unmount();
+  });
+
+  it("keeps the next account isolated while the previous account save finishes", async () => {
+    const stored = persistStorageInMemory();
+    const userAKey = "@gonggu/notification-preferences/v1/user%3Aaccount-A";
+    const userBKey = "@gonggu/notification-preferences/v1/user%3Aaccount-B";
+    const servers = new Map([
+      [
+        "account-A-token",
+        { ...DEFAULT_NOTIFICATION_PREFERENCES, pushEnabled: true },
+      ],
+      [
+        "account-B-token",
+        {
+          ...DEFAULT_NOTIFICATION_PREFERENCES,
+          followedInfluencers: ["account.b"],
+        },
+      ],
+    ]);
+    let finishAccountA!: () => void;
+    const accountASave = new Promise<void>((resolve) => {
+      finishAccountA = resolve;
+    });
+    callEdgeFunction.mockImplementation(
+      async (
+        _name: string,
+        body: {
+          action?: string;
+          preferences?: typeof DEFAULT_NOTIFICATION_PREFERENCES;
+        },
+        options: { authToken: string },
+      ) => {
+        if (body.action === "read") {
+          return {
+            data: { preferences: { ...servers.get(options.authToken)! } },
+          };
+        }
+        if (options.authToken === "account-A-token") await accountASave;
+        servers.set(options.authToken, { ...body.preferences! });
+        return { data: { preferencesSynced: true, registered: false } };
+      },
+    );
+
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <NotificationPreferencesProvider
+          authToken="account-A-token"
+          namespace="user:account-A"
+        >
+          <Probe />
+        </NotificationPreferencesProvider>,
+      );
+      await settle();
+    });
+    let accountAUpdate!: Promise<unknown>;
+    await act(async () => {
+      accountAUpdate = current!.updatePreferences({ marketingPushEnabled: true });
+      await settle();
+    });
+    await act(async () => {
+      renderer.update(
+        <NotificationPreferencesProvider
+          authToken="account-B-token"
+          namespace="user:account-B"
+        >
+          <Probe />
+        </NotificationPreferencesProvider>,
+      );
+      await settle();
+    });
+    expect(current?.preferences.pushEnabled).toBe(false);
+    expect(current?.preferences.followedInfluencers).toEqual(["account.b"]);
+
+    let accountBUpdate!: Promise<unknown>;
+    await act(async () => {
+      accountBUpdate = current!.updatePreferences({ marketingPushEnabled: true });
+      await settle();
+    });
+    await act(async () => {
+      finishAccountA();
+      await Promise.all([accountAUpdate, accountBUpdate]);
+      await settle();
+    });
+
+    expect(current?.preferences).toMatchObject({
+      pushEnabled: false,
+      marketingPushEnabled: true,
+      followedInfluencers: ["account.b"],
+    });
+    expect(servers.get("account-B-token")).toEqual(current?.preferences);
+    expect(JSON.parse(stored.get(userBKey)!)).toEqual(current?.preferences);
+    expect(JSON.parse(stored.get(userAKey)!)).toMatchObject({
+      pushEnabled: true,
+      marketingPushEnabled: true,
+    });
+    renderer.unmount();
   });
 });

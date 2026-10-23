@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
+import { releasePushDeviceToken } from "./deviceToken.ts";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   buildMarketingConsentColumns,
@@ -76,6 +77,10 @@ async function registerToken(req: Request) {
   }
 
   const now = new Date().toISOString();
+  if (input.tokenAction === "release" && input.token) {
+    await releasePushDeviceToken(supabase, authData.user.id, input.token);
+    return json({ data: { unregistered: true } });
+  }
   const { data: existing, error: lookupError } = await supabase
     .from("users")
     .select(

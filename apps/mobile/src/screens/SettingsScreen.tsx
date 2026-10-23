@@ -32,6 +32,7 @@ import {
 import { isAutomatedE2E } from "../lib/automatedE2E";
 import { publicBuildConfig } from "../lib/public-build-config";
 import { getSupabase } from "../lib/supabase";
+import { signOutPushDevice } from "../services/pushDeviceSession";
 import {
   getNotificationPermissionStatus,
   IS_EXPO_GO,
@@ -79,12 +80,16 @@ export function SettingsScreen() {
   const accessToken = session?.access_token;
   const accessTokenRef = useRef(accessToken);
   accessTokenRef.current = accessToken;
+  const currentUserIdRef = useRef(user?.id);
+  currentUserIdRef.current = user?.id;
   const {
     error: preferencesError,
     preferences,
     ready: preferencesReady,
     updatePreferences,
   } = useNotificationPreferences();
+  const updatePreferencesRef = useRef(updatePreferences);
+  updatePreferencesRef.current = updatePreferences;
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { canAuthenticate, isAuthenticated, requireAuth } = useAuthGate();
@@ -104,7 +109,7 @@ export function SettingsScreen() {
   const [pendingSubmissionApprovalEnabled, setPendingSubmissionApprovalEnabled] =
     useState<boolean | null>(null);
   const latestPushRevision = useRef(0);
-  const pendingPushIntent = useRef<{ value: boolean; revision: number } | null>(
+  const pendingPushIntent = useRef<{ value: boolean; revision: number; userId?: string } | null>(
     null,
   );
   const pushWorkerRunning = useRef(false);
@@ -129,11 +134,13 @@ export function SettingsScreen() {
   );
 
   const applyPushIntent = useCallback(
-    async (intent: { value: boolean; revision: number }) => {
+    async (intent: { value: boolean; revision: number; userId?: string }) => {
+      const isCurrentUser = () => Boolean(intent.userId) && currentUserIdRef.current === intent.userId;
+      if (!isCurrentUser()) return false;
       const isLatest = () => latestPushRevision.current === intent.revision;
       try {
         if (!intent.value) {
-          await updatePreferences({ pushEnabled: false });
+          await updatePreferencesRef.current({ pushEnabled: false });
           return true;
         }
 
@@ -153,14 +160,17 @@ export function SettingsScreen() {
 
         const result = await registerForPushNotifications(currentAccessToken, {
           requestPermission: true,
-          shouldContinue: () => canAuthenticateRef.current,
-          onRegistrationCancelled: () =>
-            syncNotificationPreferences(
-              currentAccessToken,
-              DEFAULT_NOTIFICATION_PREFERENCES,
-            ),
+          shouldContinue: () => canAuthenticateRef.current && isCurrentUser(),
+          onRegistrationCancelled: async () => {
+            if (!canAuthenticateRef.current) {
+              await syncNotificationPreferences(
+                currentAccessToken,
+                DEFAULT_NOTIFICATION_PREFERENCES,
+              );
+            }
+          },
           refreshAuthToken: async () => {
-            if (!canAuthenticateRef.current) return null;
+            if (!canAuthenticateRef.current || !isCurrentUser()) return null;
             const { data, error } = await getSupabase().auth.refreshSession();
             return error ? null : (data.session?.access_token ?? null);
           },
@@ -168,11 +178,11 @@ export function SettingsScreen() {
             ? { e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]" }
             : {}),
         });
-        if (result.status === "cancelled") return false;
+        if (result.status === "cancelled" || !isCurrentUser()) return false;
         if (result.status === "registered") {
           setPermissionStatus("granted");
           if (isLatest()) {
-            await updatePreferences({ pushEnabled: true });
+            await updatePreferencesRef.current({ pushEnabled: true });
           }
           return true;
         }
@@ -234,7 +244,7 @@ export function SettingsScreen() {
         return false;
       }
     },
-    [automatedE2E, updatePreferences],
+    [automatedE2E],
   );
 
   const drainPushIntents = useCallback(async () => {
@@ -257,7 +267,7 @@ export function SettingsScreen() {
     (value: boolean) => {
       setPendingMarketingPushEnabled(null);
       setPendingSubmissionApprovalEnabled(null);
-      const intent = { value, revision: ++latestPushRevision.current };
+      const intent = { value, revision: ++latestPushRevision.current, userId: currentUserIdRef.current };
       pendingPushIntent.current = intent;
       setPendingPushEnabled(value);
       if (pushWorkerRunning.current) return Promise.resolve();
@@ -286,7 +296,7 @@ export function SettingsScreen() {
           return;
         }
 
-        const registered = await applyPushIntent({ value: true, revision });
+        const registered = await applyPushIntent({ value: true, revision, userId: currentUserIdRef.current });
         if (!registered || latestPushRevision.current !== revision) return;
         await updatePreferences({ submissionApprovalEnabled: true });
       } finally {
@@ -317,7 +327,7 @@ export function SettingsScreen() {
           return;
         }
 
-        const registered = await applyPushIntent({ value: true, revision });
+        const registered = await applyPushIntent({ value: true, revision, userId: currentUserIdRef.current });
         if (!registered || latestPushRevision.current !== revision) return;
         await updatePreferences({ marketingPushEnabled: true });
       } finally {
@@ -365,9 +375,9 @@ export function SettingsScreen() {
 
     setDeleting(true);
     try {
-      await deleteAccount(accessToken);
+      await signOutPushDevice(accessToken, () => deleteAccount(accessToken));
       await clearLocalUserData(user?.id ? `user:${user.id}` : "guest");
-      await signOut();
+      await signOut({ accountDeleted: true });
       navigation.goBack();
     } catch {
       Alert.alert(
