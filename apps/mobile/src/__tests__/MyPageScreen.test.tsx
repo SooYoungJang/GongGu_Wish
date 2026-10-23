@@ -3,6 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../api';
+import * as notificationPreferences from '../services/notificationPreferences';
 import {
   DealShelf,
   MyPageScreen,
@@ -906,6 +907,28 @@ describe('MyPageScreen', () => {
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       pushEnabled: true,
     });
+  });
+
+  it('keeps saved preferences when logout cancels settings token registration', async () => {
+    authMocks.session = {
+      access_token: 'access-token',
+      user: { id: 'user-1', email: 'user@example.com' },
+    };
+    const sync = vi.spyOn(notificationPreferences, 'syncNotificationPreferences')
+      .mockResolvedValue({ data: { preferencesSynced: true, registered: true } });
+    const renderer = renderScreen(React.createElement(SettingsScreen));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props.onValueChange(true);
+      await Promise.resolve();
+    });
+    const calls = notificationMocks.registerForPushNotifications.mock.calls as unknown as
+      [string, { onRegistrationCancelled(): Promise<unknown> }][];
+    const options = calls.at(-1)?.[1];
+    expect(options).toBeDefined();
+    await options!.onRegistrationCancelled();
+    expect(sync).not.toHaveBeenCalled();
+    sync.mockRestore();
   });
 
   it('requests explicit push permission before enabling marketing messages', async () => {

@@ -53,6 +53,19 @@ Deno.test("accepts a read-only authenticated preferences request", () => {
   });
 });
 
+Deno.test("accepts device-scoped logout without changing preferences", () => {
+  assertEquals(validatePushRegistrationInput({
+    action: "unregister", provider: "expo", token: "ExpoPushToken[this-device]",
+  }), {
+    readOnly: false, token: "ExpoPushToken[this-device]", tokenAction: "release", preferences: null,
+  });
+  for (const input of [
+    { action: "unregister" },
+    { action: "unregister", token: "fcm-token" },
+    { action: "unregister", token: "ExpoPushToken[this-device]", preferences: DEFAULT_NOTIFICATION_PREFERENCES },
+  ]) assertThrows(() => validatePushRegistrationInput(input));
+});
+
 Deno.test("classifies schema drift without exposing database details", () => {
   assertEquals(
     classifyPushRegistrationError(

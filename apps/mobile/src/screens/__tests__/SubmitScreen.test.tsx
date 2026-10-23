@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import * as apiModule from '../../api';
 import { ApiError } from '../../api';
@@ -126,11 +126,210 @@ function selectFirstCalendarDate(renderer: ReturnType<typeof renderSubmit>): str
   return selectCalendarDateAt(renderer, 0);
 }
 
+function changeInput(renderer: ReturnType<typeof renderSubmit>, placeholder: string, value: string) {
+  act(function() {
+    renderer.root.findAll(function(node: any) {
+      return node.type === 'TextInput' && node.props.placeholder === placeholder;
+    })[0].props.onChangeText(value);
+  });
+}
+
+function inputValue(renderer: ReturnType<typeof renderSubmit>, placeholder: string) {
+  return renderer.root.findAll(function(node: any) {
+    return node.type === 'TextInput' && node.props.placeholder === placeholder;
+  })[0].props.value;
+}
+
+function instagramPost(caption: string | null, imageUrl: string) {
+  return {
+    caption,
+    imageUrl,
+    thumbnailUrl: imageUrl,
+    videoUrl: null,
+    mediaUrls: [imageUrl],
+    mediaItems: [],
+    mediaType: 'IMAGE' as const,
+    likeCount: null,
+    username: 'test_seller',
+    takenAt: '2026-10-23T00:00:00Z',
+  };
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('SubmitScreen', function() {
   beforeEach(function() {
     vi.clearAllMocks();
+  });
+
+  describe('caption auto-fill when the Instagram post changes', function() {
+    const urlA = 'https://www.instagram.com/p/POST_A/';
+    const urlB = 'https://www.instagram.com/p/POST_B/';
+    const captionA = [
+      '에이 선크림 공구',
+      '2026.11.01 ~ 2026.11.03',
+      'https://shop.example.com/product-a',
+      '30% 할인',
+    ].join('\n');
+    const captionB = [
+      '비 샴푸 공구',
+      '2026.12.01 ~ 2026.12.03',
+      'https://shop.example.com/product-b',
+      '20% 할인',
+    ].join('\n');
+    let renderer: ReturnType<typeof renderSubmit> | undefined;
+
+    beforeEach(function() {
+      vi.useFakeTimers();
+      vi.mocked(apiModule.lookupInstagramUrl).mockReset();
+      vi.mocked(apiModule.postPublicJson).mockResolvedValue({ id: 'submission-id' });
+    });
+
+    afterEach(function() {
+      act(function() { renderer?.unmount(); });
+      renderer = undefined;
+      vi.useRealTimers();
+    });
+
+    async function loadPostA() {
+      vi.mocked(apiModule.lookupInstagramUrl).mockResolvedValueOnce(
+        instagramPost(captionA, 'https://images.example.com/a.jpg'),
+      );
+      renderer = renderSubmit();
+      changeInput(renderer, 'https://www.instagram.com/p/...', urlA);
+      await act(async function() { await vi.advanceTimersByTimeAsync(500); });
+      expect(inputValue(renderer, '예: 비건 선크림')).toBe('에이 선크림 공구');
+      expect(inputValue(renderer, 'https://...')).toBe('https://shop.example.com/product-a');
+      expect(inputValue(renderer, '예: 정가 229,000원 → 29% 163,560원')).toBe('30% 할인');
+      expect(findSummaryInput(renderer).props.value).toBe(captionA);
+      expect(flattenText(renderer.toJSON())).toContain('2026-11-01');
+      expect(flattenText(renderer.toJSON())).toContain('2026-11-03');
+      return renderer;
+    }
+
+    it('submits only post B auto-filled fields and media after replacing post A', async function() {
+      const screen = await loadPostA();
+      vi.mocked(apiModule.lookupInstagramUrl).mockResolvedValueOnce(
+        instagramPost(captionB, 'https://images.example.com/b.jpg'),
+      );
+      changeInput(screen, 'https://www.instagram.com/p/...', urlB);
+      await act(async function() { await vi.advanceTimersByTimeAsync(500); });
+      selectCategory(screen);
+      pressSubmit(screen);
+
+      expect(apiModule.postPublicJson).toHaveBeenCalledWith('/submissions', expect.objectContaining({
+        instagramUrl: urlB,
+        productName: '비 샴푸 공구',
+        startDate: '2026-12-01',
+        endDate: '2026-12-03',
+        purchaseUrl: 'https://shop.example.com/product-b',
+        discountInfo: '20% 할인',
+        summary: captionB,
+        imageUrls: ['https://images.example.com/b.jpg'],
+        thumbnailUrl: 'https://images.example.com/b.jpg',
+        mediaUrls: ['https://images.example.com/b.jpg'],
+      }));
+    });
+
+    it.each(['loading', 'failed'] as const)(
+      'removes post A auto-fill before a replacement lookup is %s',
+      async function(status) {
+        const screen = await loadPostA();
+        let rejectLookup: (error: Error) => void = function() {};
+        vi.mocked(apiModule.lookupInstagramUrl).mockReturnValueOnce(new Promise(function(_resolve, reject) {
+          rejectLookup = reject;
+        }));
+        changeInput(screen, 'https://www.instagram.com/p/...', urlB);
+
+        expect(inputValue(screen, '예: 비건 선크림')).toBe('');
+        expect(inputValue(screen, 'https://...')).toBe('');
+        expect(inputValue(screen, '예: 정가 229,000원 → 29% 163,560원')).toBe('');
+        expect(findSummaryInput(screen).props.value).toBe('');
+        expect(flattenText(screen.toJSON())).not.toContain('2026-11-01');
+        expect(flattenText(screen.toJSON())).not.toContain('2026-11-03');
+
+        await act(async function() { await vi.advanceTimersByTimeAsync(500); });
+        if (status === 'failed') {
+          await act(async function() { rejectLookup(new Error('Post B lookup failed')); });
+        }
+        changeInput(screen, '예: 비건 선크림', '직접 입력한 비 상품');
+        selectCategory(screen);
+        pressSubmit(screen);
+
+        expect(apiModule.postPublicJson).toHaveBeenCalledWith('/submissions', expect.objectContaining({
+          instagramUrl: urlB,
+          productName: '직접 입력한 비 상품',
+          purchaseUrl: urlB,
+          startDate: undefined,
+          endDate: undefined,
+          discountInfo: undefined,
+          summary: undefined,
+          imageUrls: [],
+          mediaUrls: [],
+        }));
+      },
+    );
+
+    it('preserves manual field edits and explicit clears while updating untouched fields for post B', async function() {
+      const screen = await loadPostA();
+      changeInput(screen, '예: 비건 선크림', '사용자 지정 제품명');
+      changeInput(screen, 'https://...', 'https://shop.example.com/manual');
+      changeInput(screen, '예: 정가 229,000원 → 29% 163,560원', '직접 확인한 가격');
+      act(function() { findSummaryInput(screen).props.onChangeText(''); });
+      act(function() { screen.root.findByProps({ accessibilityLabel: '시작일 선택' }).props.onPress(); });
+      const clearDate = getAllByType(screen.root, 'Pressable').find(function(node: any) {
+        return flattenText(node).includes('날짜 지우기');
+      });
+      act(function() { clearDate.props.onPress(); });
+
+      vi.mocked(apiModule.lookupInstagramUrl).mockResolvedValueOnce(
+        instagramPost(captionB, 'https://images.example.com/b.jpg'),
+      );
+      changeInput(screen, 'https://www.instagram.com/p/...', urlB);
+      await act(async function() { await vi.advanceTimersByTimeAsync(500); });
+      expect(inputValue(screen, '예: 비건 선크림')).toBe('사용자 지정 제품명');
+      expect(inputValue(screen, 'https://...')).toBe('https://shop.example.com/manual');
+      expect(inputValue(screen, '예: 정가 229,000원 → 29% 163,560원')).toBe('직접 확인한 가격');
+      expect(findSummaryInput(screen).props.value).toBe('');
+      expect(flattenText(screen.toJSON())).not.toContain('2026-12-01');
+      expect(flattenText(screen.toJSON())).toContain('2026-12-03');
+      selectCategory(screen);
+      pressSubmit(screen);
+
+      expect(apiModule.postPublicJson).toHaveBeenCalledWith('/submissions', expect.objectContaining({
+        instagramUrl: urlB,
+        productName: '사용자 지정 제품명',
+        purchaseUrl: 'https://shop.example.com/manual',
+        discountInfo: '직접 확인한 가격',
+        summary: undefined,
+        startDate: undefined,
+        endDate: '2026-12-03',
+        imageUrls: ['https://images.example.com/b.jpg'],
+      }));
+    });
+
+    it('does not retain optional post A fields when post B has no caption', async function() {
+      const screen = await loadPostA();
+      vi.mocked(apiModule.lookupInstagramUrl).mockResolvedValueOnce(
+        instagramPost(null, 'https://images.example.com/b.jpg'),
+      );
+      changeInput(screen, 'https://www.instagram.com/p/...', urlB);
+      await act(async function() { await vi.advanceTimersByTimeAsync(500); });
+      changeInput(screen, '예: 비건 선크림', '비 상품 수동 입력');
+      selectCategory(screen);
+      pressSubmit(screen);
+
+      expect(apiModule.postPublicJson).toHaveBeenCalledWith('/submissions', expect.objectContaining({
+        instagramUrl: urlB,
+        productName: '비 상품 수동 입력',
+        purchaseUrl: urlB,
+        startDate: undefined,
+        endDate: undefined,
+        discountInfo: undefined,
+        summary: undefined,
+        imageUrls: ['https://images.example.com/b.jpg'],
+      }));
+    });
   });
 
   it('renders the form header text', function() {

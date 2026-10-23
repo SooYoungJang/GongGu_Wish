@@ -1,5 +1,6 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CommentPage, CommentView } from "./types";
@@ -24,6 +25,16 @@ const queryResult = vi.hoisted(() => ({
   isError: false,
   isLoading: false,
   refetch: vi.fn().mockResolvedValue(undefined),
+}));
+
+const queryMocks = vi.hoisted(() => ({
+  useRealQuery: false,
+  keys: [] as (readonly unknown[])[],
+}));
+
+const authMocks = vi.hoisted(() => ({
+  user: { id: "user-a" } as { id: string } | null,
+  requireAuth: vi.fn(() => true),
 }));
 
 vi.mock("react-native", () => {
@@ -61,16 +72,31 @@ vi.mock("@expo/vector-icons", () => ({
     React.createElement("Ionicons", { name }),
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => queryResult,
-}));
+vi.mock("@tanstack/react-query", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-query")>();
+  return {
+    ...actual,
+    useQuery: (options: Parameters<typeof actual.useQuery>[0]) => {
+      queryMocks.keys = [...queryMocks.keys, options.queryKey];
+      return queryMocks.useRealQuery ? actual.useQuery(options) : queryResult;
+    },
+  };
+});
 
 vi.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
 vi.mock("../../hooks/useAuthGate", () => ({
-  useAuthGate: () => ({ isAuthenticated: true, requireAuth: vi.fn(() => true) }),
+  useAuthGate: () => ({
+    isAuthenticated: Boolean(authMocks.user),
+    requireAuth: authMocks.requireAuth,
+    user: authMocks.user,
+  }),
+}));
+
+vi.mock("../../context/AuthContext", () => ({
+  useAuth: () => ({ user: authMocks.user }),
 }));
 
 vi.mock("../../context/ThemeContext", () => ({
@@ -121,6 +147,26 @@ function makeComment(overrides: Partial<CommentView> = {}): CommentView {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((accept, decline) => {
+    resolve = accept;
+    reject = decline;
+  });
+  return { promise, resolve, reject };
+}
+
+const emptyPage = (): CommentPage => ({ items: [], nextCursor: null, liveRanking: false });
+
+async function settleQueries() {
+  await act(async () => {
+    for (let turn = 0; turn < 3; turn += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  });
+}
+
 describe("CommentSheet", () => {
   beforeEach(() => {
     apiMocks.listCommentRoots.mockReset().mockResolvedValue({
@@ -141,6 +187,216 @@ describe("CommentSheet", () => {
     nativeMocks.keyboardDismiss.mockReset();
     nativeMocks.platform.OS = "ios";
     queryResult.data = { items: [], nextCursor: null, liveRanking: false };
+    queryResult.refetch.mockClear();
+    queryMocks.useRealQuery = false;
+    queryMocks.keys = [];
+    authMocks.user = { id: "user-a" };
+    authMocks.requireAuth.mockReset().mockReturnValue(true);
+  });
+
+  it("synchronously ignores rapid duplicate submits and disables submit while pending", async () => {
+    const request = deferred<CommentView>();
+    apiMocks.createComment.mockReturnValue(request.promise);
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible />);
+      });
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.onChangeText("한 번만 등록해 주세요"));
+      const submit = renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress;
+      act(() => {
+        submit();
+        submit();
+      });
+
+      expect(apiMocks.createComment).toHaveBeenCalledTimes(1);
+      expect(renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.disabled).toBe(true);
+      await act(async () => request.resolve(makeComment()));
+      expect(renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.value).toBe("");
+    } finally {
+      request.resolve(makeComment());
+      if (renderer) act(() => renderer.unmount());
+    }
+  });
+
+  it("preserves a newer draft when an earlier submit completes", async () => {
+    const request = deferred<CommentView>();
+    apiMocks.createComment.mockReturnValueOnce(request.promise).mockResolvedValue(makeComment());
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible />);
+      });
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.onChangeText("먼저 등록한 댓글"));
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress());
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.onChangeText("기다리며 작성한 다음 댓글"));
+      await act(async () => request.resolve(makeComment()));
+
+      expect(renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.value).toBe("기다리며 작성한 다음 댓글");
+      expect(renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.disabled).toBe(false);
+      expect(nativeMocks.keyboardDismiss).not.toHaveBeenCalled();
+      await act(async () => renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress());
+      expect(apiMocks.createComment).toHaveBeenLastCalledWith(expect.objectContaining({ body: "기다리며 작성한 다음 댓글" }));
+    } finally {
+      request.resolve(makeComment());
+      if (renderer) act(() => renderer.unmount());
+    }
+  });
+
+  it("preserves a newly selected reply recipient while an earlier reply finishes", async () => {
+    const firstRoot = makeComment({ authorDisplayName: "먼저 답글 받을 사람" });
+    const secondRoot = makeComment({ id: "root-2", rootId: "root-2", authorDisplayName: "다음 답글 받을 사람" });
+    queryResult.data = { ...emptyPage(), items: [firstRoot, secondRoot] };
+    const request = deferred<CommentView>();
+    apiMocks.createComment.mockReturnValueOnce(request.promise).mockResolvedValue(makeComment());
+    let renderer!: TestRenderer.ReactTestRenderer;
+    const replyActions = () => renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "답글 작성");
+
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible />);
+      });
+      act(() => replyActions()[0].props.onPress());
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.onChangeText("첫 번째 사람에게 답글"));
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress());
+      act(() => replyActions()[1].props.onPress());
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.onChangeText("두 번째 사람에게 답글"));
+      await act(async () => request.resolve(makeComment()));
+
+      expect(renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.value).toBe("두 번째 사람에게 답글");
+      expect(renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "답글 대상 취소")).toHaveLength(1);
+      await act(async () => renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress());
+      expect(apiMocks.createComment).toHaveBeenLastCalledWith(expect.objectContaining({ parentId: secondRoot.id, body: "두 번째 사람에게 답글" }));
+    } finally {
+      request.resolve(makeComment());
+      if (renderer) act(() => renderer.unmount());
+    }
+  });
+
+  it("reuses a failed draft's idempotency key but assigns a fresh key to the next submission", async () => {
+    apiMocks.createComment
+      .mockRejectedValueOnce(new Error("response lost after server accepted the comment"))
+      .mockResolvedValue(makeComment());
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible />);
+      });
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.onChangeText("재시도할 댓글"));
+      await act(async () => renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress());
+      expect(renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.value).toBe("재시도할 댓글");
+      expect(renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.disabled).toBe(false);
+      await act(async () => renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress());
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.onChangeText("재시도할 댓글"));
+      await act(async () => renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress());
+
+      const [first, retry, next] = apiMocks.createComment.mock.calls.map(([input]) => input);
+      expect(first.clientRequestId).toEqual(expect.any(String));
+      expect(retry.clientRequestId).toBe(first.clientRequestId);
+      expect(next.clientRequestId).toEqual(expect.any(String));
+      expect(next.clientRequestId).not.toBe(first.clientRequestId);
+    } finally {
+      if (renderer) act(() => renderer.unmount());
+    }
+  });
+
+  it.each([
+    { source: null, target: "user-a", description: "guest to signed-in user" },
+    { source: "user-a", target: "user-b", description: "one account to another" },
+  ])("loads personal likes and block filtering afresh when switching $description", async ({ source, target }) => {
+    queryMocks.useRealQuery = true;
+    authMocks.user = source ? { id: source } : null;
+    const sourceRoot = makeComment({ likedByMe: source === "user-a" });
+    const targetRoot = makeComment({ likedByMe: target === "user-a" });
+    const sourceOnly = makeComment({ id: "old-visible", rootId: "old-visible", body: "새 계정에서는 차단되어 숨겨야 하는 댓글" });
+    apiMocks.listCommentRoots.mockImplementation(async () => ({
+      items: authMocks.user?.id === target ? [targetRoot] : [sourceRoot, sourceOnly],
+      nextCursor: null,
+      liveRanking: false,
+    }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    const onClose = vi.fn();
+    const content = () => <QueryClientProvider client={client}><CommentSheet groupBuyId="deal-1" onClose={onClose} visible /></QueryClientProvider>;
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    try {
+      await act(async () => { renderer = TestRenderer.create(content()); });
+      await settleQueries();
+      expect(JSON.stringify(renderer.toJSON())).toContain(sourceOnly.body);
+      const sourceKey = queryMocks.keys[queryMocks.keys.length - 1];
+
+      authMocks.user = { id: target };
+      await act(async () => renderer.update(content()));
+      await settleQueries();
+
+      expect(apiMocks.listCommentRoots).toHaveBeenCalledTimes(2);
+      expect(queryMocks.keys[queryMocks.keys.length - 1]).not.toEqual(sourceKey);
+      expect(JSON.stringify(renderer.toJSON())).not.toContain(sourceOnly.body);
+      expect(renderer.root.findByProps({ accessibilityLabel: targetRoot.likedByMe ? "좋아요 취소" : "댓글 좋아요" })).toBeTruthy();
+    } finally {
+      if (renderer) act(() => renderer.unmount());
+      client.clear();
+    }
+  });
+
+  it("clears a loaded reply thread and selected reply author on account change", async () => {
+    const root = makeComment({ directReplyCount: 1 });
+    const reply = makeComment({ id: "reply-a", rootId: root.id, parentId: root.id, depth: 1, body: "이전 계정의 답글", authorDisplayName: "이전 계정에서 선택한 답글러" });
+    queryResult.data = { items: [root], nextCursor: null, liveRanking: false };
+    apiMocks.listCommentChildren.mockResolvedValue({ ...emptyPage(), items: [reply] });
+    const onClose = vi.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    try {
+      await act(async () => { renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible />); });
+      await act(async () => renderer.root.findByProps({ accessibilityLabel: "답글 1개 보기" }).props.onPress());
+      act(() => renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "답글 작성")[1].props.onPress());
+      expect(JSON.stringify(renderer.toJSON())).toContain(reply.body);
+      expect(renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "답글 대상 취소")).toHaveLength(1);
+
+      authMocks.user = { id: "user-b" };
+      await act(async () => renderer.update(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible />));
+
+      expect(JSON.stringify(renderer.toJSON())).not.toContain(reply.body);
+      expect(renderer.root.findAllByProps({ accessibilityLabel: "댓글 스레드 닫기" })).toHaveLength(0);
+      expect(renderer.root.findAllByProps({ accessibilityLabel: "답글 대상 취소" })).toHaveLength(0);
+    } finally {
+      if (renderer) act(() => renderer.unmount());
+    }
+  });
+
+  it("discards replies still loading for the previous account after the new account opens the thread", async () => {
+    const root = makeComment({ directReplyCount: 1 });
+    const oldReply = makeComment({ id: "reply-a", rootId: root.id, parentId: root.id, depth: 1, body: "이전 계정의 지연 답글" });
+    const newReply = makeComment({ id: "reply-b", rootId: root.id, parentId: root.id, depth: 1, body: "현재 계정의 답글" });
+    const request = deferred<CommentPage>();
+    queryResult.data = { items: [root], nextCursor: null, liveRanking: false };
+    apiMocks.listCommentChildren.mockReturnValueOnce(request.promise).mockResolvedValue({ ...emptyPage(), items: [newReply] });
+    const onClose = vi.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    try {
+      await act(async () => { renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible />); });
+      act(() => renderer.root.findByProps({ accessibilityLabel: "답글 1개 보기" }).props.onPress());
+      authMocks.user = { id: "user-b" };
+      await act(async () => renderer.update(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible />));
+      // Also close a retained old thread so the late-response guard is tested independently of the reset.
+      const retainedThread = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "댓글 스레드 닫기");
+      if (retainedThread.length) act(() => retainedThread[0].props.onPress());
+      const openForNewAccount = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "답글 1개 보기");
+      expect(openForNewAccount).toHaveLength(1);
+      await act(async () => openForNewAccount[0].props.onPress());
+      expect(JSON.stringify(renderer.toJSON())).toContain(newReply.body);
+      await act(async () => request.resolve({ ...emptyPage(), items: [oldReply] }));
+      expect(JSON.stringify(renderer.toJSON())).not.toContain(oldReply.body);
+      expect(JSON.stringify(renderer.toJSON())).toContain(newReply.body);
+    } finally {
+      request.resolve(emptyPage());
+      if (renderer) act(() => renderer.unmount());
+    }
   });
 
   it("ignores a late latest page after switching to popular comments", async () => {

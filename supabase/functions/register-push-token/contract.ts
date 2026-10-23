@@ -27,7 +27,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
 export type ValidatedPushRegistrationInput = {
   readOnly: boolean;
   token: string | null;
-  tokenAction: "set" | "clear" | "preserve";
+  tokenAction: "set" | "clear" | "preserve" | "release";
   preferences: NotificationPreferences | null;
 };
 
@@ -225,6 +225,13 @@ export function validatePushRegistrationInput(
   value: unknown,
 ): ValidatedPushRegistrationInput {
   if (!isRecord(value)) throw new Error("요청 본문이 올바르지 않습니다.");
+  if (value.action === "unregister") {
+    if (typeof value.token !== "string" || !EXPO_PUSH_TOKEN_PATTERN.test(value.token) ||
+      value.preferences !== undefined || (value.provider !== undefined && value.provider !== "expo")) {
+      throw new Error("해제할 기기의 Expo Push Token이 필요합니다.");
+    }
+    return { readOnly: false, token: value.token, tokenAction: "release", preferences: null };
+  }
   if (value.action === "read") {
     if (value.token !== undefined || value.preferences !== undefined) {
       throw new Error("조회 요청에는 변경 값을 포함할 수 없습니다.");

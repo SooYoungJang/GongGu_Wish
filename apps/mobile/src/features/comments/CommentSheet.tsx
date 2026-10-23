@@ -29,6 +29,7 @@ import Reanimated, {
 } from "react-native-reanimated";
 
 import { useAuthGate } from "../../hooks/useAuthGate";
+import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { borderRadius, spacing } from "../../design/tokens";
 import { BOTTOM_SHEET_ANIMATION_MS } from "../../design/bottomSheetMotion";
@@ -45,6 +46,7 @@ import {
 import type { CommentSort, CommentView } from "./types";
 import {
   commentPlaceholder,
+  createClientRequestId,
   COMMENT_TERMS_VERSION,
   MAX_COMMENT_LENGTH,
   formatCommentAge,
@@ -208,12 +210,23 @@ export function CommentSheet({
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { isAuthenticated, requireAuth } = useAuthGate();
+  const { user } = useAuth();
+  const viewerKey = isAuthenticated && user?.id ? `user:${user.id}` : "guest";
+  const scopeKey = JSON.stringify([groupBuyId, viewerKey]);
+  const requestScope = useRef({ key: scopeKey, visible, generation: 0 });
+  if (requestScope.current.key !== scopeKey || requestScope.current.visible !== visible) {
+    requestScope.current = { key: scopeKey, visible, generation: requestScope.current.generation + 1 };
+  }
   const resolvedMaxHeight = Math.max(1, maxHeight ?? 1);
   const fallbackSheetTranslate = useSharedValue(resolvedMaxHeight);
   const activeSheetTranslate = sheetTranslate ?? fallbackSheetTranslate;
   const sheetDragStartY = useSharedValue(0);
   const [sort, setSort] = useState<CommentSort>("latest");
   const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const composerRevision = useRef(0);
+  const pendingSubmission = useRef<{ fingerprint: string; id: string } | null>(null);
+  const inFlightSubmission = useRef<{ fingerprint: string; id: string } | null>(null);
   const [replyTarget, setReplyTarget] = useState<CommentView | null>(null);
   const [childrenByParent, setChildrenByParent] = useState<Record<string, CommentView[]>>({});
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -226,7 +239,7 @@ export function CommentSheet({
   const [isCommentListAtTop, setIsCommentListAtTop] = useState(true);
 
   const rootsQuery = useQuery({
-    queryKey: ["comments", groupBuyId, sort, "roots"],
+    queryKey: ["comments", groupBuyId, sort, "roots", viewerKey],
     queryFn: () => listCommentRoots(groupBuyId, sort),
     enabled: visible,
     staleTime: 15_000,
@@ -239,10 +252,36 @@ export function CommentSheet({
     setRootCursor(rootsQuery.data?.nextCursor ?? null);
     setLoadingMoreRoots(false);
     return () => { rootPageGenerationRef.current += 1; };
-  }, [groupBuyId, rootsQuery.data, sort, visible]);
+  }, [groupBuyId, rootsQuery.data, sort, viewerKey, visible]);
+
+  useEffect(() => {
+    composerRevision.current += 1;
+    pendingSubmission.current = null;
+    inFlightSubmission.current = null;
+    setSubmitting(false);
+    setBody("");
+    setReplyTarget(null);
+    setChildrenByParent({});
+    setExpandedIds(new Set());
+    setActiveThreadRoot(null);
+    setLoadingChildren(new Set());
+  }, [scopeKey]);
+
+  useEffect(() => () => { requestScope.current.generation += 1; }, []);
+
+  const changeBody = useCallback((value: string) => {
+    composerRevision.current += 1;
+    setBody(value);
+  }, []);
+  const selectReplyTarget = useCallback((value: CommentView | null) => {
+    composerRevision.current += 1;
+    setReplyTarget(value);
+  }, []);
 
   useEffect(() => {
     if (!visible) {
+      inFlightSubmission.current = null;
+      setSubmitting(false);
       setActiveThreadRoot(null);
       setReplyTarget(null);
       setExpandedIds(new Set());
@@ -251,6 +290,7 @@ export function CommentSheet({
   }, [visible]);
 
   const refreshComments = useCallback(async () => {
+    requestScope.current.generation += 1;
     rootPageGenerationRef.current += 1;
     setLoadingMoreRoots(false);
     setAdditionalRoots([]);
@@ -335,14 +375,18 @@ export function CommentSheet({
         return;
       }
       setLoadingChildren((current) => new Set(current).add(comment.id));
+      const generation = requestScope.current.generation;
+      const isCurrent = () => requestScope.current.generation === generation;
       try {
         const children = await fetchAllChildrenForParent(comment.id);
+        if (!isCurrent()) return;
         setChildrenByParent((current) => ({ ...current, [comment.id]: children }));
         setExpandedIds((current) => new Set(current).add(comment.id));
       } catch (error) {
+        if (!isCurrent()) return;
         Alert.alert("답글을 불러오지 못했어요", error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.");
       } finally {
-        setLoadingChildren((current) => {
+        if (isCurrent()) setLoadingChildren((current) => {
           const next = new Set(current);
           next.delete(comment.id);
           return next;
@@ -354,12 +398,15 @@ export function CommentSheet({
 
   const openThread = useCallback(
     async (comment: CommentView) => {
+      const generation = requestScope.current.generation;
+      const isCurrent = () => requestScope.current.generation === generation;
       setActiveThreadRoot(comment);
       setExpandedIds((current) => new Set(current).add(comment.id));
 
       setLoadingChildren((current) => new Set(current).add(comment.id));
       try {
         const loaded = await fetchAllThreadChildren(comment.id);
+        if (!isCurrent()) return;
         setChildrenByParent((current) => ({ ...current, ...loaded }));
         setExpandedIds((current) => {
           const next = new Set(current);
@@ -367,6 +414,7 @@ export function CommentSheet({
           return next;
         });
       } catch (error) {
+        if (!isCurrent()) return;
         setActiveThreadRoot(null);
         setExpandedIds((current) => {
           const next = new Set(current);
@@ -375,7 +423,7 @@ export function CommentSheet({
         });
         Alert.alert("답글을 불러오지 못했어요", error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.");
       } finally {
-        setLoadingChildren((current) => {
+        if (isCurrent()) setLoadingChildren((current) => {
           const next = new Set(current);
           next.delete(comment.id);
           return next;
@@ -476,27 +524,48 @@ export function CommentSheet({
   );
 
   const submitComment = useCallback(async () => {
+    if (inFlightSubmission.current) return;
     if (!requireAuth()) return;
     const validationError = validateCommentBody(body);
     if (validationError) {
       Alert.alert("댓글을 확인해 주세요", validationError);
       return;
     }
+    const generation = requestScope.current.generation;
+    const revision = composerRevision.current;
+    const fingerprint = JSON.stringify([scopeKey, replyTarget?.id ?? null, body.trim()]);
+    const submission = pendingSubmission.current?.fingerprint === fingerprint
+      ? pendingSubmission.current
+      : { fingerprint, id: createClientRequestId() };
+    pendingSubmission.current = submission;
+    inFlightSubmission.current = submission;
+    setSubmitting(true);
     try {
       await createComment({
         groupBuyId,
         parentId: replyTarget?.id,
         body,
+        clientRequestId: submission.id,
         termsVersion: COMMENT_TERMS_VERSION,
       });
-      Keyboard.dismiss();
-      setBody("");
-      setReplyTarget(null);
+      if (requestScope.current.generation !== generation) return;
+      if (pendingSubmission.current === submission) pendingSubmission.current = null;
+      if (composerRevision.current === revision) {
+        Keyboard.dismiss();
+        setBody("");
+        setReplyTarget(null);
+      }
       await refreshComments();
     } catch (error) {
+      if (requestScope.current.generation !== generation) return;
       Alert.alert("댓글을 등록하지 못했어요", error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.");
+    } finally {
+      if (inFlightSubmission.current === submission) {
+        inFlightSubmission.current = null;
+        setSubmitting(false);
+      }
     }
-  }, [body, groupBuyId, refreshComments, replyTarget, requireAuth]);
+  }, [body, groupBuyId, refreshComments, replyTarget, requireAuth, scopeKey]);
 
   const renderChildren = useCallback(
     (items: CommentView[]): ReactNode => {
@@ -513,7 +582,7 @@ export function CommentSheet({
               onLike={() => void handleLike(item)}
               onLoadChildren={() => void loadChildren(item)}
               onMore={() => handleMore(item)}
-              onReply={() => setReplyTarget(item)}
+              onReply={() => selectReplyTarget(item)}
               renderChildren={renderChildren}
               showReplyToggle={!activeThreadRoot}
             />
@@ -533,6 +602,7 @@ export function CommentSheet({
       handleMore,
       loadChildren,
       loadingChildren,
+      selectReplyTarget,
     ],
   );
 
@@ -655,10 +725,11 @@ export function CommentSheet({
                   accessibilityRole="tab"
                   onPress={() => {
                     setSort(value);
+                    requestScope.current.generation += 1;
                     setChildrenByParent({});
                     setExpandedIds(new Set());
                     setActiveThreadRoot(null);
-                    setReplyTarget(null);
+                    selectReplyTarget(null);
                   }}
                   style={[styles.sortTab, sort === value && { backgroundColor: colors.primary }]}
                 >
@@ -713,7 +784,7 @@ export function CommentSheet({
                   }}
                   onLike={() => void handleLike(item)}
                   onMore={() => handleMore(item)}
-                  onReply={() => setReplyTarget(item)}
+                  onReply={() => selectReplyTarget(item)}
                   renderChildren={renderChildren}
                   showReplyToggle={!activeThreadRoot}
                 />
@@ -739,7 +810,7 @@ export function CommentSheet({
                 {replyTarget ? (
                   <View style={styles.replyingRow}>
                     <SText variant="caption" style={{ color: colors.primary }}>@{replyTarget.authorDisplayName ?? "공구 사용자"}에게 답글</SText>
-                    <Pressable accessibilityLabel="답글 대상 취소" onPress={() => setReplyTarget(null)}><Ionicons name="close-circle" size={18} color={colors.textTertiary} /></Pressable>
+                    <Pressable accessibilityLabel="답글 대상 취소" onPress={() => selectReplyTarget(null)}><Ionicons name="close-circle" size={18} color={colors.textTertiary} /></Pressable>
                   </View>
                 ) : null}
                 <View style={styles.inputRow}>
@@ -747,13 +818,13 @@ export function CommentSheet({
                     accessibilityLabel="댓글 입력"
                     maxLength={MAX_COMMENT_LENGTH}
                     multiline
-                    onChangeText={setBody}
+                    onChangeText={changeBody}
                     placeholder={replyTarget ? "답글을 입력하세요" : "댓글을 입력하세요"}
                     placeholderTextColor={colors.textTertiary}
                     style={[styles.input, { borderColor: colors.border, color: colors.textPrimary }]}
                     value={body}
                   />
-                  <Pressable accessibilityLabel="댓글 등록" accessibilityRole="button" disabled={!body.trim()} onPress={() => void submitComment()} style={[styles.sendButton, { backgroundColor: colors.primary }, !body.trim() && styles.disabledButton]}>
+                  <Pressable accessibilityLabel="댓글 등록" accessibilityRole="button" disabled={!body.trim() || submitting} onPress={() => void submitComment()} style={[styles.sendButton, { backgroundColor: colors.primary }, (!body.trim() || submitting) && styles.disabledButton]}>
                     <Ionicons name="arrow-up" size={20} color={colors.textInverse} />
                   </Pressable>
                 </View>
