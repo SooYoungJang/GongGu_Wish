@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -222,6 +222,7 @@ export function CommentSheet({
   const [additionalRoots, setAdditionalRoots] = useState<CommentView[]>([]);
   const [rootCursor, setRootCursor] = useState<string | null>(null);
   const [loadingMoreRoots, setLoadingMoreRoots] = useState(false);
+  const rootPageGenerationRef = useRef(0);
   const [isCommentListAtTop, setIsCommentListAtTop] = useState(true);
 
   const rootsQuery = useQuery({
@@ -233,9 +234,12 @@ export function CommentSheet({
   const { refetch: refetchRoots } = rootsQuery;
 
   useEffect(() => {
+    rootPageGenerationRef.current += 1;
     setAdditionalRoots([]);
     setRootCursor(rootsQuery.data?.nextCursor ?? null);
-  }, [groupBuyId, rootsQuery.data, sort]);
+    setLoadingMoreRoots(false);
+    return () => { rootPageGenerationRef.current += 1; };
+  }, [groupBuyId, rootsQuery.data, sort, visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -247,6 +251,8 @@ export function CommentSheet({
   }, [visible]);
 
   const refreshComments = useCallback(async () => {
+    rootPageGenerationRef.current += 1;
+    setLoadingMoreRoots(false);
     setAdditionalRoots([]);
     setRootCursor(null);
     setChildrenByParent({});
@@ -256,21 +262,24 @@ export function CommentSheet({
   }, [refetchRoots]);
 
   const loadMoreRoots = useCallback(async () => {
-    if (!rootCursor || loadingMoreRoots) return;
+    if (!visible || !rootCursor || loadingMoreRoots) return;
+    const generation = rootPageGenerationRef.current;
     setLoadingMoreRoots(true);
     try {
       const page = await listCommentRoots(groupBuyId, sort, rootCursor);
+      if (generation !== rootPageGenerationRef.current) return;
       setAdditionalRoots((current) => [...current, ...page.items]);
       setRootCursor(page.nextCursor);
     } catch (error) {
+      if (generation !== rootPageGenerationRef.current) return;
       Alert.alert(
         "댓글을 더 불러오지 못했어요",
         error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
       );
     } finally {
-      setLoadingMoreRoots(false);
+      if (generation === rootPageGenerationRef.current) setLoadingMoreRoots(false);
     }
-  }, [groupBuyId, loadingMoreRoots, rootCursor, sort]);
+  }, [groupBuyId, loadingMoreRoots, rootCursor, sort, visible]);
 
   const fetchAllChildrenForParent = useCallback(
     async (parentId: string) => {
