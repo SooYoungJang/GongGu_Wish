@@ -399,6 +399,213 @@ describe("CommentSheet", () => {
     }
   });
 
+  const mutationCases = [
+    { action: "like", transition: "product" },
+    { action: "like", transition: "account" },
+    { action: "like", transition: "reopen" },
+    { action: "report", transition: "product" },
+    { action: "report", transition: "account" },
+    { action: "report", transition: "reopen" },
+    { action: "block", transition: "product" },
+    { action: "block", transition: "account" },
+    { action: "block", transition: "reopen" },
+  ] as const;
+  type MutationAction = typeof mutationCases[number]["action"];
+
+  const mutationApi = (action: MutationAction) => ({
+    like: apiMocks.setCommentLike,
+    report: apiMocks.reportComment,
+    block: apiMocks.blockUserFromComment,
+  })[action];
+
+  const pressAlertAction = (text: string) => {
+    const buttons = nativeMocks.alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => unknown }[];
+    const button = buttons?.find((candidate) => candidate.text === text);
+    expect(button?.onPress).toEqual(expect.any(Function));
+    return button!.onPress!();
+  };
+
+  const beginMutation = async (renderer: TestRenderer.ReactTestRenderer, action: MutationAction) => {
+    await act(async () => {
+      const label = action === "like" ? "댓글 좋아요" : "댓글 더보기";
+      const button = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === label)[0];
+      if (action === "like") {
+        button.props.onPress();
+      } else {
+        button.props.onPress();
+        pressAlertAction(action === "report" ? "신고" : "사용자 차단");
+        pressAlertAction(action === "report" ? "스팸/광고" : "차단");
+      }
+    });
+  };
+
+  it.each(mutationCases.flatMap((testCase) => [
+    { ...testCase, outcome: "success" as const },
+    { ...testCase, outcome: "failure" as const },
+  ]))("ignores an old $action $outcome after a $transition change without disturbing the current thread", async ({ action, transition, outcome }) => {
+    const root = makeComment({ directReplyCount: 1 });
+    const currentRoot = makeComment({ id: "current-root", rootId: "current-root", groupBuyId: transition === "product" ? "deal-2" : "deal-1", directReplyCount: 1 });
+    const currentReply = makeComment({ id: "current-reply", rootId: currentRoot.id, parentId: currentRoot.id, groupBuyId: currentRoot.groupBuyId, depth: 1, body: "현재 화면에서 읽고 있는 답글" });
+    const request = deferred<unknown>();
+    queryResult.data = { ...emptyPage(), items: [root] };
+    mutationApi(action).mockReturnValue(request.promise);
+    apiMocks.listCommentChildren.mockResolvedValue({ ...emptyPage(), items: [currentReply] });
+    const onClose = vi.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    try {
+      await act(async () => { renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible />); });
+      await beginMutation(renderer, action);
+      expect(mutationApi(action)).toHaveBeenCalledTimes(1);
+
+      if (transition === "reopen") {
+        await act(async () => renderer.update(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible={false} />));
+      }
+      if (transition === "account") authMocks.user = { id: "user-b" };
+      queryResult.data = { ...emptyPage(), items: [currentRoot] };
+      await act(async () => renderer.update(<CommentSheet groupBuyId={currentRoot.groupBuyId} onClose={onClose} visible />));
+      await act(async () => renderer.root.findByProps({ accessibilityLabel: "답글 1개 보기" }).props.onPress());
+      expect(renderer.root.findAll((node) => String(node.type) === "Text" && node.children.some((child) => child === currentReply.body))).toHaveLength(1);
+      nativeMocks.alert.mockClear();
+      queryResult.refetch.mockClear();
+
+      await act(async () => {
+        if (outcome === "success") request.resolve(undefined);
+        else request.reject(new Error("이전 화면 요청 실패"));
+      });
+
+      expect(renderer.root.findAll((node) => String(node.type) === "Text" && node.children.some((child) => child === currentReply.body))).toHaveLength(1);
+      expect(renderer.root.findByProps({ accessibilityLabel: "댓글 스레드 닫기" })).toBeTruthy();
+      expect(queryResult.refetch).not.toHaveBeenCalled();
+      expect(nativeMocks.alert).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => { request.resolve(undefined); });
+      if (renderer) act(() => renderer.unmount());
+    }
+  });
+
+  it.each(["like", "report", "block"] as const)("refreshes the current comments after a successful %s", async (action) => {
+    const root = makeComment({ directReplyCount: 1 });
+    const reply = makeComment({ id: "reply-1", parentId: root.id, depth: 1, body: "갱신 전 답글" });
+    queryResult.data = { ...emptyPage(), items: [root] };
+    apiMocks.listCommentChildren.mockResolvedValue({ ...emptyPage(), items: [reply] });
+    mutationApi(action).mockResolvedValue(undefined);
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    try {
+      await act(async () => { renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible />); });
+      await act(async () => renderer.root.findByProps({ accessibilityLabel: "답글 1개 보기" }).props.onPress());
+      expect(JSON.stringify(renderer.toJSON())).toContain(reply.body);
+      await beginMutation(renderer, action);
+
+      expect(queryResult.refetch).toHaveBeenCalledTimes(1);
+      expect(renderer.root.findAllByProps({ accessibilityLabel: "댓글 스레드 닫기" })).toHaveLength(0);
+      if (action === "report") {
+        expect(nativeMocks.alert).toHaveBeenLastCalledWith("신고가 접수됐어요", "운영팀이 내용을 확인할게요.");
+      }
+    } finally {
+      if (renderer) act(() => renderer.unmount());
+    }
+  });
+
+  it.each(["report", "block"] as const)("does not submit a %s confirmation from a previous viewer", async (action) => {
+    const root = makeComment();
+    queryResult.data = { ...emptyPage(), items: [root] };
+    mutationApi(action).mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    try {
+      await act(async () => { renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible />); });
+      act(() => {
+        renderer.root.findByProps({ accessibilityLabel: "댓글 더보기" }).props.onPress();
+        pressAlertAction(action === "report" ? "신고" : "사용자 차단");
+      });
+      const buttons = nativeMocks.alert.mock.calls.at(-1)?.[2] as { text: string; onPress?: () => unknown }[];
+      const confirm = buttons.find((button) => button.text === (action === "report" ? "스팸/광고" : "차단"))!.onPress!;
+      authMocks.user = { id: "user-b" };
+      await act(async () => renderer.update(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible />));
+      nativeMocks.alert.mockClear();
+      queryResult.refetch.mockClear();
+
+      await act(async () => { await confirm(); });
+
+      expect(mutationApi(action)).not.toHaveBeenCalled();
+      expect(queryResult.refetch).not.toHaveBeenCalled();
+      expect(nativeMocks.alert).not.toHaveBeenCalled();
+    } finally {
+      if (renderer) act(() => renderer.unmount());
+    }
+  });
+
+  it.each(["like", "block"] as const)("applies a concurrent %s after another mutation refreshes the same comment session", async (secondAction) => {
+    queryMocks.useRealQuery = true;
+    const firstRoot = makeComment({ body: "먼저 좋아요를 누른 댓글" });
+    const secondRoot = makeComment({ id: "root-2", rootId: "root-2", body: "나중에 완료되는 작업의 댓글" });
+    const firstRequest = deferred<unknown>();
+    const secondRequest = deferred<unknown>();
+    let firstCommitted = false;
+    let secondCommitted = false;
+    apiMocks.listCommentRoots.mockImplementation(async () => ({
+      ...emptyPage(),
+      items: [
+        { ...firstRoot, likedByMe: firstCommitted },
+        ...(secondAction === "block" && secondCommitted ? [] : [{ ...secondRoot, likedByMe: secondCommitted }]),
+      ],
+    }));
+    apiMocks.setCommentLike.mockImplementation((id: string) => id === firstRoot.id ? firstRequest.promise : secondRequest.promise);
+    if (secondAction === "block") apiMocks.blockUserFromComment.mockReturnValue(secondRequest.promise);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    let renderer!: TestRenderer.ReactTestRenderer;
+    const buttons = (label: string) => renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === label);
+
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(<QueryClientProvider client={client}><CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible /></QueryClientProvider>);
+      });
+      await settleQueries();
+      expect(buttons("댓글 좋아요")).toHaveLength(2);
+      act(() => {
+        buttons("댓글 좋아요")[0].props.onPress();
+        if (secondAction === "like") {
+          buttons("댓글 좋아요")[1].props.onPress();
+        } else {
+          buttons("댓글 더보기")[1].props.onPress();
+          pressAlertAction("사용자 차단");
+          pressAlertAction("차단");
+        }
+      });
+      expect(apiMocks.setCommentLike).toHaveBeenCalledWith(firstRoot.id, true);
+      expect(mutationApi(secondAction)).toHaveBeenCalledWith(secondRoot.id, ...(secondAction === "like" ? [true] : []));
+
+      await act(async () => {
+        firstCommitted = true;
+        firstRequest.resolve(undefined);
+      });
+      await settleQueries();
+      expect(buttons("좋아요 취소")).toHaveLength(1);
+      expect(JSON.stringify(renderer.toJSON())).toContain(secondRoot.body);
+
+      await act(async () => {
+        secondCommitted = true;
+        secondRequest.resolve(undefined);
+      });
+      await settleQueries();
+
+      if (secondAction === "like") {
+        expect(buttons("좋아요 취소")).toHaveLength(2);
+        expect(buttons("댓글 좋아요")).toHaveLength(0);
+      } else {
+        expect(JSON.stringify(renderer.toJSON())).not.toContain(secondRoot.body);
+        expect(buttons("좋아요 취소")).toHaveLength(1);
+      }
+    } finally {
+      await act(async () => { firstRequest.resolve(undefined); secondRequest.resolve(undefined); });
+      if (renderer) act(() => renderer.unmount());
+      client.clear();
+    }
+  });
+
   it("ignores a late latest page after switching to popular comments", async () => {
     const latestRoot = makeComment({ body: "최신 첫 페이지" });
     const popularRoot = makeComment({ id: "popular-1", rootId: "popular-1", body: "인기 첫 페이지" });

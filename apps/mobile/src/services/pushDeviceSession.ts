@@ -37,7 +37,21 @@ export async function signOutPushDevice<T>(authToken: string | undefined, signOu
   pausedRegistrations += 1;
   try {
     // A registration already accepted by the server must finish before release.
-    await Promise.allSettled([...inFlightRegistrations]);
+    if (inFlightRegistrations.size > 0) {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          Promise.allSettled([...inFlightRegistrations]),
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error(
+              "푸시 등록이 지연되고 있어요. 네트워크를 확인한 뒤 로그아웃을 다시 시도해 주세요.",
+            )), 10_000);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
     const token = authToken ? await AsyncStorage.getItem(DEVICE_TOKEN_KEY) : null;
     if (authToken && isExpoPushToken(token)) {
       const controller = new AbortController();

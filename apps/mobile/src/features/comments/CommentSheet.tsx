@@ -267,7 +267,9 @@ export function CommentSheet({
     setLoadingChildren(new Set());
   }, [scopeKey]);
 
-  useEffect(() => () => { requestScope.current.generation += 1; }, []);
+  useEffect(() => () => {
+    requestScope.current = { ...requestScope.current, generation: requestScope.current.generation + 1 };
+  }, []);
 
   const changeBody = useCallback((value: string) => {
     composerRevision.current += 1;
@@ -447,10 +449,14 @@ export function CommentSheet({
   const handleLike = useCallback(
     async (comment: CommentView) => {
       if (!requireAuth()) return;
+      const scope = requestScope.current;
+      const isCurrent = () => requestScope.current === scope;
       try {
         await setCommentLike(comment.id, !comment.likedByMe);
+        if (!isCurrent()) return;
         await refreshComments();
       } catch (error) {
+        if (!isCurrent()) return;
         Alert.alert("좋아요를 처리하지 못했어요", error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.");
       }
     },
@@ -460,12 +466,18 @@ export function CommentSheet({
   const handleReport = useCallback(
     async (comment: CommentView) => {
       if (!requireAuth()) return;
+      const scope = requestScope.current;
+      const isCurrent = () => requestScope.current === scope;
       const submitReport = async (reason: string) => {
+        if (!isCurrent()) return;
         try {
           await reportComment(comment.id, reason);
+          if (!isCurrent()) return;
           await refreshComments();
+          if (!isCurrent()) return;
           Alert.alert("신고가 접수됐어요", "운영팀이 내용을 확인할게요.");
         } catch (error) {
+          if (!isCurrent()) return;
           Alert.alert(
             "신고하지 못했어요",
             error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
@@ -485,16 +497,21 @@ export function CommentSheet({
   const handleBlock = useCallback(
     (comment: CommentView) => {
       if (!requireAuth()) return;
+      const scope = requestScope.current;
+      const isCurrent = () => requestScope.current === scope;
       Alert.alert("사용자 차단", "이 사용자의 댓글을 앞으로 숨길까요?", [
         { text: "취소", style: "cancel" },
         {
           text: "차단",
           style: "destructive",
           onPress: async () => {
+            if (!isCurrent()) return;
             try {
               await blockUserFromComment(comment.id);
+              if (!isCurrent()) return;
               await refreshComments();
             } catch (error) {
+              if (!isCurrent()) return;
               Alert.alert("차단하지 못했어요", error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.");
             }
           },
@@ -507,15 +524,17 @@ export function CommentSheet({
   const handleMore = useCallback(
     (comment: CommentView) => {
       if (!requireAuth()) return;
+      const scope = requestScope.current;
+      const isCurrent = () => requestScope.current === scope;
       const actions = [
         { text: "취소", style: "cancel" as const },
         ...(comment.canReport
-          ? [{ text: "신고", onPress: () => void handleReport(comment) }]
+          ? [{ text: "신고", onPress: () => { if (isCurrent()) void handleReport(comment); } }]
           : []),
         {
           text: "사용자 차단",
           style: "destructive" as const,
-          onPress: () => handleBlock(comment),
+          onPress: () => { if (isCurrent()) handleBlock(comment); },
         },
       ];
       Alert.alert("댓글 더보기", "댓글 운영 옵션을 선택해 주세요.", actions);
