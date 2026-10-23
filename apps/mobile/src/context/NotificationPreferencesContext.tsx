@@ -72,21 +72,33 @@ export function NotificationPreferencesProvider({
   const loadGeneration = useRef(0);
   const editRevision = useRef(0);
   const saveGeneration = useRef(0);
-  const persistenceQueue = useRef<Promise<void>>(Promise.resolve());
+  const persistenceQueues = useRef(new Map<string, Promise<unknown>>());
+  const currentNamespace = useRef(namespace);
+  currentNamespace.current = namespace;
+  const loadedNamespace = useRef(namespace);
+  const enqueuePersistence = useCallback((scope: string, operation: () => Promise<void>) => {
+    const previous = persistenceQueues.current.get(scope) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(operation);
+    persistenceQueues.current.set(scope, next);
+    return next;
+  }, []);
 
   useEffect(() => {
     const generation = ++loadGeneration.current;
     const revision = editRevision.current;
     saveGeneration.current += 1;
-    persistenceQueue.current = Promise.resolve();
     setReady(false);
     setSaving(false);
     setError(null);
-    const defaults = normalizeNotificationPreferences(null);
-    preferencesRef.current = defaults;
-    setPreferences(defaults);
+    if (loadedNamespace.current !== namespace) {
+      loadedNamespace.current = namespace;
+      const defaults = normalizeNotificationPreferences(null);
+      preferencesRef.current = defaults;
+      setPreferences(defaults);
+    }
 
-    void (async () => {
+    void enqueuePersistence(namespace, async () => {
+      if (loadGeneration.current !== generation) return;
       const local = await loadNotificationPreferences(namespace);
       let loaded = local;
       if (authToken) {
@@ -119,13 +131,21 @@ export function NotificationPreferencesProvider({
         return;
       preferencesRef.current = loaded;
       setPreferences(loaded);
-    })().finally(() => {
+    }).catch((cause) => {
+      if (loadGeneration.current === generation) {
+        setError(cause instanceof Error ? cause : new Error("알림 설정을 불러오지 못했습니다."));
+      }
+    }).finally(() => {
       if (loadGeneration.current === generation) setReady(true);
     });
-  }, [authToken, namespace]);
+    return () => {
+      loadGeneration.current += 1;
+    };
+  }, [authToken, enqueuePersistence, namespace]);
 
   const updatePreferences = useCallback(
     async (patch: NotificationPreferencesPatch) => {
+      if (currentNamespace.current !== namespace) return preferencesRef.current;
       const next = normalizeNotificationPreferences({
         ...preferencesRef.current,
         ...patch,
@@ -136,27 +156,24 @@ export function NotificationPreferencesProvider({
       const generation = ++saveGeneration.current;
       setSaving(true);
       setError(null);
-      const persist = persistenceQueue.current
-        .catch(() => undefined)
-        .then(async () => {
-          let localFailure: unknown = null;
+      const persist = enqueuePersistence(namespace, async () => {
+        let localFailure: unknown = null;
+        try {
+          await saveNotificationPreferences(namespace, next);
+        } catch (cause) {
+          localFailure = cause;
+        }
+        if (authToken) {
           try {
-            await saveNotificationPreferences(namespace, next);
+            await savePendingNotificationPreferences(namespace, next);
           } catch (cause) {
-            localFailure = cause;
+            localFailure ??= cause;
           }
-          if (authToken) {
-            try {
-              await savePendingNotificationPreferences(namespace, next);
-            } catch (cause) {
-              localFailure ??= cause;
-            }
-            await syncNotificationPreferences(authToken, next);
-            await clearPendingNotificationPreferences(namespace);
-          }
-          if (localFailure) throw localFailure;
-        });
-      persistenceQueue.current = persist;
+          await syncNotificationPreferences(authToken, next);
+          await clearPendingNotificationPreferences(namespace);
+        }
+        if (localFailure) throw localFailure;
+      });
       try {
         await persist;
       } catch (cause) {
@@ -172,7 +189,7 @@ export function NotificationPreferencesProvider({
       }
       return next;
     },
-    [authToken, namespace],
+    [authToken, enqueuePersistence, namespace],
   );
 
   const toggleTarget = useCallback(
