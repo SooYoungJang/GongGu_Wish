@@ -88,6 +88,8 @@ export function SettingsScreen() {
     ready: preferencesReady,
     updatePreferences,
   } = useNotificationPreferences();
+  const updatePreferencesRef = useRef(updatePreferences);
+  updatePreferencesRef.current = updatePreferences;
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { canAuthenticate, isAuthenticated, requireAuth } = useAuthGate();
@@ -107,7 +109,7 @@ export function SettingsScreen() {
   const [pendingSubmissionApprovalEnabled, setPendingSubmissionApprovalEnabled] =
     useState<boolean | null>(null);
   const latestPushRevision = useRef(0);
-  const pendingPushIntent = useRef<{ value: boolean; revision: number } | null>(
+  const pendingPushIntent = useRef<{ value: boolean; revision: number; userId?: string } | null>(
     null,
   );
   const pushWorkerRunning = useRef(false);
@@ -132,13 +134,13 @@ export function SettingsScreen() {
   );
 
   const applyPushIntent = useCallback(
-    async (intent: { value: boolean; revision: number }) => {
-      const isCurrentUser = () => Boolean(user?.id) && currentUserIdRef.current === user?.id;
+    async (intent: { value: boolean; revision: number; userId?: string }) => {
+      const isCurrentUser = () => Boolean(intent.userId) && currentUserIdRef.current === intent.userId;
       if (!isCurrentUser()) return false;
       const isLatest = () => latestPushRevision.current === intent.revision;
       try {
         if (!intent.value) {
-          await updatePreferences({ pushEnabled: false });
+          await updatePreferencesRef.current({ pushEnabled: false });
           return true;
         }
 
@@ -180,7 +182,7 @@ export function SettingsScreen() {
         if (result.status === "registered") {
           setPermissionStatus("granted");
           if (isLatest()) {
-            await updatePreferences({ pushEnabled: true });
+            await updatePreferencesRef.current({ pushEnabled: true });
           }
           return true;
         }
@@ -242,7 +244,7 @@ export function SettingsScreen() {
         return false;
       }
     },
-    [automatedE2E, updatePreferences, user?.id],
+    [automatedE2E],
   );
 
   const drainPushIntents = useCallback(async () => {
@@ -265,7 +267,7 @@ export function SettingsScreen() {
     (value: boolean) => {
       setPendingMarketingPushEnabled(null);
       setPendingSubmissionApprovalEnabled(null);
-      const intent = { value, revision: ++latestPushRevision.current };
+      const intent = { value, revision: ++latestPushRevision.current, userId: currentUserIdRef.current };
       pendingPushIntent.current = intent;
       setPendingPushEnabled(value);
       if (pushWorkerRunning.current) return Promise.resolve();
@@ -294,7 +296,7 @@ export function SettingsScreen() {
           return;
         }
 
-        const registered = await applyPushIntent({ value: true, revision });
+        const registered = await applyPushIntent({ value: true, revision, userId: currentUserIdRef.current });
         if (!registered || latestPushRevision.current !== revision) return;
         await updatePreferences({ submissionApprovalEnabled: true });
       } finally {
@@ -325,7 +327,7 @@ export function SettingsScreen() {
           return;
         }
 
-        const registered = await applyPushIntent({ value: true, revision });
+        const registered = await applyPushIntent({ value: true, revision, userId: currentUserIdRef.current });
         if (!registered || latestPushRevision.current !== revision) return;
         await updatePreferences({ marketingPushEnabled: true });
       } finally {

@@ -11,7 +11,7 @@ import {
 } from '../screens/MyPageScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ThemeProvider } from '../context/ThemeContext';
-import { AuthProvider } from '../context/AuthContext';
+import { AuthProvider, useAuth } from '../context/AuthContext';
 import { resolveAudiencePolicy } from '../audience/audiencePolicy';
 import { AccessibilityInfo, Linking } from 'react-native';
 
@@ -23,6 +23,7 @@ const focusedCallbacks = vi.hoisted(() => new Set<Function>());
 const authMocks = vi.hoisted(() => ({
   session: null as any,
   signOut: vi.fn().mockResolvedValue(undefined),
+  signIn: vi.fn(),
 }));
 const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
 const notificationMocks = vi.hoisted(() => ({
@@ -121,7 +122,7 @@ vi.mock('@supabase/supabase-js', () => ({
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
-      signInWithPassword: vi.fn(),
+      signInWithPassword: authMocks.signIn,
       signUp: vi.fn(),
       resend: vi.fn(),
       verifyOtp: vi.fn(),
@@ -150,7 +151,7 @@ vi.mock('../lib/supabase', () => ({
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
-      signInWithPassword: vi.fn(),
+      signInWithPassword: authMocks.signIn,
       signUp: vi.fn(),
       resend: vi.fn(),
       verifyOtp: vi.fn(),
@@ -288,6 +289,7 @@ beforeEach(() => {
   vi.mocked(Linking.openURL).mockClear();
   authMocks.session = null;
   authMocks.signOut.mockClear();
+  authMocks.signIn.mockReset();
   alertMocks.alert.mockClear();
   navigationMocks.navigate.mockClear();
   navigationMocks.goBack.mockClear();
@@ -907,6 +909,53 @@ describe('MyPageScreen', () => {
     expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       pushEnabled: true,
     });
+  });
+
+  it('resumes a guest push choice under the newly signed-in account', async () => {
+    let auth: ReturnType<typeof useAuth>;
+    function AuthProbe() { auth = useAuth(); return null; }
+    const renderer = renderScreen(React.createElement(React.Fragment, null,
+      React.createElement(SettingsScreen), React.createElement(AuthProbe)));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props.onValueChange(true);
+    });
+    expect(navigationMocks.navigate).toHaveBeenCalledWith('Login');
+    authMocks.signIn.mockResolvedValueOnce({ data: { session: {
+      access_token: 'new-user-token', user: { id: 'new-user' },
+    } }, error: null });
+    await act(async () => { await auth!.signIn('user@example.com', 'test-password'); });
+    await act(async () => { await auth!.takeAuthContinuation()?.(); });
+    expect(notificationMocks.registerForPushNotifications).toHaveBeenCalledWith(
+      'new-user-token', expect.objectContaining({ shouldContinue: expect.any(Function) }),
+    );
+    expect(settingsPreferenceMocks.updatePreferences).toHaveBeenCalledWith({ pushEnabled: true });
+  });
+
+  it('discards an in-flight push choice after the account changes', async () => {
+    authMocks.session = { access_token: 'old-user-token', user: { id: 'old-user' } };
+    let auth: ReturnType<typeof useAuth>;
+    function AuthProbe() { auth = useAuth(); return null; }
+    let finish!: () => void;
+    notificationMocks.registerForPushNotifications.mockReturnValueOnce(new Promise((resolve) => {
+      finish = () => resolve({ status: 'registered', token: 'ExpoPushToken[old-device]' });
+    }));
+    const renderer = renderScreen(React.createElement(React.Fragment, null,
+      React.createElement(SettingsScreen), React.createElement(AuthProbe)));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => {
+      renderer.root.findByProps({ accessibilityLabel: '푸시 알림' }).props.onValueChange(true);
+      await Promise.resolve();
+    });
+    authMocks.signIn.mockResolvedValueOnce({ data: { session: {
+      access_token: 'new-user-token', user: { id: 'new-user' },
+    } }, error: null });
+    await act(async () => { await auth!.signIn('user@example.com', 'test-password'); });
+    const calls = notificationMocks.registerForPushNotifications.mock.calls as unknown as
+      [string, { shouldContinue(): boolean }][];
+    expect(calls[0][1].shouldContinue()).toBe(false);
+    await act(async () => { finish(); await Promise.resolve(); });
+    expect(settingsPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
   });
 
   it('keeps saved preferences when logout cancels settings token registration', async () => {
