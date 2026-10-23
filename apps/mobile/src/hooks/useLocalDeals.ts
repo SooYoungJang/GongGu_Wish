@@ -762,6 +762,8 @@ async function readNotificationEntries(
 }
 
 async function flushNotificationMirror(namespace: string): Promise<void> {
+  if (!namespace.startsWith("user:")) return;
+  const expectedUserId = namespace.slice("user:".length);
   const existing = notificationFlushes.get(namespace);
   if (existing) return existing;
 
@@ -783,6 +785,7 @@ async function flushNotificationMirror(namespace: string): Promise<void> {
         const result = await syncNotification(
           entry.groupBuyId,
           preference.type === "deadline" ? preference.reminderDays : preference,
+          expectedUserId,
         );
         if (result.status === "failed") remaining.push(entry);
       } catch {
@@ -1435,7 +1438,7 @@ export function useNotifications() {
             hydrated = await reconcileRemoteNotificationEntries(
               namespace,
               hydrated,
-              await fetchNotificationReminders(),
+              await fetchNotificationReminders(auth.user.id),
               preferences,
             );
             await writeJSON(storageKey, hydrated);

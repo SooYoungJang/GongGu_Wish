@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CommentView } from "./types";
+import type { CommentPage, CommentView } from "./types";
 
 const apiMocks = vi.hoisted(() => ({
   listCommentRoots: vi.fn(),
@@ -20,7 +20,7 @@ const nativeMocks = vi.hoisted(() => ({
 }));
 
 const queryResult = vi.hoisted(() => ({
-  data: { items: [] as CommentView[], nextCursor: null, liveRanking: false },
+  data: { items: [], nextCursor: null, liveRanking: false } as CommentPage,
   isError: false,
   isLoading: false,
   refetch: vi.fn().mockResolvedValue(undefined),
@@ -141,6 +141,58 @@ describe("CommentSheet", () => {
     nativeMocks.keyboardDismiss.mockReset();
     nativeMocks.platform.OS = "ios";
     queryResult.data = { items: [], nextCursor: null, liveRanking: false };
+  });
+
+  it("ignores a late latest page after switching to popular comments", async () => {
+    const latestRoot = makeComment({ body: "최신 첫 페이지" });
+    const popularRoot = makeComment({ id: "popular-1", rootId: "popular-1", body: "인기 첫 페이지" });
+    const staleRoot = makeComment({ id: "latest-2", rootId: "latest-2", body: "이전 정렬의 늦은 댓글" });
+    queryResult.data = { items: [latestRoot], nextCursor: "latest-page-2", liveRanking: false };
+    const finishLatest = vi.fn();
+    apiMocks.listCommentRoots.mockImplementationOnce(
+      () => new Promise<CommentPage>((resolve) => { finishLatest.mockImplementation(resolve); }),
+    );
+    let renderer!: TestRenderer.ReactTestRenderer;
+    const onClose = vi.fn();
+    const loadMoreButton = () => renderer.root.find(
+      (node) => String(node.type) === "Pressable" &&
+        node.findAll((child) => String(child.type) === "Text" && child.children.includes("댓글 더 보기")).length > 0,
+    );
+    const visibleBodies = () => renderer.root.findAll(
+      (node) => String(node.type) === "Text" && node.props.variant === "body",
+    ).flatMap((node) => node.children);
+
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(
+          <CommentSheet groupBuyId="deal-1" onClose={onClose} visible />,
+        );
+      });
+      act(() => loadMoreButton().props.onPress());
+      expect(apiMocks.listCommentRoots).toHaveBeenLastCalledWith("deal-1", "latest", "latest-page-2");
+
+      queryResult.data = { items: [popularRoot], nextCursor: "popular-page-2", liveRanking: true };
+      act(() => {
+        renderer.root.findAll(
+          (node) => String(node.type) === "Pressable" && node.props.accessibilityRole === "tab",
+        )[1].props.onPress();
+      });
+      expect(visibleBodies()).toContain("인기 첫 페이지");
+
+      await act(async () => {
+        finishLatest({ items: [staleRoot], nextCursor: "latest-page-3", liveRanking: false });
+        await Promise.resolve();
+      });
+      expect(visibleBodies()).not.toContain("이전 정렬의 늦은 댓글");
+
+      await act(async () => {
+        loadMoreButton().props.onPress();
+        await Promise.resolve();
+      });
+      expect(apiMocks.listCommentRoots).toHaveBeenLastCalledWith("deal-1", "popular", "popular-page-2");
+    } finally {
+      if (renderer) act(() => renderer.unmount());
+    }
   });
 
   it("sticks the Android composer to the keyboard without shrinking the sheet", async () => {

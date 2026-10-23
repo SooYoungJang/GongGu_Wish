@@ -861,13 +861,14 @@ function normalizeGroupBuyReminderRow(
   };
 }
 
-export async function fetchNotificationReminders(): Promise<
+export async function fetchNotificationReminders(expectedUserId: string): Promise<
   GroupBuyReminderPreference[] | null
 > {
   try {
     const rows = await postgrestPost<GroupBuyReminderRow[]>(
       "rpc/get_my_group_buy_reminders_v2",
       {},
+      { expectedUserId },
     );
     return (Array.isArray(rows) ? rows : [])
       .map(normalizeGroupBuyReminderRow)
@@ -884,6 +885,7 @@ export async function fetchNotificationReminders(): Promise<
 export async function syncNotification(
   groupBuyId: string,
   reminder: GroupBuyReminderUpdate | readonly GroupBuyReminderDay[] | boolean,
+  expectedUserId: string,
 ): Promise<GroupBuyReminderSyncResult> {
   const update: GroupBuyReminderUpdate =
     typeof reminder === "boolean" || Array.isArray(reminder)
@@ -925,6 +927,7 @@ export async function syncNotification(
         p_reminder_time_minutes:
           update.type === "opening" ? update.reminderTimeMinutes : null,
       },
+      { expectedUserId },
     );
     return {
       status: "synced",

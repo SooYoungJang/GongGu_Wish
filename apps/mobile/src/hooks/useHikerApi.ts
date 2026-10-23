@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { lookupInstagramUrl } from '../api';
 import type { InstagramMediaInfo, MediaAsset } from '../types';
@@ -105,64 +105,65 @@ function isValidInstagramUrl(url: string): boolean {
  * typing for 500 ms and the URL is valid.
  */
 export function useHikerApi(rawUrl: string): HikerState & { retry: () => void } {
-  const [state, setState] = useState<HikerState>(IDLE_STATE);
+  const url = rawUrl.trim();
+  const [state, setState] = useState<HikerState & { sourceUrl: string }>({
+    ...IDLE_STATE,
+    sourceUrl: '',
+  });
   const abortRef = useRef<AbortController | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentUrlRef = useRef(url);
+  currentUrlRef.current = url;
 
-  // Debounce the raw URL with a 500ms delay.
-  const [debouncedUrl, setDebouncedUrl] = useState('');
-  useEffect(() => {
-    if (rawUrl.trim().length < 5 || !isValidInstagramUrl(rawUrl)) {
-      setDebouncedUrl('');
-      return;
-    }
-    const timer = setTimeout(() => setDebouncedUrl(rawUrl.trim()), 500);
-    return () => clearTimeout(timer);
-  }, [rawUrl]);
-
-  async function fetchPost(url: string) {
+  const fetchPost = useCallback(async (sourceUrl: string) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-
-    // Check signal hasn't been aborted
-    if (controller.signal.aborted) return;
-
-    setState({ status: 'loading', data: null, error: null });
+    setState({ status: 'loading', data: null, error: null, sourceUrl });
 
     try {
-      const info = await lookupInstagramUrl(url);
-
-      // 🛑 If aborted while fetching, discard
-      if (controller.signal.aborted) return;
+      const info = await lookupInstagramUrl(sourceUrl);
+      if (controller.signal.aborted || currentUrlRef.current !== sourceUrl) return;
 
       setState({
         status: 'success',
         data: toPostData(info),
         error: null,
+        sourceUrl,
       });
     } catch (error: unknown) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || currentUrlRef.current !== sourceUrl) return;
       const message =
         error instanceof Error ? error.message : '게시물 정보를 불러오지 못했습니다.';
-      setState({ status: 'error', data: null, error: message });
+      setState({ status: 'error', data: null, error: message, sourceUrl });
     }
-  }
+  }, []);
 
-  // Auto-fetch when the debounced URL changes
+  // Invalidate immediately; only the network request is debounced.
   useEffect(() => {
-    if (!debouncedUrl) {
-      setState(IDLE_STATE);
-      return;
+    abortRef.current?.abort();
+    setState({ ...IDLE_STATE, sourceUrl: url });
+    if (isValidInstagramUrl(url)) {
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        void fetchPost(url);
+      }, 500);
     }
-    fetchPost(debouncedUrl);
-    return () => abortRef.current?.abort();
-  }, [debouncedUrl]);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      abortRef.current?.abort();
+    };
+  }, [fetchPost, url]);
 
   function retry() {
-    if (rawUrl.trim()) {
-      fetchPost(rawUrl.trim());
+    if (isValidInstagramUrl(url)) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      void fetchPost(url);
     }
   }
 
-  return { ...state, retry };
+  // Hide stale data even on the render before the invalidation effect runs.
+  return { ...(state.sourceUrl === url ? state : IDLE_STATE), retry };
 }
