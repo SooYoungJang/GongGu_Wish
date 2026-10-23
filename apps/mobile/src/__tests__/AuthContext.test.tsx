@@ -6,6 +6,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import type { AudiencePolicy } from '../audience/audiencePolicy';
 
+vi.mock('@react-native-async-storage/async-storage', () => ({
+  default: {
+    getAllKeys: vi.fn().mockResolvedValue([]),
+    getItem: vi.fn().mockResolvedValue(null),
+    setItem: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 const UNRESTRICTED_POLICY: AudiencePolicy = {
   resolved: true,
   canUseApp: true,
