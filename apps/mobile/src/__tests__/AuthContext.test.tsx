@@ -94,12 +94,16 @@ mockOnAuthStateChange.mockReturnValue({
   data: { subscription: { unsubscribe: vi.fn() } },
 });
 
+const pushDeviceMocks = vi.hoisted(() => ({ signOutPushDevice: vi.fn() }));
+vi.mock('../services/pushDeviceSession', () => pushDeviceMocks);
+
 function TestConsumer() {
   const auth = useAuth();
   return React.createElement("mock-auth-consumer" as any, {
     "data-user": auth.user?.email ?? null,
     "data-is-loading": String(auth.isLoading),
     "data-auth-completion-revision": String(auth.authCompletionRevision),
+    "data-sign-out": auth.signOut,
   });
 }
 
@@ -117,7 +121,8 @@ function renderAuthTest() {
 
 describe('AuthProvider', () => {
   beforeEach(() => {
-    mockGetSession.mockClear();
+    pushDeviceMocks.signOutPushDevice.mockReset().mockImplementation(async (_token, signOut) => signOut());
+    mockGetSession.mockReset().mockResolvedValue({ data: { session: null } });
     mockOnAuthStateChange.mockClear();
     mockSignInWithPassword.mockClear();
     mockSignUp.mockClear();
@@ -136,6 +141,28 @@ describe('AuthProvider', () => {
   it('renders children', () => {
     const renderer = renderAuthTest();
     expect(renderer.root.findByType('mock-auth-consumer' as any)).toBeTruthy();
+  });
+
+  it('releases the signed-in device before removing authentication', async () => {
+    const aliceSession = { access_token: 'alice-token', user: { id: 'alice', email: 'alice@example.com' } };
+    mockGetSession.mockResolvedValue({ data: { session: aliceSession } });
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => { release = resolve; });
+    pushDeviceMocks.signOutPushDevice.mockImplementation(async (_token, signOut) => {
+      await released;
+      return signOut();
+    });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = renderAuthTest(); });
+    let logout!: Promise<void>;
+    await act(async () => { logout = renderer.root.findByType('mock-auth-consumer' as any).props['data-sign-out'](); });
+    expect(pushDeviceMocks.signOutPushDevice).toHaveBeenCalledWith('alice-token', expect.any(Function));
+    expect(mockSignOut).not.toHaveBeenCalled();
+    await act(async () => { release(); await logout; });
+    expect(mockSignOut).toHaveBeenCalledOnce();
+    expect(renderer.root.findByType('mock-auth-consumer' as any).props['data-user']).toBeNull();
+    act(() => renderer.unmount());
+    mockGetSession.mockResolvedValue({ data: { session: null } });
   });
 
   it('restores session on mount', () => {

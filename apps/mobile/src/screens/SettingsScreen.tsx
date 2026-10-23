@@ -32,6 +32,7 @@ import {
 import { isAutomatedE2E } from "../lib/automatedE2E";
 import { publicBuildConfig } from "../lib/public-build-config";
 import { getSupabase } from "../lib/supabase";
+import { signOutPushDevice } from "../services/pushDeviceSession";
 import {
   getNotificationPermissionStatus,
   IS_EXPO_GO,
@@ -79,6 +80,8 @@ export function SettingsScreen() {
   const accessToken = session?.access_token;
   const accessTokenRef = useRef(accessToken);
   accessTokenRef.current = accessToken;
+  const currentUserIdRef = useRef(user?.id);
+  currentUserIdRef.current = user?.id;
   const {
     error: preferencesError,
     preferences,
@@ -130,6 +133,8 @@ export function SettingsScreen() {
 
   const applyPushIntent = useCallback(
     async (intent: { value: boolean; revision: number }) => {
+      const isCurrentUser = () => Boolean(user?.id) && currentUserIdRef.current === user?.id;
+      if (!isCurrentUser()) return false;
       const isLatest = () => latestPushRevision.current === intent.revision;
       try {
         if (!intent.value) {
@@ -153,14 +158,17 @@ export function SettingsScreen() {
 
         const result = await registerForPushNotifications(currentAccessToken, {
           requestPermission: true,
-          shouldContinue: () => canAuthenticateRef.current,
-          onRegistrationCancelled: () =>
-            syncNotificationPreferences(
-              currentAccessToken,
-              DEFAULT_NOTIFICATION_PREFERENCES,
-            ),
+          shouldContinue: () => canAuthenticateRef.current && isCurrentUser(),
+          onRegistrationCancelled: async () => {
+            if (!canAuthenticateRef.current) {
+              await syncNotificationPreferences(
+                currentAccessToken,
+                DEFAULT_NOTIFICATION_PREFERENCES,
+              );
+            }
+          },
           refreshAuthToken: async () => {
-            if (!canAuthenticateRef.current) return null;
+            if (!canAuthenticateRef.current || !isCurrentUser()) return null;
             const { data, error } = await getSupabase().auth.refreshSession();
             return error ? null : (data.session?.access_token ?? null);
           },
@@ -168,7 +176,7 @@ export function SettingsScreen() {
             ? { e2eTokenOverride: "ExpoPushToken[gon229-local-e2e]" }
             : {}),
         });
-        if (result.status === "cancelled") return false;
+        if (result.status === "cancelled" || !isCurrentUser()) return false;
         if (result.status === "registered") {
           setPermissionStatus("granted");
           if (isLatest()) {
@@ -234,7 +242,7 @@ export function SettingsScreen() {
         return false;
       }
     },
-    [automatedE2E, updatePreferences],
+    [automatedE2E, updatePreferences, user?.id],
   );
 
   const drainPushIntents = useCallback(async () => {
@@ -365,9 +373,9 @@ export function SettingsScreen() {
 
     setDeleting(true);
     try {
-      await deleteAccount(accessToken);
+      await signOutPushDevice(accessToken, () => deleteAccount(accessToken));
       await clearLocalUserData(user?.id ? `user:${user.id}` : "guest");
-      await signOut();
+      await signOut({ accountDeleted: true });
       navigation.goBack();
     } catch {
       Alert.alert(

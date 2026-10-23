@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -236,6 +237,8 @@ export function MyPageScreen() {
     setLoggingOut(true);
     try {
       await signOut();
+    } catch (error) {
+      Alert.alert('로그아웃하지 못했어요', error instanceof Error ? error.message : '네트워크를 확인한 뒤 다시 시도해 주세요.');
     } finally {
       setLoggingOut(false);
     }
