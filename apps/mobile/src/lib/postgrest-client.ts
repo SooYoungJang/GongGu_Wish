@@ -95,7 +95,7 @@ export function parseContentRange(
  * is refreshed before the request starts. SecureStore remains a startup
  * fallback only until the Supabase singleton has been configured.
  */
-async function getAuthToken(): Promise<string | null> {
+async function getAuthToken(expectedUserId?: string): Promise<string | null> {
   let getSupabaseIfConfigured: typeof import('./supabase').getSupabaseIfConfigured;
   try {
     ({ getSupabaseIfConfigured } = await import('./supabase'));
@@ -114,12 +114,16 @@ async function getAuthToken(): Promise<string | null> {
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error) return null;
+      if (expectedUserId && data.session?.user?.id !== expectedUserId) return null;
       return data.session?.access_token ?? null;
     } catch {
       // Never reuse a stale mirrored token after a session refresh failure.
       return null;
     }
   }
+
+  // A stored token cannot establish which account owns queued work.
+  if (expectedUserId) return null;
 
   try {
     const { getAuthToken } = await import('../utils/auth');
@@ -132,6 +136,7 @@ async function getAuthToken(): Promise<string | null> {
 // ─── Header Builder ──────────────────────────────────────────────────────────
 
 interface PostgrestHeaders {
+  expectedUserId?: string;
   range?: string;
   prefer?: string;
   contentType?: string;
@@ -143,7 +148,12 @@ async function buildHeaders(opts?: PostgrestHeaders): Promise<Record<string, str
     apikey: _anonKey,
   };
 
-  const token = await getAuthToken();
+  // Resolve identity and token from the same session snapshot. A later account
+  // switch cannot replace this request's Authorization with another user's JWT.
+  const token = await getAuthToken(opts?.expectedUserId);
+  if (opts?.expectedUserId && !token) {
+    throw new ApiError(409, '로그인 계정이 변경되었습니다.', undefined, 'AUTH_SESSION_CHANGED');
+  }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -231,6 +241,7 @@ export async function postgrestFetch<T>(
     prefer?: string;
     headers?: Record<string, string>;
     signal?: AbortSignal;
+    expectedUserId?: string;
   } = {},
 ): Promise<PostgrestResponse<T>> {
   const { method = 'GET', pagination, prefer, body, signal } = options;
@@ -241,6 +252,7 @@ export async function postgrestFetch<T>(
   }
 
   const headers = await buildHeaders({
+    expectedUserId: options.expectedUserId,
     range,
     prefer: prefer ?? (pagination ? 'count=exact' : undefined),
   });
@@ -325,13 +337,14 @@ export async function postgrestGet<T>(
 export async function postgrestPost<T>(
   path: string,
   body: unknown,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; expectedUserId?: string } = {},
 ): Promise<T> {
   const { data } = await postgrestFetch<T>(path, {
     method: 'POST',
     body,
     prefer: 'return=representation',
     signal: options.signal,
+    expectedUserId: options.expectedUserId,
   });
   return mapPostgrestToApp<T>(data);
 }

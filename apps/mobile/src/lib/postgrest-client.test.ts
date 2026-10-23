@@ -159,6 +159,56 @@ describe('postgrestFetch diagnostics', () => {
     expect(tokenSourceMocks.getStoredAuthToken).not.toHaveBeenCalled();
   });
 
+  it('rejects queued account work after the session switches to another user', async () => {
+    tokenSourceMocks.client = {
+      auth: { getSession: vi.fn().mockResolvedValue({
+        data: { session: { user: { id: 'user-b' }, access_token: 'token-b' } },
+        error: null,
+      }) },
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, headers: new Headers(), json: async () => [],
+    }) as unknown as typeof fetch;
+
+    await expect(postgrestFetch('rpc/set_my_group_buy_reminder_v2', {
+      method: 'POST', expectedUserId: 'user-a', body: {},
+    })).rejects.toMatchObject({ code: 'AUTH_SESSION_CHANGED' });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps the matching session token when the account switches after auth resolution', async () => {
+    tokenSourceMocks.client = {
+      auth: { getSession: vi.fn().mockResolvedValue({
+        data: { session: { user: { id: 'user-a' }, access_token: 'token-a' } },
+        error: null,
+      }) },
+    };
+    global.fetch = vi.fn().mockImplementation(async (_url, options) => {
+      tokenSourceMocks.client.auth.getSession.mockResolvedValue({
+        data: { session: { user: { id: 'user-b' }, access_token: 'token-b' } },
+        error: null,
+      });
+      expect(options.headers.Authorization).toBe('Bearer token-a');
+      return { ok: true, status: 200, headers: new Headers(), json: async () => [] };
+    }) as unknown as typeof fetch;
+
+    await postgrestFetch('rpc/set_my_group_buy_reminder_v2', {
+      method: 'POST', expectedUserId: 'user-a', body: {},
+    });
+  });
+
+  it('does not send account-bound work with only a stored token and no verified session', async () => {
+    tokenSourceMocks.getStoredAuthToken.mockResolvedValue('unverified-stored-token');
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, headers: new Headers(), json: async () => [],
+    }) as unknown as typeof fetch;
+
+    await expect(postgrestFetch('rpc/get_my_group_buy_reminders_v2', {
+      method: 'POST', expectedUserId: 'user-a',
+    })).rejects.toMatchObject({ code: 'AUTH_SESSION_CHANGED' });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it('omits authorization when the configured Supabase client has no session', async () => {
     tokenSourceMocks.getStoredAuthToken.mockResolvedValue('stored-stale-token');
     tokenSourceMocks.client = {

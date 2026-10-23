@@ -57,11 +57,7 @@ import {
   resolveSupabaseUrl,
 } from "./lib/supabase-config";
 import { isAutomatedE2E } from "./lib/automatedE2E";
-import { registerForPushNotifications } from "./services/notifications";
-import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
-  syncNotificationPreferences,
-} from "./services/notificationPreferences";
+import { useBackgroundPushRegistration } from "./hooks/useBackgroundPushRegistration";
 import { BackButton } from "./components/BackButton";
 import { NavigationHeaderTitle } from "./components/CenteredBackHeader";
 import { getCommerceColors } from "./design/commerce";
@@ -520,39 +516,14 @@ function ThemedNavigationContainer({
     SystemUI.setBackgroundColorAsync(bg);
   }, [bg]);
 
-  useEffect(() => {
-    if (
-      authLoading ||
-      !audiencePolicy.canAuthenticate ||
-      !preferencesReady ||
-      !preferences.pushEnabled ||
-      !userId ||
-      !accessToken
-    )
-      return;
-    let active = true;
-    registerForPushNotifications(accessToken, {
-      requestPermission: false,
-      shouldContinue: () => active,
-      onRegistrationCancelled: () =>
-        syncNotificationPreferences(
-          accessToken,
-          DEFAULT_NOTIFICATION_PREFERENCES,
-        ),
-    }).catch(() => {
-      // push registration is best-effort; delivery can be enabled again on next launch
-    });
-    return () => {
-      active = false;
-    };
-  }, [
+  useBackgroundPushRegistration({
     accessToken,
-    audiencePolicy.canAuthenticate,
+    canAuthenticate: audiencePolicy.canAuthenticate,
     authLoading,
-    preferences.pushEnabled,
+    pushEnabled: preferences.pushEnabled,
     preferencesReady,
     userId,
-  ]);
+  });
 
   const navTheme = React.useMemo(() => {
     const base = isDark ? DarkTheme : DefaultTheme;
