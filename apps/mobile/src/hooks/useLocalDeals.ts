@@ -40,10 +40,16 @@ import {
   useBookmarkStore,
 } from "./bookmarkStore";
 import { clearAccountBookmarkStore, useAccountBookmarkStore } from "./accountBookmarkStore";
+import {
+  captureLocalNotificationScheduleGuard,
+  getUnscheduledEnabledState,
+  notificationStorageKey,
+  resumeLocalNotificationSchedules,
+  runLocalNotificationSchedule,
+} from "../services/localNotificationSession";
 
 const RECENT_KEY = "@gonggu/recent-views/v1";
 const NOTI_KEY = "@gonggu/notifications/v1";
-const NOTI_KEY_PREFIX = "@gonggu/notifications/v2";
 const NOTI_OUTBOX_PREFIX = "@gonggu/notifications/outbox/v1";
 const NOTI_SERVER_MIGRATION_PREFIX = "@gonggu/notifications/server-migrated/v1";
 const WISH_ITEM_KEY = "@gonggu/wish-items/v1";
@@ -136,13 +142,8 @@ const notificationListeners = new Map<string, Set<NotificationListener>>();
 const notificationSnapshots = new Map<string, NotificationEntry[]>();
 const notificationOperations = new Map<string, Promise<unknown>>();
 const notificationFlushes = new Map<string, Promise<void>>();
-const notificationRefreshes = new Map<string, Promise<void>>();
+const notificationRefreshes = new Map<string, { task: Promise<void>; isCurrent: () => boolean }>();
 const notificationMirrorOperations = new Map<string, Promise<void>>();
-
-function notificationStorageKey(namespace: string) {
-  return `${NOTI_KEY_PREFIX}/${encodeURIComponent(namespace)}`;
-}
-
 function notificationOutboxKey(namespace: string) {
   return `${NOTI_OUTBOX_PREFIX}/${encodeURIComponent(namespace)}`;
 }
@@ -386,6 +387,7 @@ async function hydrateNotificationEntries(
   entries: NotificationEntry[],
   storageKey: string,
   legacyReminderDays: readonly NotificationReminderDay[],
+  isCurrent: () => boolean,
 ): Promise<NotificationEntry[]> {
   const normalizedEntries = entries.map((entry) =>
     normalizeNotificationEntry(entry, legacyReminderDays),
@@ -398,7 +400,7 @@ async function hydrateNotificationEntries(
     ),
   ];
   if (ids.length === 0) {
-    if (normalizedEntries.some((entry, index) => entry !== entries[index])) {
+    if (isCurrent() && normalizedEntries.some((entry, index) => entry !== entries[index])) {
       await writeJSON(storageKey, normalizedEntries);
     }
     return normalizedEntries;
@@ -411,7 +413,7 @@ async function hydrateNotificationEntries(
     return fresh ? { ...entry, ...toNotificationDealFields(fresh) } : entry;
   });
 
-  if (next.some((entry, index) => entry !== normalizedEntries[index])) {
+  if (isCurrent() && next.some((entry, index) => entry !== normalizedEntries[index])) {
     await writeJSON(storageKey, next);
   }
   return next;
@@ -422,11 +424,13 @@ async function reconcileRemoteNotificationEntries(
   localEntries: NotificationEntry[],
   remoteEntries: Awaited<ReturnType<typeof fetchNotificationReminders>>,
   preferences: NotificationPreferences,
+  isCurrent: () => boolean,
 ) {
-  if (!remoteEntries) return localEntries;
+  if (!remoteEntries || !isCurrent()) return localEntries;
   const remoteIds = remoteEntries.map((entry) => entry.groupBuyId);
   const freshDeals =
     remoteIds.length > 0 ? await fetchGroupBuysByIds(remoteIds) : [];
+  if (!isCurrent()) return localEntries;
   const freshById = new Map(freshDeals.map((item) => [item.id, item]));
   const localById = new Map(
     localEntries.map((entry) => [entry.groupBuyId, entry]),
@@ -435,6 +439,7 @@ async function reconcileRemoteNotificationEntries(
 
   const retainedFailedRemovals: NotificationEntry[] = [];
   for (const local of localEntries) {
+    if (!isCurrent()) return localEntries;
     if (!remoteIdSet.has(local.groupBuyId)) {
       const cancellation = await cancelScheduledNotifications(
         getEntryNotificationIds(local),
@@ -454,6 +459,7 @@ async function reconcileRemoteNotificationEntries(
 
   const next: NotificationEntry[] = [...retainedFailedRemovals];
   for (const remote of remoteEntries) {
+    if (!isCurrent()) return localEntries;
     const existing = localById.get(remote.groupBuyId);
     const fresh = freshById.get(remote.groupBuyId);
     if (!existing && !fresh) continue;
@@ -559,7 +565,9 @@ async function reconcileRemoteNotificationEntries(
         continue;
       }
     }
+    if (!isCurrent()) return localEntries;
     const alertState = await getScheduledAlertState(
+      namespace,
       notificationEntryToGroupBuy(baseEntry),
       preferences,
       reminderPreference,
@@ -910,17 +918,19 @@ function getEntryNotificationIds(entry: NotificationEntry) {
   ];
 }
 
-function getUnscheduledEnabledState(): GroupBuyAlertState {
-  return {
-    status: "enabled",
-    notificationId: null,
-    scheduledFor: null,
-    notificationIds: [],
-    scheduledForDates: [],
-  };
+async function getScheduledAlertState(
+  namespace: string,
+  item: GroupBuy,
+  preferences: NotificationPreferences,
+  reminder: GroupBuyReminderUpdate | readonly NotificationReminderDay[],
+  options?: Pick<NotificationScheduleOptions, "requestPermission">,
+): Promise<GroupBuyAlertState> {
+  return runLocalNotificationSchedule(namespace, () =>
+    scheduleNotificationAlertState(item, preferences, reminder, options),
+  );
 }
 
-async function getScheduledAlertState(
+async function scheduleNotificationAlertState(
   item: GroupBuy,
   preferences: NotificationPreferences,
   reminder: GroupBuyReminderUpdate | readonly NotificationReminderDay[],
@@ -1091,6 +1101,7 @@ async function enableNotification(
   ]);
 
   const alertState = await getScheduledAlertState(
+    namespace,
     item,
     preferences,
     reminderPreference,
@@ -1219,6 +1230,7 @@ async function configureNotification(
   }
 
   const alertState = await getScheduledAlertState(
+    namespace,
     item,
     preferences,
     reminderPreference,
@@ -1264,6 +1276,7 @@ async function rescheduleNotification(
   }
 
   const alertState = await getScheduledAlertState(
+    namespace,
     notificationEntryToGroupBuy(existing),
     preferences,
     getEntryReminderPreference(existing, preferences.reminderDays),
@@ -1295,7 +1308,7 @@ export async function clearLocalUserData(
   } else {
     await clearBookmarkStore();
   }
-  await notificationRefreshes.get(namespace)?.catch(() => undefined);
+  await notificationRefreshes.get(namespace)?.task.catch(() => undefined);
   await notificationOperations.get(namespace)?.catch(() => undefined);
   await notificationMirrorOperations.get(namespace)?.catch(() => undefined);
   await notificationFlushes.get(namespace)?.catch(() => undefined);
@@ -1400,12 +1413,15 @@ export function useNotifications() {
     }
 
     setReady(false);
-    let refreshTask = notificationRefreshes.get(namespace);
+    const existingRefresh = notificationRefreshes.get(namespace);
+    let refreshTask = existingRefresh?.isCurrent() ? existingRefresh.task : undefined;
     if (!refreshTask) {
+      const isCurrent = captureLocalNotificationScheduleGuard(namespace);
       refreshTask = enqueueNotificationOperation(
         namespace,
         "__refresh__",
         async () => {
+          if (!isCurrent()) return;
           const value = await readNotificationEntries(namespace, storageKey);
           let hydrated: NotificationEntry[];
           try {
@@ -1413,12 +1429,14 @@ export function useNotifications() {
               value,
               storageKey,
               preferences.reminderDays,
+              isCurrent,
             );
           } catch {
             hydrated = value.map((entry) =>
               normalizeNotificationEntry(entry, preferences.reminderDays),
             );
           }
+          if (!isCurrent()) return;
           if (auth?.user?.id) {
             const migrationKey = notificationServerMigrationKey(namespace);
             const migrated = await readJSON(migrationKey, false);
@@ -1440,16 +1458,19 @@ export function useNotifications() {
               hydrated,
               await fetchNotificationReminders(auth.user.id),
               preferences,
+              isCurrent,
             );
+            if (!isCurrent()) return;
             await writeJSON(storageKey, hydrated);
           }
+          if (!isCurrent()) return;
           publishNotifications(namespace, hydrated);
           if (auth?.user?.id) await flushNotificationMirror(namespace);
         },
       ).catch(() => undefined);
-      notificationRefreshes.set(namespace, refreshTask);
+      notificationRefreshes.set(namespace, { task: refreshTask, isCurrent });
       void refreshTask.finally(() => {
-        if (notificationRefreshes.get(namespace) === refreshTask) {
+        if (notificationRefreshes.get(namespace)?.task === refreshTask) {
           notificationRefreshes.delete(namespace);
         }
       });
@@ -1457,6 +1478,8 @@ export function useNotifications() {
     void refreshTask.finally(() => {
       if (!mountedRef.current || activeNamespaceRef.current !== namespace)
         return;
+      const latestRefresh = notificationRefreshes.get(namespace);
+      if (latestRefresh && latestRefresh.task !== refreshTask) return;
       setNotifications(getNotificationSnapshot(namespace));
       setReady(true);
     });
@@ -1465,6 +1488,7 @@ export function useNotifications() {
   useEffect(() => {
     mountedRef.current = true;
     activeNamespaceRef.current = namespace;
+    resumeLocalNotificationSchedules(namespace);
     const listeners = getNotificationListeners(namespace);
     listeners.add(setNotifications);
     setNotifications(

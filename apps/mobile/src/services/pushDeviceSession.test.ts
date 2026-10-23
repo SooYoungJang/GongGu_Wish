@@ -65,4 +65,35 @@ describe("push device logout", () => {
     await signOutPushDevice("user-a-token", signOut);
     expect(signOut).toHaveBeenCalledOnce();
   });
+
+  it("bounds logout while registration is stalled and permits retry after it settles", async () => {
+    vi.useFakeTimers();
+    let finish!: () => void;
+    callEdgeFunction.mockImplementationOnce(() => new Promise((resolve) => {
+      finish = () => resolve({ data: { registered: true } });
+    }));
+    const registration = registerPushDeviceToken("ExpoPushToken[this-device]", "user-a-token", () => true);
+    await Promise.resolve();
+    await Promise.resolve();
+    const signOut = vi.fn();
+    let outcome = "pending";
+    const logout = signOutPushDevice("user-a-token", signOut).then(
+      () => { outcome = "resolved"; },
+      () => { outcome = "rejected"; },
+    );
+    try {
+      await vi.advanceTimersByTimeAsync(10_001);
+      expect(outcome).toBe("rejected");
+      expect(signOut).not.toHaveBeenCalled();
+      expect(callEdgeFunction).toHaveBeenCalledOnce();
+      expect(capturePushRegistrationGuard(() => true)()).toBe(true);
+    } finally {
+      finish();
+      await registration;
+      await logout;
+      vi.useRealTimers();
+    }
+    await signOutPushDevice("user-a-token", signOut);
+    expect(signOut).toHaveBeenCalledOnce();
+  });
 });

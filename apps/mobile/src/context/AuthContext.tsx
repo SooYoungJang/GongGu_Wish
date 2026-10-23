@@ -18,6 +18,7 @@ import { getSupabase } from "../lib/supabase";
 import { setAuthToken, clearAuthToken } from "../utils/auth";
 import type { SocialAuthProvider } from "../utils/authHelpers";
 import { signOutPushDevice } from "../services/pushDeviceSession";
+import { signOutLocalNotifications } from "../services/localNotificationSession";
 
 export const EMAIL_CODE_TTL_SECONDS = 5 * 60;
 const OAUTH_ATTEMPT_STORAGE_KEY = "gonggu.oauth-attempt.v1";
@@ -747,15 +748,16 @@ export function AuthProvider({
     cancelAudienceAuthIntent();
     await clearOAuthAttempt();
     const supabase = getSupabase();
-    const accessToken = options?.accountDeleted ? undefined
-      : (await supabase.auth.getSession()).data.session?.access_token ?? session?.access_token;
-    await signOutPushDevice(accessToken, async () => {
+    const currentSession = options?.accountDeleted ? session
+      : (await supabase.auth.getSession()).data.session ?? session;
+    const accessToken = options?.accountDeleted ? undefined : currentSession?.access_token;
+    await signOutPushDevice(accessToken, () => signOutLocalNotifications(currentSession?.user.id, async () => {
       const result = await supabase.auth.signOut();
       if (result?.error) throw result.error;
       await clearAuthToken();
       applySession(null);
-    });
-  }, [applySession, cancelAudienceAuthIntent, clearOAuthAttempt, session?.access_token]);
+    }));
+  }, [applySession, cancelAudienceAuthIntent, clearOAuthAttempt, session]);
 
   const signInWithOAuth = useCallback(
     async (provider: SocialAuthProvider): Promise<AuthError | null> => {

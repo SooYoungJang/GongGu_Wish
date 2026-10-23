@@ -27,6 +27,7 @@ const authMocks = vi.hoisted(() => ({
 }));
 const alertMocks = vi.hoisted(() => ({ alert: vi.fn() }));
 const notificationMocks = vi.hoisted(() => ({
+  cancelAllScheduledNotifications: vi.fn().mockResolvedValue(undefined),
   getNotificationPermissionStatus: vi.fn(async () => 'granted'),
   openNotificationSettings: vi.fn(async () => true),
   registerForPushNotifications: vi.fn(
@@ -99,6 +100,7 @@ vi.mock('../context/NotificationPreferencesContext', () => ({
 
 vi.mock('../services/notifications', () => ({
   IS_EXPO_GO: false,
+  cancelAllScheduledNotifications: notificationMocks.cancelAllScheduledNotifications,
   getNotificationPermissionStatus:
     notificationMocks.getNotificationPermissionStatus,
   openNotificationSettings: notificationMocks.openNotificationSettings,
@@ -199,6 +201,7 @@ vi.mock('expo-notifications', () => ({
 }));
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
+    getAllKeys: vi.fn().mockResolvedValue([]),
     getItem: vi.fn().mockResolvedValue(null),
     setItem: vi.fn().mockResolvedValue(undefined),
     removeItem: vi.fn().mockResolvedValue(undefined),
@@ -303,6 +306,7 @@ beforeEach(() => {
   settingsPreferenceMocks.saving = false;
   settingsPreferenceMocks.updatePreferences.mockClear();
   notificationMocks.getNotificationPermissionStatus.mockClear();
+  notificationMocks.cancelAllScheduledNotifications.mockReset().mockResolvedValue(undefined);
   notificationMocks.openNotificationSettings.mockClear();
   notificationMocks.registerForPushNotifications.mockReset().mockResolvedValue({
     status: 'registered',
@@ -316,6 +320,24 @@ beforeEach(() => {
 });
 
 describe('MyPageScreen', () => {
+  it('finishes native alarm cleanup before the auth provider signs out', async () => {
+    authMocks.session = { access_token: 'access-token', user: { id: 'owner-a' } };
+    let account!: ReturnType<typeof useAuth>;
+    function SessionProbe() { account = useAuth(); return null; }
+    const renderer = renderScreen(React.createElement(SessionProbe));
+    await act(async () => { await Promise.resolve(); });
+    let finish!: () => void;
+    notificationMocks.cancelAllScheduledNotifications.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+    let logout!: Promise<void>;
+    await act(async () => { logout = account.signOut(); await Promise.resolve(); });
+    expect(authMocks.signOut).not.toHaveBeenCalled();
+    expect(account.user?.id).toBe('owner-a');
+    await act(async () => { finish(); await logout; });
+    expect(authMocks.signOut).toHaveBeenCalledOnce();
+    expect(account.user).toBeNull();
+    act(() => { renderer.unmount(); });
+  });
+
   it('isolates and announces the wish registration dialog', async () => {
     const renderer = renderMyPageScreen();
     await act(async () => {
