@@ -14,21 +14,37 @@ vi.mock('../../api', () => ({
 
 // ─── Test component factory ──────────────────────────────────────────────────
 
+type LookupResult = Awaited<ReturnType<typeof apiModule.lookupInstagramUrl>>;
+
+function makePostResult(imageUrl: string, username: string): LookupResult {
+  return {
+    imageUrl,
+    username,
+    thumbnailUrl: null,
+    videoUrl: null,
+    mediaUrls: [],
+    mediaType: null,
+    caption: null,
+    likeCount: null,
+    takenAt: null,
+  };
+}
+
 function mountHook(url: string) {
   const result: { current: ReturnType<typeof useHikerApi> } = { current: null as any };
-  function TestComp() {
-    result.current = useHikerApi(url);
+  function TestComp({ inputUrl }: { inputUrl: string }) {
+    result.current = useHikerApi(inputUrl);
     return null;
   }
   let renderer: ReturnType<typeof TestRenderer.create>;
   act(() => {
-    renderer = TestRenderer.create(React.createElement(TestComp));
+    renderer = TestRenderer.create(React.createElement(TestComp, { inputUrl: url }));
   });
   return {
     get current() { return result.current; },
     rerender(newUrl: string) {
       act(() => {
-        renderer!.update(React.createElement(TestComp, { key: Math.random() }));
+        renderer!.update(React.createElement(TestComp, { inputUrl: newUrl }));
       });
     },
     unmount() { renderer!.unmount(); },
@@ -54,7 +70,84 @@ function mountHook(url: string) {
 
 describe('useHikerApi', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.mocked(apiModule.lookupInstagramUrl).mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('clears the previous post as soon as a different valid URL is entered', async () => {
+    vi.useFakeTimers();
+    const firstUrl = 'https://www.instagram.com/p/FIRST1/';
+    const secondUrl = 'https://www.instagram.com/p/SECOND2/';
+    vi.mocked(apiModule.lookupInstagramUrl)
+      .mockResolvedValueOnce(makePostResult('https://example.com/first.jpg', 'first'))
+      .mockResolvedValueOnce(makePostResult('https://example.com/second.jpg', 'second'));
+    const hook = mountHook(firstUrl);
+
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(hook.current.data?.imageUrl).toBe('https://example.com/first.jpg');
+
+      hook.rerender(secondUrl);
+
+      expect(hook.current.data).toBeNull();
+      expect(hook.current.status).not.toBe('success');
+      expect(apiModule.lookupInstagramUrl).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(499);
+      });
+      expect(hook.current.data).toBeNull();
+      expect(apiModule.lookupInstagramUrl).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(apiModule.lookupInstagramUrl).toHaveBeenLastCalledWith(secondUrl);
+      expect(hook.current.data?.imageUrl).toBe('https://example.com/second.jpg');
+      expect(hook.current.status).toBe('success');
+    } finally {
+      act(() => hook.unmount());
+    }
+  });
+
+  it('ignores the old in-flight post while a new URL is still debouncing', async () => {
+    vi.useFakeTimers();
+    const firstUrl = 'https://www.instagram.com/p/FIRST1/';
+    const secondUrl = 'https://www.instagram.com/p/SECOND2/';
+    const finishFirst = vi.fn();
+    vi.mocked(apiModule.lookupInstagramUrl)
+      .mockImplementationOnce(() => new Promise((resolve) => { finishFirst.mockImplementation(resolve); }))
+      .mockResolvedValueOnce(makePostResult('https://example.com/second.jpg', 'second'));
+    const hook = mountHook(firstUrl);
+
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(apiModule.lookupInstagramUrl).toHaveBeenCalledWith(firstUrl);
+      hook.rerender(secondUrl);
+
+      await act(async () => {
+        finishFirst(makePostResult('https://example.com/first.jpg', 'first'));
+        await Promise.resolve();
+      });
+      expect(hook.current.data).toBeNull();
+      expect(hook.current.status).not.toBe('success');
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(apiModule.lookupInstagramUrl).toHaveBeenLastCalledWith(secondUrl);
+      expect(hook.current.data?.imageUrl).toBe('https://example.com/second.jpg');
+      expect(hook.current.status).toBe('success');
+    } finally {
+      act(() => hook.unmount());
+    }
   });
 
   it('returns idle state when url is empty', () => {
