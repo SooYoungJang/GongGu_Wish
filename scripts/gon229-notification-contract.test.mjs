@@ -54,6 +54,7 @@ test("authenticated preference reads cannot mutate or leak push tokens", () => {
 test("Android notification runtime covers consent, deep links, and persistence", () => {
   const easConfig = JSON.parse(read("apps/mobile/eas.json"));
   const app = read("apps/mobile/src/App.tsx");
+  const backgroundPush = read("apps/mobile/src/hooks/useBackgroundPushRegistration.ts");
   const settings = read("apps/mobile/src/screens/SettingsScreen.tsx");
   const authScreen = read("apps/mobile/src/screens/AuthScreen.tsx");
   const notifications = read("apps/mobile/src/services/notifications.ts");
@@ -84,7 +85,9 @@ test("Android notification runtime covers consent, deep links, and persistence",
   assert.equal(easConfig.build.preview.environment, "preview");
   assert.equal(easConfig.build.preview.channel, "preview");
   assert.equal(easConfig.build.preview.env.APP_VARIANT, "preview");
-  assert.match(app, /requestPermission: false/);
+  assert.match(app, /import \{ useBackgroundPushRegistration \} from "\.\/hooks\/useBackgroundPushRegistration"/);
+  assert.match(app, /useBackgroundPushRegistration\(\{/);
+  assert.match(backgroundPush, /requestPermission: false/);
   assert.match(app, /Constants\.expoConfig\?\.extra\?\.e2eSupabaseUrl/);
   assert.match(settings, /testID="push-notification-toggle"/);
   assert.match(settings, /isAutomatedE2E\(\)/);
