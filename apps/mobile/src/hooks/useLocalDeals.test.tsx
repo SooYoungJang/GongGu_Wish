@@ -1329,7 +1329,11 @@ describe("useNotifications", () => {
       notifications.result.current.getNotificationReminderDays(item.id),
     ).toEqual([3]);
     await waitFor(() => {
-      expect(apiMocks.syncNotification).toHaveBeenCalledWith(item.id, [3]);
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(
+        item.id,
+        [3],
+        "user-1",
+      );
     });
   });
 
@@ -1383,11 +1387,15 @@ describe("useNotifications", () => {
       reminderTimeMinutes: 15 * 60 + 30,
     });
     await waitFor(() => {
-      expect(apiMocks.syncNotification).toHaveBeenCalledWith(item.id, {
-        type: "opening",
-        reminderDays: [0, 3],
-        reminderTimeMinutes: 15 * 60 + 30,
-      });
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(
+        item.id,
+        {
+          type: "opening",
+          reminderDays: [0, 3],
+          reminderTimeMinutes: 15 * 60 + 30,
+        },
+        "user-1",
+      );
     });
   });
 
@@ -1431,7 +1439,11 @@ describe("useNotifications", () => {
       notifications.result.current.getNotificationReminderDays(item.id),
     ).toEqual([2, 5]);
     await waitFor(() => {
-      expect(apiMocks.syncNotification).toHaveBeenCalledWith(item.id, [2, 5]);
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(
+        item.id,
+        [2, 5],
+        "user-1",
+      );
     });
   });
 
@@ -1511,6 +1523,7 @@ describe("useNotifications", () => {
       expect(apiMocks.syncNotification).toHaveBeenCalledWith(
         expiredItem.id,
         [],
+        "user-1",
       );
     });
   });
@@ -1561,7 +1574,11 @@ describe("useNotifications", () => {
       notifications.result.current.getNotificationReminderDays(item.id),
     ).toEqual([3]);
     await waitFor(() => {
-      expect(apiMocks.syncNotification).toHaveBeenLastCalledWith(item.id, [3]);
+      expect(apiMocks.syncNotification).toHaveBeenLastCalledWith(
+        item.id,
+        [3],
+        "user-1",
+      );
     });
   });
 
@@ -1731,6 +1748,7 @@ describe("useNotifications", () => {
       expect(apiMocks.syncNotification).toHaveBeenCalledWith(
         GROUP_BUY.id,
         [1, 3, 7],
+        "user-1",
       );
     });
     expect(
@@ -1807,6 +1825,77 @@ describe("useNotifications", () => {
           }),
         ]),
       );
+    });
+  });
+
+  it("keeps queued reminder intents bound to their owner while another account signs in", async () => {
+    const outboxKey = "@gonggu/notifications/outbox/v1/user%3Auser-a";
+    const first = {
+      groupBuyId: "group-buy-a",
+      reminderDays: [1],
+      updatedAt: "2026-07-20T00:00:00.000Z",
+    };
+    const second = {
+      groupBuyId: "group-buy-b",
+      reminderDays: [3],
+      updatedAt: "2026-07-20T00:01:00.000Z",
+    };
+    storage.values.set(outboxKey, JSON.stringify([first, second]));
+    authMocks.user = { id: "user-a" };
+    let finishFirst!: (result: { status: "synced"; preference: null }) => void;
+    apiMocks.syncNotification
+      .mockReset()
+      .mockImplementation(async (_id, _reminder, expectedUserId) =>
+        expectedUserId === authMocks.user?.id
+          ? { status: "synced", preference: null }
+          : { status: "failed" },
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFirst = resolve;
+          }),
+      );
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(apiMocks.syncNotification).toHaveBeenCalledOnce());
+
+    authMocks.user = { id: "user-b" };
+    notifications.rerender();
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    await act(async () => {
+      finishFirst({ status: "synced", preference: null });
+    });
+
+    await waitFor(() => {
+      expect(JSON.parse(storage.values.get(outboxKey) ?? "[]")).toEqual([second]);
+      expect(apiMocks.fetchNotificationReminders).toHaveBeenCalledTimes(2);
+    });
+    expect(apiMocks.syncNotification).toHaveBeenNthCalledWith(
+      1,
+      first.groupBuyId,
+      [1],
+      "user-a",
+    );
+    expect(apiMocks.syncNotification).toHaveBeenNthCalledWith(
+      2,
+      second.groupBuyId,
+      [3],
+      "user-a",
+    );
+    expect(apiMocks.fetchNotificationReminders).toHaveBeenCalledWith("user-a");
+    expect(apiMocks.fetchNotificationReminders).toHaveBeenCalledWith("user-b");
+    expect(notifications.result.current.notifications).toEqual([]);
+    expect(
+      JSON.parse(
+        storage.values.get("@gonggu/notifications/outbox/v1/user%3Auser-b") ?? "[]",
+      ),
+    ).toEqual([]);
+
+    authMocks.user = { id: "user-a" };
+    notifications.rerender();
+    await waitFor(() => {
+      expect(notifications.result.current.ready).toBe(true);
+      expect(JSON.parse(storage.values.get(outboxKey) ?? "[]")).toEqual([]);
     });
   });
 

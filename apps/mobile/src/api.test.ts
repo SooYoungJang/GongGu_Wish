@@ -27,17 +27,35 @@ const sessionMocks = vi.hoisted(() => ({
 const authTokenMocks = vi.hoisted(() => ({
   getAuthToken: vi.fn<() => Promise<string | null>>(),
 }));
+const supabaseMocks = vi.hoisted(() => ({
+  getSupabaseIfConfigured: vi.fn(),
+}));
 
 vi.mock("./utils/session", () => sessionMocks);
 vi.mock("./utils/auth", () => authTokenMocks);
+vi.mock("./lib/supabase", () => supabaseMocks);
 
 const originalFetch = global.fetch;
+
+function mockSupabaseSession(userId: string) {
+  supabaseMocks.getSupabaseIfConfigured.mockReturnValue({
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: {
+          session: { user: { id: userId }, access_token: `${userId}-token` },
+        },
+        error: null,
+      }),
+    },
+  });
+}
 
 describe("public data fetch diagnostics", () => {
   beforeEach(() => {
     configurePostgrest("sb_publishable_1234567890");
     sessionMocks.getSessionId.mockReset();
     authTokenMocks.getAuthToken.mockReset().mockResolvedValue(null);
+    supabaseMocks.getSupabaseIfConfigured.mockReset().mockReturnValue(null);
     setAudiencePolicySnapshot(resolveAudiencePolicy("age14Plus"));
     vi.spyOn(console, "log").mockImplementation(() => undefined);
   });
@@ -726,6 +744,7 @@ describe("public data fetch diagnostics", () => {
   });
 
   it("replaces authenticated opening reminders through the owner-only v2 RPC", async () => {
+    mockSupabaseSession("user-1");
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -742,11 +761,15 @@ describe("public data fetch diagnostics", () => {
     }) as unknown as typeof fetch;
 
     await expect(
-      syncNotification("group-buy-1", {
-        type: "opening",
-        reminderDays: [6, 0, 2, 6],
-        reminderTimeMinutes: 15 * 60 + 30,
-      }),
+      syncNotification(
+        "group-buy-1",
+        {
+          type: "opening",
+          reminderDays: [6, 0, 2, 6],
+          reminderTimeMinutes: 15 * 60 + 30,
+        },
+        "user-1",
+      ),
     ).resolves.toEqual({
       status: "synced",
       preference: {
@@ -772,6 +795,7 @@ describe("public data fetch diagnostics", () => {
   });
 
   it("loads and maps authenticated opening and deadline reminder intents", async () => {
+    mockSupabaseSession("user-1");
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -801,7 +825,7 @@ describe("public data fetch diagnostics", () => {
       ],
     }) as unknown as typeof fetch;
 
-    await expect(fetchNotificationReminders()).resolves.toEqual([
+    await expect(fetchNotificationReminders("user-1")).resolves.toEqual([
       {
         groupBuyId: "group-buy-1",
         type: "opening",
@@ -824,10 +848,52 @@ describe("public data fetch diagnostics", () => {
   });
 
   it("reports a retryable failure when a reminder mirror cannot sync", async () => {
+    mockSupabaseSession("user-1");
     global.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
 
-    await expect(syncNotification("group-buy-1", [1])).resolves.toEqual({
+    await expect(syncNotification("group-buy-1", [1], "user-1")).resolves.toEqual({
       status: "failed",
     });
+    expect(global.fetch).toHaveBeenCalledOnce();
+  });
+
+  it("uses the expected account session for reminder reads and writes", async () => {
+    mockSupabaseSession("user-a");
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [],
+    }) as unknown as typeof fetch;
+
+    await expect(
+      syncNotification("group-buy-1", [1], "user-a"),
+    ).resolves.toEqual({ status: "synced", preference: null });
+    await expect(fetchNotificationReminders("user-a")).resolves.toEqual([]);
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    for (const [, init] of vi.mocked(global.fetch).mock.calls) {
+      expect((init as RequestInit).headers).toEqual(
+        expect.objectContaining({ Authorization: "Bearer user-a-token" }),
+      );
+    }
+  });
+
+  it("does not read or write a previous account's reminders after an account switch", async () => {
+    mockSupabaseSession("user-b");
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => [],
+    }) as unknown as typeof fetch;
+
+    await expect(
+      syncNotification("group-buy-1", [1], "user-a"),
+    ).resolves.toEqual({ status: "failed" });
+    await expect(fetchNotificationReminders("user-a")).resolves.toBeNull();
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(authTokenMocks.getAuthToken).not.toHaveBeenCalled();
   });
 });
