@@ -7,6 +7,9 @@ import {
 } from "./notifications";
 
 const nativeScheduleOperations = new Set<Promise<GroupBuyAlertState>>();
+const storageOperations = new Set<Promise<void>>();
+const scheduleCleanupListeners = new Set<() => void>();
+const signOutFailureListeners = new Set<(namespace: string) => Promise<void>>();
 const NOTIFICATION_STORAGE_PREFIX = "@gonggu/notifications/v2/";
 const inactiveNamespaces = new Set<string>();
 let scheduleRevision = 0;
@@ -33,6 +36,31 @@ export function resumeLocalNotificationSchedules(namespace: string) {
 export function captureLocalNotificationScheduleGuard(namespace: string) {
   const revision = scheduleRevision;
   return () => revision === scheduleRevision && pausedSchedules === 0 && !inactiveNamespaces.has(namespace);
+}
+
+/** Track only local writes; a stalled remote refresh must not block logout. */
+export async function runLocalNotificationWrite(
+  isCurrent: () => boolean,
+  write: () => Promise<void>,
+): Promise<void> {
+  if (!isCurrent()) return;
+  const operation = write();
+  storageOperations.add(operation);
+  try {
+    await operation;
+  } finally {
+    storageOperations.delete(operation);
+  }
+}
+
+export function onLocalNotificationSchedulesCleared(listener: () => void) {
+  scheduleCleanupListeners.add(listener);
+  return () => { scheduleCleanupListeners.delete(listener); };
+}
+
+export function onLocalNotificationSignOutFailed(listener: (namespace: string) => Promise<void>) {
+  signOutFailureListeners.add(listener);
+  return () => { signOutFailureListeners.delete(listener); };
 }
 
 export async function runLocalNotificationSchedule(
@@ -103,8 +131,9 @@ export async function signOutLocalNotifications<T>(
   pausedSchedules += 1;
   inactiveNamespaces.add(namespace);
   try {
-    await Promise.allSettled([...nativeScheduleOperations]);
+    await Promise.allSettled([...nativeScheduleOperations, ...storageOperations]);
     await cancelAllScheduledNotifications();
+    scheduleCleanupListeners.forEach((listener) => listener());
     // OS cancellation affects every account's alarms on this installation.
     // Clear legacy IDs too so another account can restore its reminders later.
     const keys = await AsyncStorage.getAllKeys();
@@ -113,6 +142,9 @@ export async function signOutLocalNotifications<T>(
     }
     return await signOut();
   } catch (error) {
+    // The session stays active, but its old operations remain invalidated.
+    // Recover local pending state before allowing new reminder work.
+    await Promise.allSettled([...signOutFailureListeners].map((listener) => listener(namespace)));
     inactiveNamespaces.delete(namespace);
     throw error;
   } finally {

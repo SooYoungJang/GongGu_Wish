@@ -263,6 +263,77 @@ describe("useNotifications", () => {
     expect(signOut).toHaveBeenCalledOnce();
   });
 
+  it.each(["edit", "remove"] as const)("makes an interrupted reminder %s retryable when logout fails", async (action) => {
+    const userId = `failed-logout-${action}`;
+    authMocks.user = { id: userId };
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValue({
+      status: "scheduled", notifications: [{ id: "old-alarm", triggerDate: new Date(Date.now() + 86_400_000) }],
+    });
+    await act(async () => { await notifications.result.current.setNotificationReminders(GROUP_BUY, [1]); });
+    let finishCancellation!: () => void;
+    notificationServiceMocks.cancelScheduledNotifications.mockImplementationOnce((ids: string[]) => new Promise((resolve) => {
+      finishCancellation = () => resolve({ cancelledIds: ids, failedIds: [] });
+    }));
+    const mutation = action === "edit"
+      ? notifications.result.current.setNotificationReminders(GROUP_BUY, [3])
+      : notifications.result.current.removeNotification(GROUP_BUY.id);
+    await waitFor(() => expect(finishCancellation).toBeTypeOf("function"));
+    notificationServiceMocks.cancelAllScheduledNotifications.mockRejectedValueOnce(new Error("native cancellation failed"));
+    const signOut = vi.fn();
+    await act(async () => {
+      await expect(signOutLocalNotifications(userId, signOut)).rejects.toThrow("native cancellation failed");
+      finishCancellation();
+      await mutation;
+    });
+    expect(signOut).not.toHaveBeenCalled();
+    const expectedState = { status: "failed", action: action === "edit" ? "enable" : "disable", retryable: true };
+    expect(notifications.result.current.notifications[0]).toMatchObject({
+      alertState: expectedState, notificationIds: ["old-alarm"], reminderDays: action === "edit" ? [3] : [1],
+    });
+    const saved = JSON.parse(storage.values.get(`@gonggu/notifications/v2/${encodeURIComponent(`user:${userId}`)}`) ?? "[]");
+    expect(saved[0].alertState).toMatchObject(expectedState);
+    expect(apiMocks.fetchNotificationReminders).toHaveBeenCalledOnce();
+    await act(async () => { await notifications.result.current.retryNotification(GROUP_BUY); });
+    if (action === "edit") {
+      expect(notifications.result.current.notifications[0].alertState?.status).toBe("enabled");
+      expect(notificationServiceMocks.scheduleGroupBuyReminders).toHaveBeenLastCalledWith(
+        GROUP_BUY.id, GROUP_BUY.productName, GROUP_BUY.endDate, [3], { requestPermission: false },
+      );
+    } else {
+      expect(notifications.result.current.notifications).toEqual([]);
+    }
+  });
+
+  it("restores a completed write to the mounted snapshot when logout fails", async () => {
+    authMocks.user = { id: "completed-write-owner" };
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    let releaseWrite!: () => void;
+    notificationServiceMocks.scheduleGroupBuyReminders.mockImplementationOnce(async () => {
+      storage.writeGate = new Promise<void>((resolve) => { releaseWrite = resolve; });
+      return { status: "scheduled", notifications: [{ id: "new-alarm", triggerDate: new Date(Date.now() + 86_400_000) }] };
+    });
+    const writes = storage.writeAttempts;
+    const scheduling = notifications.result.current.setNotificationReminders(GROUP_BUY, [3]);
+    await waitFor(() => expect(storage.writeAttempts).toBe(writes + 2));
+    expect(notifications.result.current.notifications[0].alertState?.status).toBe("pending");
+    storage.writeGate = null;
+    notificationServiceMocks.cancelAllScheduledNotifications.mockRejectedValueOnce(new Error("native cancellation failed"));
+    const signOut = vi.fn();
+    const logout = signOutLocalNotifications("completed-write-owner", signOut);
+    await act(async () => {
+      releaseWrite();
+      await scheduling;
+      await expect(logout).rejects.toThrow("native cancellation failed");
+    });
+    expect(signOut).not.toHaveBeenCalled();
+    expect(notifications.result.current.notifications[0]).toMatchObject({
+      alertState: { status: "enabled" }, notificationIds: ["new-alarm"], reminderDays: [3],
+    });
+  });
+
   it("does not schedule a queued old-account reminder after another account signs in", async () => {
     authMocks.user = { id: "owner-a" };
     let finishRefresh!: () => void;
@@ -323,6 +394,114 @@ describe("useNotifications", () => {
     expect(notificationPreferenceMocks.updatePreferences).toHaveBeenCalledWith({
       pushEnabled: true,
     });
+  });
+
+  it.each(["edit", "remove", "reschedule"] as const)("does not restore another reminder's cancelled IDs when a reminder %s finishes after logout", async (action) => {
+    authMocks.user = { id: "late-edit-owner" };
+    const otherDeal = { ...GROUP_BUY, id: "other-deal" };
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    notificationServiceMocks.scheduleGroupBuyReminders.mockImplementation(async (groupBuyId: string) => ({
+      status: "scheduled",
+      notifications: [{ id: `${groupBuyId}-alarm`, triggerDate: new Date(Date.now() + 86_400_000) }],
+    }));
+    await act(async () => {
+      await notifications.result.current.setNotificationReminders(GROUP_BUY, [1]);
+      await notifications.result.current.setNotificationReminders(otherDeal, [1]);
+    });
+    let finishCancellation!: () => void;
+    notificationServiceMocks.cancelScheduledNotifications.mockImplementationOnce((ids: string[]) => new Promise((resolve) => {
+      finishCancellation = () => resolve({ cancelledIds: ids, failedIds: [] });
+    }));
+    const edit = action === "edit"
+      ? notifications.result.current.setNotificationReminders(GROUP_BUY, [3])
+      : action === "remove"
+        ? notifications.result.current.removeNotification(GROUP_BUY.id)
+        : notifications.result.current.rescheduleNotifications(notificationPreferenceMocks.preferences);
+    await waitFor(() => expect(finishCancellation).toBeTypeOf("function"));
+    await act(async () => {
+      await signOutLocalNotifications("late-edit-owner", async () => { authMocks.user = null; });
+    });
+    notifications.rerender();
+    await act(async () => { finishCancellation(); await edit; });
+    const saved = JSON.parse(storage.values.get("@gonggu/notifications/v2/user%3Alate-edit-owner") ?? "[]");
+    expect(saved.find((entry: { groupBuyId: string }) => entry.groupBuyId === otherDeal.id).notificationIds).toEqual([]);
+
+    authMocks.user = { id: "late-edit-owner" };
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([GROUP_BUY, otherDeal]);
+    apiMocks.fetchNotificationReminders.mockResolvedValue([GROUP_BUY, otherDeal].map((item) => ({
+      groupBuyId: item.id, type: "deadline", reminderDays: [1],
+    })));
+    notificationServiceMocks.scheduleGroupBuyReminders.mockClear();
+    notifications.rerender();
+    await waitFor(() => expect(notificationServiceMocks.scheduleGroupBuyReminders).toHaveBeenCalledWith(otherDeal.id, otherDeal.productName, otherDeal.endDate, [1], { requestPermission: false }));
+  });
+
+  it("drains an in-flight reminder write before logout clears disk and mounted snapshots", async () => {
+    authMocks.user = { id: "writing-owner" };
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValue({
+      status: "scheduled", notifications: [{ id: "old-alarm", triggerDate: new Date(Date.now() + 86_400_000) }],
+    });
+    await act(async () => { await notifications.result.current.setNotificationReminders(GROUP_BUY, [1]); });
+    let releaseWrite!: () => void;
+    storage.writeGate = new Promise<void>((resolve) => { releaseWrite = resolve; });
+    const writes = storage.writeAttempts;
+    const edit = notifications.result.current.setNotificationReminders(GROUP_BUY, [3]);
+    await waitFor(() => expect(storage.writeAttempts).toBeGreaterThan(writes));
+    storage.writeGate = null;
+    const signOut = vi.fn(async () => undefined);
+    const logout = signOutLocalNotifications("writing-owner", signOut);
+    try {
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(signOut).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => { releaseWrite(); await edit; await logout; });
+    }
+    const saved = JSON.parse(storage.values.get("@gonggu/notifications/v2/user%3Awriting-owner") ?? "[]");
+    expect(saved[0]).toMatchObject({ notificationIds: [], notificationId: null, reminderDays: [3] });
+    expect(notifications.result.current.notifications[0]).toMatchObject({ notificationIds: [], notificationId: null });
+    expect(signOut).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a queued old-session reminder even when the same account signs back in", async () => {
+    authMocks.user = { id: "returning-owner" };
+    let finishRefresh!: () => void;
+    apiMocks.fetchNotificationReminders.mockImplementationOnce(() => new Promise((resolve) => {
+      finishRefresh = () => resolve([]);
+    }));
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(finishRefresh).toBeTypeOf("function"));
+    const scheduling = notifications.result.current.setNotificationReminders(GROUP_BUY, [1]);
+    await act(async () => { await signOutLocalNotifications("returning-owner", async () => { authMocks.user = null; }); });
+    notifications.rerender();
+    authMocks.user = { id: "returning-owner" };
+    notifications.rerender();
+    await act(async () => { finishRefresh(); await scheduling; });
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    expect(notificationServiceMocks.scheduleGroupBuyReminders).not.toHaveBeenCalled();
+    expect(notificationServiceMocks.ensureNotificationPermission).not.toHaveBeenCalled();
+    expect(notifications.result.current.notifications).toEqual([]);
+  });
+
+  it("does not enable push when an old reminder permission prompt finishes after logout", async () => {
+    authMocks.user = { id: "permission-owner" };
+    notificationPreferenceMocks.preferences.pushEnabled = false;
+    notificationPreferenceMocks.updatePreferences.mockClear();
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    let grantPermission!: () => void;
+    notificationServiceMocks.ensureNotificationPermission.mockImplementationOnce(() => new Promise((resolve) => {
+      grantPermission = () => resolve(true);
+    }));
+    const scheduling = notifications.result.current.setNotificationReminders(GROUP_BUY, [1]);
+    await waitFor(() => expect(grantPermission).toBeTypeOf("function"));
+    await act(async () => { await signOutLocalNotifications("permission-owner", async () => { authMocks.user = null; }); });
+    notifications.rerender();
+    await act(async () => { grantPermission(); await scheduling; });
+    expect(notificationPreferenceMocks.updatePreferences).not.toHaveBeenCalled();
+    expect(notificationServiceMocks.scheduleGroupBuyReminders).not.toHaveBeenCalled();
   });
 
   it("동시에 마운트된 다른 화면에도 알림 변경을 즉시 반영한다", async () => {
