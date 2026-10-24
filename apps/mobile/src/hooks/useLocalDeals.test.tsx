@@ -85,6 +85,7 @@ const storage = vi.hoisted(() => ({
   nextGetItemError: null as Error | null,
   writeGate: null as Promise<void> | null,
   writeAttempts: 0,
+  attemptedWrites: [] as Array<{ key: string; value: string }>,
 }));
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
@@ -105,6 +106,7 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
     }),
     setItem: vi.fn(async (key: string, value: string) => {
       storage.writeAttempts += 1;
+      storage.attemptedWrites.push({ key, value });
       if (storage.writeGate) await storage.writeGate;
       storage.values.set(key, value);
     }),
@@ -152,6 +154,7 @@ describe("useNotifications", () => {
     storage.nextGetItemError = null;
     storage.writeGate = null;
     storage.writeAttempts = 0;
+    storage.attemptedWrites.length = 0;
     apiMocks.fetchGroupBuysByIds.mockReset().mockResolvedValue([]);
     apiMocks.fetchNotificationReminders.mockReset().mockResolvedValue([]);
     apiMocks.syncBookmark.mockReset().mockResolvedValue(undefined);
@@ -315,9 +318,11 @@ describe("useNotifications", () => {
       storage.writeGate = new Promise<void>((resolve) => { releaseWrite = resolve; });
       return { status: "scheduled", notifications: [{ id: "new-alarm", triggerDate: new Date(Date.now() + 86_400_000) }] };
     });
-    const writes = storage.writeAttempts;
     const scheduling = notifications.result.current.setNotificationReminders(GROUP_BUY, [3]);
-    await waitFor(() => expect(storage.writeAttempts).toBe(writes + 2));
+    await waitFor(() => expect(storage.attemptedWrites.some(({ key, value }) =>
+      key === "@gonggu/notifications/v2/user%3Acompleted-write-owner" &&
+      JSON.parse(value)[0]?.alertState?.status === "enabled",
+    )).toBe(true));
     expect(notifications.result.current.notifications[0].alertState?.status).toBe("pending");
     storage.writeGate = null;
     notificationServiceMocks.cancelAllScheduledNotifications.mockRejectedValueOnce(new Error("native cancellation failed"));
@@ -463,6 +468,96 @@ describe("useNotifications", () => {
     expect(saved[0]).toMatchObject({ notificationIds: [], notificationId: null, reminderDays: [3] });
     expect(notifications.result.current.notifications[0]).toMatchObject({ notificationIds: [], notificationId: null });
     expect(signOut).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["edit", false, false], ["remove", false, false],
+    ["edit", true, false], ["remove", true, false],
+    ["edit", true, true], ["remove", true, true],
+  ] as const)("preserves an accepted reminder %s across relogin with sync failure %s and fetch failure %s", async (action, syncFails, fetchFails) => {
+    const userId = `intent-owner-${action}-${syncFails}-${fetchFails}`;
+    let serverDays: number[] = [];
+    let failSync = false;
+    let failFetch = false;
+    apiMocks.syncNotification.mockImplementation(async (_id: string, days: readonly number[]) => {
+      if (failSync) return { status: "failed" };
+      serverDays = [...days];
+      return { status: "synced", preference: null };
+    });
+    apiMocks.fetchNotificationReminders.mockImplementation(async () => failFetch ? null
+      : serverDays.length ? [{ groupBuyId: GROUP_BUY.id, type: "deadline", reminderDays: serverDays }] : []);
+    apiMocks.fetchGroupBuysByIds.mockResolvedValue([GROUP_BUY]);
+    authMocks.user = { id: userId };
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValue({
+      status: "scheduled", notifications: [{ id: "old-alarm", triggerDate: new Date(Date.now() + 86_400_000) }],
+    });
+    await act(async () => { await notifications.result.current.setNotificationReminders(GROUP_BUY, [1]); });
+    await waitFor(() => expect(serverDays).toEqual([1]));
+    failSync = syncFails;
+    failFetch = fetchFails;
+    let finishCancellation!: () => void;
+    notificationServiceMocks.cancelScheduledNotifications.mockImplementationOnce((ids: string[]) => new Promise((resolve) => {
+      finishCancellation = () => resolve({ cancelledIds: ids, failedIds: [] });
+    }));
+    const mutation = action === "edit"
+      ? notifications.result.current.setNotificationReminders(GROUP_BUY, [3])
+      : notifications.result.current.removeNotification(GROUP_BUY.id);
+    await waitFor(() => expect(finishCancellation).toBeTypeOf("function"));
+    await act(async () => { await signOutLocalNotifications(userId, async () => { authMocks.user = null; }); });
+    notifications.rerender();
+    await act(async () => { finishCancellation(); await mutation; });
+    const saved = JSON.parse(storage.values.get(`@gonggu/notifications/v2/${encodeURIComponent(`user:${userId}`)}`) ?? "[]");
+    expect(saved.every((entry: { notificationIds: string[] }) => entry.notificationIds.length === 0)).toBe(true);
+
+    const schedulesBeforeRelogin = notificationServiceMocks.scheduleGroupBuyReminders.mock.calls.length;
+    authMocks.user = { id: userId };
+    notifications.rerender();
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    if (action === "edit") {
+      expect(notifications.result.current.getNotificationReminderDays(GROUP_BUY.id)).toEqual([3]);
+      expect(notificationServiceMocks.scheduleGroupBuyReminders.mock.calls.length).toBeGreaterThan(schedulesBeforeRelogin);
+      expect(notifications.result.current.notifications[0]?.notificationIds).toHaveLength(1);
+    } else {
+      expect(notifications.result.current.notifications).toEqual([]);
+      expect(notificationServiceMocks.scheduleGroupBuyReminders).toHaveBeenCalledTimes(schedulesBeforeRelogin);
+    }
+  });
+
+  it("journals a new reminder choice without waiting for an older remote sync during logout", async () => {
+    const userId = "stalled-mirror-owner";
+    authMocks.user = { id: userId };
+    const notifications = renderHook(() => useNotifications());
+    await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+    let finishOldMirror!: () => void;
+    apiMocks.syncNotification.mockImplementationOnce(() => new Promise((resolve) => {
+      finishOldMirror = () => resolve({ status: "synced", preference: null });
+    }));
+    notificationServiceMocks.scheduleGroupBuyReminders.mockResolvedValue({
+      status: "scheduled", notifications: [{ id: "old-alarm", triggerDate: new Date(Date.now() + 86_400_000) }],
+    });
+    await act(async () => { await notifications.result.current.setNotificationReminders(GROUP_BUY, [1]); });
+    await waitFor(() => expect(finishOldMirror).toBeTypeOf("function"));
+    let finishCancellation!: () => void;
+    notificationServiceMocks.cancelScheduledNotifications.mockImplementationOnce((ids: string[]) => new Promise((resolve) => {
+      finishCancellation = () => resolve({ cancelledIds: ids, failedIds: [] });
+    }));
+    const edit = notifications.result.current.setNotificationReminders(GROUP_BUY, [3]);
+    await waitFor(() => expect(finishCancellation).toBeTypeOf("function"));
+    const signOut = vi.fn(async () => { authMocks.user = null; });
+    await act(async () => { await signOutLocalNotifications(userId, signOut); });
+    expect(signOut).toHaveBeenCalledOnce();
+    const outboxKey = `@gonggu/notifications/outbox/v1/${encodeURIComponent(`user:${userId}`)}`;
+    expect(JSON.parse(storage.values.get(outboxKey) ?? "[]")[0]?.reminderDays).toEqual([3]);
+    let finishNewMirror!: () => void;
+    apiMocks.syncNotification.mockImplementationOnce(() => new Promise((resolve) => {
+      finishNewMirror = () => resolve({ status: "failed", preference: null });
+    }));
+    await act(async () => { finishOldMirror(); finishCancellation(); await edit; });
+    await waitFor(() => expect(finishNewMirror).toBeTypeOf("function"));
+    expect(JSON.parse(storage.values.get(outboxKey) ?? "[]")[0]?.reminderDays).toEqual([3]);
+    await act(async () => { finishNewMirror(); });
   });
 
   it("rejects a queued old-session reminder even when the same account signs back in", async () => {
@@ -2078,6 +2173,77 @@ describe("useNotifications", () => {
       });
     });
   });
+
+  it.each([true, false])(
+    "honors a legacy enabled=%s reminder outbox entry while server sync fails",
+    async (enabled) => {
+      const userId = `legacy-outbox-${enabled}`;
+      const encodedNamespace = encodeURIComponent(`user:${userId}`);
+      const outboxKey = `@gonggu/notifications/outbox/v1/${encodedNamespace}`;
+      const reminder = {
+        ...GROUP_BUY,
+        endDate: new Date(Date.now() + 10 * 86_400_000).toISOString(),
+      };
+      const scheduledFor = new Date(Date.now() + 9 * 86_400_000).toISOString();
+      authMocks.user = { id: userId };
+      storage.values.set(
+        `@gonggu/notifications/server-migrated/v1/${encodedNamespace}`,
+        "true",
+      );
+      storage.values.set(
+        `@gonggu/notifications/v2/${encodedNamespace}`,
+        JSON.stringify([{
+          ...reminder,
+          groupBuyId: reminder.id,
+          reminderDays: [1, 3, 7],
+          notificationId: "legacy-alarm",
+          notificationIds: ["legacy-alarm"],
+          scheduledFor,
+          scheduledForDates: [scheduledFor],
+          alertState: {
+            status: "enabled",
+            notificationId: "legacy-alarm",
+            notificationIds: ["legacy-alarm"],
+            scheduledFor,
+            scheduledForDates: [scheduledFor],
+          },
+          createdAt: new Date().toISOString(),
+        }]),
+      );
+      storage.values.set(outboxKey, JSON.stringify([{
+        groupBuyId: reminder.id,
+        enabled,
+        updatedAt: new Date().toISOString(),
+      }]));
+      apiMocks.syncNotification.mockResolvedValue({ status: "failed" });
+      apiMocks.fetchGroupBuysByIds.mockResolvedValue([reminder]);
+      apiMocks.fetchNotificationReminders.mockResolvedValue([{
+        groupBuyId: reminder.id,
+        type: "deadline",
+        reminderDays: [1, 3, 7],
+      }]);
+
+      const notifications = renderHook(() => useNotifications());
+      await waitFor(() => expect(notifications.result.current.ready).toBe(true));
+
+      expect(apiMocks.syncNotification).toHaveBeenCalledWith(
+        reminder.id,
+        enabled ? [1, 3, 7] : [],
+        userId,
+      );
+      expect(JSON.parse(storage.values.get(outboxKey) ?? "[]")).toEqual([
+        expect.objectContaining({ groupBuyId: reminder.id, enabled }),
+      ]);
+      if (enabled) {
+        expect(notifications.result.current.getNotificationReminderDays(reminder.id)).toEqual([1, 3, 7]);
+        expect(notifications.result.current.notifications[0]?.notificationIds).toEqual(["legacy-alarm"]);
+        expect(notificationServiceMocks.cancelScheduledNotifications).not.toHaveBeenCalledWith(["legacy-alarm"]);
+      } else {
+        expect(notifications.result.current.notifications).toEqual([]);
+        expect(notificationServiceMocks.cancelScheduledNotifications).toHaveBeenCalledWith(["legacy-alarm"]);
+      }
+    },
+  );
 
   it("keeps concurrent reminder mirror intents for different items", async () => {
     authMocks.user = { id: "user-1" };
