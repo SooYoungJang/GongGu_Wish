@@ -306,6 +306,7 @@ describe("gonggu API proxy", () => {
       },
       block_user_from_comment: { p_comment_id: "comment-1" },
       accept_comment_terms: { p_terms_version: "community-v1" },
+      record_user_app_access: { p_expected_user_id: "user-a" },
     };
 
     for (const [rpc, body] of Object.entries(rpcBodies)) {

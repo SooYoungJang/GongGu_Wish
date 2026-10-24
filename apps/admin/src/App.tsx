@@ -26,6 +26,7 @@ import { PushNotificationPanel } from "@/components/PushNotificationPanel";
 import { CommentsPanel } from "@/components/CommentsPanel";
 import { ProductReportsPanel } from "@/components/ProductReportsPanel";
 import { AppDiagnosticsPanel } from "@/components/AppDiagnosticsPanel";
+import { UserAccessTime } from "@/components/UserAccessTime";
 import { RequestFulfillmentDialog } from "@/components/RequestFulfillmentDialog";
 import {
   inferHikerSuggestions,
@@ -4408,6 +4409,7 @@ function UserPanel(props: {
                   <th>상태</th>
                   <th>푸시</th>
                   <th>가입일</th>
+                  <th>최근 접속 (한국시간)</th>
                 </tr>
               </thead>
               <tbody>
@@ -4430,6 +4432,7 @@ function UserPanel(props: {
                       </span>
                     </td>
                     <td>{formatDateTime(item.createdAt)}</td>
+                    <td><UserAccessTime value={item.lastAccessAt} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -4531,6 +4534,10 @@ function MobileUserCards({
               <span>가입일</span>
               <strong>{formatDateTime(item.createdAt)}</strong>
             </div>
+            <div className="mobile-record-meta">
+              <span>최근 접속</span>
+              <strong><UserAccessTime value={item.lastAccessAt} /></strong>
+            </div>
           </article>
           {expandedUserId === item.id && form ? (
             <div className="user-inline-editor expanded">
@@ -4621,6 +4628,11 @@ function UserEditor(props: {
           <h3>{props.selected.email ?? props.selected.id}</h3>
         </div>
         <StatusBadge status={props.selected.status ?? "ACTIVE"} />
+      </div>
+
+      <div className="mobile-record-meta">
+        <span>최근 접속</span>
+        <strong><UserAccessTime value={props.selected.lastAccessAt} /></strong>
       </div>
 
       <div className="form-grid">

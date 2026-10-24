@@ -213,6 +213,7 @@ export type AppUser = {
   hasPushToken: boolean;
   createdAt: string;
   updatedAt: string;
+  lastAccessAt?: string | null;
   status: string;
 };
 
