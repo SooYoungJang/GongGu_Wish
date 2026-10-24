@@ -73,7 +73,7 @@ import {
   mapSubmissionDelivery,
   type SubmissionNotificationDelivery,
 } from "./submissionDelivery.ts";
-import { mapAdminUser } from "./userContract.ts";
+import { mapAdminUser, mapAdminUsersWithAccess } from "./userContract.ts";
 
 type AdminMethod = "GET" | "POST" | "PATCH" | "DELETE";
 type SubmissionStatus =
@@ -1672,7 +1672,8 @@ async function listUsers(
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
   return {
-    items: (data ?? []).map((row) => mapAdminUser(row)),
+    items: await mapAdminUsersWithAccess(data ?? [], ids =>
+      supabase.rpc("admin_user_access_times", { p_user_ids: ids })),
     total: count ?? 0,
   };
 }
@@ -1721,7 +1722,9 @@ async function updateUser(
       );
     if (moderationError) throw new Error(moderationError.message);
   }
-  return mapAdminUser(data);
+  const [user] = await mapAdminUsersWithAccess([data], ids =>
+    supabase.rpc("admin_user_access_times", { p_user_ids: ids }));
+  return user;
 }
 
 function relatedCommentRecord(value: unknown) {

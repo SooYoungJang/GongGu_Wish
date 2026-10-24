@@ -60,6 +60,7 @@ import { isAutomatedE2E } from "./lib/automatedE2E";
 import { useBackgroundPushRegistration } from "./hooks/useBackgroundPushRegistration";
 import { BackButton } from "./components/BackButton";
 import { NavigationHeaderTitle } from "./components/CenteredBackHeader";
+import { UserActivityBridge } from "./components/UserActivityBridge";
 import { getCommerceColors } from "./design/commerce";
 import { spacing } from "./design/tokens";
 import {
@@ -629,6 +630,7 @@ function AudienceApplication() {
           <AuthProvider audiencePolicy={policy}>
             <AppBootstrapGate>
               <RestrictedAudienceCleanupBridge />
+              <UserActivityBridge />
               <NotificationPreferencesBoundary>
                 <GroupBuyReminderPickerProvider
                   onAuthenticationRequired={() => {
