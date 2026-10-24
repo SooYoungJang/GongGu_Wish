@@ -1160,12 +1160,15 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   const groupBuys = data ?? [];
 
+  const homeDataUpdatedAtRef = useRef(0);
+  homeDataUpdatedAtRef.current = Math.min(
+    groupBuysUpdatedAt,
+    homeBannerUpdatedAt,
+  );
+
   useFocusEffect(
     useCallback(() => {
-      const homeDataUpdatedAt = Math.min(
-        groupBuysUpdatedAt,
-        homeBannerUpdatedAt,
-      );
+      const homeDataUpdatedAt = homeDataUpdatedAtRef.current;
       const homeDataIsStale =
         homeDataUpdatedAt === 0 ||
         Date.now() - homeDataUpdatedAt >= HOME_DATA_STALE_TIME_MS;
@@ -1177,8 +1180,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
       void Promise.all(requests);
     }, [
-      groupBuysUpdatedAt,
-      homeBannerUpdatedAt,
       refetch,
       refetchGroupBuyRequestRankings,
       refetchHomeBanners,

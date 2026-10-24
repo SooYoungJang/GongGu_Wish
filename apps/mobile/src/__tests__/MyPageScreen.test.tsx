@@ -145,6 +145,9 @@ vi.mock('expo-secure-store', () => ({
 // Mock lib/supabase
 vi.mock('../lib/supabase', () => ({
   configureSupabase: vi.fn(),
+  createSupabaseAuthRequestClient: vi.fn(() => ({
+    auth: { signInWithPassword: authMocks.signIn },
+  })),
   getSupabase: vi.fn(() => ({
     auth: {
       getSession: vi
@@ -154,6 +157,9 @@ vi.mock('../lib/supabase', () => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
       signInWithPassword: authMocks.signIn,
+      setSession: vi.fn(async (tokens) => ({
+        data: { session: { ...tokens, user: { id: 'new-user' } } }, error: null,
+      })),
       signUp: vi.fn(),
       resend: vi.fn(),
       verifyOtp: vi.fn(),
@@ -944,7 +950,7 @@ describe('MyPageScreen', () => {
     });
     expect(navigationMocks.navigate).toHaveBeenCalledWith('Login');
     authMocks.signIn.mockResolvedValueOnce({ data: { session: {
-      access_token: 'new-user-token', user: { id: 'new-user' },
+      access_token: 'new-user-token', refresh_token: 'new-user-refresh-token', user: { id: 'new-user' },
     } }, error: null });
     await act(async () => { await auth!.signIn('user@example.com', 'test-password'); });
     await act(async () => { await auth!.takeAuthContinuation()?.(); });
@@ -970,7 +976,7 @@ describe('MyPageScreen', () => {
       await Promise.resolve();
     });
     authMocks.signIn.mockResolvedValueOnce({ data: { session: {
-      access_token: 'new-user-token', user: { id: 'new-user' },
+      access_token: 'new-user-token', refresh_token: 'new-user-refresh-token', user: { id: 'new-user' },
     } }, error: null });
     await act(async () => { await auth!.signIn('user@example.com', 'test-password'); });
     const calls = notificationMocks.registerForPushNotifications.mock.calls as unknown as
