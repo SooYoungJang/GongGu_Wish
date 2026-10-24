@@ -44,8 +44,11 @@ import {
   captureLocalNotificationScheduleGuard,
   getUnscheduledEnabledState,
   notificationStorageKey,
+  onLocalNotificationSchedulesCleared,
+  onLocalNotificationSignOutFailed,
   resumeLocalNotificationSchedules,
   runLocalNotificationSchedule,
+  runLocalNotificationWrite,
 } from "../services/localNotificationSession";
 
 const RECENT_KEY = "@gonggu/recent-views/v1";
@@ -169,6 +172,36 @@ function publishNotifications(namespace: string, entries: NotificationEntry[]) {
   getNotificationListeners(namespace).forEach((listener) => listener(entries));
 }
 
+// This module owns the app-wide snapshots, including accounts without a mounted hook.
+onLocalNotificationSchedulesCleared(() => {
+  for (const [namespace, entries] of notificationSnapshots) {
+    publishNotifications(namespace, entries.map((entry) =>
+      applyAlertState(entry, getUnscheduledEnabledState()),
+    ));
+  }
+});
+
+onLocalNotificationSignOutFailed(async (namespace) => {
+  const storageKey = notificationStorageKey(namespace);
+  const snapshot = getNotificationSnapshot(namespace);
+  // Logout already drained local writes. Read disk to include a write that
+  // completed after its operation was invalidated and never published.
+  const stored = await readJSON<NotificationEntry[]>(storageKey, snapshot);
+  const entries = Array.isArray(stored) ? stored : snapshot;
+  const next = entries.map((entry) => entry.alertState?.status === "pending"
+    ? retainFailedNotificationIds(entry, getEntryNotificationIds(entry), {
+      status: "failed",
+      action: entry.alertState.action,
+      reason: "cancel-failed",
+      retryable: true,
+    })
+    : entry);
+  if (next.some((entry, index) => entry !== entries[index])) {
+    await writeJSON(storageKey, next);
+  }
+  publishNotifications(namespace, next);
+});
+
 function getDerivedAlertState(entry: NotificationEntry): GroupBuyAlertState {
   if (entry.alertState) return entry.alertState;
   if (
@@ -228,11 +261,12 @@ function getEntryReminderPreference(
 function enqueueNotificationOperation<T>(
   namespace: string,
   _groupBuyId: string,
-  operation: () => Promise<T>,
+  operation: (isCurrent: () => boolean) => Promise<T>,
 ): Promise<T> {
   const key = namespace;
+  const isCurrent = captureLocalNotificationScheduleGuard(namespace);
   const previous = notificationOperations.get(key) ?? Promise.resolve();
-  const next = previous.catch(() => undefined).then(operation);
+  const next = previous.catch(() => undefined).then(() => operation(isCurrent));
   const tracked = next.finally(() => {
     if (notificationOperations.get(key) === tracked) {
       notificationOperations.delete(key);
@@ -401,7 +435,7 @@ async function hydrateNotificationEntries(
   ];
   if (ids.length === 0) {
     if (isCurrent() && normalizedEntries.some((entry, index) => entry !== entries[index])) {
-      await writeJSON(storageKey, normalizedEntries);
+      await runLocalNotificationWrite(isCurrent, () => writeJSON(storageKey, normalizedEntries));
     }
     return normalizedEntries;
   }
@@ -414,7 +448,7 @@ async function hydrateNotificationEntries(
   });
 
   if (isCurrent() && next.some((entry, index) => entry !== normalizedEntries[index])) {
-    await writeJSON(storageKey, next);
+    await runLocalNotificationWrite(isCurrent, () => writeJSON(storageKey, next));
   }
   return next;
 }
@@ -757,6 +791,7 @@ function clearRecentViewsStore(): Promise<void> {
 async function readNotificationEntries(
   namespace: string,
   storageKey: string,
+  isCurrent = captureLocalNotificationScheduleGuard(namespace),
 ): Promise<NotificationEntry[]> {
   const stored = await readJSON<NotificationEntry[] | null>(storageKey, null);
   if (Array.isArray(stored)) return stored;
@@ -765,7 +800,7 @@ async function readNotificationEntries(
     namespace === GUEST_NAMESPACE
       ? await readJSON<NotificationEntry[]>(NOTI_KEY, [])
       : [];
-  if (legacy.length > 0) await writeJSON(storageKey, legacy);
+  if (legacy.length > 0) await runLocalNotificationWrite(isCurrent, () => writeJSON(storageKey, legacy));
   return legacy;
 }
 
@@ -858,10 +893,13 @@ async function enqueueNotificationMirror(
 async function persistNotifications(
   namespace: string,
   storageKey: string,
+  isCurrent: () => boolean,
   entries: NotificationEntry[],
 ): Promise<void> {
-  await writeJSON(storageKey, entries);
-  publishNotifications(namespace, entries);
+  await runLocalNotificationWrite(isCurrent, async () => {
+    await writeJSON(storageKey, entries);
+    if (isCurrent()) publishNotifications(namespace, entries);
+  });
 }
 
 function alertStateFromReminderResult(
@@ -1074,7 +1112,9 @@ async function enableNotification(
   item: GroupBuy,
   preferences: NotificationPreferences,
   reminder: GroupBuyReminderUpdate | readonly NotificationReminderDay[],
+  isCurrent: () => boolean,
 ): Promise<GroupBuyAlertState> {
+  if (!isCurrent()) return getUnscheduledEnabledState();
   const reminderPreference = normalizeReminderUpdate(reminder);
   const pendingEntry: NotificationEntry = {
     groupBuyId: item.id,
@@ -1095,10 +1135,11 @@ async function enableNotification(
   const withoutExisting = current.filter(
     (entry) => entry.groupBuyId !== item.id,
   );
-  await persistNotifications(namespace, storageKey, [
+  await persistNotifications(namespace, storageKey, isCurrent, [
     pendingEntry,
     ...withoutExisting,
   ]);
+  if (!isCurrent()) return getUnscheduledEnabledState();
 
   const alertState = await getScheduledAlertState(
     namespace,
@@ -1107,10 +1148,11 @@ async function enableNotification(
     reminderPreference,
   );
   const completedEntry = applyAlertState(pendingEntry, alertState);
-  await persistNotifications(namespace, storageKey, [
+  await persistNotifications(namespace, storageKey, isCurrent, [
     completedEntry,
     ...withoutExisting,
   ]);
+  if (!isCurrent()) return getUnscheduledEnabledState();
   await enqueueNotificationMirror(namespace, item.id, reminderPreference);
   return alertState;
 }
@@ -1120,7 +1162,9 @@ async function disableNotification(
   storageKey: string,
   current: NotificationEntry[],
   existing: NotificationEntry,
+  isCurrent: () => boolean,
 ): Promise<GroupBuyAlertState> {
+  if (!isCurrent()) return getUnscheduledEnabledState();
   const pendingEntry: NotificationEntry = {
     ...existing,
     alertState: { status: "pending", action: "disable" },
@@ -1129,11 +1173,13 @@ async function disableNotification(
     pendingEntry,
     ...current.filter((entry) => entry.groupBuyId !== existing.groupBuyId),
   ];
-  await persistNotifications(namespace, storageKey, withPending);
+  await persistNotifications(namespace, storageKey, isCurrent, withPending);
+  if (!isCurrent()) return getUnscheduledEnabledState();
 
   const notificationIds = getEntryNotificationIds(existing);
   if (notificationIds.length > 0) {
     const result = await cancelScheduledNotifications(notificationIds);
+    if (!isCurrent()) return getUnscheduledEnabledState();
     if (result.failedIds.length > 0) {
       const failedState: GroupBuyAlertState = {
         status: "failed",
@@ -1141,7 +1187,7 @@ async function disableNotification(
         reason: "cancel-failed",
         retryable: true,
       };
-      await persistNotifications(namespace, storageKey, [
+      await persistNotifications(namespace, storageKey, isCurrent, [
         retainFailedNotificationIds(existing, result.failedIds, failedState),
         ...current.filter((entry) => entry.groupBuyId !== existing.groupBuyId),
       ]);
@@ -1152,7 +1198,8 @@ async function disableNotification(
   const next = current.filter(
     (entry) => entry.groupBuyId !== existing.groupBuyId,
   );
-  await persistNotifications(namespace, storageKey, next);
+  await persistNotifications(namespace, storageKey, isCurrent, next);
+  if (!isCurrent()) return getUnscheduledEnabledState();
   const existingPreference = getEntryReminderPreference(existing, []);
   await enqueueNotificationMirror(namespace, existing.groupBuyId, {
     ...existingPreference,
@@ -1175,12 +1222,14 @@ async function configureNotification(
   item: GroupBuy,
   preferences: NotificationPreferences,
   reminder: GroupBuyReminderUpdate | readonly NotificationReminderDay[],
+  isCurrent: () => boolean,
 ): Promise<GroupBuyAlertState> {
+  if (!isCurrent()) return getUnscheduledEnabledState();
   const reminderPreference = normalizeReminderUpdate(reminder);
   const existing = current.find((entry) => entry.groupBuyId === item.id);
   if (reminderPreference.reminderDays.length === 0) {
     return existing
-      ? disableNotification(namespace, storageKey, current, existing)
+      ? disableNotification(namespace, storageKey, current, existing, isCurrent)
       : ({ status: "idle" } as const);
   }
   if (!existing) {
@@ -1191,6 +1240,7 @@ async function configureNotification(
       item,
       preferences,
       reminderPreference,
+      isCurrent,
     );
   }
 
@@ -1206,11 +1256,13 @@ async function configureNotification(
     mirrorStatus: "pending",
   };
   const others = current.filter((entry) => entry.groupBuyId !== item.id);
-  await persistNotifications(namespace, storageKey, [pendingEntry, ...others]);
+  await persistNotifications(namespace, storageKey, isCurrent, [pendingEntry, ...others]);
+  if (!isCurrent()) return getUnscheduledEnabledState();
 
   const cancellation = await cancelScheduledNotifications(
     getEntryNotificationIds(existing),
   );
+  if (!isCurrent()) return getUnscheduledEnabledState();
   if (cancellation.failedIds.length > 0) {
     const failedState: GroupBuyAlertState = {
       status: "failed",
@@ -1218,7 +1270,7 @@ async function configureNotification(
       reason: "cancel-failed",
       retryable: true,
     };
-    await persistNotifications(namespace, storageKey, [
+    await persistNotifications(namespace, storageKey, isCurrent, [
       retainFailedNotificationIds(
         pendingEntry,
         cancellation.failedIds,
@@ -1235,10 +1287,11 @@ async function configureNotification(
     preferences,
     reminderPreference,
   );
-  await persistNotifications(namespace, storageKey, [
+  await persistNotifications(namespace, storageKey, isCurrent, [
     applyAlertState(pendingEntry, alertState),
     ...others,
   ]);
+  if (!isCurrent()) return getUnscheduledEnabledState();
   await enqueueNotificationMirror(namespace, item.id, reminderPreference);
   return alertState;
 }
@@ -1248,7 +1301,9 @@ async function rescheduleNotification(
   storageKey: string,
   groupBuyId: string,
   preferences: NotificationPreferences,
+  isCurrent: () => boolean,
 ) {
+  if (!isCurrent()) return getUnscheduledEnabledState();
   const current = getNotificationSnapshot(namespace);
   const existing = current.find((entry) => entry.groupBuyId === groupBuyId);
   if (!existing) return { status: "idle" } as const;
@@ -1256,6 +1311,7 @@ async function rescheduleNotification(
   const cancellation = await cancelScheduledNotifications(
     getEntryNotificationIds(existing),
   );
+  if (!isCurrent()) return getUnscheduledEnabledState();
   if (cancellation.failedIds.length > 0) {
     const failedState: GroupBuyAlertState = {
       status: "failed",
@@ -1268,7 +1324,7 @@ async function rescheduleNotification(
       cancellation.failedIds,
       failedState,
     );
-    await persistNotifications(namespace, storageKey, [
+    await persistNotifications(namespace, storageKey, isCurrent, [
       failedEntry,
       ...current.filter((entry) => entry.groupBuyId !== groupBuyId),
     ]);
@@ -1292,11 +1348,11 @@ async function rescheduleNotification(
     },
     alertState,
   );
-  await persistNotifications(namespace, storageKey, [
+  await persistNotifications(namespace, storageKey, isCurrent, [
     nextEntry,
     ...current.filter((entry) => entry.groupBuyId !== groupBuyId),
   ]);
-  return alertState;
+  return isCurrent() ? alertState : getUnscheduledEnabledState();
 }
 
 /** Clear locally stored account activity after a successful account deletion. */
@@ -1422,7 +1478,7 @@ export function useNotifications() {
         "__refresh__",
         async () => {
           if (!isCurrent()) return;
-          const value = await readNotificationEntries(namespace, storageKey);
+          const value = await readNotificationEntries(namespace, storageKey, isCurrent);
           let hydrated: NotificationEntry[];
           try {
             hydrated = await hydrateNotificationEntries(
@@ -1461,7 +1517,7 @@ export function useNotifications() {
               isCurrent,
             );
             if (!isCurrent()) return;
-            await writeJSON(storageKey, hydrated);
+            await runLocalNotificationWrite(isCurrent, () => writeJSON(storageKey, hydrated));
           }
           if (!isCurrent()) return;
           publishNotifications(namespace, hydrated);
@@ -1531,11 +1587,12 @@ export function useNotifications() {
   const activatePushForReminder = useCallback(
     async (
       reminder: GroupBuyReminderUpdate | readonly NotificationReminderDay[],
+      isCurrent: () => boolean,
     ): Promise<NotificationPreferences | null> => {
       const permissionGranted = await requestNotificationPermissionIfNeeded(
         reminder,
       );
-      if (!permissionGranted) return null;
+      if (!permissionGranted || !isCurrent()) return null;
       if (preferences.pushEnabled) return preferences;
       return updatePreferences({ pushEnabled: true });
     },
@@ -1550,8 +1607,10 @@ export function useNotifications() {
       if (!canRecordBehaviorSignals()) {
         return Promise.resolve({ status: "idle" } as const);
       }
-      return enqueueNotificationOperation(namespace, item.id, async () => {
-        const nextPreferences = await activatePushForReminder(reminder);
+      return enqueueNotificationOperation(namespace, item.id, async (isCurrent) => {
+        if (!isCurrent()) return getUnscheduledEnabledState();
+        const nextPreferences = await activatePushForReminder(reminder, isCurrent);
+        if (!isCurrent()) return getUnscheduledEnabledState();
         if (!nextPreferences) {
           return {
             status: "unavailable",
@@ -1565,6 +1624,7 @@ export function useNotifications() {
           item,
           nextPreferences,
           reminder,
+          isCurrent,
         );
       });
     },
@@ -1576,15 +1636,18 @@ export function useNotifications() {
       if (!canRecordBehaviorSignals()) {
         return Promise.resolve({ status: "idle" } as const);
       }
-      return enqueueNotificationOperation(namespace, item.id, async () => {
+      return enqueueNotificationOperation(namespace, item.id, async (isCurrent) => {
+        if (!isCurrent()) return getUnscheduledEnabledState();
         const current = getNotificationSnapshot(namespace);
         const existing = current.find((entry) => entry.groupBuyId === item.id);
         if (existing) {
-          return disableNotification(namespace, storageKey, current, existing);
+          return disableNotification(namespace, storageKey, current, existing, isCurrent);
         }
         const nextPreferences = await activatePushForReminder(
           preferences.reminderDays,
+          isCurrent,
         );
+        if (!isCurrent()) return getUnscheduledEnabledState();
         if (!nextPreferences) {
           return {
             status: "unavailable",
@@ -1598,6 +1661,7 @@ export function useNotifications() {
           item,
           nextPreferences,
           preferences.reminderDays,
+          isCurrent,
         );
       });
     },
@@ -1609,19 +1673,21 @@ export function useNotifications() {
       if (!canRecordBehaviorSignals()) {
         return Promise.resolve({ status: "idle" } as const);
       }
-      return enqueueNotificationOperation(namespace, item.id, async () => {
+      return enqueueNotificationOperation(namespace, item.id, async (isCurrent) => {
+        if (!isCurrent()) return getUnscheduledEnabledState();
         const current = getNotificationSnapshot(namespace);
         const existing = current.find((entry) => entry.groupBuyId === item.id);
         if (
           existing?.alertState?.status === "failed" &&
           existing.alertState.action === "disable"
         ) {
-          return disableNotification(namespace, storageKey, current, existing);
+          return disableNotification(namespace, storageKey, current, existing, isCurrent);
         }
         const reminder = existing
           ? getEntryReminderPreference(existing, preferences.reminderDays)
           : preferences.reminderDays;
-        const nextPreferences = await activatePushForReminder(reminder);
+        const nextPreferences = await activatePushForReminder(reminder, isCurrent);
+        if (!isCurrent()) return getUnscheduledEnabledState();
         if (!nextPreferences) {
           return {
             status: "unavailable",
@@ -1637,6 +1703,7 @@ export function useNotifications() {
             storageKey,
             item.id,
             nextPreferences,
+            isCurrent,
           );
         }
         return enableNotification(
@@ -1646,6 +1713,7 @@ export function useNotifications() {
           item,
           nextPreferences,
           reminder,
+          isCurrent,
         );
       });
     },
@@ -1657,13 +1725,14 @@ export function useNotifications() {
       if (!canRecordBehaviorSignals()) {
         return Promise.resolve({ status: "idle" } as const);
       }
-      return enqueueNotificationOperation(namespace, groupBuyId, async () => {
+      return enqueueNotificationOperation(namespace, groupBuyId, async (isCurrent) => {
+        if (!isCurrent()) return getUnscheduledEnabledState();
         const current = getNotificationSnapshot(namespace);
         const existing = current.find(
           (entry) => entry.groupBuyId === groupBuyId,
         );
         if (!existing) return { status: "idle" } as const;
-        return disableNotification(namespace, storageKey, current, existing);
+        return disableNotification(namespace, storageKey, current, existing, isCurrent);
       });
     },
     [namespace, storageKey],
@@ -1676,7 +1745,9 @@ export function useNotifications() {
         (entry) => entry.groupBuyId,
       );
       const states: GroupBuyAlertState[] = [];
+      const isCurrent = captureLocalNotificationScheduleGuard(namespace);
       for (const groupBuyId of groupBuyIds) {
+        if (!isCurrent()) break;
         states.push(
           await enqueueNotificationOperation(namespace, groupBuyId, () =>
             rescheduleNotification(
@@ -1684,6 +1755,7 @@ export function useNotifications() {
               storageKey,
               groupBuyId,
               nextPreferences,
+              isCurrent,
             ),
           ),
         );

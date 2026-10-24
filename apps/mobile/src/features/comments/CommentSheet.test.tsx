@@ -439,6 +439,89 @@ describe("CommentSheet", () => {
     });
   };
 
+  it.each(["like", "report", "block"] as const)("handles a comment submission after a same-session %s refresh", async (action) => {
+    queryMocks.useRealQuery = true;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    const request = deferred<CommentView>();
+    const root = makeComment();
+    const posted = makeComment({ id: "posted", body: "새로 등록한 댓글" });
+    apiMocks.listCommentRoots.mockResolvedValue({ ...emptyPage(), items: [root] });
+    apiMocks.createComment.mockReturnValue(request.promise);
+    mutationApi(action).mockResolvedValue(undefined);
+    let renderer!: TestRenderer.ReactTestRenderer;
+    try {
+      await act(async () => { renderer = TestRenderer.create(<QueryClientProvider client={client}><CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible /></QueryClientProvider>); });
+      await settleQueries();
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.onChangeText(posted.body));
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress());
+      await beginMutation(renderer, action);
+      await settleQueries();
+      const fetches = apiMocks.listCommentRoots.mock.calls.length;
+      apiMocks.listCommentRoots.mockResolvedValue({ ...emptyPage(), items: [posted, root] });
+      await act(async () => { request.resolve(posted); });
+      await settleQueries();
+      expect(renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.value).toBe("");
+      expect(apiMocks.listCommentRoots.mock.calls.length).toBeGreaterThan(fetches);
+      expect(JSON.stringify(renderer.toJSON())).toContain(posted.body);
+    } finally {
+      act(() => renderer?.unmount());
+      client.clear();
+    }
+  });
+
+  it.each(["reopen", "refresh"] as const)("clears stale reply loading on %s and keeps a newer request loading", async (transition) => {
+    queryResult.data = { ...emptyPage(), items: [makeComment({ directReplyCount: 1 })] };
+    const oldRequest = deferred<CommentPage>();
+    const currentRequest = deferred<CommentPage>();
+    apiMocks.listCommentChildren.mockReturnValueOnce(oldRequest.promise).mockReturnValueOnce(currentRequest.promise);
+    apiMocks.setCommentLike.mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+    const loadingCount = () => renderer.root.findAll((node) => String(node.type) === "ActivityIndicator").length;
+    try {
+      await act(async () => { renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible />); });
+      act(() => renderer.root.findByProps({ accessibilityLabel: "답글 1개 보기" }).props.onPress());
+      expect(loadingCount()).toBe(1);
+      if (transition === "reopen") {
+        await act(async () => renderer.update(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible={false} />));
+        await act(async () => renderer.update(<CommentSheet groupBuyId="deal-1" onClose={onClose} visible />));
+      } else {
+        await beginMutation(renderer, "like");
+      }
+      expect(loadingCount()).toBe(0);
+      act(() => renderer.root.findByProps({ accessibilityLabel: "답글 1개 보기" }).props.onPress());
+      await act(async () => { oldRequest.resolve(emptyPage()); });
+      expect(loadingCount()).toBe(1);
+      await act(async () => { currentRequest.resolve(emptyPage()); });
+      expect(loadingCount()).toBe(0);
+    } finally {
+      await act(async () => { oldRequest.resolve(emptyPage()); currentRequest.resolve(emptyPage()); });
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it("reports a failed submit after a same-session refresh and preserves its retry identity", async () => {
+    queryResult.data = { ...emptyPage(), items: [makeComment()] };
+    const request = deferred<CommentView>();
+    apiMocks.createComment.mockReturnValueOnce(request.promise).mockResolvedValue(makeComment());
+    apiMocks.setCommentLike.mockResolvedValue(undefined);
+    let renderer!: TestRenderer.ReactTestRenderer;
+    try {
+      await act(async () => { renderer = TestRenderer.create(<CommentSheet groupBuyId="deal-1" onClose={vi.fn()} visible />); });
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.onChangeText("다시 보낼 댓글"));
+      act(() => renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress());
+      const firstRequest = apiMocks.createComment.mock.calls[0][0];
+      await beginMutation(renderer, "like");
+      await act(async () => { request.reject(new Error("network unavailable")); });
+      expect(nativeMocks.alert).toHaveBeenCalledWith("댓글을 등록하지 못했어요", "network unavailable");
+      expect(renderer.root.findByProps({ accessibilityLabel: "댓글 입력" }).props.value).toBe("다시 보낼 댓글");
+      await act(async () => renderer.root.findByProps({ accessibilityLabel: "댓글 등록" }).props.onPress());
+      expect(apiMocks.createComment.mock.calls[1][0].clientRequestId).toBe(firstRequest.clientRequestId);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
   it.each(mutationCases.flatMap((testCase) => [
     { ...testCase, outcome: "success" as const },
     { ...testCase, outcome: "failure" as const },
