@@ -287,6 +287,7 @@ export function CommentSheet({
       setActiveThreadRoot(null);
       setReplyTarget(null);
       setExpandedIds(new Set());
+      setLoadingChildren(new Set());
       setIsCommentListAtTop(true);
     }
   }, [visible]);
@@ -299,6 +300,7 @@ export function CommentSheet({
     setRootCursor(null);
     setChildrenByParent({});
     setExpandedIds(new Set());
+    setLoadingChildren(new Set());
     setActiveThreadRoot(null);
     await refetchRoots();
   }, [refetchRoots]);
@@ -550,7 +552,7 @@ export function CommentSheet({
       Alert.alert("댓글을 확인해 주세요", validationError);
       return;
     }
-    const generation = requestScope.current.generation;
+    const scope = requestScope.current;
     const revision = composerRevision.current;
     const fingerprint = JSON.stringify([scopeKey, replyTarget?.id ?? null, body.trim()]);
     const submission = pendingSubmission.current?.fingerprint === fingerprint
@@ -567,7 +569,7 @@ export function CommentSheet({
         clientRequestId: submission.id,
         termsVersion: COMMENT_TERMS_VERSION,
       });
-      if (requestScope.current.generation !== generation) return;
+      if (requestScope.current !== scope) return;
       if (pendingSubmission.current === submission) pendingSubmission.current = null;
       if (composerRevision.current === revision) {
         Keyboard.dismiss();
@@ -576,7 +578,7 @@ export function CommentSheet({
       }
       await refreshComments();
     } catch (error) {
-      if (requestScope.current.generation !== generation) return;
+      if (requestScope.current !== scope) return;
       Alert.alert("댓글을 등록하지 못했어요", error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.");
     } finally {
       if (inFlightSubmission.current === submission) {
