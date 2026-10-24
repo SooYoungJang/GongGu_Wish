@@ -2736,28 +2736,58 @@ function DetailScreenContent({
   >(null);
   const feedItemsRef = useRef(feedItems);
   const activePagerIndexRef = useRef(activePagerIndex);
+  const unavailableDetailAdsRef = useRef(new Set<string>());
+  const detailAdLoadCallbacksRef = useRef(
+    new Map<string, (status: NativeAdLoadStatus) => void>(),
+  );
   feedItemsRef.current = feedItems;
   activePagerIndexRef.current = activePagerIndex;
-  const handleDetailAdLoadStateChange = useCallback(
-    (status: NativeAdLoadStatus) => {
-      if (status !== "unavailable") return;
-
+  const recoverDetailAdPage = useCallback(
+    (selectedIndex: number) => {
       const currentFeed = feedItemsRef.current;
-      const selectedIndex = activePagerIndexRef.current;
-      const selectedEntry = currentFeed[selectedIndex];
-      if (selectedEntry && !isReelsContentItem(selectedEntry)) {
-        const nextEntry = currentFeed
-          .slice(selectedIndex + 1)
-          .find(isReelsContentItem);
-        const fallbackEntry = [...currentFeed.slice(0, selectedIndex)]
-          .reverse()
-          .find(isReelsContentItem);
-        const recoveryEntry = nextEntry ?? fallbackEntry;
-        if (recoveryEntry) setActiveProductId(recoveryEntry.content.id);
-        setIsOnAdPage(false);
+      let recoveryIndex = currentFeed.findIndex(
+        (entry, index) => index > selectedIndex && isReelsContentItem(entry),
+      );
+      if (recoveryIndex < 0) {
+        for (let index = selectedIndex - 1; index >= 0; index--) {
+          if (isReelsContentItem(currentFeed[index])) {
+            recoveryIndex = index;
+            break;
+          }
+        }
       }
+      const recoveryEntry = currentFeed[recoveryIndex];
+      if (!recoveryEntry || !isReelsContentItem(recoveryEntry)) return;
+      activePagerIndexRef.current = recoveryIndex;
+      setActiveProductId(recoveryEntry.content.id);
+      setActivePagerIndex(recoveryIndex);
+      setIsOnAdPage(false);
+      verticalPagerRef.current?.setPageWithoutAnimation?.(recoveryIndex);
     },
     [],
+  );
+  const handleDetailAdLoadStateChange = useCallback(
+    (key: string, status: NativeAdLoadStatus) => {
+      if (status === "loaded") unavailableDetailAdsRef.current.delete(key);
+      if (status !== "unavailable") return;
+      unavailableDetailAdsRef.current.add(key);
+      const selectedIndex = activePagerIndexRef.current;
+      if (feedItemsRef.current[selectedIndex]?.key === key) {
+        recoverDetailAdPage(selectedIndex);
+      }
+    },
+    [recoverDetailAdPage],
+  );
+  const getDetailAdLoadCallback = useCallback(
+    (key: string) => {
+      let callback = detailAdLoadCallbacksRef.current.get(key);
+      if (!callback) {
+        callback = (status) => handleDetailAdLoadStateChange(key, status);
+        detailAdLoadCallbacksRef.current.set(key, callback);
+      }
+      return callback;
+    },
+    [handleDetailAdLoadStateChange],
   );
   // No product is "active" while the user rests on a sponsored page, so
   // playback tracking and deep-view timers pause until they swipe back.
@@ -3074,6 +3104,7 @@ function DetailScreenContent({
         offscreenPageLimit={1}
         onPageSelected={(event) => {
           const nextDisplay = event.nativeEvent.position;
+          activePagerIndexRef.current = nextDisplay;
           setActivePagerIndex(nextDisplay);
           const entry = feedItems[nextDisplay];
           if (
@@ -3083,6 +3114,10 @@ function DetailScreenContent({
             hasDepartedRouteRef.current = true;
           }
           if (entry && !isReelsContentItem(entry)) {
+            if (unavailableDetailAdsRef.current.has(entry.key)) {
+              recoverDetailAdPage(nextDisplay);
+              return;
+            }
             setIsOnAdPage(true);
             return;
           }
@@ -3132,7 +3167,7 @@ function DetailScreenContent({
                     </View>
                     <NativeAdCard
                       loadEnabled
-                      onLoadStateChange={handleDetailAdLoadStateChange}
+                      onLoadStateChange={getDetailAdLoadCallback(entry.key)}
                       placement="detail"
                       reelBottomInset={
                         insets.bottom + DETAIL_SEARCH_CHROME_OFFSET

@@ -119,6 +119,9 @@ vi.mock('@supabase/supabase-js', () => ({
 
 vi.mock('../../lib/supabase', () => ({
   configureSupabase: vi.fn(),
+  createSupabaseAuthRequestClient: vi.fn(() => ({
+    auth: { signInWithPassword: mockSignInWithPassword },
+  })),
   getSupabase: vi.fn(() => ({
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
@@ -126,6 +129,9 @@ vi.mock('../../lib/supabase', () => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
       signInWithPassword: mockSignInWithPassword,
+      setSession: vi.fn(async (tokens) => ({
+        data: { session: { ...tokens, user: { id: 'email-user' } } }, error: null,
+      })),
       signUp: mockSignUp,
       resend: mockResend,
       verifyOtp: mockVerifyOtp,
@@ -375,6 +381,7 @@ describe("AuthScreen", () => {
       data: {
         session: {
           access_token: "email-access-token",
+          refresh_token: "email-refresh-token",
           user: { id: "email-user" },
         },
       },
