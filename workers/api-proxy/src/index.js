@@ -37,6 +37,7 @@ const REST_RULES = new Map([
   ["rpc/report_comment", new Set(["POST"])],
   ["rpc/block_user_from_comment", new Set(["POST"])],
   ["rpc/accept_comment_terms", new Set(["POST"])],
+  ["rpc/record_user_app_access", new Set(["POST"])],
 ]);
 
 const FUNCTION_RULES = new Map([
