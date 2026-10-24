@@ -14,7 +14,7 @@ import { Linking } from "react-native";
 
 import type { AudiencePolicy } from "../audience/audiencePolicy";
 import { AUTH_REDIRECT_URL } from "../lib/auth-config";
-import { getSupabase } from "../lib/supabase";
+import { createSupabaseAuthRequestClient, discardSupabaseAuthSession, getSupabase } from "../lib/supabase";
 import { setAuthToken, clearAuthToken } from "../utils/auth";
 import type { SocialAuthProvider } from "../utils/authHelpers";
 import { signOutPushDevice } from "../services/pushDeviceSession";
@@ -125,6 +125,14 @@ function createMissingAuthSessionError(): AuthError {
   } as AuthError;
 }
 
+function createCancelledAuthRequestError(): AuthError {
+  return {
+    name: "AuthRequestCancelledError",
+    message: "취소된 로그인 요청입니다. 다시 시도해주세요.",
+    status: 400,
+  } as AuthError;
+}
+
 function getAuthCodeFromUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
@@ -197,6 +205,21 @@ export function AuthProvider({
   const canAuthenticateRef = useRef(audiencePolicy.canAuthenticate);
   const audienceAuthIntentRef = useRef(false);
   const audienceAuthIntentPreparedRef = useRef(false);
+  const passwordRequestRevisionRef = useRef(0);
+  const sessionMutationQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const sessionMutationActiveRef = useRef(false);
+  const runSessionMutation = useCallback(<T,>(operation: () => Promise<T>) => {
+    const task = sessionMutationQueueRef.current.catch(() => undefined).then(async () => {
+      sessionMutationActiveRef.current = true;
+      try {
+        return await operation();
+      } finally {
+        sessionMutationActiveRef.current = false;
+      }
+    });
+    sessionMutationQueueRef.current = task;
+    return task;
+  }, []);
   const activeOAuthAttemptRef = useRef<OAuthAttempt | null>(null);
   const oauthCallbackPromiseRef = useRef<{
     attemptId: string | null;
@@ -210,6 +233,7 @@ export function AuthProvider({
 
   const startAudienceAuthIntent = useCallback(() => {
     if (audienceAuthIntentRef.current) return;
+    passwordRequestRevisionRef.current += 1;
     audienceAuthIntentRef.current = true;
     audienceAuthIntentPreparedRef.current = false;
     setIsAudienceAuthIntentPending(true);
@@ -219,12 +243,14 @@ export function AuthProvider({
     // A persisted OAuth attempt is created only after the old local session is
     // cleared. On a cold callback, mark that preparation as already complete:
     // signing out here would delete Supabase's persisted PKCE code verifier.
+    passwordRequestRevisionRef.current += 1;
     audienceAuthIntentRef.current = true;
     audienceAuthIntentPreparedRef.current = true;
     setIsAudienceAuthIntentPending(true);
   }, []);
 
   const cancelAudienceAuthIntent = useCallback(() => {
+    passwordRequestRevisionRef.current += 1;
     audienceAuthIntentRef.current = false;
     audienceAuthIntentPreparedRef.current = false;
     setIsAudienceAuthIntentPending(false);
@@ -293,17 +319,16 @@ export function AuthProvider({
     if (!canAuthenticateRef.current) {
       setSession(null);
       setUser(null);
-      clearAuthToken().catch(() => {});
-      return;
+      return clearAuthToken().catch(() => {});
     }
 
     setSession(currentSession);
     setUser(currentSession?.user ?? null);
 
     if (currentSession?.access_token) {
-      setAuthToken(currentSession.access_token).catch(() => {});
+      return setAuthToken(currentSession.access_token).catch(() => {});
     } else {
-      clearAuthToken().catch(() => {});
+      return clearAuthToken().catch(() => {});
     }
   }, []);
 
@@ -321,7 +346,7 @@ export function AuthProvider({
     [applySession, cancelAudienceAuthIntent],
   );
 
-  const prepareAudienceAuthIntent = useCallback(async () => {
+  const prepareAudienceAuthIntent = useCallback(() => runSessionMutation(async () => {
     if (!audienceAuthIntentRef.current || audienceAuthIntentPreparedRef.current)
       return;
 
@@ -332,9 +357,9 @@ export function AuthProvider({
       if (result?.error) throw result.error;
       await clearAuthToken();
     });
-    applySession(null);
+    await applySession(null);
     audienceAuthIntentPreparedRef.current = true;
-  }, [applySession]);
+  }), [applySession, runSessionMutation]);
 
   const rejectIfPolicyChanged =
     useCallback(async (): Promise<AuthError | null> => {
@@ -373,22 +398,24 @@ export function AuthProvider({
       }
 
       try {
-        const supabase = getSupabase();
-        const { data, error } =
-          await supabase.auth.exchangeCodeForSession(code);
-        const restrictionError = await rejectIfPolicyChanged();
-        if (restrictionError) {
-          cancelAudienceAuthIntent();
-          return { handled: true, error: restrictionError };
-        }
-        if (error) {
-          cancelAudienceAuthIntent();
-          return { handled: true, error };
-        }
-        if (!applyCompletedAuthSession(data.session)) {
-          return { handled: true, error: createOAuthCallbackError() };
-        }
-        return { handled: true, error: null };
+        return await runSessionMutation<OAuthCallbackResult>(async () => {
+          const supabase = getSupabase();
+          const { data, error } =
+            await supabase.auth.exchangeCodeForSession(code);
+          const restrictionError = await rejectIfPolicyChanged();
+          if (restrictionError) {
+            cancelAudienceAuthIntent();
+            return { handled: true, error: restrictionError };
+          }
+          if (error) {
+            cancelAudienceAuthIntent();
+            return { handled: true, error };
+          }
+          if (!applyCompletedAuthSession(data.session)) {
+            return { handled: true, error: createOAuthCallbackError() };
+          }
+          return { handled: true, error: null };
+        });
       } catch (error) {
         cancelAudienceAuthIntent();
         throw error;
@@ -401,6 +428,7 @@ export function AuthProvider({
       loadOAuthAttempt,
       rejectIfPolicyChanged,
       resumeOAuthAudienceAuthIntent,
+      runSessionMutation,
     ],
   );
 
@@ -471,8 +499,10 @@ export function AuthProvider({
     // Listen for auth state changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+    } = supabase.auth.onAuthStateChange((event, currentSession) => {
       if (!active) return;
+      if (event === "SIGNED_OUT") return applySession(null);
+      if (sessionMutationActiveRef.current) return;
       if (audienceAuthIntentRef.current) return;
       applySession(currentSession);
     });
@@ -508,37 +538,73 @@ export function AuthProvider({
       if (!audiencePolicy.canAuthenticate) {
         return createAudienceRestrictedAuthError();
       }
+      const revision = ++passwordRequestRevisionRef.current;
+      const isCurrent = () => revision === passwordRequestRevisionRef.current;
       try {
         await prepareAudienceAuthIntent();
-        const supabase = getSupabase();
-        const { data, error } = await supabase.auth.signInWithPassword({
+        if (!isCurrent()) return createCancelledAuthRequestError();
+        const requestClient = createSupabaseAuthRequestClient();
+        const { data, error } = await requestClient.auth.signInWithPassword({
           email,
           password,
         });
-        const restrictionError = await rejectIfPolicyChanged();
-        if (restrictionError) {
-          cancelAudienceAuthIntent();
-          return restrictionError;
+        if (!isCurrent()) return createCancelledAuthRequestError();
+        if (!canAuthenticateRef.current) {
+          return await runSessionMutation(rejectIfPolicyChanged);
         }
         if (error) {
           cancelAudienceAuthIntent();
           return error;
         }
-        if (!applyCompletedAuthSession(data?.session ?? null)) {
+        if (!data?.session) {
+          cancelAudienceAuthIntent();
           return createMissingAuthSessionError();
         }
-        return null;
+        return await runSessionMutation(async () => {
+          if (!isCurrent() || !canAuthenticateRef.current) return createCancelledAuthRequestError();
+          const supabase = getSupabase();
+          const discardSession = async () => {
+            const cleanup = await supabase.auth.signOut({ scope: "local" })
+              .catch(() => ({ error: true }));
+            if (cleanup?.error) await discardSupabaseAuthSession();
+            await applySession(null);
+            return createCancelledAuthRequestError();
+          };
+          const committed = await supabase.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          });
+          if (!isCurrent() || !canAuthenticateRef.current) {
+            // No newer preparation/commit can run until this cleanup finishes.
+            // In particular, it cannot remove a newer OAuth PKCE verifier.
+            return discardSession();
+          }
+          if (committed.error) {
+            cancelAudienceAuthIntent();
+            return committed.error;
+          }
+          if (!committed.data.session) {
+            cancelAudienceAuthIntent();
+            return createMissingAuthSessionError();
+          }
+          await setAuthToken(committed.data.session.access_token);
+          if (!isCurrent() || !canAuthenticateRef.current) return discardSession();
+          applyCompletedAuthSession(committed.data.session);
+          return null;
+        });
       } catch (error) {
-        cancelAudienceAuthIntent();
+        if (isCurrent()) cancelAudienceAuthIntent();
         throw error;
       }
     },
     [
+      applySession,
       applyCompletedAuthSession,
       audiencePolicy.canAuthenticate,
       cancelAudienceAuthIntent,
       prepareAudienceAuthIntent,
       rejectIfPolicyChanged,
+      runSessionMutation,
     ],
   );
 
@@ -748,16 +814,18 @@ export function AuthProvider({
     cancelAudienceAuthIntent();
     await clearOAuthAttempt();
     const supabase = getSupabase();
-    const currentSession = options?.accountDeleted ? session
-      : (await supabase.auth.getSession()).data.session ?? session;
-    const accessToken = options?.accountDeleted ? undefined : currentSession?.access_token;
-    await signOutPushDevice(accessToken, () => signOutLocalNotifications(currentSession?.user.id, async () => {
-      const result = await supabase.auth.signOut();
-      if (result?.error) throw result.error;
-      await clearAuthToken();
-      applySession(null);
-    }));
-  }, [applySession, cancelAudienceAuthIntent, clearOAuthAttempt, session]);
+    await runSessionMutation(async () => {
+      const currentSession = options?.accountDeleted ? session
+        : (await supabase.auth.getSession()).data.session ?? session;
+      const accessToken = options?.accountDeleted ? undefined : currentSession?.access_token;
+      await signOutPushDevice(accessToken, () => signOutLocalNotifications(currentSession?.user.id, async () => {
+        const result = await supabase.auth.signOut();
+        if (result?.error) throw result.error;
+        await clearAuthToken();
+        await applySession(null);
+      }));
+    });
+  }, [applySession, cancelAudienceAuthIntent, clearOAuthAttempt, runSessionMutation, session]);
 
   const signInWithOAuth = useCallback(
     async (provider: SocialAuthProvider): Promise<AuthError | null> => {

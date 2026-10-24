@@ -1723,6 +1723,8 @@ describe("DetailScreen", () => {
     const selectedAdNodeCount = renderer!.root.findAllByProps({
       testID: "detail-native-ad-1",
     }).length;
+    pagerViewMock.setPage.mockClear();
+    pagerViewMock.setPageWithoutAnimation.mockClear();
     act(() => {
       selectedAd.props.onLoadStateChange("unavailable");
     });
@@ -1731,9 +1733,195 @@ describe("DetailScreen", () => {
       (node) => node.props.isActive,
     );
     expect(recoveredPage?.props.groupBuy.id).toBe(thirdGroupBuy.id);
+    expect([
+      ...pagerViewMock.setPage.mock.calls,
+      ...pagerViewMock.setPageWithoutAnimation.mock.calls,
+    ]).toContainEqual([3]);
     expect(
       renderer!.root.findAllByProps({ testID: "detail-native-ad-1" }),
     ).toHaveLength(selectedAdNodeCount);
+  });
+
+  it.each(["ios", "android"])(
+    "skips a detail ad that failed during adjacent preload on %s",
+    (platform) => {
+      platformMock.os = platform;
+      const thirdGroupBuy: GroupBuy = {
+        ...baseGroupBuy,
+        id: "candidate-3",
+        productName: "세 번째 공구",
+      };
+      queryMock.groupBuys = [
+        baseGroupBuy,
+        { ...baseGroupBuy, id: "group-buy-2" },
+        thirdGroupBuy,
+      ];
+      adsMock.enabled = true;
+      adsMock.isReady = true;
+      adsMock.nativeUnitIds.detail = "detail-native-unit";
+
+      let renderer: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          <DetailScreen
+            route={
+              {
+                key: "Detail",
+                name: "Detail",
+                params: { groupBuy: baseGroupBuy },
+              } as any
+            }
+            navigation={
+              { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+            }
+          />,
+        );
+      });
+      const pageCount = findVerticalPager(renderer!).children.length;
+      act(() => {
+        findVerticalPager(renderer!).props.onPageSelected({
+          nativeEvent: { position: 1 },
+        });
+      });
+      const preloadingAd = renderer!.root.findByProps({
+        testID: "detail-native-ad-1",
+      });
+      expect(preloadingAd.props.visible).toBe(false);
+      act(() => preloadingAd.props.onLoadStateChange("unavailable"));
+      expect(findVerticalPager(renderer!).children).toHaveLength(pageCount);
+
+      pagerViewMock.setPage.mockClear();
+      pagerViewMock.setPageWithoutAnimation.mockClear();
+      act(() => {
+        findVerticalPager(renderer!).props.onPageSelected({
+          nativeEvent: { position: 2 },
+        });
+      });
+
+      const recoveredPage = findProductReelPages(renderer!).find(
+        (node) => node.props.isActive,
+      );
+      expect(recoveredPage?.props.groupBuy.id).toBe(thirdGroupBuy.id);
+      expect([
+        ...pagerViewMock.setPage.mock.calls,
+        ...pagerViewMock.setPageWithoutAnimation.mock.calls,
+      ]).toContainEqual([3]);
+      expect(findVerticalPager(renderer!).children).toHaveLength(pageCount);
+    },
+  );
+
+  it.each(["ios", "android"])(
+    "recovers when detail ad selection and load failure share a render batch on %s",
+    (platform) => {
+      platformMock.os = platform;
+      queryMock.groupBuys = [
+        baseGroupBuy,
+        { ...baseGroupBuy, id: "group-buy-2" },
+        { ...baseGroupBuy, id: "candidate-3" },
+      ];
+      adsMock.enabled = true;
+      adsMock.isReady = true;
+      adsMock.nativeUnitIds.detail = "detail-native-unit";
+      let renderer: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          <DetailScreen
+            route={
+              {
+                key: "Detail",
+                name: "Detail",
+                params: { groupBuy: baseGroupBuy },
+              } as any
+            }
+            navigation={
+              { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+            }
+          />,
+        );
+      });
+      act(() => {
+        findVerticalPager(renderer!).props.onPageSelected({
+          nativeEvent: { position: 1 },
+        });
+      });
+      const preloadingAd = renderer!.root.findByProps({
+        testID: "detail-native-ad-1",
+      });
+      pagerViewMock.setPage.mockClear();
+      pagerViewMock.setPageWithoutAnimation.mockClear();
+
+      act(() => {
+        findVerticalPager(renderer!).props.onPageSelected({
+          nativeEvent: { position: 2 },
+        });
+        preloadingAd.props.onLoadStateChange("unavailable");
+      });
+
+      expect([
+        ...pagerViewMock.setPage.mock.calls,
+        ...pagerViewMock.setPageWithoutAnimation.mock.calls,
+      ]).toContainEqual([3]);
+      expect(
+        findProductReelPages(renderer!).find((node) => node.props.isActive)
+          ?.props.groupBuy.id,
+      ).toBe("candidate-3");
+    },
+  );
+
+  it("keeps a detail ad selectable after its failed preload retry succeeds", () => {
+    queryMock.groupBuys = [
+      baseGroupBuy,
+      { ...baseGroupBuy, id: "group-buy-2" },
+      { ...baseGroupBuy, id: "candidate-3" },
+    ];
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.detail = "detail-native-unit";
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <DetailScreen
+          route={
+            {
+              key: "Detail",
+              name: "Detail",
+              params: { groupBuy: baseGroupBuy },
+            } as any
+          }
+          navigation={
+            { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any
+          }
+        />,
+      );
+    });
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 1 },
+      });
+    });
+    const preloadingAd = renderer!.root.findByProps({
+      testID: "detail-native-ad-1",
+    });
+    act(() => preloadingAd.props.onLoadStateChange("unavailable"));
+    act(() => preloadingAd.props.onLoadStateChange("loading"));
+    act(() => preloadingAd.props.onLoadStateChange("loaded"));
+    pagerViewMock.setPage.mockClear();
+    pagerViewMock.setPageWithoutAnimation.mockClear();
+
+    act(() => {
+      findVerticalPager(renderer!).props.onPageSelected({
+        nativeEvent: { position: 2 },
+      });
+    });
+
+    expect(
+      renderer!.root.findByProps({ testID: "detail-native-ad-1" }).props.visible,
+    ).toBe(true);
+    expect(pagerViewMock.setPage).not.toHaveBeenCalled();
+    expect(pagerViewMock.setPageWithoutAnimation).not.toHaveBeenCalled();
+    expect(
+      findProductReelPages(renderer!).some((node) => node.props.isActive),
+    ).toBe(false);
   });
 
   it("preserves the selected detail ad through store activity and feed metadata refresh", () => {
