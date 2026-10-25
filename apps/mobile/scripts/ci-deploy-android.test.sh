@@ -100,9 +100,15 @@ case "$command_name" in
       "${MOCK_FINGERPRINT_HASH:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
     ;;
   build:list)
-    if [[ " $* " == *" --fingerprint-hash 03cb2d49ed9bcaa616a8d38f969acfb7511c6101 "* ]]; then
+    if [[ " $* " == *" --fingerprint-hash 493502c5bf2457a3740b4d59271cf40645e3e43e "* ]]; then
+      if [[ "${MOCK_PLAY27_BUILD:-missing}" == "valid" ]]; then
+        printf '%s\n' '[{"id":"e14c01a1-3d6e-4d41-844f-99208caab24d","status":"FINISHED","platform":"ANDROID","distribution":"STORE","runtimeVersion":"493502c5bf2457a3740b4d59271cf40645e3e43e","fingerprint":{"hash":"493502c5bf2457a3740b4d59271cf40645e3e43e"},"channel":"production","buildProfile":"production","appBuildVersion":"27","gitCommitHash":"38e4c52481261bef1fdcfea6d9e454a88912fd34","project":{"id":"7425b02f-80fe-4ccf-b7fa-c6052282fe35"}}]'
+      else
+        printf '[]\n'
+      fi
+    elif [[ " $* " == *" --fingerprint-hash 03cb2d49ed9bcaa616a8d38f969acfb7511c6101 "* ]]; then
       if [[ "${MOCK_LEGACY_BUILD:-missing}" == "valid" ]]; then
-        printf '%s\n' '[{"id":"0efa1ce7-b2bc-4f40-852b-365302f1d38a","status":"FINISHED","platform":"ANDROID","runtimeVersion":"03cb2d49ed9bcaa616a8d38f969acfb7511c6101","fingerprint":{"hash":"03cb2d49ed9bcaa616a8d38f969acfb7511c6101"},"channel":"production","buildProfile":"production","appBuildVersion":"17","gitCommitHash":"6d2d6b067a208f2de2c7ffe90ad0fea16a046f9a","project":{"id":"7425b02f-80fe-4ccf-b7fa-c6052282fe35"}}]'
+        printf '%s\n' '[{"id":"0efa1ce7-b2bc-4f40-852b-365302f1d38a","status":"FINISHED","platform":"ANDROID","distribution":"STORE","runtimeVersion":"03cb2d49ed9bcaa616a8d38f969acfb7511c6101","fingerprint":{"hash":"03cb2d49ed9bcaa616a8d38f969acfb7511c6101"},"channel":"production","buildProfile":"production","appBuildVersion":"17","gitCommitHash":"6d2d6b067a208f2de2c7ffe90ad0fea16a046f9a","project":{"id":"7425b02f-80fe-4ccf-b7fa-c6052282fe35"}}]'
       else
         printf '[]\n'
       fi
@@ -121,7 +127,10 @@ case "$command_name" in
     if [[ "${GONGGU_OTA_RUNTIME_VERSION:-}" != "$expected_fingerprint" && ! ( \
       "${APP_VARIANT:-}" == "production" && \
       "$expected_fingerprint" == "0b37911db44a8039b54b904a2a76843a46733511" && \
-      "${GONGGU_OTA_RUNTIME_VERSION:-}" == "03cb2d49ed9bcaa616a8d38f969acfb7511c6101" ) ]]; then
+      "${GONGGU_OTA_RUNTIME_VERSION:-}" == "03cb2d49ed9bcaa616a8d38f969acfb7511c6101" ) && ! ( \
+      "${APP_VARIANT:-}" == "production" && \
+      "$expected_fingerprint" == "1b5ad6e516176759a885f07c171d490a8500f074" && \
+      "${GONGGU_OTA_RUNTIME_VERSION:-}" == "493502c5bf2457a3740b4d59271cf40645e3e43e" ) ]]; then
       echo "OTA update must reuse a verified compatible build runtime" >&2
       exit 1
     fi
@@ -136,7 +145,13 @@ case "$command_name" in
         ;;
       *) echo "Unexpected app variant for EAS Update" >&2; exit 1 ;;
     esac
-    case "${MOCK_UPDATE_OUTPUT:-valid}" in
+    printf '%s %s %s\n' "$GONGGU_OTA_RUNTIME_VERSION" \
+      "${GONGGU_RELEASE_NUMBER:-}" "$*" >>"${MOCK_EAS_LOG%.log}-updates.log"
+    update_output="${MOCK_UPDATE_OUTPUT:-valid}"
+    if [[ "$GONGGU_OTA_RUNTIME_VERSION" == "493502c5bf2457a3740b4d59271cf40645e3e43e" ]]; then
+      update_output="${MOCK_PLAY27_UPDATE_OUTPUT:-$update_output}"
+    fi
+    case "$update_output" in
       valid)
         printf '[{"platform":"android","runtimeVersion":"%s","group":"test-update-group"}]\n' \
           "$GONGGU_OTA_RUNTIME_VERSION"
@@ -154,6 +169,7 @@ case "$command_name" in
       mismatch)
         printf '[{"platform":"android","runtimeVersion":"different-runtime-version"}]\n'
         ;;
+      failure) echo "Play OTA publish failed" >&2; exit 1 ;;
       *) echo "Unexpected mock update output" >&2; exit 1 ;;
     esac
     ;;
@@ -246,7 +262,10 @@ expected_fingerprint="${MOCK_FINGERPRINT_HASH:-0123456789abcdef0123456789abcdef0
 if [[ "$runtime" != "$expected_fingerprint" && ! ( \
   "${APP_VARIANT:-}" == "production" && \
   "$expected_fingerprint" == "0b37911db44a8039b54b904a2a76843a46733511" && \
-  "$runtime" == "03cb2d49ed9bcaa616a8d38f969acfb7511c6101" ) ]]; then
+  "$runtime" == "03cb2d49ed9bcaa616a8d38f969acfb7511c6101" ) && ! ( \
+  "${APP_VARIANT:-}" == "production" && \
+  "$expected_fingerprint" == "1b5ad6e516176759a885f07c171d490a8500f074" && \
+  "$runtime" == "493502c5bf2457a3740b4d59271cf40645e3e43e" ) ]]; then
   echo "Expo config preflight must use a verified compatible build runtime" >&2
   exit 1
 fi
@@ -987,5 +1006,43 @@ if grep -q '^update ' "$test_directory/production-play-missing/eas.log"; then
   echo "An OTA was published before Play compatibility validation" >&2
   exit 1
 fi
+
+MOCK_FINGERPRINT_HASH="1b5ad6e516176759a885f07c171d490a8500f074" \
+  MOCK_PLAY27_BUILD="valid" \
+  run_deployment "production-play27-ota" "refs/heads/main" "none" "true"
+assert_eas_commands "production-play27-ota" "env:set fingerprint:generate build:list build:list update update"
+grep -Fq 'Runtime version: `1b5ad6e516176759a885f07c171d490a8500f074`' \
+  "$test_directory/production-play27-ota/summary"
+grep -Fq 'Runtime version: `493502c5bf2457a3740b4d59271cf40645e3e43e`' \
+  "$test_directory/production-play27-ota/summary"
+for runtime in \
+  "1b5ad6e516176759a885f07c171d490a8500f074" \
+  "493502c5bf2457a3740b4d59271cf40645e3e43e"; do
+  grep -Fxq "$runtime 18 --channel production --environment production --platform android --message production: abc123 --json --non-interactive" \
+    "$test_directory/production-play27-ota/eas-updates.log"
+done
+
+if MOCK_FINGERPRINT_HASH="1b5ad6e516176759a885f07c171d490a8500f074" \
+  MOCK_PLAY27_BUILD="missing" \
+  run_deployment "production-play27-missing" "refs/heads/main" "none" "true"; then
+  echo "Missing Play 27 build evidence unexpectedly allowed an OTA" >&2
+  exit 1
+fi
+if grep -q '^update ' "$test_directory/production-play27-missing/eas.log"; then
+  echo "An OTA was published before Play 27 compatibility validation" >&2
+  exit 1
+fi
+
+for update_output in failure mismatch; do
+  case_name="production-play27-$update_output"
+  if MOCK_FINGERPRINT_HASH="1b5ad6e516176759a885f07c171d490a8500f074" \
+    MOCK_PLAY27_BUILD="valid" \
+    MOCK_PLAY27_UPDATE_OUTPUT="$update_output" \
+    run_deployment "$case_name" "refs/heads/main" "none" "true"; then
+    echo "A failed Play 27 OTA unexpectedly passed deployment" >&2
+    exit 1
+  fi
+  assert_eas_commands "$case_name" "env:set fingerprint:generate build:list build:list update update"
+done
 
 echo "ci-deploy-android tests passed"

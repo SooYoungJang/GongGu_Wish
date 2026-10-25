@@ -2,19 +2,37 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 // Exact, reviewed EOL-only equivalence, not a general runtime override.
-// Both 175-entry ordered fingerprint transcripts were reproduced. Only
+// Each pair's 175-entry fingerprint transcripts were compared. Only
 // eas.json, the ProGuard plugin, patches, and the patched SDK's added-line
 // endings differ. SDK 16.3.4 tarball integrity and both directory hashes
 // were verified; no native API/config changes are accepted by this mapping.
-const currentFingerprint = "0b37911db44a8039b54b904a2a76843a46733511";
-const legacyTarget = Object.freeze({
-  runtimeVersion: "03cb2d49ed9bcaa616a8d38f969acfb7511c6101",
-  buildId: "0efa1ce7-b2bc-4f40-852b-365302f1d38a",
-});
+// For Play 27, the external google-services path also changed; its override
+// hash key and content hash are identical. Replaying the locked SDK tarball
+// with LF/CRLF patches reproduced all four differing native file hashes.
+const reviewedTargets = new Map([
+  [
+    "0b37911db44a8039b54b904a2a76843a46733511",
+    Object.freeze({
+      runtimeVersion: "03cb2d49ed9bcaa616a8d38f969acfb7511c6101",
+      buildId: "0efa1ce7-b2bc-4f40-852b-365302f1d38a",
+      appBuildVersion: "17",
+      gitCommitHash: "6d2d6b067a208f2de2c7ffe90ad0fea16a046f9a",
+    }),
+  ],
+  [
+    "1b5ad6e516176759a885f07c171d490a8500f074",
+    Object.freeze({
+      runtimeVersion: "493502c5bf2457a3740b4d59271cf40645e3e43e",
+      buildId: "e14c01a1-3d6e-4d41-844f-99208caab24d",
+      appBuildVersion: "27",
+      gitCommitHash: "38e4c52481261bef1fdcfea6d9e454a88912fd34",
+    }),
+  ],
+]);
 
 export function getLegacyRuntime(environment, fingerprint) {
-  return environment === "production" && fingerprint === currentFingerprint
-    ? legacyTarget
+  return environment === "production"
+    ? reviewedTargets.get(fingerprint)
     : undefined;
 }
 
@@ -29,15 +47,18 @@ export function validateLegacyBuild(environment, fingerprint, builds) {
     matches.length !== 1 ||
     build.status !== "FINISHED" ||
     build.platform !== "ANDROID" ||
+    build.distribution !== "STORE" ||
     build.runtimeVersion !== target.runtimeVersion ||
     build.fingerprint?.hash !== target.runtimeVersion ||
     build.channel !== "production" ||
     build.buildProfile !== "production" ||
-    build.appBuildVersion !== "17" ||
-    build.gitCommitHash !== "6d2d6b067a208f2de2c7ffe90ad0fea16a046f9a" ||
+    build.appBuildVersion !== target.appBuildVersion ||
+    build.gitCommitHash !== target.gitCommitHash ||
     build.project?.id !== "7425b02f-80fe-4ccf-b7fa-c6052282fe35"
   ) {
-    throw new Error("The verified Play runtime build is missing or mismatched");
+    throw new Error(
+      `The verified Play ${target.appBuildVersion} runtime build is missing or mismatched`,
+    );
   }
   return build.id;
 }
