@@ -12,6 +12,7 @@ const build = () => ({
   id: buildId,
   status: "FINISHED",
   platform: "ANDROID",
+  distribution: "STORE",
   runtimeVersion: legacy,
   fingerprint: { hash: legacy },
   channel: "production",
@@ -45,6 +46,7 @@ for (const [field, value] of [
   ["id", "other-build-id"],
   ["status", "CANCELED"],
   ["platform", "IOS"],
+  ["distribution", "INTERNAL"],
   ["runtimeVersion", current],
   ["fingerprint", { hash: current }],
   ["channel", "preview"],
@@ -67,4 +69,70 @@ test("cannot validate a legacy publish for Preview or changed native inputs", ()
   assert.throws(() =>
     validateLegacyBuild("production", "new-native-code", [build()]),
   );
+});
+
+const play27Current = "1b5ad6e516176759a885f07c171d490a8500f074";
+const play27Runtime = "493502c5bf2457a3740b4d59271cf40645e3e43e";
+const play27BuildId = "e14c01a1-3d6e-4d41-844f-99208caab24d";
+const play27Build = () => ({
+  ...build(),
+  id: play27BuildId,
+  distribution: "STORE",
+  runtimeVersion: play27Runtime,
+  fingerprint: { hash: play27Runtime },
+  appBuildVersion: "27",
+  gitCommitHash: "38e4c52481261bef1fdcfea6d9e454a88912fd34",
+});
+
+test("the current CI runtime also reaches the verified Play 27 binary", () => {
+  const target = getLegacyRuntime("production", play27Current);
+  assert.equal(target?.runtimeVersion, play27Runtime);
+  assert.equal(target?.buildId, play27BuildId);
+  assert.equal(
+    validateLegacyBuild("production", play27Current, [play27Build()]),
+    play27BuildId,
+  );
+});
+
+test("Play 27 equivalence never applies to Preview or changed native inputs", () => {
+  for (const [environment, fingerprint] of [
+    ["preview", play27Current],
+    ["production", play27Runtime],
+    ["production", `${play27Current}0`],
+  ]) {
+    assert.equal(getLegacyRuntime(environment, fingerprint), undefined);
+    assert.throws(() =>
+      validateLegacyBuild(environment, fingerprint, [play27Build()]),
+    );
+  }
+});
+
+for (const [field, value] of [
+  ["id", buildId],
+  ["status", "CANCELED"],
+  ["platform", "IOS"],
+  ["distribution", "INTERNAL"],
+  ["runtimeVersion", play27Current],
+  ["fingerprint", { hash: play27Current }],
+  ["channel", "preview"],
+  ["buildProfile", "production-apk"],
+  ["appBuildVersion", "28"],
+  ["gitCommitHash", "different-source-commit"],
+  ["project", { id: "other-project" }],
+]) {
+  test(`rejects mismatched Play 27 build ${field}`, () => {
+    assert.throws(() =>
+      validateLegacyBuild("production", play27Current, [
+        { ...play27Build(), [field]: value },
+      ]),
+    );
+  });
+}
+
+test("Play 27 requires one exact Store build before publishing", () => {
+  for (const builds of [[], null, {}, [play27Build(), play27Build()]]) {
+    assert.throws(() =>
+      validateLegacyBuild("production", play27Current, builds),
+    );
+  }
 });
