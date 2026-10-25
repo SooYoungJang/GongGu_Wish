@@ -56,7 +56,9 @@ export function validateLegacyBuild(environment, fingerprint, builds) {
     build.gitCommitHash !== target.gitCommitHash ||
     build.project?.id !== "7425b02f-80fe-4ccf-b7fa-c6052282fe35"
   ) {
-    throw new Error("The verified Play runtime build is missing or mismatched");
+    throw new Error(
+      `The verified Play ${target.appBuildVersion} runtime build is missing or mismatched`,
+    );
   }
   return build.id;
 }

@@ -135,4 +135,8 @@ test("Play 27 requires one exact Store build before publishing", () => {
       validateLegacyBuild("production", play27Current, builds),
     );
   }
+  assert.throws(
+    () => validateLegacyBuild("production", play27Current, []),
+    /verified Play 27 runtime build/,
+  );
 });
