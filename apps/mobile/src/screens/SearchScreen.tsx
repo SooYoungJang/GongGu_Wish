@@ -252,7 +252,8 @@ export function SearchScreen() {
     [influencers, isSearchSettled],
   );
   const hasQuery = query.trim().length > 0;
-  const isInitialSearchPending = !isSearchSettled || isGroupBuysPending || isInfluencersPending;
+  const isInfluencerSearchEnabled = normalizeForSearch(debouncedQuery.trim().replace(/^@/, '')).length > 0;
+  const isInitialSearchPending = !isSearchSettled || isGroupBuysPending || (isInfluencerSearchEnabled && isInfluencersPending);
   const handleLoadMore = useCallback(() => {
     if (hasNextPage && !isGroupBuysFetching && !isFetchingNextPage) {
       void fetchNextPage();

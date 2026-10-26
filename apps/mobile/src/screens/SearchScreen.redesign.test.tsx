@@ -934,6 +934,13 @@ describe('SearchScreen redesign', () => {
       expect(mocks.requestGroupBuy).toHaveBeenCalledWith('없는 공구');
     });
 
+    it.each(['@', ' @  '])('settles a disabled seller lookup for %j', async query => {
+      mocks.groupBuys = [];
+      mocks.influencers = [];
+      const view = await renderResults(query);
+      expect(flattenText(view.toJSON())).not.toContain('공구를 찾고 있어요');
+    });
+
     it('loads another seller page only when requested', async () => {
       mocks.influencersHasNextPage = true;
       const view = await renderResults('pillow');
