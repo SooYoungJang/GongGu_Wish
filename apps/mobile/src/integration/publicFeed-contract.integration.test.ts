@@ -9,6 +9,12 @@ describeLocal("public feed cursor and eligibility contract", () => {
   const today = "2026-10-26";
   const createdAt = "2026-10-26T01:00:00.123456";
   const id = (i: number) => `${prefix}-${String(i).padStart(3, "0")}`;
+  const sellers = Array.from({ length: 13 }, (_, index) => ({
+    id: index === 0 ? prefix : `${prefix}-seller-${String(index).padStart(2, "0")}`,
+    instagram_username: index === 0 ? username : `${username}_${String(index).padStart(2, "0")}`,
+    display_name: `${prefix} 셀러 ${index}`,
+    updated_at: createdAt,
+  }));
 
   async function rest(path: string, method = "GET", body?: unknown, service = true) {
     const config = getLocalSupabaseConfig();
@@ -29,9 +35,7 @@ describeLocal("public feed cursor and eligibility contract", () => {
   }
 
   beforeAll(async () => {
-    await rest("influencers", "POST", {
-      id: prefix, instagram_username: username, updated_at: createdAt,
-    });
+    await rest("influencers", "POST", sellers);
     await rest("raw_posts", "POST", Array.from({ length: 64 }, (_, i) => ({
       id: id(i), instagram_post_id: id(i), influencer_id: prefix,
       caption: "Collector payload excluded from feed cards. ".repeat(512),
@@ -54,7 +58,7 @@ describeLocal("public feed cursor and eligibility contract", () => {
     const ids = Array.from({ length: 64 }, (_, i) => id(i)).join(",");
     await rest(`group_buys?id=in.(${ids})`, "DELETE");
     await rest(`raw_posts?id=in.(${ids})`, "DELETE");
-    await rest(`influencers?id=eq.${prefix}`, "DELETE");
+    await rest(`influencers?id=in.(${sellers.map(item => item.id).join(",")})`, "DELETE");
   }, 30_000);
 
   it("traverses tied timestamps exactly once and excludes expired/unapproved/other-seller rows", async () => {
@@ -90,5 +94,19 @@ describeLocal("public feed cursor and eligibility contract", () => {
     const afterBytes = Buffer.byteLength(JSON.stringify(page));
     expect(afterBytes).toBeLessThan(beforeBytes / 10);
     console.info("Feed fixture payload bytes", { beforeBytes, afterBytes, rowsBefore: old.length, rowsAfter: page.length });
+  });
+
+  it("paginates seller matches by username/id and treats punctuation literally", async () => {
+    const search = (params: Record<string, string>) => rest(`rpc/search_public_influencers?${new URLSearchParams({ p_query: username, ...params })}`, "GET", undefined, false);
+    const first = await search({ p_limit: "9" });
+    expect(first).toHaveLength(9);
+    const lastVisible = first[7];
+    const next = await search({ p_limit: "9", p_after_username: lastVisible.instagram_username, p_after_id: lastVisible.id });
+    const ids = [...first.slice(0, 8), ...next].map(row => row.id);
+    expect(new Set(ids)).toEqual(new Set(sellers.map(item => item.id)));
+    expect(ids).toHaveLength(13);
+    expect(await search({ p_query: `${prefix}셀러` })).toHaveLength(9);
+    expect(await search({ p_query: `${username}%` })).toHaveLength(0);
+    expect(await search({ p_query: "" })).toHaveLength(0);
   });
 });

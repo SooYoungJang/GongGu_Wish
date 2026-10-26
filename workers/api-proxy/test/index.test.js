@@ -259,7 +259,7 @@ describe("gonggu API proxy", () => {
     assert.deepEqual(await upstreamRequest.json(), { p_limit_count: 3 });
   });
 
-  for (const rpc of ["search_public_group_buys", "list_public_group_buys"]) it(`forwards ${rpc} cursor only for GET`, async () => {
+  for (const rpc of ["search_public_group_buys", "list_public_group_buys", "search_public_influencers"]) it(`forwards ${rpc} cursor only for GET`, async () => {
     let upstreamRequest;
     let calls = 0;
     globalThis.fetch = async (input) => {
@@ -267,7 +267,9 @@ describe("gonggu API proxy", () => {
       upstreamRequest = input;
       return Response.json([]);
     };
-    const path = `/rest/v1/rpc/${rpc}?p_limit=21&p_before_id=text-id`;
+    const query = rpc === "search_public_influencers" ? "p_query=100%25_&p_limit=9&p_after_id=text-id"
+      : `${rpc === "search_public_group_buys" ? "p_query=100%25_&" : ""}p_limit=21&p_before_id=text-id`;
+    const path = `/rest/v1/rpc/${rpc}?${query}`;
     const response = await request(path, { headers: { apikey: "public-key" } });
     assert.equal(response.status, 200);
     assert.equal(new URL(upstreamRequest.url).search, new URL(`https://example.test${path}`).search);

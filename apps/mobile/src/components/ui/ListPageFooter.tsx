@@ -10,7 +10,7 @@ export type ListPagination = {
   onLoadMore: () => void;
 };
 
-export function ListPageFooter({ pagination }: { pagination?: ListPagination }) {
+export function ListPageFooter({ pagination, label = "더 보기" }: { pagination?: ListPagination; label?: string }) {
   const { colors, spacing } = useCommerceTheme();
   if (!pagination || (!pagination.hasMore && !pagination.isError)) return null;
   return (
@@ -26,8 +26,8 @@ export function ListPageFooter({ pagination }: { pagination?: ListPagination }) 
           variant="error"
         />
       ) : (
-        <Pressable accessibilityRole="button" onPress={pagination.onLoadMore}>
-          <SText variant="button" style={{ color: colors.accent, textAlign: "center" }}>더 보기</SText>
+        <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={pagination.onLoadMore}>
+          <SText variant="button" style={{ color: colors.accent, textAlign: "center" }}>{label}</SText>
         </Pressable>
       )}
     </View>
