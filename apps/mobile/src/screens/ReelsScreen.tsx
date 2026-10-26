@@ -43,6 +43,7 @@ import {
 import {
   createReelWindow,
   moveReelWindow,
+  reanchorReelWindow,
   type ReelWindow,
 } from "./reelWindow";
 import {
@@ -188,12 +189,16 @@ export function ReelsScreen({
     previousBatchRef.current = baseBatch;
     const appended = previous.length > 0 && isFeedAppend(previous.map(item => item.key), baseBatch.map(item => item.key));
     if (appended) {
-      setReelWindow(current => {
-        const activeKey = current.items[current.activeIndex]?.key;
-        const anchor = baseBatch.findIndex(item => item.key === activeKey);
-        if (anchor < 0) return current;
-        return { ...createReelWindow(baseBatch, anchor - current.activeIndex), activeIndex: current.activeIndex };
-      });
+      const current = reelWindowRef.current;
+      const activeKey = current.items[current.activeIndex]?.key;
+      const anchor = baseBatch.findIndex(item => item.key === activeKey);
+      if (anchor < 0) return;
+      const next = reanchorReelWindow(current, baseBatch, anchor);
+      const delta = next.sourceStart - current.sourceStart;
+      if (pendingUnavailableAdRef.current !== null) pendingUnavailableAdRef.current += delta;
+      if (gestureStartSourceIndexRef.current !== null) gestureStartSourceIndexRef.current += delta;
+      reelWindowRef.current = next;
+      setReelWindow(next);
       return;
     }
     pagerScrollStateRef.current = "idle";
@@ -589,7 +594,7 @@ export function ReelsScreen({
 
           return (
             <View
-              key={`${item.key}-${reelWindow.sourceStart + index}`}
+              key={`${item.key}-${reelWindow.sourceStart + index + reelWindow.keyOffset}`}
               collapsable={false}
               style={[s.verticalPagerPage, { height: screenHeight }]}
             >

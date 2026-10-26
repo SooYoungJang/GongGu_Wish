@@ -3,13 +3,14 @@ import { infiniteQueryOptions, useInfiniteQuery } from "@tanstack/react-query";
 
 import { fetchGroupBuyPage, type GroupBuyCursor, type GroupBuyFeedFilter, type GroupBuyPage } from "./api";
 import { formatDateKey } from "../../utils/groupBuyDates";
+import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagram";
 
 export const GROUP_BUY_FEED_STALE_TIME_MS = 30_000;
 
 export function getGroupBuyFeedOptions(filter: GroupBuyFeedFilter = {}) {
   const normalized = {
     category: filter.category ?? "all",
-    username: filter.username?.replace(/^@/, "").toLowerCase() ?? "",
+    username: normalizeOptionalInstagramUsername(filter.username)?.toLowerCase(),
     from: filter.from,
     to: filter.to,
     today: filter.today ?? formatDateKey(new Date()),
@@ -21,6 +22,7 @@ export function getGroupBuyFeedOptions(filter: GroupBuyFeedFilter = {}) {
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     refetchOnMount: false,
     staleTime: GROUP_BUY_FEED_STALE_TIME_MS,
+    enabled: filter.username === undefined || Boolean(normalized.username),
   });
 }
 

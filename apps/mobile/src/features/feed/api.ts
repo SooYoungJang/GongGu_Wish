@@ -3,6 +3,7 @@ import { ApiError } from "../../lib/api-types";
 import { postgrestGet } from "../../lib/postgrest-client";
 import type { GroupBuy } from "../../types";
 import { formatDateKey } from "../../utils/groupBuyDates";
+import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagram";
 
 export type GroupBuyCursor = { createdAt: string; id: string };
 export type GroupBuyPage = { items: GroupBuy[]; nextCursor: GroupBuyCursor | null };
@@ -24,13 +25,15 @@ export async function fetchGroupBuyPage(
   cursor: GroupBuyCursor | null = null,
   signal?: AbortSignal,
 ): Promise<GroupBuyPage> {
+  const username = normalizeOptionalInstagramUsername(filter.username)?.toLowerCase();
+  if (filter.username !== undefined && !username) return { items: [], nextCursor: null };
   const params = new URLSearchParams({
     select: FEED_SELECT,
     p_limit: String(GROUP_BUY_PAGE_SIZE + 1),
     p_today: filter.today ?? formatDateKey(new Date()),
   });
   if (filter.category && filter.category !== "all") params.set("p_category", filter.category);
-  if (filter.username) params.set("p_username", filter.username.replace(/^@/, "").toLowerCase());
+  if (username) params.set("p_username", username);
   if (filter.from) params.set("p_from", filter.from);
   if (filter.to) params.set("p_to", filter.to);
   if (cursor) {

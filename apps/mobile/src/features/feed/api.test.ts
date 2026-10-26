@@ -47,7 +47,7 @@ describe("public feed pages", () => {
     const signal = new AbortController().signal;
 
     const page = await fetchGroupBuyPage({
-      category: "living", username: "@Seller", from: "2026-10-01", to: "2026-10-31",
+      category: "living", username: " @@  Seller \t", from: "2026-10-01", to: "2026-10-31",
       today: "2026-10-26",
     }, cursor, signal);
 
@@ -84,5 +84,12 @@ describe("public feed pages", () => {
       Array.from({ length: 21 }, (_, i) => ({ ...row(i), created_at: null })),
     ))));
     await expect(fetchGroupBuyPage()).rejects.toThrow(/cursor|response/);
+  });
+
+  it("does not turn a legacy unknown seller into an unfiltered catalog request", async () => {
+    const request = vi.fn();
+    vi.stubGlobal("fetch", request);
+    expect(await fetchGroupBuyPage({ username: "UNKNOWN" })).toEqual({ items: [], nextCursor: null });
+    expect(request).not.toHaveBeenCalled();
   });
 });

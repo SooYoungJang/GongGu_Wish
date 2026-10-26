@@ -258,7 +258,7 @@ export function ReelVideoPreloader({
   return null;
 }
 
-function getReelItems(current: GroupBuy, fetched?: GroupBuy[]) {
+function getReelItems(current: GroupBuy, fetched?: GroupBuy[], prependCurrent = false) {
   if (!fetched?.length) return [current];
 
   const seen = new Set<string>();
@@ -276,7 +276,8 @@ function getReelItems(current: GroupBuy, fetched?: GroupBuy[]) {
     return items;
   }, []);
 
-  return includedCurrent ? ordered : [current, ...ordered];
+  if (includedCurrent && !prependCurrent) return ordered;
+  return [ordered.find(item => item.id === current.id) ?? current, ...ordered.filter(item => item.id !== current.id)];
 }
 
 function getInitialReelIndex(current: GroupBuy, reelItems: GroupBuy[]) {
@@ -2697,8 +2698,15 @@ function DetailScreenContent({
   const groupBuys = useMemo(() => flattenGroupBuyPages(feed.data?.pages), [feed.data]);
   const { spacing: feedNoticeSpacing } = useCommerceTheme();
 
+  const routePlacement = useRef<{ id: string; prepend: boolean | null }>({ id: groupBuy.id, prepend: null });
   const reelItems = useMemo(
-    () => getReelItems(groupBuy, groupBuys),
+    () => {
+      if (routePlacement.current.id !== groupBuy.id) routePlacement.current = { id: groupBuy.id, prepend: null };
+      if (routePlacement.current.prepend === null && groupBuys.length > 0) {
+        routePlacement.current.prepend = !groupBuys.some(item => item.id === groupBuy.id);
+      }
+      return getReelItems(groupBuy, groupBuys, routePlacement.current.prepend ?? false);
+    },
     [groupBuy, groupBuys],
   );
   const initialReelIndex = useMemo(

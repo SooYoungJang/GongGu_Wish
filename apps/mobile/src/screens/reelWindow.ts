@@ -5,6 +5,7 @@ export type ReelWindow<T> = {
   items: T[];
   activeIndex: number;
   sourceStart: number;
+  keyOffset: number;
 };
 
 function getSourceItem<T>(source: T[], logicalIndex: number) {
@@ -23,7 +24,7 @@ export function createReelWindow<T>(
   size = REEL_PAGE_WINDOW_SIZE,
 ): ReelWindow<T> {
   if (source.length === 0) {
-    return { items: [], activeIndex: 0, sourceStart: 0 };
+    return { items: [], activeIndex: 0, sourceStart: 0, keyOffset: 0 };
   }
 
   const windowSize = Math.max(1, size);
@@ -31,6 +32,18 @@ export function createReelWindow<T>(
     items: getWindowItems(source, sourceStart, windowSize),
     activeIndex: 0,
     sourceStart,
+    keyOffset: 0,
+  };
+}
+
+// A larger source changes modulo positions after a wrap. Keep the old logical
+// occurrence in the React key while mapping that occurrence into the new source.
+export function reanchorReelWindow<T>(current: ReelWindow<T>, source: T[], sourceIndex: number): ReelWindow<T> {
+  const sourceStart = sourceIndex - current.activeIndex;
+  return {
+    ...createReelWindow(source, sourceStart, current.items.length),
+    activeIndex: current.activeIndex,
+    keyOffset: current.keyOffset + current.sourceStart - sourceStart,
   };
 }
 
@@ -42,7 +55,7 @@ export function moveReelWindow<T>(
   edge = REEL_PAGE_WINDOW_EDGE,
 ): ReelWindow<T> {
   if (source.length === 0) {
-    return { items: [], activeIndex: 0, sourceStart: 0 };
+    return { items: [], activeIndex: 0, sourceStart: 0, keyOffset: 0 };
   }
 
   const windowSize = Math.max(1, size);
@@ -69,5 +82,6 @@ export function moveReelWindow<T>(
     items: getWindowItems(source, sourceStart, windowSize),
     activeIndex,
     sourceStart,
+    keyOffset: current.keyOffset,
   };
 }

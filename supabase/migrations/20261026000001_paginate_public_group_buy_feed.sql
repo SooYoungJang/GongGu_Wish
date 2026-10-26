@@ -17,8 +17,10 @@ SECURITY INVOKER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_username text := nullif(lower(ltrim(btrim(p_username), '@')), '');
+  v_username text := nullif(nullif(lower(regexp_replace(regexp_replace(p_username,
+    '^[[:space:]]+|[[:space:]]+$', '', 'g'), '^@+[[:space:]]*', '')), ''), 'unknown');
 BEGIN
+  IF p_username IS NOT NULL AND v_username IS NULL THEN RETURN; END IF;
   IF (p_before_created_at IS NULL) <> (p_before_id IS NULL) THEN
     RAISE EXCEPTION 'Both cursor fields are required' USING ERRCODE = '22023';
   END IF;
@@ -38,11 +40,18 @@ BEGIN
     AND (p_category IS NULL OR p_category = 'all' OR
       CASE gb.category WHEN 'lifestyle' THEN 'living' WHEN 'digital' THEN 'electronics' ELSE gb.category END =
       CASE p_category WHEN 'lifestyle' THEN 'living' WHEN 'digital' THEN 'electronics' ELSE p_category END)
-    AND (v_username IS NULL OR v_username = lower(ltrim(coalesce(
-      nullif(btrim(gb.instagram_username), ''),
-      nullif(btrim(direct_i.instagram_username), ''),
-      nullif(btrim(post_i.instagram_username), '')
-    ), '@')))
+    AND (v_username IS NULL OR v_username = (
+      SELECT normalized.username
+      FROM unnest(ARRAY[gb.instagram_username, direct_i.instagram_username, post_i.instagram_username])
+        WITH ORDINALITY AS candidate(value, priority)
+      CROSS JOIN LATERAL (
+        SELECT lower(regexp_replace(regexp_replace(candidate.value,
+          '^[[:space:]]+|[[:space:]]+$', '', 'g'), '^@+[[:space:]]*', '')) AS username
+      ) normalized
+      WHERE normalized.username NOT IN ('', 'unknown')
+      ORDER BY candidate.priority
+      LIMIT 1
+    ))
     AND (p_from IS NULL OR (
       (gb.start_date IS NOT NULL OR gb.end_date IS NOT NULL)
       AND (gb.start_date IS NULL OR gb.start_date::date <= p_to)

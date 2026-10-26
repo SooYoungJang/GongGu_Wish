@@ -756,6 +756,26 @@ describe("ReelsScreen player lifecycle", () => {
     act(() => renderer!.unmount());
   });
 
+  it.each(["backward wrap", "second lap"])("retains the player instance when appending after %s", (scenario) => {
+    queryResultMock.data = manyGroupBuys;
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<ReelsScreen />); });
+    const pager = () => renderer!.root.find(node => String(node.type) === "PagerView");
+    const active = () => renderer!.root.find(node => String(node.type) === "ProductReelPage" && node.props.isActive);
+    const step = (direction: number) => {
+      act(() => pager().props.onPageSelected({ nativeEvent: { position: pager().props.initialPage + direction } }));
+      act(() => pager().props.onPageSelected({ nativeEvent: { position: pager().props.initialPage } }));
+    };
+    if (scenario === "backward wrap") { step(1); step(-1); step(-1); }
+    else for (let index = 0; index < 14; index += 1) step(1);
+    const previous = active();
+    queryResultMock.data = [...manyGroupBuys, ...manyGroupBuys.map(item => ({ ...item, id: `${item.id}-page-2` }))];
+    act(() => renderer!.update(<ReelsScreen />));
+    expect(active() === previous).toBe(true);
+    expect(pagerViewMock.mounts).toBe(1);
+    act(() => renderer!.unmount());
+  });
+
   it("requests the next page near the end and does not retry a failed page automatically", () => {
     queryResultMock.data = manyGroupBuys;
     queryResultMock.hasNextPage = true;

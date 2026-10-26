@@ -877,6 +877,24 @@ describe("DetailScreen", () => {
     act(() => renderer!.unmount());
   });
 
+  it("keeps the pager mounted when a prepended route product reappears on a later page", () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => ({ ...baseGroupBuy, id: `earlier-${index}` }));
+    queryMock.groupBuys = firstPage;
+    const props = {
+      route: { params: { groupBuy: baseGroupBuy } } as any,
+      navigation: { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any,
+    };
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<DetailScreen {...props} />); });
+    const pager = () => renderer!.root.find(node => String(node.type) === "PagerView");
+    act(() => pager().props.onPageSelected({ nativeEvent: { position: 4 } }));
+    const previous = pager();
+    queryMock.groupBuys = [...firstPage, baseGroupBuy, { ...baseGroupBuy, id: "later-product" }];
+    act(() => renderer!.update(<DetailScreen {...props} />));
+    expect(pager() === previous).toBe(true);
+    act(() => renderer!.unmount());
+  });
+
   it("memoizes product pages to avoid parent bookkeeping rerenders", () => {
     expect((ProductReelPage as any).$$typeof).toBe(Symbol.for("react.memo"));
   });

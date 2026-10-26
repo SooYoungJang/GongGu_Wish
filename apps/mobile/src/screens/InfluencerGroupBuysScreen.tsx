@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getGroupBuyCategoryLabel } from "@gonggu/shared/utils/groupBuyCategory";
+import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagram";
 
 import { useGroupBuyFeed } from "../features/feed/queries";
 import { ListPageFooter } from "../components/ui/ListPageFooter";
@@ -145,7 +146,7 @@ export function InfluencerGroupBuysScreen({
   route,
 }: InfluencerGroupBuysScreenProps) {
   const { influencerUsername, influencerProfileImageUrl } = route.params;
-  const normalizedUsername = influencerUsername.replace(/^@/, "");
+  const normalizedUsername = normalizeOptionalInstagramUsername(influencerUsername)?.toLowerCase() ?? "";
   const theme = useCommerceTheme();
   const { colors } = theme;
   const s = useMemo(() => makeStyles(theme), [theme]);

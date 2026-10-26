@@ -41,7 +41,7 @@ describeLocal("public feed cursor and eligibility contract", () => {
     })));
     await rest("group_buys", "POST", Array.from({ length: 64 }, (_, i) => ({
       id: id(i), raw_post_id: id(i), influencer_id: i % 2 ? prefix : null,
-      instagram_username: i === 63 ? "different_current_seller" : i % 3 ? null : `@${username}`,
+      instagram_username: i === 63 ? "different_current_seller" : i === 3 || i === 4 ? "UNKNOWN" : i === 6 ? `@@   ${username}  ` : i % 3 ? null : `@${username}`,
       product_name: `${prefix} 상품 ${i}`, category: i % 2 ? "food" : "lifestyle", confidence: 0.99,
       status: i === 60 ? "REVIEW_REQUIRED" : i === 62 ? "REJECTED" : "APPROVED",
       start_date: `${today}T00:00:00`,
