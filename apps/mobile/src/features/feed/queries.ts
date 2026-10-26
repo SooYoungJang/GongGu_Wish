@@ -33,8 +33,8 @@ export function flattenGroupBuyPages(pages: GroupBuyPage[] = []) {
   });
 }
 
-export function useGroupBuyFeed(filter: GroupBuyFeedFilter = {}) {
-  const query = useInfiniteQuery(getGroupBuyFeedOptions(filter));
+export function useGroupBuyFeed(filter: GroupBuyFeedFilter = {}, behavior: { enabled?: boolean } = {}) {
+  const query = useInfiniteQuery({ ...getGroupBuyFeedOptions(filter), ...behavior });
   const items = useMemo(() => flattenGroupBuyPages(query.data?.pages), [query.data]);
   const { fetchNextPage, hasNextPage, isFetching } = query;
   const loadMore = useCallback(() => {

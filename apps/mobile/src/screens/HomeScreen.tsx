@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Image,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -36,6 +37,7 @@ import {
 import { SText } from "../components/ui/SText";
 import { InstagramIdentity } from "../components/ui/InstagramIdentity";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
+import { ListPageFooter, type ListPagination } from "../components/ui/ListPageFooter";
 import { PriceText } from "../components/ui/PriceText";
 import { SearchGlyph } from "../components/ui/LineGlyphs";
 import { DealCard } from "../components/DealCard";
@@ -45,7 +47,6 @@ import { categoryForGroupBuy } from "../components/home/DealCardGrid";
 import { WeeklyCalendarStrip } from "../components/home/WeeklyCalendarStrip";
 import { HomeRequestTicker } from "../components/home/HomeRequestTicker";
 import {
-  getGroupBuysQueryOptions,
   getHomeBannerQueryOptions,
   HOME_DATA_STALE_TIME_MS,
 } from "../bootstrap/appBootstrap";
@@ -54,7 +55,8 @@ import { getHomeBannerDateKey } from "@gonggu/shared/utils/homeBanner";
 import { formatInstagramHandle } from "@gonggu/shared/utils/instagram";
 import { borderRadius, spacing } from "../design/tokens";
 import type { CategoryColorName } from "../design/tokens";
-import { isGroupBuyActiveOnDate } from "../utils/groupBuyDates";
+import { formatDateKey, isGroupBuyActiveOnDate } from "../utils/groupBuyDates";
+import { useGroupBuyFeed } from "../features/feed/queries";
 import { selectHomeBannerItems } from "../utils/homeBanner";
 import { useCommerceTheme } from "../design/useCommerceTheme";
 import type { CommerceColorPalette } from "../design/commerce";
@@ -90,6 +92,11 @@ type HomeScreenContentProps = {
   onPressDeal: DealAction;
   onPressGroupBuyRequestRanking?: Dispatch<string>;
   scrollToTopRequest?: number | null;
+  onCategoryChange?: Dispatch<HomeCategory>;
+  weeklyGroupBuys?: GroupBuy[];
+  onWeeklyDateChange?: Dispatch<Date>;
+  pagination?: ListPagination;
+  weeklyPagination?: ListPagination;
 };
 
 const HOME_SIDE_PADDING = 16;
@@ -695,11 +702,15 @@ function PromoBanner({
 
 function WeeklyGroupBuysSection({
   groupBuys,
+  onSelectDate,
+  pagination,
   onPressDeal,
   onOpenCalendar,
   s,
 }: {
   groupBuys: GroupBuy[];
+  onSelectDate?: Dispatch<Date>;
+  pagination?: ListPagination;
   onPressDeal: DealAction;
   onOpenCalendar: HomeAction;
   s: ReturnType<typeof makeStyles>;
@@ -710,8 +721,7 @@ function WeeklyGroupBuysSection({
     return now;
   });
 
-  // Use the full groupBuys list (same source as CalendarScreen) so the
-  // per-day results stay in sync with the full calendar view.
+  // This range is independent of the recommendation category/page cursor.
   const weeklyItems = useMemo(() => groupBuys, [groupBuys]);
 
   // Show items whose deadline falls on the selected day, or all weekly items
@@ -730,29 +740,37 @@ function WeeklyGroupBuysSection({
       <WeeklyCalendarStrip
         onPressCalendar={onOpenCalendar}
         selectedDate={selectedDate}
-        onSelectDate={setSelectedDate}
+        onSelectDate={(date) => { setSelectedDate(date); onSelectDate?.(date); }}
       />
       {dayItems.length > 0 ? (
-        <ScrollView
+        <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.weeklyList}
-        >
-          {dayItems.map((item, index) => (
-            <View key={item.id} style={s.weeklyCard}>
+          data={dayItems}
+          keyExtractor={(item) => item.id}
+          onEndReached={pagination?.isError ? undefined : pagination?.onLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={<ListPageFooter pagination={pagination} />}
+          renderItem={({ item, index }) => (
+            <View style={s.weeklyCard}>
               <DealCard
                 item={item}
                 category={categoryForGroupBuy(item, index)}
                 onPress={() => onPressDeal(item)}
               />
             </View>
-          ))}
-        </ScrollView>
+          )}
+        />
       ) : (
         <View style={s.weeklyEmpty}>
+          {pagination?.isLoading ? <ActivityIndicator /> : pagination?.isError ? (
+            <ListPageFooter pagination={pagination} />
+          ) : (
           <SText variant="body" style={s.weeklyEmptyText}>
             선택한 날짜에 공구가 없습니다
           </SText>
+          )}
         </View>
       )}
     </View>
@@ -794,7 +812,7 @@ function buildHomeAdInsertionPoints(ids: string[]): Set<number> {
   const points = new Set<number>();
   const largestFirstGap = Math.min(HOME_FIRST_AD_GAP_MAX, ids.length);
   if (largestFirstGap < HOME_AD_GAP_MIN) return points;
-  const random = seedRandomFromIds(ids);
+  const random = seedRandomFromIds(ids.slice(0, 1));
   const randomGap = (max = HOME_AD_GAP_MAX) =>
     Math.floor(random() * (max - HOME_AD_GAP_MIN + 1)) + HOME_AD_GAP_MIN;
   let gap = randomGap(largestFirstGap);
@@ -865,6 +883,11 @@ export function HomeScreenContent({
   onPressDeal,
   onPressGroupBuyRequestRanking,
   scrollToTopRequest = null,
+  onCategoryChange,
+  weeklyGroupBuys,
+  onWeeklyDateChange,
+  pagination,
+  weeklyPagination,
 }: HomeScreenContentProps) {
   const { colors, isDark } = useCommerceTheme();
   const insets = useSafeAreaInsets();
@@ -909,11 +932,12 @@ export function HomeScreenContent({
 
   const handleCategoryChange = useCallback((category: HomeCategory) => {
     setSelectedCategory(category);
+    onCategoryChange?.(category);
     const filterTop = categoryFilterTopRef.current;
     if (filterTop != null && scrollOffsetRef.current > filterTop) {
       scrollRef.current?.scrollToOffset({ offset: filterTop, animated: false });
     }
-  }, []);
+  }, [onCategoryChange]);
 
   const renderFeedRow = useCallback(
     ({ item: row }: ListRenderItemInfo<HomeFeedRow>) => {
@@ -983,6 +1007,9 @@ export function HomeScreenContent({
           keyboardShouldPersistTaps="always"
           onScroll={handleHomeScroll}
           scrollEventThrottle={16}
+          onEndReached={pagination?.isError ? undefined : pagination?.onLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={<ListPageFooter pagination={pagination} />}
           refreshControl={
             <RefreshControl
               refreshing={isFetching}
@@ -1006,7 +1033,9 @@ export function HomeScreenContent({
               </View>
               <View style={s.content} testID="home-weekly-content">
                 <WeeklyGroupBuysSection
-                  groupBuys={displayGroupBuys}
+                  groupBuys={weeklyGroupBuys ?? displayGroupBuys}
+                  onSelectDate={onWeeklyDateChange}
+                  pagination={weeklyPagination}
                   onPressDeal={onPressDeal}
                   onOpenCalendar={onOpenCalendar}
                   s={s}
@@ -1055,7 +1084,7 @@ export function HomeScreenContent({
             </>
           }
           ListEmptyComponent={
-            <View style={s.recommendSection}>
+            isLoading ? null : <View style={s.recommendSection}>
               <View style={s.productEmpty}>
                 <SText variant="body" style={s.productEmptyText}>
                   선택한 카테고리에 공구가 없습니다
@@ -1091,6 +1120,8 @@ export function HomeScreenContent({
 }
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
+  const [category, setCategory] = useState<HomeCategory>("all");
+  const [weeklyDate, setWeeklyDate] = useState(() => formatDateKey(new Date()));
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [homeBannerDateKey, setHomeBannerDateKey] = useState(() =>
     getHomeBannerDateKey(),
@@ -1099,13 +1130,18 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     null,
   );
   const {
-    data,
+    items: groupBuys,
     dataUpdatedAt: groupBuysUpdatedAt,
     isError,
     isLoading,
     isFetching,
     refetch,
-  } = useQuery(getGroupBuysQueryOptions());
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    loadMore,
+  } = useGroupBuyFeed({ category });
+  const weekly = useGroupBuyFeed({ from: weeklyDate, to: weeklyDate });
   const {
     data: homeBannerData,
     dataUpdatedAt: homeBannerUpdatedAt,
@@ -1145,11 +1181,12 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         refetch(),
         refetchHomeBanners(),
         refetchGroupBuyRequestRankings(),
+        weekly.refetch(),
       ]);
     } finally {
       setIsManualRefreshing(false);
     }
-  }, [refetch, refetchGroupBuyRequestRankings, refetchHomeBanners]);
+  }, [refetch, refetchGroupBuyRequestRankings, refetchHomeBanners, weekly.refetch]);
 
   const handleHomeTabReselect = useCallback(() => {
     setScrollToTopRequest((request) => (request ?? 0) + 1);
@@ -1158,12 +1195,11 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   useTabReselect(navigation, handleHomeTabReselect);
 
-  const groupBuys = data ?? [];
-
   const homeDataUpdatedAtRef = useRef(0);
   homeDataUpdatedAtRef.current = Math.min(
     groupBuysUpdatedAt,
     homeBannerUpdatedAt,
+    weekly.dataUpdatedAt,
   );
 
   useFocusEffect(
@@ -1175,7 +1211,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       const requests: Promise<unknown>[] = [refetchGroupBuyRequestRankings()];
 
       if (homeDataIsStale) {
-        requests.push(refetch(), refetchHomeBanners());
+        requests.push(refetch(), refetchHomeBanners(), weekly.refetch());
       }
 
       void Promise.all(requests);
@@ -1183,6 +1219,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       refetch,
       refetchGroupBuyRequestRankings,
       refetchHomeBanners,
+      weekly.refetch,
     ]),
   );
 
@@ -1191,9 +1228,19 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       groupBuys={groupBuys}
       groupBuyRequestRankings={groupBuyRequestRankings}
       homeBannerGroupBuys={homeBannerData ?? []}
-      isError={isError}
-      isFetching={isManualRefreshing || isFetching}
+      isError={isError && !isFetchNextPageError}
+      isFetching={isManualRefreshing || (isFetching && !isFetchingNextPage)}
       isLoading={isLoading}
+      onCategoryChange={setCategory}
+      weeklyGroupBuys={weekly.items}
+      onWeeklyDateChange={(date) => setWeeklyDate(formatDateKey(date))}
+      pagination={{ hasMore: hasNextPage, isLoading: isFetchingNextPage, isError: isFetchNextPageError, onLoadMore: loadMore }}
+      weeklyPagination={{
+        hasMore: weekly.hasNextPage,
+        isLoading: weekly.isPending || weekly.isFetchingNextPage,
+        isError: weekly.isError,
+        onLoadMore: weekly.isError && !weekly.isFetchNextPageError ? () => { void weekly.refetch(); } : weekly.loadMore,
+      }}
       onRefresh={handleManualRefresh}
       scrollToTopRequest={scrollToTopRequest}
       onOpenSearch={() => navigation.navigate("SearchScreen")}

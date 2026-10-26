@@ -17,10 +17,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { useQuery } from "@tanstack/react-query";
 import PagerView from "react-native-pager-view";
 
-import { fetchGroupBuys } from "../api";
+import { useGroupBuyFeed } from "../features/feed/queries";
+import { isFeedAppend, mergeShuffledPageItems, useAppendStableKey } from "../features/feed/appendStable";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
 import { NativeAdCard } from "../components/ads/NativeAdCard";
 import type { NativeAdLoadStatus } from "../components/ads/NativeAdCard.types";
@@ -61,17 +61,6 @@ const NOOP = () => {};
 
 function shouldRenderReelPage(index: number, activeIndex: number) {
   return Math.abs(index - activeIndex) <= REEL_PAGE_RENDER_RADIUS;
-}
-
-// Fisher-Yates shuffle so each visit to the Reels tab shows feeds in a
-// different random order, like shuffling a playlist.
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
 }
 
 function ReelsNativeAdPage({
@@ -163,32 +152,50 @@ export function ReelsScreen({
     onSheetVisibilityChange?.(summarySheetGate.isOpen || commentsSheetOpen);
   }, [commentsSheetOpen, onSheetVisibilityChange, summarySheetGate.isOpen]);
 
-  const { data, isError, isFetching, isLoading, refetch } = useQuery({
-    queryKey: ["group-buys"],
-    queryFn: fetchGroupBuys,
-  });
+  const { items: data, isError, isFetching, isLoading, refetch,
+    hasNextPage, isFetchNextPageError, loadMore } = useGroupBuyFeed();
 
-  // Base shuffled batch, refreshed each time data arrives.
+  const shuffledRef = useRef<{ sourceIds: string[]; items: GroupBuy[] } | undefined>(undefined);
+  // Append only the new page; watched items retain their order on refresh too.
   const shuffledGroupBuys = useMemo<GroupBuy[]>(() => {
-    return shuffle(data ?? []);
+    const next = mergeShuffledPageItems(shuffledRef.current, data);
+    shuffledRef.current = next;
+    return next.items;
   }, [data]);
   // Keep PagerView's item identity stable while the native ads SDK initializes
   // or an individual request has no fill. Each page owns its local load state.
   const canShowReelsAds = adsEnabled && Boolean(nativeUnitIds.reels);
+  const adRandomSamples = useRef<number[]>([]);
   const baseBatch = useMemo(
-    () =>
-      insertReelsAdSlots(shuffledGroupBuys, {
+    () => {
+      let sampleIndex = 0;
+      return insertReelsAdSlots(shuffledGroupBuys, {
         boundFirstGapToFeed: true,
         enabled: canShowReelsAds,
-      }),
+        random: () => {
+          const index = sampleIndex++;
+          return adRandomSamples.current[index] ??= Math.random();
+        },
+      });
+    },
     [canShowReelsAds, shuffledGroupBuys],
   );
-  const reelPagerKey = useMemo(
-    () => baseBatch.map((item) => item.key).join("|"),
-    [baseBatch],
-  );
+  const reelPagerKey = useAppendStableKey(baseBatch.map(item => item.key));
+  const previousBatchRef = useRef<ReelsFeedItem<GroupBuy>[]>([]);
 
   useEffect(() => {
+    const previous = previousBatchRef.current;
+    previousBatchRef.current = baseBatch;
+    const appended = previous.length > 0 && isFeedAppend(previous.map(item => item.key), baseBatch.map(item => item.key));
+    if (appended) {
+      setReelWindow(current => {
+        const activeKey = current.items[current.activeIndex]?.key;
+        const anchor = baseBatch.findIndex(item => item.key === activeKey);
+        if (anchor < 0) return current;
+        return { ...createReelWindow(baseBatch, anchor - current.activeIndex), activeIndex: current.activeIndex };
+      });
+      return;
+    }
     pagerScrollStateRef.current = "idle";
     pendingUnavailableAdRef.current = null;
     pendingPagerPositionRef.current = null;
@@ -215,6 +222,11 @@ export function ReelsScreen({
     });
     setReelDirection(1);
   }, [baseBatch]);
+
+  useEffect(() => {
+    const sourceIndex = ((reelWindow.sourceStart + activeIndex) % baseBatch.length + baseBatch.length) % baseBatch.length;
+    if (sourceIndex >= baseBatch.length - 6 && hasNextPage && !isFetching && !isFetchNextPageError) loadMore();
+  }, [activeIndex, baseBatch.length, hasNextPage, isFetchNextPageError, isFetching, loadMore, reelWindow.sourceStart]);
 
   const applyReelWindow = useCallback(
     (nextWindow: ReelWindow<ReelsFeedItem<GroupBuy>>, fromPager = false) => {
@@ -485,7 +497,7 @@ export function ReelsScreen({
             compact
             isRetrying={isFetching}
             message="저장된 릴스를 계속 재생하고 있어요."
-            onRetry={refetch}
+            onRetry={isFetchNextPageError ? loadMore : refetch}
             testID="reels-query-state"
             title="최신 릴스를 확인하지 못했어요"
             variant="stale"

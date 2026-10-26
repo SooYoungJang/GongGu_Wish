@@ -1,6 +1,6 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ListRenderItem } from "react-native";
 
@@ -166,7 +166,7 @@ const queryResult = {
   refetch: vi.fn(),
 };
 
-const useQueryMock = vi.mocked(useQuery);
+const useQueryMock = vi.mocked(useInfiniteQuery);
 
 function flattenText(
   node:
@@ -190,7 +190,11 @@ function renderScreen(result: typeof queryResult = queryResult) {
   };
   let renderer: TestRenderer.ReactTestRenderer;
 
-  useQueryMock.mockReturnValue(result as never);
+  useQueryMock.mockReturnValue({
+    ...result,
+    data: { pages: [{ items: result.data, nextCursor: null }], pageParams: [null] },
+    hasNextPage: false, isFetchingNextPage: false, isFetchNextPageError: false, fetchNextPage: vi.fn(),
+  } as never);
   act(() => {
     renderer = TestRenderer.create(
       <ThemeProvider>
