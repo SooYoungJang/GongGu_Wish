@@ -1,20 +1,16 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { fetchGroupBuys, fetchHomeBannerGroupBuys } from "../api";
+import { fetchHomeBannerGroupBuys } from "../api";
 import { getHomeBannerDateKey } from "@gonggu/shared/utils/homeBanner";
+import { getGroupBuyFeedOptions } from "../features/feed/queries";
 
 export const HOME_DATA_STALE_TIME_MS = 30_000;
 export const HOME_BOOTSTRAP_TIMEOUT_MS = 3_000;
 
-export const GROUP_BUYS_QUERY_KEY = ["group-buys"] as const;
+export const GROUP_BUYS_QUERY_KEY = ["group-buys", "feed"] as const;
 
 export function getGroupBuysQueryOptions() {
-  return {
-    queryKey: GROUP_BUYS_QUERY_KEY,
-    queryFn: fetchGroupBuys,
-    refetchOnMount: false,
-    staleTime: HOME_DATA_STALE_TIME_MS,
-  } as const;
+  return getGroupBuyFeedOptions();
 }
 
 export function getHomeBannerQueryOptions(dateKey: string) {
@@ -26,7 +22,7 @@ export function getHomeBannerQueryOptions(dateKey: string) {
   } as const;
 }
 
-type QueryPrefetcher = Pick<QueryClient, "prefetchQuery">;
+type QueryPrefetcher = Pick<QueryClient, "prefetchQuery" | "prefetchInfiniteQuery">;
 
 export async function prefetchHomeBootstrap(
   queryClient: QueryPrefetcher,
@@ -34,7 +30,7 @@ export async function prefetchHomeBootstrap(
 ): Promise<{ failed: number; succeeded: number }> {
   const dateKey = getHomeBannerDateKey(now);
   const results = await Promise.allSettled([
-    queryClient.prefetchQuery(getGroupBuysQueryOptions()),
+    queryClient.prefetchInfiniteQuery(getGroupBuysQueryOptions()),
     queryClient.prefetchQuery(getHomeBannerQueryOptions(dateKey)),
   ]);
 

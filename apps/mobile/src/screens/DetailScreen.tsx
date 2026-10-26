@@ -31,7 +31,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ProductReportButton } from "../features/productReports/ProductReportButton";
 import { FlashList } from "@shopify/flash-list";
 import { getGroupBuyCategoryLabel } from "@gonggu/shared/utils/groupBuyCategory";
@@ -64,6 +64,11 @@ import {
   refreshGroupBuyMedia,
 } from "../api";
 import { getGroupBuysQueryOptions } from "../bootstrap/appBootstrap";
+import { flattenGroupBuyPages } from "../features/feed/queries";
+import { useAppendStableKey } from "../features/feed/appendStable";
+import { useGroupBuySearch } from "../features/search/useGroupBuySearch";
+import { ListPageFooter, type ListPagination } from "../components/ui/ListPageFooter";
+import { useCommerceTheme } from "../design/useCommerceTheme";
 import { Ionicons } from "@expo/vector-icons";
 import { CenteredBackHeader } from "../components/CenteredBackHeader";
 import { AsyncStateNotice } from "../components/ui/AsyncStateNotice";
@@ -253,7 +258,7 @@ export function ReelVideoPreloader({
   return null;
 }
 
-function getReelItems(current: GroupBuy, fetched?: GroupBuy[]) {
+function getReelItems(current: GroupBuy, fetched?: GroupBuy[], prependCurrent = false) {
   if (!fetched?.length) return [current];
 
   const seen = new Set<string>();
@@ -271,7 +276,8 @@ function getReelItems(current: GroupBuy, fetched?: GroupBuy[]) {
     return items;
   }, []);
 
-  return includedCurrent ? ordered : [current, ...ordered];
+  if (includedCurrent && !prependCurrent) return ordered;
+  return [ordered.find(item => item.id === current.id) ?? current, ...ordered.filter(item => item.id !== current.id)];
 }
 
 function getInitialReelIndex(current: GroupBuy, reelItems: GroupBuy[]) {
@@ -748,6 +754,8 @@ function DetailSearchDock({ bottomInset, onPress, s }: DetailSearchDockProps) {
 type DetailSearchSheetProps = {
   bottomInset: number;
   data: GroupBuy[];
+  isLoading?: boolean;
+  pagination?: ListPagination;
   maxHeight: number;
   onClose: () => void;
   // eslint-disable-next-line no-unused-vars
@@ -765,6 +773,8 @@ type DetailSearchSheetProps = {
 function DetailSearchSheet({
   bottomInset,
   data,
+  isLoading = false,
+  pagination,
   maxHeight,
   onClose,
   onSelect,
@@ -868,11 +878,14 @@ function DetailSearchSheet({
             </View>
             <FlatList
               data={data}
+              onEndReached={pagination?.isError ? undefined : pagination?.onLoadMore}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={<ListPageFooter pagination={pagination} />}
               initialNumToRender={8}
               keyboardDismissMode="on-drag"
               keyboardShouldPersistTaps="handled"
               keyExtractor={(item) => item.id}
-              ListEmptyComponent={
+              ListEmptyComponent={isLoading ? <ActivityIndicator /> :
                 <View style={s.detailSearchEmpty}>
                   <SText variant="body" style={s.detailSearchEmptyText}>
                     검색 결과가 없어요
@@ -2677,14 +2690,23 @@ function DetailScreenContent({
     ],
   );
 
-  const { data: groupBuys } = useQuery({
+  const feed = useInfiniteQuery({
     ...getGroupBuysQueryOptions(),
     // A Home tap reuses fresh data; deep links still refresh an older feed.
     refetchOnMount: true,
   });
+  const groupBuys = useMemo(() => flattenGroupBuyPages(feed.data?.pages), [feed.data]);
+  const { spacing: feedNoticeSpacing } = useCommerceTheme();
 
+  const routePlacement = useRef<{ id: string; prepend: boolean | null }>({ id: groupBuy.id, prepend: null });
   const reelItems = useMemo(
-    () => getReelItems(groupBuy, groupBuys),
+    () => {
+      if (routePlacement.current.id !== groupBuy.id) routePlacement.current = { id: groupBuy.id, prepend: null };
+      if (routePlacement.current.prepend === null && groupBuys.length > 0) {
+        routePlacement.current.prepend = !groupBuys.some(item => item.id === groupBuy.id);
+      }
+      return getReelItems(groupBuy, groupBuys, routePlacement.current.prepend ?? false);
+    },
     [groupBuy, groupBuys],
   );
   const initialReelIndex = useMemo(
@@ -2698,6 +2720,11 @@ function DetailScreenContent({
   const [activeProductId, setActiveProductId] = useState(groupBuy.id);
   const activeProductIndex =
     reelItemIndexes.get(activeProductId) ?? initialReelIndex;
+  useEffect(() => {
+    if (activeProductIndex >= reelItems.length - 5 && feed.hasNextPage && !feed.isFetching && !feed.isFetchNextPageError) {
+      void feed.fetchNextPage({ cancelRefetch: false });
+    }
+  }, [activeProductIndex, reelItems.length, feed.fetchNextPage, feed.hasNextPage, feed.isFetching, feed.isFetchNextPageError]);
   // Interleave native-ad pages into the detail pager (same pattern as Reels).
   // When ads are disabled, insertReelsAdSlots returns a 1:1 content-only feed.
   const { enabled: adsEnabled, isReady: adsReady, nativeUnitIds } = useAds();
@@ -2708,7 +2735,7 @@ function DetailScreenContent({
       insertReelsAdSlots(reelItems, {
         boundFirstGapToFeed: true,
         enabled: canShowDetailAds,
-        random: seedAdRandomFromIds(reelItems.map((item) => item.id)),
+        random: seedAdRandomFromIds(reelItems.slice(0, 1).map((item) => item.id)),
       }),
     [canShowDetailAds, reelItems],
   );
@@ -2725,10 +2752,7 @@ function DetailScreenContent({
     }
     return initialReelIndex;
   }, [feedItems, activeProductIndex, initialReelIndex]);
-  const detailPagerKey = useMemo(
-    () => feedItems.map((entry) => entry.key).join("|"),
-    [feedItems],
-  );
+  const detailPagerKey = useAppendStableKey(feedItems.map(entry => entry.key));
   const [activePagerIndex, setActivePagerIndex] = useState(activeDisplayIndex);
   const [isOnAdPage, setIsOnAdPage] = useState(false);
   const [canonicalAlignedRouteId, setCanonicalAlignedRouteId] = useState<
@@ -2830,14 +2854,17 @@ function DetailScreenContent({
       return true;
     });
   }, [groupBuys, reelItems]);
+  const publicSearch = useGroupBuySearch(isSearchSheetVisible ? debouncedQuery : "");
+  const publicSearchItems = useMemo(() => flattenGroupBuyPages(publicSearch.data?.pages), [publicSearch.data]);
   const filteredSearchItems = useMemo(() => {
     const normalized = normalizeForSearch(debouncedQuery);
     const source = searchItems.length ? searchItems : [groupBuy];
     if (!normalized) return source.slice(0, 20);
+    if (publicSearch.data) return publicSearchItems;
     return source
       .filter((item) => getSearchText(item).includes(normalized))
       .slice(0, 30);
-  }, [groupBuy, searchItems, debouncedQuery]);
+  }, [groupBuy, searchItems, debouncedQuery, publicSearch.data, publicSearchItems]);
   useEffect(() => {
     if (
       isOnAdPage ||
@@ -3097,6 +3124,19 @@ function DetailScreenContent({
   return (
     <View style={s.safeArea}>
       <StatusBar barStyle="light-content" />
+      {feed.isFetchNextPageError ? (
+        <View style={[s.feedPagingNotice, { left: feedNoticeSpacing.lg, right: feedNoticeSpacing.lg, bottom: feedNoticeSpacing.xxl }]}>
+          <AsyncStateNotice
+            appearance="inverse"
+            compact
+            isRetrying={feed.isFetchingNextPage}
+            onRetry={() => { void feed.fetchNextPage({ cancelRefetch: false }); }}
+            title="다음 공구를 불러오지 못했어요"
+            message="지금 보던 공구는 유지됩니다. 다시 시도해 주세요."
+            variant="stale"
+          />
+        </View>
+      ) : null}
       <PagerView
         key={detailPagerKey}
         ref={verticalPagerRef}
@@ -3217,6 +3257,17 @@ function DetailScreenContent({
         <DetailSearchSheet
           bottomInset={insets.bottom}
           data={filteredSearchItems}
+          isLoading={Boolean(debouncedQuery.trim()) && publicSearch.isPending}
+          pagination={debouncedQuery.trim() ? {
+            hasMore: publicSearch.hasNextPage,
+            isLoading: publicSearch.isFetchingNextPage,
+            isError: publicSearch.isError,
+            onLoadMore: () => {
+              if (publicSearch.isFetching) return;
+              if (publicSearch.isError && !publicSearch.isFetchNextPageError) void publicSearch.refetch();
+              else if (publicSearch.hasNextPage) void publicSearch.fetchNextPage({ cancelRefetch: false });
+            },
+          } : undefined}
           keyboardHeight={keyboardHeight}
           maxHeight={searchSheetMaxHeight}
           onClose={closeSearchSheet}
@@ -3242,6 +3293,10 @@ export function makeStyles(
       backgroundColor: "#05070A",
       flex: 1,
       overflow: "hidden",
+    },
+    feedPagingNotice: {
+      position: "absolute",
+      zIndex: 30,
     },
     verticalPagerPage: {
       backgroundColor: "#05070A",

@@ -47,12 +47,16 @@ const mocks = vi.hoisted(() => {
 	    groupBuysFetchNextPage: vi.fn(() => Promise.resolve()),
 	    groupBuysRefetch: vi.fn(),
 	    useGroupBuySearch: vi.fn(),
+	    useInfluencerSearch: vi.fn(),
 	    influencer,
 	    influencers: [influencer],
 	    influencersPending: false,
 	    influencersError: false,
 	    influencersFetching: false,
 	    influencersRefetch: vi.fn(),
+	    influencerPages: null as Array<{ items: Influencer[]; nextCursor: unknown }> | null,
+	    influencersHasNextPage: false,
+	    influencersFetchNextPage: vi.fn(),
 	    popularTerms: [{ keyword: '베개', rank: 1, count: 8 }],
 	    popularTermsRefetch: vi.fn(),
 	    logSearchTerm: vi.fn(() => Promise.resolve()),
@@ -77,6 +81,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../features/search/useGroupBuySearch', () => ({
   useGroupBuySearch: mocks.useGroupBuySearch,
+  useInfluencerSearch: mocks.useInfluencerSearch,
 }));
 
 vi.mock('../features/groupBuyRequests', () => ({
@@ -307,6 +312,24 @@ describe('SearchScreen redesign', () => {
     mocks.influencersPending = false;
     mocks.influencersError = false;
     mocks.influencersFetching = false;
+    mocks.influencerPages = null;
+    mocks.influencersHasNextPage = false;
+    mocks.influencersFetchNextPage.mockReset();
+    mocks.useInfluencerSearch.mockReset().mockImplementation((query: string) => {
+      const q = query.trim().toLowerCase().replace(/^@/, '').replace(/\s+/g, '');
+      const items = mocks.influencers.filter(item => item.instagramUsername.toLowerCase().includes(q) || (item.displayName ?? '').replace(/\s+/g, '').toLowerCase().includes(q));
+      return {
+        data: mocks.influencersPending || !q ? undefined : { pages: mocks.influencerPages ?? [{ items: items.slice(0, 8), nextCursor: null }] },
+        isPending: mocks.influencersPending || !q,
+        isError: mocks.influencersError,
+        isFetching: mocks.influencersFetching,
+        isFetchNextPageError: false,
+        isFetchingNextPage: false,
+        hasNextPage: mocks.influencersHasNextPage,
+        fetchNextPage: mocks.influencersFetchNextPage,
+        refetch: mocks.influencersRefetch,
+      };
+    });
     mocks.groupBuysRefetch.mockClear();
     mocks.influencersRefetch.mockClear();
     mocks.popularTermsRefetch.mockClear();
@@ -909,6 +932,21 @@ describe('SearchScreen redesign', () => {
         await requestButton.props.onPress();
       });
       expect(mocks.requestGroupBuy).toHaveBeenCalledWith('없는 공구');
+    });
+
+    it.each(['@', ' @  '])('settles a disabled seller lookup for %j', async query => {
+      mocks.groupBuys = [];
+      mocks.influencers = [];
+      const view = await renderResults(query);
+      expect(flattenText(view.toJSON())).not.toContain('공구를 찾고 있어요');
+    });
+
+    it('loads another seller page only when requested', async () => {
+      mocks.influencersHasNextPage = true;
+      const view = await renderResults('pillow');
+      expect(mocks.influencersFetchNextPage).not.toHaveBeenCalled();
+      act(() => view.root.findByProps({ accessibilityLabel: '판매자 검색 결과 더 보기' }).props.onPress());
+      expect(mocks.influencersFetchNextPage).toHaveBeenCalledWith({ cancelRefetch: false });
     });
 
     it('does not offer a request when the influencer lookup fails', async () => {

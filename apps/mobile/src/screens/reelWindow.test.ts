@@ -4,9 +4,22 @@ import {
   REEL_PAGE_WINDOW_SIZE,
   createReelWindow,
   moveReelWindow,
+  reanchorReelWindow,
 } from './reelWindow';
 
 describe('reel window', () => {
+  it.each([-1, 25])('retains occurrence identity while appending at logical position %s', (position) => {
+    const source = Array.from({ length: 20 }, (_, index) => `item-${index}`);
+    const current = { ...createReelWindow(source, position - 7), activeIndex: 7 };
+    const active = current.items[current.activeIndex];
+    const nextSource = [...source, 'new-20', 'new-21'];
+    const beforeKey = `${active}-${current.sourceStart + current.activeIndex + current.keyOffset}`;
+    const next = reanchorReelWindow(current, nextSource, nextSource.indexOf(active));
+    const afterKey = `${next.items[next.activeIndex]}-${next.sourceStart + next.activeIndex + next.keyOffset}`;
+    expect(afterKey).toBe(beforeKey);
+    const moved = moveReelWindow(next, nextSource, next.activeIndex + 1);
+    expect(moved.keyOffset).toBe(next.keyOffset);
+  });
   it('keeps a bounded window with forward runway after moving forward', () => {
     const source = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l'];
     const initial = createReelWindow(source);

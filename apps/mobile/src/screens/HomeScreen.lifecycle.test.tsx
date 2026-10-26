@@ -52,6 +52,12 @@ vi.mock("../api", () => ({
   fetchGroupBuys: apiMocks.groupBuys,
   fetchHomeBannerGroupBuys: apiMocks.homeBanners,
 }));
+vi.mock("../features/feed/api", () => ({
+  fetchGroupBuyPage: async (filter: { from?: string }) => ({
+    items: filter.from ? [] : await apiMocks.groupBuys(),
+    nextCursor: null,
+  }),
+}));
 vi.mock("../features/groupBuyRequests/api", () => ({
   fetchGroupBuyRequestRankings: apiMocks.requestRankings,
   requestGroupBuy: vi.fn(),

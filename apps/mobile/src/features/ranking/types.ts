@@ -57,6 +57,10 @@ export type RankingLoadState =
       refreshing?: boolean;
       updatedAt?: number;
       refresh?: () => Promise<unknown>;
+      hasNextPage?: boolean;
+      loadingMore?: boolean;
+      loadMoreError?: boolean;
+      loadMore?: () => void;
     };
 
 export function getRankingTrend(
