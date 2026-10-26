@@ -46,7 +46,7 @@ describeLocal("public feed cursor and eligibility contract", () => {
     await rest("group_buys", "POST", Array.from({ length: 64 }, (_, i) => ({
       id: id(i), raw_post_id: id(i), influencer_id: i % 2 ? prefix : null,
       instagram_username: i === 63 ? "different_current_seller" : i === 3 || i === 4 ? "UNKNOWN" : i === 6 ? `@@   ${username}  ` : i % 3 ? null : `@${username}`,
-      product_name: `${prefix} 상품 ${i}`, category: i % 2 ? "food" : "lifestyle", confidence: 0.99,
+      product_name: `${prefix} 상품 ${i}`, category: i % 2 ? "food" : "living", confidence: 0.99,
       status: i === 60 ? "REVIEW_REQUIRED" : i === 62 ? "REJECTED" : "APPROVED",
       start_date: `${today}T00:00:00`,
       end_date: i === 61 ? "2026-10-25T23:59:59" : i < 10 ? "2026-10-31T00:00:00" : `${today}T00:00:00`,
@@ -79,6 +79,7 @@ describeLocal("public feed cursor and eligibility contract", () => {
   it("applies category aliases and overlapping dates before its bounded page limit", async () => {
     const living = await feed({ p_category: "living", p_limit: "7" });
     expect(living.map((row: { id: string }) => row.id)).toEqual([58, 56, 54, 52, 50, 48, 46].map(id));
+    expect(await feed({ p_category: "lifestyle", p_limit: "7" })).toEqual(living);
     const dated = await feed({ p_from: "2026-10-28", p_to: "2026-10-30", p_limit: "51" });
     expect(dated.map((row: { id: string }) => row.id)).toEqual(Array.from({ length: 10 }, (_, i) => id(9 - i)));
     expect(await feed({ p_limit: "9999" })).toHaveLength(51);
