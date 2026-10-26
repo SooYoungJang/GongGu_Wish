@@ -86,10 +86,10 @@ describe("public feed pages", () => {
     await expect(fetchGroupBuyPage()).rejects.toThrow(/cursor|response/);
   });
 
-  it("does not turn a legacy unknown seller into an unfiltered catalog request", async () => {
+  it.each(["UNKNOWN", ""])("does not turn an invalid seller %j into an unfiltered catalog request", async username => {
     const request = vi.fn();
     vi.stubGlobal("fetch", request);
-    expect(await fetchGroupBuyPage({ username: "UNKNOWN" })).toEqual({ items: [], nextCursor: null });
+    expect(await fetchGroupBuyPage({ username })).toEqual({ items: [], nextCursor: null });
     expect(request).not.toHaveBeenCalled();
   });
 });

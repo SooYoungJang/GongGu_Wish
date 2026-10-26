@@ -64,4 +64,19 @@ describe("feed query pagination", () => {
       { items: [item("b"), item("c")], nextCursor: null },
     ]).map(row => row.id)).toEqual(["a", "b", "c"]);
   });
+
+  it.each(["", "UNKNOWN"])("isolates an invalid seller %j from the already cached public feed", async username => {
+    vi.mocked(fetchGroupBuyPage).mockImplementation(async filter => ({
+      items: filter?.username === "" ? [] : [{ id: "home-only" } as never], nextCursor: null,
+    }));
+    const all = getGroupBuyFeedOptions();
+    await client.fetchInfiniteQuery(all);
+    const invalid = getGroupBuyFeedOptions({ username });
+    expect(invalid.queryKey).not.toEqual(all.queryKey);
+    const observer = new InfiniteQueryObserver(client, invalid);
+    expect(observer.getCurrentResult().data).toBeUndefined();
+    await observer.refetch();
+    expect(observer.getCurrentResult().data?.pages[0].items).toEqual([]);
+    expect(vi.mocked(fetchGroupBuyPage).mock.lastCall?.[0]?.username).toBe("");
+  });
 });

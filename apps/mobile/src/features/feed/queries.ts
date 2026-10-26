@@ -10,7 +10,7 @@ export const GROUP_BUY_FEED_STALE_TIME_MS = 30_000;
 export function getGroupBuyFeedOptions(filter: GroupBuyFeedFilter = {}) {
   const normalized = {
     category: filter.category ?? "all",
-    username: normalizeOptionalInstagramUsername(filter.username)?.toLowerCase(),
+    username: filter.username === undefined ? undefined : normalizeOptionalInstagramUsername(filter.username)?.toLowerCase() ?? "",
     from: filter.from,
     to: filter.to,
     today: filter.today ?? formatDateKey(new Date()),
