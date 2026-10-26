@@ -18,7 +18,7 @@ export type GroupBuyFeedFilter = {
 // Keep the fields used by cards/detail navigation without downloading raw-post
 // captions, collector payloads or unrelated influencer fields for every card.
 const FEED_SELECT = "*,influencer_id(instagram_username,profile_image_url),raw_post_id(post_url,influencer_id(instagram_username,profile_image_url))";
-export const GROUP_BUY_PAGE_SIZE = 20;
+export const GROUP_BUY_PAGE_SIZE = 10;
 
 export async function fetchGroupBuyPage(
   filter: GroupBuyFeedFilter = {},
