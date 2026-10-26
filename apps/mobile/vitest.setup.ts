@@ -314,6 +314,7 @@ vi.mock("react-native-keyboard-controller", () => {
 });
 
 vi.mock("@tanstack/react-query", async importOriginal => ({
+  ...await importOriginal<typeof import("@tanstack/react-query")>(),
   onlineManager: (await importOriginal<typeof import("@tanstack/react-query")>()).onlineManager,
   QueryClient: class QueryClient {
     constructor(_options?: unknown) {}
@@ -325,6 +326,17 @@ vi.mock("@tanstack/react-query", async importOriginal => ({
     data: [],
     isLoading: false,
     isError: false,
+    refetch: vi.fn(),
+  })),
+  useInfiniteQuery: vi.fn(() => ({
+    data: { pages: [], pageParams: [] },
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    isFetchNextPageError: false,
+    fetchNextPage: vi.fn(),
     refetch: vi.fn(),
   })),
   useMutation: vi.fn(),

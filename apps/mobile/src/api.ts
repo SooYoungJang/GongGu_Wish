@@ -165,7 +165,7 @@ export type GroupBuySearchPage = {
   items: GroupBuy[];
   nextCursor: GroupBuySearchCursor | null;
 };
-const SEARCH_PAGE_SIZE = 20;
+const SEARCH_PAGE_SIZE = 10;
 
 /** Personal state is separate from the anonymous popularity bookmark signal. */
 export async function fetchAccountBookmarks(userId: string): Promise<GroupBuy[]> {

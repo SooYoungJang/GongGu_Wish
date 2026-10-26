@@ -16,8 +16,9 @@ import { SearchGlyph } from '../components/ui/LineGlyphs';
 import { InstagramIdentity } from '../components/ui/InstagramIdentity';
 import { SText } from '../components/ui/SText';
 import { AsyncStateNotice } from '../components/ui/AsyncStateNotice';
-import { fetchInfluencers, fetchPopularSearchTerms, logSearchTerm, searchInfluencers, type PopularSearchTerm } from '../api';
-import { useGroupBuySearch } from '../features/search/useGroupBuySearch';
+import { ListPageFooter } from '../components/ui/ListPageFooter';
+import { fetchPopularSearchTerms, logSearchTerm, type PopularSearchTerm } from '../api';
+import { useGroupBuySearch, useInfluencerSearch } from '../features/search/useGroupBuySearch';
 import { useAudience } from '../audience/AudienceContext';
 import { normalizeForSearch, pushRecentTerm, RECENT_SEARCH_STORAGE_KEY } from '../utils/search';
 import { spacing } from '../design/tokens';
@@ -153,7 +154,11 @@ export function SearchScreen() {
     isPending: isInfluencersPending,
     isFetching: isInfluencersFetching,
     refetch: refetchInfluencers,
-  } = useQuery({ queryKey: ['influencers'], queryFn: fetchInfluencers });
+    isFetchNextPageError: isInfluencersNextPageError,
+    isFetchingNextPage: isInfluencersLoadingMore,
+    hasNextPage: hasMoreInfluencers,
+    fetchNextPage: fetchMoreInfluencers,
+  } = useInfluencerSearch(debouncedQuery);
   const { data: popularTerms, refetch: refetchPopularTerms } = useQuery({
     queryKey: ['popular-search-terms'],
     // Rolling 24-hour window keeps the ranking populated even right after midnight.
@@ -232,22 +237,23 @@ export function SearchScreen() {
     () => isSearchSettled ? groupBuysData?.pages.flatMap((page) => page.items) ?? [] : [],
     [groupBuysData, isSearchSettled],
   );
-  const influencers = useMemo(() => influencersData ?? [], [influencersData]);
+  const influencers = useMemo(() => influencersData?.pages.flatMap(page => page.items) ?? [], [influencersData]);
   const hasPublicDataError = isSearchSettled && Boolean(isGroupBuysError || isInfluencersError);
   const hasPublicData = dealResults.length > 0 || influencers.length > 0;
   const handleRetryPublicData = useCallback(() => {
     if (isGroupBuysFetching || isInfluencersFetching) return;
     void Promise.all([
       isFetchNextPageError ? fetchNextPage() : refetchGroupBuys(),
-      refetchInfluencers(),
+      isInfluencersNextPageError ? fetchMoreInfluencers() : refetchInfluencers(),
     ]);
-  }, [fetchNextPage, isFetchNextPageError, isGroupBuysFetching, isInfluencersFetching, refetchGroupBuys, refetchInfluencers]);
+  }, [fetchNextPage, isFetchNextPageError, isGroupBuysFetching, isInfluencersFetching, refetchGroupBuys, refetchInfluencers, isInfluencersNextPageError, fetchMoreInfluencers]);
   const searchResults = useMemo(
-    () => isSearchSettled ? searchInfluencers(influencers, debouncedQuery).slice(0, 8) : [],
-    [influencers, debouncedQuery, isSearchSettled],
+    () => isSearchSettled ? influencers : [],
+    [influencers, isSearchSettled],
   );
   const hasQuery = query.trim().length > 0;
-  const isInitialSearchPending = !isSearchSettled || isGroupBuysPending || isInfluencersPending;
+  const isInfluencerSearchEnabled = normalizeForSearch(debouncedQuery.trim().replace(/^@/, '')).length > 0;
+  const isInitialSearchPending = !isSearchSettled || isGroupBuysPending || (isInfluencerSearchEnabled && isInfluencersPending);
   const handleLoadMore = useCallback(() => {
     if (hasNextPage && !isGroupBuysFetching && !isFetchingNextPage) {
       void fetchNextPage();
@@ -478,6 +484,14 @@ export function SearchScreen() {
             {searchResults.length > 0 && (
               <SearchResultsPanel results={searchResults} onPressInfluencer={handleSelectInfluencer} />
             )}
+            {isSearchSettled ? <ListPageFooter label="판매자 검색 결과 더 보기" pagination={{
+              hasMore: hasMoreInfluencers,
+              isLoading: isInfluencersLoadingMore,
+              isError: false,
+              onLoadMore: () => {
+                if (hasMoreInfluencers && !isInfluencersFetching) void fetchMoreInfluencers({ cancelRefetch: false });
+              },
+            }} /> : null}
             {dealResults.length === 0 && searchResults.length === 0 && !hasPublicDataError && !isInitialSearchPending && (
               <View style={s.requestState}>
                 {isSearchSettled ? (

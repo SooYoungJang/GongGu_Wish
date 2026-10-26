@@ -9,10 +9,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
 import { getGroupBuyCategoryLabel } from "@gonggu/shared/utils/groupBuyCategory";
+import { normalizeOptionalInstagramUsername } from "@gonggu/shared/utils/instagram";
 
-import { fetchGroupBuysByInfluencer } from "../api";
+import { useGroupBuyFeed } from "../features/feed/queries";
+import { ListPageFooter } from "../components/ui/ListPageFooter";
 import { CenteredBackHeader } from "../components/CenteredBackHeader";
 import { buildDealCardAccessibilityLabel } from "../components/DealCard";
 import { GroupBuyReminderButton } from "../components/GroupBuyReminderButton";
@@ -145,17 +146,15 @@ export function InfluencerGroupBuysScreen({
   route,
 }: InfluencerGroupBuysScreenProps) {
   const { influencerUsername, influencerProfileImageUrl } = route.params;
-  const normalizedUsername = influencerUsername.replace(/^@/, "");
+  const normalizedUsername = normalizeOptionalInstagramUsername(influencerUsername)?.toLowerCase() ?? "";
   const theme = useCommerceTheme();
   const { colors } = theme;
   const s = useMemo(() => makeStyles(theme), [theme]);
 
-  const { data, isFetching, isError, refetch } = useQuery({
-    queryKey: ["group-buys", "influencer", normalizedUsername],
-    queryFn: () => fetchGroupBuysByInfluencer(normalizedUsername),
-  });
-
-  const groupBuys = data ?? [];
+  const { items: groupBuys, isFetching, isError, refetch, hasNextPage,
+    isFetchingNextPage, isFetchNextPageError, loadMore } = useGroupBuyFeed(
+    { username: normalizedUsername }, { enabled: Boolean(normalizedUsername) },
+  );
   const profileImageUrl =
     influencerProfileImageUrl ??
     groupBuys[0]?.rawPost.influencer.profileImageUrl ??
@@ -212,6 +211,9 @@ export function InfluencerGroupBuysScreen({
           data={groupBuys}
           ItemSeparatorComponent={renderSeparator}
           keyExtractor={keyExtractor}
+          onEndReached={isFetchNextPageError ? undefined : loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={<ListPageFooter pagination={{ hasMore: hasNextPage, isLoading: isFetchingNextPage, isError: isFetchNextPageError, onLoadMore: loadMore }} />}
           ListEmptyComponent={
             isFetching ? (
               <ActivityIndicator color={colors.accent} />
@@ -230,7 +232,7 @@ export function InfluencerGroupBuysScreen({
           refreshControl={
             <RefreshControl
               onRefresh={refetch}
-              refreshing={isFetching}
+              refreshing={isFetching && !isFetchingNextPage}
               tintColor={colors.accent}
             />
           }

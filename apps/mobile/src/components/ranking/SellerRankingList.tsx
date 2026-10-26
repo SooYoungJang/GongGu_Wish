@@ -13,6 +13,7 @@ import {
 import type { Ref } from "react";
 
 import { AsyncStateNotice } from "../ui/AsyncStateNotice";
+import { ListPageFooter } from "../ui/ListPageFooter";
 import { NativeAdCard } from "../ads/NativeAdCard";
 import type { NativeAdLoadStatus } from "../ads/NativeAdCard.types";
 import { useAds } from "../../ads/AdsContext";
@@ -129,7 +130,7 @@ export function SellerRankingList({
     adsEnabled && adsReady && Boolean(nativeUnitIds.home);
   const feedItems = useMemo<RankingFeedItem[]>(() => {
     const rankingIds = readyData.map((item) => item.groupBuyId);
-    const random = seedAdRandomFromIds(rankingIds);
+    const random = seedAdRandomFromIds(rankingIds.slice(0, 1));
     const firstAdAfter = Math.max(REELS_AD_GAP_MIN, topThree.length);
     const topThreeIds = new Set(topThree.map((item) => item.groupBuyId));
     return insertReelsAdSlots(wrapForAdInsertion(readyData.slice()), {
@@ -249,7 +250,12 @@ export function SellerRankingList({
           ) : null}
         </>
       }
-      ListFooterComponent={<View style={footerStyle} />}
+      ListFooterComponent={<>
+        <ListPageFooter pagination={{ hasMore: !!state.hasNextPage, isLoading: !!state.loadingMore, isError: !!state.loadMoreError, onLoadMore: state.loadMore ?? NOOP }} />
+        <View style={footerStyle} />
+      </>}
+      onEndReached={state.loadMoreError ? undefined : state.loadMore}
+      onEndReachedThreshold={0.5}
       ref={listRef}
       onScroll={onScroll}
       onRefresh={onRefresh ? handleRefresh : undefined}

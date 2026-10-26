@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchGroupBuys } from "../api";
+import { fetchGroupBuysForRange } from "../features/feed/api";
 import { useAds } from "../ads/AdsContext";
 import { CenteredBackHeader } from "../components/CenteredBackHeader";
 import {
@@ -177,8 +177,10 @@ function getMonthGrid(year: number, month: number): CalendarGrid {
   return weeks;
 }
 
-function groupGroupBuysByDate(items: GroupBuy[]): Map<string, GroupBuy[]> {
+function groupGroupBuysByDate(items: GroupBuy[], year: number, month: number): Map<string, GroupBuy[]> {
   const map = new Map<string, GroupBuy[]>();
+  const monthStart = new Date(year, month, 1).getTime();
+  const monthEnd = new Date(year, month + 1, 0).getTime();
   for (const item of items) {
     const { start, end } = getGroupBuyDateRange(item);
     if (!start && !end) continue;
@@ -187,9 +189,9 @@ function groupGroupBuysByDate(items: GroupBuy[]): Map<string, GroupBuy[]> {
     const rangeEnd = end ?? start;
     if (!rangeStart || !rangeEnd) continue;
 
-    const cursor = new Date(rangeStart);
+    const cursor = new Date(Math.max(rangeStart.getTime(), monthStart));
     cursor.setHours(0, 0, 0, 0);
-    const last = new Date(rangeEnd);
+    const last = new Date(Math.min(rangeEnd.getTime(), monthEnd));
     last.setHours(0, 0, 0, 0);
 
     while (cursor <= last) {
@@ -459,9 +461,11 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   const { notifications } = useNotifications();
 
   // Data fetching
+  const monthFrom = formatDateKey(new Date(currentYear, currentMonth, 1));
+  const monthTo = formatDateKey(new Date(currentYear, currentMonth + 1, 0));
   const { data, isError, isFetching, refetch } = useQuery({
-    queryKey: ["group-buys"],
-    queryFn: fetchGroupBuys,
+    queryKey: ["group-buys", "calendar", monthFrom, monthTo, formatDateKey(new Date())],
+    queryFn: ({ signal }) => fetchGroupBuysForRange(monthFrom, monthTo, signal),
   });
 
   const groupBuys = data ?? [];
@@ -486,8 +490,8 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     [bookmarkedIds, calendarFilter, groupBuys, notifiedIds],
   );
   const groupBuysByDate = useMemo(
-    () => groupGroupBuysByDate(filteredGroupBuys),
-    [filteredGroupBuys],
+    () => groupGroupBuysByDate(filteredGroupBuys, currentYear, currentMonth),
+    [filteredGroupBuys, currentYear, currentMonth],
   );
   const dateKeysWithBuys = useMemo(() => {
     const set = new Set<string>();

@@ -234,6 +234,14 @@ vi.mock("expo-audio", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
+  infiniteQueryOptions: (options: unknown) => options,
+  useInfiniteQuery: vi.fn(() => ({
+    data: { pages: [{ items: queryMock.groupBuys ?? [], nextCursor: null }], pageParams: [null] },
+    hasNextPage: false,
+    isFetching: false,
+    isFetchNextPageError: false,
+    fetchNextPage: vi.fn(),
+  })),
   useQuery: vi.fn((options: { queryKey?: unknown[] }) =>
     options.queryKey?.[0] === "previous-product-history"
       ? {
@@ -329,7 +337,7 @@ import { Alert, Animated, Linking, Share } from "react-native";
 import { withTiming } from "react-native-reanimated";
 import TestRenderer, { act } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
   DetailScreen,
@@ -848,7 +856,7 @@ describe("DetailScreen", () => {
 
   it("reuses the fresh home feed cache while allowing stale deep-link data to refresh", () => {
     let renderer: TestRenderer.ReactTestRenderer;
-    vi.mocked(useQuery).mockClear();
+    vi.mocked(useInfiniteQuery).mockClear();
     act(() => {
       renderer = TestRenderer.create(
         <DetailScreen
@@ -859,13 +867,31 @@ describe("DetailScreen", () => {
         />,
       );
     });
-    expect(useQuery).toHaveBeenCalledWith(
+    expect(useInfiniteQuery).toHaveBeenCalledWith(
       expect.objectContaining({
-        queryKey: ["group-buys"],
+        queryKey: ["group-buys", "feed", expect.objectContaining({ category: "all" })],
         refetchOnMount: true,
         staleTime: 30_000,
       }),
     );
+    act(() => renderer!.unmount());
+  });
+
+  it("keeps the pager mounted when a prepended route product reappears on a later page", () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => ({ ...baseGroupBuy, id: `earlier-${index}` }));
+    queryMock.groupBuys = firstPage;
+    const props = {
+      route: { params: { groupBuy: baseGroupBuy } } as any,
+      navigation: { goBack: vi.fn(), addListener: vi.fn(() => () => {}) } as any,
+    };
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<DetailScreen {...props} />); });
+    const pager = () => renderer!.root.find(node => String(node.type) === "PagerView");
+    act(() => pager().props.onPageSelected({ nativeEvent: { position: 4 } }));
+    const previous = pager();
+    queryMock.groupBuys = [...firstPage, baseGroupBuy, { ...baseGroupBuy, id: "later-product" }];
+    act(() => renderer!.update(<DetailScreen {...props} />));
+    expect(pager() === previous).toBe(true);
     act(() => renderer!.unmount());
   });
 

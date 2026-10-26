@@ -15,7 +15,8 @@ const queryMock = vi.hoisted(() => ({
   options: undefined as
     | {
         queryKey: readonly unknown[];
-        queryFn: () => Promise<unknown>;
+        queryFn: (context: { pageParam: string | null }) => Promise<unknown>;
+        getNextPageParam: (page: GroupBuyRankingResponse) => string | undefined;
       }
     | undefined,
 }));
@@ -25,9 +26,10 @@ const apiMock = vi.hoisted(() => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: (options: typeof queryMock.options) => {
+  useInfiniteQuery: (options: typeof queryMock.options) => {
     queryMock.options = options;
-    return queryMock.current;
+    const data = queryMock.current.data;
+    return { ...queryMock.current, data: data && (data as { pages?: unknown }).pages ? data : data ? { pages: [data] } : undefined };
   },
 }));
 
@@ -68,7 +70,7 @@ function rankingItem(
 function response(data: GroupBuyRankingItem[]): GroupBuyRankingResponse {
   return {
     data,
-    pageInfo: { limit: 30, hasMore: false, nextCursor: null },
+    pageInfo: { limit: 10, hasMore: false, nextCursor: null },
     meta: {
       category: 'all',
       period: 'weekly',
@@ -108,6 +110,10 @@ describe('usePopularGroupBuys', () => {
       isFetching: false,
       isLoading: false,
       refetch: vi.fn(),
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isFetchNextPageError: false,
     };
     apiMock.fetchGroupBuyRankings.mockReset();
   });
@@ -128,7 +134,8 @@ describe('usePopularGroupBuys', () => {
       'weekly',
       'food',
       'rising',
-      30,
+      10,
+      'pages',
     ]);
   });
 
@@ -137,13 +144,13 @@ describe('usePopularGroupBuys', () => {
       category: 'food' as const,
       period: 'monthly' as const,
       sort: 'deadlineSoon' as const,
-      limit: 30,
+      limit: 10,
     };
     apiMock.fetchGroupBuyRankings.mockResolvedValue(response([]));
 
     renderRanking(request.period, request.category, request.sort);
 
-    await queryMock.options?.queryFn();
+    await queryMock.options?.queryFn({ pageParam: null });
     expect(apiMock.fetchGroupBuyRankings).toHaveBeenCalledWith(request);
   });
 
@@ -154,6 +161,28 @@ describe('usePopularGroupBuys', () => {
     if (state.status === 'empty') {
       expect(state.updatedAt).toBe(Date.parse('2026-07-16T00:00:00.000Z'));
     }
+  });
+
+  it('appends ranking pages, preserves ranks and retries the next cursor without a refresh spinner', async () => {
+    const first = response([rankingItem('first', { rank: 1 })]);
+    const second = response([rankingItem('first', { rank: 1 }), rankingItem('next', { rank: 11 })]);
+    first.pageInfo = { limit: 10, hasMore: true, nextCursor: 'cursor-10' };
+    queryMock.current.data = { pages: [first, second] };
+    queryMock.current.hasNextPage = true;
+    queryMock.current.isFetchNextPageError = true;
+    queryMock.current.isError = true;
+    const state = renderRanking();
+    expect(state.status).toBe('ready');
+    if (state.status !== 'ready') throw new Error('Expected ready rankings');
+    expect(state.data.map(item => [item.groupBuyId, item.rank])).toEqual([['first', 1], ['next', 11]]);
+    expect(state.loadMoreError).toBe(true);
+    expect(state.refreshError).toBeUndefined();
+    expect(state.refreshing).toBe(false);
+    state.loadMore?.();
+    expect(queryMock.current.fetchNextPage).toHaveBeenCalledWith({ cancelRefetch: false });
+    expect(queryMock.options?.getNextPageParam(first)).toBe('cursor-10');
+    await queryMock.options?.queryFn({ pageParam: 'cursor-10' });
+    expect(apiMock.fetchGroupBuyRankings).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'cursor-10', limit: 10 }));
   });
 
   it('keeps API failures as an error state instead of showing fallback rankings', () => {

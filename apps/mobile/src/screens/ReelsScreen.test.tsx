@@ -29,6 +29,10 @@ const queryResultMock = vi.hoisted(() => ({
   isFetching: false,
   isLoading: false,
   refetch: vi.fn(),
+  emptyData: [] as Array<Record<string, unknown>>,
+  hasNextPage: false,
+  isFetchNextPageError: false,
+  loadMore: vi.fn(),
 }));
 const pagerViewMock = vi.hoisted(() => ({
   mounts: 0,
@@ -103,6 +107,10 @@ vi.mock("@react-navigation/native", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => queryResultMock,
+}));
+vi.mock("../features/feed/queries", async importOriginal => ({
+  ...await importOriginal<typeof import("../features/feed/queries")>(),
+  useGroupBuyFeed: () => ({ ...queryResultMock, items: queryResultMock.data ?? queryResultMock.emptyData }),
 }));
 
 vi.mock("react-native-pager-view", () => {
@@ -205,6 +213,9 @@ describe("ReelsScreen player lifecycle", () => {
     queryResultMock.isFetching = false;
     queryResultMock.isLoading = false;
     queryResultMock.refetch.mockClear();
+    queryResultMock.hasNextPage = false;
+    queryResultMock.isFetchNextPageError = false;
+    queryResultMock.loadMore.mockClear();
     pagerViewMock.mounts = 0;
     pagerViewMock.setPageWithoutAnimation.mockClear();
     adsMock.enabled = false;
@@ -720,6 +731,63 @@ describe("ReelsScreen player lifecycle", () => {
     } finally {
       swipe.unmount();
     }
+  });
+
+  it.each(["product", "ad"])("keeps the active %s mounted when the next page arrives", (kind) => {
+    queryResultMock.data = manyGroupBuys;
+    adsMock.enabled = true;
+    adsMock.isReady = true;
+    adsMock.nativeUnitIds.reels = "reels-native-unit";
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<ReelsScreen />); });
+    randomSpy.mockRestore();
+    const pager = () => renderer!.root.find(node => String(node.type) === "PagerView");
+    const activeNode = () => kind === "ad"
+      ? renderer!.root.findByProps({ testID: "reels-native-ad-1" })
+      : renderer!.root.find(node => String(node.type) === "ProductReelPage" && node.props.isActive);
+    act(() => pager().props.onPageSelected({ nativeEvent: { position: kind === "ad" ? 2 : 4 } }));
+    const previous = activeNode();
+    queryResultMock.data = [...manyGroupBuys, ...manyGroupBuys.map(item => ({ ...item, id: `${item.id}-page-2` }))];
+    act(() => renderer!.update(<ReelsScreen />));
+    expect(activeNode()).toBe(previous);
+    if (kind === "ad") expect(activeNode().props.visible).toBe(true);
+    expect(pagerViewMock.mounts).toBe(1);
+    act(() => renderer!.unmount());
+  });
+
+  it.each(["backward wrap", "second lap"])("retains the player instance when appending after %s", (scenario) => {
+    queryResultMock.data = manyGroupBuys;
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<ReelsScreen />); });
+    const pager = () => renderer!.root.find(node => String(node.type) === "PagerView");
+    const active = () => renderer!.root.find(node => String(node.type) === "ProductReelPage" && node.props.isActive);
+    const step = (direction: number) => {
+      act(() => pager().props.onPageSelected({ nativeEvent: { position: pager().props.initialPage + direction } }));
+      act(() => pager().props.onPageSelected({ nativeEvent: { position: pager().props.initialPage } }));
+    };
+    if (scenario === "backward wrap") { step(1); step(-1); step(-1); }
+    else for (let index = 0; index < 14; index += 1) step(1);
+    const previous = active();
+    queryResultMock.data = [...manyGroupBuys, ...manyGroupBuys.map(item => ({ ...item, id: `${item.id}-page-2` }))];
+    act(() => renderer!.update(<ReelsScreen />));
+    expect(active() === previous).toBe(true);
+    expect(pagerViewMock.mounts).toBe(1);
+    act(() => renderer!.unmount());
+  });
+
+  it("requests the next page near the end and does not retry a failed page automatically", () => {
+    queryResultMock.data = manyGroupBuys;
+    queryResultMock.hasNextPage = true;
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<ReelsScreen />); });
+    expect(queryResultMock.loadMore).not.toHaveBeenCalled();
+    act(() => renderer!.root.find(node => String(node.type) === "PagerView").props.onPageSelected({ nativeEvent: { position: 8 } }));
+    expect(queryResultMock.loadMore).toHaveBeenCalledTimes(1);
+    queryResultMock.isFetchNextPageError = true;
+    act(() => renderer!.update(<ReelsScreen />));
+    expect(queryResultMock.loadMore).toHaveBeenCalledTimes(1);
+    act(() => renderer!.unmount());
   });
 
   it("keeps the selected ad request alive across the store activity", () => {

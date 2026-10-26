@@ -4,6 +4,7 @@ import { searchGroupBuys, type GroupBuySearchCursor } from "../../api";
 import { formatDateKey } from "../../utils/groupBuyDates";
 import { normalizeForSearch } from "../../utils/search";
 import { telemetry } from "../../telemetry/telemetry";
+import { searchInfluencerPage, type InfluencerSearchCursor } from "./api";
 
 export function useGroupBuySearch(query: string) {
   const normalizedQuery = normalizeForSearch(query);
@@ -18,5 +19,16 @@ export function useGroupBuySearch(query: string) {
     initialPageParam: null as GroupBuySearchCursor | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: normalizedQuery.length > 0,
+  });
+}
+
+export function useInfluencerSearch(query: string) {
+  const term = normalizeForSearch(query.trim().replace(/^@/, ""));
+  return useInfiniteQuery({
+    queryKey: ["influencer-search", term],
+    queryFn: ({ pageParam, signal }) => searchInfluencerPage(query, pageParam, signal),
+    initialPageParam: null as InfluencerSearchCursor | null,
+    getNextPageParam: page => page.nextCursor ?? undefined,
+    enabled: term.length > 0,
   });
 }
