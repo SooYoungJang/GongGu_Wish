@@ -23,9 +23,9 @@ describe("server group-buy search", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps 20 results and uses the last visible row as the cursor", async () => {
+  it("keeps 10 results and uses the last visible row as the cursor", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(
-      JSON.stringify(Array.from({ length: 21 }, (_, i) => row(i))),
+      JSON.stringify(Array.from({ length: 11 }, (_, i) => row(i))),
       { status: 200 },
     ));
     vi.stubGlobal("fetch", fetchMock);
@@ -33,13 +33,13 @@ describe("server group-buy search", () => {
 
     const page = await searchGroupBuys("크림 & 100%_", null, signal);
 
-    expect(page.items).toHaveLength(20);
-    expect(page.items[19].id).toBe("search-19");
-    expect(page.nextCursor).toEqual({ id: "search-19", createdAt: row(19).created_at });
+    expect(page.items).toHaveLength(10);
+    expect(page.items[9].id).toBe("search-9");
+    expect(page.nextCursor).toEqual({ id: "search-9", createdAt: row(9).created_at });
     const url = new URL(String(fetchMock.mock.calls[0][0]));
     expect(url.pathname).toMatch(/\/rpc\/search_public_group_buys$/);
     expect(url.searchParams.get("p_query")).toBe("크림 & 100%_");
-    expect(url.searchParams.get("p_limit")).toBe("21");
+    expect(url.searchParams.get("p_limit")).toBe("11");
     expect(fetchMock.mock.calls[0][1].signal).toBe(signal);
   });
 

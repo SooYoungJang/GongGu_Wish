@@ -23,19 +23,19 @@ describe("public feed pages", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns only the first 20 rows and preserves the timestamp/id cursor", async () => {
+  it("returns only the first 10 rows and preserves the timestamp/id cursor", async () => {
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify(
-      Array.from({ length: 21 }, (_, i) => row(i)),
+      Array.from({ length: 11 }, (_, i) => row(i)),
     )));
     vi.stubGlobal("fetch", request);
 
     const page = await fetchGroupBuyPage();
 
-    expect(page.items).toHaveLength(20);
-    expect(page.nextCursor).toEqual({ id: "feed-19", createdAt: row(19).created_at });
+    expect(page.items).toHaveLength(10);
+    expect(page.nextCursor).toEqual({ id: "feed-9", createdAt: row(9).created_at });
     const url = new URL(request.mock.calls[0][0]);
     expect(url.pathname).toMatch(/\/rpc\/list_public_group_buys$/);
-    expect(url.searchParams.get("p_limit")).toBe("21");
+    expect(url.searchParams.get("p_limit")).toBe("11");
     expect(url.searchParams.get("select")).toContain("raw_post_id(post_url,");
     expect(url.searchParams.get("select")).not.toContain("raw_post_id(*");
   });
@@ -63,7 +63,8 @@ describe("public feed pages", () => {
 
   it("loads a complete bounded calendar range even when it spans more than one page", async () => {
     const request = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify(Array.from({ length: 21 }, (_, i) => row(i)))))
+      .mockResolvedValueOnce(new Response(JSON.stringify(Array.from({ length: 11 }, (_, i) => row(i)))))
+      .mockResolvedValueOnce(new Response(JSON.stringify(Array.from({ length: 11 }, (_, i) => row(i + 10)))))
       .mockResolvedValueOnce(new Response(JSON.stringify([row(20), row(21)])));
     vi.stubGlobal("fetch", request);
 
@@ -72,16 +73,17 @@ describe("public feed pages", () => {
     expect(items).toHaveLength(22);
     expect(new Set(items.map(item => item.id)).size).toBe(22);
     const secondUrl = new URL(request.mock.calls[1][0]);
-    expect(secondUrl.searchParams.get("p_before_id")).toBe("feed-19");
+    expect(secondUrl.searchParams.get("p_before_id")).toBe("feed-9");
     expect(secondUrl.searchParams.get("p_from")).toBe("2026-10-01");
     expect(secondUrl.searchParams.get("p_to")).toBe("2026-10-31");
+    expect(new URL(request.mock.calls[2][0]).searchParams.get("p_before_id")).toBe("feed-19");
   });
 
   it("keeps failures visible and rejects an unusable next-page cursor", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     await expect(fetchGroupBuyPage()).rejects.toThrow("offline");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(
-      Array.from({ length: 21 }, (_, i) => ({ ...row(i), created_at: null })),
+      Array.from({ length: 11 }, (_, i) => ({ ...row(i), created_at: null })),
     ))));
     await expect(fetchGroupBuyPage()).rejects.toThrow(/cursor|response/);
   });

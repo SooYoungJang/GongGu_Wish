@@ -8,19 +8,19 @@ describe("bounded seller search", () => {
   beforeEach(() => configurePostgrest("sb_publishable_seller_search_test"));
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-  it("returns eight matching sellers instead of downloading the seller table", async () => {
+  it("returns ten matching sellers instead of downloading the seller table", async () => {
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify(
-      Array.from({ length: 9 }, (_, index) => ({ id: `seller-${index}`, instagram_username: `Seller_${index}` })),
+      Array.from({ length: 11 }, (_, index) => ({ id: `seller-${index}`, instagram_username: `Seller_${index}` })),
     )));
     vi.stubGlobal("fetch", request);
     const signal = new AbortController().signal;
     const page = await searchInfluencerPage("@Seller name", null, signal);
-    expect(page.items).toHaveLength(8);
-    expect(page.nextCursor).toEqual({ username: "seller_7", id: "seller-7" });
+    expect(page.items).toHaveLength(10);
+    expect(page.nextCursor).toEqual({ username: "seller_9", id: "seller-9" });
     const url = new URL(request.mock.calls[0][0]);
     expect(url.pathname).toMatch(/\/rpc\/search_public_influencers$/);
     expect(url.searchParams.get("p_query")).toBe("sellername");
-    expect(url.searchParams.get("p_limit")).toBe("9");
+    expect(url.searchParams.get("p_limit")).toBe("11");
     expect(request.mock.calls[0][1].signal).toBe(signal);
   });
 

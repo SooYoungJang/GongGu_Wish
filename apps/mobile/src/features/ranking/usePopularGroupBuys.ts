@@ -13,7 +13,7 @@ export function usePopularGroupBuys(
   period: RankingPeriod,
   category: RankingCategory = 'all',
   sort: RankingSort = 'popular',
-  limit = 30,
+  limit = 10,
 ): RankingLoadState {
   const query = useInfiniteQuery({
     queryKey: ['group-buy-rankings', period, category, sort, limit, 'pages'],

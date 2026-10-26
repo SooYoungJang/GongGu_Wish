@@ -70,7 +70,7 @@ function rankingItem(
 function response(data: GroupBuyRankingItem[]): GroupBuyRankingResponse {
   return {
     data,
-    pageInfo: { limit: 30, hasMore: false, nextCursor: null },
+    pageInfo: { limit: 10, hasMore: false, nextCursor: null },
     meta: {
       category: 'all',
       period: 'weekly',
@@ -134,7 +134,7 @@ describe('usePopularGroupBuys', () => {
       'weekly',
       'food',
       'rising',
-      30,
+      10,
       'pages',
     ]);
   });
@@ -144,7 +144,7 @@ describe('usePopularGroupBuys', () => {
       category: 'food' as const,
       period: 'monthly' as const,
       sort: 'deadlineSoon' as const,
-      limit: 30,
+      limit: 10,
     };
     apiMock.fetchGroupBuyRankings.mockResolvedValue(response([]));
 
@@ -165,8 +165,8 @@ describe('usePopularGroupBuys', () => {
 
   it('appends ranking pages, preserves ranks and retries the next cursor without a refresh spinner', async () => {
     const first = response([rankingItem('first', { rank: 1 })]);
-    const second = response([rankingItem('first', { rank: 1 }), rankingItem('next', { rank: 31 })]);
-    first.pageInfo = { limit: 30, hasMore: true, nextCursor: 'cursor-30' };
+    const second = response([rankingItem('first', { rank: 1 }), rankingItem('next', { rank: 11 })]);
+    first.pageInfo = { limit: 10, hasMore: true, nextCursor: 'cursor-10' };
     queryMock.current.data = { pages: [first, second] };
     queryMock.current.hasNextPage = true;
     queryMock.current.isFetchNextPageError = true;
@@ -174,15 +174,15 @@ describe('usePopularGroupBuys', () => {
     const state = renderRanking();
     expect(state.status).toBe('ready');
     if (state.status !== 'ready') throw new Error('Expected ready rankings');
-    expect(state.data.map(item => [item.groupBuyId, item.rank])).toEqual([['first', 1], ['next', 31]]);
+    expect(state.data.map(item => [item.groupBuyId, item.rank])).toEqual([['first', 1], ['next', 11]]);
     expect(state.loadMoreError).toBe(true);
     expect(state.refreshError).toBeUndefined();
     expect(state.refreshing).toBe(false);
     state.loadMore?.();
     expect(queryMock.current.fetchNextPage).toHaveBeenCalledWith({ cancelRefetch: false });
-    expect(queryMock.options?.getNextPageParam(first)).toBe('cursor-30');
-    await queryMock.options?.queryFn({ pageParam: 'cursor-30' });
-    expect(apiMock.fetchGroupBuyRankings).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'cursor-30' }));
+    expect(queryMock.options?.getNextPageParam(first)).toBe('cursor-10');
+    await queryMock.options?.queryFn({ pageParam: 'cursor-10' });
+    expect(apiMock.fetchGroupBuyRankings).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'cursor-10', limit: 10 }));
   });
 
   it('keeps API failures as an error state instead of showing fallback rankings', () => {
