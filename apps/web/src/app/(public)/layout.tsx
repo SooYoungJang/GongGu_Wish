@@ -8,14 +8,14 @@ export default function PublicLayout({
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
       <header className="bg-white border-b border-neutral-200/60 sticky top-0 z-50">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
+        <div className="mx-auto max-w-7xl px-6 py-4 flex flex-wrap items-center justify-between gap-4">
           <Link href="/" className="inline-flex items-center gap-2 text-xl font-bold text-primary-700">
             <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            GongGu Wish
+            공구위시
           </Link>
-          <nav className="flex items-center gap-6">
+          <nav aria-label="주요 메뉴" className="flex flex-wrap items-center gap-4 sm:gap-6">
             <Link
               href="/calendar"
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-800 hover:text-primary-700 transition-colors"
@@ -63,7 +63,7 @@ export default function PublicLayout({
               지원 문의
             </a>
           </nav>
-          <p>© 2026 GongGu Wish. 인플루언서 공동구매 정보 서비스.</p>
+          <p>© 2026 공구위시. 인플루언서 공동구매 정보 서비스.</p>
         </div>
       </footer>
     </div>
