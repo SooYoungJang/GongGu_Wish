@@ -513,6 +513,55 @@ describe('MyPageScreen', () => {
     expect(text).not.toContain('알림 해제');
   });
 
+  it('offers an accessible next action only while a shelf is empty', () => {
+    const onPress = vi.fn();
+    const props = {
+      title: '북마크한 공구',
+      subtitle: '관심 있는 공구',
+      items: [] as any[],
+      emptyText: '아직 저장한 공구가 없어요.',
+      emptyAction: { label: '관심 공구 찾기', hint: '검색한 공구를 북마크해 보세요.', onPress },
+      onPressDeal: vi.fn(),
+      s: {} as any,
+    };
+    const renderer = renderScreen(React.createElement(DealShelf, props));
+    const button = renderer.root.findByProps({ accessibilityLabel: '관심 공구 찾기' });
+    expect(button.props.accessibilityRole).toBe('button');
+    act(() => { button.props.onPress(); button.props.onPress(); });
+    expect(onPress).toHaveBeenCalledTimes(2);
+    act(() => renderer.update(React.createElement(ThemeProvider, null,
+      React.createElement(DealShelf, { ...props, items: [{ id: 'new-bookmark', productName: '저장한 공구' } as any] }),
+    )));
+    expect(renderer.root.findAllByProps({ accessibilityLabel: '관심 공구 찾기' })).toHaveLength(0);
+  });
+
+  it('does not invent an action when an empty shelf is still loading', () => {
+    const renderer = renderScreen(React.createElement(DealShelf, {
+      title: '북마크한 공구', subtitle: '', items: [],
+      emptyText: '저장한 공구를 불러오는 중이에요.',
+      onPressDeal: vi.fn(), s: {} as any,
+    }));
+    expect(renderer.root.findAllByProps({ accessibilityLabel: '다시 불러오기' })).toHaveLength(0);
+  });
+
+  it('takes a first-time visitor from recent views to Home without forcing login', async () => {
+    const renderer = renderMyPageScreen();
+    await act(async () => { await Promise.resolve(); });
+    act(() => renderer.root.findByProps({ accessibilityLabel: '공구 둘러보기' }).props.onPress());
+    expect(navigationMocks.navigate).toHaveBeenCalledWith('Home');
+    expect(authMocks.signIn).not.toHaveBeenCalled();
+  });
+
+  it('routes an empty bookmark shelf to Search without starting authentication', async () => {
+    const renderer = renderMyPageScreen();
+    await act(async () => { await Promise.resolve(); });
+    const button = renderer.root.findByProps({ accessibilityLabel: '관심 공구 찾기' });
+    act(() => button.props.onPress());
+    expect(navigationMocks.navigate).toHaveBeenCalledWith('Search');
+    expect(authMocks.signIn).not.toHaveBeenCalled();
+    expect(JSON.stringify(renderer.toJSON())).toContain('북마크는 로그인 후 이용할 수 있어요.');
+  });
+
   it('renders without crashing', () => {
     const renderer = renderMyPageScreen();
     expect(renderer.toJSON()).toBeTruthy();

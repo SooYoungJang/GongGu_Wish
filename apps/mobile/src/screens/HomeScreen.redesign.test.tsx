@@ -1672,6 +1672,48 @@ describe('HomeScreenContent redesign', () => {
     expect(renderer.root.findAllByType(DealCard).length).toBeGreaterThan(0);
   });
 
+  it('lets users recover from an empty category and repeat the flow', () => {
+    const onCategoryChange = vi.fn();
+    const renderer = renderHomeContent({
+      groupBuys: [{ ...sampleGroupBuys[0], category: 'beauty' }],
+      onCategoryChange,
+    });
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      act(() => renderer.root.findByProps({ accessibilityLabel: '식품 카테고리' }).props.onPress());
+      expect(flattenText(renderer.toJSON())).toContain('전체 공구에서 다른 상품을 찾아보세요.');
+      act(() => renderer.root.findByProps({ accessibilityLabel: '전체 공구 보기' }).props.onPress());
+      expect(onCategoryChange).toHaveBeenLastCalledWith('all');
+      expect(renderer.root.findAllByProps({ accessibilityLabel: '전체 공구 보기' })).toHaveLength(0);
+      expect(renderer.root.findAllByType(DealCard).length).toBeGreaterThan(0);
+    }
+  });
+
+  it.each([{ isError: true }, { isLoading: true }, {}])(
+    'does not confuse an unavailable feed with an empty category: %j',
+    (state) => {
+      const renderer = renderHomeContent({ groupBuys: [], ...state });
+      expect(flattenText(renderer.toJSON())).not.toContain('선택한 카테고리에');
+      expect(renderer.root.findAllByProps({ accessibilityLabel: '전체 공구 보기' })).toHaveLength(0);
+    },
+  );
+
+  it('refreshes an empty feed without changing the selected category', () => {
+    const onRefresh = vi.fn();
+    const onCategoryChange = vi.fn();
+    const renderer = renderHomeContent({ groupBuys: [], onRefresh, onCategoryChange });
+    act(() => renderer.root.findByProps({ accessibilityLabel: '다시 불러오기' }).props.onPress());
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(onCategoryChange).not.toHaveBeenCalled();
+  });
+
+  it('offers refresh for a truly empty feed and disables it while fetching', () => {
+    const onRefresh = vi.fn();
+    const renderer = renderHomeContent({ groupBuys: [], onRefresh, isFetching: true });
+    const button = renderer.root.findByProps({ accessibilityLabel: '다시 불러오기' });
+    expect(button.props.disabled).toBe(true);
+    expect(button.props.accessibilityState.busy).toBe(true);
+  });
+
   it('does not render local sample products when the public response is empty', () => {
     const renderer = renderHomeContent({ groupBuys: [] });
     const text = flattenText(renderer.toJSON());
