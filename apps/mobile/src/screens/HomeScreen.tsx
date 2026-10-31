@@ -1067,6 +1067,9 @@ export function HomeScreenContent({
                     style={s.queryState}
                     testID="home-query-state"
                     title="현재 표시할 공구가 없어요"
+                    message="새 공구가 등록되면 여기에 표시돼요. 잠시 후 다시 확인해 주세요."
+                    onRetry={onRefresh}
+                    isRetrying={isFetching}
                     variant="empty"
                   />
                 ) : null}
@@ -1084,13 +1087,19 @@ export function HomeScreenContent({
             </>
           }
           ListEmptyComponent={
-            isLoading ? null : <View style={s.recommendSection}>
-              <View style={s.productEmpty}>
-                <SText variant="body" style={s.productEmptyText}>
-                  선택한 카테고리에 공구가 없습니다
-                </SText>
+            !isLoading && displayGroupBuys.length > 0 && selectedCategory !== "all" ? (
+              <View style={s.recommendSection}>
+                <AsyncStateNotice
+                  compact
+                  variant="empty"
+                  title="선택한 카테고리에 공구가 없어요"
+                  message="전체 공구에서 다른 상품을 찾아보세요."
+                  actionLabel="전체 공구 보기"
+                  onRetry={() => handleCategoryChange("all")}
+                  testID="home-category-empty"
+                />
               </View>
-            </View>
+            ) : null
           }
         />
         {isCategoryFilterSticky ? (

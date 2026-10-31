@@ -93,6 +93,7 @@ export function DealShelf({
   subtitle,
   items,
   emptyText,
+  emptyAction,
   onPressDeal,
   onUnbookmarkDeal,
   s,
@@ -101,6 +102,7 @@ export function DealShelf({
   subtitle: string;
   items: GroupBuy[];
   emptyText: string;
+  emptyAction?: { label: string; hint: string; onPress: () => void };
   onPressDeal: (item: GroupBuy) => void;
   onUnbookmarkDeal?: (item: GroupBuy) => void;
   s: ReturnType<typeof makeStyles>;
@@ -148,11 +150,15 @@ export function DealShelf({
           ))}
         </ScrollView>
       ) : (
-        <View style={s.emptyShelf}>
-          <SText variant="caption" style={s.emptyShelfText}>
-            {emptyText}
-          </SText>
-        </View>
+        <AsyncStateNotice
+          compact
+          variant="empty"
+          title={emptyText}
+          message={emptyAction?.hint}
+          actionLabel={emptyAction?.label}
+          onRetry={emptyAction?.onPress}
+          testID={`deal-shelf-empty-${title}`}
+        />
       )}
     </View>
   );
@@ -442,6 +448,11 @@ export function MyPageScreen() {
           subtitle="최근 10개까지 모아봤어요"
           items={viewedToday}
           emptyText="최근 본 공구가 아직 없어요."
+          emptyAction={{
+            label: '공구 둘러보기',
+            hint: '관심 있는 공구를 누르면 여기에서 다시 찾을 수 있어요.',
+            onPress: () => tabNavigation.navigate('Home'),
+          }}
           onPressDeal={handlePressDeal}
           s={s}
         />
@@ -451,6 +462,11 @@ export function MyPageScreen() {
           subtitle={user ? '내 계정에 저장한 공구예요' : '이 기기에 저장된 공구예요'}
           items={bookmarkedDeals}
           emptyText={bookmarksReady ? '북마크한 공구가 아직 없어요.' : '저장한 공구를 불러오는 중이에요.'}
+          emptyAction={bookmarksReady && !bookmarkSyncError ? {
+            label: '관심 공구 찾기',
+            hint: '공구를 검색하고 북마크 버튼으로 저장해 보세요. 북마크는 로그인 후 이용할 수 있어요.',
+            onPress: () => tabNavigation.navigate('Search'),
+          } : undefined}
           onPressDeal={handlePressDeal}
           onUnbookmarkDeal={handleRemoveBookmark}
           s={s}
