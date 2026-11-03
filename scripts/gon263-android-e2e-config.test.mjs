@@ -23,6 +23,19 @@ test("the required Android check exists for every main PR without running unaffe
   assert.match(workflow, /Require successful Mobile E2E change plan/);
 });
 
+test("Android journeys pin the compatible Supabase CLI instead of tracking major upgrades", () => {
+  const workflow = read(".github/workflows/mobile-ios-e2e.yml");
+  const androidJob = workflow.match(
+    /^  gon-263-android:\n[\s\S]*?(?=^  [a-z][a-z0-9-]*:|$(?![\s\S]))/m,
+  )?.[0];
+  assert.ok(androidJob, "Android journeys job must exist");
+  const setupStep = androidJob.match(
+    /      - uses: supabase\/setup-cli@[^\n]+\n[\s\S]*?(?=\n      - |$(?![\s\S]))/m,
+  )?.[0];
+  assert.ok(setupStep, "Android journeys must install Supabase CLI");
+  assert.match(setupStep, /^          version: 2\.122\.1$/m);
+});
+
 test("Android E2E verifies localhost origins through the app journeys", () => {
   const workflow = read(".github/workflows/mobile-ios-e2e.yml");
   const seed = read("supabase/seed.sql");

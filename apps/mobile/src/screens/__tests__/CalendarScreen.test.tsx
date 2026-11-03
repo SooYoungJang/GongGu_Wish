@@ -10,7 +10,7 @@ import {
 } from "../../components/calendar/CalendarDateRow";
 import { ThemeProvider } from "../../context/ThemeContext";
 import { commerceLightColors } from "../../design/commerce";
-import { AccessibilityInfo, Pressable } from "react-native";
+import { AccessibilityInfo, ActivityIndicator, Pressable } from "react-native";
 import { spacing } from "../../design/tokens";
 import type { GroupBuy } from "../../types";
 
@@ -90,7 +90,7 @@ vi.mock("expo-secure-store", () => ({
 
 // Shared mutable query mock for tests that need custom return data
 let mockQueryResult: {
-  data: GroupBuy[] | null;
+  data: GroupBuy[] | null | undefined;
   isFetching: boolean;
   isError: boolean;
 } = {
@@ -910,6 +910,113 @@ describe("CalendarScreen", () => {
     expect(backButton!.props.accessibilityLabel).toBe("뒤로가기");
     expect(backButton!.props.accessibilityRole).toBe("button");
   });
+
+  it.each([undefined, null])(
+    "shows loading without date or ad rows before first data (%s)",
+    (data) => {
+      adsMock.enabled = true;
+      adsMock.isReady = true;
+      adsMock.nativeUnitIds.home = "test-native-home";
+      mockQueryResult = { data, isFetching: true, isError: false };
+
+      const renderer = renderCalendar();
+      expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(1);
+      expect(
+        renderer.root.findByProps({ testID: "calendar-date-list" }).props
+          .initialScrollIndex,
+      ).toBeUndefined();
+      expect(flattenText(renderer.toJSON())).not.toContain(
+        "이 날짜의 공구가 없어요",
+      );
+      expect(
+        renderer.root.findAll(
+          (node) =>
+            typeof node.props.testID === "string" &&
+            /calendar-(date-row|native-ad-slot)-/.test(node.props.testID),
+        ),
+      ).toHaveLength(0);
+
+      act(() =>
+        renderer.root
+          .findByProps({ testID: "calendar-today-button" })
+          .props.onPress(),
+      );
+      expect(listMock.scrollToIndex).not.toHaveBeenCalled();
+      mockQueryResult = { data: [], isFetching: false, isError: false };
+      act(() => renderer.update(createCalendar()));
+      expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(0);
+      expect(flattenText(renderer.toJSON())).toContain(
+        "이 날짜의 공구가 없어요",
+      );
+      expect(listMock.scrollToIndex).toHaveBeenCalledWith({
+        animated: true,
+        index: 0,
+        viewPosition: 0,
+      });
+    },
+  );
+
+  it("replaces initial loading with successful calendar data", () => {
+    mockQueryResult = { data: undefined, isFetching: true, isError: false };
+    const renderer = renderCalendar();
+    expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(1);
+    mockQueryResult = {
+      data: sampleGroupBuys,
+      isFetching: false,
+      isError: false,
+    };
+    act(() => renderer.update(createCalendar()));
+    expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(0);
+    expect(flattenText(renderer.toJSON())).toContain("비건 선크림");
+  });
+
+  it("recovers from first-load failure through retry without a false empty state", () => {
+    mockQueryResult = { data: undefined, isFetching: true, isError: false };
+    const renderer = renderCalendar();
+    expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(1);
+    mockQueryResult = { data: undefined, isFetching: false, isError: true };
+    act(() => renderer.update(createCalendar()));
+    expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(0);
+    expect(flattenText(renderer.toJSON())).toContain(
+      "공구 정보를 불러오지 못했어요",
+    );
+    expect(flattenText(renderer.toJSON())).not.toContain(
+      "이 날짜의 공구가 없어요",
+    );
+    act(() =>
+      renderer.root
+        .findByProps({ accessibilityLabel: "다시 불러오기" })
+        .props.onPress(),
+    );
+    expect(queryRefetchMock).toHaveBeenCalledTimes(1);
+    mockQueryResult = { data: undefined, isFetching: true, isError: false };
+    act(() => renderer.update(createCalendar()));
+    expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(1);
+    expect(flattenText(renderer.toJSON())).not.toContain(
+      "이 날짜의 공구가 없어요",
+    );
+    mockQueryResult = {
+      data: sampleGroupBuys,
+      isFetching: false,
+      isError: false,
+    };
+    act(() => renderer.update(createCalendar()));
+    expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(0);
+    expect(flattenText(renderer.toJSON())).toContain("비건 선크림");
+  });
+
+  it.each([{ data: [] }, { data: sampleGroupBuys }])(
+    "preserves cached data during background refresh (%j)",
+    ({ data }) => {
+      mockQueryResult = { data, isFetching: false, isError: false };
+      const renderer = renderCalendar();
+      const beforeRefresh = flattenText(renderer.toJSON());
+      mockQueryResult = { data, isFetching: true, isError: false };
+      act(() => renderer.update(createCalendar()));
+      expect(renderer.root.findAllByType(ActivityIndicator)).toHaveLength(0);
+      expect(flattenText(renderer.toJSON())).toBe(beforeRefresh);
+    },
+  );
 
   it("shows empty state when no group buys on selected date", () => {
     const renderer = renderCalendar();
