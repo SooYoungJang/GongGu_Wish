@@ -85,7 +85,8 @@ jobs:
 
       - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v1
         with:
-          version: latest
+          # CLI v3 removes [inbucket]; keep these local journeys on supported v2.
+          version: 2.122.1
 
       - name: Start real local Supabase and export app-safe configuration
         shell: bash
