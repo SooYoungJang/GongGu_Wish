@@ -469,6 +469,8 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   });
 
   const groupBuys = data ?? [];
+  const isInitialLoading = data == null && isFetching;
+  const hideTimeline = isInitialLoading || (isError && groupBuys.length === 0);
 
   const bookmarkedIds = useMemo(
     () => new Set(bookmarks.map((item) => item.id)),
@@ -505,6 +507,10 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     [selectedDate],
   );
   const dateGroups = useMemo(() => {
+    // Do not synthesize an empty selected-date row before the query settles.
+    // Keeping the timeline empty also prevents ads and scroll targets while loading.
+    if (hideTimeline) return [];
+
     const keys = new Set<string>();
     for (const key of groupBuysByDate.keys()) {
       const date = parseDateKey(key);
@@ -534,6 +540,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
     currentMonth,
     currentYear,
     groupBuysByDate,
+    hideTimeline,
     selectedDate,
     selectedDateKey,
   ]);
@@ -740,7 +747,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
   );
   const renderEmptyTimeline = useCallback(
     () =>
-      isError && groupBuys.length === 0 ? null : isFetching && groupBuys.length === 0 ? (
+      isError && groupBuys.length === 0 ? null : isInitialLoading ? (
         <ActivityIndicator color={colors.primary} style={s.loading} />
       ) : (
         <View style={s.emptyDeals}>
@@ -761,7 +768,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
       colors.primary,
       groupBuys.length,
       isError,
-      isFetching,
+      isInitialLoading,
       s.emptyDateTitle,
       s.emptyDeals,
       s.loading,
@@ -828,7 +835,7 @@ export function CalendarScreen({ navigation, route }: CalendarScreenProps) {
         */}
         <FlatList
           contentContainerStyle={s.dateListContent}
-          data={isError && groupBuys.length === 0 ? [] : timelineItems}
+          data={timelineItems}
           getItemLayout={getDateGroupLayout}
           initialScrollIndex={
             selectedDateIndex >= 0 ? selectedDateIndex : undefined
