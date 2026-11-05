@@ -146,7 +146,7 @@ jobs:
           eas-version: 21.4.0
           packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
-      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.1.0
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: "temurin"
           java-version: "17"
@@ -241,6 +241,7 @@ jobs:
         run: >-
           node --test
           scripts/ci-change-plan.test.mjs
+          scripts/setup-java-smoke-contract.test.mjs
           scripts/group-buy-request-contract.test.mjs
           scripts/opening-reminder-contract.test.mjs
           scripts/preview-release-contract.test.mjs
@@ -931,7 +932,7 @@ jobs:
           eas-version: 21.4.0
           packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
-      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.1.0
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: "temurin"
           java-version: "17"
