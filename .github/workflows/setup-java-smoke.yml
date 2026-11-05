@@ -1,0 +1,77 @@
+name: Java toolchain smoke
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/mobile-ios-e2e.yml"
+      - ".github/workflows/setup-java-smoke.yml"
+      - "scripts/setup-java-smoke-contract.test.mjs"
+
+# Public-repository standard runners are free. Do not add paid runner labels,
+# deployment environments, credentials, caches, or uploaded artifacts here.
+permissions: {}
+
+concurrency:
+  group: setup-java-smoke-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  java-toolchain:
+    name: Java 17 (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, macos-15]
+    steps:
+      # No checkout is needed: execute only the pinned official action and a
+      # self-contained compiler/runtime probe, never application code.
+      - name: Set up the candidate Temurin JDK
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache-jdk: false
+          token: ""
+      - name: Compile and run with the selected JDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x "$JAVA_HOME/bin/java"
+          test -x "$JAVA_HOME/bin/javac"
+          test "$(command -v javac)" -ef "$JAVA_HOME/bin/javac"
+          java -version
+          javac_version="$(javac -version 2>&1)"
+          echo "$javac_version"
+          case "$javac_version" in
+            'javac 17'|'javac 17.'*) ;;
+            *) echo "Unexpected compiler: $javac_version" >&2; exit 1 ;;
+          esac
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
+          cat > "$workdir/SetupJavaSmoke.java" <<'JAVA'
+          import java.nio.file.Path;
+
+          public class SetupJavaSmoke {
+            public static void main(String[] args) throws Exception {
+              if (!"17".equals(System.getProperty("java.specification.version"))) {
+                throw new AssertionError("Expected Java 17");
+              }
+              if (!"Eclipse Adoptium".equals(System.getProperty("java.vendor"))) {
+                throw new AssertionError("Expected the Temurin distribution");
+              }
+              Path expected = Path.of(System.getenv("JAVA_HOME")).toRealPath();
+              Path actual = Path.of(System.getProperty("java.home")).toRealPath();
+              if (!expected.equals(actual)) {
+                throw new AssertionError("PATH and JAVA_HOME select different JDKs");
+              }
+              System.out.println("Temurin " + Runtime.version() + " compiler/runtime smoke passed");
+            }
+          }
+          JAVA
+          javac --release 17 -d "$workdir" "$workdir/SetupJavaSmoke.java"
+          java -cp "$workdir" SetupJavaSmoke
